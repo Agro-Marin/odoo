@@ -6,6 +6,7 @@ import threading
 import time
 import warnings
 from datetime import UTC, datetime
+from decimal import Decimal
 from functools import partial
 from unittest.mock import MagicMock, patch
 
@@ -18,6 +19,7 @@ from odoo.db import db_connect
 from odoo.db import utils as _db_utils
 from odoo.db.cursor import (
     Cursor,
+    _find_value_markers,
     _FlushingSavepoint,
     _id_sequence_cache,
     _inline_ddl_params,
@@ -2659,3 +2661,181 @@ class TestInlineDdlParams(BaseCase):
         self.assertEqual(
             _inline_ddl_params("(%s, %s, %s)", (1, 2, 3), None), "(1, 2, 3)"
         )
+
+
+class TestFindValueMarkers(BaseCase):
+    """_find_value_markers locates real ``%s`` placeholders and skips ``%%``
+    escapes — the escape-aware scan that execute_values and _inline_ddl_params
+    both rely on.  A naive str.count/replace would mis-handle ``%%s``.
+    """
+
+    def test_basic_and_escapes(self):
+        self.assertEqual(_find_value_markers("%s and %s"), [0, 7])
+        # %% is a literal percent, not a marker
+        self.assertEqual(_find_value_markers("LIKE 'a%%s'"), [])
+        # the space at index 11 means the second marker starts at 12, not 11
+        self.assertEqual(_find_value_markers("x %s y %% z %s"), [2, 12])
+        self.assertEqual(_find_value_markers("%%"), [])
+        self.assertEqual(_find_value_markers("ends %s"), [5])
+
+
+class TestAdapterIsolationPerConnection(BaseCase):
+    """The numeric->float loader is registered per-connection (in the pool's
+    configure callback), NOT on the process-global ``psycopg.adapters``.  So a
+    pooled Odoo cursor decodes numeric as float, while a raw psycopg connection
+    that bypassed the pool decodes it as Decimal.  Locks the fix that stops the
+    db package from mutating global psycopg state merely by being imported.
+    """
+
+    def test_pooled_cursor_decodes_numeric_as_float(self):
+        with registry().cursor() as cr:
+            cr.execute("SELECT 1.5::numeric")
+            self.assertIsInstance(cr.fetchone()[0], float)
+
+    def test_raw_connection_decodes_numeric_as_decimal(self):
+        # Built directly, not via the pool's configure callback -> must NOT
+        # inherit Odoo's float loader, proving there is no global side effect.
+        _, info = connection_info_for(common.get_db_name())
+        conn = psycopg.connect(**info)
+        try:
+            self.assertIsInstance(
+                conn.execute("SELECT 1.5::numeric").fetchone()[0], Decimal
+            )
+        finally:
+            conn.close()
+
+
+class TestPoolMinconn(BaseCase):
+    """db_minconn warms connections per per-DSN pool; it defaults to 0 (lazy
+    open, multi-tenant friendly) and is validated against maxconn so the pool
+    can never be told to keep more connections warm than it can hand out.
+    """
+
+    def test_default_minconn_is_zero(self):
+        pool = ConnectionPool(maxconn=4)
+        try:
+            self.assertEqual(pool._minconn, 0)
+        finally:
+            pool.close_all()
+
+    def test_minconn_stored(self):
+        pool = ConnectionPool(maxconn=4, minconn=2)
+        try:
+            self.assertEqual(pool._minconn, 2)
+        finally:
+            pool.close_all()
+
+    def test_minconn_exceeding_maxconn_raises(self):
+        with self.assertRaises(ValueError):
+            ConnectionPool(maxconn=4, minconn=5)
+
+    def test_negative_minconn_raises(self):
+        with self.assertRaises(ValueError):
+            ConnectionPool(maxconn=4, minconn=-1)
+
+
+class TestCopyFromMetricsQueryLazy(BaseCase):
+    """copy_from renders the COPY statement to text for metrics ONLY when a
+    thread query hook will consume it; otherwise it passes ``query=None`` to
+    skip a wasted SQL render on every bulk insert (copy_from is a hot path).
+    """
+
+    def test_no_hook_passes_none(self):
+        captured = {}
+        orig = Cursor._record_metrics
+
+        def spy(self, delay, count=1, *, query=None, params=None, start=0.0):
+            captured["query"] = query
+            return orig(self, delay, count, query=query, params=params, start=start)
+
+        with patch.object(Cursor, "_record_metrics", spy):
+            with registry().cursor() as cr:
+                cr.execute("CREATE TEMP TABLE _t_metrics_nh (a int)")
+                cr.copy_from("_t_metrics_nh", ["a"], [(1,), (2,)])
+        self.assertIsNone(captured["query"])
+
+    def test_hook_receives_rendered_copy_statement(self):
+        seen = []
+        t = threading.current_thread()
+        t.query_hooks = [lambda cr, q, p, s, d: seen.append(q)]
+        try:
+            with registry().cursor() as cr:
+                cr.execute("CREATE TEMP TABLE _t_metrics_h (a int)")
+                cr.copy_from("_t_metrics_h", ["a"], [(1,)])
+        finally:
+            del t.query_hooks
+        self.assertTrue(seen)
+        self.assertIsInstance(seen[-1], str)
+        self.assertTrue(seen[-1].startswith("COPY"))
+
+
+class TestCopyFromBinaryNumeric(BaseCase):
+    """Binary COPY into numeric columns: psycopg's binary numeric dumper rejects
+    Python float and requires Decimal, so copy_from converts float->Decimal for
+    numeric columns.  The pre-existing suite exercised only integer columns.
+    """
+
+    def test_binary_copy_float_into_numeric_roundtrips(self):
+        with registry().cursor() as cr:
+            cr.execute(
+                "CREATE TEMP TABLE _t_bin_num (a int, n numeric(12,2), m numeric)"
+            )
+            cr.copy_from(
+                "_t_bin_num",
+                ["a", "n", "m"],
+                [(1, 1234.56, 0.1), (2, -7.0, 99999.999)],
+                binary=True,
+            )
+            cr.execute("SELECT a, n, m FROM _t_bin_num ORDER BY a")
+            rows = cr.fetchall()
+        self.assertEqual(rows[0][0], 1)
+        self.assertAlmostEqual(rows[0][1], 1234.56, places=2)
+        self.assertAlmostEqual(rows[0][2], 0.1, places=6)
+        self.assertAlmostEqual(rows[1][1], -7.0, places=2)
+
+
+class TestCursorForwardingContract(BaseCase):
+    """Lock the cursor's public forwarding surface.  The project runs no static
+    type checker, so the __getattr__ DeprecationWarning is the ONLY signal that
+    a caller reached a non-forwarded psycopg attribute.  Pin the contract: the
+    curated forwards must not warn, and a known non-forwarded attr must.
+    """
+
+    FORWARDED = (
+        "fetchone",
+        "fetchall",
+        "fetchmany",
+        "description",
+        "rowcount",
+        "nextset",
+        "connection",
+        "readonly",
+    )
+
+    def test_forwarded_names_do_not_warn(self):
+        with registry().cursor() as cr:
+            cr.execute("SELECT 1")
+            for name in self.FORWARDED:
+                with warnings.catch_warnings(record=True) as w:
+                    warnings.simplefilter("always")
+                    getattr(cr, name)
+                offenders = [
+                    str(x.message)
+                    for x in w
+                    if issubclass(x.category, DeprecationWarning)
+                    and "Odoo cursor API" in str(x.message)
+                ]
+                self.assertEqual(offenders, [], f"{name} unexpectedly warned")
+
+    def test_non_forwarded_attr_warns(self):
+        with registry().cursor() as cr:
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                _ = cr.row_factory  # real psycopg attr, intentionally not forwarded
+            msgs = [
+                str(x.message)
+                for x in w
+                if issubclass(x.category, DeprecationWarning)
+                and "Odoo cursor API" in str(x.message)
+            ]
+            self.assertEqual(len(msgs), 1, f"expected one warning, got {msgs}")

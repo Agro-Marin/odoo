@@ -25,8 +25,20 @@ class _NumericToFloatLoader(Loader):
         return float(data)
 
 
-# Register adapters globally — all connections inherit via copy-on-write.
-psycopg.adapters.register_loader("numeric", _NumericToFloatLoader)
+def register_adapters(conn: psycopg.Connection) -> None:
+    """Register Odoo's psycopg type adapters on a single connection.
+
+    Scoped per-connection (called from the pool's ``configure`` callback)
+    rather than mutating the process-global ``psycopg.adapters`` at import
+    time.  A module import must not silently change numeric decoding for every
+    psycopg user in the process — a co-resident library, or the obfuscate
+    CLI's raw ``VACUUM`` connection, would otherwise inherit float decoding it
+    never asked for.  Odoo's query connections all come from the pool, so they
+    all get the adapter; nothing else does.
+
+    :param conn: the freshly-created psycopg connection to configure.
+    """
+    conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
 # Query categorization patterns — used only for debug-level logging

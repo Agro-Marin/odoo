@@ -14,6 +14,8 @@ from psycopg_pool import PoolClosed, PoolTimeout
 
 from odoo.release import MIN_PG_VERSION
 
+from .utils import register_adapters
+
 if TYPE_CHECKING:
     from .cursor import Cursor
 
@@ -149,8 +151,10 @@ def _normalize_dsn_key(dsn: dict | str) -> frozenset:
 def _configure_connection(conn: psycopg.Connection) -> None:
     """Configure each new connection created by psycopg_pool.
 
-    Adapters are registered globally at module level in utils.py,
-    so no per-connection registration is needed.
+    Type adapters (numeric→float) are registered here, per-connection, via
+    :func:`utils.register_adapters` — deliberately NOT on the process-global
+    ``psycopg.adapters``, so importing the db package does not change numeric
+    decoding for unrelated psycopg users in the process.
 
     Prepared statement tuning: Odoo's ORM generates the same query
     shapes repeatedly (SELECT with same columns, UPDATE same fields).
@@ -172,6 +176,10 @@ def _configure_connection(conn: psycopg.Connection) -> None:
     never reaches them.  Checking in ``borrow()`` is a local attribute
     read (no round-trip) and fails fast with the real message.
     """
+    # Register Odoo's type adapters on THIS connection (per-connection, not
+    # process-global — see utils.register_adapters for the rationale).
+    register_adapters(conn)
+
     # Prepared statement tuning (PG18-optimized)
     conn.prepare_threshold = 2
     conn.prepared_max = 500
@@ -236,15 +244,26 @@ class ConnectionPool:
         ``close_database``/``close_all``).
     """
 
-    def __init__(self, maxconn: int = 64, readonly: bool = False):
+    def __init__(self, maxconn: int = 64, readonly: bool = False, minconn: int = 0):
         # Reject non-positive budgets loudly — the old max(maxconn, 1)
         # silently turned ``db_maxconn=0`` (or a misconfigured gevent
         # override) into a single-slot pool that wedged the whole server
         # under trivial load.
         if maxconn <= 0:
             raise ValueError(f"ConnectionPool maxconn must be >= 1, got {maxconn}")
+        # minconn warms that many connections PER per-DSN pool eagerly.  0 keeps
+        # the lazy-open default (no idle connections, multi-tenant friendly).
+        # It can never exceed the checkout budget, or the pool would open
+        # connections it can never hand out.
+        if minconn < 0:
+            raise ValueError(f"ConnectionPool minconn must be >= 0, got {minconn}")
+        if minconn > maxconn:
+            raise ValueError(
+                f"ConnectionPool minconn ({minconn}) cannot exceed maxconn ({maxconn})"
+            )
         self._pools: dict[frozenset, _PsycopgPool] = {}
         self._maxconn = maxconn
+        self._minconn = minconn
         self._readonly = readonly
         self._lock = threading.Lock()
         # Per-instance semaphore — gates connections to this pool, not the
@@ -380,7 +399,7 @@ class ConnectionPool:
                 conninfo,
                 connection_class=psycopg.Connection,
                 kwargs=kwargs,
-                min_size=0,
+                min_size=self._minconn,
                 max_size=self._maxconn,
                 max_lifetime=3600,
                 max_idle=MAX_IDLE_TIMEOUT,
