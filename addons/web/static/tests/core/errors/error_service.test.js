@@ -484,9 +484,10 @@ describe("Error Service Logs", () => {
     test("error in handlers while handling an error", async () => {
         // Scenario: an error occurs at the early stage of the "boot" sequence, error handlers
         // that are supposed to spawn dialogs are not ready then and will crash.
-        // We assert that *exactly one* error message is logged, that contains the original error's traceback
-        // and an indication that a handler has crashed just for not loosing information.
-        // The crash of the error handler should merely be seen as a consequence of the early stage at which the error occurs.
+        // Contract: a crashing handler is logged unconditionally in SHORT form (handler name +
+        // its own error + one-line original error) WITHOUT aborting the pipeline, so handlers
+        // registered after it still run; the original traceback is then logged exactly once by
+        // the service's fallback, which also does the preventDefault.
         errorHandlerRegistry.add(
             "__test_handler__",
             (env, err, originalError) => {
@@ -494,15 +495,26 @@ describe("Error Service Logs", () => {
             },
             { sequence: 0 },
         );
-        // We want to assert that the error_service code does the preventDefault.
+        let sawLaterHandler = false;
+        errorHandlerRegistry.add(
+            "__later_handler__",
+            () => {
+                // Must still run despite the crash of __test_handler__.
+                sawLaterHandler = true;
+            },
+            { sequence: 1 },
+        );
         patchWithCleanup(console, {
             error(errorMessage) {
-                expect(errorMessage).toMatch(
-                    new RegExp(
-                        `^@web/core/error_service: handler "__test_handler__" failed with "Error: Boom in handler" while trying to handle:\nError: Genuine Business Boom.*`,
-                    ),
-                );
-                expect.step("error logged");
+                const msg = String(errorMessage);
+                if (msg.startsWith('@web/services/error_service: handler "__test_handler__"')) {
+                    expect(msg).toMatch(
+                        /failed with "Error: Boom in handler" while trying to handle:\nError: Genuine Business Boom/,
+                    );
+                    expect.step("handler crash logged");
+                } else if (msg.includes("Genuine Business Boom")) {
+                    expect.step("traceback logged");
+                }
             },
         });
 
@@ -517,8 +529,10 @@ describe("Error Service Logs", () => {
         errorEvent.filename = "dummy_file.js"; // needed to not be treated as a CORS error
         await errorCb(errorEvent);
         expect(errorEvent.defaultPrevented).toBe(true);
-        expect.verifySteps(["error logged"]);
+        expect(sawLaterHandler).toBe(true);
+        expect.verifySteps(["handler crash logged", "traceback logged"]);
 
+        sawLaterHandler = false;
         errorEvent = new PromiseRejectionEvent("unhandledrejection", {
             promise: null,
             cancelable: true,
@@ -526,6 +540,7 @@ describe("Error Service Logs", () => {
         });
         await unhandledRejectionCb(errorEvent);
         expect(errorEvent.defaultPrevented).toBe(true);
-        expect.verifySteps(["error logged"]);
+        expect(sawLaterHandler).toBe(true);
+        expect.verifySteps(["handler crash logged", "traceback logged"]);
     });
 });

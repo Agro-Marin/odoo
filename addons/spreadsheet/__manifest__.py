@@ -99,5 +99,20 @@
             'spreadsheet/static/src/public_readonly_app/**/*.js',
             ('remove', 'spreadsheet/static/src/public_readonly_app/main.js'),
         ],
-    }
+    },
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'spreadsheet.assets_print',
+            'spreadsheet.o_spreadsheet',
+            'spreadsheet.public_spreadsheet',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'spreadsheet.o_spreadsheet',
+                'spreadsheet.assets_print',
+            ],
+        },
+    },
 }

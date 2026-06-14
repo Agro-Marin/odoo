@@ -80,66 +80,72 @@ export async function splitAndAddDomain(searchModel, domain, groupId) {
 
     searchModel.blockNotification = true;
 
-    let queryItemIndex;
-    if (group) {
-        const firstActiveItem = group.activeItems[0];
-        const firstSearchItem = searchModel.searchItems[firstActiveItem.searchItemId];
-        queryItemIndex = searchModel.query.findIndex(
-            (queryElem) => queryElem.searchItemId === firstActiveItem.searchItemId,
-        );
-        const { type } = firstSearchItem;
-        if (type === "favorite") {
-            const activeItemGroupBys =
-                searchModel._getSearchItemGroupBys(firstActiveItem);
-            let createNewGroupBys = Boolean(activeItemGroupBys.length);
-            if (
-                createNewGroupBys &&
-                searchModel.defaultGroupBy &&
-                searchModel.env.config.viewType === "kanban"
-            ) {
-                const currentGroupBy = searchModel._getGroupBy({
-                    fallbackOnDefault: false,
-                });
+    // The block below is synchronous but can throw (createNewFilters /
+    // createNewGroupBy / query splicing). A try/finally guarantees
+    // blockNotification is reset, so a throw cannot wedge the search model
+    // into a permanently-silent state (no further _notify would ever fire).
+    try {
+        let queryItemIndex;
+        if (group) {
+            const firstActiveItem = group.activeItems[0];
+            const firstSearchItem = searchModel.searchItems[firstActiveItem.searchItemId];
+            queryItemIndex = searchModel.query.findIndex(
+                (queryElem) => queryElem.searchItemId === firstActiveItem.searchItemId,
+            );
+            const { type } = firstSearchItem;
+            if (type === "favorite") {
+                const activeItemGroupBys =
+                    searchModel._getSearchItemGroupBys(firstActiveItem);
+                let createNewGroupBys = Boolean(activeItemGroupBys.length);
                 if (
-                    JSON.stringify(currentGroupBy) ===
-                    JSON.stringify(searchModel.defaultGroupBy)
+                    createNewGroupBys &&
+                    searchModel.defaultGroupBy &&
+                    searchModel.env.config.viewType === "kanban"
                 ) {
-                    createNewGroupBys = false;
-                }
-            }
-            if (createNewGroupBys) {
-                for (const activeItemGroupBy of activeItemGroupBys) {
-                    const [fieldName, interval] = activeItemGroupBy.split(":");
-                    searchModel.createNewGroupBy(fieldName, {
-                        interval,
-                        invisible: true,
+                    const currentGroupBy = searchModel._getGroupBy({
+                        fallbackOnDefault: false,
                     });
+                    if (
+                        JSON.stringify(currentGroupBy) ===
+                        JSON.stringify(searchModel.defaultGroupBy)
+                    ) {
+                        createNewGroupBys = false;
+                    }
                 }
-                const index = searchModel.query.length - activeItemGroupBys.length;
-                searchModel.query = [
-                    ...searchModel.query.slice(index),
-                    ...searchModel.query.slice(0, index),
-                ];
+                if (createNewGroupBys) {
+                    for (const activeItemGroupBy of activeItemGroupBys) {
+                        const [fieldName, interval] = activeItemGroupBy.split(":");
+                        searchModel.createNewGroupBy(fieldName, {
+                            interval,
+                            invisible: true,
+                        });
+                    }
+                    const index = searchModel.query.length - activeItemGroupBys.length;
+                    searchModel.query = [
+                        ...searchModel.query.slice(index),
+                        ...searchModel.query.slice(0, index),
+                    ];
+                }
             }
+            searchModel.deactivateGroup(groupId);
         }
-        searchModel.deactivateGroup(groupId);
-    }
 
-    const queryLength = searchModel.query.length;
-    for (const preFilter of preFilters) {
-        searchModel.createNewFilters([preFilter]);
-    }
-    const queryElems = searchModel.query.slice(queryLength);
+        const queryLength = searchModel.query.length;
+        for (const preFilter of preFilters) {
+            searchModel.createNewFilters([preFilter]);
+        }
+        const queryElems = searchModel.query.slice(queryLength);
 
-    if (queryItemIndex !== undefined) {
-        searchModel.query = [
-            ...searchModel.query.slice(0, queryItemIndex),
-            ...queryElems,
-            ...searchModel.query.slice(queryItemIndex, queryLength),
-        ];
+        if (queryItemIndex !== undefined) {
+            searchModel.query = [
+                ...searchModel.query.slice(0, queryItemIndex),
+                ...queryElems,
+                ...searchModel.query.slice(queryItemIndex, queryLength),
+            ];
+        }
+    } finally {
+        searchModel.blockNotification = false;
     }
-
-    searchModel.blockNotification = false;
 
     searchModel._notify();
 }

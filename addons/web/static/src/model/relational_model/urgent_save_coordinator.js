@@ -142,7 +142,11 @@ export class UrgentSaveCoordinator extends SignalStore {
         const proms = [];
         this._bus?.trigger(ModelEvent.WILL_SAVE_URGENTLY, { proms });
         try {
-            await Promise.all(proms);
+            // Best-effort: a single consumer flush that rejects must not abort
+            // the tab-close save (that would silently drop every other
+            // consumer's already-committed edits). allSettled waits for all
+            // flushes to settle without propagating a rejection.
+            await Promise.allSettled(proms);
             return await fn();
         } finally {
             this._transition("end");

@@ -64,6 +64,19 @@ export const UPDATE_METHODS = [
     "action_unarchive",
 ];
 
+/**
+ * Methods that mutate server state. ``retry``/``dedup`` are hard-rejected for
+ * these: a retried partial mutation could be re-applied server-side, and
+ * deduplication would conflate two distinct caller invocations that happen to
+ * share a payload. Superset of {@link UPDATE_METHODS} (which is scoped to
+ * cache-invalidation consumers and intentionally left untouched).
+ */
+const NON_IDEMPOTENT_METHODS = [
+    ...UPDATE_METHODS,
+    "web_resequence",
+    "name_create",
+];
+
 export class ORM {
     constructor() {
         this.rpc = rpc; // to be overridable by the SampleORM
@@ -147,6 +160,23 @@ export class ORM {
      */
     call(model, method, args = [], kwargs = {}) {
         validateModel(model);
+        if (NON_IDEMPOTENT_METHODS.includes(method)) {
+            // Turn the "never apply to writes" docstring convention into a
+            // hard contract: fail at call time, before anything reaches the
+            // network, instead of after a double-applied mutation.
+            if (this._retry) {
+                throw new Error(
+                    `orm.retry() cannot be applied to mutating method "${method}": ` +
+                        `a retry could re-apply a partially-committed server mutation`,
+                );
+            }
+            if (this._dedup) {
+                throw new Error(
+                    `orm.dedup cannot be applied to mutating method "${method}": ` +
+                        `identical payloads are still distinct invocations for writes`,
+                );
+            }
+        }
         const url = `/web/dataset/call_kw/${model}/${method}`;
         const fullContext = { ...user.context, ...(kwargs.context || {}) };
         const fullKwargs = { ...kwargs, context: fullContext };

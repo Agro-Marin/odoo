@@ -48,9 +48,8 @@ export const errorService = {
         /**
          * Dispatch an uncaught error to all registered error handlers.
          * @param {UncaughtError} uncaughtError
-         * @param {boolean} [retry=true]
          */
-        function handleError(/** @type {any} */ uncaughtError, retry = true) {
+        function handleError(/** @type {any} */ uncaughtError) {
             function shouldLogError() {
                 // Only log errors that are relevant business-wise, following the heuristics:
                 // Error.event and Error.traceback have been assigned
@@ -79,15 +78,17 @@ export const errorService = {
                         break;
                     }
                 } catch (e) {
-                    if (shouldLogError()) {
-                        uncaughtError.event.preventDefault();
-                        console.error(
-                            `@web/core/error_service: handler "${name}" failed with "${
-                                e.cause || e
-                            }" while trying to handle:\n` + uncaughtError.traceback,
-                        );
-                    }
-                    return;
+                    // A crashing handler must neither silence the original
+                    // error nor starve the handlers registered after it. Log
+                    // the handler's own failure unconditionally in short form
+                    // (the original traceback is logged exactly once by the
+                    // fallback below — don't duplicate it here) and move on
+                    // so the remaining handlers still get a chance to run.
+                    console.error(
+                        `@web/services/error_service: handler "${name}" failed with "${
+                            e?.cause || e
+                        }" while trying to handle:\n${uncaughtError.cause || uncaughtError.message}`,
+                    );
                 }
             }
             if (shouldLogError()) {
