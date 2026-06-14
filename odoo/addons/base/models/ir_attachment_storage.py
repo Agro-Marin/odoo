@@ -14,8 +14,17 @@ Formalizes the storage strategy that was previously implicit in scattered
 
 Custom backends subclass :class:`AttachmentStorage` and register with
 ``@register_storage``. The local-filestore I/O primitives stay on the model
-(``_file_read`` / ``_file_write`` / ...): they are an established override
-and test-patch surface, so :class:`FileStorage` delegates down to them.
+(``_file_read`` / ``_file_write`` / ``_full_path`` / ...): they are a stable
+*cross-module API* — other addons call ``attachment._full_path`` /
+``_file_read`` directly (``cloud_storage_migration``, ``l10n_mx_edi_payslip``,
+``l10n_mx_partner_blocklist``) and ~6 test sites patch them — so
+:class:`FileStorage` delegates DOWN to them instead of hosting the I/O itself.
+The dependency direction is always backend -> model primitive, never the
+reverse (no circularity). Relocating the primitives into this class would
+break those consumers; keeping them on the model is a deliberate decision
+(2026-06-10 storage-backend-formalization plan, decisions 1 & 3). A *new*
+backend needs none of them — see ``MemoryStorage`` in the tests, which
+implements the contract self-contained.
 """
 
 import contextlib
