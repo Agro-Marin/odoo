@@ -26,6 +26,7 @@ from . import ir_actions_report
 # --- Storage ---
 from . import ir_attachment_storage
 from . import ir_attachment
+from . import ir_attachment_assets
 from . import ir_binary
 
 # --- Scheduling ---

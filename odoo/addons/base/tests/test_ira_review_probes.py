@@ -23,6 +23,7 @@ Each test locks in one fixed behavior:
 
 import base64
 import hashlib
+import inspect
 import io
 import os
 from pathlib import Path
@@ -35,6 +36,7 @@ from odoo.fields import Domain
 from odoo.tools import Query, mute_logger
 
 from odoo.addons.base.models.ir_attachment import IrAttachment, condition_values
+from odoo.addons.base.models.ir_autovacuum import is_autovacuum
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 
@@ -536,3 +538,111 @@ class TestIrAttachmentReviewFixes(TransactionCaseWithUserDemo):
         )
         att.invalidate_recordset()
         self.assertEqual(att.raw, b"")
+
+    def test_is_xml_like_mimetype_is_precise(self):
+        """The serve-time markup gate matches on subtype, not a substring.
+
+        Pins the fix for the ``"ht" in mimetype`` over-match: every genuinely
+        script-bearing markup type is caught, and no type whose NAME merely
+        contains "ht"/"xml" (e.g. ``text/richtext``, ``rights-management``,
+        ``belightsoft.lhzd+zip``, ``silverlight``, the Office OpenXML zip
+        containers) is misclassified.
+        """
+        Att = self.Attachment
+        for mt in (
+            "text/html",
+            "application/xhtml+xml",
+            "image/svg+xml",
+            "text/xml",
+            "application/xml",
+            "application/hta",
+            "application/rss+xml",
+            "application/mathml+xml",
+        ):
+            self.assertTrue(Att._is_xml_like_mimetype(mt), f"{mt} must be neutralized")
+        for mt in (
+            "text/richtext",
+            "application/vnd.ibm.rights-management",
+            "application/vnd.belightsoft.lhzd+zip",
+            "application/x-silverlight",
+            "application/x-httpd-php",
+            "audio/x-aac",
+            "image/png",
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ):
+            self.assertFalse(Att._is_xml_like_mimetype(mt), f"{mt} must be preserved")
+
+    def test_check_contents_neutralizes_only_real_markup(self):
+        """For an untrusted uploader, markup is forced to text/plain but a
+        coincidentally "ht"/"xml"-named binary keeps its mimetype.
+        """
+        demo = self.Attachment.with_user(self.user_demo)
+        # demo cannot author views, so the neutralization branch is active
+        self.assertFalse(
+            self.env["ir.ui.view"].with_user(self.user_demo).has_access("write")
+        )
+        for mt in ("text/html", "image/svg+xml", "application/xml"):
+            out = demo._check_contents({"mimetype": mt, "raw": b"<x/>"})
+            self.assertEqual(out["mimetype"], "text/plain", mt)
+        # the previously misclassified types must now survive untouched
+        for mt in (
+            "text/richtext",
+            "application/vnd.belightsoft.lhzd+zip",
+            "application/vnd.ibm.rights-management",
+        ):
+            out = demo._check_contents({"mimetype": mt, "raw": b"PK\x03\x04data"})
+            self.assertEqual(out["mimetype"], mt, mt)
+
+    def test_unreadable_filestore_content_is_observable(self):
+        """A missing/unreadable referenced file is logged (not silently empty).
+
+        A store key is only ever set for non-empty content, so an empty read
+        signals a filestore fault; ``_compute_raw`` must surface it at ERROR
+        with the record identity while still degrading to b"" for the reader.
+        """
+        payload = b"a2-observable-" + os.urandom(48)
+        att = self.Attachment.create(
+            {"name": "a2.bin", "raw": payload, "mimetype": "application/octet-stream"}
+        )
+        self.assertTrue(att.store_fname)
+        Path(att._full_path(att.store_fname)).unlink()
+        att.invalidate_recordset()
+
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_attachment", level="ERROR"
+        ) as captured:
+            self.assertEqual(att.raw, b"", "reader still degrades to empty bytes")
+        self.assertTrue(
+            any(
+                "Unreadable filestore content" in line and str(att.id) in line
+                for line in captured.output
+            ),
+            f"expected an ERROR naming attachment {att.id}, got {captured.output}",
+        )
+        # metadata is untouched: the row still describes its (now missing) content
+        self.assertEqual(att.file_size, len(payload))
+
+    def test_esm_lifecycle_methods_survive_module_split(self):
+        """The ESM/asset lifecycle moved to ir_attachment_assets.py via a
+        same-module ``_inherit`` extension. It must remain part of the
+        ir.attachment model — methods resolvable and, crucially, the
+        ``@api.autovacuum`` registration of ``_gc_esm_assets`` preserved
+        (autovacuum is collected by walking the composed model MRO).
+        """
+        Att = self.Attachment
+        self.assertTrue(callable(Att._esm_asset_domain))
+        self.assertTrue(callable(Att._gc_esm_assets))
+        self.assertTrue(callable(Att.regenerate_assets_bundles))
+        self.assertEqual(Att._ESM_GC_GRACE_DAYS, 7)
+        # _esm_asset_domain still produces the /web/assets/ identity domain
+        self.assertIn(("url", "=like", "/web/assets/%"), list(Att._esm_asset_domain()))
+
+        autovacuums = {
+            name for name, _f in inspect.getmembers(type(Att), is_autovacuum)
+        }
+        # moved into the extension file...
+        self.assertIn("_gc_esm_assets", autovacuums)
+        # ...while these stayed in the core file and must also still register
+        self.assertIn("_audit_url_attachments", autovacuums)
+        self.assertIn("_gc_file_store", autovacuums)
