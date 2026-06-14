@@ -1165,11 +1165,17 @@ class Cursor(BaseCursor):
                     row_count,
                 )
 
-        self._record_metrics(
-            delay,
-            query=copy_stmt.as_string(self._obj),
-            start=start,
+        # Render copy_stmt to text only when a profiler query hook will read it.
+        # copy_from is a hot path (imports, module installs); building the SQL
+        # string unconditionally wasted a full render on every bulk insert in
+        # the common no-hook case.  _record_metrics only forwards `query` to
+        # thread query_hooks, so None is harmless when none are installed.
+        metrics_query = (
+            copy_stmt.as_string(self._obj)
+            if getattr(self._thread, "query_hooks", None)
+            else None
         )
+        self._record_metrics(delay, query=metrics_query, start=start)
 
         if _logger.isEnabledFor(logging.DEBUG):
             stat_count, stat_time = self.sql_into_log.get(table, (0, 0))

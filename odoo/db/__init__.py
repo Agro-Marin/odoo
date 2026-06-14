@@ -18,6 +18,7 @@ Usage:
         rows = cr.fetchall()
 """
 
+import atexit
 import logging
 import threading
 
@@ -79,7 +80,11 @@ def _get_pool(readonly: bool) -> ConnectionPool:
                     if hasattr(odoo, "evented") and odoo.evented
                     else 0
                 ) or tools.config["db_maxconn"]
-                pool = ConnectionPool(int(maxconn), readonly=readonly)
+                # Lazy by default (0); raise db_minconn to keep connections warm.
+                minconn = tools.config.get("db_minconn", 0) or 0
+                pool = ConnectionPool(
+                    int(maxconn), readonly=readonly, minconn=int(minconn)
+                )
                 if readonly:
                     _Pool_readonly = pool
                 else:
@@ -134,6 +139,19 @@ def close_all() -> None:
         _Pool.close_all()
     if _Pool_readonly:
         _Pool_readonly.close_all()
+
+
+# Close pools before interpreter finalization.  The server's own shutdown
+# paths call close_all() explicitly; this atexit handler covers the rest —
+# CLI commands, scripts, and error exits — that would otherwise leave pools
+# open.  Under Python 3.14 an open psycopg_pool's __del__ runs during
+# finalization and raises ``PythonFinalizationError: cannot join thread at
+# interpreter shutdown`` (worker threads can no longer be joined that late);
+# atexit runs BEFORE finalization, so close()'s thread joins still succeed.
+# Idempotent: re-running on an already-closed/empty pool set is a no-op.
+# Note: forked workers exit via os._exit(), which bypasses atexit by design —
+# they rely on the OS to reclaim their connections.
+atexit.register(close_all)
 
 
 def drain_db(db_name: str) -> None:
