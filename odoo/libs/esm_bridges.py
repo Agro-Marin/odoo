@@ -343,11 +343,12 @@ class BridgeShimManager:
         ext_seen: set[str] = set()
         for asset in modules:
             # Single pass over each module's source: _IMPORT_ANY_RE matches the
-            # named / default / namespace import shapes in one finditer (was
-            # three separate full-source scans). The kind is read from whichever
-            # named group matched.
+            # named / default / namespace / bindingless-side-effect import shapes
+            # in one finditer (was three separate full-source scans). The kind is
+            # read from whichever named group matched; ``spec`` (binding+from)
+            # and ``side`` (side-effect) are mutually exclusive per match.
             for match in _IMPORT_ANY_RE.finditer(asset.raw_content):
-                specifier = match.group("spec")
+                specifier = match.group("spec") or match.group("side")
                 if specifier in ext_lib_names:
                     ext_seen.add(specifier)
                     continue
@@ -357,7 +358,13 @@ class BridgeShimManager:
                     discovered.setdefault(specifier, set()).add("__default__")
                 elif match.group("star") is not None:
                     discovered.setdefault(specifier, set()).add("__star__")
-                else:  # named import — registers the specifier with no kind
+                else:
+                    # Named import OR bindingless side-effect import: register
+                    # the specifier with no kind. For a side-effect import the
+                    # shim still reads the source file's export surface, and the
+                    # side effect itself already ran in the parent bundle, so an
+                    # import-map entry to a valid (even export-only) shim is all
+                    # the child needs to resolve the specifier.
                     discovered.setdefault(specifier, set())
         return discovered, ext_seen
 
