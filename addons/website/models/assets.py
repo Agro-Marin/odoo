@@ -2,13 +2,13 @@
 
 import base64
 import re
-import requests
-
 from urllib.parse import urlsplit
 
+import requests
+
 from odoo import api, models
+from odoo.libs.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools import misc
-from odoo.addons.base.models.assetsbundle import EXTENSIONS
 
 _match_asset_file_url_regex = re.compile(r"^(/_custom/([^/]+))?/(\w+)/([/\w]+\.\w+)$")
 
@@ -71,7 +71,7 @@ class WebsiteAssets(models.AbstractModel):
             new_attach = {
                 'name': url.split("/")[-1],
                 'type': "binary",
-                'mimetype': (file_type == 'js' and 'text/javascript' or 'text/scss'),
+                'mimetype': ((file_type == 'js' and 'text/javascript') or 'text/scss'),
                 'datas': datas,
                 'url': custom_url,
                 **self._add_website_id({}),
@@ -130,7 +130,7 @@ class WebsiteAssets(models.AbstractModel):
                 attachment = self._get_custom_attachment(url)
             else:
                 attachment = custom_attachments.filtered(lambda r: r.url == url)
-            return attachment and base64.b64decode(attachment.datas) or False
+            return (attachment and base64.b64decode(attachment.datas)) or False
 
         # If the file is not yet customized, the content is found by reading
         # the local file

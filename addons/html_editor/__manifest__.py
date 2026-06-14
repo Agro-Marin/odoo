@@ -122,5 +122,25 @@ This addon provides an extensible, maintainable editor.
             'web/static/lib/prismjs/themes/okaida.css',
         ]
     },
-    'license': 'LGPL-3'
+    'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'html_editor._assets_editor',
+            'html_editor.assets_history_diff',
+            'html_editor.assets_image_cropper',
+            'html_editor.assets_link_popover',
+            'html_editor.assets_media_dialog',
+            'html_editor.assets_prism',
+            'html_editor.assets_prism_dark',
+            'html_editor.assets_readonly',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'html_editor.assets_history_diff',
+                'html_editor.assets_image_cropper',
+            ],
+        },
+    },
 }

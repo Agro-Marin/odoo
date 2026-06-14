@@ -36,4 +36,11 @@ Allows users to send documents by post
     },
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'snailmail.report_assets_snailmail',
+        ],
+    },
 }

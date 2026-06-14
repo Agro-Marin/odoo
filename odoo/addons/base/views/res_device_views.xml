@@ -1,29 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="res_device_view_form" model="ir.ui.view">
-        <field name="name">res.device.form</field>
-        <field name="model">res.device</field>
-        <field name="arch" type="xml">
-            <form>
-                <group>
-                    <group>
-                        <field name="user_id" />
-                        <field name="display_name" string="Name" />
-                        <field name="ip_address" string="Last IP Address" />
-                    </group>
-                    <group>
-                        <field name="first_activity" />
-                        <field name="last_activity" />
-                    </group>
-                    <group>
-                        <field name="linked_ip_addresses" />
-                    </group>
-                </group>
-            </form>
-        </field>
-    </record>
-
     <record id="res_device_view_tree" model="ir.ui.view">
         <field name="name">res.device.list</field>
         <field name="model">res.device</field>
@@ -78,6 +55,29 @@
                     </t>
                 </templates>
             </kanban>
+        </field>
+    </record>
+
+    <record id="res_device_view_form" model="ir.ui.view">
+        <field name="name">res.device.form</field>
+        <field name="model">res.device</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <group>
+                        <field name="user_id" />
+                        <field name="display_name" string="Name" />
+                        <field name="ip_address" string="Last IP Address" />
+                    </group>
+                    <group>
+                        <field name="first_activity" />
+                        <field name="last_activity" />
+                    </group>
+                    <group>
+                        <field name="linked_ip_addresses" />
+                    </group>
+                </group>
+            </form>
         </field>
     </record>
 

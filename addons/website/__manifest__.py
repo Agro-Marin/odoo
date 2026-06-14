@@ -507,4 +507,21 @@
     },
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'website.assets_all_wysiwyg',
+            'website.assets_editor',
+            'website.assets_inside_builder_iframe',
+            'website.assets_wysiwyg',
+            'website.website_builder_assets',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'website.assets_inside_builder_iframe',
+                'website.website_builder_assets',
+            ],
+        },
+    },
 }

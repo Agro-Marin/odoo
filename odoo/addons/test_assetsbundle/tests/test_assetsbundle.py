@@ -20,6 +20,7 @@ from odoo.tools.misc import file_path
 
 from odoo.addons.base.models.assetsbundle import (
     ANY_UNIQUE,
+    AssetAttachmentStore,
     AssetsBundle,
     JavascriptAsset,
     XMLAssetError,
@@ -828,6 +829,87 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
         self.assertNotIn("secret", out, "the local @import must be stripped")
 
+    def test_stylesheet_url_rewrite_is_os_independent(self):
+        r"""``StylesheetAsset`` rewrites ``@import``/``url(...)`` with posix
+        semantics regardless of the host OS path flavour.
+
+        Regression: ``web_dir`` used ``str(Path(self.url).parent)``. ``Path``
+        is ``WindowsPath`` on Windows, so ``.parent`` yields backslashes; those
+        were spliced into a regex replacement TEMPLATE (``rf"@import \1{web_dir}/"``)
+        where ``\web`` reparses as the invalid escape ``\w`` and raises
+        ``re.PatternError`` — a hard crash that escapes the ``except AssetError``
+        handler. ``self.url`` is always a forward-slash web path, so the rewrite
+        must use ``posixpath`` and a function replacement.
+
+        Forcing the module ``Path`` to ``PureWindowsPath`` reproduces the
+        Windows path flavour on a Linux CI: with the posix fix it is inert; a
+        revert to ``Path``-based URL math makes this test crash or emit
+        backslashes again.
+        """
+        from odoo.addons.base.models import assetsbundle
+        from odoo.addons.base.models.assetsbundle import StylesheetAsset, WebAsset
+
+        bundle = self._get_asset(self.cssbundle_name)
+        sample = (
+            '@import "theme.css";\n'
+            ".a { background: url(images/logo.png); }\n"
+            ".b { background: url(../img/sprite.png); }\n"
+        )
+        asset = StylesheetAsset(bundle, url="/web/static/src/css/foo.css")
+
+        # Stub the base file/DB read so only the rewrite logic runs, and force
+        # the Windows path flavour so a Path-based regression would resurface.
+        with (
+            patch.object(WebAsset, "_fetch_content", lambda self: sample),
+            patch.object(assetsbundle, "Path", pathlib.PureWindowsPath),
+        ):
+            out = asset._fetch_content()
+
+        self.assertNotIn("\\", out, "rewritten URLs must never contain backslashes")
+        self.assertIn(
+            '@import "/web/static/src/css/theme.css"',
+            out,
+            "relative @import must be prefixed with the asset's posix dir",
+        )
+        self.assertIn(
+            "url(/web/static/src/css/images/logo.png)",
+            out,
+            "relative url() must be prefixed with the asset's posix dir",
+        )
+        self.assertIn(
+            "url(/web/static/src/img/sprite.png)",
+            out,
+            "a ../ in url() must collapse against the posix dir",
+        )
+
+    def test_rtlcss_binary_resolution_shared_between_probe_and_run(self):
+        """The rtlcss probe and invocation resolve the SAME executable.
+
+        Regression: ``_check_rtlcss`` probed plain ``rtlcss`` while ``run_rtlcss``
+        resolved ``rtlcss.cmd`` on Windows. The probe therefore failed on Windows
+        and disabled RTL even when the npm ``.cmd`` shim was installed and usable.
+        Both now route through ``_rtlcss_bin``.
+        """
+        from odoo.addons.base.models import assetsbundle
+
+        # ``_rtlcss_bin`` is @functools.cache'd; clear it around each scenario so
+        # a patched result never leaks into other tests' real rtlcss runs.
+        self.addCleanup(assetsbundle._rtlcss_bin.cache_clear)
+
+        assetsbundle._rtlcss_bin.cache_clear()
+        with (
+            patch.object(assetsbundle.os, "name", "nt"),
+            patch.object(
+                assetsbundle.misc, "find_in_path", return_value="C:/npm/rtlcss.cmd"
+            ) as find,
+        ):
+            self.assertEqual(assetsbundle._rtlcss_bin(), "C:/npm/rtlcss.cmd")
+            find.assert_called_once_with("rtlcss.cmd")
+
+        assetsbundle._rtlcss_bin.cache_clear()
+        with patch.object(assetsbundle.os, "name", "posix"):
+            self.assertEqual(assetsbundle._rtlcss_bin(), "rtlcss")
+
     def test_js_header_line_count(self):
         """The verbose JS header emits exactly ``_HEADER_LINE_COUNT`` lines
         before the body.
@@ -851,7 +933,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         single build; its parsed surface must be memoized, not recomputed on
         every visit. ``assertIs`` is true only when the result is cached.
         """
-        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+        from odoo.libs.esm_graph import _BridgeExportResolver
 
         resolver = _BridgeExportResolver({}, {}, "test_bundle")
         # Seed the disk-read cache so source_exports resolves without I/O.
@@ -1315,9 +1397,12 @@ class TestXMLAssetsBundle(FileTouchable):
 
             # there shouldn't be raise a ValueError, there should a parsing_error template with
             # the error message.
+            # ``AssetNotFoundError`` reaches the XML error path unwrapped, so
+            # the message is the precise "Could not find" — not the generic
+            # "Could not get content for" re-wrap it used to degrade into.
             with self.assertRaisesRegex(
                 XMLAssetError,
-                "Could not get content for test_assetsbundle/static/invalid_src/xml/file_not_found.xml.",
+                "Could not find test_assetsbundle/static/invalid_src/xml/file_not_found.xml",
             ):
                 self.bundle.xml()
 
@@ -1398,9 +1483,12 @@ class TestAssetsBundleWithIRAMock(FileTouchable):
         self.stylebundle_name = "test_assetsbundle.bundle3"
         self.counter = counter = Counter()
 
-        # patch methods 'create' and 'unlink' of model 'ir.attachment'
+        # patch methods 'create' and 'unlink' of model 'ir.attachment'.
+        # ``_unlink_attachments`` moved to AssetAttachmentStore; ``save_attachment``
+        # (also on the store) calls it on the store instance, so patch it there —
+        # patching the AssetsBundle delegator would not intercept that internal call.
         origin_create = IrAttachment.create
-        origin_unlink = AssetsBundle._unlink_attachments
+        origin_unlink = AssetAttachmentStore._unlink_attachments
 
         @api.model_create_multi
         def create(self, vals_list):
@@ -1412,7 +1500,7 @@ class TestAssetsBundleWithIRAMock(FileTouchable):
             return origin_unlink(self, attachments)
 
         self.patch(IrAttachment, "create", create)
-        self.patch(AssetsBundle, "_unlink_attachments", unlink)
+        self.patch(AssetAttachmentStore, "_unlink_attachments", unlink)
 
     def _get_asset(self, debug_assets=True):
         with patch.object(
@@ -2175,6 +2263,20 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertRegex(
             content, r"\.appearance-none-prefixed\{-webkit-appearance:none\}"
         )
+        # Regression: ``!important`` must be replicated onto the prefixed copies
+        # (previously dropped, so a WebKit form-control reset lost its weight).
+        self.assertRegex(
+            content,
+            r"\.appearance-none-important\{-webkit-appearance:none !important;"
+            r"-moz-appearance:none !important;appearance:none !important\}",
+        )
+        # Regression: a hyphenated value must reach the prefixed copies intact
+        # (``\w+`` truncated ``menulist-button`` to ``menulist``).
+        self.assertRegex(
+            content,
+            r"\.appearance-menulist-button\{-webkit-appearance:menulist-button;"
+            r"-moz-appearance:menulist-button;appearance:menulist-button\}",
+        )
 
         # Flex properties are not vendor-prefixed (autoprefix_css only handles appearance)
         self.assertRegex(content, r"\.display-flex\{display:flex\}")
@@ -2212,6 +2314,32 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertRegex(content, r"\.flex-1-1-100percent\{flex:1 1 100%\}")
         self.assertRegex(content, r"\.flex-auto\{flex:auto\}")
         self.assertRegex(content, r"\.flex-1-30px\{flex:1 30px\}")
+
+    def test_20bis_css_loud_comment_not_mistaken_for_split_marker(self):
+        """A bare ``/*! <hex> */`` loud comment must not alias the per-file
+        split marker.
+
+        Dart Sass preserves loud comments verbatim, so a source comment whose
+        body is a single hex token (e.g. a build-hash stamp) reaches
+        ``rx_css_split`` looking exactly like a fragment boundary.  Before the
+        marker was namespaced (``odoo-split:``) this raised RuntimeError and
+        took the entire bundle's CSS compile down; now the comment is left as
+        inert content.
+        """
+        self.env["ir.asset"].create(
+            {
+                "name": "1",
+                "bundle": "test_assetsbundle.irasset_split",
+                "path": "test_assetsbundle/static/src/scss/test_split_marker.scss",
+            }
+        )
+        bundle = self.env["ir.qweb"]._get_asset_bundle(
+            "test_assetsbundle.irasset_split", js=False
+        )
+        # Must not raise; the rule compiles and the inert hex comment survives.
+        content = bundle.css().raw.decode()
+        self.assertRegex(content, r"\.split-marker-regression\{color:red\}")
+        self.assertIn("/*! a1b2c3d */", content)
 
     def test_21_js_before_css(self):
         """Non existing target node: ignore the manifest line"""
@@ -2583,7 +2711,7 @@ class TestAssetsManifest(AddonManifestPatched):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             attach = bundle.js()
             self.assertIn(
-                b"Could not get content for /test_assetsbundle/../../tests/dummy.js",
+                b"Could not find /test_assetsbundle/../../tests/dummy.js",
                 attach.exists().raw,
             )
 
@@ -2816,23 +2944,26 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
 
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        # link + native-data + native-nodes: the ESM build-caching change
+        # added _get_native_module_nodes_cached as a third assets entry
+        # per (bundle, assets_params).
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="tests")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="1")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)
 
         # in debug=assets, the ormcache is not used for _generate_asset_links_cache
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="assets")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)
 
     def test_assets_node_orm_cache_usage_file_type(self):
         self.env.registry.clear_cache("assets")
@@ -2844,19 +2975,19 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=True, css=False)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)  # link(js) + native-data + native-nodes
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=False, css=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)  # link(js) + native + link(css)
+        self.assertEqual(len(qweb_keys), 4)  # + link(css); css-only skips native caches
 
         # NOTE: this result is not really desired but this is the current behaviour. In practice, we usually only generate one of them.
         # This could be enforced or avoided
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=True, css=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 4)  # + link(js+css)
+        self.assertEqual(len(qweb_keys), 5)  # + link(js+css)
 
     def test_assets_node_orm_cache_usage_lang(self):
         self.env.registry.clear_cache("assets")
@@ -2873,21 +3004,23 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)  # link + native-data + native-nodes
 
         self.env["ir.qweb"].with_context(lang="en_US")._get_asset_nodes(
             "web.assets_backend"
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"].with_context(lang="ar_SY")._get_asset_nodes(
             "web.assets_backend"
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)  # a second link cache entry for rtl + one native data entry
+        # + a second link entry for rtl; the native caches are shared
+        # (lang is not part of their key)
+        self.assertEqual(len(qweb_keys), 4)
 
     def test_assets_node_orm_cache_usage_website(self):
         if self.env["ir.module.module"].search(
@@ -2905,7 +3038,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)  # link + native-data + native-nodes
 
         self.env["ir.qweb"].with_context(website_id=1)._get_asset_nodes(
             "web.assets_backend"
@@ -2914,7 +3047,8 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.assertEqual(
             len(asset_keys), 2
         )  # the content may be different for different websites, even if it is not always the case
-        self.assertEqual(len(qweb_keys), 4)  # 2 link + 2 native (different assets_params per website)
+        # 2 link + 2 native-data + 2 native-nodes (assets_params per website)
+        self.assertEqual(len(qweb_keys), 6)
 
     def test_assets_node_orm_cache_usage_node_flags(self):
         self.env.registry.clear_cache("assets")
@@ -2926,24 +3060,24 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)  # link + native-data + native-nodes
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", media="print")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1, "media shouldn't create another entry")
-        self.assertEqual(len(qweb_keys), 2, "media shouldn't create another entry")
+        self.assertEqual(len(qweb_keys), 3, "media shouldn't create another entry")
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", defer_load=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(
             len(asset_keys), 1, "defer_load shouldn't create another entry"
         )
-        self.assertEqual(len(qweb_keys), 2, "defer_load shouldn't create another entry")
+        self.assertEqual(len(qweb_keys), 3, "defer_load shouldn't create another entry")
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", lazy_load=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1, "lazy_load shouldn't create another entry")
-        self.assertEqual(len(qweb_keys), 2, "lazy_load shouldn't create another entry")
+        self.assertEqual(len(qweb_keys), 3, "lazy_load shouldn't create another entry")
 
 
 @tagged("-at_install", "post_install")

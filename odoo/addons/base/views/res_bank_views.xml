@@ -1,6 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="res_bank_view_search" model="ir.ui.view">
+        <field name="name">res.bank.view.search</field>
+        <field name="model">res.bank</field>
+        <field name="arch" type="xml">
+            <search string="Search Bank">
+                <field name="name" />
+                <separator />
+                <filter string="Archived" name="inactive"
+                    domain="[('active', '=', False)]" />
+            </search>
+        </field>
+    </record>
+
+    <record id="view_res_bank_tree" model="ir.ui.view">
+        <field name="name">res.bank.list</field>
+        <field name="model">res.bank</field>
+        <field name="arch" type="xml">
+            <list string="Banks">
+                <field name="name" />
+                <field name="bic" />
+                <field name="country" />
+            </list>
+        </field>
+    </record>
+
     <record id="view_res_bank_form" model="ir.ui.view">
         <field name="name">res.bank.form</field>
         <field name="model">res.bank</field>
@@ -40,30 +65,6 @@
         </field>
     </record>
 
-    <record id="view_res_bank_tree" model="ir.ui.view">
-        <field name="name">res.bank.list</field>
-        <field name="model">res.bank</field>
-        <field name="arch" type="xml">
-            <list string="Banks">
-                <field name="name" />
-                <field name="bic" />
-                <field name="country" />
-            </list>
-        </field>
-    </record>
-
-    <record id="res_bank_view_search" model="ir.ui.view">
-        <field name="name">res.bank.view.search</field>
-        <field name="model">res.bank</field>
-        <field name="arch" type="xml">
-            <search string="Search Bank">
-                <field name="name" />
-                <separator />
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]" />
-            </search>
-        </field>
-    </record>
-
     <record id="action_res_bank_form" model="ir.actions.act_window">
         <field name="name">Banks</field>
         <field name="res_model">res.bank</field>
@@ -77,6 +78,39 @@
                 Banks are the financial institutions at which you and your contacts have their
                 accounts.
             </p>
+        </field>
+    </record>
+
+    <record id="view_partner_bank_search" model="ir.ui.view">
+        <field name="name">res.partner.bank.search</field>
+        <field name="model">res.partner.bank</field>
+        <field name="arch" type="xml">
+            <search string="Bank Accounts">
+                <field name="bank_name"
+                    filter_domain="['|', ('bank_name','ilike',self), ('acc_number','ilike',self)]"
+                    string="Bank Name" />
+                <field name="company_id" invisible="context.get('company_hide', True)" />
+                <field name="partner_id" />
+                <separator />
+                <filter name="inactive" string="Archived" domain="[('active','=',False)]"
+                    help="Show inactive bank account" />
+            </search>
+        </field>
+    </record>
+
+    <record id="view_partner_bank_tree" model="ir.ui.view">
+        <field name="name">res.partner.bank.list</field>
+        <field name="model">res.partner.bank</field>
+        <field name="arch" type="xml">
+            <list string="Bank Accounts" multi_edit="1" decoration-muted="(not active)">
+                <field name="sequence" widget="handle" />
+                <field name="acc_number" />
+                <field name="partner_id" optional="hide" />
+                <field name="bank_name" string="Bank" optional="show" />
+                <field name="company_id" groups="base.group_multi_company" optional="hide" />
+                <field name="allow_out_payment" widget="boolean_toggle" optional="show" />
+                <field name="active" widget="boolean_toggle" optional="hide" />
+            </list>
         </field>
     </record>
 
@@ -116,39 +150,6 @@
                         class="btn btn-secondary" />
                 </footer>
             </form>
-        </field>
-    </record>
-
-    <record id="view_partner_bank_tree" model="ir.ui.view">
-        <field name="name">res.partner.bank.list</field>
-        <field name="model">res.partner.bank</field>
-        <field name="arch" type="xml">
-            <list string="Bank Accounts" multi_edit="1" decoration-muted="(not active)">
-                <field name="sequence" widget="handle" />
-                <field name="acc_number" />
-                <field name="partner_id" optional="hide" />
-                <field name="bank_name" string="Bank" optional="show" />
-                <field name="company_id" groups="base.group_multi_company" optional="hide" />
-                <field name="allow_out_payment" widget="boolean_toggle" optional="show" />
-                <field name="active" widget="boolean_toggle" optional="hide" />
-            </list>
-        </field>
-    </record>
-
-    <record id="view_partner_bank_search" model="ir.ui.view">
-        <field name="name">res.partner.bank.search</field>
-        <field name="model">res.partner.bank</field>
-        <field name="arch" type="xml">
-            <search string="Bank Accounts">
-                <field name="bank_name"
-                    filter_domain="['|', ('bank_name','ilike',self), ('acc_number','ilike',self)]"
-                    string="Bank Name" />
-                <field name="company_id" invisible="context.get('company_hide', True)" />
-                <field name="partner_id" />
-                <separator />
-                <filter name="inactive" string="Archived" domain="[('active','=',False)]"
-                    help="Show inactive bank account" />
-            </search>
         </field>
     </record>
 

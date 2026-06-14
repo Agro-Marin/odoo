@@ -320,6 +320,33 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.env["ir.attachment"]._gc_file_store_unsafe()
         self.assertFalse(store_path.is_file(), "file removed")
 
+    def test_gc_prewalked_checklist(self):
+        """GC accepts a checklist scanned before the lock (IRA-P2-3).
+
+        _gc_file_store walks the checklist outside the table lock and passes it
+        in; the collect phase must still drop orphans while sparing files a live
+        row still references (the whitelist query under the lock).
+        """
+        Attachment = self.env["ir.attachment"]
+        orphan = Attachment.create({"name": "orphan", "raw": os.urandom(16)})
+        kept = Attachment.create({"name": "kept", "raw": os.urandom(16)})
+        orphan_fname = orphan.store_fname  # capture before unlink deletes the row
+        kept_fname = kept.store_fname
+        orphan_path = Path(self.filestore, orphan_fname)
+        kept_path = Path(self.filestore, kept_fname)
+
+        orphan.unlink()  # marks the orphan's file for GC
+        Attachment._mark_for_gc(kept_fname)  # also mark a still-referenced file
+        Attachment.flush_recordset(["store_fname"])
+
+        checklist = Attachment._gc_checklist()
+        self.assertIn(orphan_fname, checklist)
+        self.assertIn(kept_fname, checklist)
+
+        Attachment._gc_file_store_unsafe(checklist)  # pre-walked path
+        self.assertFalse(orphan_path.is_file(), "orphan file must be collected")
+        self.assertTrue(kept_path.is_file(), "referenced file must be spared")
+
     def test_14_invalid_mimetype_with_correct_file_extension_no_post_processing(
         self,
     ):
@@ -434,6 +461,215 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             # Attachment was created successfully (content may or may not be resized)
             self.assertTrue(att.id)
 
+    @mute_logger("odoo.addons.base.models.ir_attachment")
+    def test_postprocess_bad_quality(self):
+        """Bad base.image_autoresize_quality must skip, not crash the upload.
+
+        Mirrors test_postprocess_bad_max_resolution for the quality param: an
+        over-bounds JPEG forces the resize+quality path, where int(quality)
+        previously raised ValueError and blocked every such upload (P0-5).
+        """
+        img = Image.new("RGB", (64, 64), color="blue")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        jpeg_data = buf.getvalue()
+
+        self.env["ir.config_parameter"].set_param(
+            "base.image_autoresize_max_px", "10x10"
+        )  # force the resize branch (64 > 10)
+        for bad_val in ("notanint", "", "80%"):
+            self.env["ir.config_parameter"].set_param(
+                "base.image_autoresize_quality", bad_val
+            )
+            att = self.Attachment.create(
+                {"name": "q.jpg", "raw": jpeg_data, "mimetype": "image/jpeg"}
+            )
+            self.assertTrue(att.id, f"upload must survive quality={bad_val!r}")
+
+    @mute_logger("odoo.addons.base.models.ir_attachment")
+    def test_to_http_stream_url_without_request(self):
+        """url-branch of _to_http_stream must not crash with no request bound.
+
+        Reproduces P0-1: cron / server-side report rendering reach this path
+        with an empty request stack, where ``request.httprequest`` raised.
+        """
+        from odoo.http.core import _request_stack
+
+        att = self.Attachment.create(
+            {"name": "u", "type": "binary", "url": "/web/static/does-not-exist.png"}
+        )
+        att.db_datas = False  # ensure the url branch is taken
+        # Sanity-check the precondition: no request is bound in this context.
+        self.assertFalse(_request_stack(), "test must run with no request bound")
+        with patch("odoo.addons.base.models.ir_attachment.root") as mock_root:
+            mock_root.get_static_file.return_value = None
+            stream = att._to_http_stream()
+        self.assertEqual(stream.type, "url")
+        self.assertEqual(stream.url, att.url)
+        # host must degrade to "" rather than dereferencing an unbound proxy
+        self.assertEqual(mock_root.get_static_file.call_args.kwargs.get("host"), "")
+
+    def test_compute_res_name_orphaned_res_id(self):
+        """_compute_res_name degrades to False for an orphaned res_id (P0-6).
+
+        A res_id pointing at a record that does not exist must not raise
+        MissingError and break list views. Note: deleting the target via the
+        ORM would cascade-delete this attachment, so the real-world trigger is
+        an orphaned reference (import, raw-SQL deletion, cross-model leftover) —
+        reproduced here with an id that cannot exist.
+        """
+        att = self.Attachment.create(
+            {
+                "name": "orphan",
+                "raw": b"x",
+                "res_model": "res.partner",
+                "res_id": 2147483646,
+            }
+        )
+        att.invalidate_recordset(["res_name"])
+        # Must not raise; the orphaned target resolves to False.
+        self.assertFalse(att.res_name)
+
+    @mute_logger("odoo.addons.base.models.ir_attachment")
+    def test_migrate_preserves_content_on_empty_read(self):
+        """_migrate must never blank a non-empty file on an empty read (P0-2).
+
+        Simulates a transient _file_read failure (returns b"") during a storage
+        migration and asserts the stored content and store_fname are untouched.
+        """
+        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
+        att = self.Attachment.create({"name": "precious", "raw": b"precious-bytes"})
+        original_fname = att.store_fname
+        original_size = att.file_size
+        self.assertTrue(original_fname)
+
+        IrAttachment = self.registry["ir.attachment"]
+        with patch.object(IrAttachment, "_file_read", return_value=b""):
+            att._migrate()
+
+        att.invalidate_recordset()
+        self.assertEqual(att.store_fname, original_fname, "store_fname must survive")
+        self.assertEqual(att.file_size, original_size, "file_size must survive")
+        self.assertTrue(
+            Path(self.filestore, original_fname).is_file(), "file must survive"
+        )
+
+    def test_migrate_does_not_resize_images(self):
+        """_migrate is a storage move, not a content rewrite (P0-3).
+
+        An image stored larger than the current autoresize limit must keep its
+        exact bytes across a migration — image_no_postprocess guards the write.
+        """
+        img = Image.new("RGB", (64, 64), color="green")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        jpeg_data = buf.getvalue()
+
+        # Upload with resize disabled so the stored image stays 64x64...
+        self.env["ir.config_parameter"].set_param("base.image_autoresize_max_px", "0")
+        att = self.Attachment.create(
+            {"name": "big.jpg", "raw": jpeg_data, "mimetype": "image/jpeg"}
+        )
+        stored = att.raw
+        # ...then drop the limit below the image size and migrate.
+        self.env["ir.config_parameter"].set_param(
+            "base.image_autoresize_max_px", "10x10"
+        )
+        att._migrate()
+        att.invalidate_recordset()
+        self.assertEqual(att.raw, stored, "migration must not mutate image bytes")
+
+    def test_serving_check_on_content_write(self):
+        """Swapping a served binary+url attachment's content re-checks the
+        serving group (IRA-P1-1).
+
+        ``write`` only re-runs ``_check_serving_attachments`` on url/type change,
+        but the *content* is what ir.http._serve_fallback hands out. The check
+        lives in ``_set_attachment_data``, which both content paths reach
+        (``write({'raw': ...})`` and ``record.raw = ...`` via the inverse).
+        """
+        att = self.Attachment.create(
+            {"name": "asset", "type": "binary", "url": "/web/assets/x.js", "raw": b"v1"}
+        )
+        with patch.object(
+            IrAttachment,
+            "_check_serving_attachments",
+            side_effect=IrAttachment._check_serving_attachments,
+            autospec=True,
+        ) as spy:
+            att.write({"raw": b"v2"})  # content-only write — used to skip the check
+            self.assertGreaterEqual(spy.call_count, 1, "write({'raw'}) must re-check")
+            spy.reset_mock()
+            att.raw = b"v3"
+            att.flush_recordset()
+            self.assertGreaterEqual(spy.call_count, 1, "record.raw= must re-check")
+
+    @mute_logger("odoo.addons.base.models.ir_attachment")
+    def test_file_write_atomic_no_poison(self):
+        """A failed _file_write must not poison the content-addressed path (P0-4).
+
+        Previously a crash mid-write left a truncated file at the final path,
+        which then failed every future _same_content check with a spurious
+        collision UserError. tmp-file + atomic replace prevents that.
+        """
+        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
+        payload = b"atomic-write-" + os.urandom(16)
+        checksum = hashlib.sha1(payload, usedforsecurity=False).hexdigest()
+        target = Path(self.filestore, checksum[:2], checksum)
+        checklist = Path(self.filestore, "checklist", checksum[:2], checksum)
+        self.addCleanup(target.unlink, missing_ok=True)
+        self.addCleanup(checklist.unlink, missing_ok=True)
+
+        # Simulate a crash during the atomic rename.
+        with patch("pathlib.Path.replace", side_effect=OSError("simulated crash")):
+            with self.assertRaises(OSError):
+                self.env["ir.attachment"]._file_write(payload, checksum)
+        self.assertFalse(
+            target.exists(), "no truncated file may remain at the real path"
+        )
+        # No orphaned temp file may linger in the shard directory either.
+        self.assertEqual(
+            list(target.parent.glob(f"{checksum}.tmp-*")), [], "temp file cleaned up"
+        )
+
+        # The same content can now be written and round-trips correctly.
+        fname = self.env["ir.attachment"]._file_write(payload, checksum)
+        self.assertEqual(self.env["ir.attachment"]._file_read(fname), payload)
+
+    def test_file_write_single_get_path(self):
+        """A filestore create resolves the path once, not twice (P2-1).
+
+        _get_datas_related_values no longer calls _get_path; only _file_write
+        does. Guards against reintroducing the double mkdir + double full-file
+        collision read.
+        """
+        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
+        unique = b"single-path-" + os.urandom(16)
+        with patch.object(
+            IrAttachment, "_get_path", side_effect=IrAttachment._get_path, autospec=True
+        ) as patched:
+            att = self.Attachment.create({"name": "sp", "raw": unique})
+            self.addCleanup(
+                Path(self.filestore, att.store_fname).unlink, missing_ok=True
+            )
+        self.assertEqual(patched.call_count, 1, "exactly one _get_path per write")
+
+    def test_empty_content_checksum_consistency(self):
+        """Empty content gets the same checksum whether created or written (P0-7).
+
+        _content_checksum's contract is "an empty file has a checksum too (for
+        caching)". The write path honoured it; create used to skip it, leaving an
+        empty attachment with checksum=False and no ETag in _to_http_stream.
+        """
+        empty_sha = hashlib.sha1(b"", usedforsecurity=False).hexdigest()
+        created = self.Attachment.create({"name": "empty", "raw": b""})
+        self.assertEqual(created.checksum, empty_sha, "create must set empty checksum")
+        self.assertEqual(created.file_size, 0)
+        # consistent with the write path producing the same checksum
+        written = self.Attachment.create({"name": "x", "raw": b"data"})
+        written.write({"raw": b""})
+        self.assertEqual(written.checksum, empty_sha, "write path agrees")
+
     def test_audit_url_attachments_warns_on_suspicious(self):
         """``_audit_url_attachments`` must flag non-public binary attachments
         with ``url`` set.
@@ -465,6 +701,37 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(
             any("non-public binary attachment" in msg for msg in logs.output),
             f"expected audit warning, got: {logs.output!r}",
+        )
+
+    def test_audit_url_attachments_warns_once_per_row(self):
+        """A suspicious row is WARNING-reported once, then INFO while it
+        remains unresolved (seen ids persist in ir_attachment.url_audit_seen).
+        """
+        self.Attachment.sudo().create(
+            {
+                "name": "probe-once.bin",
+                "type": "binary",
+                "url": "/suspicious/probe-once",
+                "raw": b"x",
+                "public": False,
+            }
+        )
+        logger_name = "odoo.addons.base.models.ir_attachment"
+        with self.assertLogs(logger_name, level="INFO") as first:
+            self.env["ir.attachment"]._audit_url_attachments()
+        self.assertTrue(
+            any(rec.levelname == "WARNING" for rec in first.records),
+            "first sighting must warn",
+        )
+        with self.assertLogs(logger_name, level="INFO") as second:
+            self.env["ir.attachment"]._audit_url_attachments()
+        self.assertFalse(
+            any(rec.levelname == "WARNING" for rec in second.records),
+            "already-reported rows must not re-warn",
+        )
+        self.assertTrue(
+            any("previously reported" in rec.getMessage() for rec in second.records),
+            "unresolved rows keep an INFO heartbeat",
         )
 
     def test_audit_url_attachments_silent_on_clean_fleet(self):
@@ -618,6 +885,55 @@ class TestPermissions(TransactionCaseWithUserDemo):
         with self.assertRaises(AccessError):
             _ = attachment.datas
 
+    def test_field_read_permission_uses_comodel_acl(self):
+        """The res_field ACL in _check_access must defer to the *comodel's*
+        _has_field_access, not ir.attachment's. A comodel that overrides the
+        method (e.g. res.users self-service fields) would otherwise be
+        bypassed, leaking a field the comodel forbids. Unlike a plain
+        ``groups=...`` field (covered above, model-independent), only an
+        override exposes the wrong-model dispatch this guards against.
+        """
+        main_partner = self.env.ref("base.main_partner")
+        attachment = self.env["ir.attachment"].search(
+            [
+                ("res_model", "=", "res.partner"),
+                ("res_id", "=", main_partner.id),
+                ("res_field", "=", "image_128"),
+            ]
+        )
+        self.assertTrue(attachment.datas)  # readable out of the box
+
+        partner_field = self.env.registry["res.partner"]._fields["image_128"]
+        attach_called, partner_called = [], []
+        attach_orig = self.env.registry["ir.attachment"]._has_field_access
+        partner_orig = self.env.registry["res.partner"]._has_field_access
+
+        def attach_spy(this, field, operation, _o=attach_orig):
+            if field is partner_field:
+                attach_called.append(operation)
+            return _o(this, field, operation)
+
+        def partner_deny(this, field, operation, _o=partner_orig):
+            if field is partner_field:
+                partner_called.append(operation)
+                if operation == "read":
+                    return False
+            return _o(this, field, operation)
+
+        self.patch(self.env.registry["ir.attachment"], "_has_field_access", attach_spy)
+        self.patch(self.env.registry["res.partner"], "_has_field_access", partner_deny)
+
+        # The comodel now forbids reading image_128 -> the attachment must too.
+        attachment.invalidate_recordset()
+        with self.assertRaises(AccessError):
+            _ = attachment.datas
+
+        # The field ACL was evaluated on the comodel, not on ir.attachment.
+        self.assertIn("read", partner_called, "comodel ACL must be consulted")
+        self.assertNotIn(
+            "read", attach_called, "field ACL must not be checked on ir.attachment"
+        )
+
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_search_unbounded_model_fallback(self):
         """The unbounded ``_search`` fallback filters inaccessible rows (IRA-T1).
@@ -645,6 +961,22 @@ class TestPermissions(TransactionCaseWithUserDemo):
             admin_orphan.id,
             found.ids,
             "the superuser-owned orphan attachment must not leak to the demo user",
+        )
+
+    def test_search_unbounded_matches_limited(self):
+        """Unbounded (limit=None) _search returns the same accessible set as a
+        limited search — the batched fetch must not drop or duplicate rows
+        (IRA-P1-3). Guards the memory-bounding rewrite of the limit=None branch.
+        """
+        atts = self.Attachments.sudo().create(
+            [{"name": f"pub{i}", "public": True} for i in range(12)]
+        )
+        ids = atts.ids
+        unbounded = self.Attachments.search([("id", "in", ids)])  # limit=None branch
+        limited = self.Attachments.search([("id", "in", ids)], limit=len(ids))
+        self.assertEqual(set(unbounded.ids), set(ids), "unbounded must return all")
+        self.assertEqual(
+            set(unbounded.ids), set(limited.ids), "unbounded must match limited"
         )
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
@@ -813,39 +1145,31 @@ class TestPermissions(TransactionCaseWithUserDemo):
             self.env["ir.attachment"]._file_write(b"test", "test")
 
     def test_write_create_url_binary_attachment(self):
-        with self.assertRaisesRegex(
-            ValidationError,
-            r"Sorry, you are not allowed to write on this document",
-        ):
+        """A non-serving user cannot create/write a binary+url attachment.
+
+        Assert on the exception type only: the message is run through ``_()`` and
+        this dev DB serves ``es_MX``, so matching the English string is a flaky,
+        locale-dependent assertion. ``_check_serving_attachments`` is the only
+        ValidationError these paths can raise.
+        """
+        with self.assertRaises(ValidationError):
             self.Attachments.create(
                 {"name": "Py", "url": "/blabla.js", "raw": b"Something"}
             )
-        with self.assertRaisesRegex(
-            ValidationError,
-            r"Sorry, you are not allowed to write on this document",
-        ):
+        with self.assertRaises(ValidationError):
             self.Attachments.create(
                 {"name": "Py", "url": "/blabla.js", "raw": b"Something"}
             )
-        with self.assertRaisesRegex(
-            ValidationError,
-            r"Sorry, you are not allowed to write on this document",
-        ):
+        with self.assertRaises(ValidationError):
             self.Attachments.with_context(default_url="/blabla.js").create(
                 {"name": "Py", "raw": b"Something"}
             )
 
         existing_attachment = self.Attachments.create({"name": "aaa"})
-        with self.assertRaisesRegex(
-            ValidationError,
-            r"Sorry, you are not allowed to write on this document",
-        ):
+        with self.assertRaises(ValidationError):
             existing_attachment.url = "/blabla.js"
         existing_attachment.type = "url"
         existing_attachment.url = "/blabla.js"
 
-        with self.assertRaisesRegex(
-            ValidationError,
-            r"Sorry, you are not allowed to write on this document",
-        ):
+        with self.assertRaises(ValidationError):
             existing_attachment.type = "binary"

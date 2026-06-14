@@ -36,8 +36,11 @@ class TestAssetLogHelper(TransactionCase):
         log = get_asset_logger("testcat")
         with self.assertLogs(log.name, level=logging.DEBUG) as captured:
             log_event(
-                log, logging.DEBUG, "started",
-                bundle="web.assets_web", modules=42,
+                log,
+                logging.DEBUG,
+                "started",
+                bundle="web.assets_web",
+                modules=42,
             )
         self.assertEqual(len(captured.records), 1)
         msg = captured.records[0].getMessage()
@@ -81,9 +84,12 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         # fire. The test deliberately calls it, so we consume the warning
         # via ``assertLogs`` — both keeping the test log clean and asserting
         # the structured-logging contract (event name + ``reason`` field).
-        with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING) as captured:
+        with self.assertLogs(
+            f"{ASSET_ROOT}.fallback", level=logging.WARNING
+        ) as captured:
             self.IrQweb._esbuild_circuit_record_failure(
-                "web.test_bundle", reason="SubprocessError",
+                "web.test_bundle",
+                reason="SubprocessError",
             )
         self.assertEqual(len(captured.records), 1)
         self.assertIn("event=circuit_open", captured.records[0].getMessage())
@@ -96,12 +102,16 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         # Both record_failure calls emit ``WARNING circuit_open``; wrap both
         # in a single ``assertLogs`` so the test exits with the breaker
         # warnings consumed and the escalation visible in the captured log.
-        with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING) as captured:
+        with self.assertLogs(
+            f"{ASSET_ROOT}.fallback", level=logging.WARNING
+        ) as captured:
             self.IrQweb._esbuild_circuit_record_failure(
-                "web.test_bundle", reason="Err1",
+                "web.test_bundle",
+                reason="Err1",
             )
             self.IrQweb._esbuild_circuit_record_failure(
-                "web.test_bundle", reason="Err2",
+                "web.test_bundle",
+                reason="Err2",
             )
         self.assertEqual(len(captured.records), 2)
         self.assertIn("fails=1", captured.records[0].getMessage())
@@ -113,22 +123,27 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         # Extended cooldown kicks in at the 2nd failure.
         remaining = _expiry - time.monotonic()
         self.assertGreater(
-            remaining, self.IrQweb._ESBUILD_COOLDOWN_S,
+            remaining,
+            self.IrQweb._ESBUILD_COOLDOWN_S,
             msg="2nd failure should escalate past the base cooldown",
         )
 
     def test_success_clears_the_circuit(self):
         # record_failure trips the WARNING; record_success emits an INFO
         # ``circuit_close`` that ``assertLogs(level=WARNING)`` ignores.
-        with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING) as captured:
+        with self.assertLogs(
+            f"{ASSET_ROOT}.fallback", level=logging.WARNING
+        ) as captured:
             self.IrQweb._esbuild_circuit_record_failure(
-                "web.test_bundle", reason="OnceFailed",
+                "web.test_bundle",
+                reason="OnceFailed",
             )
             self.IrQweb._esbuild_circuit_record_success("web.test_bundle")
         self.assertEqual(len(captured.records), 1)
         self.assertIn("event=circuit_open", captured.records[0].getMessage())
         self.assertNotIn(
-            (self.env.cr.dbname, "web.test_bundle"), self.IrQweb._esbuild_cooldowns,
+            (self.env.cr.dbname, "web.test_bundle"),
+            self.IrQweb._esbuild_cooldowns,
         )
         allow, _ = self.IrQweb._esbuild_circuit_state("web.test_bundle")
         self.assertTrue(allow)
@@ -140,7 +155,8 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         # open the breaker for the same bundle name in every other tenant.
         with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING):
             self.IrQweb._esbuild_circuit_record_failure(
-                "web.test_bundle", reason="ScopeCheck",
+                "web.test_bundle",
+                reason="ScopeCheck",
             )
         self.assertIn(
             (self.env.cr.dbname, "web.test_bundle"),
@@ -155,11 +171,14 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         # A failure recorded by another database (different db_name, same
         # bundle) must NOT open this database's breaker.
         self.IrQweb._esbuild_cooldowns[("some_other_db", "web.test_bundle")] = (
-            time.monotonic() + 1e6, "OtherDbFail", 1,
+            time.monotonic() + 1e6,
+            "OtherDbFail",
+            1,
         )
         allow, reason = self.IrQweb._esbuild_circuit_state("web.test_bundle")
         self.assertFalse(
-            allow, msg="this db's own failure should still gate it",
+            allow,
+            msg="this db's own failure should still gate it",
         )
         self.assertEqual(reason, "ScopeCheck")
 
@@ -174,6 +193,7 @@ class TestEsbuildAdvisoryLock(TransactionCase):
 
     def test_lock_rejects_other_cursor_while_held(self):
         from odoo.db import db_connect
+
         IrQweb = self.env["ir.qweb"]
         self.assertTrue(IrQweb._esbuild_try_acquire_lock("test.lock.beta"))
         # Open a sibling connection and verify it cannot take the lock.
@@ -196,13 +216,15 @@ class TestEsbuildAdvisoryLock(TransactionCase):
         lock + commits, the other observes the lock is free afterwards.
         """
         from odoo.db import db_connect
+
         dbname = self.env.cr.dbname
         key = "esbuild:test.lock.gamma"
 
         # Conn A: acquire, commit → lock auto-releases.
         with db_connect(dbname).cursor() as cr_a:
             cr_a.execute(
-                "SELECT pg_try_advisory_xact_lock(hashtext(%s))", (key,),
+                "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
+                (key,),
             )
             self.assertTrue(cr_a.fetchone()[0])
             cr_a.commit()
@@ -210,7 +232,8 @@ class TestEsbuildAdvisoryLock(TransactionCase):
         # Conn B: should succeed now that A's tx has ended.
         with db_connect(dbname).cursor() as cr_b:
             cr_b.execute(
-                "SELECT pg_try_advisory_xact_lock(hashtext(%s))", (key,),
+                "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
+                (key,),
             )
             got = cr_b.fetchone()[0]
             cr_b.commit()
@@ -226,6 +249,7 @@ class TestContentAddressableUrl(TransactionCase):
         class _Stub:
             name = "test.cas.same"
             _last_metafile = None
+            _last_sourcemap = None
 
         ir_qweb = self.env["ir.qweb"]
         content = "export const x = 1;"
@@ -244,25 +268,50 @@ class TestContentAddressableUrl(TransactionCase):
         class _Stub:
             name = "test.cas.diff"
             _last_metafile = None
+            _last_sourcemap = None
 
         ir_qweb = self.env["ir.qweb"]
         url_a = ir_qweb._save_esm_attachment(
-            "test.cas.diff", "export const x = 1;", _Stub(),
+            "test.cas.diff",
+            "export const x = 1;",
+            _Stub(),
         )
         url_b = ir_qweb._save_esm_attachment(
-            "test.cas.diff", "export const x = 2;", _Stub(),
+            "test.cas.diff",
+            "export const x = 2;",
+            _Stub(),
         )
         self.assertNotEqual(url_a, url_b)
-        # Stale cleanup runs on save: the old URL's attachment should be
-        # unlinked so only the new one remains.
-        attachments = self.env["ir.attachment"].sudo().search([
-            ("url", "=like", "/web/assets/esm/%/test.cas.diff.esm.js"),
-        ])
-        self.assertEqual(
-            len(attachments), 1,
-            msg="stale cleanup must drop the old-content attachment",
+        # Stale-version deletion is DEFERRED (grace window): right after
+        # the rebuild BOTH rows must exist so in-flight pages and
+        # not-yet-signaled workers keep serving the old URL.
+        Attachment = self.env["ir.attachment"].sudo()
+        attachments = Attachment.search(
+            [
+                ("url", "=like", "/web/assets/esm/%/test.cas.diff.esm.js"),
+            ]
         )
-        self.assertEqual(attachments.url, url_b)
+        self.assertEqual(
+            len(attachments),
+            2,
+            msg="superseded version must survive the rebuild (deferred GC)",
+        )
+        # Once the superseded row ages past the grace window, the
+        # autovacuum sweeps it and keeps only the newest version.
+        old_row = attachments.filtered(lambda a: a.url == url_a)
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET write_date = write_date - interval '30 days'"
+            " WHERE id = %s",
+            [old_row.id],
+        )
+        old_row.invalidate_recordset()
+        Attachment._gc_esm_assets()
+        remaining = Attachment.search(
+            [
+                ("url", "=like", "/web/assets/esm/%/test.cas.diff.esm.js"),
+            ]
+        )
+        self.assertEqual(remaining.mapped("url"), [url_b])
 
 
 class TestMetafileSidecar(TransactionCase):
@@ -274,15 +323,26 @@ class TestMetafileSidecar(TransactionCase):
             # Simulate esbuild having populated this attribute with a
             # minimal valid metafile JSON.
             _last_metafile = json.dumps({"inputs": {}, "outputs": {}})
+            _last_sourcemap = None
 
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
-            "test.meta.present", "/* bundle */", _Stub(),
+            "test.meta.present",
+            "/* bundle */",
+            _Stub(),
         )
         meta_url = url[: -len(".esm.js")] + ".meta.json"
-        meta = self.env["ir.attachment"].sudo().search([
-            ("url", "=", meta_url), ("public", "=", True),
-        ], limit=1)
+        meta = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("url", "=", meta_url),
+                    ("public", "=", True),
+                ],
+                limit=1,
+            )
+        )
         self.assertTrue(meta, msg="sibling metafile attachment must exist")
         self.assertEqual(meta.mimetype, "application/json")
         parsed = json.loads(meta.raw)
@@ -293,15 +353,25 @@ class TestMetafileSidecar(TransactionCase):
         class _Stub:
             name = "test.meta.absent"
             _last_metafile = None
+            _last_sourcemap = None
 
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
-            "test.meta.absent", "/* bundle */", _Stub(),
+            "test.meta.absent",
+            "/* bundle */",
+            _Stub(),
         )
         meta_url = url[: -len(".esm.js")] + ".meta.json"
-        meta = self.env["ir.attachment"].sudo().search([
-            ("url", "=", meta_url),
-        ], limit=1)
+        meta = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("url", "=", meta_url),
+                ],
+                limit=1,
+            )
+        )
         self.assertFalse(
             meta,
             msg="no metafile should be created when _last_metafile is None",
@@ -320,7 +390,9 @@ class TestParentSelfBridge(TransactionCase):
 
     def test_parent_self_bridge_covers_native_modules(self):
         setup_ab = self.env["ir.qweb"]._get_asset_bundle(
-            "web.assets_unit_tests_setup", js=True, css=False,
+            "web.assets_unit_tests_setup",
+            js=True,
+            css=False,
         )
         bridges = setup_ab._build_parent_self_bridge()
         # Every native module's specifier must have a bridge.  Sanity
@@ -338,8 +410,8 @@ class TestParentSelfBridge(TransactionCase):
                 url.startswith("/web/assets/esm/bridges/"),
                 msg=f"bridge for {spec} is not an attachment URL: {url[:80]}",
             )
-            # Resolved attachment must be fetchable (hash + .js).
-            self.assertRegex(url, r"^/web/assets/esm/bridges/[0-9a-f]{16}\.js$")
+            # Resolved attachment must be fetchable (128-bit hash + .js).
+            self.assertRegex(url, r"^/web/assets/esm/bridges/[0-9a-f]{32}\.js$")
 
     def test_prod_import_map_bridges_parent_specifiers(self):
         """The production import map for a bundle with satellites must
@@ -349,21 +421,27 @@ class TestParentSelfBridge(TransactionCase):
         We pick a native module that's guaranteed to be in ``setup``
         regardless of the ``ai`` module's presence (it lives in core).
         """
-        self.env["ir.attachment"].sudo().search([
-            ("url", "=like", "/web/assets/esm/%/web.assets_unit_tests_setup%"),
-        ]).unlink()
+        self.env["ir.attachment"].sudo().search(
+            [
+                ("url", "=like", "/web/assets/esm/%/web.assets_unit_tests_setup%"),
+            ]
+        ).unlink()
         setup_ab = self.env["ir.qweb"]._get_asset_bundle(
-            "web.assets_unit_tests_setup", js=True, css=False,
+            "web.assets_unit_tests_setup",
+            js=True,
+            css=False,
         )
         # Pick an arbitrary @web/* specifier that exists — this avoids
         # coupling the test to optional addons like ``ai``.
         sample_spec = next(
-            a.module_path for a in setup_ab.native_modules
+            a.module_path
+            for a in setup_ab.native_modules
             if a.module_path.startswith("@web/")
         )
 
         pre, _post = self.env["ir.qweb"]._get_native_module_nodes(
-            "web.assets_unit_tests_setup", debug=False,
+            "web.assets_unit_tests_setup",
+            debug=False,
         )
         import_map = None
         for _tag, attrs in pre:
@@ -373,7 +451,8 @@ class TestParentSelfBridge(TransactionCase):
         self.assertIsNotNone(import_map, "prod must emit an import map")
         # A parent-bundle specifier must be resolvable from satellites.
         self.assertIn(
-            sample_spec, import_map,
+            sample_spec,
+            import_map,
             msg=(
                 f"expected parent-self bridge for {sample_spec!r}; "
                 f"map size={len(import_map)}, "
@@ -389,15 +468,18 @@ class TestPipelineIntegration(TransactionCase):
         """When a bundle is in ``force_fallback_bundles``, esbuild
         must not run — the debug-mode fallback handles rendering."""
         self.env["ir.config_parameter"].sudo().set_param(
-            "web.esbuild.force_fallback_bundles", "web.assets_web",
+            "web.esbuild.force_fallback_bundles",
+            "web.assets_web",
         )
         self.addCleanup(
             self.env["ir.config_parameter"].sudo().set_param,
-            "web.esbuild.force_fallback_bundles", "",
+            "web.esbuild.force_fallback_bundles",
+            "",
         )
 
         called = []
         from odoo.addons.base.models.assetsbundle import AssetsBundle
+
         original = AssetsBundle.esbuild_native_bundle
 
         def _spy(self, *args, **kwargs):
@@ -406,10 +488,13 @@ class TestPipelineIntegration(TransactionCase):
 
         with patch.object(AssetsBundle, "esbuild_native_bundle", _spy):
             self.env["ir.qweb"]._get_asset_nodes(
-                "web.assets_web", css=False, js=True,
+                "web.assets_web",
+                css=False,
+                js=True,
             )
         self.assertNotIn(
-            "web.assets_web", called,
+            "web.assets_web",
+            called,
             msg="admin override must bypass the esbuild subprocess",
         )
 
@@ -418,16 +503,21 @@ class TestPipelineIntegration(TransactionCase):
         render via the debug-mode path instead of producing nothing."""
         ir_qweb = self.env["ir.qweb"]
         with patch.object(
-            type(ir_qweb), "_esbuild_try_acquire_lock",
+            type(ir_qweb),
+            "_esbuild_try_acquire_lock",
             return_value=False,
         ):
             # Drop cached attachments so the prod path is actually
             # attempted (otherwise the cache short-circuits the branch).
-            self.env["ir.attachment"].sudo().search([
-                ("url", "=like", "/web/assets/esm/%/web.assets_web%"),
-            ]).unlink()
+            self.env["ir.attachment"].sudo().search(
+                [
+                    ("url", "=like", "/web/assets/esm/%/web.assets_web%"),
+                ]
+            ).unlink()
             nodes = ir_qweb._get_asset_nodes(
-                "web.assets_web", css=False, js=True,
+                "web.assets_web",
+                css=False,
+                js=True,
             )
         # Fallback emits individual-file + importmap nodes rather than
         # a single esbuild-bundled module; ensure the output is
@@ -436,7 +526,8 @@ class TestPipelineIntegration(TransactionCase):
         tags = {tag for tag, _attrs in nodes}
         self.assertIn("script", tags)
         importmaps = [
-            attrs for tag, attrs in nodes
+            attrs
+            for tag, attrs in nodes
             if tag == "script" and attrs.get("type") == "importmap"
         ]
         self.assertTrue(
@@ -464,6 +555,7 @@ class TestEsbuildIntegration(TransactionCase):
         from pathlib import Path
 
         import odoo
+
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
             "esbuild",
@@ -484,7 +576,8 @@ class TestEsbuildIntegration(TransactionCase):
         assets_params = self.env["ir.asset"]._get_asset_params()
         bundle = IrQweb._get_asset_bundle(
             "web.assets_emoji",
-            js=True, css=False,
+            js=True,
+            css=False,
             debug_assets=False,
             assets_params=assets_params,
         )
@@ -493,7 +586,8 @@ class TestEsbuildIntegration(TransactionCase):
             msg="web.assets_emoji must be classified as an ESM bundle",
         )
         self.assertGreater(
-            len(bundle.native_modules), 0,
+            len(bundle.native_modules),
+            0,
             msg=(
                 "bundle must have at least one native module "
                 "(did ir.asset population run?)"
@@ -513,7 +607,8 @@ class TestEsbuildIntegration(TransactionCase):
         # lines); a suspiciously small output means esbuild silently
         # dropped input — surface that as a test failure, not a warning.
         self.assertGreater(
-            len(code), 1000,
+            len(code),
+            1000,
             msg=f"bundle output suspiciously small ({len(code)} bytes)",
         )
         # Metafile is a side effect we expose to consumers; the real
@@ -538,8 +633,11 @@ class TestEsbuildIntegration(TransactionCase):
         assets_params = self.env["ir.asset"]._get_asset_params()
         # Re-use emoji bundle but exercise the signature change.
         bundle = IrQweb._get_asset_bundle(
-            "web.assets_emoji", js=True, css=False,
-            debug_assets=False, assets_params=assets_params,
+            "web.assets_emoji",
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=assets_params,
         )
         # Explicit non-default args — smoke test that the overrides are
         # accepted without raising TypeError.
@@ -553,34 +651,45 @@ class TestEsbuildSettingLoader(TransactionCase):
     def test_unset_returns_default(self):
         IrQweb = self.env["ir.qweb"]
         # A key that is definitely not set in a fresh test DB.
-        self.env["ir.config_parameter"].sudo().search([
-            ("key", "=", "web.esbuild.cooldown_s"),
-        ]).unlink()
+        self.env["ir.config_parameter"].sudo().search(
+            [
+                ("key", "=", "web.esbuild.cooldown_s"),
+            ]
+        ).unlink()
         val = IrQweb._get_esbuild_setting(
-            "cooldown_s", default=60.0, cast=float,
+            "cooldown_s",
+            default=60.0,
+            cast=float,
         )
         self.assertEqual(val, 60.0)
 
     def test_valid_param_casts(self):
         IrQweb = self.env["ir.qweb"]
         self.env["ir.config_parameter"].sudo().set_param(
-            "web.esbuild.cooldown_s", "12.5",
+            "web.esbuild.cooldown_s",
+            "12.5",
         )
         val = IrQweb._get_esbuild_setting(
-            "cooldown_s", default=60.0, cast=float,
+            "cooldown_s",
+            default=60.0,
+            cast=float,
         )
         self.assertEqual(val, 12.5)
 
     def test_unparseable_param_falls_back_to_default(self):
         IrQweb = self.env["ir.qweb"]
         self.env["ir.config_parameter"].sudo().set_param(
-            "web.esbuild.cooldown_s", "not-a-number",
+            "web.esbuild.cooldown_s",
+            "not-a-number",
         )
         val = IrQweb._get_esbuild_setting(
-            "cooldown_s", default=60.0, cast=float,
+            "cooldown_s",
+            default=60.0,
+            cast=float,
         )
         self.assertEqual(
-            val, 60.0,
+            val,
+            60.0,
             msg="cast failure must silently fall back to the default",
         )
 
@@ -598,6 +707,7 @@ class TestExternalLibsValidator(TransactionCase):
     def test_valid_configuration_passes(self):
         """The real configuration at import time must pass the validator."""
         from odoo.addons.base.models.assetsbundle import AssetsBundle
+
         IrQweb = self.env["ir.qweb"]
         # Does not raise — proves the live configuration is consistent.
         AssetsBundle._validate_external_libs(
@@ -607,19 +717,25 @@ class TestExternalLibsValidator(TransactionCase):
     def test_missing_alias_raises(self):
         """Import-map spec without a matching alias must be rejected."""
         from odoo.addons.base.models.assetsbundle import AssetsBundle
+
         with self.assertRaises(ValueError) as ctx:
             AssetsBundle._validate_external_libs({"@invented/lib"})
         self.assertIn("@invented/lib", str(ctx.exception))
-        self.assertIn("_LIB_CANDIDATES", str(ctx.exception))
+        self.assertIn("no per-lib alias", str(ctx.exception))
 
     def test_pattern_externals_accepted(self):
         """@odoo/owl etc. are covered by --external:@odoo/* and don't need aliases."""
         from odoo.addons.base.models.assetsbundle import AssetsBundle
+
         # Does not raise even though none are in _LIB_CANDIDATES.
-        AssetsBundle._validate_external_libs({
-            "@odoo/owl", "@odoo/hoot",
-            "@odoo/hoot-dom", "@odoo/hoot-mock",
-        })
+        AssetsBundle._validate_external_libs(
+            {
+                "@odoo/owl",
+                "@odoo/hoot",
+                "@odoo/hoot-dom",
+                "@odoo/hoot-mock",
+            }
+        )
 
 
 class TestEsbuildSourceMaps(TransactionCase):
@@ -632,6 +748,7 @@ class TestEsbuildSourceMaps(TransactionCase):
         from pathlib import Path
 
         import odoo
+
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
             "esbuild",
@@ -651,7 +768,8 @@ class TestEsbuildSourceMaps(TransactionCase):
         assets_params = self.env["ir.asset"]._get_asset_params()
         return IrQweb._get_asset_bundle(
             "web.assets_emoji",
-            js=True, css=False,
+            js=True,
+            css=False,
             debug_assets=False,
             assets_params=assets_params,
         )
@@ -681,6 +799,7 @@ class TestEsbuildSourceMaps(TransactionCase):
         # esbuild source maps are JSON; minimal sanity check that we
         # captured the right bytes (not e.g. the metafile).
         import json
+
         parsed = json.loads(bundle._last_sourcemap)
         self.assertIn("version", parsed)
         self.assertIn("mappings", parsed)
@@ -725,7 +844,9 @@ class TestEsbuildSourceMaps(TransactionCase):
         # the subprocess. The helper logs ``WARNING source_maps_unknown_mode``
         # so misconfiguration is visible — consume it via ``assertLogs`` so
         # the test log stays clean and the structured event is asserted.
-        with self.assertLogs(f"{ASSET_ROOT}.esbuild", level=logging.WARNING) as captured:
+        with self.assertLogs(
+            f"{ASSET_ROOT}.esbuild", level=logging.WARNING
+        ) as captured:
             code = bundle.esbuild_native_bundle(source_maps="yes please")
         self.assertTrue(
             any(
@@ -740,6 +861,7 @@ class TestEsbuildSourceMaps(TransactionCase):
 
     def test_external_mode_persists_sidecar_attachment(self):
         """``_save_esm_attachment`` writes a ``.esm.js.map`` sibling."""
+
         class _Stub:
             name = "test.sm.sidecar"
             _last_metafile = None
@@ -747,17 +869,28 @@ class TestEsbuildSourceMaps(TransactionCase):
 
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
-            "test.sm.sidecar", "/* bundle */", _Stub(),
+            "test.sm.sidecar",
+            "/* bundle */",
+            _Stub(),
         )
         sm_url = url + ".map"
-        sm = self.env["ir.attachment"].sudo().search([
-            ("url", "=", sm_url), ("public", "=", True),
-        ], limit=1)
+        sm = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("url", "=", sm_url),
+                    ("public", "=", True),
+                ],
+                limit=1,
+            )
+        )
         self.assertTrue(sm, msg="external-mode sidecar attachment must exist")
         self.assertEqual(sm.mimetype, "application/json")
 
     def test_no_sourcemap_no_sidecar(self):
         """When ``_last_sourcemap is None`` no ``.map`` sidecar is created."""
+
         class _Stub:
             name = "test.sm.absent"
             _last_metafile = None
@@ -765,12 +898,21 @@ class TestEsbuildSourceMaps(TransactionCase):
 
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
-            "test.sm.absent", "/* bundle */", _Stub(),
+            "test.sm.absent",
+            "/* bundle */",
+            _Stub(),
         )
         sm_url = url + ".map"
-        sm = self.env["ir.attachment"].sudo().search([
-            ("url", "=", sm_url),
-        ], limit=1)
+        sm = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("url", "=", sm_url),
+                ],
+                limit=1,
+            )
+        )
         self.assertFalse(
             sm,
             msg="no source map must create no .map sidecar",
@@ -784,9 +926,11 @@ class TestEsbuildSourceMaps(TransactionCase):
         # actually exercise — otherwise a leftover
         # ``web.esbuild.source_maps=linked`` from a manual e2e probe
         # leaks into the test.
-        self.env["ir.config_parameter"].sudo().search([
-            ("key", "=", "web.esbuild.source_maps"),
-        ]).unlink()
+        self.env["ir.config_parameter"].sudo().search(
+            [
+                ("key", "=", "web.esbuild.source_maps"),
+            ]
+        ).unlink()
         # And the helper accepts it without raising the unknown-key
         # ValueError that catches operator typos.
         val = IrQweb._get_esbuild_setting("source_maps", default="")
@@ -815,18 +959,23 @@ def _fake_native_module(url="", raw_content="", module_path="", filename=None):
 
 
 class TestEsbuildHelpers(TransactionCase):
-    """Unit tests for the helpers extracted from ``esbuild_native_bundle``.
+    """Unit tests for the esbuild subprocess-layer helpers.
 
     None of these spawn esbuild — they exercise option resolution, entry-script
-    assembly, flag computation and output post-processing in isolation.  The
-    real subprocess path stays covered by ``TestEsbuildSourceMaps`` /
-    ``TestEsbuildIntegration``.
+    assembly, flag computation and output post-processing in isolation, on
+    ``EsbuildCompiler`` directly (the ``AssetsBundle`` delegators were deleted
+    once this class stopped needing them).  The real subprocess path stays
+    covered by ``TestEsbuildSourceMaps`` / ``TestEsbuildIntegration``.
     """
 
-    def _bundle(self, name="web.assets_emoji"):
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
+    def _compiler(self, name="web.assets_emoji", native_modules=(), provider=None):
+        from odoo.libs.esbuild import EsbuildCompiler
 
-        return AssetsBundle(name, [], env=self.env)
+        return EsbuildCompiler(
+            name,
+            list(native_modules),
+            addon_flags_provider=provider,
+        )
 
     def _odoo_root(self):
         from pathlib import Path
@@ -837,34 +986,39 @@ class TestEsbuildHelpers(TransactionCase):
 
     def test_resolve_opts_applies_defaults(self):
         """``None`` arguments resolve to the class-constant defaults."""
-        b = self._bundle()
-        timeout_s, target, source_maps = b._esbuild_resolve_opts(None, None, None)
-        self.assertEqual(timeout_s, b._ESBUILD_TIMEOUT_S)
-        self.assertEqual(target, b._ESBUILD_TARGET)
-        self.assertEqual(source_maps, b._ESBUILD_SOURCE_MAPS)
+        from odoo.libs.esbuild import EsbuildCompiler
+
+        c = self._compiler()
+        timeout_s, target, source_maps = c._esbuild_resolve_opts(None, None, None)
+        self.assertEqual(timeout_s, EsbuildCompiler._ESBUILD_TIMEOUT_S)
+        self.assertEqual(target, EsbuildCompiler._ESBUILD_TARGET)
+        self.assertEqual(source_maps, EsbuildCompiler._ESBUILD_SOURCE_MAPS)
 
     def test_resolve_opts_passes_through_valid(self):
         """Explicit valid values are returned unchanged."""
-        b = self._bundle()
+        c = self._compiler()
         self.assertEqual(
-            b._esbuild_resolve_opts(10, "es2022", "linked"),
+            c._esbuild_resolve_opts(10, "es2022", "linked"),
             (10, "es2022", "linked"),
         )
 
     def test_resolve_opts_unknown_source_map_falls_back(self):
         """An unknown source-map mode degrades to ``""`` (never crashes esbuild)."""
-        b = self._bundle()
+        c = self._compiler()
         with self.assertLogs(f"{ASSET_ROOT}.esbuild", level=logging.WARNING):
-            _, _, source_maps = b._esbuild_resolve_opts(5, "es2023", "bogus")
+            _, _, source_maps = c._esbuild_resolve_opts(5, "es2023", "bogus")
         self.assertEqual(source_maps, "")
 
     def test_entry_lines_register_block(self):
         """The entry lines register every native module plus ``@odoo/owl``."""
-        b = self._bundle()
-        b.native_modules = [
-            _fake_native_module(url="/web/static/src/foo.js", module_path="@web/foo"),
-        ]
-        lines = b._esbuild_entry_lines(self._odoo_root())
+        c = self._compiler(
+            native_modules=[
+                _fake_native_module(
+                    url="/web/static/src/foo.js", module_path="@web/foo"
+                ),
+            ]
+        )
+        lines = c._esbuild_entry_lines(self._odoo_root())
         self.assertIn('import * as __owl from "@odoo/owl";', lines)
         self.assertIn('import * as __m0 from "./addons/web/static/src/foo.js";', lines)
         self.assertIn("odoo.loader.registerNativeModules({", lines)
@@ -876,10 +1030,6 @@ class TestEsbuildHelpers(TransactionCase):
         """A bundle that ships test files keeps them: its own ``tests/*``
         externals are filtered out while other addons' survive.
         """
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
-        b = self._bundle()
-        b.native_modules = [_fake_native_module(url="/web/static/tests/t.js")]
         fake = (
             [],
             [
@@ -888,23 +1038,21 @@ class TestEsbuildHelpers(TransactionCase):
                 "--external:@other/../tests/*",
             ],
         )
-        with patch.object(AssetsBundle, "_get_esbuild_addon_flags", return_value=fake):
-            _, external_flags = b._esbuild_flags(self._odoo_root(), None)
+        c = self._compiler(
+            native_modules=[_fake_native_module(url="/web/static/tests/t.js")],
+            provider=lambda root: fake,
+        )
+        _, external_flags = c._esbuild_flags(self._odoo_root(), None)
         self.assertNotIn("--external:@web/../tests/*", external_flags)
         self.assertNotIn("--external:./web/static/tests/*", external_flags)
         self.assertIn("--external:@other/../tests/*", external_flags)
 
     def test_flags_adds_dynamic_child_externals(self):
         """``dynamic_child_specs`` become ``--external:<spec>`` flags."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
-        b = self._bundle()
-        with patch.object(
-            AssetsBundle, "_get_esbuild_addon_flags", return_value=([], [])
-        ):
-            _, external_flags = b._esbuild_flags(
-                self._odoo_root(), frozenset({"@lazy/child"})
-            )
+        c = self._compiler(provider=lambda root: ([], []))
+        _, external_flags = c._esbuild_flags(
+            self._odoo_root(), frozenset({"@lazy/child"})
+        )
         self.assertIn("--external:@lazy/child", external_flags)
 
     def test_postprocess_rewrites_directive_and_captures_sidecars(self):
@@ -914,7 +1062,7 @@ class TestEsbuildHelpers(TransactionCase):
         import tempfile
         from pathlib import Path
 
-        b = self._bundle("web.assets_emoji")
+        c = self._compiler("web.assets_emoji")
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             out = tmp / "x.out.js"
@@ -926,42 +1074,42 @@ class TestEsbuildHelpers(TransactionCase):
             )
             meta.write_text('{"inputs":{}}', encoding="utf-8")
             smap.write_text('{"version":3,"mappings":""}', encoding="utf-8")
-            result = b._postprocess_esbuild_output(
+            result = c._postprocess_esbuild_output(
                 out, meta, smap, "linked", entry_bytes=10, _t0=time.monotonic()
             )
         self.assertIn("//# sourceMappingURL=web.assets_emoji.esm.js.map", result)
         self.assertNotIn("tmpXYZ", result)
-        self.assertEqual(b._last_metafile, '{"inputs":{}}')
-        self.assertEqual(b._last_sourcemap, '{"version":3,"mappings":""}')
+        self.assertEqual(c._last_metafile, '{"inputs":{}}')
+        self.assertEqual(c._last_sourcemap, '{"version":3,"mappings":""}')
 
     def test_postprocess_no_sourcemap_leaves_last_none(self):
         """``""`` mode reads the bundle verbatim and captures no source map."""
         import tempfile
         from pathlib import Path
 
-        b = self._bundle()
+        c = self._compiler()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             out = tmp / "x.out.js"
             meta = tmp / "x.meta.json"
             out.write_text("console.log(2);", encoding="utf-8")
             meta.write_text("{}", encoding="utf-8")
-            result = b._postprocess_esbuild_output(
+            result = c._postprocess_esbuild_output(
                 out, meta, tmp / "x.map", "", 5, time.monotonic()
             )
         self.assertEqual(result, "console.log(2);")
-        self.assertIsNone(b._last_sourcemap)
+        self.assertIsNone(c._last_sourcemap)
 
     def test_postprocess_missing_output_raises(self):
         """A vanished output file becomes a clear ``RuntimeError``."""
         import tempfile
         from pathlib import Path
 
-        b = self._bundle()
+        c = self._compiler()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             with self.assertRaises(RuntimeError) as ctx:
-                b._postprocess_esbuild_output(
+                c._postprocess_esbuild_output(
                     tmp / "nope.js",
                     tmp / "nope.meta",
                     tmp / "nope.map",
@@ -977,7 +1125,7 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_resolves_external_lib(self):
         """A specifier in ``ext_libs`` returns its canonical URL directly."""
-        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+        from odoo.libs.esm_graph import _BridgeExportResolver
 
         r = _BridgeExportResolver(
             {"luxon": "/web/static/lib/luxon/luxon.js"}, {}, "test"
@@ -986,14 +1134,14 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_resolves_lib_candidate(self):
         """A vendored ``_LIB_CANDIDATES`` entry maps to a ``/``-joined URL."""
-        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+        from odoo.libs.esm_graph import _BridgeExportResolver
 
         r = _BridgeExportResolver({}, {"@odoo/x": ("a", "b", "c.js")}, "test")
         self.assertEqual(r.resolve_url("@odoo/x"), "/a/b/c.js")
 
     def test_resolver_resolves_addon_paths(self):
         """``@addon`` specifiers map to ``src`` / ``lib`` / ``tests`` URLs."""
-        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+        from odoo.libs.esm_graph import _BridgeExportResolver
 
         r = _BridgeExportResolver({}, {}, "test")
         self.assertEqual(
@@ -1007,7 +1155,7 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_unmappable_specifiers(self):
         """Bare or malformed specifiers resolve to ``None``."""
-        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+        from odoo.libs.esm_graph import _BridgeExportResolver
 
         r = _BridgeExportResolver({}, {}, "test")
         self.assertIsNone(r.resolve_url("luxon"))
@@ -1015,7 +1163,7 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_caches_and_get_protocol(self):
         """``read_source`` caches misses; ``get`` honors the source_map default."""
-        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+        from odoo.libs.esm_graph import _BridgeExportResolver
 
         r = _BridgeExportResolver({}, {}, "test")
         self.assertIsNone(r.read_source("nope"))  # unmappable -> None, cached
@@ -1076,7 +1224,9 @@ class TestBridgeHelpers(TransactionCase):
             "@web/foo", set(), {"b", "a"}, True
         )
         self.assertFalse(star)
-        self.assertIn("const _m = odoo.loader.modules.get('@web/foo');", shim)
+        # Specifier literals are emitted with script-safe json.dumps (double
+        # quotes), matching the esbuild entry codegen.
+        self.assertIn('const _m = odoo.loader.modules.get("@web/foo");', shim)
         self.assertIn("const _d = _m?.default ?? _m;", shim)
         self.assertIn("export default _d;", shim)
         self.assertIn("export const a = _m?.a;", shim)

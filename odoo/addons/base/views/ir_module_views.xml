@@ -1,30 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Modules Categories -->
-    <record id="view_module_category_form" model="ir.ui.view">
-        <field name="name">ir.module.category.form</field>
-        <field name="model">ir.module.category</field>
-        <field name="arch" type="xml">
-            <form string="Module Category">
-                <group col="4">
-                    <field name="name" />
-                    <field name="parent_id" />
-                    <field name="sequence" />
-                </group>
-                <field name="description" />
-            </form>
-        </field>
-    </record>
-    <!-- Click on a category -->
     <record id="view_module_filter" model="ir.ui.view">
         <field name="name">ir.module.module.list.select</field>
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
             <search string="Search modules">
                 <field name="name"
-                    filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('name',                         'ilike', self)]"
-                    string="Module" />
+                    string="Module"
+                    filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('name','ilike', self)]" />
                 <filter name="app" string="Apps" domain="[('application', '=', True)]" />
                 <filter name="extra" string="Extra" domain="[('application', '=', False)]" />
                 <separator />
@@ -46,104 +30,18 @@
             </search>
         </field>
     </record>
-    <!-- Modules -->
-    <record id="module_form" model="ir.ui.view">
-        <field name="name">ir.module.module.form</field>
-        <field name="model">ir.module.module</field>
-        <field name="arch" type="xml">
-            <form create="0" edit="0" string="Module" class="o_module_form">
-                <link rel="stylesheet" href="/base/static/src/css/description.css" />
-                <sheet>
-                    <field name="icon_image" widget="image" class="oe_avatar" />
-                    <div class="mb32">
-                        <h1 class="d-flex flex-column">
-                            <field name="shortdesc" placeholder="Module Name" />
-                            <field class="fs-2 text-muted" name="summary" invisible="not summary" />
-                        </h1>
-                        <h4 class="text-muted d-flex flex-column">
-                            <div>By <field name="author" class="oe_inline" placeholder="Author Name" />
-                            </div>
-                            <small>
-                                <field name="website" widget="url" invisible="not website" />
-                            </small>
-                        </h4>
 
-                        <div>
-                            <button name="button_immediate_install" string="Activate"
-                                invisible="to_buy or state != 'uninstalled'" type="object"
-                                class="btn btn-primary me-1" groups="base.group_system" />
-                            <a
-                                href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise"
-                                target="_blank" class="btn btn-primary me-1"
-                                invisible="not to_buy or state not in ('uninstalled', 'uninstallable')"
-                                role="button">Upgrade</a>
-                            <button name="button_immediate_upgrade" invisible="state != 'installed'"
-                                string="Upgrade" type="object" class="btn btn-primary me-1"
-                                groups="base.group_system" />
-                            <button name="button_uninstall_wizard" invisible="state != 'installed'"
-                                string="Uninstall" type="object" class="btn btn-secondary me-1"
-                                groups="base.group_system" />
-                            <button invisible="state != 'to remove'" class="btn btn-secondary me-1"
-                                groups="base.group_system" disabled="1">Removing</button>
-                            <button invisible="state != 'to upgrade'" class="btn btn-secondary me-1"
-                                groups="base.group_system" disabled="1">Upgrading</button>
-                            <button invisible="state != 'to install'" class="btn btn-secondary me-1"
-                                groups="base.group_system" disabled="1">Installing</button>
-                        </div>
-                        <h6 class="text-muted mt-2" invisible="not has_iap">Contains In-App
-                            Purchases</h6>
-                    </div>
-                    <div class="clearfix" />
-                    <notebook groups="base.group_no_one">
-                        <page string="Information" name="information">
-                            <group>
-                                <group>
-                                    <field name="category_id"
-                                        options="{'no_open': True, 'no_create': True}" />
-                                    <field name="name" />
-                                    <field name="license" />
-                                    <field name="manifest_version" />
-                                </group>
-                            </group>
-                        </page>
-                        <page string="Technical Data" name="technical_data">
-                            <group col="4">
-                                <field name="demo" />
-                                <field name="application" />
-                                <field name="state" />
-                            </group>
-                            <group>
-                                <group string="Dependencies">
-                                    <field name="dependencies_id" nolabel="1" colspan="2">
-                                        <list string="Dependencies">
-                                            <field name="name" />
-                                            <field name="state" />
-                                        </list>
-                                    </field>
-                                </group>
-                                <group string="Exclusions">
-                                    <field name="exclusion_ids" nolabel="1" colspan="2">
-                                        <list string="Exclusions">
-                                            <field name="name" />
-                                            <field name="state" />
-                                        </list>
-                                    </field>
-                                </group>
-                            </group>
-                        </page>
-                        <page string="Installed Features" name="installed_features"
-                            invisible="state != 'installed'">
-                            <group string="Created Menus" />
-                            <field name="menus_by_module" />
-                            <group string="Created Views" />
-                            <field name="views_by_module" />
-                            <group string="Defined Reports" />
-                            <field name="reports_by_module" />
-                        </page>
-                    </notebook>
-                    <field name="description_html" class="oe_styling_v8"
-                        invisible="not description_html" />
-                </sheet>
+    <record id="view_module_category_form" model="ir.ui.view">
+        <field name="name">ir.module.category.form</field>
+        <field name="model">ir.module.category</field>
+        <field name="arch" type="xml">
+            <form string="Module Category">
+                <group col="4">
+                    <field name="name" />
+                    <field name="parent_id" />
+                    <field name="sequence" />
+                </group>
+                <field name="description" />
             </form>
         </field>
     </record>
@@ -246,6 +144,107 @@
                     </t>
                 </templates>
             </kanban>
+        </field>
+    </record>
+
+    <record id="module_form" model="ir.ui.view">
+        <field name="name">ir.module.module.form</field>
+        <field name="model">ir.module.module</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" string="Module" class="o_module_form">
+                <link rel="stylesheet" href="/base/static/src/css/description.css" />
+                <sheet>
+                    <field name="icon_image" widget="image" class="oe_avatar" />
+                    <div class="mb32">
+                        <h1 class="d-flex flex-column">
+                            <field name="shortdesc" placeholder="Module Name" />
+                            <field class="fs-2 text-muted" name="summary" invisible="not summary" />
+                        </h1>
+                        <h4 class="text-muted d-flex flex-column">
+                            <div>By <field name="author" class="oe_inline" placeholder="Author Name" />
+                            </div>
+                            <small>
+                                <field name="website" widget="url" invisible="not website" />
+                            </small>
+                        </h4>
+
+                        <div>
+                            <button name="button_immediate_install" string="Activate"
+                                invisible="to_buy or state != 'uninstalled'" type="object"
+                                class="btn btn-primary me-1" groups="base.group_system" />
+                            <a
+                                href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise"
+                                target="_blank" class="btn btn-primary me-1"
+                                invisible="not to_buy or state not in ('uninstalled', 'uninstallable')"
+                                role="button">Upgrade</a>
+                            <button name="button_immediate_upgrade" invisible="state != 'installed'"
+                                string="Upgrade" type="object" class="btn btn-primary me-1"
+                                groups="base.group_system" />
+                            <button name="button_uninstall_wizard" invisible="state != 'installed'"
+                                string="Uninstall" type="object" class="btn btn-secondary me-1"
+                                groups="base.group_system" />
+                            <button invisible="state != 'to remove'" class="btn btn-secondary me-1"
+                                groups="base.group_system" disabled="1">Removing</button>
+                            <button invisible="state != 'to upgrade'" class="btn btn-secondary me-1"
+                                groups="base.group_system" disabled="1">Upgrading</button>
+                            <button invisible="state != 'to install'" class="btn btn-secondary me-1"
+                                groups="base.group_system" disabled="1">Installing</button>
+                        </div>
+                        <h6 class="text-muted mt-2" invisible="not has_iap">Contains In-App
+                            Purchases</h6>
+                    </div>
+                    <div class="clearfix" />
+                    <notebook groups="base.group_no_one">
+                        <page string="Information" name="information">
+                            <group>
+                                <group>
+                                    <field name="category_id"
+                                        options="{'no_open': True, 'no_create': True}" />
+                                    <field name="name" />
+                                    <field name="license" />
+                                    <field name="manifest_version" />
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Technical Data" name="technical_data">
+                            <group col="4">
+                                <field name="demo" />
+                                <field name="application" />
+                                <field name="state" />
+                            </group>
+                            <group>
+                                <group string="Dependencies">
+                                    <field name="dependencies_id" nolabel="1" colspan="2">
+                                        <list string="Dependencies">
+                                            <field name="name" />
+                                            <field name="state" />
+                                        </list>
+                                    </field>
+                                </group>
+                                <group string="Exclusions">
+                                    <field name="exclusion_ids" nolabel="1" colspan="2">
+                                        <list string="Exclusions">
+                                            <field name="name" />
+                                            <field name="state" />
+                                        </list>
+                                    </field>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Installed Features" name="installed_features"
+                            invisible="state != 'installed'">
+                            <group string="Created Menus" />
+                            <field name="menus_by_module" />
+                            <group string="Created Views" />
+                            <field name="views_by_module" />
+                            <group string="Defined Reports" />
+                            <field name="reports_by_module" />
+                        </page>
+                    </notebook>
+                    <field name="description_html" class="oe_styling_v8"
+                        invisible="not description_html" />
+                </sheet>
+            </form>
         </field>
     </record>
 

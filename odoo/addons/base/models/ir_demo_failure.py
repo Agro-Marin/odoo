@@ -50,5 +50,4 @@ class IrDemo_FailureWizard(models.TransientModel):
 
     def done(self) -> dict[str, Any]:
         """Dismiss the dialog and advance the module install/config todo chain."""
-        # pylint: disable=next-method-called
-        return self.env["ir.module.module"].next()
+        return self.env["ir.module.module"]._next_todo_action()

@@ -120,4 +120,12 @@ sent mails with personal token for the invitation of the survey.
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'survey.survey_assets',
+            'survey.survey_user_input_session_assets',
+        ],
+    },
 }
