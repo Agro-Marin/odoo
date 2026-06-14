@@ -1,3 +1,12 @@
+"""Shared, dependency-free constants for the assets pipeline.
+
+Lives at the bottom of the import graph so model files (``assetsbundle``,
+``ir_qweb``, ``ir_asset``) and ``odoo.libs`` layers can all read the same
+declarations without importing each other.
+"""
+
+from types import MappingProxyType
+
 __all__ = [
     "ANY_UNIQUE",
     "ASSET_EXTENSIONS",
@@ -5,6 +14,7 @@ __all__ = [
     "EXTENSION_TO_WEB_MIMETYPES",
     "EXTERNAL_ASSET",
     "GC_UNLINK_LIMIT",
+    "ODOO_EXTERNAL_LIBS",
     "PREFETCH_MAX",
     "SCRIPT_EXTENSIONS",
     "STYLE_EXTENSIONS",
@@ -13,7 +23,7 @@ __all__ = [
 ]
 
 SCRIPT_EXTENSIONS = ("js",)
-STYLE_EXTENSIONS = ("css", "scss", "sass", "less")
+STYLE_EXTENSIONS = ("css", "scss", "sass")
 TEMPLATE_EXTENSIONS = ("xml",)
 ASSET_EXTENSIONS = SCRIPT_EXTENSIONS + STYLE_EXTENSIONS + TEMPLATE_EXTENSIONS
 
@@ -36,7 +46,6 @@ DOTTED_ASSET_EXTENSIONS = tuple(f".{ext}" for ext in ASSET_EXTENSIONS)
 # and odoo.libs.filesystem.mimetypes
 EXTENSION_TO_WEB_MIMETYPES = {
     ".css": "text/css",
-    ".less": "text/less",
     ".scss": "text/scss",
     ".js": "text/javascript",
     ".xml": "text/xml",
@@ -44,3 +53,45 @@ EXTENSION_TO_WEB_MIMETYPES = {
     ".html": "text/html",
 }
 """Mapping of web file extensions to MIME types."""
+
+# URLs for @odoo/* (and other bare-specifier) libraries externalized by
+# esbuild — they must be in the browser import map so runtime ``import()``
+# can resolve them.  @odoo/hoot-dom is aliased in esbuild (bundled inline)
+# so it does NOT need an import map entry.
+#
+# Lives here (not on IrQweb) so ``assetsbundle`` can read it without a
+# deferred import of ``ir_qweb`` — the two used to form a cycle.  Kept in
+# sync with ``EsbuildCompiler._LIB_CANDIDATES`` by
+# ``AssetsBundle._validate_external_libs`` at import time.
+ODOO_EXTERNAL_LIBS = MappingProxyType(
+    {
+        "@odoo/owl": "/web/static/lib/owl/owl.es.js",
+        "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
+        "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
+        "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
+        # Deep-import aliases for hoot test-runner internals.  See the
+        # parallel block in ``EsbuildCompiler._LIB_CANDIDATES`` for the
+        # rationale (chrome rejects the legacy ``@web/../lib/...`` form
+        # in ``?debug=assets`` mode).
+        "@odoo/hoot-dom-helpers-dom": "/web/static/lib/hoot-dom/helpers/dom.js",
+        "@odoo/hoot-dom-helpers-events": "/web/static/lib/hoot-dom/helpers/events.js",
+        "@odoo/hoot-dom-helpers-time": "/web/static/lib/hoot-dom/helpers/time.js",
+        "@odoo/hoot-dom-utils": "/web/static/lib/hoot-dom/hoot_dom_utils.js",
+        # @popperjs/core is imported by the bundled Bootstrap ESM
+        # (``bootstrap.esm.js:6``). esbuild aliases it internally via
+        # EsbuildCompiler._LIB_CANDIDATES, but in debug mode the browser
+        # must resolve the bare specifier through the import map. Without
+        # this entry, ``bootstrap.esm.js`` fails to link, leaves Tooltip/
+        # Modal/etc as undefined on the re-export, and downstream code
+        # (``web/libs/bootstrap.js:33``) crashes reading ``Tooltip.Default``.
+        "@popperjs/core": "/web/static/lib/popper/popper.esm.js",
+        # luxon is shipped as a UMD IIFE that assigns window.luxon. The
+        # adapter at lib/luxon/luxon.esm.js re-exports each public class
+        # from that global so native ESM callers can
+        # ``import { DateTime } from "luxon"`` transparently. Required
+        # because several enterprise modules import luxon as ESM even
+        # though the vendored build is UMD.
+        "luxon": "/web/static/lib/luxon/luxon.esm.js",
+    }
+)
+"""Import-map entries for esbuild-externalized libraries (spec -> URL)."""

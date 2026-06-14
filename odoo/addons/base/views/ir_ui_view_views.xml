@@ -1,7 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- View -->
+    <record id="view_view_search" model="ir.ui.view">
+        <field name="model">ir.ui.view</field>
+        <field name="arch" type="xml">
+            <search string="Views">
+                <field name="name"
+                    filter_domain="['|', '|', ('name','ilike',self), ('model','ilike',self), ('model_data_id','ilike',self)]"
+                    string="View" />
+                <field name="key" />
+                <field name="model" />
+                <field name="inherit_id" />
+                <field name="type" />
+                <field name="arch_db" string="View Architecture" />
+                <filter string="Form" name="form" domain="[('type', '=','form')]" />
+                <filter string="List" name="list" domain="[('type', '=', 'list')]" />
+                <filter string="Kanban" name="kanban" domain="[('type', '=', 'kanban')]" />
+                <filter string="Search" name="search" domain="[('type', '=', 'search')]" />
+                <filter string="QWeb" name="qweb" domain="[('type', '=', 'qweb')]" />
+                <separator />
+                <filter string="Modified Architecture" name="arch_updated"
+                    domain="[('arch_updated', '=',True)]" />
+                <separator />
+                <filter string="Active" name="active" domain="[('active', '=',True)]" />
+                <filter string="Inactive" name="inactive" domain="[('active', '=',False)]" />
+                <group>
+                    <filter string="Model" name="object" domain="[]" context="{'group_by':'model'}" />
+                    <filter string="Type" name="type" domain="[]" context="{'group_by':'type'}" />
+                    <filter string="Inherit" name="inherit" domain="[]"
+                        context="{'group_by':'inherit_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_view_tree" model="ir.ui.view">
+        <field name="model">ir.ui.view</field>
+        <field name="arch" type="xml">
+            <list string="Views">
+                <field name="priority" string="Sequence" widget="handle" />
+                <field name="name" />
+                <field name="type" />
+                <field name="model" />
+                <field name="xml_id" groups="base.group_no_one" />
+                <field name="inherit_id" />
+            </list>
+        </field>
+    </record>
+
     <record id="view_view_form" model="ir.ui.view">
         <field name="model">ir.ui.view</field>
         <field name="arch" type="xml">
@@ -57,53 +103,6 @@
                     </notebook>
                 </sheet>
             </form>
-        </field>
-    </record>
-
-    <record id="view_view_tree" model="ir.ui.view">
-        <field name="model">ir.ui.view</field>
-        <field name="arch" type="xml">
-            <list string="Views">
-                <field name="priority" string="Sequence" widget="handle" />
-                <field name="name" />
-                <field name="type" />
-                <field name="model" />
-                <field name="xml_id" groups="base.group_no_one" />
-                <field name="inherit_id" />
-            </list>
-        </field>
-    </record>
-
-    <record id="view_view_search" model="ir.ui.view">
-        <field name="model">ir.ui.view</field>
-        <field name="arch" type="xml">
-            <search string="Views">
-                <field name="name"
-                    filter_domain="['|', '|', ('name','ilike',self), ('model','ilike',self), ('model_data_id','ilike',self)]"
-                    string="View" />
-                <field name="key" />
-                <field name="model" />
-                <field name="inherit_id" />
-                <field name="type" />
-                <field name="arch_db" string="View Architecture" />
-                <filter string="Form" name="form" domain="[('type', '=','form')]" />
-                <filter string="List" name="list" domain="[('type', '=', 'list')]" />
-                <filter string="Kanban" name="kanban" domain="[('type', '=', 'kanban')]" />
-                <filter string="Search" name="search" domain="[('type', '=', 'search')]" />
-                <filter string="QWeb" name="qweb" domain="[('type', '=', 'qweb')]" />
-                <separator />
-                <filter string="Modified Architecture" name="arch_updated"
-                    domain="[('arch_updated', '=',True)]" />
-                <separator />
-                <filter string="Active" name="active" domain="[('active', '=',True)]" />
-                <filter string="Inactive" name="inactive" domain="[('active', '=',False)]" />
-                <group>
-                    <filter string="Model" name="object" domain="[]" context="{'group_by':'model'}" />
-                    <filter string="Type" name="type" domain="[]" context="{'group_by':'type'}" />
-                    <filter string="Inherit" name="inherit" domain="[]"
-                        context="{'group_by':'inherit_id'}" />
-                </group>
-            </search>
         </field>
     </record>
 

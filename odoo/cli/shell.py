@@ -15,6 +15,7 @@ from odoo.tools import config
 
 from . import Command, get_single_database
 from . import server as cli_server
+from .command import PROG_NAME
 
 _logger = logging.getLogger(__name__)
 
@@ -96,9 +97,7 @@ class Shell(Command):
             return None
 
         if "env" not in local_vars:
-            print(
-                f"No environment set, use `{sys.argv[0]} shell -d dbname` to get one."
-            )
+            print(f"No environment set, use `{PROG_NAME} shell -d dbname` to get one.")
         for i in sorted(local_vars):
             print(f"{i}: {local_vars[i]}")
 

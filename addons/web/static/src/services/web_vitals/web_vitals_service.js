@@ -185,7 +185,12 @@ export const webVitalsService = {
             }
             try {
                 const payload = {
-                    url: browser.location.pathname + browser.location.search,
+                    // pathname only — ``location.search`` can carry record ids
+                    // and other PII that Web-Vitals aggregation does not need,
+                    // so it must not even leave the browser (the /web/cwv
+                    // controller additionally strips any query string as
+                    // defense-in-depth for stale cached clients).
+                    url: browser.location.pathname,
                     user_agent: browser.navigator.userAgent.slice(0, 500),
                     ...metrics,
                 };

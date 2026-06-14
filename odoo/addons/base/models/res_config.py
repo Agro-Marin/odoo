@@ -22,10 +22,9 @@ class ResConfig(models.TransientModel):
     _description = "Config"
 
     def start(self) -> dict[str, str]:
-        # pylint: disable=next-method-called
-        return self.next()
+        return self._next_todo_action()
 
-    def next(self) -> dict[str, str]:
+    def _next_todo_action(self) -> dict[str, str]:
         """
         Reload the settings page
         """
@@ -68,8 +67,7 @@ class ResConfig(models.TransientModel):
         an action dictionary -- executes the action provided by calling
         ``next``.
         """
-        # pylint: disable=next-method-called
-        return self.execute() or self.next()
+        return self.execute() or self._next_todo_action()
 
     def action_skip(self) -> dict[str, Any] | None:
         """Action handler for the ``skip`` event.
@@ -79,8 +77,7 @@ class ResConfig(models.TransientModel):
         an action dictionary -- executes the action provided by calling
         ``next``.
         """
-        # pylint: disable=next-method-called
-        return self.cancel() or self.next()
+        return self.cancel() or self._next_todo_action()
 
     def action_cancel(self) -> dict[str, Any] | None:
         """Action handler for the ``cancel`` event. That event isn't
@@ -93,8 +90,7 @@ class ResConfig(models.TransientModel):
         an action dictionary -- executes the action provided by calling
         ``next``.
         """
-        # pylint: disable=next-method-called
-        return self.cancel() or self.next()
+        return self.cancel() or self._next_todo_action()
 
 
 class ResConfigSettings(models.TransientModel):
@@ -470,8 +466,7 @@ class ResConfigSettings(models.TransientModel):
             # are no longer valid. So we reset the environment.
             self.env.transaction.reset()
 
-        # pylint: disable=next-method-called
-        config = self.env["res.config"].next() or {}
+        config = self.env["res.config"]._next_todo_action() or {}
         if config.get("type") != "ir.actions.act_window_close":
             return config
 

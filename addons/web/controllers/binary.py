@@ -12,12 +12,11 @@ import odoo
 from odoo import SUPERUSER_ID, _, api, http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import Response, request
+from odoo.libs.constants import ANY_UNIQUE
 from odoo.libs.filesystem.mimetypes import guess_mimetype
 from odoo.libs.json import dumps as json_dumps
 from odoo.tools import file_open, file_path, replace_exceptions, str2bool
 from odoo.tools.image import image_guess_size_from_field_name
-
-from odoo.addons.base.models.assetsbundle import ANY_UNIQUE
 
 _logger = logging.getLogger(__name__)
 

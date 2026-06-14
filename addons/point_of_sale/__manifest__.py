@@ -253,4 +253,15 @@
     },
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'point_of_sale._assets_pos',
+            'point_of_sale.assets_prod',
+            'point_of_sale.assets_prod_dark',
+            'point_of_sale.base_app',
+            'point_of_sale.customer_display_assets',
+        ],
+    },
 }

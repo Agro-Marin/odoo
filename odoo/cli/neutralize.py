@@ -3,14 +3,13 @@ import sys
 
 import odoo.db
 import odoo.modules.neutralize
-from odoo.tools import config
 
-from . import Command, build_config_args, get_single_database
+from . import DatabaseCommand
 
 _logger = logging.getLogger(__name__)
 
 
-class Neutralize(Command):
+class Neutralize(DatabaseCommand):
     """Neutralize a production database for testing: no emails sent, etc."""
 
     def run(self, args: list[str]) -> None:
@@ -24,10 +23,7 @@ class Neutralize(Command):
         )
         parsed_args = parser.parse_args(args)
 
-        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
-        config.parse_config(config_args, setup_logging=True)
-
-        dbname = get_single_database(config["db_name"])
+        dbname = self.bootstrap_config(parsed_args)
 
         # Python logging writes to stderr; it does not contaminate the SQL
         # emitted to stdout in --stdout mode, so log unconditionally.

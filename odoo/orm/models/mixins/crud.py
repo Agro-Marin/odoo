@@ -716,12 +716,24 @@ class CrudMixin:
                         for fname, field in zip(columns, col_fields, strict=True)
                     )
                     copy_rows.append(row)
+                # Binary COPY is faster ONLY when no column is numeric.  psycopg's
+                # binary numeric dumper requires Decimal, forcing a per-value
+                # float->Decimal(str()) conversion that makes binary ~2x SLOWER
+                # than text for any table with a Monetary / Float-with-digits
+                # column (measured on PG18: 3int+3num+2txt -> text 1.9x faster;
+                # 8 numeric -> 2.6x).  Text COPY stores byte-identical rows, so
+                # this only trades speed, never correctness.  Company-dependent /
+                # translated numerics are stored as jsonb (column_type "jsonb"),
+                # pay no Decimal tax, and correctly keep the binary fast path.
+                use_binary = not any(
+                    field.column_type[0] == "numeric" for field in col_fields
+                )
                 batch_ids = cr.copy_from(
                     self._table,
                     columns,
                     copy_rows,
                     returning_ids=True,
-                    binary=True,
+                    binary=use_binary,
                 )
                 ids.extend(batch_ids)
                 if _debug:

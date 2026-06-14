@@ -67,7 +67,7 @@ def get_existing_attachment(IrAttachment, vals):
     else:
         if not (raw or datas):
             return None
-        domain.append(('checksum', '=', IrAttachment._compute_checksum(raw or b64decode(datas))))
+        domain.append(('checksum', '=', IrAttachment._content_checksum(raw or b64decode(datas))))
     return IrAttachment.search(domain, limit=1) or None
 
 

@@ -469,7 +469,7 @@ rpc._rpc = function (url, params, settings) {
         }
         return rpcCache.read(
             params?.method || url, // table
-            JSON.stringify({ url, params }), // key
+            buildKey(url, params), // key — key-order independent (rpc_dedup.js)
             () => rpc._rpc(url, params, omit(settings, "cache")),
             cacheSettings,
         );

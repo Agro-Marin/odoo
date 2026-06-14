@@ -29,7 +29,7 @@
                 <field name="incoterm_id" options="{'no_open': True, 'no_create': True}" />
                 <field name="incoterm_location" />
                 <field name="picking_policy" required="True"
-                    readonly="state not in ['draft', 'sent']" />
+                    readonly="state != 'draft'" />
             </label>
             <span name="expected_date_span" position="attributes">
                 <attribute name="invisible">date_effective and date_commitment</attribute>

@@ -77,7 +77,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
 
     def test_load_message_failures(self):
         self.authenticate(self.user_employee.login, self.user_employee.login)
-        with contextlib.suppress(Exception), mute_logger('odoo.http', 'odoo.sql_db'):  # suppress logged error due to readonly route doing an update
+        with contextlib.suppress(Exception), mute_logger('odoo.http', 'odoo.db.cursor'):  # suppress logged error due to readonly route doing an update
             result = self.make_jsonrpc_request("/mail/data", {"fetch_params": ["failures"]})
         self.assertEqual(sorted(r['thread']['id'] for r in result['mail.message']), sorted(self.test_records_simple[:2].ids))
         self.assertEqual(
@@ -101,7 +101,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
             'notification_status': 'exception',
             'failure_type': 'mail_email_invalid',
         })
-        with contextlib.suppress(Exception), mute_logger('odoo.http', 'odoo.sql_db'):  # suppress logged error due to readonly route doing an update
+        with contextlib.suppress(Exception), mute_logger('odoo.http', 'odoo.db.cursor'):  # suppress logged error due to readonly route doing an update
             res = self.make_jsonrpc_request("/mail/data", {"fetch_params": ["failures"]})
             self.assertEqual(
                 sorted(t["name"] for t in res["mail.thread"]),

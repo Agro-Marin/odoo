@@ -1,4 +1,6 @@
+import argparse
 import functools
+import getpass
 import logging
 import pathlib
 import sys
@@ -8,11 +10,10 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg
 
-from odoo.db import connection_info_for
-from odoo.modules.registry import Registry
-from odoo.tools import SQL, config
+from odoo.db import connection_info_for, db_connect
+from odoo.tools import SQL
 
-from . import Command, build_config_args
+from . import DatabaseCommand
 
 if TYPE_CHECKING:
     from odoo.db import Cursor
@@ -23,6 +24,40 @@ _logger = logging.getLogger(__name__)
 # NULL argument to jsonb_set returns NULL, which would wipe the whole column
 # for rows that don't cover every cross-table key. See the CASE guard in
 # convert_table below.
+
+# Personally-identifiable columns processed when no --fields/--file/--allfields
+# selection is given. Keep in sync with the unobfuscate default: a run that
+# covers fewer fields than were obfuscated leaves encrypted data behind.
+DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("mail_tracking_value", "old_value_char"),
+    ("mail_tracking_value", "old_value_text"),
+    ("mail_tracking_value", "new_value_char"),
+    ("mail_tracking_value", "new_value_text"),
+    ("res_partner", "name"),
+    ("res_partner", "complete_name"),
+    ("res_partner", "email"),
+    ("res_partner", "phone"),
+    ("res_partner", "mobile"),
+    ("res_partner", "street"),
+    ("res_partner", "street2"),
+    ("res_partner", "city"),
+    ("res_partner", "zip"),
+    ("res_partner", "vat"),
+    ("res_partner", "website"),
+    ("res_country", "name"),
+    ("mail_message", "subject"),
+    ("mail_message", "email_from"),
+    ("mail_message", "reply_to"),
+    ("mail_message", "body"),
+    ("crm_lead", "name"),
+    ("crm_lead", "contact_name"),
+    ("crm_lead", "partner_name"),
+    ("crm_lead", "email_from"),
+    ("crm_lead", "phone"),
+    ("crm_lead", "mobile"),
+    ("crm_lead", "website"),
+    ("crm_lead", "description"),
+)
 
 
 def _parse_field_spec(spec: str) -> tuple[str, str]:
@@ -35,6 +70,38 @@ def _parse_field_spec(spec: str) -> tuple[str, str]:
         msg = f"Invalid field specification {spec!r}: expected 'table.column'"
         raise ValueError(msg)
     return parts[0], parts[1]
+
+
+def _select_fields(opt: argparse.Namespace) -> list[tuple[str, str]]:
+    """Resolve the requested ``(table, column)`` pairs from CLI options.
+
+    Pure selection logic — schema validation and ``--allfields`` expansion
+    need a cursor and stay in ``run``. Under ``--allfields`` every manual
+    selection is ignored (with a warning), since the schema scan supersedes
+    it.
+
+    :raises ValueError: on a malformed ``table.column`` spec (propagated
+        from :func:`_parse_field_spec`)
+    """
+    fields = [] if opt.no_default_fields else list(DEFAULT_FIELDS)
+    if opt.fields:
+        if opt.allfields:
+            _logger.warning("--allfields is set: ignoring --fields")
+        else:
+            fields += [_parse_field_spec(f) for f in opt.fields.split(",")]
+    if opt.file:
+        if opt.allfields:
+            _logger.warning("--allfields is set: ignoring --file")
+        else:
+            with pathlib.Path(opt.file).open(encoding="utf-8") as f:
+                fields += [_parse_field_spec(line) for line in f if line.strip()]
+    if opt.exclude:
+        if opt.allfields:
+            _logger.warning("--allfields is set: ignoring --exclude")
+        else:
+            excluded = {_parse_field_spec(e) for e in opt.exclude.split(",")}
+            fields = [f for f in fields if f not in excluded]
+    return fields
 
 
 def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -50,19 +117,23 @@ def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
     return check_cr
 
 
-class Obfuscate(Command):
+class Obfuscate(DatabaseCommand):
     """Obfuscate data in a given odoo database"""
 
     def __init__(self) -> None:
         super().__init__()
         self.cr: Cursor | None = None
         self.dbname: str = ""
-        self.registry: Registry | None = None
+        # (table, column) -> 'string'/'json', loaded in a single catalog query
+        # by _prefetch_field_kinds / get_all_fields. None until prefetched, in
+        # which state check_field falls back to a per-field probe (so callers
+        # that never prefetch — e.g. unit tests — keep working).
+        self._field_kinds: dict[tuple[str, str], str] | None = None
 
     @_ensure_cr
-    def begin(self) -> None:
-        # psycopg opens an implicit transaction on first execute (autocommit=False),
-        # so an explicit BEGIN is unnecessary and triggers a PG warning.
+    def _ensure_pgcrypto(self) -> None:
+        # Idempotent; no explicit BEGIN — psycopg opens an implicit
+        # transaction on first execute (autocommit=False).
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     @_ensure_cr
@@ -96,8 +167,11 @@ class Obfuscate(Command):
                 self.cr.rowcount == 1 and self.cr.fetchone()[0] == pwd
             ):
                 return True
-        except Exception as e:
-            _logger.error("Error checking password: %s", e)
+        except psycopg.errors.ExternalRoutineInvocationException as e:
+            # SQLSTATE 39000: pgp_sym_decrypt with a wrong key. This IS the
+            # "invalid password" case; anything else (permissions, missing
+            # extension, …) must propagate instead of masquerading as it.
+            _logger.info("Password check failed: %s", e)
         return False
 
     @_ensure_cr
@@ -120,30 +194,77 @@ class Obfuscate(Command):
             pwd=password,
         )
 
-    def check_field(self, table: str, field: str) -> str | bool:
+    @staticmethod
+    def _kind_of(udt_name: str) -> str | None:
+        """Map a PostgreSQL ``udt_name`` to the obfuscation kind."""
+        if udt_name in ("text", "varchar"):
+            # Doesn't work for selection fields ...
+            return "string"
+        if udt_name == "jsonb":
+            return "json"
+        return None
+
+    def _prefetch_field_kinds(self, tables: set[str] | list[str]) -> None:
+        """Cache the obfuscation kind of every text/varchar/jsonb column of
+        ``tables`` in one catalog query.
+
+        The explicit ``--fields`` path otherwise probes each column twice
+        (once to validate in ``run``, once in ``convert_table``) — one
+        ``information_schema`` round-trip per probe. After prefetching,
+        ``check_field`` is a dict lookup. The cache holds exactly the
+        string/json columns of ``tables``, so a miss is indistinguishable
+        from the per-field query's "absent or unsupported" answer.
+        """
+        self._field_kinds = {}
+        if not tables:
+            return
+        self.cr.execute(
+            "SELECT table_name, column_name, udt_name"
+            " FROM information_schema.columns"
+            " WHERE table_schema = current_schema"
+            "   AND table_name = ANY(%s)"
+            "   AND udt_name IN ('text', 'varchar', 'jsonb')",
+            [list(tables)],
+        )
+        self._field_kinds = {
+            (table, column): kind
+            for table, column, udt in self.cr.fetchall()
+            if (kind := self._kind_of(udt))
+        }
+
+    def check_field(self, table: str, field: str) -> str | None:
+        """Return the processing kind for ``table.column``: ``'string'``,
+        ``'json'``, or None when the column is absent or unsupported."""
+        if self._field_kinds is not None:
+            # Prefetched: a miss means the column is absent or not a
+            # string/json type — the same answer the query below would give.
+            return self._field_kinds.get((table, field))
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
         self.cr.execute(qry, [table, field])
         if self.cr.rowcount == 1:
-            res = self.cr.fetchone()
-            if res[0] in ["text", "varchar"]:
-                # Doesn t work for selection fields ...
-                return "string"
-            if res[0] == "jsonb":
-                return "json"
-        return False
+            return self._kind_of(self.cr.fetchone()[0])
+        return None
 
     def get_all_fields(self) -> list[tuple[str, str]]:
         # Use starts_with(table_name, 'ir_') — LIKE 'ir_%' would also match
         # tables like 'irrelevant' because '_' is a LIKE wildcard.
         qry = (
-            "SELECT table_name, column_name FROM information_schema.columns"
+            "SELECT table_name, column_name, udt_name FROM information_schema.columns"
             " WHERE table_schema = current_schema"
             " AND udt_name IN ('text', 'varchar', 'jsonb')"
             " AND NOT starts_with(table_name, 'ir_')"
             " ORDER BY 1, 2"
         )
         self.cr.execute(qry)
-        return self.cr.fetchall()
+        rows = self.cr.fetchall()
+        # The query already carries the type; cache it so convert_table does
+        # not re-probe each column one-by-one via check_field.
+        self._field_kinds = {
+            (table, column): kind
+            for table, column, udt in rows
+            if (kind := self._kind_of(udt))
+        }
+        return [(table, column) for table, column, _udt in rows]
 
     def convert_table(
         self,
@@ -154,6 +275,12 @@ class Obfuscate(Command):
         unobfuscate: bool = False,
     ) -> None:
         cypherings = []
+        # Per-field "this row needs work" predicates. An unguarded UPDATE
+        # physically rewrites every tuple even when the CASE returns the
+        # value unchanged — on mail_message-sized tables that is a full
+        # table rewrite (WAL, bloat, locks) for nothing. OR-ing these into
+        # a WHERE clause skips already-processed (and NULL) rows entirely.
+        conditions = []
         cyph_fct = self.uncypher_string if unobfuscate else self.cypher_string
 
         for field in fields:
@@ -162,6 +289,17 @@ class Obfuscate(Command):
             if field_type == "string":
                 cypher_query = cyph_fct(sql_field, pwd)
                 cypherings.append(SQL("%s=%s", SQL.identifier(field), cypher_query))
+                if unobfuscate:
+                    # NULL-safe: starts_with(NULL, …) is NULL, falsy in OR.
+                    conditions.append(SQL("starts_with(%s, 'odoo_cyph_')", sql_field))
+                else:
+                    conditions.append(
+                        SQL(
+                            "(%s IS NOT NULL AND NOT starts_with(%s, 'odoo_cyph_'))",
+                            sql_field,
+                            sql_field,
+                        )
+                    )
             elif field_type == "json":
                 # Gather keys seen anywhere in the column, then build a
                 # nested jsonb_set that encrypts each key per-row. The
@@ -195,23 +333,28 @@ class Obfuscate(Command):
                         new_field_value,
                     )
                 cypherings.append(SQL("%s=%s", sql_field, new_field_value))
+                # jsonb rows can't be cheaply tested for "already cyphered";
+                # at least skip rows where the whole column is NULL.
+                conditions.append(SQL("%s IS NOT NULL", sql_field))
 
         if cypherings:
             query = SQL(
-                "UPDATE %s SET %s",
+                "UPDATE %s SET %s WHERE %s",
                 SQL.identifier(table),
                 SQL(",").join(cypherings),
+                SQL(" OR ").join(conditions),
             )
             self.cr.execute(query)
             if with_commit:
+                # The next execute reopens an implicit transaction; the
+                # pgcrypto extension persists across commits.
                 self.commit()
-                self.begin()
 
     def _vacuum_tables(self, tables: dict[str, set[str]]) -> None:
         """Run ``VACUUM FULL`` on each table via a dedicated autocommit connection.
 
         PostgreSQL refuses ``VACUUM`` inside a transaction block, so we cannot
-        reuse the registry cursor. We open a raw psycopg connection with
+        reuse the pooled cursor. We open a raw psycopg connection with
         ``autocommit=True`` and issue one ``VACUUM`` per table.
         """
         _logger.info("Vacuuming obfuscated tables")
@@ -245,14 +388,65 @@ class Obfuscate(Command):
             sys.exit("Cancelled: database name did not match.")
         return True
 
+    def _resolve_password(self, opt: argparse.Namespace) -> str:
+        """Resolve the cypher password from ``--pwd``, ``--pwd-file``, or an
+        interactive prompt — in that order.
+
+        The prompt (``getpass``, no echo) is the recommended path: ``--pwd``
+        exposes the password to every local user through the process
+        arguments and the shell history.
+        """
+        if opt.pwd:
+            return opt.pwd
+        if opt.pwd_file:
+            first_line = (
+                pathlib.Path(opt.pwd_file)
+                .read_text(encoding="utf-8")
+                .partition("\n")[0]
+                .strip()
+            )
+            if not first_line:
+                self.parser.error(f"--pwd-file {opt.pwd_file!r} is empty")
+            return first_line
+        try:
+            pwd = getpass.getpass("Cypher password: ")
+        except EOFError, KeyboardInterrupt:
+            pwd = ""
+        if not pwd:
+            self.parser.error(
+                "a cypher password is required (--pwd, --pwd-file, or the "
+                "interactive prompt)"
+            )
+        return pwd
+
     def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         self.add_config_arguments(parser)
-        parser.add_argument("--pwd", required=True, help="Cypher password")
+        pwd_group = parser.add_mutually_exclusive_group()
+        pwd_group.add_argument(
+            "--pwd",
+            help="Cypher password. NOTE: visible to every local user via the "
+            "process arguments (ps, shell history); prefer --pwd-file or the "
+            "interactive prompt (default when neither flag is given).",
+        )
+        pwd_group.add_argument(
+            "--pwd-file",
+            help="Read the cypher password from the first line of this file",
+        )
         parser.add_argument(
             "--fields",
             default=None,
-            help="List of table.columns to obfuscate/unobfuscate: table1.column1,table2.column1,table2.column2",
+            help="List of table.columns to obfuscate/unobfuscate, processed "
+            "IN ADDITION to the built-in PII list (see --no-default-fields): "
+            "table1.column1,table2.column1,table2.column2",
+        )
+        parser.add_argument(
+            "--no-default-fields",
+            action="store_true",
+            default=False,
+            help="Do not process the built-in PII field list; only the "
+            "--fields/--file selection. Caution when unobfuscating: cover at "
+            "least every field the obfuscation run processed.",
         )
         parser.add_argument(
             "--exclude",
@@ -291,82 +485,44 @@ class Obfuscate(Command):
             help="Don't ask for manual confirmation.",
         )
 
-        # No explicit empty-args guard: --pwd is required=True so argparse
-        # will emit a clear "--pwd is required" error on empty invocation.
+        # No explicit empty-args guard: the bare invocation fails with a
+        # clear "No database specified" error from bootstrap_config below.
         opt = parser.parse_args(cmdargs)
 
         if opt.allfields and not opt.unobfuscate:
             parser.error("--allfields can only be used in unobfuscate mode")
+        if opt.no_default_fields and not (opt.fields or opt.file or opt.allfields):
+            parser.error(
+                "--no-default-fields leaves nothing to process; add --fields or --file"
+            )
 
-        config_args = build_config_args(opt.config, opt.db_name)
-        config.parse_config(config_args, setup_logging=True)
-        self.dbname = self.require_single_database(opt)
+        self.dbname = self.bootstrap_config(opt)
+        pwd = self._resolve_password(opt)
 
         try:
-            self.registry = Registry(self.dbname)
-            with self.registry.cursor() as cr:
+            # A plain pooled connection, NOT Registry(...): the command only
+            # runs raw SQL, while a registry build loads every installed
+            # module's models (minutes on production-sized databases) and
+            # requires a loadable registry — which a damaged dump may not
+            # have. Trade-off: no upfront "is this an Odoo db" validation;
+            # the first query on ir_config_parameter fails instead, caught
+            # by the generic handler below.
+            with db_connect(self.dbname).cursor() as cr:
                 self.cr = cr
-                self.begin()
-                if self.check_pwd(opt.pwd):
-                    fields = [
-                        ("mail_tracking_value", "old_value_char"),
-                        ("mail_tracking_value", "old_value_text"),
-                        ("mail_tracking_value", "new_value_char"),
-                        ("mail_tracking_value", "new_value_text"),
-                        ("res_partner", "name"),
-                        ("res_partner", "complete_name"),
-                        ("res_partner", "email"),
-                        ("res_partner", "phone"),
-                        ("res_partner", "mobile"),
-                        ("res_partner", "street"),
-                        ("res_partner", "street2"),
-                        ("res_partner", "city"),
-                        ("res_partner", "zip"),
-                        ("res_partner", "vat"),
-                        ("res_partner", "website"),
-                        ("res_country", "name"),
-                        ("mail_message", "subject"),
-                        ("mail_message", "email_from"),
-                        ("mail_message", "reply_to"),
-                        ("mail_message", "body"),
-                        ("crm_lead", "name"),
-                        ("crm_lead", "contact_name"),
-                        ("crm_lead", "partner_name"),
-                        ("crm_lead", "email_from"),
-                        ("crm_lead", "phone"),
-                        ("crm_lead", "mobile"),
-                        ("crm_lead", "website"),
-                        ("crm_lead", "description"),
-                    ]
-
-                    if opt.fields:
-                        if not opt.allfields:
-                            fields += [
-                                _parse_field_spec(f) for f in opt.fields.split(",")
-                            ]
-                        else:
-                            _logger.warning(
-                                "--allfields is set: --fields and the built-in "
-                                "field list are both ignored, every text field "
-                                "in the schema will be processed"
-                            )
-                    if opt.file:
-                        with pathlib.Path(opt.file).open(encoding="utf-8") as f:
-                            fields += [
-                                _parse_field_spec(line) for line in f if line.strip()
-                            ]
-                    if opt.exclude:
-                        if not opt.allfields:
-                            excluded = {
-                                _parse_field_spec(e) for e in opt.exclude.split(",")
-                            }
-                            fields = [f for f in fields if f not in excluded]
-                        else:
-                            _logger.warning("--allfields is set: --exclude is ignored")
+                self._ensure_pgcrypto()
+                if self.check_pwd(pwd):
+                    try:
+                        fields = _select_fields(opt)
+                    except ValueError as e:
+                        parser.error(str(e))
 
                     if opt.allfields:
                         fields = self.get_all_fields()
                     else:
+                        # One catalog query for all selected tables, so the
+                        # validation pass below and convert_table later are
+                        # dict lookups instead of two probes per field.
+                        self._prefetch_field_kinds({t for t, _ in fields})
                         invalid_fields = [
                             f for f in fields if not self.check_field(f[0], f[1])
                         ]
@@ -408,9 +564,26 @@ class Obfuscate(Command):
                             self.convert_table(
                                 table,
                                 tables[table],
-                                opt.pwd,
+                                pwd,
                                 opt.pertablecommit,
                                 True,
+                            )
+
+                        # A field-scoped run may leave other columns
+                        # encrypted; keep the password marker so later runs
+                        # can still validate the password against them.
+                        # Deleting it would make check_pwd accept ANY
+                        # password (no row -> True) and fail mid-UPDATE.
+                        partial_run = (
+                            bool(opt.fields or opt.file or opt.exclude)
+                            and not opt.allfields
+                        )
+                        if partial_run:
+                            _logger.warning(
+                                "Partial unobfuscation: keeping the stored "
+                                "password marker; run without --fields/"
+                                "--file/--exclude (or with --allfields) to "
+                                "remove it."
                             )
 
                         if opt.vacuum:
@@ -419,21 +592,24 @@ class Obfuscate(Command):
                             # so commit pending work and run each VACUUM on
                             # a dedicated autocommit psycopg connection,
                             # bypassing Odoo's transactional Cursor.
+                            # clear_pwd below reopens an implicit txn.
                             self.commit()
                             self._vacuum_tables(tables)
-                            # Resume the registry cursor with a fresh txn
-                            # for clear_pwd below.
-                            self.begin()
-                        self.clear_pwd()
+                        if not partial_run:
+                            self.clear_pwd()
                     else:
                         _logger.info("Obfuscating datas")
-                        self.set_pwd(opt.pwd)
+                        if opt.vacuum:
+                            _logger.warning(
+                                "--vacuum only applies in unobfuscate mode; ignoring it"
+                            )
+                        self.set_pwd(pwd)
                         for table in tables:
                             _logger.info("Obfuscating table %s", table)
                             self.convert_table(
                                 table,
                                 tables[table],
-                                opt.pwd,
+                                pwd,
                                 opt.pertablecommit,
                             )
 
@@ -444,10 +620,23 @@ class Obfuscate(Command):
                         "ERROR: invalid password (the database is encrypted with a different one)."
                     )
 
+        except psycopg.errors.ExternalRoutineInvocationException as e:
+            # pgp_sym_decrypt failed mid-UPDATE: data encrypted with another
+            # password (reachable when the marker is absent, e.g. after a
+            # partial unobfuscation on an older database).
+            _logger.debug("Decryption failure", exc_info=True)
+            sys.exit(
+                "ERROR: decryption failed — the data was obfuscated with a "
+                f"different password. ({e})"
+            )
         except Exception as e:
+            _logger.debug("Unexpected obfuscation failure", exc_info=True)
             sys.exit(f"ERROR: {e}")
         finally:
-            # The `with registry.cursor()` context has already released the
-            # cursor; drop our reference so `_ensure_cr` can detect reuse
+            # The `with db_connect(...).cursor()` context has already released
+            # the cursor; drop our reference so `_ensure_cr` can detect reuse
             # of a closed cursor (tests that instantiate Obfuscate twice, etc.).
             self.cr = None
+            # Invalidate the per-run schema cache so a reused instance probes
+            # its new cursor instead of trusting the previous database's columns.
+            self._field_kinds = None

@@ -1,7 +1,7 @@
 """Database-free tests for ``ir.attachment`` pure methods.
 
-Covers ``_compute_checksum()`` (SHA-1 hex digest) and
-``_compute_mimetype()`` (multi-fallback MIME detection).
+Covers ``_content_checksum()`` (SHA-1 hex digest) and
+``_mimetype_from_values()`` (multi-fallback MIME detection).
 
 Run with::
 
@@ -11,45 +11,45 @@ Run with::
 import base64
 import hashlib
 
-# ── _compute_checksum ─────────────────────────────────────────
+# ── _content_checksum ─────────────────────────────────────────
 
 
 class TestComputeChecksum:
-    """``_compute_checksum``: SHA-1 hex digest of binary data."""
+    """``_content_checksum``: SHA-1 hex digest of binary data."""
 
     def test_standard_data(self, env):
         """Known content produces expected SHA-1."""
         data = b"hello world"
         att = env["ir.attachment"].browse()
-        result = att._compute_checksum(data)
+        result = att._content_checksum(data)
         assert result == hashlib.sha1(b"hello world").hexdigest()
 
     def test_empty_bytes(self, env):
         """Empty bytes → SHA-1 of empty string (not None)."""
         att = env["ir.attachment"].browse()
-        result = att._compute_checksum(b"")
+        result = att._content_checksum(b"")
         assert result == hashlib.sha1(b"").hexdigest()
         assert len(result) == 40  # SHA-1 hex digest length
 
     def test_none_input(self, env):
         """None → treated as empty bytes."""
         att = env["ir.attachment"].browse()
-        result = att._compute_checksum(None)
+        result = att._content_checksum(None)
         assert result == hashlib.sha1(b"").hexdigest()
 
     def test_binary_content(self, env):
         """Non-UTF8 binary data is hashed correctly."""
         data = bytes(range(256))
         att = env["ir.attachment"].browse()
-        result = att._compute_checksum(data)
+        result = att._content_checksum(data)
         assert result == hashlib.sha1(data).hexdigest()
 
 
-# ── _compute_mimetype ─────────────────────────────────────────
+# ── _mimetype_from_values ─────────────────────────────────────────
 
 
 class TestComputeMimetype:
-    """``_compute_mimetype``: multi-fallback MIME type detection.
+    """``_mimetype_from_values``: multi-fallback MIME type detection.
 
     Priority: explicit mimetype → name extension → URL extension → raw content.
     """
@@ -57,25 +57,25 @@ class TestComputeMimetype:
     def test_explicit_mimetype(self, env):
         """Explicit mimetype in values takes precedence."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({"mimetype": "text/html"})
+        result = att._mimetype_from_values({"mimetype": "text/html"})
         assert result == "text/html"
 
     def test_from_filename(self, env):
         """MIME guessed from file extension."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({"name": "report.pdf"})
+        result = att._mimetype_from_values({"name": "report.pdf"})
         assert result == "application/pdf"
 
     def test_from_url(self, env):
         """MIME guessed from URL path extension."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({"url": "/web/content/logo.png?download=true"})
+        result = att._mimetype_from_values({"url": "/web/content/logo.png?download=true"})
         assert result == "image/png"
 
     def test_url_query_stripped(self, env):
         """Query string stripped before guessing MIME from URL."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({"url": "/files/data.csv?v=2"})
+        result = att._mimetype_from_values({"url": "/files/data.csv?v=2"})
         assert result == "text/csv"
 
     def test_from_raw_content(self, env):
@@ -83,7 +83,7 @@ class TestComputeMimetype:
         att = env["ir.attachment"].browse()
         # PDF magic bytes — libmagic recognizes these reliably
         pdf_bytes = b"%PDF-1.4 fake content"
-        result = att._compute_mimetype({"raw": pdf_bytes})
+        result = att._mimetype_from_values({"raw": pdf_bytes})
         assert result == "application/pdf"
 
     def test_from_datas_base64(self, env):
@@ -92,25 +92,25 @@ class TestComputeMimetype:
         # PDF magic bytes
         pdf_bytes = b"%PDF-1.4 fake content"
         datas = base64.b64encode(pdf_bytes).decode()
-        result = att._compute_mimetype({"datas": datas})
+        result = att._mimetype_from_values({"datas": datas})
         assert result == "application/pdf"
 
     def test_empty_values(self, env):
         """No clues → default 'application/octet-stream'."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({})
+        result = att._mimetype_from_values({})
         assert result == "application/octet-stream"
 
     def test_uppercase_lowered(self, env):
         """Explicit MIME type is lowercased."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({"mimetype": "TEXT/HTML"})
+        result = att._mimetype_from_values({"mimetype": "TEXT/HTML"})
         assert result == "text/html"
 
     def test_name_takes_precedence_over_url(self, env):
         """Name extension checked before URL when no explicit mimetype."""
         att = env["ir.attachment"].browse()
-        result = att._compute_mimetype({
+        result = att._mimetype_from_values({
             "name": "document.pdf",
             "url": "/files/image.png",
         })
@@ -176,7 +176,7 @@ class TestSameContent:
         assert att._same_content(data, str(filepath)) is False
 
 
-# ── _compute_checksum ─────────────────────────────────────────
+# ── _content_checksum ─────────────────────────────────────────
 
 
 class TestComputeChecksumUsedForSecurity:
@@ -188,6 +188,6 @@ class TestComputeChecksumUsedForSecurity:
 
         data = b"test content for checksum"
         att = env["ir.attachment"].browse()
-        assert att._compute_checksum(data) == hashlib.sha1(data).hexdigest()
+        assert att._content_checksum(data) == hashlib.sha1(data).hexdigest()
 
 

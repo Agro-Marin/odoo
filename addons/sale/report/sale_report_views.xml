@@ -9,9 +9,9 @@
                 <field name="date_order" />
                 <filter string="Date" name="year" invisible="1" date="date_order" default_period="year" />
                 <filter string="Quotations" name="Quotations"
-                    domain="[('state','in', ('draft', 'sent'))]" />
+                    domain="[('state','=', 'draft')]" />
                 <filter string="Sales Orders" name="Sales"
-                    domain="[('state','not in',('draft', 'cancel', 'sent'))]" />
+                    domain="[('state','not in',('draft', 'cancel'))]" />
                 <separator />
                 <filter name="filter_date" date="date_order" default_period="month" />
                 <filter name="filter_order_date" invisible="1" string="Order Date: Last 365 Days"

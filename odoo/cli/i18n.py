@@ -7,14 +7,14 @@ from typing import Any
 
 from odoo.fields import Domain
 from odoo.modules import get_module_path
-from odoo.tools import OrderedSet, config
+from odoo.tools import OrderedSet
 from odoo.tools.translate import (
     TranslationImporter,
     load_language,
     trans_export,
 )
 
-from . import Command, build_config_args, odoo_env
+from . import DatabaseCommand, odoo_env
 
 _logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
         super().__init__(*args, **kwargs, max_help_position=80)
 
 
-class I18n(Command):
+class I18n(DatabaseCommand):
     """Import, export, setup languages and internationalization files"""
 
     def __init__(self) -> None:
@@ -42,18 +42,21 @@ class I18n(Command):
             description="Imports provided translation files",
             formatter_class=SubcommandHelpFormatter,
         )
+        self.import_parser.set_defaults(func=self._import)
         self.export_parser = subparsers.add_parser(
             "export",
             help="Export i18n files",
             description="Exports language files into the i18n folder of each module",
             formatter_class=SubcommandHelpFormatter,
         )
+        self.export_parser.set_defaults(func=self._export)
         self.loadlang_parser = subparsers.add_parser(
             "loadlang",
             help="Load languages",
             description="Loads languages",
             formatter_class=SubcommandHelpFormatter,
         )
+        self.loadlang_parser.set_defaults(func=self._loadlang)
 
         for parser in (
             self.import_parser,
@@ -136,26 +139,10 @@ class I18n(Command):
 
     def run(self, cmdargs: list[str]) -> None:
         parsed_args = self.parser.parse_args(args=cmdargs)
-        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
-        config.parse_config(config_args, setup_logging=True)
-        self.require_single_database(parsed_args)
-
-        match parsed_args.subcommand:
-            case "import":
-                self._import(parsed_args)
-            case "export":
-                self._export(parsed_args)
-            case "loadlang":
-                self._loadlang(parsed_args)
-            case _:
-                # argparse's required=True on the subparsers makes this
-                # unreachable today. The default is a safety net: a 4th
-                # subcommand added to the parser without updating this
-                # dispatch would silently no-op, and that class of bug is
-                # infuriating to debug. Fail loudly instead.
-                raise NotImplementedError(
-                    f"i18n subcommand {parsed_args.subcommand!r} has no handler"
-                )
+        self.bootstrap_config(parsed_args)
+        # func is bound via set_defaults on each subparser (same idiom as
+        # `db` and `module`), so an unhandled subcommand is unrepresentable.
+        parsed_args.func(parsed_args)
 
     def _get_languages(
         self, env: Any, language_codes: list[str], active_test: bool = True
@@ -170,9 +157,14 @@ class I18n(Command):
                 ]
             )
         )
-        if not_found_language_codes := set(language_codes) - set(
-            languages.mapped("iso_code")
-        ):
+        # A language is matched on iso_code OR code (see Domain.OR above), so
+        # the not-found set must subtract BOTH. Subtracting iso_code alone
+        # wrongly flags any full-code input (e.g. 'en_US', iso 'en') as not
+        # found even though it was matched and is about to be processed.
+        matched_codes = set(languages.mapped("iso_code")) | set(
+            languages.mapped("code")
+        )
+        if not_found_language_codes := set(language_codes) - matched_codes:
             _logger.warning(
                 "Ignoring not found languages: %s",
                 ", ".join(not_found_language_codes),
@@ -285,7 +277,16 @@ class I18n(Command):
             else:
                 # Po(t) files in the modules' i18n folders
                 for module_name in module_names:
-                    i18n_path = Path(get_module_path(module_name), "i18n")
+                    # Installed in the DB but absent from the current
+                    # addons path: Path(None, ...) would raise TypeError.
+                    module_path = get_module_path(module_name)
+                    if not module_path:
+                        self.export_parser.error(
+                            f"module {module_name!r} is installed in the "
+                            "database but was not found on the addons path; "
+                            "fix --addons-path or export with --output"
+                        )
+                    i18n_path = Path(module_path, "i18n")
                     if export_pot:
                         path = i18n_path / f"{module_name}.pot"
                         self._export_file(env, [module_name], None, path)

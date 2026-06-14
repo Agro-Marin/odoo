@@ -77,7 +77,8 @@ class IrModel(models.Model):
         self.env.cr.execute(query, [models])
 
         for (fname,) in fnames:
-            self.env["ir.attachment"]._file_delete(fname)
+            # key-axis dispatch: deletes follow the store key's backend
+            self.env["ir.attachment"]._storage_delete(fname)
 
         return super().unlink()
 

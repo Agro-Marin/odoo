@@ -24,6 +24,7 @@ from . import ir_embedded_actions
 from . import ir_actions_report
 
 # --- Storage ---
+from . import ir_attachment_storage
 from . import ir_attachment
 from . import ir_binary
 

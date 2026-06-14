@@ -11,7 +11,8 @@
                     <field name="confirm_password" password="True" required="1" />
                 </group>
                 <footer>
-                    <button string="Change Password" name="change_password" type="object" class="btn-primary" data-hotkey="q" />
+                    <button string="Change Password" name="change_password" type="object"
+                        class="btn-primary" data-hotkey="q" />
                     <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x" />
                 </footer>
             </form>
@@ -26,7 +27,8 @@
             <form string="Change Password">
                 <field mode="list" name="user_ids" />
                 <footer>
-                    <button string="Change Password" name="change_password_button" type="object" class="btn-primary" data-hotkey="q" />
+                    <button string="Change Password" name="change_password_button" type="object"
+                        class="btn-primary" data-hotkey="q" />
                     <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x" />
                 </footer>
             </form>
@@ -64,7 +66,8 @@
             <form string="Users">
                 <sheet>
                     <div class="d-flex gap-3">
-                        <field name="image_1920" widget="contact_image" options="{'preview_image': 'avatar_128', 'zoom': true, 'size': [130,130], 'img_class': 'rounded-4'}" />
+                        <field name="image_1920" widget="contact_image"
+                            options="{'preview_image': 'avatar_128', 'zoom': true, 'size': [130,130], 'img_class': 'rounded-4'}" />
                         <field name="avatar_128" invisible="1" /> <!-- Needed in contact_image widget -->
                         <div class="d-flex flex-column flex-grow-1 justify-content-center">
                             <h1 class="mb-0 w-100">
@@ -76,22 +79,26 @@
                                 <i class="fa-solid fa-envelope me-1 text-primary" title="Email" />
                                 <field name="email_domain_placeholder" invisible="1" /> <!-- needed
                                 to compute the placeholder whenever the dialog opens -->
-                                <field name="login" class="w-100" options="{'placeholder_field': 'email_domain_placeholder'}" />
+                                <field name="login" class="w-100"
+                                    options="{'placeholder_field': 'email_domain_placeholder'}" />
                             </div>
                             <div class="d-flex align-items-baseline w-100">
                                 <i class="fa-solid fa-phone me-1 text-primary" title="Phone" />
                                 <field name="phone" class="w-100" widget="phone" placeholder="Phone" />
                             </div>
-                            <div class="d-flex align-items-baseline w-100" groups="base.group_multi_company">
+                            <div class="d-flex align-items-baseline w-100"
+                                groups="base.group_multi_company">
                                 <i class="fa-solid fa-building me-1 text-primary" title="Company" />
-                                <field name="company_id" class="w-100" context="{'user_preference': 0}" placeholder="Company" />
+                                <field name="company_id" class="w-100"
+                                    context="{'user_preference': 0}" placeholder="Company" />
                             </div>
                         </div>
                     </div>
                     <group name="access_groups" invisible="id &gt; 0">
                         <label for="group_ids" string="Access Rights" groups="base.group_no_one" />
                         <div groups="base.group_no_one">
-                            <field name="group_ids" readonly="1" widget="many2many_tags" style="display: inline;" /> You will be able to define additional
+                            <field name="group_ids" readonly="1" widget="many2many_tags"
+                                style="display: inline;" /> You will be able to define additional
                             access rights by editing the newly created user under the Settings /
                             Users menu. </div>
                     </group>
@@ -109,28 +116,38 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_show_groups" type="object" groups="base.group_no_one" class="oe_stat_button" icon="fa-users" help="Groups that apply to the current user">
+                        <button name="action_show_groups" type="object" groups="base.group_no_one"
+                            class="oe_stat_button" icon="fa-users"
+                            help="Groups that apply to the current user">
                             <field string="Groups" name="groups_count" widget="statinfo" />
                         </button>
-                        <button name="action_show_accesses" type="object" groups="base.group_no_one" class="oe_stat_button" icon="fa-lock">
+                        <button name="action_show_accesses" type="object" groups="base.group_no_one"
+                            class="oe_stat_button" icon="fa-lock">
                             <field string="Access Rights" name="accesses_count" widget="statinfo" />
                         </button>
-                        <button name="action_show_rules" type="object" groups="base.group_no_one" class="oe_stat_button" icon="fa-lock">
+                        <button name="action_show_rules" type="object" groups="base.group_no_one"
+                            class="oe_stat_button" icon="fa-lock">
                             <field string="Record Rules" name="rules_count" widget="statinfo" />
                         </button>
                     </div>
-                    <widget name="web_ribbon" title="External user" bg_color="text-bg-warning" invisible="not share" />
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active" />
-                    <div class="alert alert-info text-center o_form_header" invisible="active and active_partner or not active and not active_partner or active and not active_partner" role="alert">
+                    <widget name="web_ribbon" title="External user" bg_color="text-bg-warning"
+                        invisible="not share" />
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                        invisible="active" />
+                    <div class="alert alert-info text-center o_form_header"
+                        invisible="active and active_partner or not active and not active_partner or active and not active_partner"
+                        role="alert">
                         <a class="close" data-bs-dismiss="alert" href="#">x</a>
                         <div>
                             <strong>The contact linked to this user is still active</strong>
                         </div>
-                        <div>You can archive the contact <field name="partner_id" required="0" readonly="1" />
+                        <div>You can archive the contact <field name="partner_id" required="0"
+                                readonly="1" />
                         </div>
                     </div>
                     <div class="d-flex gap-3">
-                        <field name="image_1920" widget="contact_image" options="{'preview_image': 'avatar_128', 'img_class': 'rounded-4'}" />
+                        <field name="image_1920" widget="contact_image"
+                            options="{'preview_image': 'avatar_128', 'img_class': 'rounded-4'}" />
                         <field name="avatar_128" invisible="1" /> <!-- Needed in contact_image widget -->
                         <div class="oe_title d-flex flex-column flex-grow-1">
                             <h1 class="mb-0 w-sm-75">
@@ -138,13 +155,17 @@
                             </h1>
                             <h5 name="h5_email" class="d-flex flex-wrap align-items-baseline mb-0">
                                 <div class="w-100">
-                                    <i class="fa-solid fa-envelope me-1 text-primary" title="Login / Email" invisible="login != email" />
-                                    <i class="fa-solid fa-key me-1 text-primary" title="Login" invisible="login == email" />
+                                    <i class="fa-solid fa-envelope me-1 text-primary"
+                                        title="Login / Email" invisible="login != email" />
+                                    <i class="fa-solid fa-key me-1 text-primary" title="Login"
+                                        invisible="login == email" />
                                     <field name="login" placeholder="Login" class="w-75" />
                                 </div>
 
-                                <i class="fa-solid fa-envelope me-1 text-primary" title="Email" invisible="login == email" />
-                                <field name="email" placeholder="Email" class="w-75" invisible="login == email" />
+                                <i class="fa-solid fa-envelope me-1 text-primary" title="Email"
+                                    invisible="login == email" />
+                                <field name="email" placeholder="Email" class="w-75"
+                                    invisible="login == email" />
                             </h5>
                             <h5 name="h5_phone" class="d-flex align-items-baseline mb-0">
                                 <i class="fa-solid fa-phone me-1 text-primary" title="Phone" />
@@ -153,17 +174,25 @@
                         </div>
                     </div>
                     <group>
-                        <field name="partner_id" groups="base.group_no_one" readonly="1" required="0" invisible="not id" />
+                        <field name="partner_id" groups="base.group_no_one" readonly="1"
+                            required="0" invisible="not id" />
                     </group>
                     <notebook colspan="4">
                         <page name="access_rights" string="Access Rights">
                             <group string="Roles" invisible="share and companies_count &lt;= 1">
-                                <field name="role" invisible="share" widget="radio" options="{'horizontal': true}" />
-                                <field string="Companies" name="company_ids" invisible="companies_count &lt;= 1" widget="many2many_tags" options="{'no_create': True, 'color_field': 'color'}" />
-                                <field string="Default Company" name="company_id" invisible="companies_count &lt;= 1" context="{'user_preference': 0}" />
+                                <field name="role" invisible="share" widget="radio"
+                                    options="{'horizontal': true}" />
+                                <field string="Companies" name="company_ids"
+                                    invisible="companies_count &lt;= 1" widget="many2many_tags"
+                                    options="{'no_create': True, 'color_field': 'color'}" />
+                                <field string="Default Company" name="company_id"
+                                    invisible="companies_count &lt;= 1"
+                                    context="{'user_preference': 0}" />
                             </group>
-                            <field name="group_ids" widget="res_user_group_ids" nolabel="1" colspan="2" groups="base.group_no_one" />
-                            <field name="group_ids" widget="res_user_group_ids" nolabel="1" colspan="2" groups="!base.group_no_one" invisible="share" />
+                            <field name="group_ids" widget="res_user_group_ids" nolabel="1"
+                                colspan="2" groups="base.group_no_one" />
+                            <field name="group_ids" widget="res_user_group_ids" nolabel="1"
+                                colspan="2" groups="!base.group_no_one" invisible="share" />
                         </page>
                         <page string="Preferences" name="preferences">
                             <group>
@@ -171,9 +200,15 @@
                                     <label for="lang" />
                                     <div class="o_row">
                                         <field name="lang" required="1" />
-                                        <button type="action" name="%(base.action_view_base_language_install)d" class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas" groups="base.group_system" aria-label="Add a language" title="Add a language" />
+                                        <button type="action"
+                                            name="%(base.action_view_base_language_install)d"
+                                            class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas"
+                                            groups="base.group_system" aria-label="Add a language"
+                                            title="Add a language" />
                                     </div>
-                                    <field name="signature" options="{'codeview': true, 'height': 112, 'resizable': true}" class="border border-secondary" />
+                                    <field name="signature"
+                                        options="{'codeview': true, 'height': 112, 'resizable': true}"
+                                        class="border border-secondary" />
                                 </group>
                                 <!-- This group is meant to be used in overrides -->
                                 <group name="other_preferences" />
@@ -182,7 +217,9 @@
                         <page name="calendar" string="Calendar">
                             <group>
                                 <group name="calendar_preferences">
-                                    <field name="tz" widget="timezone_mismatch" options="{'tz_offset_field': 'tz_offset'}" readonly="0" invisible="share" />
+                                    <field name="tz" widget="timezone_mismatch"
+                                        options="{'tz_offset_field': 'tz_offset'}" readonly="0"
+                                        invisible="share" />
                                     <field name="tz_offset" invisible="1" /> <!-- needed for the
                                     timezone_mismatch widget -->
                                 </group>
@@ -200,34 +237,46 @@
                                         Update if compromised.
                                     </span>
                                 </div>
-                                <button invisible="id != uid" name="preference_change_password" type="object" string="Change password" class="btn btn-secondary h-100 my-auto" />
-                                <button invisible="id == uid" name="action_change_password_wizard" type="object" string="Change password" class="btn btn-secondary h-100 my-auto" />
+                                <button invisible="id != uid" name="preference_change_password"
+                                    type="object" string="Change password"
+                                    class="btn btn-secondary h-100 my-auto" />
+                                <button invisible="id == uid" name="action_change_password_wizard"
+                                    type="object" string="Change password"
+                                    class="btn btn-secondary h-100 my-auto" />
                             </div>
                             <div name="api_keys" invisible="id != uid" class="d-md-flex mt-3">
                                 <div class="col-md-6 col-lg-3 d-flex flex-column">
-                                    <label for="api_key_wizard" string="API Keys" class="o_form_label" />
+                                    <label for="api_key_wizard" string="API Keys"
+                                        class="o_form_label" />
                                     <span class="text-muted">
                                         Connect external services.
                                     </span>
                                 </div>
                                 <div class="w-md-50 w-lg-75 d-flex flex-column my-auto">
-                                    <field name="api_key_ids" mode="kanban" invisible="not api_key_ids" class="w-sm-75 w-md-100 w-lg-75 w-xl-50 o_base_api_keys_kanban_view" />
+                                    <field name="api_key_ids" mode="kanban"
+                                        invisible="not api_key_ids"
+                                        class="w-sm-75 w-md-100 w-lg-75 w-xl-50 o_base_api_keys_kanban_view" />
                                     <div>
-                                        <button name="api_key_wizard" string="Add API Key" type="object" class="btn btn-secondary h-100" />
+                                        <button name="api_key_wizard" string="Add API Key"
+                                            type="object" class="btn btn-secondary h-100" />
                                     </div>
                                 </div>
                             </div>
                             <div invisible="id != uid" class="d-md-flex mt-3">
                                 <div class="w-md-50 w-lg-25  d-flex flex-column">
-                                    <label for="action_revoke_all_devices" string="Devices" class="o_form_label" />
+                                    <label for="action_revoke_all_devices" string="Devices"
+                                        class="o_form_label" />
                                     <span class="text-muted">
                                         Check if they are yours.
                                     </span>
                                 </div>
                                 <div class="w-md-50 w-lg-75 d-flex flex-column my-auto">
-                                    <field name="device_ids" mode="kanban" class="w-sm-75 w-md-100 w-lg-75 w-xl-50 o_base_devices_kanban_view" />
+                                    <field name="device_ids" mode="kanban"
+                                        class="w-sm-75 w-md-100 w-lg-75 w-xl-50 o_base_devices_kanban_view" />
                                     <div>
-                                        <button name="action_revoke_all_devices" type="object" string="Log out from all devices" class="btn btn-secondary h-100" />
+                                        <button name="action_revoke_all_devices" type="object"
+                                            string="Log out from all devices"
+                                            class="btn btn-secondary h-100" />
                                     </div>
                                 </div>
                             </div>
@@ -238,12 +287,33 @@
         </field>
     </record>
 
+    <record id="view_users_search" model="ir.ui.view">
+        <field name="name">res.users.search</field>
+        <field name="model">res.users</field>
+        <field name="arch" type="xml">
+            <search string="Users">
+                <field name="name"
+                    filter_domain="['|', '|', ('name','ilike',self), ('login','ilike',self), ('email','ilike',self)]"
+                    string="User" />
+                <field name="company_ids" string="Company" groups="base.group_multi_company" />
+                <field name="share" />
+                <filter name="filter_no_share" string="Internal Users"
+                    domain="[('share', '=', False)]" />
+                <filter name="filter_share" string="Portal Users" domain="[('share', '=', True)]" />
+                <separator />
+                <filter name="Inactive" string="Inactive Users" domain="[('active','=',False)]" />
+            </search>
+        </field>
+    </record>
+
     <record id="view_users_tree" model="ir.ui.view">
         <field name="name">res.users.list</field>
         <field name="model">res.users</field>
         <field name="arch" type="xml">
             <list string="Users" multi_edit="1">
-                <field name="avatar_128" widget="image" options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}" width="30" nolabel="1" />
+                <field name="avatar_128" widget="image"
+                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}" width="30"
+                    nolabel="1" />
                 <field name="name" readonly="1" />
                 <field name="login" readonly="1" optional="show" />
                 <field name="lang" optional="hide" />
@@ -267,17 +337,21 @@
                         </aside>
                         <main class="w-100 ps-2 pt-1">
                             <div>
-                                <div t-if="record.active.raw_value" class="text-success float-end mb4">
-                                    <i class="fa-solid fa-circle" role="img" aria-label="Ok" title="Ok" />
+                                <div t-if="record.active.raw_value"
+                                    class="text-success float-end mb4">
+                                    <i class="fa-solid fa-circle" role="img" aria-label="Ok"
+                                        title="Ok" />
                                 </div>
                                 <div t-else="" class="text-danger float-end mb4">
-                                    <i class="fa-solid fa-circle" role="img" aria-label="Invalid" title="Invalid" />
+                                    <i class="fa-solid fa-circle" role="img" aria-label="Invalid"
+                                        title="Invalid" />
                                 </div>
                                 <field class="fw-bold" name="name" />
                             </div>
                             <div>
                                 <span class="mb4 text-truncate" title="Login">
-                                    <i class="fa-solid fa-envelope me-1" role="img" aria-label="Login" />
+                                    <i class="fa-solid fa-envelope me-1" role="img"
+                                        aria-label="Login" />
                                     <field name="login" />
                                 </span>
                                 <field class="badge rounded-pill float-end" name="lang" />
@@ -286,22 +360,6 @@
                     </t>
                 </templates>
             </kanban>
-        </field>
-    </record>
-
-    <record id="view_users_search" model="ir.ui.view">
-        <field name="name">res.users.search</field>
-        <field name="model">res.users</field>
-        <field name="arch" type="xml">
-            <search string="Users">
-                <field name="name" filter_domain="['|', '|', ('name','ilike',self), ('login','ilike',self), ('email','ilike',self)]" string="User" />
-                <field name="company_ids" string="Company" groups="base.group_multi_company" />
-                <field name="share" />
-                <filter name="filter_no_share" string="Internal Users" domain="[('share', '=', False)]" />
-                <filter name="filter_share" string="Portal Users" domain="[('share', '=', True)]" />
-                <separator />
-                <filter name="Inactive" string="Inactive Users" domain="[('active','=',False)]" />
-            </search>
         </field>
     </record>
 
@@ -366,8 +424,10 @@
                         The key will be deleted once this period has elapsed.
                     </p>
                     <footer>
-                        <button name="make_key" type="object" string="Generate key" class="btn-primary" data-hotkey="q" />
-                        <button special="cancel" data-hotkey="x" string="Cancel" class="btn-secondary" />
+                        <button name="make_key" type="object" string="Generate key"
+                            class="btn-primary" data-hotkey="q" />
+                        <button special="cancel" data-hotkey="x" string="Cancel"
+                            class="btn-secondary" />
                     </footer>
                 </sheet>
             </form>
@@ -413,7 +473,8 @@
                     <widget name="notification_alert" />
                     <div class="d-flex align-items-center">
                         <div>
-                            <field name="image_1920" widget="contact_image" options="{'preview_image': 'avatar_128'}" />
+                            <field name="image_1920" widget="contact_image"
+                                options="{'preview_image': 'avatar_128'}" />
                             <field name="avatar_128" invisible="1" /> <!-- Needed in contact_image
                             widget -->
                         </div>
@@ -438,9 +499,15 @@
                                     <label for="lang" />
                                     <div class="o_row">
                                         <field name="lang" required="1" readonly="0" />
-                                        <button type="action" name="%(base.action_view_base_language_install)d" class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas" aria-label="Add a language" groups="base.group_system" title="Add a language" />
+                                        <button type="action"
+                                            name="%(base.action_view_base_language_install)d"
+                                            class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas"
+                                            aria-label="Add a language" groups="base.group_system"
+                                            title="Add a language" />
                                     </div>
-                                    <field name="signature" readonly="0" options="{'codeview': true, 'height': 112, 'resizable': true}" class="border border-secondary" />
+                                    <field name="signature" readonly="0"
+                                        options="{'codeview': true, 'height': 112, 'resizable': true}"
+                                        class="border border-secondary" />
                                 </group>
                                 <!-- This group is meant to be used in overrides -->
                                 <group name="other_preferences" />
@@ -449,7 +516,8 @@
                         <page name="calendar" string="Calendar">
                             <group>
                                 <group name="calendar_preferences">
-                                    <field name="tz" widget="timezone_mismatch" options="{'tz_offset_field': 'tz_offset'}" readonly="0" />
+                                    <field name="tz" widget="timezone_mismatch"
+                                        options="{'tz_offset_field': 'tz_offset'}" readonly="0" />
                                     <field name="tz_offset" invisible="1" /> <!-- needed for the
                                     timezone_mismatch widget -->
                                 </group>
@@ -467,41 +535,52 @@
                                         Update if compromised.
                                     </span>
                                 </div>
-                                <button name="preference_change_password" type="object" string="Change password" class="btn btn-secondary h-100 my-auto" />
+                                <button name="preference_change_password" type="object"
+                                    string="Change password" class="btn btn-secondary h-100 my-auto" />
                             </div>
                             <div name="api_keys" class="d-lg-flex mt-3">
                                 <div class="col-lg-3 d-flex flex-column">
-                                    <label for="api_key_wizard" string="API Keys" class="o_form_label" />
+                                    <label for="api_key_wizard" string="API Keys"
+                                        class="o_form_label" />
                                     <span class="text-muted">
                                         Connect external services.
                                     </span>
                                 </div>
                                 <div class="w-lg-75 d-flex flex-column my-auto">
-                                    <field name="api_key_ids" mode="kanban" invisible="not api_key_ids" class="w-lg-75 o_base_api_keys_kanban_view" />
+                                    <field name="api_key_ids" mode="kanban"
+                                        invisible="not api_key_ids"
+                                        class="w-lg-75 o_base_api_keys_kanban_view" />
                                     <div>
-                                        <button name="api_key_wizard" string="Add API Key" type="object" class="btn btn-secondary h-100" />
+                                        <button name="api_key_wizard" string="Add API Key"
+                                            type="object" class="btn btn-secondary h-100" />
                                     </div>
                                 </div>
                             </div>
                             <div class="d-lg-flex mt-3">
                                 <div class="col-lg-3 d-flex flex-column">
-                                    <label for="action_revoke_all_devices" string="Devices" class="o_form_label" />
+                                    <label for="action_revoke_all_devices" string="Devices"
+                                        class="o_form_label" />
                                     <span class="text-muted">
                                         Check if they are yours.
                                     </span>
                                 </div>
                                 <div class="w-lg-75 d-flex flex-column my-auto">
-                                    <field name="device_ids" mode="kanban" class="w-lg-75 o_base_devices_kanban_view" />
+                                    <field name="device_ids" mode="kanban"
+                                        class="w-lg-75 o_base_devices_kanban_view" />
                                     <div>
-                                        <button name="action_revoke_all_devices" type="object" string="Log out from all devices" class="btn btn-secondary h-100" />
+                                        <button name="action_revoke_all_devices" type="object"
+                                            string="Log out from all devices"
+                                            class="btn btn-secondary h-100" />
                                     </div>
                                 </div>
                             </div>
                         </page>
                     </notebook>
                     <footer>
-                        <button name="preference_save" type="object" string="Update Preferences" class="btn-primary" data-hotkey="q" />
-                        <button name="preference_cancel" string="Discard" special="cancel" data-hotkey="x" class="btn-secondary" />
+                        <button name="preference_save" type="object" string="Update Preferences"
+                            class="btn-primary" data-hotkey="q" />
+                        <button name="preference_cancel" string="Discard" special="cancel"
+                            data-hotkey="x" class="btn-secondary" />
                     </footer>
                 </sheet>
             </form>
@@ -531,7 +610,8 @@
                 <field name="name" />
                 <field name="scope" />
                 <field name="create_date" />
-                <button type="object" name="remove" title="Delete API key." icon="fa-solid fa-trash-can" />
+                <button type="object" name="remove" title="Delete API key."
+                    icon="fa-solid fa-trash-can" />
             </list>
         </field>
         <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />

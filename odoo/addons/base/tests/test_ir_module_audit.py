@@ -1,6 +1,7 @@
-from unittest import skip
+from unittest.mock import MagicMock, patch
 
 from odoo.exceptions import UserError
+from odoo.modules.module import Manifest, MissingDependency
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
 
@@ -83,10 +84,6 @@ class TestModuleDependencies(TransactionCase):
             "C is unreachable once the intermediate dependent B is filtered out",
         )
 
-    @skip(
-        "upstream closure expectation depends on the exact module-state setup; "
-        "downstream_closure already exercises the shared recursive-closure SQL"
-    )
     def test_upstream_closure(self):
         """upstream_dependencies walks the transitive set of dependencies.
 
@@ -227,4 +224,159 @@ class TestModuleDependencies(TransactionCase):
             "to install",
             "country-gated auto-install module must be pulled in once a company "
             "is in its country",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestModuleAuditRound2(TransactionCase):
+    """Regression coverage for the 2026-06-10 audit round: relational search
+    operators on dependency/exclusion, the external-dependency error path and
+    update_list idempotence."""
+
+    def setUp(self):
+        super().setUp()
+        self.Module = self.env["ir.module.module"]
+        self.Dependency = self.env["ir.module.module.dependency"]
+
+    def _make_module(self, name, state="installed"):
+        """Create a synthetic module record in the given state.
+
+        :param str name: technical name
+        :param str state: target state (forced after create)
+        :return: the created module record
+        :rtype: recordset
+        """
+        module = self.Module.create({"name": name, "shortdesc": name.upper()})
+        module.state = state
+        return module
+
+    def test_search_depend_any_and_dotted_path(self):
+        """depend_id supports 'any' sub-domains and dotted-path conditions.
+
+        The 'any' operator carries a (sub)domain — also produced by the ORM's
+        path decomposition for ('depend_id.name', '=', x) — which must be
+        resolved to module ids, not browsed as if it were ids.
+        """
+        mod_a = self._make_module("audit_r2_a")
+        mod_b = self._make_module("audit_r2_b")
+        dep = self.Dependency.create({"module_id": mod_b.id, "name": "audit_r2_a"})
+
+        found = self.Dependency.search(
+            [("depend_id", "any", [("name", "=", "audit_r2_a")])]
+        )
+        self.assertIn(dep, found, "'any' with a list domain must resolve")
+        found = self.Dependency.search([("depend_id.name", "=", "audit_r2_a")])
+        self.assertIn(dep, found, "dotted path through depend_id must resolve")
+        found = self.Dependency.search([("depend_id", "in", mod_a.ids)])
+        self.assertIn(dep, found, "'in' with ids keeps working")
+        found = self.Dependency.search(
+            [("depend_id", "not any", [("name", "=", "audit_r2_a")])]
+        )
+        self.assertNotIn(dep, found, "'not any' is handled through the inverse")
+
+    def test_search_exclusion_any_and_dotted_path(self):
+        """exclusion_id supports 'any' sub-domains and dotted-path conditions."""
+        self._make_module("audit_r2_x")
+        mod_y = self._make_module("audit_r2_y")
+        excl = self.env["ir.module.module.exclusion"].create(
+            {"module_id": mod_y.id, "name": "audit_r2_x"}
+        )
+
+        found = self.env["ir.module.module.exclusion"].search(
+            [("exclusion_id", "any", [("name", "=", "audit_r2_x")])]
+        )
+        self.assertIn(excl, found)
+        found = self.env["ir.module.module.exclusion"].search(
+            [("exclusion_id.name", "=", "audit_r2_x")]
+        )
+        self.assertIn(excl, found)
+
+    def test_has_iap_via_transitive_dependency(self):
+        """has_iap holds for direct and transitive dependents of iap, and is
+        computed from a single downstream closure of iap per batch."""
+        if not self.Module._get_id("iap"):
+            self.skipTest("iap module not present in the addons path")
+        direct = self._make_module("audit_r2_iap_direct")
+        self.Dependency.create({"module_id": direct.id, "name": "iap"})
+        indirect = self._make_module("audit_r2_iap_indirect")
+        self.Dependency.create(
+            {"module_id": indirect.id, "name": "audit_r2_iap_direct"}
+        )
+        unrelated = self._make_module("audit_r2_iap_none")
+        self.assertTrue(direct.has_iap)
+        self.assertTrue(indirect.has_iap)
+        self.assertFalse(unrelated.has_iap)
+
+    def test_check_external_dependencies_no_os_release(self):
+        """The apt-hint path must not mask the UserError when the host has no
+        os-release file (platform.freedesktop_os_release raises OSError)."""
+        manifest = MagicMock()
+        manifest.check_manifest_dependencies.side_effect = MissingDependency(
+            "Unable to find {dependency!r}", "audit_r2_missing_binary"
+        )
+        with (
+            patch.object(Manifest, "for_addon", return_value=manifest),
+            patch(
+                "platform.freedesktop_os_release",
+                side_effect=OSError(2, "no os-release file"),
+            ),
+        ):
+            with self.assertRaises(UserError) as ctx:
+                self.Module.check_external_dependencies("audit_r2_module")
+        self.assertIn("audit_r2_missing_binary", str(ctx.exception))
+
+    def test_update_list_dependency_idempotent(self):
+        """A second update_list run must not rewrite unchanged dependency rows
+        (auto_install_required is guarded by IS DISTINCT FROM)."""
+        self.Module.update_list()
+        rewritten = {"rows": 0}
+        cr = self.env.cr
+        orig_execute = cr.execute
+
+        def counting_execute(query, *args, **kwargs):
+            res = orig_execute(query, *args, **kwargs)
+            q = query if isinstance(query, str) else str(query)
+            if (
+                "UPDATE ir_module_module_dependency" in q
+                and "auto_install_required" in q
+            ):
+                rewritten["rows"] += cr.rowcount
+            return res
+
+        cr.execute = counting_execute
+        try:
+            self.Module.update_list()
+        finally:
+            cr.execute = orig_execute
+        self.assertEqual(
+            rewritten["rows"],
+            0,
+            "a no-op update_list must not produce dependency row versions",
+        )
+
+    def test_get_views_single_model_data_query(self):
+        """_compute_views_by_module fetches ir.model.data once for the whole
+        batch instead of issuing one search per module."""
+        mods = self.Module.search([("state", "=", "installed")])
+        mods.modified(["state"])  # mark the stored computes for recompute
+        counter = {"imd_selects": 0}
+        cr = self.env.cr
+        orig_execute = cr.execute
+
+        def counting_execute(query, *args, **kwargs):
+            q = query if isinstance(query, str) else str(query)
+            if "ir_model_data" in q and q.lstrip().upper().startswith("SELECT"):
+                counter["imd_selects"] += 1
+            return orig_execute(query, *args, **kwargs)
+
+        cr.execute = counting_execute
+        try:
+            mods.mapped("views_by_module")
+        finally:
+            cr.execute = orig_execute
+        self.assertLessEqual(
+            counter["imd_selects"],
+            2,
+            f"recomputing the view lists for {len(mods)} modules must batch "
+            "the ir.model.data search",
         )

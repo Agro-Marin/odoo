@@ -14,7 +14,12 @@
  */
 export function extractDigits({ attrs, options }) {
     if (attrs.digits) {
-        return JSON.parse(attrs.digits);
+        try {
+            return JSON.parse(attrs.digits);
+        } catch {
+            // A malformed `digits` XML attribute must not crash the field
+            // render; fall through to the option/undefined path.
+        }
     }
     if (options.digits) {
         return options.digits;

@@ -2,8 +2,6 @@
 <odoo>
 
     <!--
-
-
             PARTNER TREE VIEW + MUTI_EDIT: VISIBLE FIELDS WITH ONCHANGE ON BASE/PARTNER
             VIEW WON'T BE EDITABLE ON "MULTI_EDIT" MODE:
             - parent_id
@@ -11,11 +9,47 @@
             - state_id
             - company_type
             - company_id
+    -->
 
+    <record id="view_res_partner_filter" model="ir.ui.view">
+        <field name="name">res.partner.select</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <search string="Search Partner">
+                <field name="name"
+                    filter_domain="['|', '|', '|', '|', ('complete_name', 'ilike', self), ('ref', 'ilike', self), ('email', 'ilike', self), ('vat', 'ilike', self), ('company_registry', 'ilike', self)]" />
+                <field name="parent_id"
+                    domain="[('is_company', '=', True)]" operator="child_of" />
+                <field name="email"
+                    filter_domain="[('email', 'ilike', self)]" />
+                <field name="phone" />
+                <field name="category_id" string="Tag" operator="child_of" />
+                <field name="user_id" />
+                <separator />
+                <filter string="Persons" name="type_person"
+                    domain="[('is_company', '=', False)]" />
+                <filter string="Companies" name="type_company"
+                    domain="[('is_company', '=', True)]" />
+                <separator />
+                <filter string="Archived" name="inactive"
+                    domain="[('active', '=', False)]" />
+                <field name="properties" />
+                <separator />
+                <group name="group_by">
+                    <filter name="salesperson" string="Salesperson"
+                        domain="[]"
+                        context="{'group_by' : 'user_id'}" />
+                    <filter name="group_company" string="Company"
+                        context="{'group_by': 'parent_id'}" />
+                    <filter name="group_country" string="Country"
+                        context="{'group_by': 'country_id'}" />
+                    <filter string="Properties" name="group_by_properties"
+                        context="{'group_by': 'properties'}" />
+                </group>
+            </search>
+        </field>
+    </record>
 
-
-        -->
-    <!-- Partner -->
     <record id="view_partner_tree" model="ir.ui.view">
         <field name="name">res.partner.list</field>
         <field name="model">res.partner</field>
@@ -43,6 +77,73 @@
                     optional="hide" />
                 <field name="properties" optional="hide" />
             </list>
+        </field>
+    </record>
+
+    <record id="res_partner_kanban_view" model="ir.ui.view">
+        <field name="name">res.partner.kanban</field>
+        <field name="model">res.partner</field>
+        <field name="priority">1</field>
+        <field name="arch" type="xml">
+            <kanban sample="1">
+                <field name="avatar_128" />
+                <field name="is_company" />
+                <field name="active" />
+                <templates>
+                    <t t-name="card" class="flex-row">
+                        <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                            invisible="active" />
+                        <aside class="o_kanban_aside_full">
+                            <t t-if="!record.is_company.raw_value">
+                                <div class="position-relative w-100 h-auto m-0">
+                                    <field name="avatar_128" alt="Contact image" class="h-100"
+                                        widget="image" options="{'img_class': 'object-fit-contain'}" />
+                                    <field
+                                        t-if="record.parent_id.raw_value and record.parent_id.image_128"
+                                        name="parent_id"
+                                        class="position-absolute bottom-0 end-0 w-25 bg-light"
+                                        widget="image"
+                                        options="{'preview_image': 'image_128', 'img_class': 'object-fit-contain'}" />
+                                    <field
+                                        t-elif="record.parent_id.raw_value and !record.parent_id.image_128"
+                                        name="parent_id"
+                                        class="position-absolute bottom-0 end-0 w-25 bg-light"
+                                        widget="image"
+                                        options="{'preview_image': 'avatar_128', 'img_class': 'object-fit-contain'}" />
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <field name="avatar_128" class="w-100 h-auto m-0" widget="image"
+                                    options="{'img_class': 'object-fit-contain w-100 h-100'}" />
+                            </t>
+                        </aside>
+                        <main class="ps-2">
+                            <div class="mb-1">
+                                <field name="complete_name" class="mb-0 fw-bold fs-5" />
+                            </div>
+                            <div t-if="record.email.raw_value" class="text-truncate">
+                                <i class="fa-solid fa-envelope me-1 text-primary" title="Email" />
+                                <field name="email" />
+                            </div>
+                            <div t-if="record.phone.raw_value">
+                                <i class="fa-solid fa-phone me-1 text-primary" title="Phone" />
+                                <field name="phone" />
+                            </div>
+                            <div t-if="record.city.raw_value or record.country_id.raw_value">
+                                <i class="fa-solid fa-location-dot me-1 text-primary"
+                                    title="Location" />
+                                <field name="city" />
+                                <span t-if="record.city.raw_value and record.country_id.raw_value">, </span>
+                                <field name="country_id" />
+                            </div>
+                            <field name="properties" widget="properties" />
+                            <footer>
+                                <field name="application_statistics" widget="contact_statistics" />
+                            </footer>
+                        </main>
+                    </t>
+                </templates>
+            </kanban>
         </field>
     </record>
 
@@ -77,6 +178,7 @@
             </form>
         </field>
     </record>
+
     <!-- Open partner address -->
     <record id="view_partner_address_form" model="ir.ui.view">
         <field name="name">res.partner.form.address</field>
@@ -412,106 +514,6 @@
                     </notebook>
                 </sheet>
             </form>
-        </field>
-    </record>
-
-    <record id="view_res_partner_filter" model="ir.ui.view">
-        <field name="name">res.partner.select</field>
-        <field name="model">res.partner</field>
-        <field name="arch" type="xml">
-            <search string="Search Partner">
-                <field name="name"
-                    filter_domain="['|', '|', '|', '|', ('complete_name', 'ilike', self), ('ref', 'ilike', self), ('email', 'ilike', self), ('vat', 'ilike', self), ('company_registry', 'ilike', self)]" />
-                <field name="parent_id" domain="[('is_company', '=', True)]" operator="child_of" />
-                <field name="email" filter_domain="[('email', 'ilike', self)]" />
-                <field name="phone" />
-                <field name="category_id" string="Tag" operator="child_of" />
-                <field name="user_id" />
-                <separator />
-                <filter string="Persons" name="type_person" domain="[('is_company', '=', False)]" />
-                <filter string="Companies" name="type_company" domain="[('is_company', '=', True)]" />
-                <separator />
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]" />
-                <field name="properties" />
-                <separator />
-                <group name="group_by">
-                    <filter name="salesperson" string="Salesperson" domain="[]"
-                        context="{'group_by' : 'user_id'}" />
-                    <filter name="group_company" string="Company"
-                        context="{'group_by': 'parent_id'}" />
-                    <filter name="group_country" string="Country"
-                        context="{'group_by': 'country_id'}" />
-                    <filter string="Properties" name="group_by_properties"
-                        context="{'group_by': 'properties'}" />
-                </group>
-            </search>
-        </field>
-    </record>
-    <!-- Partner Kanban View -->
-    <record id="res_partner_kanban_view" model="ir.ui.view">
-        <field name="name">res.partner.kanban</field>
-        <field name="model">res.partner</field>
-        <field name="priority">1</field>
-        <field name="arch" type="xml">
-            <kanban sample="1">
-                <field name="avatar_128" />
-                <field name="is_company" />
-                <field name="active" />
-                <templates>
-                    <t t-name="card" class="flex-row">
-                        <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
-                            invisible="active" />
-                        <aside class="o_kanban_aside_full">
-                            <t t-if="!record.is_company.raw_value">
-                                <div class="position-relative w-100 h-auto m-0">
-                                    <field name="avatar_128" alt="Contact image" class="h-100"
-                                        widget="image" options="{'img_class': 'object-fit-contain'}" />
-                                    <field
-                                        t-if="record.parent_id.raw_value and record.parent_id.image_128"
-                                        name="parent_id"
-                                        class="position-absolute bottom-0 end-0 w-25 bg-light"
-                                        widget="image"
-                                        options="{'preview_image': 'image_128', 'img_class': 'object-fit-contain'}" />
-                                    <field
-                                        t-elif="record.parent_id.raw_value and !record.parent_id.image_128"
-                                        name="parent_id"
-                                        class="position-absolute bottom-0 end-0 w-25 bg-light"
-                                        widget="image"
-                                        options="{'preview_image': 'avatar_128', 'img_class': 'object-fit-contain'}" />
-                                </div>
-                            </t>
-                            <t t-else="">
-                                <field name="avatar_128" class="w-100 h-auto m-0" widget="image"
-                                    options="{'img_class': 'object-fit-contain w-100 h-100'}" />
-                            </t>
-                        </aside>
-                        <main class="ps-2">
-                            <div class="mb-1">
-                                <field name="complete_name" class="mb-0 fw-bold fs-5" />
-                            </div>
-                            <div t-if="record.email.raw_value" class="text-truncate">
-                                <i class="fa-solid fa-envelope me-1 text-primary" title="Email" />
-                                <field name="email" />
-                            </div>
-                            <div t-if="record.phone.raw_value">
-                                <i class="fa-solid fa-phone me-1 text-primary" title="Phone" />
-                                <field name="phone" />
-                            </div>
-                            <div t-if="record.city.raw_value or record.country_id.raw_value">
-                                <i class="fa-solid fa-location-dot me-1 text-primary"
-                                    title="Location" />
-                                <field name="city" />
-                                <span t-if="record.city.raw_value and record.country_id.raw_value">, </span>
-                                <field name="country_id" />
-                            </div>
-                            <field name="properties" widget="properties" />
-                            <footer>
-                                <field name="application_statistics" widget="contact_statistics" />
-                            </footer>
-                        </main>
-                    </t>
-                </templates>
-            </kanban>
         </field>
     </record>
 

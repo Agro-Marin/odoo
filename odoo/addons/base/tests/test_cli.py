@@ -2,11 +2,14 @@ import os
 import re
 import subprocess as sp
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from odoo.cli import upgrade_code
 from odoo.cli.command import (
+    build_bootstrap_parser,
     commands,
     load_addons_commands,
     load_internal_commands,
@@ -233,22 +236,302 @@ class TestCommand(BaseCase):
         )
 
     def test_scaffold_help_tolerant_of_missing_templates(self):
-        """scaffold --help must not probe templates/ eagerly; if the probe
-        were in __init__, a missing directory would crash every invocation
-        including --help.
+        """scaffold --help must survive a missing templates/ directory.
+
+        Behavioral, not source-grep: two eager probes used to kill --help —
+        the iterdir() in __init__ (epilog) and the ``default=Template(...)``
+        constructed at add_argument time. The default is now a plain string
+        that argparse converts only after --help has been handled.
         """
-        src = (Path(__file__).parents[3] / "cli/scaffold.py").read_text()
-        # Statically assert: __init__ is guarded or deferred.
-        init_body = re.search(
-            r"def __init__\(self\)[^\n]*:(.*?)def\s",
-            src,
-            re.DOTALL,
-        ).group(1)
+        import contextlib
+        import io
+
+        from odoo.cli import scaffold as scaffold_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "no_such_templates"
+            cwd = Path.cwd()
+            os.chdir(tmp)  # no ./default dir to fall back on
+            buf = io.StringIO()
+            try:
+                with mock.patch.object(
+                    scaffold_mod,
+                    "_builtins_dir",
+                    missing.joinpath,
+                ):
+                    with self.assertRaises(SystemExit) as ctx:
+                        with contextlib.redirect_stdout(buf):
+                            scaffold_mod.Scaffold().run(["--help"])
+            finally:
+                os.chdir(cwd)
+        self.assertIn(ctx.exception.code, (0, None), msg="--help must exit 0")
+        self.assertIn("usage:", buf.getvalue())
+
+    def test_scaffold_invalid_template_is_usage_error(self):
+        """`scaffold -t bogus` must be a standard argparse usage error
+        (usage line, exit 2), not a bare sys.exit(1) message — Template is
+        an argparse `type` callable and must raise ArgumentTypeError."""
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = self.run_command(
+                "scaffold", "-t", "bogus_template", "mymod", tmp, check=False
+            )
+        self.assertEqual(proc.returncode, 2, msg=proc.stderr)
+        self.assertIn("usage:", proc.stderr)
+        self.assertIn("not a valid module template", proc.stderr)
+
+    def test_db_load_validates_before_drop(self):
+        """`db load --force` must NOT drop the target before the dump is
+        fetched and recognised as a zip — a 404 or a stray .sql file used
+        to destroy the existing database and then abort."""
+        from odoo.cli import db as dbmod
+
+        calls = []
+        with tempfile.NamedTemporaryFile(suffix=".sql") as tmp:
+            tmp.write(b"not a zip")
+            tmp.flush()
+            ns = mock.Mock(
+                database="mydb", dump_file=tmp.name, force=True, neutralize=False
+            )
+            with (
+                mock.patch.object(dbmod, "exp_db_exist", lambda db: True),
+                mock.patch.object(
+                    dbmod, "exp_drop", lambda db: calls.append("drop") or True
+                ),
+                mock.patch.object(
+                    dbmod, "restore_db", lambda **kw: calls.append("restore")
+                ),
+            ):
+                with self.assertRaises(SystemExit):
+                    dbmod.Db().load(ns)
+        self.assertEqual(calls, [], msg=f"target dropped before validation: {calls}")
+
+    def test_db_load_force_drops_after_validation(self):
+        """The happy path must still work: valid zip -> drop -> restore."""
+        import zipfile as zipfile_mod
+
+        from odoo.cli import db as dbmod
+
+        calls = []
+        with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
+            with zipfile_mod.ZipFile(tmp, "w") as z:
+                z.writestr("dump.sql", "fake")
+            tmp.flush()
+            ns = mock.Mock(
+                database="mydb", dump_file=tmp.name, force=True, neutralize=False
+            )
+            with (
+                mock.patch.object(dbmod, "exp_db_exist", lambda db: True),
+                mock.patch.object(
+                    dbmod, "exp_drop", lambda db: calls.append("drop") or True
+                ),
+                mock.patch.object(
+                    dbmod, "restore_db", lambda **kw: calls.append("restore")
+                ),
+            ):
+                dbmod.Db().load(ns)
+        self.assertEqual(calls, ["drop", "restore"])
+
+    def test_db_duplicate_checks_source_before_drop(self):
+        """`db duplicate missing_src tgt --force` must abort before the
+        target is dropped — the source check used to happen inside
+        exp_duplicate_database, after the drop."""
+        from odoo.cli import db as dbmod
+
+        calls = []
+        ns = mock.Mock(source="missing_src", target="tgt", force=True, neutralize=False)
+        with (
+            mock.patch.object(dbmod, "exp_db_exist", lambda db: db != "missing_src"),
+            mock.patch.object(
+                dbmod, "exp_drop", lambda db: calls.append("drop") or True
+            ),
+            mock.patch.object(
+                dbmod,
+                "exp_duplicate_database",
+                lambda *a, **k: calls.append("duplicate"),
+            ),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                dbmod.Db().duplicate(ns)
+        self.assertEqual(calls, [])
+        self.assertIn("missing_src", str(ctx.exception.code))
+
+    def test_db_connection_flag_map_covers_all_flags(self):
+        """The dest->flag map is derived from _CONNECTION_FLAGS; every
+        declared flag must round-trip into config_args. The previous
+        prefix-based filter (db_*/pg_* + a passthrough tuple) only matched
+        the current flags by coincidence."""
+        from odoo.cli import db as dbmod
+
+        dest_flags = dbmod.Db._connection_dest_flags()
+        for flags in dbmod.Db._CONNECTION_FLAGS:
+            long_flag = flags[-1]
+            dest = long_flag.lstrip("-").replace("-", "_")
+            self.assertIn(dest, dest_flags)
+            self.assertEqual(dest_flags[dest], long_flag)
+
+    def test_obfuscate_select_fields(self):
+        """The --fields/--file/--exclude/--no-default-fields/--allfields
+        interplay, unit-tested without a database."""
+        import argparse
+
+        from odoo.cli.obfuscate import DEFAULT_FIELDS, _select_fields
+
+        base = {
+            "fields": None,
+            "file": None,
+            "exclude": None,
+            "allfields": False,
+            "no_default_fields": False,
+        }
+        ns = lambda **kw: argparse.Namespace(**{**base, **kw})  # noqa: E731
+
+        self.assertEqual(_select_fields(ns()), list(DEFAULT_FIELDS))
+        self.assertEqual(
+            _select_fields(ns(fields="t.c")),
+            list(DEFAULT_FIELDS) + [("t", "c")],
+            msg="--fields appends to the built-in list",
+        )
+        self.assertEqual(
+            _select_fields(ns(fields="t.c", no_default_fields=True)),
+            [("t", "c")],
+            msg="--no-default-fields restricts to the manual selection",
+        )
+        excluded = _select_fields(ns(exclude="res_partner.name"))
+        self.assertNotIn(("res_partner", "name"), excluded)
+        self.assertEqual(len(excluded), len(DEFAULT_FIELDS) - 1)
+        self.assertEqual(
+            _select_fields(ns(fields="t.c", allfields=True)),
+            list(DEFAULT_FIELDS),
+            msg="--allfields ignores manual selection (expanded later)",
+        )
+        with self.assertRaises(ValueError):
+            _select_fields(ns(fields="no_dot_here"))
+
+    def test_populate_model_factors(self):
+        """Factor/model mapping: propagation, surplus tolerance, int check."""
+        from odoo.cli.populate import _parse_model_factors
+
+        errors = []
+        self.assertEqual(
+            _parse_model_factors("1,2,3,4", "a,b", errors.append),
+            {"a": 1, "b": 2},
+        )
+        self.assertEqual(
+            _parse_model_factors("7", "a,b,c", errors.append),
+            {"a": 7, "b": 7, "c": 7},
+        )
+        self.assertFalse(errors)
+        _parse_model_factors("x", "a", errors.append)
+        self.assertTrue(errors and "--factors" in errors[0])
+
+    def test_deploy_requests_have_timeouts(self):
+        """requests has no default timeout — a stuck server would hang the
+        deploy forever. Both the login GET and the upload POST must pass an
+        explicit timeout."""
+        from odoo.cli.deploy import Deploy
+
+        deploy = Deploy()
+        deploy.session = mock.MagicMock()
+        deploy.session.post.return_value = mock.MagicMock(status_code=200, text="ok")
+        with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
+            deploy.login_upload_module(
+                module_file=tmp.name,
+                url="http://localhost:8069",
+                login="admin",
+                password="admin",
+                db="",
+            )
+        self.assertIsNotNone(deploy.session.get.call_args.kwargs.get("timeout"))
+        self.assertIsNotNone(deploy.session.post.call_args.kwargs.get("timeout"))
+
+    def test_deploy_zip_compressed_and_pruned(self):
+        """The deploy zip must deflate its entries (ZIP_STORED uploads are
+        several-fold larger) and never include excluded trees, which are
+        pruned during the walk rather than filtered file-by-file."""
+        import zipfile as zipfile_mod
+
+        from odoo.cli.deploy import Deploy
+
+        with tempfile.TemporaryDirectory() as tmp:
+            mod = Path(tmp) / "mymod"
+            (mod / "node_modules" / "pkg").mkdir(parents=True)
+            (mod / "node_modules" / "pkg" / "index.js").write_text("x" * 4096)
+            (mod / "__manifest__.py").write_text("{'name': 'mymod'}\n" * 64)
+            zpath = Deploy().zip_module(mod)
+            try:
+                with zipfile_mod.ZipFile(zpath) as z:
+                    infos = {i.filename: i for i in z.infolist()}
+            finally:
+                Path(zpath).unlink()
+        self.assertFalse(
+            [n for n in infos if "node_modules" in n],
+            msg=f"excluded tree leaked into zip: {list(infos)}",
+        )
+        manifest = next(i for n, i in infos.items() if n.endswith("__manifest__.py"))
+        self.assertEqual(manifest.compress_type, zipfile_mod.ZIP_DEFLATED)
+
+    def test_deploy_zip_keeps_file_named_like_excluded_dir(self):
+        """A regular module file whose basename equals an excluded *directory*
+        name (e.g. ``build``, ``dist``) must still ship. _should_skip tests
+        only the parent path components, never the file's own basename — the
+        earlier form dropped such files silently."""
+        import zipfile as zipfile_mod
+
+        from odoo.cli.deploy import Deploy
+
+        with tempfile.TemporaryDirectory() as tmp:
+            mod = Path(tmp) / "mymod"
+            mod.mkdir()
+            (mod / "__manifest__.py").write_text("{'name': 'mymod'}\n")
+            (mod / "build").write_text("legit content")  # file, not a dir
+            (mod / "node_modules").mkdir()
+            (mod / "node_modules" / "junk.js").write_text("junk")
+            zpath = Deploy().zip_module(mod)
+            try:
+                with zipfile_mod.ZipFile(zpath) as z:
+                    names = {n.split("/", 1)[1] for n in z.namelist()}
+            finally:
+                Path(zpath).unlink()
+        self.assertIn("build", names, msg="file named like an excluded dir was dropped")
         self.assertNotIn(
-            "iterdir()",
-            init_body.replace("try:", "GUARDED"),
-            msg="scaffold __init__ probes templates/ eagerly — wrap in try/except",
-        ) if "try:" not in init_body else None
+            "node_modules/junk.js", names, msg="excluded dir tree leaked into zip"
+        )
+
+    def test_start_explicit_path_wins_over_venv(self):
+        """`start -p .` must use the cwd even inside a virtualenv: the
+        $VIRTUAL_ENV fallback applies only when -p was omitted (the old
+        default='.' made the explicit form indistinguishable)."""
+        from odoo.cli import start as start_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            (proj / "mymodule").mkdir(parents=True)
+            (proj / "mymodule" / "__manifest__.py").write_text("{'name': 'x'}\n")
+            captured = {}
+            cwd = Path.cwd()
+            os.chdir(proj)
+            try:
+                with (
+                    mock.patch.object(
+                        start_mod,
+                        "main",
+                        lambda cmdargs: captured.update(args=list(cmdargs)),
+                    ),
+                    mock.patch.object(
+                        start_mod,
+                        "_create_empty_database",
+                        mock.Mock(side_effect=start_mod.DatabaseExists()),
+                    ),
+                    mock.patch.dict(os.environ, {"VIRTUAL_ENV": tmp}),
+                ):
+                    start_mod.Start().run(["-p", ".", "-d", "mydb"])
+            finally:
+                os.chdir(cwd)
+            flags = [a for a in captured["args"] if a.startswith("--addons-path=")]
+            self.assertEqual(len(flags), 1, msg=f"args: {captured['args']}")
+            paths = flags[0].removeprefix("--addons-path=").split(",")
+            self.assertIn(str(proj.resolve()), paths)
+            self.assertNotIn(tmp, paths, msg="venv path overrode explicit -p .")
 
     def test_db_init_accepts_config_after_subcommand(self):
         """`db init mydb -c cfg` must work, matching `module install` UX."""
@@ -263,6 +546,130 @@ class TestCommand(BaseCase):
         # The command may still fail (config missing), but argparse must not
         # complain about 'unrecognized arguments' for -c.
         self.assertNotIn("unrecognized arguments", proc.stderr)
+
+    def test_db_connection_flags_before_subcommand_survive(self):
+        """`db -c cfg --db_host h drop mydb` must NOT drop the connection flags.
+
+        argparse copies the subparser namespace back onto the parent, so a
+        subparser flag with an ordinary None default used to clobber a value
+        supplied before the subcommand. With default=SUPPRESS on the
+        subparser copies, the before-form value must survive into config_args
+        (otherwise `db -c prod.conf drop x` would silently target the local
+        default server). Drives the real Db.run, stubbing only the side
+        effects.
+        """
+        from odoo.cli import db as dbmod
+
+        captured = {}
+
+        def fake_parse_config(args, **kwargs):
+            captured["config_args"] = list(args)
+
+        with (
+            mock.patch.object(dbmod.config, "parse_config", fake_parse_config),
+            mock.patch.object(dbmod, "report_configuration", lambda: None),
+            mock.patch.object(dbmod.Db, "drop", lambda self, args: None),
+        ):
+            dbmod.Db().run(
+                ["-c", "/tmp/before.conf", "--db_host", "prodhost", "drop", "mydb"]
+            )
+
+        config_args = captured.get("config_args", [])
+        self.assertIn("/tmp/before.conf", config_args, msg=f"-c lost: {config_args}")
+        self.assertIn("prodhost", config_args, msg=f"--db_host lost: {config_args}")
+
+    def test_deploy_db_omitted_does_not_crash(self):
+        """`deploy <path>` with no --db must not crash on quote(None).
+
+        The encode step ran before any network call, so quote(None) raised
+        TypeError and the generic handler turned it into a cryptic message.
+        Now --db defaults to "" and the encode is None-tolerant.
+        """
+        from odoo.cli.deploy import Deploy
+
+        deploy = Deploy()
+        # Stub the HTTP session so we exercise only the db-encoding path.
+        deploy.session = mock.MagicMock()
+        deploy.session.post.return_value = mock.MagicMock(status_code=200, text="ok")
+        with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
+            # db=None is the worst case (worse than the new "" default); it must
+            # not raise TypeError from urllib.parse.quote.
+            try:
+                deploy.login_upload_module(
+                    module_file=tmp.name,
+                    url="http://localhost:8069",
+                    login="admin",
+                    password="admin",
+                    db=None,
+                )
+            except TypeError as exc:  # pragma: no cover - regression guard
+                self.fail(f"login_upload_module crashed on db=None: {exc}")
+        self.assertTrue(deploy.session.get.called)
+
+    def test_bootstrap_parser_rejects_abbreviation(self):
+        """The pre-dispatch parser must not abbreviate --addons-path.
+
+        With allow_abbrev (the argparse default) `--addons=/y` was silently
+        swallowed as the addons path; the real flag must still parse.
+        """
+        parser = build_bootstrap_parser()
+        ns, rest = parser.parse_known_args(["server", "--addons=/y"])
+        self.assertIsNone(ns.addons_path)
+        self.assertIn("--addons=/y", rest)
+        ns2, _ = parser.parse_known_args(["server", "--addons-path=/y"])
+        self.assertEqual(ns2.addons_path, "/y")
+
+    def test_upgrade_code_rejects_out_of_tree_script(self):
+        """`--script ../evil` must be rejected when it resolves outside UPGRADE.
+
+        Path.relative_to is lexical and does not raise for `..`; the guard now
+        resolves both sides. Point UPGRADE at a temp dir and plant a sibling
+        file reachable via `../`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            upgrade_dir = root / "upgrade_code"
+            upgrade_dir.mkdir()
+            evil = root / "evil.py"
+            evil.write_text("def upgrade(fm):\n    pass\n")
+            with mock.patch.object(upgrade_code, "UPGRADE", upgrade_dir):
+                with self.assertRaises(FileNotFoundError) as ctx:
+                    upgrade_code.migrate(
+                        addons_path=[tmp], glob="*.py", script="../evil"
+                    )
+            self.assertIn("outside", str(ctx.exception))
+
+    def test_discovery_survives_broken_addon_cli(self):
+        """A SyntaxError in one addon's cli/*.py must not break discovery.
+
+        `odoo-bin help` loads every addon's cli file; one bad file previously
+        propagated and killed the whole listing.
+        """
+        from odoo.cli import command as cmd
+
+        import odoo.addons
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cli_dir = Path(tmp) / "brokenmod" / "cli"
+            cli_dir.mkdir(parents=True)
+            # Missing colon -> SyntaxError at import (not an ImportError).
+            (cli_dir / "brokencmd.py").write_text(
+                "from odoo.cli import Command\n"
+                "class Brokencmd(Command)\n"
+                "    def run(self, args): pass\n"
+            )
+            # Patch the addons search path to just our temp dir (a plain list,
+            # so no _NamespacePath mutation) and neuter initialize_sys_path so
+            # it does not rebuild the path from config.
+            with (
+                mock.patch.object(odoo.addons, "__path__", [tmp]),
+                mock.patch.object(cmd, "initialize_sys_path", lambda: None),
+            ):
+                try:
+                    load_addons_commands()  # the all-discovery path help uses
+                except SyntaxError:  # pragma: no cover - regression guard
+                    self.fail("a broken addon cli file broke command discovery")
+            self.assertNotIn("brokencmd", commands)
 
     def test_deploy_local_host_detection(self):
         """deploy.py must distinguish localhost forms from look-alike hosts."""
@@ -318,6 +725,219 @@ class TestCommand(BaseCase):
         self.assertIn("starts_with(table_name, 'ir_')", non_comment)
         self.assertNotIn("LIKE 'ir_%'", non_comment)
 
+    def test_dotted_command_name_no_traceback(self):
+        """A dotted typo like `odoo-bin db.init` must produce the standard
+        Unknown-command message, not a ModuleNotFoundError traceback.
+
+        find_command's suppress guard compares e.name to the expected module
+        name; for 'x.y' the import machinery reports the *parent* module
+        ('odoo.cli.x'), so the guard re-raised. Names are now validated
+        before any import attempt."""
+        for name in ("db.init", "x.y", ".", ".."):
+            with self.subTest(name=name):
+                proc = self.run_command(name, check=False)
+                self.assertIn("Unknown command", proc.stderr)
+                self.assertNotIn("Traceback", proc.stderr)
+
+    def test_start_merges_bootstrap_addons_path(self):
+        """`odoo-bin start --addons-path=X` must not lose X.
+
+        The dispatcher's bootstrap parser strips --addons-path from any argv
+        position, so start.py never sees it in cmdargs and used to append
+        the bare auto-detected project path — which the second config parse
+        then took as a *replacement* for X. start.py must merge the
+        bootstrap value (exposed as odoo.cli.BOOTSTRAP_ADDONS_PATH) with the
+        project path, user paths first."""
+        import odoo.cli
+        from odoo.cli import start as start_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            (proj / "mymodule").mkdir(parents=True)
+            (proj / "mymodule" / "__manifest__.py").write_text("{'name': 'x'}\n")
+            captured = {}
+            with (
+                mock.patch.object(
+                    start_mod,
+                    "main",
+                    lambda cmdargs: captured.update(args=list(cmdargs)),
+                ),
+                mock.patch.object(
+                    start_mod,
+                    "_create_empty_database",
+                    mock.Mock(side_effect=start_mod.DatabaseExists()),
+                ),
+                mock.patch.object(odoo.cli, "BOOTSTRAP_ADDONS_PATH", "/custom/addons"),
+            ):
+                start_mod.Start().run(["--path", str(proj), "-d", "mydb"])
+            flags = [a for a in captured["args"] if a.startswith("--addons-path=")]
+            self.assertEqual(len(flags), 1, msg=f"args: {captured['args']}")
+            paths = flags[0].removeprefix("--addons-path=").split(",")
+            self.assertEqual(
+                paths[0], "/custom/addons", msg="user-supplied paths must come first"
+            )
+            self.assertIn(str(proj.resolve()), paths)
+
+    def test_start_filters_concatenated_path_flag(self):
+        """`start -pX` (argparse's concatenated short form) must be removed
+        from the args forwarded to the server: the server parser maps -p to
+        --http-port, so a leaked -pX is misparsed (a numeric X would even
+        silently change the listening port)."""
+        from odoo.cli import start as start_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            (proj / "mymodule").mkdir(parents=True)
+            (proj / "mymodule" / "__manifest__.py").write_text("{'name': 'x'}\n")
+            captured = {}
+            with (
+                mock.patch.object(
+                    start_mod,
+                    "main",
+                    lambda cmdargs: captured.update(args=list(cmdargs)),
+                ),
+                mock.patch.object(
+                    start_mod,
+                    "_create_empty_database",
+                    mock.Mock(side_effect=start_mod.DatabaseExists()),
+                ),
+            ):
+                start_mod.Start().run([f"-p{proj}", "-d", "mydb"])
+            leaked = [
+                a
+                for a in captured["args"]
+                if a.startswith("-p") and not a.startswith("--")
+            ]
+            self.assertFalse(leaked, msg=f"args: {captured['args']}")
+
+    def test_deploy_zip_skips_symlinks(self):
+        """The deploy zip must not embed the content of symlinked files —
+        a link pointing outside the module would leak the target's bytes
+        into the upload."""
+        import zipfile
+
+        from odoo.cli.deploy import Deploy
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "secret.txt").write_text("TOPSECRET")
+            mod = tmp_path / "mymod"
+            mod.mkdir()
+            (mod / "__manifest__.py").write_text("{'name': 'mymod'}\n")
+            (mod / "leak.txt").symlink_to(tmp_path / "secret.txt")
+            zpath = Deploy().zip_module(mod)
+            try:
+                with zipfile.ZipFile(zpath) as z:
+                    names = z.namelist()
+            finally:
+                Path(zpath).unlink()
+            self.assertTrue(any(n.endswith("__manifest__.py") for n in names))
+            self.assertFalse(
+                any(n.endswith("leak.txt") for n in names),
+                msg=f"symlink leaked into zip: {names}",
+            )
+
+    def test_command_register_optout(self):
+        """`class Base(Command, register=False)` must be allowed as an
+        abstract helper base: not registered, exempt from the name/module
+        and run-override checks. Concrete subclasses are still validated."""
+        from odoo.cli.command import Command, commands
+
+        before = dict(commands)
+        helper = type("HelperBase", (Command,), {}, register=False)
+        self.assertEqual(commands, before, msg="opt-out base must not register")
+        self.assertIsNone(helper.name)
+        # a concrete subclass goes through the usual validation (here it
+        # fails the module-name check, proving validation still applies)
+        with self.assertRaises(ValueError):
+            type("Concrete", (helper,), {"run": lambda self, args: None})
+        self.assertEqual(commands, before)
+
+    def test_db_helpers_live_on_databasecommand_not_base(self):
+        """The -c/-d plumbing belongs to DatabaseCommand, not the universal
+        Command base. Every caller of add_config_arguments/require_single_database
+        is a DatabaseCommand; db-free commands (deploy/scaffold/help) must not
+        inherit database helpers they never use. Pins the separation so the
+        helpers are not re-hoisted onto the base."""
+        from odoo.cli.command import Command, DatabaseCommand
+
+        for meth in ("add_config_arguments", "bootstrap_config", "require_single_database"):
+            self.assertIn(
+                meth,
+                vars(DatabaseCommand),
+                msg=f"{meth} must be defined on DatabaseCommand",
+            )
+            self.assertNotIn(
+                meth,
+                vars(Command),
+                msg=f"{meth} must not be defined on the base Command",
+            )
+
+    def test_obfuscate_update_has_where_guard(self):
+        """convert_table must guard its UPDATE with a WHERE clause: an
+        unguarded UPDATE physically rewrites every tuple even when the
+        idempotency CASE returns the value unchanged (full-table I/O and
+        bloat on re-runs)."""
+        from odoo.cli.obfuscate import Obfuscate
+
+        for unobfuscate, marker in (
+            (False, "IS NOT NULL AND NOT starts_with"),
+            (True, "WHERE starts_with"),
+        ):
+            with self.subTest(unobfuscate=unobfuscate):
+                ob = Obfuscate()
+                ob.cr = mock.MagicMock()
+                ob.cr.rowcount = 1
+                ob.cr.fetchone.return_value = ("varchar",)
+                ob.convert_table(
+                    "res_partner", ["name"], "pwd", unobfuscate=unobfuscate
+                )
+                update_sql = ob.cr.execute.call_args[0][0].code
+                self.assertIn("UPDATE", update_sql)
+                self.assertIn("WHERE", update_sql)
+                self.assertIn(marker, update_sql)
+
+    def test_obfuscate_prefetches_field_kinds(self):
+        """After _prefetch_field_kinds, check_field is a dict lookup with no
+        per-field information_schema round-trip, and returns exactly what the
+        per-field probe would (string/json for supported types, None for
+        unsupported or absent columns). Guards the explicit --fields path from
+        regressing to one catalog query per field, charged twice (the
+        validation pass in run() plus convert_table)."""
+        from odoo.cli.obfuscate import Obfuscate
+
+        ob = Obfuscate()
+        executed = []
+
+        class FakeCur:
+            def execute(self, query, params=None):
+                executed.append(params)
+
+            def fetchall(self):
+                # text/varchar/jsonb are kept; an unsupported type is dropped.
+                return [
+                    ("res_partner", "name", "varchar"),
+                    ("res_partner", "email", "varchar"),
+                    ("res_partner", "extra", "jsonb"),
+                    ("res_partner", "active", "bool"),
+                ]
+
+        ob.cr = FakeCur()
+        ob._prefetch_field_kinds({"res_partner"})
+        self.assertEqual(len(executed), 1, msg="prefetch must be a single query")
+        self.assertEqual(executed[0], [["res_partner"]], msg="tables passed via ANY(%s)")
+
+        before = len(executed)
+        self.assertEqual(ob.check_field("res_partner", "name"), "string")
+        self.assertEqual(ob.check_field("res_partner", "extra"), "json")
+        self.assertIsNone(ob.check_field("res_partner", "active"), msg="non-text type")
+        self.assertIsNone(ob.check_field("res_partner", "ghost"), msg="absent column")
+        self.assertEqual(
+            len(executed),
+            before,
+            msg="check_field issued a catalog query despite the prefetch",
+        )
+
     @unittest.skipIf(os.name != "posix", "`os.openpty` only available on POSIX systems")
     def test_shell(self):
 
@@ -344,3 +964,80 @@ class TestCommand(BaseCase):
                 if line.startswith(">>>")
             ]
             self.assertEqual(lines, [">>> Hello from Python!", ">>> "])
+
+    def test_databasecommand_preserves_bootstrap_addons_path(self):
+        """`module install --addons-path=X` must not silently lose X.
+
+        The dispatcher (command.main) strips --addons-path and feeds it to
+        config in a FIRST parse; DatabaseCommand.bootstrap_config then runs a
+        SECOND parse via build_config_args, which forwards only -c/-d — never
+        --addons-path. Modules are found only because config._load_cli_options
+        specially preserves addons_path across the second parse's
+        _cli_options.clear(). If that preservation is ever dropped, addons_path
+        would vanish like any other CLI option and module/i18n/obfuscate/
+        populate would resolve zero modules with no error.
+
+        Pinned on an isolated configmanager so the global singleton — and thus
+        the rest of the test run — is left untouched.
+        """
+        from odoo.tools.config import configmanager
+
+        with tempfile.TemporaryDirectory() as ad, tempfile.TemporaryDirectory() as dd:
+            module = Path(ad) / "mymodule"
+            module.mkdir()
+            (module / "__init__.py").write_text("")
+            (module / "__manifest__.py").write_text("{'name': 'mymodule'}\n")
+
+            cfg = configmanager()
+            # FIRST parse: what command.main does with the bootstrap
+            # --addons-path (plus a normal --data-dir, used below as a control).
+            cfg._parse_config([f"--addons-path={ad}", f"--data-dir={dd}"])
+            first_addons = list(cfg["addons_path"])
+            first_data_dir = cfg["data_dir"]
+            self.assertIn(ad, first_addons)
+
+            # SECOND parse: what DatabaseCommand.bootstrap_config does — only
+            # -d, NO --addons-path.
+            cfg._parse_config(["-d", "somedb"])
+            second_addons = list(cfg["addons_path"])
+            second_data_dir = cfg["data_dir"]
+
+            self.assertIn(
+                ad,
+                second_addons,
+                msg="addons_path lost on the second config parse: "
+                "`module install --addons-path=X` would find no modules",
+            )
+            # Control: a non-preserved option (data_dir) is NOT carried over,
+            # proving addons_path's survival is a deliberate special case and
+            # not a generic 'CLI options persist' behaviour.
+            self.assertNotEqual(
+                second_data_dir,
+                first_data_dir,
+                msg="data_dir unexpectedly persisted; the control no longer "
+                "isolates addons_path's special preservation",
+            )
+
+    def test_build_config_args_forwards_only_connection_flags(self):
+        """build_config_args carries only --no-http/-c/-d, never the global
+        --addons-path.
+
+        This is the CLI half of the contract pinned by
+        test_databasecommand_preserves_bootstrap_addons_path: because the
+        second parse omits --addons-path, config MUST preserve it. The
+        assertion also bounds the abstraction — commands needing arbitrary
+        server options (shell, cloc) cannot route through build_config_args
+        and so parse the config themselves.
+        """
+        from odoo.cli.command import build_config_args
+
+        self.assertEqual(
+            build_config_args("cfg", "db"),
+            ["--no-http", "-c", "cfg", "-d", "db"],
+        )
+        self.assertNotIn("--addons-path", build_config_args("cfg", "db"))
+        # extra_args is the only channel for anything beyond -c/-d/--no-http:
+        self.assertIn(
+            "--workers=4",
+            build_config_args(None, None, extra_args=["--workers=4"]),
+        )

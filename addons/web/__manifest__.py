@@ -534,4 +534,44 @@ This module provides the core of the Odoo Web Client.
     },
     "auto_install": True,
     "bootstrap": True,
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'web.assets_web',
+            'web.assets_web_dark',
+            'web.assets_web_print',
+            'web.assets_frontend',
+            'web.assets_frontend_lazy',
+            'web.assets_frontend_minimal',
+            'web.assets_inside_builder_iframe',
+            'web.report_assets_common',
+            'web.report_assets_pdf',
+            'web.assets_tests',
+            'web.tests_assets',
+            'web.assets_unit_tests',
+            'web.assets_unit_tests_setup',
+            'web.assets_clickbot',
+            'web.assets_emoji',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'web.assets_clickbot',
+                'web.assets_emoji',
+            ],
+        },
+        'import_map_includes': {
+            'web.assets_unit_tests_setup': [
+                'web.assets_unit_tests',
+            ],
+        },
+        'secondary_import_map_includes': {
+            'web.assets_web': [
+                'web.assets_tests',
+            ],
+            'web.assets_frontend': [
+                'web.assets_tests',
+            ],
+        },
+    },
 }

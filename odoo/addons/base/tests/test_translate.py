@@ -855,6 +855,35 @@ class TestTranslationWrite(TransactionCase):
         cls.category = cls.env["res.partner.category"].create({"name": "Reblochon"})
         cls.category_xml_id = cls.category.export_data(["id"]).get("datas")[0][0]
 
+    def test_flush_stale_flat_cache_entry_not_nulled(self):
+        """Regression: a translatable field whose value survives only in a
+        stale flat cache entry (``{id: scalar}`` — the layout used before
+        ``field_depends_context`` is populated, e.g. during a
+        ``_load_module_terms`` flush) must not be flushed as SQL ``NULL``.
+
+        ``Field.get_column_update``'s ``translate is True`` branch skipped flat
+        entries unconditionally and returned ``None``, writing ``NULL``.  On a
+        required translatable field that raised ``NotNullViolation`` and
+        aborted ``-u`` (the ``loyalty.reward.description`` crash); on others it
+        silently cleared the stored value.
+        """
+        category = self.env["res.partner.category"].create({"name": "Reblochon"})
+        field = category._fields["name"]
+        core = self.env._core
+
+        # Reproduce the stale-flat-entry shape: a scalar value keyed directly
+        # by record id, with no nested ``{(lang,): {id: value}}`` entry.
+        core.field_data(field).clear()
+        core.set_value(field, category.id, "Reblochon")
+
+        col_val = field.get_column_update(category)
+        self.assertIsNotNone(
+            col_val,
+            "translatable field whose value lives only in a stale flat cache "
+            "entry was flushed as SQL NULL",
+        )
+        self.assertIn("Reblochon", col_val.obj.values())
+
     def test_00(self):
         self.env["res.lang"]._activate_lang("fr_FR")
 

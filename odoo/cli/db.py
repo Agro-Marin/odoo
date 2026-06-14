@@ -8,6 +8,7 @@ from argparse import RawTextHelpFormatter
 from contextlib import ExitStack
 from functools import partial
 from pathlib import Path
+from typing import NoReturn
 
 import requests
 
@@ -52,20 +53,52 @@ class Db(Command):
     )
 
     @classmethod
-    def _add_connection_flags(cls, p: argparse.ArgumentParser) -> None:
+    def _add_connection_flags(
+        cls, p: argparse.ArgumentParser, *, on_subparser: bool = False
+    ) -> None:
         """Register connection/config flags on ``p``.
 
         These flags live on BOTH the parent parser and every subparser so the
         user can write either ``db -c cfg init mydb`` or the more natural
         ``db init mydb -c cfg`` (matches ``module install`` UX).
+
+        :param bool on_subparser: when True, register with
+            ``default=argparse.SUPPRESS``. argparse parses a subcommand into a
+            fresh namespace and copies every attribute back onto the parent
+            namespace; with an ordinary ``None`` default that copy clobbers a
+            value the user supplied *before* the subcommand (``db -c cfg drop
+            mydb`` would lose ``-c``). SUPPRESS leaves the attribute unset when
+            the flag is absent, so the parent-parsed value survives.
         """
         for flags in cls._CONNECTION_FLAGS:
-            p.add_argument(*flags)
+            if on_subparser:
+                p.add_argument(*flags, default=argparse.SUPPRESS)
+            else:
+                p.add_argument(*flags)
+
+    @classmethod
+    def _connection_dest_flags(cls) -> dict[str, str]:
+        """Map argparse dest names to their long CLI flag.
+
+        Derived from ``_CONNECTION_FLAGS`` so the config-args reconstruction
+        in ``run`` cannot drift from the declared flags: a flag added there
+        is automatically forwarded, whatever its spelling.
+        """
+        dest_flags = {}
+        for flags in cls._CONNECTION_FLAGS:
+            long_flag = flags[-1]  # the long form is always declared last
+            dest_flags[long_flag.lstrip("-").replace("-", "_")] = long_flag
+        return dest_flags
+
+    def _exit_missing_subcommand(self, _args: argparse.Namespace) -> NoReturn:
+        """Print full help and exit 2, the argparse code for usage errors."""
+        self.parser.print_help(sys.stderr)
+        sys.exit(2)
 
     def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         self._add_connection_flags(parser)
-        parser.set_defaults(func=lambda _: sys.exit(parser.format_help()))
+        parser.set_defaults(func=self._exit_missing_subcommand)
 
         subs = parser.add_subparsers()
 
@@ -245,23 +278,22 @@ class Db(Command):
         drop.add_argument("database", help="database to delete")
 
         # Also accept connection flags AFTER the subcommand name (matches
-        # `module install -c cfg <mod>` UX).
+        # `module install -c cfg <mod>` UX). default=SUPPRESS so an absent
+        # flag here does not overwrite a value passed before the subcommand.
         for sub in (init, load, dump, duplicate, rename, drop):
-            self._add_connection_flags(sub)
+            self._add_connection_flags(sub, on_subparser=True)
 
         args = parser.parse_args(cmdargs)
 
-        # Map argparse namespace keys to config CLI flags. The two underscore-form
-        # keys must be hyphenated; everything else passes through as `--<key>`.
-        flag_overrides = {"data_dir": "--data-dir", "addons_path": "--addons-path"}
-        passthrough_keys = ("config", "data_dir", "addons_path")
+        # Rebuild config CLI flags from the parsed namespace, using the
+        # dest->flag map derived from _CONNECTION_FLAGS (single source of
+        # truth; subcommand-specific keys are simply not in the map).
+        dest_flags = self._connection_dest_flags()
         config_args: list[str] = []
         for key, value in vars(args).items():
-            if value is None:
+            if value is None or key not in dest_flags:
                 continue
-            if key not in passthrough_keys and not key.startswith(("db_", "pg_")):
-                continue
-            config_args.extend([flag_overrides.get(key, f"--{key}"), value])
+            config_args.extend([dest_flags[key], value])
         config.parse_config(config_args, setup_logging=True)
         # force db management active to bypass check when only a
         # `check_db_management_enabled` version is available.
@@ -271,7 +303,9 @@ class Db(Command):
         args.func(args)
 
     def init(self, args: argparse.Namespace) -> None:
-        self._check_target(args.database, delete_if_exists=args.force)
+        # No input to validate before creating, so check and drop together.
+        self._check_target_free(args.database, force=args.force)
+        self._drop_if_exists(args.database)
         exp_create_database(
             db_name=args.database,
             demo=args.with_demo,
@@ -284,7 +318,11 @@ class Db(Command):
 
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
-        self._check_target(db_name, delete_if_exists=args.force)
+        # Fail fast on an occupied target, but DO NOT drop it yet: the dump
+        # must first be fetched and recognised as a zip. Dropping up front
+        # destroyed the existing database even when the download 404'd or
+        # the file turned out not to be a dump at all.
+        self._check_target_free(db_name, force=args.force)
 
         url = urllib.parse.urlparse(args.dump_file)
         # ExitStack ties the spooled temp file's lifetime to the function:
@@ -322,6 +360,9 @@ class Db(Command):
                     " and `psql` to execute sql dumps or scripts."
                 )
 
+            # Input validated — only now is it safe to clear the target.
+            if args.force:
+                self._drop_if_exists(db_name)
             restore_db(
                 db=db_name,
                 dump_file=dump_file,
@@ -330,6 +371,11 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
+        # Fail fast with a clean message rather than letting dump_db's pooled
+        # connection raise a raw traceback on a missing database. (Before the
+        # pool's permanent-error fast-fail, this existence check itself blocked
+        # ~30s; it is now a single catalog round-trip.)
+        self._check_source_exists(args.database)
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
         else:
@@ -337,13 +383,17 @@ class Db(Command):
                 dump_db(args.database, f, args.dump_format, args.filestore)
 
     def duplicate(self, args: argparse.Namespace) -> None:
-        self._check_target(args.target, delete_if_exists=args.force)
+        self._check_target_free(args.target, force=args.force)
+        self._check_source_exists(args.source)
+        self._drop_if_exists(args.target)
         exp_duplicate_database(
             args.source, args.target, neutralize_database=args.neutralize
         )
 
     def rename(self, args: argparse.Namespace) -> None:
-        self._check_target(args.target, delete_if_exists=args.force)
+        self._check_target_free(args.target, force=args.force)
+        self._check_source_exists(args.source)
+        self._drop_if_exists(args.target)
         exp_rename(args.source, args.target)
         if args.neutralize:
             with db_connect(args.target).cursor() as cr:
@@ -353,12 +403,27 @@ class Db(Command):
         if not exp_drop(args.database):
             sys.exit(f"Database {args.database} does not exist.")
 
-    def _check_target(self, target: str, *, delete_if_exists: bool) -> None:
+    def _check_target_free(self, target: str, *, force: bool) -> None:
+        """Abort unless ``target`` may be (re)created.
+
+        Pure check, no side effect: with ``force`` an occupied target is
+        accepted, but dropping it is the caller's move — deferred until its
+        inputs (dump file, source database, …) are validated, so a doomed
+        run never destroys the existing database first.
+        """
+        if not force and exp_db_exist(target):
+            sys.exit(
+                f"Target database {target} exists, aborting.\n\n"
+                f"\tuse `--force` to delete the existing database anyway."
+            )
+
+    def _check_source_exists(self, source: str) -> None:
+        """Abort when the source database is missing — before the target
+        is dropped, not after."""
+        if not exp_db_exist(source):
+            sys.exit(f"Source database {source} does not exist.")
+
+    def _drop_if_exists(self, target: str) -> None:
+        """Drop ``target`` (with filestore) if present; no-op otherwise."""
         if exp_db_exist(target):
-            if delete_if_exists:
-                exp_drop(target)
-            else:
-                sys.exit(
-                    f"Target database {target} exists, aborting.\n\n"
-                    f"\tuse `--force` to delete the existing database anyway."
-                )
+            exp_drop(target)
