@@ -2633,9 +2633,7 @@ class TestInlineDdlParams(BaseCase):
         )
 
     def test_named_dict_params(self):
-        self.assertEqual(
-            _inline_ddl_params("a = %(x)s", {"x": "v"}, None), "a = 'v'"
-        )
+        self.assertEqual(_inline_ddl_params("a = %(x)s", {"x": "v"}, None), "a = 'v'")
 
     def test_literal_percent_is_unescaped_around_marker(self):
         # `%%` is a literal percent, not a marker; it must survive as a single
@@ -2839,3 +2837,104 @@ class TestCursorForwardingContract(BaseCase):
                 and "Odoo cursor API" in str(x.message)
             ]
             self.assertEqual(len(msgs), 1, f"expected one warning, got {msgs}")
+
+
+class TestBorrowPoolGuardExplicitRaise(BaseCase):
+    """borrow()'s `_pool` back-reference guard must use an explicit raise, not
+    `assert`.  It protects the _pool_sem accounting invariant whose failure
+    mode is a slow production hang — give_back() would take its non-pool branch
+    and leak a permit on every return — exactly the deployment where
+    ``python -O`` (which strips asserts) is plausible.  Mirrors
+    TestDictFetchoneNoAssert / TestSavepointGuardsSurviveOptimize for the pool.
+    """
+
+    def test_guard_uses_explicit_raise_not_assert(self):
+        src = inspect.getsource(ConnectionPool.borrow)
+        self.assertNotIn(
+            'assert getattr(conn, "_pool"',
+            src,
+            "borrow() must guard the _pool invariant with an explicit raise "
+            "(assert is stripped by python -O)",
+        )
+        self.assertIn(
+            'if getattr(conn, "_pool", None) is None:',
+            src,
+            "borrow() must explicitly check the _pool back-reference",
+        )
+
+    def test_untagged_conn_raises_and_releases_semaphore(self):
+        pool = ConnectionPool(maxconn=4)
+        info = connection_info_for("nonexistent_db_test")[1]
+        key = _normalize_dsn_key(info)
+
+        # A connection psycopg_pool failed to tag with a `_pool` back-reference
+        # (the future-driver scenario the guard defends).  borrow() must reject
+        # it loudly AND release the permit it acquired before getconn().
+        conn = MagicMock()
+        conn._pool = None
+        conn.info.server_version = 180000  # would otherwise pass the version gate
+        mock_pool = MagicMock()
+        mock_pool.closed = False
+        mock_pool.getconn.return_value = conn
+        pool._pools[key] = mock_pool
+
+        sem_before = pool._pool_sem._value
+        with self.assertRaises(PoolError):
+            pool.borrow(info)
+        mock_pool.putconn.assert_called_once_with(conn)
+        self.assertEqual(
+            pool._pool_sem._value,
+            sem_before,
+            "semaphore leaked when borrow() rejected an untagged connection",
+        )
+
+
+class TestPasswordRotationEvictsStalePool(BaseCase):
+    """A rotated password yields a new pool key (the password fingerprint in
+    _normalize_dsn_key differs).  _get_or_create_pool must evict and close the
+    OLD per-DSN pool — otherwise its worker threads and idle connections leak in
+    self._pools until close_all().  A genuinely different host/port/user keeps
+    its own pool (those components ARE part of the key).
+    """
+
+    @staticmethod
+    def _pool_factory():
+        def factory(*args, **kwargs):
+            m = MagicMock()
+            m.closed = False
+            return m
+
+        return factory
+
+    def test_rotation_evicts_and_closes_old_pool(self):
+        pool = ConnectionPool(maxconn=4)
+        pool._probe_connectable = lambda *a, **k: None
+        base = {"dbname": "rotdb", "host": "h", "user": "u"}
+        info_old = {**base, "password": "old"}
+        info_new = {**base, "password": "new"}
+        k_old = _normalize_dsn_key(info_old)
+        k_new = _normalize_dsn_key(info_new)
+        with patch("odoo.db.pool._PsycopgPool") as PP:
+            PP.side_effect = self._pool_factory()
+            old_pool = pool._get_or_create_pool(k_old, info_old)
+            pool._get_or_create_pool(k_new, info_new)
+
+        self.assertNotIn(k_old, pool._pools, "old-password pool was not evicted")
+        self.assertIn(k_new, pool._pools)
+        old_pool.close.assert_called_once()
+
+    def test_different_user_pool_is_preserved(self):
+        pool = ConnectionPool(maxconn=4)
+        pool._probe_connectable = lambda *a, **k: None
+        base = {"dbname": "rotdb", "host": "h", "password": "p"}
+        info_u1 = {**base, "user": "u1"}
+        info_u2 = {**base, "user": "u2"}
+        k1 = _normalize_dsn_key(info_u1)
+        k2 = _normalize_dsn_key(info_u2)
+        with patch("odoo.db.pool._PsycopgPool") as PP:
+            PP.side_effect = self._pool_factory()
+            pool._get_or_create_pool(k1, info_u1)
+            pool._get_or_create_pool(k2, info_u2)
+
+        self.assertIn(k1, pool._pools, "different-user pool must NOT be evicted")
+        self.assertIn(k2, pool._pools)

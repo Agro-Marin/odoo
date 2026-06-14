@@ -58,6 +58,12 @@ if not any(
     _psycopg_pool_logger.addFilter(_SuppressKnownPoolWarnings())
 
 MAX_IDLE_TIMEOUT = 60 * 10
+MAX_LIFETIME = 3600  # recycle each pooled connection hourly (stale prep caches)
+
+# Shared wall-clock budget for a single borrow(): the semaphore wait and the
+# per-DSN getconn() both draw from this same window.  Named so the two uses in
+# borrow() can never silently drift apart.
+_BORROW_TIMEOUT = 30.0
 
 # Connection failures whose cause is permanent: retrying cannot help, because
 # the database, role, or password is the problem — not transient capacity.
@@ -401,7 +407,7 @@ class ConnectionPool:
                 kwargs=kwargs,
                 min_size=self._minconn,
                 max_size=self._maxconn,
-                max_lifetime=3600,
+                max_lifetime=MAX_LIFETIME,
                 max_idle=MAX_IDLE_TIMEOUT,
                 reconnect_timeout=15,
                 configure=_configure_connection,
@@ -412,7 +418,39 @@ class ConnectionPool:
             )
             self._pools[key] = pool
             self._debug("Created pool for %s", dict(key))
-            return pool
+
+            # Evict stale-credential siblings: a rotated password yields a NEW
+            # key (the password fingerprint in _normalize_dsn_key differs) but
+            # leaves the OLD per-DSN pool — its worker threads and idle
+            # connections — stranded in self._pools until close_all().  Drop any
+            # sibling whose key matches this one on every component EXCEPT the
+            # password fingerprint; those connections authenticate with the old
+            # password and can only fail now.  A genuinely different host / port
+            # / user keeps its own pool (those components ARE part of the key).
+            ident = frozenset(t for t in key if t[0] != "password_fp")
+            stale_keys = [
+                k
+                for k in self._pools
+                if k != key
+                and frozenset(t for t in k if t[0] != "password_fp") == ident
+            ]
+            # Pop under the lock; close OUTSIDE it — _PsycopgPool.close() joins
+            # worker threads and must not block sibling pool creation (the same
+            # reason the pre-flight probe runs outside self._lock).
+            stale_pools = [self._pools.pop(k) for k in stale_keys]
+
+        for sp in stale_pools:
+            try:
+                sp.close()
+            except Exception:
+                _logger.debug("Failed to close stale-credential pool", exc_info=True)
+        if stale_pools:
+            _logger.info(
+                "%r: evicted %d stale-credential pool(s) after key change",
+                self,
+                len(stale_pools),
+            )
+        return pool
 
     def borrow(self, connection_info: dict) -> psycopg.Connection:
         """Borrow a connection from the appropriate per-database pool.
@@ -429,9 +467,9 @@ class ConnectionPool:
         key = _normalize_dsn_key(connection_info)
         pool = self._get_or_create_pool(key, connection_info)
 
-        deadline = monotonic() + 30.0
+        deadline = monotonic() + _BORROW_TIMEOUT
 
-        if not self._pool_sem.acquire(timeout=30.0):
+        if not self._pool_sem.acquire(timeout=_BORROW_TIMEOUT):
             raise PoolError(
                 f"Could not acquire connection: pool limit ({self._maxconn}) reached, "
                 f"all connections are in use across {len(self._pools)} database(s)"
@@ -488,12 +526,22 @@ class ConnectionPool:
                 # slot on every return — wedging the pool after `maxconn`
                 # borrows.  Assert so that contract break surfaces in CI rather
                 # than as a slow production hang.
-                assert getattr(conn, "_pool", None) is not None, (
-                    "psycopg_pool did not tag the borrowed connection with a "
-                    "`_pool` back-reference; ConnectionPool.give_back() can no "
-                    "longer account for the semaphore. Review give_back() "
-                    "against the installed psycopg_pool version."
-                )
+                # Explicit raise, NOT assert: `python -O` strips asserts, and
+                # this guards the semaphore-accounting invariant whose failure
+                # mode is a slow production hang (give_back() would take its
+                # non-pool branch and leak a permit on every return) — exactly
+                # the deployment where -O is plausible.  The project enforces
+                # this no-assert-for-invariants rule via
+                # test_uses_explicit_raise_not_assert.  Raising here routes
+                # through the inner handler (putconn) and the outer handler
+                # (semaphore release), so nothing leaks on the way out.
+                if getattr(conn, "_pool", None) is None:
+                    raise PoolError(
+                        "psycopg_pool did not tag the borrowed connection with "
+                        "a `_pool` back-reference; ConnectionPool.give_back() "
+                        "can no longer account for the semaphore. Review "
+                        "give_back() against the installed psycopg_pool version."
+                    )
                 # Minimum-version gate: server_version is read from the
                 # connection startup packet (client-side, no round-trip).
                 # Checked here rather than in _configure_connection so the
