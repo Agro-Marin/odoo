@@ -4737,9 +4737,7 @@ class IrQweb(models.AbstractModel):
             # the asset's native module_path and key it under
             # the alias too, so the satellite reads from
             # ``odoo.loader.modules`` instead of re-fetching.
-            from odoo.addons.base.models.assetsbundle import (
-                _parse_odoo_module_header as _parse_hdr,
-            )
+            from odoo.libs.esm_graph import _parse_odoo_module_header as _parse_hdr
 
             for asset in asset_bundle.native_modules:
                 header = _parse_hdr(asset.raw_content)
