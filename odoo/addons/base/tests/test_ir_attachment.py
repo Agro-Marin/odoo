@@ -530,6 +530,29 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         # Must not raise; the orphaned target resolves to False.
         self.assertFalse(att.res_name)
 
+    def test_index_preserves_non_ascii_text(self):
+        """_index keeps accented/non-ASCII words whole for text content.
+
+        The old byte-class [\\x20-\\x7E] split every multi-byte UTF-8 char,
+        shredding Spanish words and crippling full-text search; the decoded,
+        Unicode-aware scan keeps them intact while staying identical to the old
+        output for pure-ASCII content.
+        """
+        Att = self.env["ir.attachment"]
+        spanish = "Configuración del módulo árbol genealógico".encode()
+        indexed = Att._index(spanish, "text/plain")
+        self.assertIn("Configuración", indexed)
+        self.assertIn("módulo", indexed)
+        self.assertIn("genealógico", indexed)
+        # non-text content is still not indexed
+        self.assertIsNone(Att._index(b"\x89PNG\r\n", "image/png"))
+        # pure-ASCII output is unchanged: printable runs >=4, split on controls
+        ascii_data = b"hello world\nshort\na\nplain ascii text here"
+        self.assertEqual(
+            Att._index(ascii_data, "text/plain"),
+            "hello world\nshort\nplain ascii text here",
+        )
+
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_migrate_preserves_content_on_empty_read(self):
         """_migrate must never blank a non-empty file on an empty read (P0-2).

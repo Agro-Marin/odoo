@@ -85,23 +85,27 @@ def condition_values(
         over-approximation — both callers then take their general path.
     """
     domain = domain.optimize(model)
-    for condition in (
-        domain.map_conditions(
-            lambda cond: (
-                cond
-                if cond.field_expr == field_name and cond.operator in ("in", "=")
-                else Domain.TRUE
-            )
+    # Keep only '='/'in' conditions on *field_name*, dropping everything else to
+    # TRUE, then re-optimize. optimize() merges same-field conditions, so the
+    # result holds AT MOST ONE condition on the field — there is nothing to
+    # iterate, only a single condition to read (or none). A field constrained
+    # through an OR with another field collapses away here and yields None,
+    # which callers treat as "unrestricted" (the safe over-approximation).
+    field_only = domain.map_conditions(
+        lambda cond: (
+            cond
+            if cond.field_expr == field_name and cond.operator in ("in", "=")
+            else Domain.TRUE
         )
-        .optimize(model)
-        .iter_conditions()
-    ):
-        # Normalize '=' to a list for uniform handling by callers
-        if condition.operator == "=":
-            return [condition.value]
-        if isinstance(condition.value, COLLECTION_TYPES):
-            return condition.value
+    ).optimize(model)
+    condition = next(iter(field_only.iter_conditions()), None)
+    if condition is None:
         return None
+    # Normalize '=' to a list for uniform handling by callers
+    if condition.operator == "=":
+        return [condition.value]
+    if isinstance(condition.value, COLLECTION_TYPES):
+        return condition.value
     return None
 
 
@@ -225,45 +229,65 @@ class IrAttachment(models.Model):
         if field is None or not comodel._has_field_access(field, "write"):
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
+    def _normalize_content_vals(self, vals: dict[str, Any]) -> bool:
+        """Collapse the content keys of create/write *vals* into a single ``raw``.
+
+        Single source of truth for content normalization, shared by
+        :meth:`create` and :meth:`write` so the two cannot drift apart.
+        Mutates *vals* in place:
+
+        * ``raw`` wins over ``datas`` by KEY PRESENCE, not truthiness — an
+          explicit empty ``raw`` beats a ``datas`` payload (IRA-A3);
+        * ``str`` content is encoded to ``bytes``; an absent-but-present or
+          empty value normalizes to ``b""``;
+        * the computed metadata columns (``file_size``/``checksum``/
+          ``store_fname``) are stripped — they are derived from the content and
+          must never be set through the public create/write API.
+
+        Vals carrying NEITHER ``raw`` NOR ``datas`` are left untouched (url
+        rows, direct ``db_datas`` passthrough): the caller must not treat them
+        as empty content (IRA-R1).
+
+        :param dict vals: create or write values, mutated in place
+        :return: whether *vals* carried a content key (``raw`` or ``datas``)
+        :rtype: bool
+        """
+        has_content = "raw" in vals or "datas" in vals
+        # 'datas' is always popped to bypass `_inverse_datas`; 'raw' is the
+        # single channel from here on.
+        datas = vals.pop("datas", None)
+        if "raw" in vals:
+            raw = vals["raw"] or b""
+            vals["raw"] = raw.encode() if isinstance(raw, str) else raw
+        elif has_content:  # only 'datas' was provided
+            vals["raw"] = base64.b64decode(datas or b"")
+        for field in ("file_size", "checksum", "store_fname"):
+            vals.pop(field, None)
+        return has_content
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         # {res_model: {res_id}} for the batched comodel access check below
         model_and_ids = defaultdict(OrderedSet)
-
-        # remove computed fields depending on datas
-        vals_list = [
-            {
-                key: value
-                for key, value in vals.items()
-                if key not in ("file_size", "checksum", "store_fname")
-            }
-            for vals in vals_list
-        ]
         checksum_raw_map = {}
         # Resolve the write-side backend once for the whole batch: it feeds
         # both the store-key fragment (_get_datas_related_values) and the
         # filestore write below, instead of being rebuilt per attachment.
         backend = self._storage_backend()
+        # Copy first: _normalize_content_vals rewrites/strips keys in place and
+        # the caller's dicts must not be mutated (model_create_multi contract).
+        vals_list = [dict(vals) for vals in vals_list]
 
         for values in vals_list:
-            # 'datas' must be popped in all cases to bypass `_inverse_datas`
-            has_raw = "raw" in values
-            has_datas = "datas" in values
-            datas = values.pop("datas", None)
-            if has_raw:
-                # key presence wins over truthiness, mirroring write(): an
-                # explicit empty 'raw' beats a 'datas' payload (IRA-A3)
-                raw = values["raw"] or b""
-                values["raw"] = raw.encode() if isinstance(raw, str) else raw
-            elif has_datas:
-                values["raw"] = base64.b64decode(datas or b"")
+            # Shared raw/datas precedence + metadata stripping (IRA-A3).
+            has_content = self._normalize_content_vals(values)
 
             # _check_contents mutates `values` in place and returns it; even if
             # an override forks a new dict here, create() stays correct because
             # _inverse_raw re-derives content metadata post-create (see
             # test_a1_create_is_robust_to_new_dict_override).
             values = self._check_contents(values)
-            if has_raw or has_datas:
+            if has_content:
                 # pop() must always run on this branch so _inverse_raw does not
                 # re-process the content after create.
                 raw = values.pop("raw")
@@ -325,21 +349,14 @@ class IrAttachment(models.Model):
             else:
                 for record in self:
                     self._check_res_field_access(record.res_model, res_field)
-        # Normalize content values like create() does: 'raw' takes precedence
-        # over 'datas', and str content is encoded. Without this, both
-        # inverses run in vals key order and the *last* key silently wins —
-        # the opposite of create() for {'raw': ..., 'datas': ...} — and the
-        # base64 payload is decoded up to three times along the write path.
-        if "datas" in vals:
-            datas = vals.pop("datas")
-            if "raw" not in vals:
-                vals["raw"] = base64.b64decode(datas or b"")
-        if isinstance(vals.get("raw"), str):
-            vals["raw"] = vals["raw"].encode()
-        # remove computed fields depending on datas
-        for field in ("file_size", "checksum", "store_fname"):
-            vals.pop(field, False)
-        if "mimetype" in vals or "raw" in vals:
+        # Normalize content keys exactly like create() via the shared helper:
+        # 'raw' beats 'datas' by key presence, str content is encoded, and the
+        # computed metadata columns are stripped. Without this the two inverses
+        # would run in vals key order and the *last* key would silently win —
+        # the opposite of create() — and the base64 payload would be decoded
+        # several times along the write path.
+        has_content = self._normalize_content_vals(vals)
+        if has_content or "mimetype" in vals:
             vals = self._check_contents(vals)
         res = super().write(vals)
         if "url" in vals or "type" in vals:
@@ -557,6 +574,7 @@ class IrAttachment(models.Model):
 
     def _migrate(self) -> None:
         record_count = len(self)
+        backend = self._storage_backend()
         storage = self._storage().upper()
         _logger.info("Migrating %d attachments to %s", record_count, storage)
         # Make progress durable batch-by-batch on live runs: a filestore-wide
@@ -584,12 +602,34 @@ class IrAttachment(models.Model):
                     attach.store_fname,
                 )
                 continue
-            # image_no_postprocess: a storage-*location* migration must not
-            # re-run autoresize and silently mutate bytes/checksum. mimetype is
-            # passed to avoid recomputation.
-            attach.with_context(image_no_postprocess=True).write(
-                {"raw": raw, "mimetype": attach.mimetype}
+            # A storage-LOCATION migration does not change the bytes, so reuse
+            # the already-derived checksum/file_size/index_content and move only
+            # the store-location fragment (store_fname/db_datas). This skips the
+            # full SHA-1 re-hash and re-index that the content-write path runs on
+            # every row, recomputing provably identical values (P1). Bypassing
+            # that path also removes the autoresize risk the old
+            # image_no_postprocess context had to guard against. Rows written
+            # through the raw db_datas escape hatch never had this metadata
+            # stamped (no checksum, stale file_size), so fall back to a full
+            # derivation for them.
+            reuse = bool(attach.checksum) and attach.file_size == len(raw)
+            checksum = attach.checksum if reuse else self._content_checksum(raw)
+            old_fname = attach.store_fname
+            super(IrAttachment, attach.sudo()).write(
+                backend.datas_values(raw, checksum)
+                if reuse
+                else self._get_datas_related_values(raw, attach.mimetype, backend)
             )
+            # Reference the new location before the old key becomes collectable.
+            attach.flush_recordset(
+                ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
+            )
+            if raw:
+                backend.write(raw, checksum)
+            if old_fname:
+                # key-axis dispatch: the old content may live in a backend other
+                # than the target one (location switches don't migrate rows).
+                attach._storage_delete(old_fname)
             # Drop the just-written binary from cache so memory stays flat over a
             # filestore-wide migration instead of growing O(total bytes) (P2-6).
             attach.invalidate_recordset()
@@ -1162,8 +1202,17 @@ class IrAttachment(models.Model):
         """
         # compute index_content only for text type
         if file_type and file_type.startswith("text/"):
-            words = re.findall(rb"[\x20-\x7E]{4,}", bin_data[: self._INDEX_MAX_BYTES])
-            return b"\n".join(words).decode("ascii")
+            # Decode as UTF-8, then keep runs of printable characters, dropping
+            # control characters (the binary-noise markers). Scanning the
+            # decoded TEXT — not the raw bytes — is what keeps accented and
+            # non-Latin words whole: the previous byte-class [\x20-\x7E] split
+            # every multi-byte char, silently shredding e.g. "configuración"
+            # into "configuraci"/"n" and crippling full-text search in non-ASCII
+            # deployments. Output is byte-for-byte identical to the old code for
+            # pure-ASCII content (verified across the full 0-255 byte range).
+            text = bin_data[: self._INDEX_MAX_BYTES].decode("utf-8", errors="ignore")
+            words = re.findall(r"[^\x00-\x1f\x7f-\x9f]{4,}", text)
+            return "\n".join(words)
         return None
 
     @api.model
@@ -1209,6 +1258,72 @@ class IrAttachment(models.Model):
             res_ids.difference_update(records._ids)
             for res_id in res_ids:
                 yield res_model, res_id
+
+    @api.model
+    def _search_models_security_domain(
+        self,
+        domain: Domain,
+        res_model_names: Collection[Any],
+        disable_binary_fields_attachments: bool,
+    ) -> Domain:
+        """Build the OR of per-comodel access subdomains for *res_model_names*.
+
+        For each linked model, an attachment is reachable when the comodel
+        record it points to (``res_id``) is itself accessible — expressed as a
+        subquery on the comodel's own ``_search`` — and, for a non-system user
+        reading field-backed attachments, when ``res_field`` names a readable
+        binary/relational field on that comodel. Only used on the small-model
+        path (``len(res_model_names) <= _SEARCH_MODEL_DOMAIN_LIMIT``); the
+        fetch-and-filter fallback in :meth:`_fetch_accessible_ids` covers the
+        rest. Extracted from :meth:`_search` so the per-model access logic can
+        be exercised on its own.
+
+        :param domain: the optimized search domain (read for the res_id restriction)
+        :param res_model_names: the restricted ``res_model`` values
+        :param bool disable_binary_fields_attachments: whether ``res_field`` is
+            already forced to ``False`` upstream (skips the field-ACL clause)
+        :return: the OR of the per-model subdomains (``Domain.FALSE`` if none)
+        :rtype: Domain
+        """
+        env = self.with_context(active_test=False).env
+        models_domain = Domain.FALSE
+        for res_model_name in res_model_names:
+            if (comodel := env.get(res_model_name)) is None:
+                continue
+            codomain = Domain("res_model", "=", comodel._name)
+            comodel_res_ids = condition_values(
+                self,
+                "res_id",
+                domain.map_conditions(
+                    # bind the loop's current `codomain` as a default arg so the
+                    # closure captures this iteration's value, not the last one
+                    # (late-binding closure pitfall). See IRA-M1.
+                    lambda cond, codomain=codomain: (
+                        codomain & cond if cond.field_expr == "res_model" else cond
+                    )
+                ),
+            )
+            query = comodel._search(
+                Domain("id", "in", comodel_res_ids) if comodel_res_ids else Domain.TRUE
+            )
+            if query.is_empty():
+                continue
+            if query.where_clause:
+                codomain &= Domain("res_id", "in", query)
+            if not disable_binary_fields_attachments and not self.env.is_system():
+                accessible_fields = [
+                    field.name
+                    for field in comodel._fields.values()
+                    if (
+                        field.type == "binary"
+                        or (field.relational and field.comodel_name == self._name)
+                    )
+                    and comodel._has_field_access(field, "read")
+                ]
+                accessible_fields.append(False)
+                codomain &= Domain("res_field", "in", accessible_fields)
+            models_domain |= codomain
+        return models_domain
 
     @api.model
     def _search(
@@ -1263,46 +1378,9 @@ class IrAttachment(models.Model):
         # - res_field != False needs to check field access on the res_model
         res_model_names = condition_values(self, "res_model", domain)
         if 0 < len(res_model_names or ()) <= self._SEARCH_MODEL_DOMAIN_LIMIT:
-            env = self.with_context(active_test=False).env
-            for res_model_name in res_model_names:
-                if (comodel := env.get(res_model_name)) is None:
-                    continue
-                codomain = Domain("res_model", "=", comodel._name)
-                comodel_res_ids = condition_values(
-                    self,
-                    "res_id",
-                    domain.map_conditions(
-                        # bind the loop's current `codomain` as a default arg so
-                        # the closure captures this iteration's value, not the
-                        # last one (late-binding closure pitfall). See IRA-M1.
-                        lambda cond, codomain=codomain: (
-                            codomain & cond if cond.field_expr == "res_model" else cond
-                        )
-                    ),
-                )
-                query = comodel._search(
-                    Domain("id", "in", comodel_res_ids)
-                    if comodel_res_ids
-                    else Domain.TRUE
-                )
-                if query.is_empty():
-                    continue
-                if query.where_clause:
-                    codomain &= Domain("res_id", "in", query)
-                if not disable_binary_fields_attachments and not self.env.is_system():
-                    accessible_fields = [
-                        field.name
-                        for field in comodel._fields.values()
-                        if (
-                            field.type == "binary"
-                            or (field.relational and field.comodel_name == self._name)
-                        )
-                        and comodel._has_field_access(field, "read")
-                    ]
-                    accessible_fields.append(False)
-                    codomain &= Domain("res_field", "in", accessible_fields)
-                sec_domain |= codomain
-
+            sec_domain |= self._search_models_security_domain(
+                domain, res_model_names, disable_binary_fields_attachments
+            )
             return super()._search(
                 domain & sec_domain,
                 offset,
@@ -1336,8 +1414,11 @@ class IrAttachment(models.Model):
         When no ``order`` is requested, batches advance by keyset pagination
         on a deterministic default order — constant cost per batch, whereas
         OFFSET re-scans all previously skipped rows and made the whole scan
-        quadratic on large tables (IRA-B5). A caller-specified ``order``
-        falls back to OFFSET batching since its sort keys are arbitrary.
+        quadratic on large tables (IRA-B5). A caller-specified ``order`` falls
+        back to OFFSET batching since its sort keys are arbitrary, but is first
+        made total by appending the unique ``id`` — otherwise ties straddling a
+        batch boundary could be skipped or duplicated across the separate batch
+        queries (an access-control correctness hazard, not just a perf one).
 
         :param domain: optimized search domain, without offset/limit
         :param order: requested order, or None for the keyset default
@@ -1367,6 +1448,15 @@ class IrAttachment(models.Model):
                     return (
                         Domain("res_model", "=", False) & Domain("id", ">", last.id)
                     ) | Domain("res_model", "!=", False)
+        else:
+            # Caller-supplied order may carry no unique tiebreaker; OFFSET
+            # pagination over a non-total order can skip or duplicate rows
+            # across batches — PostgreSQL is free to order ties differently
+            # between the separate batch queries. Append the unique `id` so the
+            # multi-batch sort is total and stable. `keyset` stays None: an
+            # arbitrary sort needs a per-order seek predicate, so this path
+            # keeps OFFSET batching (a known cost for very large ordered scans).
+            order = f"{order}, id"
 
         result: list[int] = []
         sub_offset = 0
