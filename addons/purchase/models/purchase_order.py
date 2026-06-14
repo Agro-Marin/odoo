@@ -714,11 +714,10 @@ class PurchaseOrder(models.Model):
     @api.depends("company_id", "partner_id", "amount_total")
     def _compute_partner_credit_warning(self):
         for order in self:
-            order.with_company(order.company_id)
+            order = order.with_company(order.company_id)
             order.partner_credit_warning = ""
             show_warning = (
-                order.state in ("draft", "rfq", "sent")
-                and order.company_id.account_use_credit_limit
+                order.state == "draft" and order.company_id.account_use_credit_limit
             )
             if show_warning:
                 order.partner_credit_warning = self.env[
@@ -1627,12 +1626,6 @@ class PurchaseOrder(models.Model):
     def _track_subtype(self, init_values):
         self.ensure_one()
         if "state" in init_values and self.state == "done":
-            if init_values["state"] == "to approve":
-                return self.env.ref("purchase.mt_rfq_approved")
-
-            return self.env.ref("purchase.mt_rfq_confirmed")
-
-        elif "state" in init_values and self.state == "to approve":
             return self.env.ref("purchase.mt_rfq_confirmed")
 
         elif "locked" in init_values and self.locked:
@@ -2035,7 +2028,7 @@ class PurchaseOrder(models.Model):
 
     def _get_domain_is_late(self, operator, value):
         return Domain(
-            [("state", "=", "purchase"), ("date_planned", "<=", fields.Datetime.now())]
+            [("state", "=", "done"), ("date_planned", "<=", fields.Datetime.now())]
         )
 
     def _get_duplicate_orders(self):

@@ -5,13 +5,13 @@
         inherit_id="portal.portal_breadcrumbs" priority="20">
         <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
             <li id="portal_breadcrumbs_sale"
-                t-if="page_name == 'quote' or sale_order and sale_order.state in ('sent', 'cancel')"
+                t-if="page_name == 'quote' or sale_order and sale_order.state in ('draft', 'cancel')"
                 t-attf-class="breadcrumb-item #{'active ' if not sale_order else ''}">
                 <a t-if="sale_order" t-attf-href="/my/quotes?{{ keep_query() }}">Quotations</a>
                 <t t-else="">Quotations</t>
             </li>
             <li
-                t-elif="page_name == 'order' or sale_order and sale_order.state not in ('sent', 'cancel')"
+                t-elif="page_name == 'order' or sale_order and sale_order.state not in ('draft', 'cancel')"
                 t-attf-class="breadcrumb-item #{'active ' if not sale_order else ''}">
                 <a t-if="sale_order" t-attf-href="/my/orders?{{ keep_query() }}">Sales Orders</a>
                 <t t-else="">Sales Orders</t>
@@ -645,7 +645,7 @@
             <div id="informations" class="row">
                 <span id="transaction_info">
                     <div
-                        t-if="sale_order.get_portal_last_transaction() and not invoices and sale_order.state in ('sent', 'done') and portal_confirmation == 'pay' and not success and not error"
+                        t-if="sale_order.get_portal_last_transaction() and not invoices and sale_order.state in ('draft', 'done') and portal_confirmation == 'pay' and not success and not error"
                         t-att-data-order-id="sale_order.id">
                         <t t-if="sale_order.transaction_ids">
                             <t t-call="payment.state_header">
@@ -672,7 +672,7 @@
                                 </td>
                             </tr>
                             <tr
-                                t-if="sale_order.date_validity and sale_order.state in ['draft', 'sent']">
+                                t-if="sale_order.date_validity and sale_order.state == 'draft'">
                                 <th class="ps-0 pb-0">Expiration Date:</th>
                                 <td class="w-100 pb-0 text-wrap">
                                     <span t-field="sale_order.date_validity"
@@ -685,7 +685,7 @@
                                     <span t-field="sale_order.client_order_ref" />
                                 </td>
                             </tr>
-                            <tr t-if="sale_order.date_commitment and sale_order.state in ['sent', 'sale']">
+                            <tr t-if="sale_order.date_commitment and sale_order.state in ['draft', 'done']">
                                 <th class="ps-0 pb-0">Delivery Date:</th>
                                 <td class="w-100 pb-0 text-wrap">
                                     <span

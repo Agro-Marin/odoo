@@ -79,7 +79,7 @@
                 <attribute name="column_invisible">parent.state != 'done'</attribute>
                 <attribute name="readonly">product_type == 'consu'</attribute>
             </xpath>
-            <xpath expr="//page[@name='purchase_delivery_invoice']/group/group" position="inside">
+            <xpath expr="//page[@name='other_information']/group/group" position="inside">
                 <field name="default_location_dest_id_usage" invisible="1" />
                 <field name="incoterm_id" readonly="locked" />
                 <field name="incoterm_location" readonly="locked" />
