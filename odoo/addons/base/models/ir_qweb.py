@@ -406,7 +406,7 @@ from odoo.libs.constants import (
     SUPPORTED_DEBUGGER,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.libs.esbuild import EsbuildCompiler
+from odoo.libs.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.libs.esm_registry import esm_registry
 from odoo.libs.lru import LRU
 from odoo.modules import Manifest
@@ -3948,9 +3948,7 @@ class IrQweb(models.AbstractModel):
         template_url = None
         esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=False)
         if esm_tpl:
-            template_url = self._save_esm_attachment(
-                f"{bundle}.templates", esm_tpl, asset_bundle
-            )
+            template_url = self._save_esm_attachment(f"{bundle}.templates", esm_tpl)
         return {
             "specifiers": sorted(native_data["import_map"]),
             "import_map": import_map,
@@ -4445,12 +4443,12 @@ class IrQweb(models.AbstractModel):
                 debug_assets=False,
                 assets_params=assets_params,
             )
-            esbuild_code, child_bundles = self._esm_run_esbuild(
+            esbuild_result, child_bundles = self._esm_run_esbuild(
                 bundle, asset_bundle, assets_params
             )
-            if esbuild_code:
+            if esbuild_result.code:
                 return self._esm_prod_nodes(
-                    bundle, asset_bundle, esbuild_code, assets_params, child_bundles
+                    bundle, asset_bundle, esbuild_result, assets_params, child_bundles
                 )
             if _raise_on_decline:
                 raise _EsmFallbackError
@@ -4463,16 +4461,17 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         asset_bundle: AssetsBundle,
         assets_params: dict[str, Any] | None,
-    ) -> tuple[str, list[AssetsBundle]]:
+    ) -> tuple[EsbuildResult, list[AssetsBundle]]:
         """Run production esbuild bundling for ``bundle`` if allowed.
 
         Honors the admin force-fallback override, the per-bundle circuit
         breaker and the advisory build lock, and records circuit
         success/failure.
 
-        :return: ``(esbuild_code, child_bundles)`` — the minified
-            module-bundle source (``""`` when the build is skipped or
-            fails; the caller then degrades to the debug-mode nodes) and
+        :return: ``(esbuild_result, child_bundles)`` — the esbuild build
+            (its ``.code`` is ``""`` when the build is skipped or fails;
+            the caller then degrades to the debug-mode nodes, and
+            ``.metafile`` / ``.sourcemap`` carry the sibling artifacts) and
             the dynamic-child ``AssetsBundle`` objects constructed for the
             spec scan, for ``_esm_prod_nodes`` to reuse instead of
             re-constructing all of them (empty when the build was skipped
@@ -4484,7 +4483,7 @@ class IrQweb(models.AbstractModel):
         forced_bundles = self._esbuild_forced_fallback_bundles()
 
         allow, circuit_reason = self._esbuild_circuit_state(bundle)
-        esbuild_code = ""
+        esbuild_result = EsbuildResult("", None, None)
         child_bundles: list[AssetsBundle] = []
         if bundle in forced_bundles:
             log_event(
@@ -4536,7 +4535,7 @@ class IrQweb(models.AbstractModel):
                 child_bundles.append(_child_ab)
                 _child_specs.update(a.module_path for a in _child_ab.native_modules)
             try:
-                esbuild_code = asset_bundle.esbuild_native_bundle(
+                esbuild_result = asset_bundle.esbuild_native_bundle(
                     timeout_s=self._get_esbuild_setting(
                         "timeout_s",
                         default=EsbuildCompiler._ESBUILD_TIMEOUT_S,
@@ -4571,14 +4570,14 @@ class IrQweb(models.AbstractModel):
                     bundle,
                     reason=type(e).__name__,
                 )
-                esbuild_code = ""
-        return esbuild_code, child_bundles
+                esbuild_result = EsbuildResult("", None, None)
+        return esbuild_result, child_bundles
 
     def _esm_prod_nodes(
         self,
         bundle: str,
         asset_bundle: AssetsBundle,
-        esbuild_code: str,
+        esbuild_result: EsbuildResult,
         assets_params: dict[str, Any] | None,
         child_bundles: list[AssetsBundle] | None = None,
     ) -> tuple[
@@ -4593,11 +4592,15 @@ class IrQweb(models.AbstractModel):
         bundle, and persists (or inlines, in read-only txns) the module and
         templates attachments.
 
+        :param EsbuildResult esbuild_result: the successful build — its
+            ``.code`` is the bundle source; ``.metafile`` / ``.sourcemap``
+            are persisted as sibling attachments alongside the module.
         :param list child_bundles: dynamic-child ``AssetsBundle`` objects
             already constructed by ``_esm_run_esbuild`` (same construction
             parameters as the fallback below); ``None`` constructs them.
         :return: ``(pre, post)`` flanking the legacy bundle
         """
+        esbuild_code = esbuild_result.code
         pre = []
         post = []
         # Import map: @odoo/* externals + dynamic bundle specifiers
@@ -4882,7 +4885,8 @@ class IrQweb(models.AbstractModel):
             esm_url = self._save_esm_attachment(
                 bundle,
                 bundle_code,
-                asset_bundle,
+                metafile=esbuild_result.metafile,
+                sourcemap=esbuild_result.sourcemap,
             )
             post.append(
                 (
@@ -4921,7 +4925,6 @@ class IrQweb(models.AbstractModel):
                 tpl_url = self._save_esm_attachment(
                     f"{bundle}.templates",
                     esm_tpl,
-                    asset_bundle,
                 )
                 post.append(
                     (
@@ -5306,9 +5309,15 @@ class IrQweb(models.AbstractModel):
         self,
         bundle: str,
         content: str,
-        asset_bundle,
+        metafile: str | None = None,
+        sourcemap: str | None = None,
     ) -> str:
         """Save esbuild output as an ir.attachment, return its URL.
+
+        ``metafile`` / ``sourcemap`` are the esbuild build's sibling
+        artifacts, passed only by the main-bundle save; they are ``None``
+        for the separately-generated ``.templates.esm.js`` saves, which
+        carry no metafile or source map.
 
         The URL is **content-addressable**: the hash segment is derived
         from the bundle bytes themselves, not from the source files'
@@ -5415,12 +5424,10 @@ class IrQweb(models.AbstractModel):
             bytes=len(content_bytes),
         )
 
-        # Sibling metafile attachment (bundle analysis side-channel).
-        # The esbuild invocation populates ``_last_metafile`` when it
-        # ran; ``None`` means we're saving something other than the
-        # main bundle (e.g. the ``.templates.esm.js`` attachment below,
-        # which is generated by a different code path).
-        metafile = asset_bundle._last_metafile
+        # Sibling metafile attachment (esbuild bundle analysis). ``metafile``
+        # is supplied only by the main-bundle save; it is ``None`` for the
+        # ``.templates.esm.js`` saves (a different code path with no metafile),
+        # so the sidecar is skipped there.
         if metafile and url.endswith(".esm.js"):
             meta_url = url[: -len(".esm.js")] + ".meta.json"
             self._save_esm_sidecar(
@@ -5436,7 +5443,6 @@ class IrQweb(models.AbstractModel):
         # ``.esm.js`` -> ``.esm.js.map`` filename relationship esbuild
         # picks by default, so the comment in the bundle resolves
         # correctly relative to the bundle URL.
-        sourcemap = asset_bundle._last_sourcemap
         if sourcemap and url.endswith(".esm.js"):
             sm_url = url + ".map"
             self._save_esm_sidecar(
