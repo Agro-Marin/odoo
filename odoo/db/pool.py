@@ -24,7 +24,11 @@ _logger_conn = _logger.getChild("connection")
 
 
 class _SuppressKnownPoolWarnings(logging.Filter):
-    """Suppress or demote known psycopg_pool warnings that are not real errors.
+    """Drop known psycopg_pool log records that are not real errors.
+
+    ``filter()`` returns ``False`` for a matched record, which removes it
+    entirely (the level is not lowered — there is no demotion, only
+    suppression).
 
     1. ``keep_in_pool=False`` warnings: When connections are intentionally
        closed before returning to the pool, psycopg_pool logs a WARNING
@@ -514,34 +518,6 @@ class ConnectionPool:
             # raise from conn.info access left the psycopg-pool slot checked out
             # forever — exhausting the per-DSN pool over time.
             try:
-                # Pool-budget invariant guarded here, not just documented in
-                # give_back(): that method releases the per-instance semaphore
-                # only for connections psycopg_pool tagged with a `_pool`
-                # back-reference, which it sets at getconn() time (verified for
-                # psycopg_pool 3.3.0: pool.py sets ``conn._pool = self`` on
-                # checkout and only nulls it from putconn()/discard paths, all
-                # of which run AFTER give_back() has read it).  If a future
-                # psycopg_pool stops tagging connections at checkout, give_back()
-                # would take its non-pool branch and silently leak a semaphore
-                # slot on every return — wedging the pool after `maxconn`
-                # borrows.  Assert so that contract break surfaces in CI rather
-                # than as a slow production hang.
-                # Explicit raise, NOT assert: `python -O` strips asserts, and
-                # this guards the semaphore-accounting invariant whose failure
-                # mode is a slow production hang (give_back() would take its
-                # non-pool branch and leak a permit on every return) — exactly
-                # the deployment where -O is plausible.  The project enforces
-                # this no-assert-for-invariants rule via
-                # test_uses_explicit_raise_not_assert.  Raising here routes
-                # through the inner handler (putconn) and the outer handler
-                # (semaphore release), so nothing leaks on the way out.
-                if getattr(conn, "_pool", None) is None:
-                    raise PoolError(
-                        "psycopg_pool did not tag the borrowed connection with "
-                        "a `_pool` back-reference; ConnectionPool.give_back() "
-                        "can no longer account for the semaphore. Review "
-                        "give_back() against the installed psycopg_pool version."
-                    )
                 # Minimum-version gate: server_version is read from the
                 # connection startup packet (client-side, no round-trip).
                 # Checked here rather than in _configure_connection so the
@@ -555,6 +531,19 @@ class ConnectionPool:
                         f"to PostgreSQL {MIN_PG_VERSION} or later."
                     )
                 self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
+                # Tag the connection with an Odoo-owned back-reference to its
+                # per-DSN psycopg pool.  give_back() uses THIS marker — not
+                # psycopg_pool's private ``conn._pool`` — both to locate the
+                # pool to return to and to decide whether a ``_pool_sem`` permit
+                # is held.  Owning the marker makes the semaphore accounting
+                # self-contained: it can no longer break if a future
+                # psycopg_pool stops tagging connections at checkout (the old
+                # design read ``conn._pool`` and would have leaked a permit on
+                # every return).  Set last, so it marks only a fully-validated
+                # connection we are committed to handing out; a failure above
+                # leaves it unset and the inner handler putconn()s the
+                # connection with no permit attributed to it.
+                conn._odoo_pool = pool
             except BaseException:
                 with contextlib.suppress(Exception):
                     pool.putconn(conn)
@@ -589,18 +578,26 @@ class ConnectionPool:
                 self._debug("Give back connection to %r", connection.info.dsn)
             else:
                 self._debug("Give back dead connection %r", connection)
-        pool = getattr(connection, "_pool", None)
+        # Use the Odoo-owned marker set by borrow() — NOT psycopg_pool's private
+        # ``conn._pool`` — to recover the per-DSN pool and to decide whether this
+        # connection holds a ``_pool_sem`` permit.
+        pool = getattr(connection, "_odoo_pool", None)
         if pool is None:
-            # Connection not from a psycopg_pool (e.g. manually created): it
-            # never went through borrow(), so it holds no _pool_sem permit — do
-            # NOT release here, or the bounded semaphore would over-increment
-            # and inflate the budget.  Verified: a borrowed connection keeps its
-            # _pool back-reference even after its pool is torn down mid-checkout,
-            # so this branch is reached only by genuine non-pool connections.
+            # Never borrowed (e.g. a manually-created connection), or already
+            # given back: it holds no _pool_sem permit, so releasing here would
+            # over-increment the bounded semaphore and inflate the budget.  The
+            # marker survives a dead/closed connection (it is a plain instance
+            # attribute), so this branch is reached only by genuine non-borrowed
+            # connections, never by a borrowed-then-dropped one.
             if not connection.closed:
                 connection.close()
             return
 
+        # Clear the marker BEFORE releasing so a second give_back() on the same
+        # connection takes the no-op branch above instead of releasing a permit
+        # twice — a BoundedSemaphore rejects over-release with ValueError, and
+        # it would otherwise inflate the budget.
+        connection._odoo_pool = None
         try:
             if not keep_in_pool:
                 # Close the connection first; the pool detects the closed
@@ -731,7 +728,21 @@ class Connection:
 
     @property
     def dsn(self) -> dict:
+        """Connection parameters with the password removed (safe to log).
+
+        A URI/conninfo connection stores its secret *inside* the ``dsn``
+        string value, not under a ``password`` key, so a bare
+        ``pop("password")`` leaks it whenever this dict is logged — e.g. by
+        ``cursor()`` at DEBUG, reachable in production via ``log_db`` URIs
+        (``logutils``).  Expand the conninfo string into discrete components
+        first — the same treatment :func:`_normalize_dsn_key` and psycopg's
+        own ``info.dsn`` apply — then drop the password.  Explicit keywords
+        win over URI components, matching psycopg's precedence.
+        """
         dsn = dict(self.__dsn)
+        raw = dsn.pop("dsn", None)
+        if raw:
+            dsn = {**conninfo_to_dict(raw), **dsn}
         dsn.pop("password", None)
         return dsn
 

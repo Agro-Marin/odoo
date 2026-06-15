@@ -25,6 +25,7 @@ from odoo.db.cursor import (
     _inline_ddl_params,
 )
 from odoo.db.pool import (
+    Connection,
     ConnectionPool,
     PoolError,
     _normalize_dsn_key,
@@ -1123,6 +1124,48 @@ class TestNormalizeDsnKey(BaseCase):
         self.assertEqual(key1, key2)
 
 
+class TestConnectionDsnRedaction(BaseCase):
+    """Connection.dsn must never expose the password.
+
+    Regression guard: the secret lives *inside* the ``dsn`` string for
+    URI/conninfo connections (e.g. a ``log_db`` configured as
+    ``postgresql://user:pw@host/db``), so a bare ``pop("password")`` left it
+    intact and it leaked into the DEBUG log emitted by ``Connection.cursor()``.
+    Keyword-form connections were already safe; both forms are covered here.
+    """
+
+    # A canary value we assert never appears in the redacted output.
+    CANARY = "s3cr3tPW"
+
+    def _dsn_for(self, target):
+        pool = ConnectionPool(maxconn=1)  # constructs without connecting
+        dbname, info = connection_info_for(target)
+        return Connection(pool, dbname, info).dsn
+
+    def test_uri_password_not_leaked(self):
+        dsn = self._dsn_for(f"postgresql://u:{self.CANARY}@dbhost:5432/mydb")
+        self.assertNotIn(self.CANARY, repr(dsn))
+        # The raw URI (which carries the password) is expanded into discrete
+        # components, so the opaque "dsn" key is gone but routing info remains.
+        self.assertNotIn("dsn", dsn)
+        self.assertEqual(dsn.get("host"), "dbhost")
+        self.assertEqual(dsn.get("user"), "u")
+        self.assertEqual(dsn.get("dbname"), "mydb")
+
+    def test_keyword_password_not_leaked(self):
+        pool = ConnectionPool(maxconn=1)
+        _, info = connection_info_for("mydb")
+        info["password"] = self.CANARY
+        dsn = Connection(pool, "mydb", info).dsn
+        self.assertNotIn(self.CANARY, repr(dsn))
+        self.assertEqual(dsn.get("dbname"), "mydb")
+
+    def test_uri_without_password_does_not_crash(self):
+        dsn = self._dsn_for("postgresql://u@dbhost/mydb")
+        self.assertNotIn("dsn", dsn)
+        self.assertEqual(dsn.get("host"), "dbhost")
+
+
 class TestPoolBasics(BaseCase):
     """Test pool representation, properties, and statistics."""
 
@@ -1199,6 +1242,60 @@ class TestSuppressKnownPoolWarnings(BaseCase):
             None,
         )
         self.assertTrue(f.filter(record))
+
+
+class TestPoolSemaphoreAccounting(BaseCase):
+    """The pool-scoped semaphore is accounted via the Odoo-owned ``_odoo_pool``
+    marker (set in ``borrow``, cleared in ``give_back``), independent of
+    psycopg_pool's private ``conn._pool``.  Guards against permit leaks and
+    over-release.  Needs a live database (``borrow`` opens a real connection).
+    """
+
+    def _info(self):
+        return connection_info_for(common.get_db_name())[1]
+
+    def test_borrow_tags_and_give_back_releases(self):
+        pool = ConnectionPool(maxconn=2)
+        self.addCleanup(pool.close_all)
+        conn = pool.borrow(self._info())
+        self.assertEqual(pool._pool_sem._value, 1)
+        self.assertIsNotNone(getattr(conn, "_odoo_pool", None))
+        self.assertIn(conn._odoo_pool, pool._pools.values())
+        pool.give_back(conn)
+        self.assertEqual(pool._pool_sem._value, 2)
+        self.assertIsNone(getattr(conn, "_odoo_pool", "sentinel"))
+
+    def test_double_give_back_does_not_over_release(self):
+        pool = ConnectionPool(maxconn=2)
+        self.addCleanup(pool.close_all)
+        conn = pool.borrow(self._info())
+        pool.give_back(conn)
+        pool.give_back(conn)  # marker already cleared -> safe no-op, no ValueError
+        self.assertEqual(pool._pool_sem._value, 2)
+
+    def test_non_borrowed_connection_does_not_release(self):
+        pool = ConnectionPool(maxconn=2)
+        self.addCleanup(pool.close_all)
+        before = pool._pool_sem._value
+        # A connection NOT created through borrow() carries no marker, so
+        # give_back must close it without touching the semaphore.
+        raw = psycopg.connect(**{k: v for k, v in self._info().items() if k != "dsn"})
+        try:
+            pool.give_back(raw)
+            self.assertEqual(pool._pool_sem._value, before)
+            self.assertTrue(raw.closed)
+        finally:
+            if not raw.closed:
+                raw.close()
+
+    def test_dead_connection_still_releases_slot(self):
+        pool = ConnectionPool(maxconn=2)
+        self.addCleanup(pool.close_all)
+        conn = pool.borrow(self._info())
+        conn.close()  # external death; marker is a plain attribute, survives
+        self.assertIsNotNone(getattr(conn, "_odoo_pool", None))
+        pool.give_back(conn)
+        self.assertEqual(pool._pool_sem._value, 2)
 
 
 class TestPoolTimeoutCleanup(BaseCase):
@@ -2178,8 +2275,13 @@ class TestVersionGateInBorrow(BaseCase):
 class TestPsycopgPoolPrivateApi(BaseCase):
     """Pin the private psycopg APIs this package depends on, so a psycopg /
     psycopg_pool upgrade that drops them fails here instead of in
-    production: give_back() reads conn._pool (set by psycopg_pool.getconn),
-    execute() clears conn._prepared after DDL."""
+    production: give_back() returns connections via psycopg_pool.putconn(),
+    which internally requires conn._pool to be the owning pool (set by
+    getconn); execute() clears conn._prepared after DDL.
+
+    Note: since #2, give_back() no longer *reads* conn._pool itself — it uses
+    its own ``_odoo_pool`` marker — but putconn() still checks conn._pool, so
+    the dependency remains and is still worth pinning."""
 
     def test_conn_pool_attribute_set_by_getconn(self):
         with registry().cursor() as cr:
@@ -2839,40 +2941,27 @@ class TestCursorForwardingContract(BaseCase):
             self.assertEqual(len(msgs), 1, f"expected one warning, got {msgs}")
 
 
-class TestBorrowPoolGuardExplicitRaise(BaseCase):
-    """borrow()'s `_pool` back-reference guard must use an explicit raise, not
-    `assert`.  It protects the _pool_sem accounting invariant whose failure
-    mode is a slow production hang — give_back() would take its non-pool branch
-    and leak a permit on every return — exactly the deployment where
-    ``python -O`` (which strips asserts) is plausible.  Mirrors
-    TestDictFetchoneNoAssert / TestSavepointGuardsSurviveOptimize for the pool.
+class TestBorrowValidationFailureNoLeak(BaseCase):
+    """A validation failure AFTER the semaphore is acquired and getconn()
+    succeeded must release the permit AND return the connection to its psycopg
+    pool — otherwise both the _pool_sem budget and the per-DSN pool slot leak.
+
+    Since #2 replaced the psycopg-``_pool`` tripwire with an Odoo-owned
+    ``_odoo_pool`` marker (see TestPoolSemaphoreAccounting), the surviving
+    in-borrow validation is the minimum-PostgreSQL-version gate; it exercises
+    the same inner-putconn / outer-release recovery path the tripwire used.
     """
 
-    def test_guard_uses_explicit_raise_not_assert(self):
-        src = inspect.getsource(ConnectionPool.borrow)
-        self.assertNotIn(
-            'assert getattr(conn, "_pool"',
-            src,
-            "borrow() must guard the _pool invariant with an explicit raise "
-            "(assert is stripped by python -O)",
-        )
-        self.assertIn(
-            'if getattr(conn, "_pool", None) is None:',
-            src,
-            "borrow() must explicitly check the _pool back-reference",
-        )
-
-    def test_untagged_conn_raises_and_releases_semaphore(self):
+    def test_version_gate_failure_releases_semaphore_and_putconn(self):
         pool = ConnectionPool(maxconn=4)
         info = connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
-        # A connection psycopg_pool failed to tag with a `_pool` back-reference
-        # (the future-driver scenario the guard defends).  borrow() must reject
-        # it loudly AND release the permit it acquired before getconn().
+        # A reachable server below MIN_PG_VERSION: the version gate raises, so
+        # borrow() must release the permit it acquired before getconn() AND hand
+        # the connection back to its psycopg pool.
         conn = MagicMock()
-        conn._pool = None
-        conn.info.server_version = 180000  # would otherwise pass the version gate
+        conn.info.server_version = 170000  # 17.x — below the minimum
         mock_pool = MagicMock()
         mock_pool.closed = False
         mock_pool.getconn.return_value = conn
@@ -2885,7 +2974,7 @@ class TestBorrowPoolGuardExplicitRaise(BaseCase):
         self.assertEqual(
             pool._pool_sem._value,
             sem_before,
-            "semaphore leaked when borrow() rejected an untagged connection",
+            "semaphore leaked when borrow() rejected a connection in validation",
         )
 
 
