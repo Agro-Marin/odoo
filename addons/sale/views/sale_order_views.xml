@@ -596,6 +596,146 @@
                                 readonly="state == 'cancel' or locked"
                                 aggregated_fields="price_subtotal,price_total"
                                 options="{'hide_composition': True, 'hide_prices': True, 'subsections': True}">
+                                <list
+                                    string="Sales Order Lines"
+                                    editable="bottom"
+                                    limit="200"
+                                    decoration-warning="(state == 'draft' and product_is_archived) or sale_line_warn_msg">
+                                    <control>
+                                        <create name="add_product_control" string="Add a product" />
+                                        <create name="add_section_control" string="Add a section"
+                                            context="{'default_display_type': 'line_section'}" />
+                                        <create name="add_note_control" string="Add a note"
+                                            context="{'default_display_type': 'line_note'}" />
+                                        <button
+                                            name="action_add_from_catalog"
+                                            string="Catalog"
+                                            type="object"
+                                            class="px-4 btn-link"
+                                            context="{'order_id': parent.id}" />
+                                    </control>
+
+                                    <!-- Non readonly invisible fields, must be specified manually,
+                                    because fields added automatically by the ORM
+                                    are readonly, widgets fieldDependencies too -->
+                                    <field name="display_type" column_invisible="True" />
+                                    <!-- Currency, needed for monetary widgets to display the
+                                    currency symbol -->
+                                    <field name="currency_id" column_invisible="True" />
+                                    <field name="product_custom_attribute_value_ids"
+                                        column_invisible="1">
+                                        <list>
+                                            <field name="custom_product_template_attribute_value_id" />
+                                            <field name="custom_value" />
+                                        </list>
+                                    </field>
+                                    <field name="product_no_variant_attribute_value_ids"
+                                        column_invisible="1" />
+                                    <field name="price_unit_auto" column_invisible="1" />
+                                    <field name="linked_line_id" column_invisible="1" />
+                                    <field name="combo_item_id" column_invisible="1" />
+                                    <field name="selected_combo_items" column_invisible="1" />
+                                    <field name="virtual_id" column_invisible="1" />
+                                    <field name="linked_virtual_id" column_invisible="1" />
+                                    <field name="collapse_prices" column_invisible="1" />
+                                    <field name="collapse_composition" column_invisible="1" />
+
+                                    <field name="sequence" widget="handle" invisible="combo_item_id" />
+                                    <field name="product_id"
+                                        string="Product Variant"
+                                        widget="sol_product_many2one"
+                                        readonly="product_readonly"
+                                        required="not display_type and not is_downpayment"
+                                        force_save="1"
+                                        context="{
+                                            'default_lst_price': price_unit,
+                                            'default_uom_id': product_uom_id,
+                                            'partner_id': parent.partner_id,
+                                        }"
+                                        options="{'show_label_warning': True}"
+                                        optional="hide"
+                                         />
+                                    <field name="product_template_id"
+                                        string="Product"
+                                        widget="sol_product_many2one"
+                                        readonly="id and product_readonly"
+                                        required="not display_type and not is_downpayment"
+                                        context="{
+                                            'partner_id': parent.partner_id,
+                                            'default_uom_id': product_uom_id,
+                                            'default_list_price': price_unit,
+                                        }"
+                                        options="{'show_label_warning': True}"
+                                        placeholder="Type to find a product..."
+                                        optional="show" />
+                                    <field name="name" widget="sol_text"
+                                        optional="show" />
+                                    <field name="analytic_distribution"
+                                        widget="analytic_distribution"
+                                        options="{
+                                            'product_field': 'product_id',
+                                            'business_domain': 'sale_order',
+                                            'amount_field': 'price_subtotal',
+                                        }"
+                                        optional="hide"
+                                        groups="analytic.group_analytic_accounting" />
+                                    <field name="product_qty"
+                                        decoration-info="(not display_type and invoice_state == 'to do')"
+                                        decoration-bf="(not display_type and invoice_state == 'to do')"
+                                        readonly="is_downpayment" />
+                                    <field name="qty_transferred_method" column_invisible="True" />
+                                    <field name="qty_transferred" string="Delivered"
+                                        decoration-info="(not display_type and invoice_state == 'to do')"
+                                        decoration-bf="(not display_type and invoice_state == 'to do')"
+                                        readonly="qty_transferred_method != 'manual' or is_downpayment"
+                                        column_invisible="parent.state != 'done'"
+                                        optional="show" />
+                                    <field name="qty_invoiced" string="Invoiced"
+                                        decoration-info="(not display_type and invoice_state == 'to do')"
+                                        decoration-bf="(not display_type and invoice_state == 'to do')"
+                                        column_invisible="parent.state != 'done'"
+                                        optional="show" />
+                                    <field name="product_uom_id"
+                                        widget="many2one_uom"
+                                        force_save="1"
+                                        readonly="product_uom_readonly"
+                                        required="not display_type and not is_downpayment"
+                                        options='{"no_open": True, "no_create": True}'
+                                        width="60px"
+                                        optional="show"
+                                        groups="uom.group_uom" />
+                                    <field name="price_unit"
+                                        readonly="qty_invoiced &gt; 0" />
+                                    <field name="tax_ids"
+                                        widget="many2many_tax_tags"
+                                        options="{'no_create': True}"
+                                        context="{'active_test': True}"
+                                        readonly="qty_invoiced &gt; 0 or is_downpayment"
+                                        optional="show" />
+                                    <field name="discount" string="Disc.%"
+                                        width="50px"
+                                        groups="sale.group_discount_per_so_line"
+                                        optional="show" />
+                                    <field name="price_subtotal" string="Amount"
+                                        column_invisible="parent.company_price_include == 'tax_included'"
+                                        invisible="is_downpayment" />
+                                    <field name="price_total" string="Amount"
+                                        column_invisible="parent.company_price_include == 'tax_excluded'"
+                                        invisible="is_downpayment" />
+                                    <!-- Optional amounts columns -->
+                                    <field name="price_total" string="Tax Incl."
+                                        column_invisible="parent.company_price_include == 'tax_included'"
+                                        invisible="is_downpayment"
+                                        optional="hide" />
+                                    <field name="price_subtotal" string="Tax Excl."
+                                        column_invisible="parent.company_price_include == 'tax_excluded'"
+                                        invisible="is_downpayment"
+                                        optional="hide" />
+                                    <field name="customer_lead"
+                                        optional="hide"
+                                        width="80px"
+                                        readonly="parent.state not in ['draft', 'done'] or is_downpayment or product_type != 'consu'" />
+                                </list>
                                 <form>
                                     <field name="price_unit_auto" invisible="1" />
                                     <!--
@@ -630,8 +770,7 @@
                                             <label for="product_qty" />
                                             <div class="o_row" name="ordered_qty">
                                                 <field name="product_qty" />
-                                                <field
-                                                    name="product_uom_id"
+                                                <field name="product_uom_id"
                                                     force_save="1"
                                                     groups="uom.group_uom"
                                                     class="oe_no_button"
@@ -653,8 +792,7 @@
                                                 <field name="qty_invoiced" />
                                             </div>
                                             <field name="price_unit" />
-                                            <field
-                                                name="tax_ids"
+                                            <field name="tax_ids"
                                                 widget="many2many_tax_tags"
                                                 options="{'no_create': True}"
                                                 context="{'search_view_ref': 'account.account_tax_view_search'}"
@@ -685,13 +823,11 @@
                                         invisible="display_type != 'line_note'" />
                                     <field name="name" />
                                     <group>
-                                        <field
-                                            name="collapse_composition"
+                                        <field name="collapse_composition"
                                             invisible="display_type not in ['line_section', 'line_subsection']"
                                             readonly="1"
                                         />
-                                        <field
-                                            name="collapse_prices"
+                                        <field name="collapse_prices"
                                             invisible="display_type not in ['line_section', 'line_subsection']"
                                             readonly="1"
                                         />
@@ -702,168 +838,6 @@
                                         <field name="invoice_line_ids" />
                                     </div>
                                 </form>
-                                <list
-                                    string="Sales Order Lines"
-                                    editable="bottom"
-                                    limit="200"
-                                    decoration-warning="(state == 'draft' and product_is_archived) or sale_line_warn_msg">
-                                    <control>
-                                        <create name="add_product_control" string="Add a product" />
-                                        <create name="add_section_control" string="Add a section"
-                                            context="{'default_display_type': 'line_section'}" />
-                                        <create name="add_note_control" string="Add a note"
-                                            context="{'default_display_type': 'line_note'}" />
-                                        <button
-                                            string="Catalog"
-                                            name="action_add_from_catalog"
-                                            type="object"
-                                            class="px-4 btn-link"
-                                            context="{'order_id': parent.id}" />
-                                    </control>
-
-                                    <!-- Non readonly invisible fields, must be specified manually,
-                                    because fields added automatically by the ORM
-                                    are readonly, widgets fieldDependencies too -->
-                                    <field name="display_type" column_invisible="True" />
-                                    <field name="product_custom_attribute_value_ids"
-                                        column_invisible="1">
-                                        <list>
-                                            <field name="custom_product_template_attribute_value_id" />
-                                            <field name="custom_value" />
-                                        </list>
-                                    </field>
-                                    <field name="product_no_variant_attribute_value_ids"
-                                        column_invisible="1" />
-                                    <field name="price_unit_auto" column_invisible="1" />
-                                    <field name="linked_line_id" column_invisible="1" />
-                                    <field name="combo_item_id" column_invisible="1" />
-                                    <field name="selected_combo_items" column_invisible="1" />
-                                    <field name="virtual_id" column_invisible="1" />
-                                    <field name="linked_virtual_id" column_invisible="1" />
-                                    <field name="collapse_prices" column_invisible="1" />
-                                    <field name="collapse_composition" column_invisible="1" />
-                                    <!-- Currency, needed for monetary widgets to display the
-                                    currency symbol -->
-                                    <field name="currency_id" column_invisible="True" />
-                                    <!-- Standard fields -->
-                                    <field name="sequence" invisible="combo_item_id" widget="handle" />
-                                    <field
-                                        name="product_id"
-                                        string="Product Variant"
-                                        readonly="product_readonly"
-                                        required="not display_type and not is_downpayment"
-                                        force_save="1"
-                                        context="{
-                                            'default_lst_price': price_unit,
-                                            'default_uom_id': product_uom_id,
-                                            'partner_id': parent.partner_id,
-                                        }"
-                                        options="{
-                                            'show_label_warning': True
-                                        }"
-                                        optional="hide"
-                                        widget="sol_product_many2one" />
-                                    <field name="product_template_id"
-                                        string="Product"
-                                        readonly="id and product_readonly"
-                                        required="not display_type and not is_downpayment"
-                                        context="{
-                                            'default_list_price': price_unit,
-                                            'default_uom_id': product_uom_id,
-                                            'partner_id': parent.partner_id,
-                                        }"
-                                        options="{
-                                            'show_label_warning': True
-                                        }"
-                                        optional="show"
-                                        widget="sol_product_many2one"
-                                        placeholder="Type to find a product..." />
-                                    <field name="name" widget="sol_text" optional="show" />
-                                    <field
-                                        name="analytic_distribution"
-                                        widget="analytic_distribution"
-                                        options="{
-                                            'product_field': 'product_id',
-                                            'business_domain': 'sale_order',
-                                            'amount_field': 'price_subtotal',
-                                        }"
-                                        optional="hide"
-                                        groups="analytic.group_analytic_accounting" />
-                                    <field
-                                        name="product_qty"
-                                        decoration-info="(not display_type and invoice_state == 'to do')"
-                                        decoration-bf="(not display_type and invoice_state == 'to do')"
-                                        readonly="is_downpayment" />
-                                    <field
-                                        name="qty_transferred"
-                                        string="Delivered"
-                                        decoration-info="(not display_type and invoice_state == 'to do')"
-                                        decoration-bf="(not display_type and invoice_state == 'to do')"
-                                        column_invisible="parent.state != 'done'"
-                                        readonly="qty_transferred_method != 'manual' or is_downpayment"
-                                        optional="show" />
-                                    <field
-                                        name="qty_invoiced"
-                                        string="Invoiced"
-                                        decoration-info="(not display_type and invoice_state == 'to do')"
-                                        decoration-bf="(not display_type and invoice_state == 'to do')"
-                                        column_invisible="parent.state != 'done'"
-                                        optional="show" />
-                                    <field
-                                        name="product_uom_id"
-                                        force_save="1"
-                                        readonly="product_uom_readonly"
-                                        required="not display_type and not is_downpayment"
-                                        widget="many2one_uom"
-                                        groups="uom.group_uom"
-                                        options='{"no_open": True, "no_create": True}'
-                                        width="60px"
-                                        optional="show" />
-                                    <field
-                                        name="customer_lead"
-                                        optional="hide"
-                                        width="80px"
-                                        readonly="parent.state not in ['draft', 'done'] or is_downpayment or product_type != 'consu'" />
-                                    <field name="price_unit" readonly="qty_invoiced &gt; 0" />
-                                    <field
-                                        name="tax_ids"
-                                        widget="many2many_tax_tags"
-                                        options="{'no_create': True}"
-                                        context="{'active_test': True}"
-                                        readonly="qty_invoiced &gt; 0 or is_downpayment"
-                                        optional="show" />
-                                    <field
-                                        name="discount"
-                                        string="Disc.%"
-                                        groups="sale.group_discount_per_so_line"
-                                        width="50px"
-                                        optional="show" />
-                                    <field
-                                        name="price_subtotal"
-                                        string="Amount"
-                                        column_invisible="parent.company_price_include == 'tax_included'"
-                                        invisible="is_downpayment" />
-                                    <field
-                                        name="price_total"
-                                        string="Amount"
-                                        column_invisible="parent.company_price_include == 'tax_excluded'"
-                                        invisible="is_downpayment" />
-                                    <!-- Optional amounts columns -->
-                                    <field
-                                        name="price_total"
-                                        string="Tax Incl."
-                                        column_invisible="parent.company_price_include == 'tax_included'"
-                                        invisible="is_downpayment"
-                                        optional="hide"
-                                    />
-                                    <field
-                                        name="price_subtotal"
-                                        string="Tax Excl."
-                                        column_invisible="parent.company_price_include == 'tax_excluded'"
-                                        invisible="is_downpayment"
-                                        optional="hide"
-                                    />
-                                </list>
                                 <kanban class="o_kanban_mobile">
                                     <field name="display_type" />
                                     <field name="currency_id" />
@@ -999,13 +973,13 @@
                                         <field name="fiscal_position_id"
                                             options="{'no_create': True}" />
                                         <button
-                                            string="Update Taxes"
                                             name="action_update_taxes"
+                                            string="Update Taxes"
                                             type="object"
-                                            help="Recompute all taxes based on this fiscal position"
                                             class="btn-link mb-1 px-0"
                                             icon="fa-refresh"
                                             confirm="This will update all taxes based on the currently selected fiscal position."
+                                            help="Recompute all taxes based on this fiscal position"
                                             invisible="not show_update_fpos or state in ['done', 'cancel']" />
                                     </div>
                                     <field name="preferred_payment_method_line_id" />
