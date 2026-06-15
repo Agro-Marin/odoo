@@ -569,10 +569,14 @@
                                             context="{'default_display_type': 'line_section'}" />
                                         <create name="add_note_control" string="Add a note"
                                             context="{'default_display_type': 'line_note'}" />
-                                        <button name="action_add_from_catalog" string="Catalog"
-                                            type="object" class="px-4 btn-link"
+                                        <button
+                                            name="action_add_from_catalog"
+                                            string="Catalog"
+                                            type="object"
+                                            class="px-4 btn-link"
                                             context="{'order_id': parent.id}" />
                                     </control>
+
                                     <field name="display_type" column_invisible="True" />
                                     <field name="company_id" column_invisible="True" />
                                     <field name="currency_id" column_invisible="True" />
@@ -580,18 +584,22 @@
                                     <field name="product_type" column_invisible="True" />
                                     <field name="invoice_line_ids" column_invisible="True" />
                                     <field name="price_unit_auto" column_invisible="True" />
+
                                     <field name="sequence" widget="handle" />
                                     <!-- optional="show" allows name (description) to be editable -->
-                                    <field
-                                        name="product_id"
+                                    <field name="product_id"
                                         widget="product_label_section_and_note_field"
                                         readonly="state in ('done', 'cancel') or is_downpayment"
                                         required="not display_type and not is_downpayment"
-                                        optional="show"
-                                        context="{'partner_id':parent.partner_id, 'quantity':product_qty, 'company_id': parent.company_id}"
-                                        options="{'show_label_warning': True}"
                                         force_save="1"
-                                        domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]" />
+                                        context="{
+                                            'company_id': parent.company_id,
+                                            'partner_id': parent.partner_id,
+                                            'quantity': product_qty,
+                                        }"
+                                        options="{'show_label_warning': True}"
+                                        domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]"
+                                        optional="show" />
                                     <field name="name" widget="section_and_note_text"
                                         optional="show" />
                                     <field name="date_planned" optional="hide"
@@ -599,31 +607,43 @@
                                         force_save="1" readonly="is_downpayment" />
                                     <field name="analytic_distribution"
                                         widget="analytic_distribution"
-                                        groups="analytic.group_analytic_accounting"
-                                        options="{'product_field': 'product_id', 'business_domain': 'purchase_order', 'amount_field': 'price_subtotal'}" />
+                                        options="{
+                                            'product_field': 'product_id',
+                                            'business_domain': 'purchase_order',
+                                            'amount_field': 'price_subtotal'
+                                        }"
+                                        optional="hide"
+                                        groups="analytic.group_analytic_accounting" />
                                     <field name="product_qty" readonly="is_downpayment" />
                                     <field name="qty_transferred_method" column_invisible="True" />
                                     <field name="qty_transferred" string="Received"
-                                        column_invisible="parent.state != 'done'"
                                         readonly="qty_transferred_method != 'manual' or is_downpayment"
+                                        column_invisible="parent.state != 'done'"
                                         optional="show" />
                                     <field name="qty_invoiced" string="Billed"
                                         column_invisible="parent.state != 'done'"
                                         optional="show" />
-                                    <field name="product_uom_id" groups="uom.group_uom"
+                                    <field name="product_uom_id"
+                                        widget="many2one_uom"
+                                        force_save="1"
                                         readonly="state in ('done', 'cancel') or is_downpayment"
                                         required="not display_type and not is_downpayment"
                                         options="{'no_create': True, 'no_open': True, 'quantity_field': 'product_qty'}"
-                                        widget="many2one_uom"
-                                        force_save="1" optional="show" />
-                                    <field name="price_unit" readonly="qty_invoiced != 0" />
-                                    <field name="tax_ids" widget="many2many_tax_tags"
-                                        domain="[('type_tax_use', '=', 'purchase'), ('company_id', 'parent_of', parent.company_id), ('active', '=', True)]"
+                                        optional="show"
+                                        groups="uom.group_uom" />
+                                    <field name="price_unit"
+                                        readonly="qty_invoiced != 0" />
+                                    <field name="tax_ids"
+                                        widget="many2many_tax_tags"
+                                        options="{'no_create': True}"
                                         context="{'default_type_tax_use': 'purchase', 'search_view_ref': 'account.account_tax_view_search'}"
-                                        options="{'no_create': True}" optional="show"
-                                        readonly="is_downpayment" />
-                                    <field name="discount" string="Disc.%" width="50px"
-                                        readonly="qty_invoiced != 0" optional="hide" />
+                                        readonly="is_downpayment"
+                                        domain="[('type_tax_use', '=', 'purchase'), ('company_id', 'parent_of', parent.company_id), ('active', '=', True)]"
+                                        optional="show" />
+                                    <field name="discount" string="Disc.%"
+                                        width="50px"
+                                        readonly="qty_invoiced != 0"
+                                        optional="hide" />
                                     <field name="price_subtotal" string="Amount" />
                                 </list>
                                 <form string="Purchase Order Line">
