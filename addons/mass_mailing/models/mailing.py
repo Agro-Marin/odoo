@@ -302,7 +302,7 @@ class MailingMailing(models.Model):
             GROUP BY stats.mass_mailing_id
         """, [list(self.ids) or [0]])
         mass_mailing_data = self.env.cr.dictfetchall()
-        mapped_data = dict([(m['id'], float_round(100 * m['nb_clicks'] / m['nb_mails'], precision_digits=2)) for m in mass_mailing_data])
+        mapped_data = {m['id']: float_round(100 * m['nb_clicks'] / m['nb_mails'], precision_digits=2) for m in mass_mailing_data}
         for mass_mailing in self:
             mass_mailing.clicks_ratio = mapped_data.get(mass_mailing.id, 0)
 
@@ -530,7 +530,7 @@ class MailingMailing(models.Model):
         mailings._create_ab_testing_utm_campaigns()
         mailings._fix_attachment_ownership()
 
-        for values, mailing in zip(vals_list, mailings):
+        for values, mailing in zip(vals_list, mailings, strict=False):
             if values.get('body_arch'):
                 mailing.body_arch = mailing._convert_inline_images_to_urls(mailing.body_arch)
             if values.get('body_html'):
@@ -574,7 +574,7 @@ class MailingMailing(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default)
-        for mailing, vals in zip(self, vals_list):
+        for mailing, vals in zip(self, vals_list, strict=False):
             vals['contact_list_ids'] = mailing.contact_list_ids.ids
             if mailing.mail_server_id and not mailing.mail_server_id.active:
                 vals['mail_server_id'] = self._get_default_mail_server_id()
@@ -909,9 +909,7 @@ class MailingMailing(models.Model):
             'mailing': self,
             'ab_testing_count': self.ab_testing_mailings_count,
             'ab_testing_winner_selection_description': self._get_ab_testing_winner_selection()['description'],
-            'total_ab_testing_pc': sum([
-                mailing.ab_testing_pc for mailing in self._get_ab_testing_siblings_mailings()
-            ]),
+            'total_ab_testing_pc': sum(mailing.ab_testing_pc for mailing in self._get_ab_testing_siblings_mailings()),
         }
 
     def _get_ab_testing_siblings_mailings(self):
@@ -927,7 +925,7 @@ class MailingMailing(models.Model):
         }
 
     def _get_default_ab_testing_campaign_values(self, values=None):
-        values = values or dict()
+        values = values or {}
         return {
             'ab_testing_schedule_datetime': values.get('ab_testing_schedule_datetime') or self.ab_testing_schedule_datetime,
             'ab_testing_winner_selection': values.get('ab_testing_winner_selection') or self.ab_testing_winner_selection,
@@ -1027,7 +1025,7 @@ class MailingMailing(models.Model):
             if self.campaign_id and self.ab_testing_enabled:
                 already_mailed = self.campaign_id._get_mailing_recipients()[self.campaign_id.id]
             else:
-                already_mailed = set([])
+                already_mailed = set()
             remaining = set(res_ids).difference(already_mailed)
             if topick > len(remaining) or (len(remaining) > 0 and topick == 0):
                 topick = len(remaining)
@@ -1050,7 +1048,7 @@ class MailingMailing(models.Model):
         return [rid for rid in res_ids if rid not in done_res_ids]
 
     def _get_unsubscribe_oneclick_url(self, email_to, res_id):
-        url = tools.urls.urljoin(
+        return tools.urls.urljoin(
             self.get_base_url(), 'mailing/%(mailing_id)s/unsubscribe_oneclick?%(params)s' % {
                 'mailing_id': self.id,
                 'params': urlencode({
@@ -1060,10 +1058,9 @@ class MailingMailing(models.Model):
                 }),
             },
         )
-        return url
 
     def _get_unsubscribe_url(self, email_to, res_id):
-        url = tools.urls.urljoin(
+        return tools.urls.urljoin(
             self.get_base_url(), 'mailing/%(mailing_id)s/confirm_unsubscribe?%(params)s' % {
                 'mailing_id': self.id,
                 'params': urlencode({
@@ -1073,10 +1070,9 @@ class MailingMailing(models.Model):
                 }),
             },
         )
-        return url
 
     def _get_view_url(self, email_to, res_id):
-        url = tools.urls.urljoin(
+        return tools.urls.urljoin(
             self.get_base_url(), 'mailing/%(mailing_id)s/view?%(params)s' % {
                 'mailing_id': self.id,
                 'params': urlencode({
@@ -1086,7 +1082,6 @@ class MailingMailing(models.Model):
                 }),
             },
         )
-        return url
 
     def action_send_mail(self, res_ids=None):
         return self._action_send_mail(res_ids)
@@ -1402,7 +1397,7 @@ class MailingMailing(models.Model):
 
         # Apply the changes.
         urls = self._create_attachments_from_inline_images([(image, original_id) for (image, _, _, original_id) in conversion_info])
-        for ((_image, node, old_url, _original_id), new_url) in zip(conversion_info, urls):
+        for ((_image, node, old_url, _original_id), new_url) in zip(conversion_info, urls, strict=False):
             did_modify_body = True
             if node.tag == 'img':
                 node.attrib['src'] = new_url
@@ -1512,7 +1507,7 @@ class MailingMailing(models.Model):
             _logger.warning('This file could not be decoded as an image file.', exc_info=True)
             raise
         except Exception as e:
-            _logger.exception(e)
+            _logger.exception("Could not retrieve URL: %s", url)
             raise ImportValidationError(_("Could not retrieve URL: %s", url)) from e
 
     def _parse_mailing_domain(self):
