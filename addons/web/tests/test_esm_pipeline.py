@@ -394,7 +394,7 @@ class TestParentSelfBridge(TransactionCase):
             js=True,
             css=False,
         )
-        bridges = setup_ab._build_parent_self_bridge()
+        bridges = setup_ab._bridges._build_parent_self_bridge()
         # Every native module's specifier must have a bridge.  Sanity
         # check with a small sample rather than exhaustively enumerating.
         native_specs = {a.module_path for a in setup_ab.native_modules}
@@ -1186,7 +1186,7 @@ class TestBridgeHelpers(TransactionCase):
                 )
             ),
         ]
-        discovered, ext_seen = b._discover_bridge_specifiers(set(), set())
+        discovered, ext_seen = b._bridges._discover_bridge_specifiers(set(), set())
         self.assertEqual(discovered.get("@web/named"), set())
         self.assertEqual(discovered.get("@web/deflt"), {"__default__"})
         self.assertEqual(discovered.get("@web/star"), {"__star__"})
@@ -1207,7 +1207,7 @@ class TestBridgeHelpers(TransactionCase):
                 )
             ),
         ]
-        discovered, ext_seen = b._discover_bridge_specifiers(
+        discovered, ext_seen = b._bridges._discover_bridge_specifiers(
             {"@web/own"}, {"@web/extlib"}
         )
         self.assertNotIn("@web/own", discovered)

@@ -4647,7 +4647,7 @@ class IrQweb(models.AbstractModel):
                 combined_modules.extend(dyn_ab.native_modules)
             # The first bundle hosts the build (persistence env + log
             # name); the combined module list is passed explicitly.
-            bridge_map = dynamic_bundles[0]._build_native_to_legacy_bridge(
+            bridge_map = dynamic_bundles[0]._bridges._build_native_to_legacy_bridge(
                 set(prod_import_map),
                 modules=combined_modules,
             )
@@ -4724,7 +4724,7 @@ class IrQweb(models.AbstractModel):
         # singleton identity, which is also what HOOT's mocks
         # ``patchWithCleanup`` rely on.
         if include_names:
-            self_bridges = asset_bundle._build_parent_self_bridge()
+            self_bridges = asset_bundle._bridges._build_parent_self_bridge()
             prod_import_map.update(self_bridges)
             # ── Alias override ──────────────────────────────
             # Modules that declare an ``alias=@odoo/xyz``
@@ -4750,7 +4750,7 @@ class IrQweb(models.AbstractModel):
                 current = prod_import_map.get(alias, "")
                 # ``/web/assets/esm/bridges/`` is the bridge
                 # attachment prefix (see
-                # ``AssetsBundle._persist_bridge_shims``).  When
+                # ``BridgeShimManager._persist_bridge_shims``).  When
                 # the alias already resolves to a bridge URL,
                 # leave it alone — the existing shim reads from
                 # the same ``odoo.loader.modules`` entry we'd
@@ -5048,7 +5048,7 @@ class IrQweb(models.AbstractModel):
             # static URL, else drop for a clean "module not found".  The
             # exclusion set is the include's own import-map keys, i.e. the
             # exact ``native_specifiers`` the bridge build would have used.
-            discovered, _ext_seen = include_ab._discover_bridge_specifiers(
+            discovered, _ext_seen = include_ab._bridges._discover_bridge_specifiers(
                 set(include_data["import_map"]),
                 set(self._ODOO_EXTERNAL_LIBS),
             )
@@ -5114,7 +5114,7 @@ class IrQweb(models.AbstractModel):
         # 3. If the specifier can't be resolved (unusual), leave it
         #    out — the browser gets a clean "module not found"
         #    instead of the confusing undefined-property crash.
-        discovered, _ext_seen = asset_bundle._discover_bridge_specifiers(
+        discovered, _ext_seen = asset_bundle._bridges._discover_bridge_specifiers(
             all_native_specifiers,
             set(self._ODOO_EXTERNAL_LIBS),
             modules=combined_native_modules,

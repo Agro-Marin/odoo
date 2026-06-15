@@ -869,7 +869,9 @@ class AssetsBundle:
         # in ``ir_qweb`` bundle assembly).  No parallel accumulator to keep in
         # lockstep, and the set is built only when bridges are actually needed.
         bridge_import_map = (
-            self._build_native_to_legacy_bridge(set(import_map)) if with_bridges else {}
+            self._bridges._build_native_to_legacy_bridge(set(import_map))
+            if with_bridges
+            else {}
         )
         log_event(
             _bundle_log,
@@ -953,50 +955,26 @@ class AssetsBundle:
         )
 
     # ── bridge layer (moved to odoo.libs.esm_bridges, H3 split) ──
-    # Only thin delegators remain so ir_qweb and the test suite keep the
-    # historical surface; the logic and its persistence policy live in
-    # BridgeShimManager.  Seam-level tests (rw-cursor escalation) patch
+    # ``_bridges`` is the explicit collaborator: ir_qweb and the test suite
+    # call its methods directly (``bundle._bridges.<method>``), mirroring the
+    # ``_store`` boundary, so AssetsBundle no longer carries a fan of same-named
+    # forwarders. The logic and its persistence policy live in
+    # BridgeShimManager; seam-level tests (rw-cursor escalation) patch
     # ``BridgeShimManager._persist_bridges_via_rw_cursor`` directly.
 
-    def _bridge_manager(self) -> BridgeShimManager:
-        """Bridge-shim layer bound to this bundle's env, name and modules."""
-        # Constructed per call by design: BridgeShimManager is stateless beyond
-        # its inputs (see its own docstring), so there is nothing to cache —
-        # unlike ``_store``, a stable persistence boundary held once.
+    @functools.cached_property
+    def _bridges(self) -> BridgeShimManager:
+        """Bridge-shim layer bound to this bundle's env, name and modules.
+
+        Cached: BridgeShimManager is stateless beyond its three inputs (see its
+        docstring), and all three — env, name, native_modules — are fixed for
+        the bundle's lifetime, so a single instance serves every call.
+        """
         return BridgeShimManager(self.env, self.name, self.native_modules)
-
-    def _persist_bridge_shims(self, shims_by_spec: dict[str, str]) -> dict[str, str]:
-        """Delegate to :meth:`BridgeShimManager._persist_bridge_shims`."""
-        return self._bridge_manager()._persist_bridge_shims(shims_by_spec)
-
-    def _build_parent_self_bridge(self) -> dict[str, str]:
-        """Delegate to :meth:`BridgeShimManager._build_parent_self_bridge`."""
-        return self._bridge_manager()._build_parent_self_bridge()
-
-    def _discover_bridge_specifiers(
-        self,
-        native_specifiers: set[str],
-        ext_lib_names: set[str],
-        modules: Sequence[JavascriptAsset] | None = None,
-    ) -> tuple[dict[str, set[str]], set[str]]:
-        """Delegate to :meth:`BridgeShimManager._discover_bridge_specifiers`."""
-        return self._bridge_manager()._discover_bridge_specifiers(
-            native_specifiers, ext_lib_names, modules=modules
-        )
 
     # Moved to odoo.libs.esm_graph (H2 split); kept as a staticmethod
     # so internal call sites and the test suite keep their surface.
     _bridge_shim_source = staticmethod(_bridge_shim_source)
-
-    def _build_native_to_legacy_bridge(
-        self,
-        native_specifiers: set[str],
-        modules: Sequence[JavascriptAsset] | None = None,
-    ) -> dict[str, str]:
-        """Delegate to :meth:`BridgeShimManager._build_native_to_legacy_bridge`."""
-        return self._bridge_manager()._build_native_to_legacy_bridge(
-            native_specifiers, modules=modules
-        )
 
     def get_link(self, asset_type: str) -> str:
         """Return the versioned (or ``debug``) URL for this bundle's ``asset_type``."""
@@ -1052,19 +1030,6 @@ class AssetsBundle:
     def get_asset_url(self, unique: str, extension: str) -> str:
         """Delegates to :meth:`AssetAttachmentStore.get_asset_url`."""
         return self._store.get_asset_url(unique, extension)
-
-    def get_asset_url_pattern(
-        self,
-        unique: str = ANY_UNIQUE,
-        extension: str = "%",
-        ignore_params: bool = False,
-    ) -> str:
-        """Delegates to :meth:`AssetAttachmentStore.get_asset_url_pattern`."""
-        return self._store.get_asset_url_pattern(unique, extension, ignore_params)
-
-    def _unlink_attachments(self, attachments: IrAttachment) -> None:
-        """Delegates to :meth:`AssetAttachmentStore._unlink_attachments`."""
-        self._store._unlink_attachments(attachments)
 
     def get_attachments(
         self, extension: str, ignore_version: bool = False
@@ -1514,6 +1479,15 @@ css_error_message {{
             compiled += "\n".join(asset.get_source() for asset in plain_css_assets)
             compiled = self.run_rtlcss(compiled)
 
+        # A bundle-level failure (Sass/rtl compile error, or a forbidden
+        # @import) recorded an error *before* the per-file split. In that case
+        # ``compiled`` is empty, so the split below assigns no fragments and the
+        # per-asset minify falls back to each asset's *uncompiled* source.
+        # Distinguish it from a leaf asset's fetch error (harvested after the
+        # split, with the rest of the bundle validly compiled) so only the
+        # former short-circuits the return.
+        compile_failed = bool(self.css_errors)
+
         # Split compiled output back into per-file fragments using UUID markers
         fragments = self.rx_css_split.split(compiled)
         at_rules = fragments.pop(0)
@@ -1548,7 +1522,14 @@ css_error_message {{
         # rather than each StylesheetAsset reaching up to append to it.
         for asset in self.stylesheets:
             self.css_errors.extend(asset.errors)
-        return bundle_css
+        # On a bundle-level compile failure the assembled string is raw,
+        # uncompiled source (see ``compile_failed`` above) — never serve it;
+        # return "" so the contract is "nothing usable, see css_errors" rather
+        # than a wrong value the caller's css_errors check happens to mask. A
+        # leaf-only fetch error still returns the partial bundle: the good
+        # assets compiled fine and ship, and css() banners on the harvested
+        # error (pinned by test_bundle_harvests_asset_errors).
+        return "" if compile_failed else bundle_css
 
     def compile_css(self, compiler: Callable[[str], str], source: str) -> str:
         """Sanitize @import rules, remove duplicates, then compile."""
@@ -2032,6 +2013,15 @@ class StylesheetAsset(WebAsset):
                 # normpath round-trip since ``posixpath.normpath("/a/b/")``
                 # strips the trailing slash; the empty-body branch
                 # preserves the old "no body" no-op behaviour.
+                #
+                # NOTE: this runs string-unaware — a ``url(...)`` that is
+                # literal text inside a ``content: "…"`` value is also
+                # rewritten (characterized in
+                # ``test_review_followup.TestUrlRewriteStringBoundary``). A
+                # correct fix needs a combined url()/string/comment scanner
+                # that treats ``url(...)`` — quotes included — as one token;
+                # a naive string mask splits ``url("x")``'s own quotes and
+                # corrupts the common quoted form. Deferred.
                 q = match.group("q")
                 body = match.group("body")
                 if not body:
@@ -2081,6 +2071,12 @@ class StylesheetAsset(WebAsset):
         # Drop a pre-existing sourcemap link first (whole-text, mirroring the
         # legacy pass): re-minifying makes the old mapping meaningless.
         content = cls.rx_sourceMap.sub("", content)
+        # NUL is invalid in CSS (the spec replaces U+0000 with U+FFFD). Strip it
+        # so source text can never collide with the NUL-delimited mask
+        # placeholders below: an un-masked ``\x00<digits>\x00`` in the input would
+        # otherwise be caught by the restore regex and index into ``protected``
+        # — an IndexError that takes down the whole bundle's CSS compile.
+        content = content.replace("\x00", "")
 
         protected: list[str] = []
 
