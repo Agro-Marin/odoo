@@ -135,6 +135,9 @@ class PurchaseOrderLine(models.Model):
         related="product_id.type",
         depends=["product_id"],
     )
+    product_is_archived = fields.Boolean(
+        compute="_compute_product_is_archived",
+    )
     product_template_attribute_value_ids = fields.Many2many(
         related="product_id.product_template_attribute_value_ids",
         depends=["product_id"],
@@ -641,6 +644,12 @@ class PurchaseOrderLine(models.Model):
                 },
             )
             line.analytic_distribution = distribution or line.analytic_distribution
+
+    @api.depends("product_id")
+    def _compute_product_is_archived(self):
+        """Flag lines whose product has been archived."""
+        for line in self:
+            line.product_is_archived = line.product_id and not line.product_id.active
 
     @api.depends(
         "partner_id", "date_order", "product_id", "product_id.seller_ids.min_qty"
