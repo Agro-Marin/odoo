@@ -70,8 +70,8 @@ class TestAuditFallbackDeadInBase(TransactionCase):
             css=False,
         )
         unique = bundle.get_version("js")
-        primary = bundle.get_asset_url_pattern(unique=unique, extension="min.js")
-        fallback = bundle.get_asset_url_pattern(
+        primary = bundle._store.get_asset_url_pattern(unique=unique, extension="min.js")
+        fallback = bundle._store.get_asset_url_pattern(
             unique=unique, extension="min.js", ignore_params=True
         )
         self.assertEqual(primary, fallback)

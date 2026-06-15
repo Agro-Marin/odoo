@@ -371,7 +371,7 @@ class TestUnlinkAttachmentsReturning(TransactionCase):
         expected_fnames = set(attachments.mapped("store_fname")) - {False}
         bundle = AssetsBundle("test_assetsbundle.unlink", [], env=self.env)
         with patch.object(IrAttachment, "_file_delete") as file_delete:
-            bundle._unlink_attachments(attachments)
+            bundle._store._unlink_attachments(attachments)
         marked = {call.args[-1] for call in file_delete.call_args_list}
         self.assertEqual(marked, expected_fnames)
         self.assertFalse(
@@ -580,7 +580,7 @@ class TestBridgeHashWidth(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ):
-            urls = bundle._persist_bridge_shims({"@web/test_hash": "export default 1;"})
+            urls = bundle._bridges._persist_bridge_shims({"@web/test_hash": "export default 1;"})
         basename = urls["@web/test_hash"].rsplit("/", 1)[-1]
         self.assertRegex(basename, r"^[0-9a-f]{32}\.js$")
 
@@ -601,7 +601,7 @@ class TestBridgeReadonlyEscalation(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ) as escalate:
-            urls = bundle._persist_bridge_shims({"@web/ro_test": "export default 1;"})
+            urls = bundle._bridges._persist_bridge_shims({"@web/ro_test": "export default 1;"})
         escalate.assert_called_once()
         (to_create,) = escalate.call_args.args
         self.assertEqual(len(to_create), 1)
@@ -613,7 +613,7 @@ class TestBridgeReadonlyEscalation(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=False
         ) as escalate:
-            urls = bundle._persist_bridge_shims({"@web/ro_test2": "export default 2;"})
+            urls = bundle._bridges._persist_bridge_shims({"@web/ro_test2": "export default 2;"})
         escalate.assert_called_once()
         self.assertTrue(urls["@web/ro_test2"].startswith("data:text/javascript"))
 
@@ -672,7 +672,7 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ) as escalate:
-            urls = bundle._persist_bridge_shims(
+            urls = bundle._bridges._persist_bridge_shims(
                 {"@web/decoupled": "export const decoupled = 1;"}
             )
         escalate.assert_called_once()
@@ -690,7 +690,7 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=False
         ):
-            urls = bundle._persist_bridge_shims(
+            urls = bundle._bridges._persist_bridge_shims(
                 {"@web/degraded": "export const degraded = 2;"}
             )
         self.assertTrue(
@@ -868,6 +868,13 @@ class _NativeStubBundle:
     def __init__(self, modules):
         self.native_modules = modules
         self.bridge_input = None
+
+    # ``get_native_module_data`` builds bridges through the ``_bridges``
+    # collaborator (see AssetsBundle); the stub is its own bridge layer, so
+    # ``self._bridges._build_native_to_legacy_bridge`` lands on the method below.
+    @property
+    def _bridges(self):
+        return self
 
     def _build_native_to_legacy_bridge(self, specifiers, modules=None):
         self.bridge_input = set(specifiers)
