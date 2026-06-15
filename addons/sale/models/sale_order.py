@@ -190,11 +190,6 @@ class SaleOrder(models.Model):
         index=True,
         tracking=True,
     )
-    product_id = fields.Many2one(
-        related="line_ids.product_id",
-        comodel_name="product.product",
-        string="Product",
-    )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="Invoicing Journal",
