@@ -665,7 +665,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         Delegates to ``model_graph`` which owns the trigger tree computation.
         Accessing ``_field_triggers`` ensures the graph is populated.
         """
-        self._field_triggers  # ensure trigger data is computed
+        self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.get_trigger_tree(fields, select)
 
     def get_dependent_fields(self, field: Field) -> Iterator[Field]:
@@ -673,7 +673,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
 
         Delegates to ``model_graph``.
         """
-        self._field_triggers  # ensure trigger data is computed
+        self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.get_dependent_fields(field)
 
     def _discard_fields(self, fields: list[Field]) -> None:
@@ -699,7 +699,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         Delegates to ``model_graph`` which handles the transitive closure,
         path simplification (m2o→o2m cancellation), and caching.
         """
-        self._field_triggers  # ensure trigger data is computed
+        self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.get_field_trigger_tree(field)
 
     @functools.cached_property
@@ -747,7 +747,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
 
         Delegates to ``model_graph``.
         """
-        self._field_triggers  # ensure trigger data is computed
+        self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.is_modifying_relations(field)
 
     def post_init(self, func: Callable, *args, **kwargs) -> None:
@@ -1209,7 +1209,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 nullcontext(cr)
                 if cr is not None
                 else closing(self.cursor(readonly=True))
-            ) as cr:
+            ) as cr:  # noqa: PLR1704 — rebind to the resolved cursor
                 assert cr is not None
                 db_registry_sequence, db_cache_sequences = self.get_sequences(cr)
                 changes = ""

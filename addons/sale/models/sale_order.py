@@ -577,11 +577,11 @@ class SaleOrder(models.Model):
     def _check_line_ids_company_id(self):
         for order in self:
             invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c: order.company_id not in c._accessible_branches(),
+                lambda c: order.company_id not in c._accessible_branches(),  # noqa: B023 — filtered() evaluates eagerly within this iteration
             )
             if invalid_companies:
                 bad_products = order.line_ids.product_id.filtered(
-                    lambda p: p.company_id and p.company_id in invalid_companies,
+                    lambda p: p.company_id and p.company_id in invalid_companies,  # noqa: B023 — filtered() evaluates eagerly within this iteration
                 )
                 raise ValidationError(
                     _(
@@ -643,7 +643,7 @@ class SaleOrder(models.Model):
         default.setdefault("line_ids", [])
         vals_list = super().copy_data(default=default)
         if default_has_no_order_line:
-            for order, vals in zip(self, vals_list):
+            for order, vals in zip(self, vals_list, strict=False):
                 vals["line_ids"] = [
                     Command.create(line_vals)
                     for line_vals in order._get_order_lines_copiable().copy_data()
@@ -692,6 +692,7 @@ class SaleOrder(models.Model):
             lambda so: so.has_upsell_opportunity,
         )
         upselling_orders._create_upsell_activity()
+        return None
 
     # portal.mixin override
     def _compute_access_url(self):
@@ -790,6 +791,7 @@ class SaleOrder(models.Model):
             if order.partner_id.name:
                 name = f"{name} - {order.partner_id.name}"
             order.display_name = name
+        return None
 
     @api.depends("partner_id")
     def _compute_notes(self):
@@ -1404,6 +1406,7 @@ class SaleOrder(models.Model):
                     ),
                 },
             }
+        return None
 
     @api.onchange("date_commitment", "date_planned")
     def _onchange_date_commitment(self):
@@ -1422,6 +1425,7 @@ class SaleOrder(models.Model):
                     ),
                 },
             }
+        return None
 
     @api.onchange("prepayment_percent")
     def _onchange_prepayment_percent(self):
@@ -1430,7 +1434,7 @@ class SaleOrder(models.Model):
 
     @api.onchange("line_ids")
     def _onchange_line_ids(self):
-        for index, line in enumerate(self.line_ids):
+        for _index, line in enumerate(self.line_ids):
             combo_item_lines = line._get_lines_linked().filtered("combo_item_id")
             if line.product_template_id.type != "combo":
                 if combo_item_lines:
@@ -2137,7 +2141,6 @@ class SaleOrder(models.Model):
             ]:
                 group[2]["has_button_access"] = False
             return groups
-        local_msg_vals = dict(msg_vals or {})
 
         # portal customers have full access (existence not granted, depending on partner_id)
         try:
@@ -2295,8 +2298,7 @@ class SaleOrder(models.Model):
                         "account.tax"
                     ]._reverse_quantity_base_line_extra_tax_data(line.extra_tax_data)
 
-                for vals in line._prepare_aml_vals_list(**optional_values):
-                    invoice_line_vals.append(Command.create(vals))
+                invoice_line_vals.extend(Command.create(vals) for vals in line._prepare_aml_vals_list(**optional_values))
 
                 invoice_item_sequence += 1
 
@@ -2375,13 +2377,13 @@ class SaleOrder(models.Model):
         if len(invoice_vals_list) < len(self):
             SaleOrderLine = self.env["sale.order.line"]
             for invoice in invoice_vals_list:
-                sequence = 1
-                for line in invoice["invoice_line_ids"]:
+                for sequence, line in enumerate(
+                    invoice["invoice_line_ids"], start=1
+                ):
                     line[2]["sequence"] = SaleOrderLine._get_invoice_line_sequence(
                         new=sequence,
                         old=line[2]["sequence"],
                     )
-                    sequence += 1
 
         # Manage the creation of invoices in sudo because a salesperson must be able to generate an invoice from a
         # sale order without "billing" access rights. However, he should not be able to create an invoice from scratch.

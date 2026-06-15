@@ -396,11 +396,11 @@ class PurchaseOrder(models.Model):
     def _check_line_ids_company_id(self):
         for order in self:
             invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c: order.company_id not in c._accessible_branches(),
+                lambda c: order.company_id not in c._accessible_branches(),  # noqa: B023 — filtered() evaluates eagerly within this iteration
             )
             if invalid_companies:
                 bad_products = order.line_ids.product_id.filtered(
-                    lambda p: p.company_id and p.company_id in invalid_companies,
+                    lambda p: p.company_id and p.company_id in invalid_companies,  # noqa: B023 — filtered() evaluates eagerly within this iteration
                 )
                 raise ValidationError(
                     _(
@@ -2217,7 +2217,7 @@ class PurchaseOrder(models.Model):
         the purchase order views.
         """
         if not self.env.user._is_internal():
-            raise AccessDenied()
+            raise AccessDenied
 
         self.browse().check_access("read")
 
@@ -2436,6 +2436,7 @@ class PurchaseOrder(models.Model):
                             email_layout_xmlid="mail.mail_notification_layout_with_responsible_signature",
                             subtype_xmlid="mail.mt_comment",
                         )
+        return None
 
     def _send_reminder_open_composer(self, template_id):
         self.ensure_one()
@@ -2494,6 +2495,7 @@ class PurchaseOrder(models.Model):
                     _("A sample email has been sent to %s.", self.env.user.email),
                 ),
             }
+        return None
 
     def _update_order_lines_date_planned(self, updated_dates):
         # create or update the activity

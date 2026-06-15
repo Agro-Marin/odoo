@@ -654,7 +654,7 @@ class CrudMixin:
         ids: list[int] = []  # ids of created records
         other_fields: OrderedSet[Field] = OrderedSet()  # non-column fields
 
-        for data_sublist in batched(data_list, INSERT_BATCH_SIZE):
+        for data_sublist in batched(data_list, INSERT_BATCH_SIZE, strict=False):
             stored_list = [data["stored"] for data in data_sublist]
             fnames = sorted({name for stored in stored_list for name in stored})
 
@@ -1278,7 +1278,7 @@ class CrudMixin:
                 fnames, template_row = zip(*sorted(vals.items()), strict=False)
                 # Iterate _ids directly — avoids creating N singleton recordset objects
                 rows = [((id_,) + template_row) for id_ in self._ids]
-                for sub_rows in batched(rows, UPDATE_BATCH_SIZE):
+                for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
                     self._execute_update(fnames, sub_rows)
             else:
                 if self._log_access:
@@ -1292,7 +1292,7 @@ class CrudMixin:
                     fnames, row = zip(*sorted(vals.items()), strict=False)
                     updates[fnames].append((id_,) + row)
                 for fnames, rows in updates.items():
-                    for sub_rows in batched(rows, UPDATE_BATCH_SIZE):
+                    for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
                         self._execute_update(fnames, sub_rows)
 
         # update parent_path
@@ -1457,7 +1457,7 @@ class CrudMixin:
         if _debug:
             _t_before = time.perf_counter()
 
-        for sub_ids in batched(self.ids, cr.BATCH_SIZE):
+        for sub_ids in batched(self.ids, cr.BATCH_SIZE, strict=False):
             data, attachments = self._unlink_process_batch(
                 sub_ids,
                 Data,

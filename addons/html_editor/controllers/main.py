@@ -85,7 +85,7 @@ class HTML_Editor(http.Controller):
             with file_open(shape_path, 'r', filter_ext=('.svg',)) as file:
                 return file.read()
         except FileNotFoundError:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound from None
 
     # Hardcoded fallback palette used when a snippet requests an
     # ``o-color-N`` reference that the active frontend bundle does not
@@ -140,7 +140,7 @@ class HTML_Editor(http.Controller):
                                 o_color_match.group(1)
                             ]
                     else:
-                        raise werkzeug.exceptions.BadRequest()
+                        raise werkzeug.exceptions.BadRequest
                 user_colors.append([tools.html_escape(css_color_value), colorMatch.group(1)])
             else:
                 svg_options[key] = value
@@ -154,7 +154,7 @@ class HTML_Editor(http.Controller):
 
         def subber(match):
             key = match.group().upper()
-            return color_mapping[key] if key in color_mapping else key
+            return color_mapping.get(key, key)
         return re.sub(regex, subber, svg), svg_options
 
     def replace_animation_duration(self,
@@ -523,13 +523,13 @@ class HTML_Editor(http.Controller):
             'dbuuid': ICP.get_param('database.uuid'),
             'media_ids': media_ids,
         }
-        response = requests.post(f'{library_endpoint}/media-library/1/download_urls', data=params)
+        response = requests.post(f'{library_endpoint}/media-library/1/download_urls', data=params, timeout=15)
         if response.status_code != requests.codes.ok:
             raise UserError(_("Could not get download URLs from the media library."))
 
         slug = request.env['ir.http']._slug
         for media_id, url in response.json().items():
-            req = requests.get(url)
+            req = requests.get(url, timeout=15)
             name = '_'.join([media[media_id]['query'], url.split('/')[-1]])
             IrAttachment = request.env['ir.attachment']
             attachment_data = {
@@ -573,7 +573,7 @@ class HTML_Editor(http.Controller):
                     ('url', '=', request.httprequest.path),
                 ], limit=1)
                 if not attachment:
-                    raise werkzeug.exceptions.NotFound()
+                    raise werkzeug.exceptions.NotFound
             svg = attachment.raw.decode('utf-8')
         else:
             # Used for compatibility
@@ -591,7 +591,7 @@ class HTML_Editor(http.Controller):
             svg = svg.replace('<svg ', '<svg style="transform: scale(-1)" ', 1)
 
         shape_animation_speed = float(options.get('shapeAnimationSpeed', 0.0))
-        if shape_animation_speed != 0.0:
+        if shape_animation_speed:
             svg = self.replace_animation_duration(
                 shape_animation_speed=shape_animation_speed,
                 svg=svg
@@ -661,7 +661,7 @@ class HTML_Editor(http.Controller):
             else:
                 raise UserError(_("Sorry, we could not generate a response. Please try again later."))
         except AccessError:
-            raise AccessError(_("Oops, it looks like our AI is unreachable!"))
+            raise AccessError(_("Oops, it looks like our AI is unreachable!")) from None
 
     @http.route(["/web_editor/get_ice_servers", "/html_editor/get_ice_servers"], type='jsonrpc', auth="user")
     def get_ice_servers(self):
@@ -670,11 +670,11 @@ class HTML_Editor(http.Controller):
     @http.route(["/web_editor/bus_broadcast", "/html_editor/bus_broadcast"], type="jsonrpc", auth="user")
     def bus_broadcast(self, model_name, field_name, res_id, bus_data):
         if model_name not in request.env:
-            raise werkzeug.exceptions.BadRequest()
+            raise werkzeug.exceptions.BadRequest
 
         document = request.env[model_name].browse([res_id])
         if not document.exists():
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         document.check_access('read')
         document.check_access('write')
