@@ -262,17 +262,35 @@ class IrAttachment(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # {res_model: {res_id}} for the batched comodel access check below
-        model_and_ids = defaultdict(OrderedSet)
-        checksum_raw_map = {}
-        # Resolve the write-side backend once for the whole batch: it feeds
-        # both the store-key fragment (_get_datas_related_values) and the
-        # filestore write below, instead of being rebuilt per attachment.
-        backend = self._storage_backend()
         # Copy first: _normalize_content_vals rewrites/strips keys in place and
         # the caller's dicts must not be mutated (model_create_multi contract).
         vals_list = [dict(vals) for vals in vals_list]
 
+        # Fail-fast: run the comodel/field access checks on cheap metadata
+        # BEFORE any content post-processing. write() documents the same
+        # principle ("avoids running content post-processing for a user who
+        # cannot write these rows"); create() must match it, otherwise an
+        # unauthorized create still pays for SHA-1 hashing, _index scanning and
+        # image autoresize it will only reject. res_model/res_id/res_field are
+        # untouched by the content pipeline, so reading them here is safe.
+        model_and_ids = defaultdict(OrderedSet)  # {res_model: {res_id}}
+        for values in vals_list:
+            # a new res_field must pass the comodel field's ACL (IRA-L2)
+            if res_field := values.get("res_field"):
+                self._check_res_field_access(values.get("res_model"), res_field)
+            # 'check()' only uses res_model and res_id from values. Group by
+            # model so the comodel access check issues one query per model even
+            # when creating multiple attachments on a single record.
+            # (don't use a possible contextual recordset for check, see commit)
+            model_and_ids[values.get("res_model")].add(values.get("res_id"))
+        if any(self._inaccessible_comodel_records(model_and_ids, "write")):
+            raise AccessError(_("Sorry, you are not allowed to access this document."))
+
+        # Access granted: run the (potentially expensive) content pipeline.
+        # Resolve the write-side backend once for the whole batch: it feeds
+        # both the store-key fragment (_get_datas_related_values) and the
+        # filestore write below, instead of being rebuilt per attachment.
+        backend = self._storage_backend()
         for values in vals_list:
             # Shared raw/datas precedence + metadata stripping (IRA-A3).
             has_content = self._normalize_content_vals(values)
@@ -297,24 +315,21 @@ class IrAttachment(models.Model):
                     self._get_datas_related_values(raw, values["mimetype"], backend)
                 )
                 if raw:
-                    # only non-empty content needs a filestore write
-                    checksum_raw_map[values["checksum"]] = raw
+                    # Persist content as we go rather than buffering every
+                    # payload in a {checksum: raw} map until after super().
+                    # create(): the base64-'datas' path decodes a fresh copy of
+                    # each row, so the map grew to ~O(total decoded bytes) on
+                    # the file backend (measured 1.01x batch size; the 'raw'
+                    # path shared the caller's bytes and was already flat).
+                    # Content is content-addressed, so writing before the rows
+                    # exist is safe: a rollback leaves the file orphaned but
+                    # marked for GC — exactly the state the post-super() write
+                    # already produced when _check_serving_attachments rejected
+                    # the batch. `raw` is rebound each iteration, so the decoded
+                    # payload is released instead of accumulating.
+                    backend.write(raw, values["checksum"])
 
-            # a new res_field must pass the comodel field's ACL (IRA-L2)
-            if res_field := values.get("res_field"):
-                self._check_res_field_access(values.get("res_model"), res_field)
-
-            # 'check()' only uses res_model and res_id from values. Group by
-            # model so the comodel access check issues one query per model even
-            # when creating multiple attachments on a single record.
-            # (don't use a possible contextual recordset for check, see commit)
-            model_and_ids[values.get("res_model")].add(values.get("res_id"))
-
-        if any(self._inaccessible_comodel_records(model_and_ids, "write")):
-            raise AccessError(_("Sorry, you are not allowed to access this document."))
         records = super().create(vals_list)
-        for checksum, raw in checksum_raw_map.items():
-            backend.write(raw, checksum)
         records._check_serving_attachments()
         return records
 
@@ -950,15 +965,13 @@ class IrAttachment(models.Model):
         # the single place that covers them. No-op for non-served attachments.
         self._check_serving_attachments()
         old_fnames = []
-        checksum_raw_map = {}
+        wrote_content = False
         backend = self._storage_backend()
 
         for attach in self:
             # compute the fields that depend on datas
             bin_data = asbytes(attach)
             vals = self._get_datas_related_values(bin_data, attach.mimetype, backend)
-            if bin_data:
-                checksum_raw_map[vals["checksum"]] = bin_data
 
             # take the current store key to possibly garbage-collect it
             if attach.store_fname:
@@ -967,7 +980,17 @@ class IrAttachment(models.Model):
             # write as superuser, as user probably does not have write access
             super(IrAttachment, attach.sudo()).write(vals)
 
-        if old_fnames or checksum_raw_map:
+            if bin_data:
+                # Write the new (content-addressed) payload as we go and let it
+                # be released, instead of buffering every record's content in a
+                # {checksum: raw} map until the end — a multi-record content
+                # write otherwise held O(total bytes) at once. Writing the new
+                # file here is safe; the flush below still runs before any OLD
+                # key is deleted, so in-use content is never GC'd mid-write.
+                backend.write(bin_data, vals["checksum"])
+                wrote_content = True
+
+        if old_fnames or wrote_content:
             # before touching external storage, flush so the rows reference
             # the new content before any old key is marked for deletion
             # (prevents the GC from collecting in-use content mid-transaction)
@@ -978,8 +1001,6 @@ class IrAttachment(models.Model):
             # Also marks old files for GC under db location, which the
             # previous use_filestore gate silently skipped (orphaned files).
             self._storage_delete(fname)
-        for checksum, raw in checksum_raw_map.items():
-            backend.write(raw, checksum)
 
     def _get_datas_related_values(
         self, data: bytes, mimetype: str, backend: AttachmentStorage | None = None
@@ -1046,7 +1067,13 @@ class IrAttachment(models.Model):
         return subtypes, max_width, max_height, quality
 
     def _postprocess_contents(self, values: dict[str, Any]) -> dict[str, Any]:
-        mimetype = values["mimetype"] = self._mimetype_from_values(values)
+        # Reuse the mimetype the sole caller (_check_contents) already resolved;
+        # only sniff it here when this hook is invoked standalone. Skips a
+        # redundant second _mimetype_from_values pass on every create/write
+        # (_mimetype_from_values always returns a truthy type, so a value set
+        # upstream is never re-derived).
+        mimetype = values.get("mimetype") or self._mimetype_from_values(values)
+        values["mimetype"] = mimetype
         maintype, _, subtype = mimetype.partition("/")
         if maintype != "image" or not (values.get("datas") or values.get("raw")):
             return values
@@ -1747,7 +1774,7 @@ class IrAttachment(models.Model):
         subtype = mimetype.partition("/")[2]
         return (
             "html" in subtype  # text/html, application/xhtml+xml, html-* variants
-            or subtype in {"hta", "xml"}  # HTML Application / text/xml / application/xml
+            or subtype in {"hta", "xml"}  # HTML App, text/xml, application/xml
             or subtype.endswith("+xml")  # svg+xml, mathml+xml, atom+xml, ...
         )
 

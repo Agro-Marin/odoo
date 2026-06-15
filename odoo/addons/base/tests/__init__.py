@@ -26,6 +26,7 @@ from . import test_ir_asset
 from . import test_ir_attachment
 from . import test_ira_review_probes
 from . import test_ira_challenge_probes
+from . import test_ira_challenge
 from . import test_ira_migrate_reuse
 from . import test_ira_search_security
 from . import test_ir_attachment_storage
