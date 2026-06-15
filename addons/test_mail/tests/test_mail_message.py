@@ -4,12 +4,13 @@ import contextlib
 
 from markupsafe import Markup
 
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
-from odoo.addons.mail.tests.common import mail_new_test_user, MailCommon
-from odoo.addons.mail.tools.discuss import Store
 from odoo.exceptions import UserError
-from odoo.tests.common import tagged, users, HttpCase
-from odoo.tools import is_html_empty, mute_logger, formataddr
+from odoo.tests.common import HttpCase, tagged, users
+from odoo.tools import formataddr, is_html_empty, mute_logger
+
+from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.mail.tools.discuss import Store
 
 
 @tagged('mail_message', 'mail_controller', 'post_install', '-at_install')
@@ -160,7 +161,7 @@ class TestMessageValues(MailCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMessageValues, cls).setUpClass()
+        super().setUpClass()
 
         cls.alias_record = cls.env['mail.test.container'].with_context(cls._test_context).create({
             'name': 'Pigs',
@@ -325,8 +326,8 @@ class TestMessageValues(MailCommon):
         self.assertEqual(len(msg.attachment_ids), 1)
         self.assertEqual(
             msg.body,
-            '<p>taratata <img src="/web/image/{attachment.id}?access_token={attachment.access_token}" alt="image0" width="2"> '
-            '<img src="/web/image/{attachment.id}?access_token={attachment.access_token}" alt="image0" width="2"></p>'.format(attachment=msg.attachment_ids[0])
+            f'<p>taratata <img src="/web/image/{msg.attachment_ids[0].id}?access_token={msg.attachment_ids[0].access_token}" alt="image0" width="2"> '
+            f'<img src="/web/image/{msg.attachment_ids[0].id}?access_token={msg.attachment_ids[0].access_token}" alt="image0" width="2"></p>'
         )
 
     @mute_logger('odoo.models.unlink', 'odoo.addons.mail.models.models')
