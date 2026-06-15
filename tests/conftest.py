@@ -21,8 +21,9 @@ def base_registry():
     """Build an in-memory registry of every ``base`` module model, once."""
     # Import the base models package so MetaModel's per-module collector is
     # fully populated before ModelRegistry auto-discovers from it.
+    from odoo.orm.testing import ModelRegistry
+
     import odoo.addons.base.models  # noqa: F401 — import for registration side effect
     from odoo.addons.base.models.ir_attachment import IrAttachment
-    from odoo.orm.testing import ModelRegistry
 
     return ModelRegistry([IrAttachment])

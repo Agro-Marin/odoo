@@ -5,23 +5,29 @@ import re
 import uuid
 from base64 import b64decode, b64encode
 from datetime import datetime
-import werkzeug.exceptions
-import requests
 from os.path import join as opj
 from urllib.parse import urlencode, urlparse
 
-from odoo import _, http, tools, SUPERUSER_ID
-from odoo.addons.html_editor.tools import get_video_url_data
-from odoo.exceptions import UserError, MissingError, AccessError
+import requests
+import werkzeug.exceptions
+from lxml import etree, html
+
+from odoo import SUPERUSER_ID, _, http, tools
+from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.http import request
-from odoo.tools.image import image_process, image_data_uri, binary_to_image, get_webp_size
 from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.tools.image import (
+    binary_to_image,
+    get_webp_size,
+    image_data_uri,
+    image_process,
+)
 from odoo.tools.misc import file_open
-from odoo.addons.iap.tools import iap_tools
-from odoo.addons.mail.tools import link_preview
-from lxml import html, etree
 
 from ..models.ir_attachment import SUPPORTED_IMAGE_MIMETYPES
+from odoo.addons.html_editor.tools import get_video_url_data
+from odoo.addons.iap.tools import iap_tools
+from odoo.addons.mail.tools import link_preview
 
 DEFAULT_LIBRARY_ENDPOINT = 'https://media-api.odoo.com'
 DEFAULT_OLG_ENDPOINT = 'https://olg.api.odoo.com'
@@ -42,8 +48,8 @@ CSS_ANIMATION_RULE_REGEX = (
 )
 SVG_DUR_TIMECOUNT_VAL_REGEX = (
         r"(?P<attribute_name>\sdur=\"\s*)"
-        + r"(?P<value>(\d+(\.\d+)?)|(\.\d+))"
-        + r"(?P<unit>h|min|ms|s)?\s*\""
+         r"(?P<value>(\d+(\.\d+)?)|(\.\d+))"
+         r"(?P<unit>h|min|ms|s)?\s*\""
 )
 CSS_ANIMATION_RATIO_REGEX = (
     r"(--animation_ratio: (?P<ratio>\d*(\.\d+)?));"
@@ -104,12 +110,12 @@ class HTML_Editor(http.Controller):
         regex_hex = r'#[0-9A-F]{6,8}'
         regex_rgba = r'rgba?\(\d{1,3}, ?\d{1,3}, ?\d{1,3}(?:, ?[0-9.]{1,4})?\)'
         for key, value in options.items():
-            colorMatch = re.match('^c([1-5])$', key)
+            colorMatch = re.match(r'^c([1-5])$', key)
             if colorMatch:
                 css_color_value = value
                 # Check that color is hex or rgb(a) to prevent arbitrary injection
                 if not re.match(rf'(?i)^{regex_hex}$|^{regex_rgba}$', css_color_value.replace(' ', '')):
-                    o_color_match = re.match('^o-color-([1-5])$', css_color_value)
+                    o_color_match = re.match(r'^o-color-([1-5])$', css_color_value)
                     if o_color_match:
                         if bundle_css is None:
                             bundle = 'web.assets_frontend'
@@ -430,7 +436,7 @@ class HTML_Editor(http.Controller):
         elif res_id:
             fields['res_id'] = res_id
         if fields['mimetype'] == 'image/webp':
-            fields['name'] = re.sub(r'\.(jpe?g|png)$', '.webp', fields['name'], flags=re.I)
+            fields['name'] = re.sub(r'\.(jpe?g|png)$', '.webp', fields['name'], flags=re.IGNORECASE)
 
         existing_attachment = get_existing_attachment(request.env['ir.attachment'], fields)
         if existing_attachment and not existing_attachment.url:
@@ -468,7 +474,7 @@ class HTML_Editor(http.Controller):
                     reference_id = resized[0]
                 if 'image/jpeg' in per_type:
                     attachment.create_unique([{
-                        'name': re.sub(r'\.webp$', '.jpg', attachment.name, flags=re.I),
+                        'name': re.sub(r'\.webp$', '.jpg', attachment.name, flags=re.IGNORECASE),
                         'description': 'format: jpeg',
                         'datas': per_type['image/jpeg'],
                         'res_id': reference_id,
@@ -743,7 +749,7 @@ class HTML_Editor(http.Controller):
         except MissingError as e:
             return {'error_msg': _("Link preview is not available because %s, please check if your url is correct", str(e))}
         # catch all other exceptions and return the error message to display in the console but not blocking the flow
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {'other_error_msg': str(e)}
 
     @http.route(['/html_editor/media_library_search'], type='jsonrpc', auth="user", website=True)

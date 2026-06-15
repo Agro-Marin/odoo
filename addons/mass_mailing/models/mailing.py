@@ -1,27 +1,29 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
-from collections import defaultdict
 import hashlib
 import hmac
 import io
 import logging
-import lxml
 import random
 import re
-import requests
-from urllib.parse import urlencode
 from ast import literal_eval
+from collections import defaultdict
+from urllib.parse import urlencode
+
+import lxml
+import requests
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 from PIL import Image, UnidentifiedImageError
 
-from odoo import api, fields, models, modules, tools, _
-from odoo.addons.base_import.models.base_import import ImportValidationError
+from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Datetime, Domain
 from odoo.libs.numbers.float_utils import float_round
 from odoo.tools.image import ImageProcess
+
+from odoo.addons.base_import.models.base_import import ImportValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -1150,7 +1152,7 @@ class MailingMailing(models.Model):
     def convert_links(self):
         res = {}
         for mass_mailing in self:
-            html = mass_mailing.body_html if mass_mailing.body_html else ''
+            html = mass_mailing.body_html or ''
 
             vals = {'mass_mailing_id': mass_mailing.id}
 
@@ -1435,7 +1437,7 @@ class MailingMailing(models.Model):
             attachments.append(existing_attach)
             if original_id:
                 checksum_original_id[checksum] = original_id
-            if not existing_attach and not checksum in checksums_set:
+            if not existing_attach and checksum not in checksums_set:
                 # We create only one attachment per checksum
                 vals_for_attachs.append({
                     'datas': b64image,

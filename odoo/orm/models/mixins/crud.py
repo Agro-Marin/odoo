@@ -26,7 +26,7 @@ from odoo.tools.orm_profiler import _orm_profiling_enabled
 from odoo.tools.translate import _
 
 from ... import decorators as api
-from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
+from ..._typing import ValuesType
 from ...primitives import (
     INSERT_BATCH_SIZE,
     LOG_ACCESS_COLUMNS,
