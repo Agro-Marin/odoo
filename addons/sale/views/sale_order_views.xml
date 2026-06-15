@@ -619,26 +619,25 @@
                                     because fields added automatically by the ORM
                                     are readonly, widgets fieldDependencies too -->
                                     <field name="display_type" column_invisible="True" />
-                                    <!-- Currency, needed for monetary widgets to display the
-                                    currency symbol -->
                                     <field name="currency_id" column_invisible="True" />
                                     <field name="product_custom_attribute_value_ids"
-                                        column_invisible="1">
+                                        column_invisible="True">
                                         <list>
                                             <field name="custom_product_template_attribute_value_id" />
                                             <field name="custom_value" />
                                         </list>
                                     </field>
                                     <field name="product_no_variant_attribute_value_ids"
-                                        column_invisible="1" />
-                                    <field name="price_unit_auto" column_invisible="1" />
-                                    <field name="linked_line_id" column_invisible="1" />
-                                    <field name="combo_item_id" column_invisible="1" />
-                                    <field name="selected_combo_items" column_invisible="1" />
-                                    <field name="virtual_id" column_invisible="1" />
-                                    <field name="linked_virtual_id" column_invisible="1" />
-                                    <field name="collapse_prices" column_invisible="1" />
-                                    <field name="collapse_composition" column_invisible="1" />
+                                        column_invisible="True" />
+                                    <field name="linked_line_id" column_invisible="True" />
+                                    <field name="combo_item_id" column_invisible="True" />
+                                    <field name="selected_combo_items" column_invisible="True" />
+                                    <field name="virtual_id" column_invisible="True" />
+                                    <field name="linked_virtual_id" column_invisible="True" />
+                                    <field name="price_unit_auto" column_invisible="True" />
+                                    <field name="collapse_prices" column_invisible="True" />
+                                    <field name="collapse_composition" column_invisible="True" />
+                                    <field name="qty_transferred_method" column_invisible="True" />
 
                                     <field name="sequence" widget="handle" invisible="combo_item_id" />
                                     <field name="product_id"
@@ -653,7 +652,7 @@
                                             'partner_id': parent.partner_id,
                                         }"
                                         options="{'show_label_warning': True}"
-                                        optional="hide"
+                                        optional="show"
                                          />
                                     <field name="product_template_id"
                                         string="Product"
@@ -667,7 +666,7 @@
                                         }"
                                         options="{'show_label_warning': True}"
                                         placeholder="Type to find a product..."
-                                        optional="show" />
+                                        optional="hide" />
                                     <field name="name" widget="sol_text"
                                         optional="show" />
                                     <field name="analytic_distribution"
@@ -680,19 +679,19 @@
                                         optional="hide"
                                         groups="analytic.group_analytic_accounting" />
                                     <field name="product_qty"
-                                        decoration-info="(not display_type and invoice_state == 'to do')"
-                                        decoration-bf="(not display_type and invoice_state == 'to do')"
                                         readonly="is_downpayment" />
-                                    <field name="qty_transferred_method" column_invisible="True" />
                                     <field name="qty_transferred" string="Delivered"
-                                        decoration-info="(not display_type and invoice_state == 'to do')"
-                                        decoration-bf="(not display_type and invoice_state == 'to do')"
+                                        decoration-info="not display_type and qty_transferred == 0"
+                                        decoration-warning="not display_type and qty_transferred > 0 and qty_transferred &lt; product_qty"
+                                        decoration-success="not display_type and qty_transferred == product_qty"
+                                        decoration-danger="not display_type and qty_transferred > product_qty"
                                         readonly="qty_transferred_method != 'manual' or is_downpayment"
                                         column_invisible="parent.state != 'done'"
                                         optional="show" />
                                     <field name="qty_invoiced" string="Invoiced"
-                                        decoration-info="(not display_type and invoice_state == 'to do')"
-                                        decoration-bf="(not display_type and invoice_state == 'to do')"
+                                        decoration-danger="not display_type and invoice_state == 'over done'"
+                                        decoration-warning="not display_type and invoice_state == 'to do'"
+                                        decoration-success="not display_type and invoice_state == 'done'"
                                         column_invisible="parent.state != 'done'"
                                         optional="show" />
                                     <field name="product_uom_id"
@@ -740,8 +739,6 @@
                                     <field name="price_unit_auto" invisible="1" />
                                     <!--
                                     We need the sequence field to be here for new lines to be added at the correct position.
-                                    TODO: at some point we want to fix this in the framework so that an invisible field is not
-                                    required.
                                     -->
                                     <field name="sequence" invisible="1" />
                                     <!-- Display_type must be specified as non readonly (which would
@@ -931,7 +928,7 @@
                                     <field name="notes" colspan="2" nolabel="1"
                                         placeholder="Terms and conditions..." />
                                 </group>
-                                <group name="sale_total"
+                                <group name="order_total"
                                     class="oe_subtotal_footer d-flex order-0 order-lg-1 flex-column gap-0 gap-sm-3"
                                     colspan="2">
                                     <field name="tax_totals" widget="account-tax-totals-field"
