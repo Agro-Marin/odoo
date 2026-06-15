@@ -1,23 +1,24 @@
 from collections import defaultdict
 from datetime import timedelta
-from dateutil.relativedelta import relativedelta
-from markupsafe import escape, Markup
-from pytz import timezone
 from urllib.parse import urlencode
+
+from dateutil.relativedelta import relativedelta
+from markupsafe import Markup, escape
+from pytz import timezone
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.numbers.float_utils import float_repr
 from odoo.tools import (
+    SQL,
+    OrderedSet,
     format_amount,
     format_date,
     format_list,
     formatLang,
     groupby,
-    OrderedSet,
-    SQL,
 )
-from odoo.libs.numbers.float_utils import float_repr
 from odoo.tools.translate import _
 
 from odoo.addons.purchase import const
@@ -347,6 +348,9 @@ class PurchaseOrder(models.Model):
         store=False,
         search="_search_is_late",
     )
+    has_archived_products = fields.Boolean(
+        compute="_compute_has_archived_products",
+    )
     is_expired = fields.Boolean(
         string="Is Expired",
         compute="_compute_is_expired",
@@ -632,6 +636,14 @@ class PurchaseOrder(models.Model):
                 set(order.ids) != order_by_product[p]
                 for p in order.line_ids.product_id
                 if p in order_by_product
+            )
+
+    @api.depends("line_ids.product_id")
+    def _compute_has_archived_products(self):
+        """Flag orders whose lines reference an archived (inactive) product."""
+        for order in self:
+            order.has_archived_products = any(
+                not product.active for product in order.line_ids.product_id
             )
 
     def _get_order_tax_totals_summary(self):
@@ -934,7 +946,7 @@ class PurchaseOrder(models.Model):
 
         purchase_domain = self._get_domain_is_late(operator, value)
 
-        if operator == "=" and value or operator == "!=" and not value:
+        if (operator == "=" and value) or (operator == "!=" and not value):
             purchase_lines_late = Domain(
                 "order_id", "any", purchase_domain
             ) & Domain.custom(
@@ -1489,7 +1501,7 @@ class PurchaseOrder(models.Model):
             action["domain"] = [("id", "in", invoices.ids)]
         elif len(invoices) == 1:
             res = self.env.ref("account.view_move_form", False)
-            form_view = [(res and res.id or False, "form")]
+            form_view = [((res and res.id) or False, "form")]
             if "views" in action:
                 action["views"] = form_view + [
                     (state, view) for state, view in action["views"] if view != "form"
@@ -1747,8 +1759,10 @@ class PurchaseOrder(models.Model):
         """
         self.ensure_one()
         pol = self.line_ids.filtered(
-            lambda l: l.product_id.id == product_id
-            and l.get_line_parent_section().id == section_id,
+            lambda l: (
+                l.product_id.id == product_id
+                and l.get_line_parent_section().id == section_id
+            ),
         )
         if pol:
             if quantity != 0:
@@ -2131,8 +2145,9 @@ class PurchaseOrder(models.Model):
                 ("receipt_reminder_email", "=", True),
             ],
         ).filtered(
-            lambda p: p.mapped("line_ids.product_id.product_tmpl_id.type")
-            != ["service"],
+            lambda p: (
+                p.mapped("line_ids.product_id.product_tmpl_id.type") != ["service"]
+            ),
         )
 
     def _get_product_price_and_data(self, product):
@@ -2356,7 +2371,6 @@ class PurchaseOrder(models.Model):
         partner_bank_id = self.commercial_partner_id.bank_ids.filtered_domain(
             [("company_id", "in", (False, self.company_id.id))],
         )[:1]
-
         values = {
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,
@@ -2397,7 +2411,7 @@ class PurchaseOrder(models.Model):
 
     def _send_reminder_mail(self, send_single=False):
         if not self.env.user.has_group("purchase.group_send_reminder"):
-            return
+            return None
 
         template = self.env.ref(
             "purchase.email_template_edi_purchase_reminder",
@@ -2461,7 +2475,7 @@ class PurchaseOrder(models.Model):
     def send_reminder_preview(self):
         self.ensure_one()
         if not self.env.user.has_group("purchase.group_send_reminder"):
-            return
+            return None
 
         template = self.env.ref(
             "purchase.email_template_edi_purchase_reminder",
@@ -2613,9 +2627,9 @@ class PurchaseOrder(models.Model):
             error_details = []
             for order in orders_without_line_product:
                 missing_product_lines = order.line_ids.filtered(
-                    lambda l: not l.display_type
-                    and not l.is_downpayment
-                    and not l.product_id,
+                    lambda l: (
+                        not l.display_type and not l.is_downpayment and not l.product_id
+                    ),
                 )
                 error_details.append(
                     _(

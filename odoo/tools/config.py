@@ -803,6 +803,16 @@ class configmanager:
             help="specify the maximum number of physical connections to PostgreSQL specifically for the evented worker",
         )
         group.add_option(
+            "--db_minconn",
+            dest="db_minconn",
+            type="int",
+            my_default=0,
+            help="specify the minimum number of physical connections kept warm "
+            "per-database (0 = open lazily on demand). Raise it on single-database "
+            "OLTP deployments to remove first-request cold-start latency; keep 0 on "
+            "multi-tenant hosts to avoid holding min_size connections per database",
+        )
+        group.add_option(
             "--db-template",
             dest="db_template",
             my_default="template0",

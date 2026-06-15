@@ -4,10 +4,10 @@ from datetime import timedelta
 from itertools import groupby
 
 from odoo import api, fields, models
+from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.http import request
-from odoo.api import SUPERUSER_ID
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -189,6 +189,11 @@ class SaleOrder(models.Model):
         ondelete="set null",
         index=True,
         tracking=True,
+    )
+    product_id = fields.Many2one(
+        related="line_ids.product_id",
+        comodel_name="product.product",
+        string="Product",
     )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
@@ -679,9 +684,11 @@ class SaleOrder(models.Model):
 
         # Only process orders that have a salesperson and didn't previously have upsell opportunity
         filtered_self = self.filtered(
-            lambda so: so.ids
-            and (so.user_id or so.partner_id.user_id)
-            and not so._origin.has_upsell_opportunity,
+            lambda so: (
+                so.ids
+                and (so.user_id or so.partner_id.user_id)
+                and not so._origin.has_upsell_opportunity
+            ),
         )
         super()._compute_field_value(field)
 
@@ -948,6 +955,7 @@ class SaleOrder(models.Model):
 
     @api.depends("line_ids.product_id")
     def _compute_has_archived_products(self):
+        """Flag orders whose lines reference an archived (inactive) product."""
         for order in self:
             order.has_archived_products = any(
                 not product.active for product in order.line_ids.product_id
@@ -963,9 +971,11 @@ class SaleOrder(models.Model):
                 order.date_planned = False
                 continue
             dates_list = order.line_ids.filtered(
-                lambda line: line.product_id.type == "consu"
-                and not line.display_type
-                and not line._is_delivery(),
+                lambda line: (
+                    line.product_id.type == "consu"
+                    and not line.display_type
+                    and not line._is_delivery()
+                ),
             ).mapped(lambda line: line and line._get_date_planned())
             if dates_list:
                 order.date_planned = order._get_date_planned(dates_list)
@@ -1355,11 +1365,13 @@ class SaleOrder(models.Model):
         return ~domain
 
     def _get_domain_is_late(self, operator, value):
-        return Domain([
-            ("state", "=", "done"),
-            ("date_planned", "!=", False),
-            ("date_planned", "<=", fields.Datetime.now()),
-        ])
+        return Domain(
+            [
+                ("state", "=", "done"),
+                ("date_planned", "!=", False),
+                ("date_planned", "<=", fields.Datetime.now()),
+            ]
+        )
 
     # ------------------------------------------------------------
     # ONCHANGE METHODS
@@ -2574,9 +2586,11 @@ class SaleOrder(models.Model):
 
     def _get_order_lines_to_report(self):
         down_payment_lines = self.line_ids.filtered(
-            lambda line: line.is_downpayment
-            and not line.display_type
-            and not line._get_downpayment_state(),
+            lambda line: (
+                line.is_downpayment
+                and not line.display_type
+                and not line._get_downpayment_state()
+            ),
         )
 
         def show_line(line):
@@ -2763,8 +2777,10 @@ class SaleOrder(models.Model):
         """
         request.update_context(catalog_skip_tracking=True)
         sol = self.line_ids.filtered(
-            lambda l: l.product_id.id == product_id
-            and l.get_line_parent_section().id == section_id,
+            lambda l: (
+                l.product_id.id == product_id
+                and l.get_line_parent_section().id == section_id
+            ),
         )
         if sol:
             if quantity != 0:
@@ -2806,8 +2822,10 @@ class SaleOrder(models.Model):
 
     def _filter_product_documents(self, documents):
         return documents.filtered(
-            lambda document: document.attached_on_sale == "quotation"
-            or (self.state == "done" and document.attached_on_sale == "sale_order"),
+            lambda document: (
+                document.attached_on_sale == "quotation"
+                or (self.state == "done" and document.attached_on_sale == "sale_order")
+            ),
         )
 
     def _get_lang(self):
@@ -3463,9 +3481,9 @@ class SaleOrder(models.Model):
             error_details = []
             for order in orders_without_line_product:
                 missing_product_lines = order.line_ids.filtered(
-                    lambda l: not l.display_type
-                    and not l.is_downpayment
-                    and not l.product_id,
+                    lambda l: (
+                        not l.display_type and not l.is_downpayment and not l.product_id
+                    ),
                 )
                 error_details.append(
                     _(

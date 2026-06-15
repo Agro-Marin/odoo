@@ -18,13 +18,14 @@ Usage:
         rows = cr.fetchall()
 """
 
+import atexit
 import logging
 import threading
 
 import odoo
 from odoo import tools
 
-from .cursor import BaseCursor, Cursor, Savepoint
+from .cursor import BaseCursor, Cursor, Savepoint, _clear_schema_caches
 from .pool import Connection, ConnectionPool, PoolError
 from .utils import categorize_query, connection_info_for
 
@@ -79,7 +80,11 @@ def _get_pool(readonly: bool) -> ConnectionPool:
                     if hasattr(odoo, "evented") and odoo.evented
                     else 0
                 ) or tools.config["db_maxconn"]
-                pool = ConnectionPool(int(maxconn), readonly=readonly)
+                # Lazy by default (0); raise db_minconn to keep connections warm.
+                minconn = tools.config.get("db_minconn", 0) or 0
+                pool = ConnectionPool(
+                    int(maxconn), readonly=readonly, minconn=int(minconn)
+                )
                 if readonly:
                     _Pool_readonly = pool
                 else:
@@ -119,8 +124,6 @@ def close_db(db_name: str) -> None:
 
     :param db_name: Name of the database to close connections for
     """
-    from .cursor import _clear_schema_caches
-
     _clear_schema_caches(db_name)
     if _Pool:
         _Pool.close_database(db_name)
@@ -136,6 +139,19 @@ def close_all() -> None:
         _Pool_readonly.close_all()
 
 
+# Close pools before interpreter finalization.  The server's own shutdown
+# paths call close_all() explicitly; this atexit handler covers the rest —
+# CLI commands, scripts, and error exits — that would otherwise leave pools
+# open.  Under Python 3.14 an open psycopg_pool's __del__ runs during
+# finalization and raises ``PythonFinalizationError: cannot join thread at
+# interpreter shutdown`` (worker threads can no longer be joined that late);
+# atexit runs BEFORE finalization, so close()'s thread joins still succeed.
+# Idempotent: re-running on an already-closed/empty pool set is a no-op.
+# Note: forked workers exit via os._exit(), which bypasses atexit by design —
+# they rely on the OS to reclaim their connections.
+atexit.register(close_all)
+
+
 def drain_db(db_name: str) -> None:
     """Drain pools and schema caches for one database.
 
@@ -146,8 +162,6 @@ def drain_db(db_name: str) -> None:
     :func:`drain_all`, other databases served by this process are left
     untouched.
     """
-    from .cursor import _clear_schema_caches
-
     _clear_schema_caches(db_name)
     if _Pool:
         _Pool.drain_database(db_name)
@@ -163,8 +177,6 @@ def drain_all() -> None:
     Also clears the column type cache used by binary COPY, since
     schema changes (e.g. ALTER COLUMN TYPE) make cached types stale.
     """
-    from .cursor import _clear_schema_caches
-
     _clear_schema_caches()
     if _Pool:
         _Pool.drain()

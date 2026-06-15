@@ -13,7 +13,10 @@ stability across ``preprocess_css``, bridge hash width, the
 bridge-persistence escalation.
 """
 
+import logging
+import re
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from odoo.libs.esbuild import _find_esbuild
@@ -27,6 +30,7 @@ from odoo.tools.misc import file_path
 from odoo.addons.base.models.assetsbundle import (
     ANY_UNIQUE,
     AssetAttachmentStore,
+    AssetError,
     AssetNotFoundError,
     AssetsBundle,
     CompileError,
@@ -41,6 +45,8 @@ from odoo.addons.base.models.assetsbundle import (
     is_odoo_module,
 )
 from odoo.addons.base.models.ir_attachment import IrAttachment
+
+_logger = logging.getLogger(__name__)
 
 MODULE_JS = 'import { x } from "@web/core/registry";\nexport const y = x;\n'
 PLAIN_JS = "(function () {\n    var x = 1;\n    window.testX = x;\n})();\n"
@@ -852,3 +858,381 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
             out, errs = self._sanitize('@import "./x.scss" screen;')
         self.assertEqual(out, "")
         self.assertTrue(errs)
+
+
+class _NativeStubBundle:
+    """Minimal bundle exposing only what ``get_native_module_data`` reads."""
+
+    name = "web.assets_test"
+
+    def __init__(self, modules):
+        self.native_modules = modules
+        self.bridge_input = None
+
+    def _build_native_to_legacy_bridge(self, specifiers, modules=None):
+        self.bridge_input = set(specifiers)
+        return {"@legacy/shim": "data:text/javascript,"}
+
+
+class TestNativeModuleDataSpecifiers(BaseCase):
+    """``get_native_module_data`` derives bridge specifiers from import-map keys.
+
+    The 2026-06 audit-follow-up dropped the parallel ``native_specifiers``
+    accumulator: every key written to ``import_map`` (module path, ``/index``
+    long form, declared alias) is one of the bundle's own specifiers, so the
+    import-map keys ARE the "owned by this bundle" set handed to the bridge
+    builder. These lock that equivalence, the ``/index`` long form that must
+    survive the simplification, and the ``with_bridges=False`` short-circuit.
+    """
+
+    def _asset(self, url):
+        # Inline source + url: module_path (from url) and parsed_header (from
+        # content) both resolve without an env or a live attachment.
+        return JavascriptAsset(
+            _NativeStubBundle([]), inline="export const x = 1;\n", url=url
+        )
+
+    def _data(self, urls, **kw):
+        bundle = _NativeStubBundle([self._asset(u) for u in urls])
+        return bundle, AssetsBundle.get_native_module_data(bundle, **kw)
+
+    def test_index_js_keeps_both_specifier_forms(self):
+        _, res = self._data(["/web/static/src/core/utils/index.js"], with_bridges=False)
+        self.assertIn("@web/core/utils", res["import_map"])
+        self.assertIn("@web/core/utils/index", res["import_map"])
+
+    def test_bridge_receives_exactly_import_map_keys(self):
+        bundle, res = self._data(
+            [
+                "/web/static/src/core/registry.js",
+                "/web/static/src/core/utils/index.js",
+            ],
+            with_bridges=True,
+        )
+        self.assertEqual(bundle.bridge_input, set(res["import_map"]))
+        self.assertTrue(res["bridge_import_map"])
+
+    def test_with_bridges_false_skips_builder(self):
+        bundle, res = self._data(
+            ["/web/static/src/core/registry.js"], with_bridges=False
+        )
+        self.assertEqual(res["bridge_import_map"], {})
+        # The builder never ran, so no specifier set was captured.
+        self.assertIsNone(bundle.bridge_input)
+
+
+class TestAssetErrorTaxonomy(BaseCase):
+    """Content/parse failures share the ``AssetError`` base; compile errors don't."""
+
+    def test_asset_error_is_the_common_base(self):
+        self.assertTrue(issubclass(AssetNotFoundError, AssetError))
+        self.assertTrue(issubclass(XMLAssetError, AssetError))
+
+    def test_compile_error_is_a_separate_family(self):
+        # CompileError is caught explicitly alongside SassCompileError, never
+        # via an ``except AssetError`` net — so it must stay outside that tree.
+        self.assertFalse(issubclass(CompileError, AssetError))
+        self.assertTrue(issubclass(CompileError, RuntimeError))
+
+
+class TestEsmGraphCanonicalHome(BaseCase):
+    """ESM-graph predicates live in ``odoo.libs.esm_graph``, not as re-exports."""
+
+    def test_predicates_resolve_from_esm_graph(self):
+        from odoo.libs import esm_graph
+
+        self.assertTrue(callable(esm_graph.is_native_module))
+        self.assertTrue(callable(esm_graph._parse_odoo_module_header))
+
+    def test_dead_reexport_not_resurrected(self):
+        import odoo.addons.base.models.assetsbundle as ab
+
+        # ``_parse_odoo_module_header`` stays (used internally by
+        # JavascriptAsset.parsed_header); the unused ``is_native_module``
+        # re-export was removed and must not creep back as "historical surface".
+        self.assertTrue(hasattr(ab, "_parse_odoo_module_header"))
+        self.assertFalse(hasattr(ab, "is_native_module"))
+
+
+class TestStylesheetErrorInversion(BaseCase):
+    """StylesheetAsset records fetch errors on itself; the bundle harvests them.
+
+    The 2026-06 audit-follow-up inverted a leaf-into-parent coupling:
+    ``StylesheetAsset._fetch_content`` used to append to
+    ``self.bundle.css_errors`` directly. It now records onto ``self.errors``,
+    and ``AssetsBundle.preprocess_css`` collects from each asset — so the asset
+    can be exercised without a live bundle that owns a ``css_errors`` list.
+    """
+
+    class _StubBundle(AssetsBundle):
+        # Skip the env / esm_registry-heavy __init__; inherit the class-level
+        # regexes and the real ``preprocess_css`` harvest path.
+        def __init__(self):
+            self.stylesheets = []
+            self.css_errors = []
+            self.rtl = False
+            self.autoprefix = False
+
+    def test_asset_records_error_without_touching_bundle(self):
+        class BareBundle:  # deliberately has no css_errors attribute
+            pass
+
+        asset = StylesheetAsset(BareBundle(), url="/web/static/src/css/missing.css")
+        with patch.object(WebAsset, "_fetch_content", side_effect=AssetError("boom")):
+            out = asset._fetch_content()
+        self.assertEqual(out, "")
+        self.assertEqual(asset.errors, ["boom"])
+        # The old design appended to self.bundle.css_errors here and would have
+        # raised AttributeError on a bundle that has no such list.
+        self.assertFalse(hasattr(asset.bundle, "css_errors"))
+
+    def test_bundle_harvests_asset_errors(self):
+        bundle = self._StubBundle()
+        good = StylesheetAsset(bundle, inline=".ok{color:red}")  # inline -> no fetch
+        bad1 = StylesheetAsset(bundle, url="/web/static/src/css/x1.css")
+        bad2 = StylesheetAsset(bundle, url="/web/static/src/css/x2.css")
+        bundle.stylesheets = [good, bad1, bad2]
+
+        def fake_fetch(self):
+            raise AssetError(f"missing {self.url}")
+
+        with patch.object(WebAsset, "_fetch_content", fake_fetch):
+            result = bundle.preprocess_css()
+
+        self.assertIn(".ok{color:red}", result)  # the good asset still ships
+        self.assertEqual(good.errors, [])
+        self.assertEqual(
+            bundle.css_errors,
+            [
+                "missing /web/static/src/css/x1.css",
+                "missing /web/static/src/css/x2.css",
+            ],
+        )
+
+    def test_preprocess_css_does_not_double_report_on_rerun(self):
+        # preprocess_css rebuilds css_errors from scratch each call, so running
+        # it twice must not accumulate duplicates (the harvest is idempotent).
+        bundle = self._StubBundle()
+        bad = StylesheetAsset(bundle, url="/web/static/src/css/x.css")
+        bundle.stylesheets = [bad]
+
+        def fake_fetch(self):
+            raise AssetError("missing x.css")
+
+        with patch.object(WebAsset, "_fetch_content", fake_fetch):
+            bundle.preprocess_css()
+            bundle.preprocess_css()
+
+        self.assertEqual(bundle.css_errors, ["missing x.css"])
+
+
+class TestPlainCssMinifyStringHandling(BaseCase):
+    """The plain-CSS regex minifier is string- and comment-aware.
+
+    ``StylesheetAsset.minify`` minifies the CSS *between* string literals and
+    comments only: it whitespace/brace-collapses ordinary CSS, keeps string
+    literals byte-for-byte (so ``content:`` values survive), drops ordinary
+    comments, and keeps ``/*! … */`` legal comments verbatim. The old four-
+    ``re.sub`` pipeline did all of this string-unaware and corrupted multi-space
+    or brace/comment-bearing ``content:`` literals; these tests pin the fix.
+
+    The SCSS path is unaffected (``ScssStylesheetAsset.minify`` returns the Dart
+    Sass output untouched — see ``TestScssMinifySkipsRegex``).
+
+    No DB / env: ``_minify_css_body`` is a pure classmethod, so it is called
+    directly; ``minify()`` only wraps it in the per-file header.
+    """
+
+    @staticmethod
+    def _min(css):
+        return StylesheetAsset._minify_css_body(css)
+
+    def test_double_space_inside_string_is_preserved(self):
+        self.assertEqual(self._min('x { content: "a  b"; }'), 'x{content: "a  b";}')
+
+    def test_braces_inside_string_are_preserved(self):
+        self.assertEqual(self._min('x { content: "{ }"; }'), 'x{content: "{ }";}')
+
+    def test_comment_sequence_inside_string_is_preserved(self):
+        # The old comment-strip reached into strings; the new tokenizer treats a
+        # ``/* */`` opened inside a string as string text.
+        out = self._min('x { content: "/* not a comment */"; }')
+        self.assertIn('"/* not a comment */"', out)
+
+    def test_single_quoted_string_is_preserved(self):
+        self.assertEqual(self._min("x { content: '  y  '; }"), "x{content: '  y  ';}")
+
+    def test_escaped_quote_does_not_end_the_string(self):
+        # ``\\"`` is string content, not a terminator — the whole literal survives.
+        out = self._min(r'x { content: "a\"  b"; }')
+        self.assertIn(r'"a\"  b"', out)
+
+    def test_ordinary_comment_is_still_stripped(self):
+        out = self._min("a { color: red; } /* drop me */ b { color: blue; }")
+        self.assertNotIn("drop me", out)
+        # whitespace flanking the dropped comment collapses across it, exactly
+        # as the legacy pipeline did (the rules abut: ``}b``).
+        self.assertEqual(out, "a{color: red;}b{color: blue;}")
+
+    def test_legal_comment_is_kept_verbatim(self):
+        out = self._min("/*!  License  */\n.a {\n  color: red;\n}")
+        self.assertIn("/*!  License  */", out)  # whitespace inside it untouched
+        self.assertIn(".a{color: red;}", out)  # surrounding CSS still minified
+
+    def test_minification_still_applies_outside_strings(self):
+        out = self._min("a   {\n  color :  red ;\n}\n\n  b{}")
+        self.assertNotIn("  ", out)  # no double spaces in ordinary CSS
+        self.assertEqual(out, "a{color : red ;}b{}")
+        # (SCSS-path string safety is covered by TestScssMinifySkipsRegex.)
+
+
+class TestEsmAttachmentSidecars(TransactionCase):
+    """``_save_esm_attachment`` writes meta/sourcemap sidecars from its params.
+
+    The esbuild metafile and source map used to travel from
+    ``esbuild_native_bundle`` to ``_save_esm_attachment`` via a
+    ``AssetsBundle._last_metafile`` / ``_last_sourcemap`` side-channel — hidden
+    mutable state on the bundle, read across the module boundary. They are now
+    passed as explicit parameters: only the main-bundle save supplies them; the
+    ``.templates.esm.js`` saves pass nothing. This pins both halves of that
+    contract (which previously had no end-to-end test at all).
+    """
+
+    def _att(self, url):
+        return (
+            self.env["ir.attachment"]
+            .sudo()
+            .search([("url", "=", url), ("public", "=", True)])
+        )
+
+    def test_main_bundle_save_writes_both_sidecars(self):
+        url = self.env["ir.qweb"]._save_esm_attachment(
+            "test_assetsbundle.sidecar_main",
+            "export const main = 1;\n//# sourceMappingURL=x.map",
+            metafile='{"inputs":{}}',
+            sourcemap='{"version":3}',
+        )
+        self.assertTrue(url.endswith(".esm.js"))
+        self.assertTrue(self._att(url), "the main bundle attachment must exist")
+        meta_url = url[: -len(".esm.js")] + ".meta.json"
+        self.assertTrue(self._att(meta_url), "metafile sidecar must be persisted")
+        self.assertTrue(self._att(url + ".map"), "sourcemap sidecar must be persisted")
+
+    def test_template_save_writes_no_sidecars(self):
+        # No metafile/sourcemap (the ``.templates.esm.js`` path) -> no sidecars.
+        url = self.env["ir.qweb"]._save_esm_attachment(
+            "test_assetsbundle.sidecar_tpl.templates",
+            "export const tpl = 2;",
+        )
+        self.assertTrue(self._att(url), "the templates attachment must exist")
+        meta_url = url[: -len(".esm.js")] + ".meta.json"
+        self.assertFalse(self._att(meta_url), "no metafile sidecar without a metafile")
+        self.assertFalse(self._att(url + ".map"), "no sourcemap sidecar without one")
+
+
+class TestCssErrorBanner(BaseCase):
+    """The degraded-CSS banner builder is pure and idempotent.
+
+    ``AssetsBundle._render_css_error_banner`` was extracted from ``css()`` so
+    its escaping and (crucially) its no-stacking behavior are unit-testable —
+    previously this logic was reachable only through a slow ``HttpCase`` browser
+    tour (``css_error_tour``), which never asserted either property.
+    """
+
+    H = AssetsBundle._CSS_ERROR_HEADER
+
+    def test_message_is_escaped_for_a_css_string_literal(self):
+        out = AssetsBundle._render_css_error_banner(['boom "x" *\n y'], "")
+        self.assertIn(r"\"x\"", out)  # quotes can't close the content: value
+        self.assertIn(r"\A", out)  # newline -> CSS escaped newline
+        self.assertIn(r"\*", out)  # star can't open a comment
+        self.assertIn("A css error occurred", out)
+
+    def test_previous_good_css_is_carried_over(self):
+        out = AssetsBundle._render_css_error_banner(["e"], ".keep{color:red}")
+        self.assertTrue(out.startswith(".keep{color:red}"))
+        self.assertIn(self.H, out)
+
+    def test_banner_does_not_stack_across_repeated_errors(self):
+        # The whole point of the split-on-header: re-rendering over an output
+        # that already carries a banner must replace it, not append a second.
+        first = AssetsBundle._render_css_error_banner(["err_one"], ".keep{}")
+        second = AssetsBundle._render_css_error_banner(["err_two"], first)
+        self.assertEqual(second.count(self.H), 1, "exactly one banner survives")
+        self.assertIn(".keep{}", second)
+        self.assertIn("err_two", second)
+        self.assertNotIn("err_one", second)
+
+    def test_multiple_errors_are_joined_into_one_message(self):
+        out = AssetsBundle._render_css_error_banner(["a", "b"], "")
+        self.assertIn(r"a\Ab", out)  # newline-joined, then escaped
+
+
+class TestVendoredCssMinifyCorpus(BaseCase):
+    """The string-aware minifier is a semantic no-op on every shipped .css file.
+
+    Safety net for the string/comment-awareness fix: run the new minifier and a
+    faithful copy of the legacy four-``re.sub`` pipeline over EVERY plain ``.css``
+    file in the loaded addons (FontAwesome, Bootstrap dist, every vendored lib),
+    and assert their outputs are identical once string literals and legal
+    comments are masked. In other words, the only differences the fix introduces
+    versus the battle-tested old code live strictly inside strings (which the old
+    code corrupted) and legal-comment interiors (which it reflowed) — both
+    semantically inert. A real structural drift on any shipped file fails here
+    with the offending path.
+
+    No DB: minification is pure text; the corpus is read straight off disk.
+    """
+
+    @staticmethod
+    def _legacy_minify(content):
+        # Verbatim reproduction of the pre-fix StylesheetAsset.minify pipeline.
+        content = re.sub(r"/\*# sourceMappingURL=.*", "", content)
+        content = re.sub(r"/\*(?!!).*?\*/", "", content, flags=re.DOTALL)
+        content = re.sub(r"\s+", " ", content)
+        return re.sub(r" *([{}]) *", r"\1", content)
+
+    @staticmethod
+    def _mask(css):
+        # Blank out the two spans the fix is allowed to differ on, so what
+        # remains is the structural CSS that must match the legacy output.
+        css = re.sub(r"/\*!.*?\*/", "<C>", css, flags=re.DOTALL)
+        css = re.sub(r'"(?:[^"\\]|\\.)*"', "<S>", css)
+        return re.sub(r"'(?:[^'\\]|\\.)*'", "<S>", css)
+
+    def _shipped_css_files(self):
+        import odoo.addons
+
+        seen = set()
+        for root in odoo.addons.__path__:
+            for path in Path(root).rglob("*.css"):
+                if path.name.endswith(".min.css") or path in seen:
+                    continue
+                seen.add(path)
+                yield path
+
+    def test_minify_is_semantically_identical_to_legacy_on_shipped_css(self):
+        checked = differed = 0
+        for path in self._shipped_css_files():
+            try:
+                src = path.read_text(encoding="utf-8")
+            except OSError, UnicodeDecodeError:
+                continue
+            new = StylesheetAsset._minify_css_body(src)
+            legacy = self._legacy_minify(src)
+            self.assertEqual(
+                self._mask(new),
+                self._mask(legacy),
+                f"string-aware minify drifted structurally on {path}",
+            )
+            checked += 1
+            differed += new != legacy
+        self.assertGreater(checked, 0, "no shipped .css files were found to check")
+        # Surfaced so the corpus size and how many files the fix actually changes
+        # (string/legal-comment differences) are visible in the test log.
+        _logger.info(
+            "vendored-css minify corpus: %d files checked, %d changed (string/"
+            "legal-comment only)",
+            checked,
+            differed,
+        )

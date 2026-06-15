@@ -13,7 +13,7 @@ from datetime import UTC
 from pathlib import Path
 from subprocess import PIPE, Popen
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, TypedDict
 
 from lxml import etree
 from rjsmin import jsmin as rjsmin
@@ -30,14 +30,13 @@ from odoo.libs.constants import (
 from odoo.libs.constants import (
     DOTTED_ASSET_EXTENSIONS as EXTENSIONS,
 )
-from odoo.libs.esbuild import EsbuildCompiler, minify_js
+from odoo.libs.esbuild import EsbuildCompiler, EsbuildResult, minify_js
 from odoo.libs.esm_bridges import BridgeShimManager
 from odoo.libs.esm_graph import (
     _bridge_shim_source,
     _cached_module_classification,
-    _parse_odoo_module_header,  # also re-imported by ir_qweb through this module
+    _parse_odoo_module_header,
     has_module_syntax,
-    is_native_module,  # noqa: F401 — deliberate re-export (historical surface)
     is_odoo_module,
     url_to_module_path,
 )
@@ -57,18 +56,19 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Structured asset-pipeline loggers (odoo.assets.{category}) — flip them on
-# with ``--log-handler=odoo.assets:DEBUG`` to trace a bundle's lifecycle: file
+# Structured asset-pipeline logger (odoo.assets.{category}) — flip it on with
+# ``--log-handler=odoo.assets:DEBUG`` to trace a bundle's lifecycle: file
 # discovery, native-module / import-map assembly, esbuild, and asset
-# classification.  Convention, so the two logging systems do not drift: these
-# carry the opt-in DEBUG trace plus classification WARNING/ERROR events.
+# classification.  Convention, so the two logging systems do not drift: this
+# carries the opt-in DEBUG trace plus classification WARNING/ERROR events.
 # Always-on operational INFO (attachment persistence) and compiler/error
 # reporting stay on the standard module ``_logger`` below — deliberately NOT on
 # this namespace, so quieting the trace (``odoo.assets:WARNING``) cannot also
-# silence "a bundle was (re)built" or a Sass failure.
+# silence "a bundle was (re)built" or a Sass failure.  The sibling category
+# loggers (``odoo.assets.bridge`` / ``.esbuild``) are created on demand inside
+# ``odoo.libs.esm_bridges`` / ``odoo.libs.esbuild`` where they are actually
+# emitted — this module only writes the ``bundle`` channel.
 _bundle_log = get_asset_logger("bundle")
-_bridge_log = get_asset_logger("bridge")
-_esbuild_log = get_asset_logger("esbuild")
 
 
 @functools.cache
@@ -136,19 +136,60 @@ class BundleFileSpec(TypedDict):
     last_modified: NotRequired[float | None]
 
 
+class NativeModuleData(TypedDict):
+    """The import-map / preload payload returned by ``get_native_module_data``.
+
+    Fixed shape consumed at three ir_qweb sites; the TypedDict documents the
+    contract and lets a type checker catch a misspelled key at the call site.
+    """
+
+    import_map: dict[str, str]
+    preload_urls: list[str]
+    bridge_import_map: dict[str, str]
+
+
+# ``xml()`` returns a discriminated union of blocks; the ``type`` literal is the
+# discriminator the consumer (``generate_xml_bundle``) branches on. Modelling it
+# as two TypedDicts (instead of ``dict[str, Any]``) makes a typo in either the
+# discriminator or a payload key a static error, not a silent KeyError at render.
+class TemplatesBlock(TypedDict):
+    """A run of primary / parentless templates, in source order."""
+
+    type: Literal["templates"]
+    # (element, asset url, t-inherit parent name | None)
+    templates: list[tuple[etree._Element, str | None, str | None]]
+
+
+class ExtensionsBlock(TypedDict):
+    """A run of ``t-inherit-mode="extension"`` templates, grouped by parent."""
+
+    type: Literal["extensions"]
+    # {parent template name: [(element, asset url), ...]}
+    extensions: dict[str, list[tuple[etree._Element, str | None]]]
+
+
+XMLBlock = TemplatesBlock | ExtensionsBlock
+
+
+# Two error families, deliberately kept separate:
+#   * AssetError   — an asset's content could not be obtained, decoded or parsed
+#                    (catchable as one group via ``except AssetError``)
+#   * CompileError — a preprocessor subprocess (Sass/rtlcss) failed; caught
+#                    explicitly alongside ``SassCompileError``, never via the
+#                    ``except AssetError`` net, hence a separate RuntimeError.
 class CompileError(RuntimeError):
     """A stylesheet preprocessor (Sass/rtlcss) failed or timed out."""
 
 
 class AssetError(Exception):
-    """An asset's content could not be obtained or decoded."""
+    """An asset's content could not be obtained, decoded or parsed."""
 
 
 class AssetNotFoundError(AssetError):
     """The asset's backing file or attachment does not exist."""
 
 
-class XMLAssetError(Exception):
+class XMLAssetError(AssetError):
     """An XML template asset failed to parse or validate."""
 
 
@@ -535,6 +576,22 @@ class AssetsBundle:
     # rtlcss subprocess budget; a hung binary must not pin a worker.
     _RTLCSS_TIMEOUT_S: int = 60
 
+    # Marker separating the carried-over previous CSS from the appended error
+    # banner. It MUST be used by both the split (which strips a prior banner so
+    # repeated errors don't stack) and the join (which re-adds it) — see
+    # ``_render_css_error_banner``; a single constant keeps the two in lockstep.
+    _CSS_ERROR_HEADER = "\n\n/* ## CSS error message ##*/"
+
+    # OWL template-registration API destructured from ``@web/core/templates`` by
+    # the generated template bundles. Three call sites consume this exact set —
+    # the non-ESM IIFE wrapper in ``js()`` and both header forms of
+    # ``generate_esm_template_bundle`` — so a single source keeps them from
+    # drifting when a registrar is added or renamed.
+    _TEMPLATE_MODULE = "@web/core/templates"
+    _TEMPLATE_REGISTRARS = (
+        "checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension"
+    )
+
     # ─────────────────────────────────────────────────────────────────
     # ESM bundle classification
     # ─────────────────────────────────────────────────────────────────
@@ -626,10 +683,6 @@ class AssetsBundle:
         self.has_js = js
         self._checksum_cache = {}
         self.is_debug_assets = debug_assets
-        # Populated by esbuild_native_bundle(); consumers (IrQweb) read
-        # these to persist sibling attachments (metafile, sourcemap).
-        self._last_metafile: str | None = None
-        self._last_sourcemap: str | None = None
         self.external_assets = []
         for url in external_assets:
             # Strip query string / fragment before the extension probe so a
@@ -750,7 +803,7 @@ class AssetsBundle:
 
         return self.external_assets + response
 
-    def get_native_module_data(self, with_bridges: bool = True) -> dict:
+    def get_native_module_data(self, with_bridges: bool = True) -> NativeModuleData:
         """Return import map and preload data for native ESM modules.
 
         Returns a dict with:
@@ -781,7 +834,6 @@ class AssetsBundle:
 
         import_map = {}
         preload_urls = []
-        native_specifiers = set()
         for asset in self.native_modules:
             spec = asset.module_path
             # Use bare URLs without ?v= cache-busting.  Native ESM modules
@@ -794,7 +846,6 @@ class AssetsBundle:
             # triggers a full page reload via bus.bus bundle_changed).
             import_map[spec] = asset.url
             preload_urls.append(asset.url)
-            native_specifiers.add(spec)
             # For index.js files, url_to_module_path strips "/index" so
             # "@spreadsheet/global_filters/index" becomes
             # "@spreadsheet/global_filters".  Add an entry for the long
@@ -803,22 +854,22 @@ class AssetsBundle:
             if asset.url.endswith("/index.js"):
                 long_spec = spec + "/index"
                 import_map[long_spec] = asset.url
-                native_specifiers.add(long_spec)
             # If the module declares an alias (e.g. @odoo/o-spreadsheet),
             # add an import map entry so `import ... from "alias"` resolves
-            # to the same URL, AND register the alias in ``native_specifiers``
-            # so ``_build_native_to_legacy_bridge`` treats it as "owned by
-            # this bundle" and does not emit a ``data:`` URI shim that would
-            # overwrite the direct URL in ``ir_qweb`` bundle assembly.
+            # to the same URL.
             header = asset.parsed_header
             if header and header["alias"]:
                 import_map[header["alias"]] = asset.url
-                native_specifiers.add(header["alias"])
 
+        # ``import_map`` keys ARE this bundle's native specifiers — every key
+        # added above is the bundle's own module path, "/index" long form, or
+        # declared alias.  They double as the "owned by this bundle" set handed
+        # to ``_build_native_to_legacy_bridge`` (so it treats them as owned and
+        # does not emit a ``data:`` URI shim that would overwrite the direct URL
+        # in ``ir_qweb`` bundle assembly).  No parallel accumulator to keep in
+        # lockstep, and the set is built only when bridges are actually needed.
         bridge_import_map = (
-            self._build_native_to_legacy_bridge(native_specifiers)
-            if with_bridges
-            else {}
+            self._build_native_to_legacy_bridge(set(import_map)) if with_bridges else {}
         )
         log_event(
             _bundle_log,
@@ -883,24 +934,23 @@ class AssetsBundle:
         target: str | None = None,
         source_maps: str | None = None,
         dynamic_child_specs: frozenset[str] | None = None,
-    ) -> str:
+    ) -> EsbuildResult:
         """Bundle native ESM modules into one minified file via esbuild.
 
-        Thin wrapper over :meth:`EsbuildCompiler.compile` (see its
-        docstring for the parameters). Keeps the ``_last_metafile`` /
-        ``_last_sourcemap`` side-channel that
-        ``ir_qweb._save_esm_attachment`` reads to persist the sibling
-        attachments.
+        Thin wrapper over :meth:`EsbuildCompiler.compile` (see its docstring
+        for the parameters). Returns the compiler's :class:`EsbuildResult`
+        verbatim — ``code`` plus the ``metafile`` / ``sourcemap`` that
+        ``ir_qweb`` persists as sibling attachments. Returning the whole
+        result (rather than stashing the two siblings on ``self`` and handing
+        back only ``code``) keeps the build's outputs together and off the
+        bundle's instance state.
         """
-        result = self._make_esbuild_compiler().compile(
+        return self._make_esbuild_compiler().compile(
             timeout_s=timeout_s,
             target=target,
             source_maps=source_maps,
             dynamic_child_specs=dynamic_child_specs,
         )
-        self._last_metafile = result.metafile
-        self._last_sourcemap = result.sourcemap
-        return result.code
 
     # ── bridge layer (moved to odoo.libs.esm_bridges, H3 split) ──
     # Only thin delegators remain so ir_qweb and the test suite keep the
@@ -1097,7 +1147,7 @@ class AssetsBundle:
 
                     (function() {{
                         "use strict";
-                        const {{ checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension }} = odoo.loader.modules.get("@web/core/templates");
+                        const {{ {self._TEMPLATE_REGISTRARS} }} = odoo.loader.modules.get("{self._TEMPLATE_MODULE}");
                         /* {self.name} */
                         {templates}
                     }})();
@@ -1185,13 +1235,13 @@ class AssetsBundle:
             return ""
         if use_import:
             header = (
-                "import { checkPrimaryTemplateParents, registerTemplate, "
-                'registerTemplateExtension } from "@web/core/templates";\n'
+                f"import {{ {self._TEMPLATE_REGISTRARS} }} "
+                f'from "{self._TEMPLATE_MODULE}";\n'
             )
         else:
             header = (
-                "const { checkPrimaryTemplateParents, registerTemplate, "
-                'registerTemplateExtension } = odoo.loader.modules.get("@web/core/templates");\n'
+                f"const {{ {self._TEMPLATE_REGISTRARS} }} = "
+                f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
             )
         return f"{header}/* {self.name} */\n{templates}\n"
 
@@ -1253,7 +1303,7 @@ class AssetsBundle:
 
         return "\n".join(content)
 
-    def xml(self) -> list[dict[str, Any]]:
+    def xml(self) -> list[XMLBlock]:
         """
         Create a list of blocks. A block can have one of the two types "templates" or "extensions".
         A template with no parent or template with t-inherit-mode="primary" goes in a block of type "templates".
@@ -1307,36 +1357,32 @@ class AssetsBundle:
                     raise asset._error(self.env._("Template name is missing."))
         return blocks
 
-    def css(self) -> IrAttachment:
-        """Return (generating and persisting if needed) the bundle's CSS attachment.
+    @classmethod
+    def _render_css_error_banner(
+        cls, css_errors: Sequence[str], previous_css: str
+    ) -> str:
+        """Build the degraded-CSS payload shown when a stylesheet fails to compile.
 
-        Always a singleton record, mirroring :meth:`js` — callers read
-        ``.id`` / ``.raw`` directly.
+        Re-serves the last good CSS (``previous_css``) plus a red banner naming
+        the error. Idempotent across repeated failures: any banner already in
+        ``previous_css`` is stripped (split on :attr:`_CSS_ERROR_HEADER`) before
+        a fresh one is appended, so the banners never stack. ``css_errors`` text
+        is escaped for a CSS string literal (``"`` → ``\\"``, newline → ``\\A``,
+        ``*`` → ``\\*``) so the message cannot break out of the ``content:``
+        value or open a comment.
+
+        :param css_errors: per-asset / bundle compile errors, joined newline-wise
+        :param previous_css: decoded raw of the last good attachment (``""`` if none)
+        :return: the CSS to persist as the degraded bundle
         """
-        is_minified = not self.is_debug_assets
-        extension = "min.css" if is_minified else "css"
-        attachments = self.get_attachments(extension)
-        if attachments:
-            return attachments[0]
-
-        css = self.preprocess_css()
-        if self.css_errors:
-            error_message = (
-                "\n".join(self.css_errors)
-                .replace('"', r"\"")
-                .replace("\n", r"\A")
-                .replace("*", r"\*")
-            )
-            previous_attachment = self.get_attachments(extension, ignore_version=True)
-            previous_css = (
-                previous_attachment.raw.decode() if previous_attachment else ""
-            )
-            css_error_message_header = "\n\n/* ## CSS error message ##*/"
-            previous_css = previous_css.split(css_error_message_header)[0]
-            css = css_error_message_header.join(
-                [
-                    previous_css,
-                    f"""
+        error_message = (
+            "\n".join(css_errors)
+            .replace('"', r"\"")
+            .replace("\n", r"\A")
+            .replace("*", r"\*")
+        )
+        carried_over = previous_css.split(cls._CSS_ERROR_HEADER, maxsplit=1)[0]
+        banner = f"""
 body::before {{
   font-weight: bold;
   content: "A css error occurred, using an old style to render this page";
@@ -1351,10 +1397,29 @@ body::before {{
 css_error_message {{
   content: "{error_message}";
 }}
-""",
-                ]
+"""
+        return cls._CSS_ERROR_HEADER.join([carried_over, banner])
+
+    def css(self) -> IrAttachment:
+        """Return (generating and persisting if needed) the bundle's CSS attachment.
+
+        Always a singleton record, mirroring :meth:`js` — callers read
+        ``.id`` / ``.raw`` directly.
+        """
+        is_minified = not self.is_debug_assets
+        extension = "min.css" if is_minified else "css"
+        attachments = self.get_attachments(extension)
+        if attachments:
+            return attachments[0]
+
+        css = self.preprocess_css()
+        if self.css_errors:
+            previous_attachment = self.get_attachments(extension, ignore_version=True)
+            previous_css = (
+                previous_attachment.raw.decode() if previous_attachment else ""
             )
-            return self.save_attachment(extension, css)
+            banner = self._render_css_error_banner(self.css_errors, previous_css)
+            return self.save_attachment(extension, banner)
 
         # Extract @import rules (they must appear at the top of the bundle)
         import_rules = self.rx_css_import.findall(css)
@@ -1422,6 +1487,11 @@ css_error_message {{
         reassigned to its source asset so that per-file headers and source
         maps work correctly.
         """
+        # preprocess_css is the single authority on ``css_errors``: it rebuilds
+        # the list from scratch on every call — bundle-level compile/rtl
+        # failures (appended below) plus each StylesheetAsset's own fetch errors
+        # (harvested at the end) — so a re-run can never double-report.
+        self.css_errors.clear()
         if not self.stylesheets:
             return ""
 
@@ -1470,7 +1540,15 @@ css_error_message {{
                 )
             asset._content = content
 
-        return "\n".join(asset.minify() for asset in self.stylesheets)
+        bundle_css = "\n".join(asset.minify() for asset in self.stylesheets)
+        # Harvest each asset's own fetch/rewrite errors. The minify pass above
+        # (and the get_source() reads earlier) is what triggers content
+        # fetching, so every asset's ``errors`` list is fully populated by now.
+        # The bundle owns ``css_errors`` and collects from the leaves here,
+        # rather than each StylesheetAsset reaching up to append to it.
+        for asset in self.stylesheets:
+            self.css_errors.extend(asset.errors)
+        return bundle_css
 
     def compile_css(self, compiler: Callable[[str], str], source: str) -> str:
         """Sanitize @import rules, remove duplicates, then compile."""
@@ -1887,12 +1965,34 @@ class StylesheetAsset(WebAsset):
     )
     rx_sourceMap = re.compile(r"(/\*# sourceMappingURL=.*)", re.UNICODE)
     rx_charset = re.compile(r'(@charset "[^"]+";)', re.UNICODE)
+    # One combined tokenizer for the two CSS spans minification must NOT reach
+    # into: comments and string literals. Alternation order matters — a ``"``
+    # inside a comment must be consumed by the comment arm (so it is not read as
+    # a string), and a ``/*`` inside a string by the string arm. ``finditer``
+    # walks left to right, so whichever opens first at a position wins; the text
+    # between matches is ordinary CSS, safe to whitespace-collapse. This is why
+    # the old four-``re.sub`` pipeline corrupted ``content: "a  b"`` and
+    # ``content: "/* x */"`` — it had no notion of these spans.
+    _CSS_TOKEN_RE = re.compile(
+        r"""/\*.*?\*/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'""",
+        re.DOTALL,
+    )
 
     def __init__(
         self, *args: Any, rtl: bool = False, autoprefix: bool = False, **kw: Any
     ) -> None:
         self.rtl = rtl
         self.autoprefix = autoprefix
+        # Per-asset fetch/rewrite errors, recorded by ``_fetch_content`` and
+        # harvested into the bundle's ``css_errors`` by ``preprocess_css``. The
+        # asset no longer reaches up to mutate the bundle's list (a leaf writing
+        # its container's state), so its error path is exercisable without a
+        # live bundle. This lives on StylesheetAsset rather than the WebAsset
+        # base on purpose: "record the problem and degrade to empty output" is
+        # the *stylesheet* recovery policy. JS assets degrade by emitting a
+        # console.error stub into their content, and XML assets treat a content
+        # error as fatal (raise XMLAssetError) — neither needs this list.
+        self.errors: list[str] = []
         super().__init__(*args, **kw)
 
     @functools.cached_property
@@ -1944,7 +2044,7 @@ class StylesheetAsset(WebAsset):
             # remove charset declarations, we only support utf-8
             return self.rx_charset.sub("", content)
         except AssetError as e:
-            self.bundle.css_errors.append(str(e))
+            self.errors.append(str(e))
             return ""
 
     def get_source(self) -> str:
@@ -1953,18 +2053,53 @@ class StylesheetAsset(WebAsset):
         content = self.inline or self._fetch_content()
         return f"/*! odoo-split:{self.id} */\n{content}"
 
+    @classmethod
+    def _minify_css_body(cls, content: str) -> str:
+        """Minify CSS text, leaving string literals and legal comments intact.
+
+        Strategy: mask the two spans minification must not touch — string
+        literals and ``/*! … */`` legal comments (license headers: FontAwesome,
+        Bootstrap dist) — behind inert NUL-delimited placeholders, drop ordinary
+        comments, then run the SAME whitespace-collapse + brace-tighten the
+        legacy pipeline used, and restore the masked spans verbatim. Because the
+        placeholders carry no whitespace or braces, that collapse reproduces the
+        legacy structural output byte-for-byte — the only behavioural change is
+        that string/legal-comment interiors are no longer corrupted. The old
+        pipeline ran the regexes string-unaware, so ``content: "a  b"`` lost a
+        space and ``content: "/* x */"`` lost its inner ``/* x */``.
+
+        :attr:`_CSS_TOKEN_RE`'s alternation order is what makes the masking
+        correct across interleaving: a ``"`` opened inside a comment is consumed
+        by the comment arm, and a ``/*`` inside a string by the string arm.
+
+        Both JS minifiers preserve legal comments the same way (rjsmin
+        ``keep_bang_comments``, esbuild ``--legal-comments=inline``).
+
+        Header-less so it is unit-testable and comparable to the legacy pipeline
+        without the per-file ``with_header`` prefix; :meth:`minify` adds the header.
+        """
+        # Drop a pre-existing sourcemap link first (whole-text, mirroring the
+        # legacy pass): re-minifying makes the old mapping meaningless.
+        content = cls.rx_sourceMap.sub("", content)
+
+        protected: list[str] = []
+
+        def _mask(match: re.Match[str]) -> str:
+            token = match.group()
+            if token[0] in "\"'" or token.startswith("/*!"):
+                protected.append(token)
+                return f"\x00{len(protected) - 1}\x00"
+            return ""  # ordinary comment — dropped
+
+        masked = cls._CSS_TOKEN_RE.sub(_mask, content)
+        masked = re.sub(r"\s+", " ", masked)
+        masked = re.sub(r" *([{}]) *", r"\1", masked)
+        # Restore via a function replacement so backslashes inside a string
+        # literal are not reinterpreted as regex escapes.
+        return re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], masked)
+
     def minify(self) -> str:
-        # remove existing sourcemaps, make no sense after re-mini
-        content = self.rx_sourceMap.sub("", self.content)
-        # comments — except ``/*! … */`` legal comments (license headers:
-        # FontAwesome, Bootstrap dist, …); both JS paths already preserve
-        # them (rjsmin ``keep_bang_comments``, esbuild
-        # ``--legal-comments=inline``).
-        content = re.sub(r"/\*(?!!).*?\*/", "", content, flags=re.DOTALL)
-        # space
-        content = re.sub(r"\s+", " ", content)
-        content = re.sub(r" *([{}]) *", r"\1", content)
-        return self.with_header(content)
+        return self.with_header(self._minify_css_body(self.content))
 
 
 class PreprocessedCSS(StylesheetAsset):

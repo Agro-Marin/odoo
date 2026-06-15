@@ -12,7 +12,7 @@
                     invisible="is_shipped or state != 'done' or incoming_picking_count == 0"
                     data-hotkey="y" groups="stock.group_stock_user" />
             </xpath>
-            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
+            <button name="action_view_invoice" position="before">
                 <button type="object"
                     name="action_view_picking"
                     class="oe_stat_button"
@@ -21,7 +21,7 @@
                     <field name="incoming_picking_count" widget="statinfo" string="Receipt"
                         help="Incoming Shipments" />
                 </button>
-            </xpath>
+            </button>
             <xpath expr="//field[@name='currency_id']" position="after">
                 <field name="is_shipped" invisible="1" />
             </xpath>
