@@ -299,7 +299,7 @@ class ModuleGraph:
         # With cycles removed, depth recursion is bounded by graph diameter.
         for name in names:
             if module := self._modules.get(name):
-                module.depth
+                module.depth  # noqa: B018 — force cached_property computation now
 
     def _find_cycle_members(self) -> set[str]:
         """Return names of modules that participate in any dependency cycle.

@@ -2,7 +2,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from odoo.modules.module import Manifest
+from odoo.modules.module import Manifest, _load_manifest
 from odoo.release import major_version
 from odoo.tests.common import BaseCase
 
@@ -110,3 +110,44 @@ class TestModuleManifest(BaseCase):
         self.assertEqual(manifest["author"], "")
         self.assertIn("Missing `author` key", capture.output[0])
         self.assertIn("Missing `license` key", capture.output[1])
+
+
+class TestManifestAutoInstall(BaseCase):
+    """Validation of the ``auto_install`` manifest key in _load_manifest.
+
+    These branches guard against silently-misparsed manifests (a string
+    becoming a set of characters, a trigger that is not a dependency).
+    """
+
+    BASE = {"author": "x", "license": "MIT"}
+
+    def test_auto_install_string_is_rejected(self):
+        # 'auto_install': 'sale' (forgot the brackets) must not become {'s','a',...}
+        with self.assertRaisesRegex(TypeError, "forget.*brackets"):
+            _load_manifest("m", {**self.BASE, "auto_install": "sale", "depends": ["sale"]})
+
+    def test_auto_install_non_bool_non_collection_rejected(self):
+        with self.assertRaisesRegex(TypeError, "must be a bool"):
+            _load_manifest("m", {**self.BASE, "auto_install": 5, "depends": ["base"]})
+
+    def test_auto_install_trigger_must_be_a_dependency(self):
+        with self.assertRaisesRegex(AssertionError, "must be dependencies"):
+            _load_manifest("m", {**self.BASE, "auto_install": ["sale"], "depends": ["base"]})
+
+    def test_auto_install_true_expands_to_all_depends(self):
+        manifest = _load_manifest(
+            "m", {**self.BASE, "auto_install": True, "depends": ["base", "sale"]}
+        )
+        self.assertEqual(manifest["auto_install"], {"base", "sale"})
+
+    def test_auto_install_list_subset_of_depends_is_kept(self):
+        manifest = _load_manifest(
+            "m", {**self.BASE, "auto_install": ["base"], "depends": ["base", "sale"]}
+        )
+        self.assertEqual(manifest["auto_install"], {"base"})
+
+    def test_base_depends_forced_empty(self):
+        self.assertEqual(_load_manifest("base", dict(self.BASE))["depends"], [])
+
+    def test_non_base_empty_depends_forced_to_base(self):
+        self.assertEqual(_load_manifest("m", dict(self.BASE))["depends"], ["base"])

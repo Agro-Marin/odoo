@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from odoo.exceptions import UserError
-from odoo.modules.module import Manifest, MissingDependency
+from odoo.modules.module import Manifest, MissingDependencyError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
 
@@ -311,7 +311,7 @@ class TestModuleAuditRound2(TransactionCase):
         """The apt-hint path must not mask the UserError when the host has no
         os-release file (platform.freedesktop_os_release raises OSError)."""
         manifest = MagicMock()
-        manifest.check_manifest_dependencies.side_effect = MissingDependency(
+        manifest.check_manifest_dependencies.side_effect = MissingDependencyError(
             "Unable to find {dependency!r}", "audit_r2_missing_binary"
         )
         with (

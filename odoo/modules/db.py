@@ -7,8 +7,8 @@ from psycopg.types.json import Json
 
 import odoo.api
 import odoo.modules
-import odoo.modules.registry
 import odoo.tools
+from odoo.orm.runtime import Registry
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor, Cursor
@@ -293,7 +293,7 @@ def initialize_db(
     try:
         odoo.tools.config["load_language"] = lang
 
-        registry = odoo.modules.registry.Registry.new(
+        registry = Registry.new(
             db_name, update_module=True, new_db_demo=demo
         )
 
