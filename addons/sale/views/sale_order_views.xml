@@ -536,16 +536,27 @@
                                 placeholder="Type to find a customer..."
                                 readonly="state in ['done', 'cancel']" />
                             <field name="client_order_ref" />
+                            <field name="partner_invoice_domain" invisible="1" />
+                            <field name="partner_shipping_domain" invisible="1" />
                             <field name="partner_invoice_id"
-                                groups="account.group_delivery_invoice_address"
+                                domain="partner_invoice_domain"
                                 options="{'no_quick_create': True}"
                                 context="{'default_type': 'invoice', 'show_address': False, 'show_vat': False, 'default_parent_id': partner_id}"
-                                readonly="state == 'cancel' or locked" />
-                            <field name="partner_shipping_id"
-                                groups="account.group_delivery_invoice_address"
-                                options="{'no_quick_create': True}"
-                                context="{'default_type': 'delivery', 'show_address': False, 'show_vat': False, 'default_parent_id': partner_id}"
-                                readonly="state == 'cancel' or locked" />
+                                readonly="state == 'cancel' or locked"
+                                groups="account.group_delivery_invoice_address" />
+                            <label for="partner_shipping_id" string="Delivery Address"
+                                groups="account.group_delivery_invoice_address" />
+                            <div name="delivery_address_row" class="o_row"
+                                groups="account.group_delivery_invoice_address">
+                                <field name="partner_shipping_id"
+                                    domain="partner_shipping_domain"
+                                    options="{'no_quick_create': True}"
+                                    context="{'default_type': 'delivery', 'show_address': False, 'show_vat': False, 'default_parent_id': partner_id}"
+                                    readonly="state == 'cancel' or locked" />
+                                <field name="allow_external_delivery_address"
+                                    readonly="state == 'cancel' or locked" />
+                                <label for="allow_external_delivery_address" string="External" />
+                            </div>
                         </group>
                         <group name="order_details">
                             <div class="o_td_label" invisible="state == 'done'">
@@ -754,14 +765,14 @@
                                                     invisible="state != 'draft' or not product_is_archived"
                                                 />
                                                 <field name="product_id"
+                                                    widget="many2one_barcode"
+                                                    required="not display_type and not is_downpayment"
                                                     context="{
                                                         'default_uom_id': product_uom_id,
                                                         'partner_id': parent.partner_id,
                                                     }"
                                                     readonly="product_readonly"
-                                                    required="not display_type and not is_downpayment"
                                                     force_save="1"
-                                                    widget="many2one_barcode"
                                                 />
                                             </div>
                                             <label for="product_qty" />
@@ -845,8 +856,8 @@
                                         <create name="add_note_control" string="Add note"
                                             context="{'default_display_type': 'line_note'}" />
                                         <button
-                                            string="Catalog"
                                             name="action_add_from_catalog"
+                                            string="Catalog"
                                             type="object"
                                             class="btn-secondary"
                                             context="{'order_id': parent.id}" />
