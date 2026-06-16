@@ -773,6 +773,56 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # All kits should be delivered
         self.assertEqual(line_ids.qty_transferred, 10)
 
+    def test_t23020_kit_qty_to_transfer_recomputed(self) -> None:
+        """Regression t23020: a fully delivered kit line recomputes qty_to_transfer.
+
+        The sale_mrp override of ``_compute_qty_transferred`` used to set only
+        ``qty_transferred`` in the kit branches without refreshing the
+        co-computed ``qty_to_transfer`` (sale_stock), so fully delivered kits
+        stayed with a positive ``qty_to_transfer`` (and a 'partial' state).
+        """
+        stock_location = self.company_data['default_warehouse'].lot_stock_id
+        self.env['stock.quant']._update_available_quantity(self.component_a, stock_location, 20)
+        self.env['stock.quant']._update_available_quantity(self.component_b, stock_location, 10)
+        self.env['stock.quant']._update_available_quantity(self.component_c, stock_location, 30)
+
+        partner = self.env['res.partner'].create({'name': 'Kit qty_to_transfer Partner'})
+        f = Form(self.env['sale.order'])
+        f.partner_id = partner
+        with f.line_ids.new() as line:
+            line.product_id = self.kit_1
+            line.product_qty = 10.0
+        so = f.save()
+        so.action_confirm()
+
+        line = so.line_ids[0]
+        # Nothing delivered yet: qty_to_transfer must mirror qty_transferred.
+        self.assertEqual(line.qty_transferred, 0)
+        self.assertEqual(
+            line.qty_to_transfer,
+            max(0.0, line.product_qty - line.qty_transferred),
+        )
+
+        # Deliver every component in full in a single picking (no backorder).
+        picking = so.picking_ids
+        self._process_quantities(picking.move_ids, {
+            self.component_a: 20,
+            self.component_b: 10,
+            self.component_c: 30,
+        })
+        picking.button_validate()
+        line._compute_qty_transferred()
+
+        # t23020: the kit branches set qty_transferred but used to leave the
+        # co-computed qty_to_transfer (sale_stock) stale, so a delivered kit
+        # stayed pending. The fix keeps both fields consistent.
+        self.assertEqual(
+            line.qty_to_transfer,
+            max(0.0, line.product_qty - line.qty_transferred),
+        )
+        # A fully delivered kit must not remain pending transfer.
+        self.assertEqual(line.qty_to_transfer, 0)
+
     def test_04_sale_mrp_kit_qty_transferred(self):
         """ Test that the quantities delivered are correct when
         a kit with subkits is ordered with multiple backorders and returns
