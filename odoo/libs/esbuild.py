@@ -675,8 +675,7 @@ class EsbuildCompiler:
                     f"odoo.loader.modules.set({json.dumps(ext_name)},"
                     f"odoo.loader.modules.get({json.dumps(int_name)}));"
                 )
-        if alias_lines:
-            entry_lines.extend(alias_lines)
+        entry_lines.extend(alias_lines)
         return entry_lines
 
     def _esbuild_flags(
