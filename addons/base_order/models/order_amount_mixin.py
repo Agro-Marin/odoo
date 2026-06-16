@@ -286,14 +286,11 @@ class OrderLineAmountMixin(models.AbstractModel):
         grouped by company for batch tax computation instead of per-line calls.
         """
         AccountTax = self.env["account.tax"]
-        lines = self.env[self._name]
-        for line in self:
-            if line.display_type:
-                line.price_subtotal = False
-                line.price_total = False
-                line.price_tax = False
-            else:
-                lines += line
+        display_lines = self.filtered(lambda line: line.display_type)
+        display_lines.price_subtotal = False
+        display_lines.price_total = False
+        display_lines.price_tax = False
+        lines = self - display_lines
         if not lines:
             return
 
