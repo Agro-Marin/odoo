@@ -1014,10 +1014,20 @@
                                             invisible="not show_update_fpos or state in ['cancel', 'posted']"/>
                                 </div>
 
-                                <field name="partner_shipping_id"
+                                <field name="partner_shipping_domain" invisible="1"/>
+                                <label for="partner_shipping_id" string="Delivery Address"
                                        groups="account.group_delivery_invoice_address"
-                                       invisible="move_type not in ('out_invoice', 'out_refund', 'out_receipt')"
-                                       readonly="state != 'draft'"/>
+                                       invisible="move_type not in ('out_invoice', 'out_refund', 'out_receipt')"/>
+                                <div name="delivery_address_row" class="o_row"
+                                     groups="account.group_delivery_invoice_address"
+                                     invisible="move_type not in ('out_invoice', 'out_refund', 'out_receipt')">
+                                    <field name="partner_shipping_id"
+                                           domain="partner_shipping_domain"
+                                           readonly="state != 'draft'"/>
+                                    <field name="allow_external_delivery_address"
+                                           readonly="state != 'draft'"/>
+                                    <label for="allow_external_delivery_address" string="External"/>
+                                </div>
                                 <field name="quick_edit_total_amount" class="w-50"
                                        invisible="move_type == 'entry' or not quick_edit_mode"
                                        readonly="state != 'draft'"/>
