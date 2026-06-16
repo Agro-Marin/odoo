@@ -106,6 +106,32 @@ class AttachmentStorage:
         """
         raise NotImplementedError
 
+    def write_stream(self, fileobj: Any) -> dict[str, Any]:
+        """Persist the content read from *fileobj* and return its store values.
+
+        Default implementation BUFFERS the whole stream then delegates to
+        :meth:`write` — backends that can stream (see :class:`FileStorage`)
+        override this to keep peak memory flat. Backends that cannot stream
+        (``db``, custom column stores) inherit the buffering, preserving the
+        previous behavior.
+
+        :param fileobj: a binary file-like supporting ``read(size)``
+        :return: the create/write columns to persist (``store_fname`` /
+            ``db_datas`` / ``checksum`` / ``file_size``)
+        :rtype: dict
+        """
+        model = self.env["ir.attachment"]
+        data = fileobj.read()
+        if isinstance(data, str):
+            data = data.encode()
+        checksum = model._content_checksum(data)
+        self.write(data, checksum)
+        return {
+            "checksum": checksum,
+            "file_size": len(data),
+            **self.datas_values(data, checksum),
+        }
+
     def migration_domain(self) -> list:
         """Return the domain matching attachments NOT in this backend.
 
@@ -191,6 +217,24 @@ class FileStorage(AttachmentStorage):
         if not data:
             return None
         return self._model()._file_write(data, checksum)
+
+    def write_stream(self, fileobj: Any) -> dict[str, Any]:
+        # True streaming: chunked copy + incremental hash, no full buffer.
+        fname, size, checksum = self._model()._file_write_stream(fileobj)
+        if not size:
+            # empty content stays inline, like the buffered path's datas_values
+            return {
+                "checksum": checksum,
+                "file_size": 0,
+                "store_fname": False,
+                "db_datas": b"",
+            }
+        return {
+            "checksum": checksum,
+            "file_size": size,
+            "store_fname": fname,
+            "db_datas": False,
+        }
 
     def migration_domain(self) -> list[tuple[str, str, Any]]:
         return [("db_datas", "!=", False)]

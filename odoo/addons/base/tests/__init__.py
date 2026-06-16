@@ -30,6 +30,7 @@ from . import test_ira_challenge
 from . import test_ira_migrate_reuse
 from . import test_ira_search_security
 from . import test_ira_audit_fixes
+from . import test_ira_streaming
 from . import test_ir_attachment_storage
 from . import test_ir_binary
 from . import test_ir_cron
@@ -51,6 +52,7 @@ from . import test_mimetypes
 from . import test_misc
 from . import test_module
 from . import test_module_graph
+from . import test_module_migration
 from . import test_orm
 from . import test_ormcache
 from . import test_overrides
