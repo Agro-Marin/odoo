@@ -9,6 +9,7 @@ from contextlib import nullcontext as _nullcontext
 from datetime import datetime, timedelta
 from decimal import Decimal as _Decimal
 from inspect import currentframe
+from time import monotonic
 from typing import TYPE_CHECKING, Any, Self
 
 import psycopg
@@ -728,7 +729,13 @@ class Cursor(BaseCursor):
         # the advanced stats) — computed before ``start`` so the isEnabledFor
         # call never lands inside the measured query window.
         debug = _logger.isEnabledFor(logging.DEBUG)
+        # start: wall-clock, forwarded to query hooks so SQL entries align with
+        # the profiler's wall-clock frame timeline.  t0: monotonic, used for the
+        # duration — ``real_time`` is ``time.time`` (wall-clock), so an NTP
+        # step-back mid-query would make ``delay`` negative and corrupt
+        # query_time / sql_*_log accumulators.
         start = real_time()
+        t0 = monotonic()
         try:
             self._obj.execute(query, params)
         except Exception as e:
@@ -736,7 +743,7 @@ class Cursor(BaseCursor):
                 _log_sql_error(e, query)
             raise
         finally:
-            delay = real_time() - start
+            delay = monotonic() - t0
             if debug:
                 _logger.debug(
                     "[%.3f ms] query: %s",
@@ -872,14 +879,15 @@ class Cursor(BaseCursor):
         if not params_seq:
             return
 
-        start = real_time()
+        start = real_time()  # wall-clock for hooks; t0 (monotonic) for duration
+        t0 = monotonic()
         try:
             self._obj.executemany(query, params_seq, returning=returning)
         except Exception as e:
             _log_sql_error(e, query)
             raise
         finally:
-            delay = real_time() - start
+            delay = monotonic() - t0
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(
                     "[%.3f ms] executemany (%d rows): %s",
@@ -1061,7 +1069,8 @@ class Cursor(BaseCursor):
         else:
             _numeric_idxs = None
 
-        start = real_time()
+        start = real_time()  # wall-clock for hooks; t0 (monotonic) for duration
+        t0 = monotonic()
         row_count = 0
         try:
             with self._obj.copy(copy_stmt) as copy:
@@ -1089,7 +1098,7 @@ class Cursor(BaseCursor):
             _logger.error("bad COPY: %s\nERROR: %s", copy_stmt.as_string(self._obj), e)
             raise
         finally:
-            delay = real_time() - start
+            delay = monotonic() - t0
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(
                     "[%.3f ms] COPY %s (%d rows)",
