@@ -10,10 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from odoo.libs._vendor import sessions
-from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
-from odoo.libs.json import loads as _fast_loads
 from odoo.tools import get_lang
-from odoo.tools.json import orjson_default
 
 from .constants import (
     DEFAULT_LANG,
@@ -154,10 +151,14 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         self.save(session)
 
     def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
-        from .application import root  # lazy import
-
+        # Operate on THIS store's own directory. Reaching through the global
+        # ``root.session_store.path`` made the method ignore ``self`` — it
+        # always vacuumed the singleton's filestore regardless of which store
+        # it was called on (harmless while the only caller is
+        # ``http.root.session_store.vacuum(...)``, but a latent bug for any
+        # other store and a plain encapsulation violation).
         threshold = time.time() - max_lifetime
-        base_path = Path(root.session_store.path)
+        base_path = Path(self.path)
         for path in base_path.glob("*/*"):
             with contextlib.suppress(OSError):
                 if path.stat().st_mtime < threshold:
