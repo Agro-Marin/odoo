@@ -66,6 +66,13 @@ def _find_value_markers(query: str) -> list[int]:
     return out
 
 
+# Named-parameter markers for the dict path: ``%(name)s`` to substitute, or
+# ``%%`` as an escaped literal percent.  A bare ``%`` matching neither (e.g.
+# ``-- 50% off`` in a COMMENT body) is left untouched, so it is preserved as a
+# literal instead of crashing ``qs % {...}`` with a format error.
+_DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
+
+
 def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
     """Return *qs* with *params* spliced in as client-side quoted literals.
 
@@ -82,10 +89,21 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
     """
     # psycopg.sql.quote already returns str — no wrapper needed.
     if isinstance(params, dict):
-        # %(name)s style: Python formatting is the only practical
-        # substitution.  Documented caveat — a literal % in a dict-param
-        # DDL body must be written %% by the caller.
-        return qs % {k: _sql.quote(v, ctx) for k, v in params.items()}
+        # %(name)s style.  Substitute named markers with a %%-aware regex
+        # rather than ``qs % {...}`` so a literal % in the DDL body — e.g.
+        # ``COMMENT ON TABLE t IS 'imported -- 50% off'`` — is preserved
+        # instead of raising ``TypeError: not enough arguments for format
+        # string``.  This mirrors the escape-aware handling on the positional
+        # path below.  re.sub with a callable repl inserts the quoted literal
+        # verbatim (no backreference processing), so values containing % or \
+        # are safe.
+        def _sub_named(m: _re.Match) -> str:
+            name = m.group(1)
+            if name is None:  # matched the '%%' escape
+                return "%"
+            return _sql.quote(params[name], ctx)
+
+        return _DICT_MARKER_RE.sub(_sub_named, qs)
     # Splice quoted values at the real %s markers rather than using
     # ``qs % (...)``, which misreads a literal % in the DDL body
     # (e.g. COMMENT ... IS '50% done') as a format spec and raises.
