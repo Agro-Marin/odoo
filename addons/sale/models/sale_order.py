@@ -106,6 +106,22 @@ class SaleOrder(models.Model):
         check_company=True,
         index="btree_not_null",
     )
+    allow_external_delivery_address = fields.Boolean(
+        string="Allow External Delivery Address",
+        default=False,
+        tracking=True,
+        help="Allow selecting a delivery address that does not belong to the "
+        "customer's company (e.g. drop-shipping to a third party). When "
+        "disabled, the delivery address is limited to the customer's own contacts.",
+    )
+    partner_invoice_domain = fields.Binary(
+        compute="_compute_partner_address_domains",
+        help="Dynamic domain limiting invoice address selection.",
+    )
+    partner_shipping_domain = fields.Binary(
+        compute="_compute_partner_address_domains",
+        help="Dynamic domain limiting delivery address selection.",
+    )
     fiscal_position_id = fields.Many2one(
         comodel_name="account.fiscal.position",
         string="Fiscal Position",
@@ -832,6 +848,29 @@ class SaleOrder(models.Model):
                 order.partner_id.address_get(["delivery"])["delivery"]
                 if order.partner_id
                 else False
+            )
+
+    @api.depends(
+        "commercial_partner_id", "company_id", "allow_external_delivery_address"
+    )
+    def _compute_partner_address_domains(self):
+        """Build the dynamic selection domains for the invoice/delivery address fields."""
+        for order in self:
+            company_ids = [False, order.company_id.id] if order.company_id else [False]
+            company_term = ("company_id", "in", company_ids)
+            # Invoice address is always confined to the customer's commercial entity.
+            if order.commercial_partner_id:
+                in_entity = [
+                    ("id", "child_of", order.commercial_partner_id.id),
+                    company_term,
+                ]
+            else:
+                in_entity = [company_term]
+            order.partner_invoice_domain = in_entity
+            # Delivery address widens to any partner in the company only when external
+            # delivery (e.g. drop-shipping to a third party) is explicitly allowed.
+            order.partner_shipping_domain = (
+                [company_term] if order.allow_external_delivery_address else in_entity
             )
 
     @api.depends("partner_id")
@@ -2519,6 +2558,7 @@ class SaleOrder(models.Model):
             "team_id": self.team_id.id,
             "partner_id": self.partner_invoice_id.id,
             "partner_shipping_id": self.partner_shipping_id.id,
+            "allow_external_delivery_address": self.allow_external_delivery_address,
             "invoice_payment_term_id": self.payment_term_id.id,
             "fiscal_position_id": (
                 self.fiscal_position_id
