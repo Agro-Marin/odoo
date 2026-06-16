@@ -260,6 +260,15 @@ class IrAttachment(models.Model):
             vals.pop(field, None)
         return has_content
 
+    # Content-metadata derivation runs in TWO places BY DESIGN — do not unify:
+    # create() computes file_size/checksum/index_content/store_fname INLINE and
+    # pops 'raw' (so the inverse does not re-run), which enables the
+    # write-as-we-go filestore write that keeps a batch create flat in memory;
+    # write() instead leaves 'raw' in vals and lets _inverse_raw ->
+    # _set_attachment_data derive them. Both paths converge on the shared
+    # _normalize_content_vals + _get_datas_related_values helpers, which is what
+    # keeps them from drifting. Collapsing them onto one mechanism reintroduces
+    # the O(total bytes) buffering this split exists to avoid.
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         # Copy first: _normalize_content_vals rewrites/strips keys in place and
@@ -1098,8 +1107,17 @@ class IrAttachment(models.Model):
                 values["raw"] = image_data
             else:
                 values["datas"] = base64.b64encode(image_data)
-        except UserError as e:
-            # Catch error during test where we provide fake image
+        except (UserError, OSError, image.Image.DecompressionBombError) as e:
+            # Autoresize is best-effort and must never 500 an upload. Decode
+            # errors are wrapped as UserError by ImageProcess.__init__, but
+            # resize()/image_quality() leak PIL-native exceptions that the old
+            # UserError-only catch let escape: a truncated image raises OSError
+            # (when PIL's ImageFile.LOAD_TRUNCATED_IMAGES is off — a global set
+            # as an import side-effect of ir_actions_report, not here), and an
+            # oversized one raises DecompressionBombError during the
+            # verify_resolution=False decode, where PIL's guard is the only
+            # check. Swallow these and keep the original bytes unprocessed; the
+            # payload is never fully decoded, so this cannot blow up memory.
             _logger.info("Post processing ignored : %s", e)
         return values
 
@@ -1431,8 +1449,18 @@ class IrAttachment(models.Model):
     def create_unique(self, values_list: list[dict[str, Any]]) -> list[int]:
         """Create attachments, deduplicating by checksum/size/mimetype.
 
-        Performs a single batch search for all existing checksums instead of
-        one query per attachment.
+        Accepts content as base64 ``datas`` or raw ``raw`` (bytes/str), like
+        :meth:`create` (``raw`` wins by key presence). The create() content
+        pipeline (mimetype guess, XML neutralization, image autoresize) runs
+        ONCE per value in the probe phase, so the dedup key is the checksum of
+        the bytes that will actually be stored. Hashing the pre-pipeline bytes
+        instead made an autoresized image miss an already-stored copy and
+        create a duplicate row on every separate call (the content-addressed
+        file still deduped; only the rows did not). The pipeline is cheap for
+        the common inputs — webp is skipped on a magic-byte check and an
+        in-bounds image is a header-only parse — and a full decode happens only
+        for an oversized image, whose resized bytes are then reused so create()
+        does not redo the work.
 
         :raise UserError: if a value is not base64-encoded or omits ``mimetype``
 
@@ -1442,24 +1470,29 @@ class IrAttachment(models.Model):
             therefore belong to another company. Reading that id is still
             ACL-gated, so this leaks no content (IRA-C2).
         """
-        # Phase 1: decode and compute checksums for all values
-        entries: list[tuple[dict, str, int, str, bytes]] = []
+        # Phase 1: normalize content (raw|datas), apply the create() content
+        # pipeline, and key the dedup on the FINAL (post-pipeline) checksum.
+        entries: list[tuple[dict, str, int, str]] = []
         for values in values_list:
-            try:
-                bin_data = base64.b64decode(values.get("datas", ""))
-            except binascii.Error as exc:
-                raise UserError(_("Attachment is not encoded in base64.")) from exc
             if "mimetype" not in values:
                 raise UserError(_("Attachment is missing its mimetype."))
-            checksum = self._content_checksum(bin_data)
-            entries.append(
-                (values, checksum, len(bin_data), values["mimetype"], bin_data)
-            )
+            vals = {k: v for k, v in values.items() if k != "datas"}
+            if "raw" in values:
+                raw = values["raw"] or b""
+                vals["raw"] = raw.encode() if isinstance(raw, str) else raw
+            else:
+                try:
+                    vals["raw"] = base64.b64decode(values.get("datas") or b"")
+                except binascii.Error as exc:
+                    raise UserError(_("Attachment is not encoded in base64.")) from exc
+            vals = self._check_contents(vals)
+            checksum = self._content_checksum(vals["raw"])
+            entries.append((vals, checksum, len(vals["raw"]), vals["mimetype"]))
 
         # Phase 2: batch search for existing attachments by checksum.
         # skip_res_field_check: the dedup must also match attachments backing
         # binary fields, which _search hides by default.
-        all_checksums = list({cs for _, cs, _, _, _ in entries})
+        all_checksums = list({cs for _, cs, _, _ in entries})
         existing_by_key: dict[tuple, Any] = {}
         if all_checksums:
             for att in (
@@ -1471,29 +1504,27 @@ class IrAttachment(models.Model):
                 existing_by_key.setdefault(key, att)
 
         # Phase 3: batch-create the misses (in-batch duplicates dedup to the
-        # first occurrence), then resolve ids in input order
+        # first occurrence), then resolve ids in input order. The content
+        # pipeline already ran in phase 1, so skip a second autoresize pass.
         to_create = []
         new_index_by_key: dict[tuple, int] = {}
-        for values, checksum, file_size, mimetype, bin_data in entries:
+        for vals, checksum, file_size, mimetype in entries:
             key = (checksum, file_size, mimetype)
             if key not in existing_by_key and key not in new_index_by_key:
                 new_index_by_key[key] = len(to_create)
-                # pass the already-decoded bytes as 'raw' so create() does not
-                # re-run base64 decode on the same payload
-                to_create.append(
-                    {
-                        **{k: v for k, v in values.items() if k != "datas"},
-                        "raw": bin_data,
-                    }
-                )
-        created = self.create(to_create) if to_create else self.browse()
+                to_create.append(vals)
+        created = (
+            self.with_context(image_no_postprocess=True).create(to_create)
+            if to_create
+            else self.browse()
+        )
         return [
             (
                 existing.id
                 if (existing := existing_by_key.get((checksum, file_size, mimetype)))
                 else created[new_index_by_key[checksum, file_size, mimetype]].id
             )
-            for _values, checksum, file_size, mimetype, _bin in entries
+            for _vals, checksum, file_size, mimetype in entries
         ]
 
     def _generate_access_token(self) -> str:
