@@ -728,8 +728,8 @@
                                         <create name="add_note_control" string="Add note"
                                             context="{'default_display_type': 'line_note'}" />
                                         <button
-                                            string="Catalog"
                                             name="action_add_from_catalog"
+                                            string="Catalog"
                                             type="object"
                                             class="btn-secondary"
                                             context="{'order_id': parent.id}" />
@@ -811,6 +811,8 @@
                                         readonly="state in ['done', 'cancel']" />
                                 </group>
                                 <group name="invoice_info" string="Invoicing">
+                                    <field name="journal_id"
+                                        readonly="invoice_count != 0 and state == 'done'" />
                                     <field name="invoice_state"
                                         invisible="state in ['draft', 'cancel']" />
                                     <field name="fiscal_position_id" options="{'no_create': True}"
