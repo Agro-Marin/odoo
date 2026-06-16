@@ -10,6 +10,7 @@ import odoo.db
 import odoo.tools.sql
 from odoo import api, tools
 from odoo.api import Environment
+from odoo.orm.runtime import Registry
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
@@ -18,7 +19,6 @@ from . import db as modules_db
 from .migration import MigrationManager
 from .module import adapt_version, initialize_sys_path, load_odoo_module
 from .module_graph import ModuleGraph
-from .registry import Registry
 
 LoadKind = typing.Literal["data", "demo"]
 
@@ -39,11 +39,10 @@ def load_data(
     mode: LoadMode,
     kind: LoadKind,
     package: ModuleNode,
-) -> bool:
-    """
-    noupdate is False, unless it is demo data
+) -> None:
+    """Load the data (or demo) files declared by ``package``'s manifest.
 
-    :returns: Whether a file was loaded
+    noupdate is False, unless it is demo data.
     """
     # demo_xml is also iterated for kind="demo" — the load_demo guard checks
     # both keys, so a module declaring only 'demo_xml' would otherwise have
@@ -81,8 +80,6 @@ def load_data(
                 mode,
                 noupdate=kind == "demo",
             )
-
-    return bool(files)
 
 
 def load_demo(
