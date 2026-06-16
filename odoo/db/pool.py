@@ -106,6 +106,18 @@ def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | N
 
     Returning the precise class — rather than a generic error — lets callers
     such as ``exp_db_exist`` keep matching ``InvalidCatalogName`` unchanged.
+
+    .. note::
+        This text-match is **locale-dependent** and intentionally only the
+        *fast* path: on a server with ``lc_messages`` set to e.g. ``es_MX`` the
+        FATAL reads "no existe la base de datos" and this returns ``None``.
+        That gap is closed by :meth:`ConnectionPool._database_absent`, which
+        confirms a missing database via the ``postgres`` catalog regardless of
+        server language.  Pinning the probe's language via
+        ``options='-c lc_messages=C'`` was rejected: the database-existence
+        check fires *before* startup ``-c`` GUCs are applied (verified — a
+        bogus ``-c`` param yields "database does not exist", not "unrecognized
+        configuration parameter", against a missing DB).
     """
     msg = str(exc).lower()
     if 'database "' in msg and "does not exist" in msg:
@@ -334,6 +346,16 @@ class ConnectionPool:
             translated = _translate_connect_error(e)
             if translated is not None:
                 raise translated from e
+            # The English text-match found nothing — but on a non-English
+            # server (e.g. lc_messages=es_MX) a real "database does not exist"
+            # hides behind an unclassifiable, localised message.  Confirm
+            # locale-independently via the postgres catalog before surrendering
+            # to the pool's ~30s retry; this restores ``exp_db_exist``'s fast
+            # ``InvalidCatalogName`` path regardless of server language.  Only
+            # runs on the already-failed path, so the English happy path pays
+            # nothing.
+            if self._database_absent(conninfo, kwargs):
+                raise psycopg.errors.InvalidCatalogName(str(e)) from e
             # Unrecognised / possibly transient — let the pool's retry recover it.
             _logger.debug(
                 "Pool pre-flight probe failed (treating as transient)",
@@ -346,6 +368,57 @@ class ConnectionPool:
                 "Pool pre-flight probe failed (treating as transient)",
                 exc_info=True,
             )
+
+    def _database_absent(self, conninfo: str, kwargs: dict) -> bool:
+        """Locale-independently decide whether the target database is absent.
+
+        The connect-phase "database does not exist" FATAL is only classifiable
+        by its (localised) text, so on a non-English server the existence of a
+        missing database cannot be inferred from the failure itself.  Here we
+        connect to the always-present ``postgres`` maintenance DB — the same
+        control DB the rest of :mod:`odoo.service.db` uses — over the identical
+        host/auth and ask the catalog directly:
+        ``SELECT 1 FROM pg_database WHERE datname = %s``.
+
+        :return: ``True`` only when the catalog *confirms* the database is
+            absent.  ``False`` covers both "it exists" and "couldn't tell"
+            (no access to ``postgres``, network gone, target *is* ``postgres``)
+            — in every uncertain case the caller falls back to treating the
+            original error as transient, so this can never manufacture a false
+            ``InvalidCatalogName``.
+        """
+        components = conninfo_to_dict(conninfo) if conninfo else {}
+        db_name = kwargs.get("dbname") or components.get("dbname")
+        # Nothing to disambiguate, or the failing target *is* the maintenance
+        # DB (probing it through itself is circular) — defer to the caller.
+        if not db_name or db_name == "postgres":
+            return False
+        # Reuse the same host/port/user/password/sslmode; only swap the dbname
+        # to ``postgres`` and force autocommit + the short probe timeout.  Drop
+        # ``options`` (per-session GUCs are irrelevant to a catalog lookup) and
+        # any leftover ``dsn`` key.  Explicit kwargs override URI components,
+        # matching psycopg precedence.
+        maint = {**components, **kwargs}
+        for k in ("dsn", "options", "dbname"):
+            maint.pop(k, None)
+        maint["dbname"] = "postgres"
+        maint["autocommit"] = True
+        maint["connect_timeout"] = _PROBE_CONNECT_TIMEOUT
+        try:
+            with psycopg.connect("", **maint) as mc:
+                row = mc.execute(
+                    "SELECT 1 FROM pg_database WHERE datname = %s", (db_name,)
+                ).fetchone()
+            return row is None
+        except Exception:
+            # Maintenance DB unreachable / no CONNECT / auth failure — we cannot
+            # tell, so report "not confirmed absent" and let the original error
+            # be handled as transient (today's behaviour, no regression).
+            _logger.debug(
+                "pg_database existence check unavailable for %r", db_name,
+                exc_info=True,
+            )
+            return False
 
     def _get_or_create_pool(
         self, key: frozenset, connection_info: dict
