@@ -206,6 +206,10 @@ class IrAttachment(models.Model):
     # Override per subclass to index more/less.
     _INDEX_MAX_BYTES = 4 * 1024 * 1024
 
+    # Chunk size for streaming uploads into the filestore: peak memory per
+    # upload is O(this), not O(file size). Override per subclass to tune.
+    _STREAM_CHUNK_SIZE = 128 * 1024
+
     def _check_res_field_access(self, res_model: str, res_field: str) -> None:
         """Validate write access to a field-backing attachment's target field.
 
@@ -746,6 +750,86 @@ class IrAttachment(models.Model):
                     tmp_path.unlink()
                 raise
         return fname
+
+    @api.model
+    def _file_write_stream(
+        self, fileobj: Any, *, chunk_size: int | None = None
+    ) -> tuple[str, int, str]:
+        """Stream *fileobj* into the filestore, hashing as it goes.
+
+        Reads *fileobj* in chunks, writing each to a temp file while updating a
+        running SHA-1, then atomically moves the temp into its
+        content-addressed path (or drops it on a dedup hit). Peak memory is one
+        chunk, never the whole payload — the streaming counterpart of
+        :meth:`_file_write`, which requires the full ``bytes`` up front.
+
+        :param fileobj: a binary file-like supporting ``read(size)``
+        :return: ``(store_fname, file_size, checksum)``; ``store_fname`` is
+            ``""`` for empty content (the caller keeps it inline as db_datas)
+        :rtype: tuple
+        """
+        chunk_size = chunk_size or self._STREAM_CHUNK_SIZE
+        digest = hashlib.sha1(usedforsecurity=False)
+        size = 0
+        tmp_dir = Path(self._full_path("tmp"))
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = tmp_dir / f"stream-{uuid.uuid4().hex}"
+        try:
+            with tmp_path.open("wb") as out:
+                while chunk := fileobj.read(chunk_size):
+                    if isinstance(chunk, str):
+                        chunk = chunk.encode()
+                    digest.update(chunk)
+                    size += len(chunk)
+                    out.write(chunk)
+            checksum = digest.hexdigest()
+            if not size:
+                # empty content is never filestore-backed (stays inline)
+                tmp_path.unlink(missing_ok=True)
+                return "", 0, checksum
+            fname = self._file_store_path(checksum)
+            full_path = Path(self._full_path(fname))
+            full_path.parent.mkdir(exist_ok=True, parents=True)
+            if full_path.is_file():
+                # dedup hit: rule out a SHA-1 collision file-vs-file (no
+                # buffering) before discarding the just-streamed temp. Opt-out
+                # via the same param as _get_path.
+                if self._verify_content_collision() and not self._same_content_files(
+                    str(tmp_path), str(full_path)
+                ):
+                    tmp_path.unlink(missing_ok=True)
+                    raise UserError(_("The attachment collides with an existing file."))
+                tmp_path.unlink(missing_ok=True)
+            else:
+                # atomic within the filestore (same filesystem), like _file_write
+                tmp_path.replace(full_path)
+            # add fname to checklist, in case the transaction aborts
+            self._mark_for_gc(fname)
+            return fname, size, checksum
+        except OSError:
+            _logger.info("_file_write_stream writing %s", tmp_path, exc_info=True)
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
+            raise
+
+    @api.model
+    def _same_content_files(self, path_a: str, path_b: str) -> bool:
+        """Return whether two files hold identical bytes (streamed compare).
+
+        File-vs-file counterpart of :meth:`_same_content`, used by
+        :meth:`_file_write_stream` so a dedup collision check never buffers
+        either side.
+        """
+        if Path(path_a).stat().st_size != Path(path_b).stat().st_size:
+            return False
+        BLOCK_SIZE = 65536
+        with Path(path_a).open("rb") as fa, Path(path_b).open("rb") as fb:
+            while True:
+                chunk_a = fa.read(BLOCK_SIZE)
+                if chunk_a != fb.read(BLOCK_SIZE):
+                    return False
+                if not chunk_a:
+                    return True
 
     @api.model
     def _file_delete(self, fname: str) -> None:
@@ -1580,15 +1664,79 @@ class IrAttachment(models.Model):
         else:
             raise ValueError(f"{mimetype=}")
 
+        if self._should_stream_upload(mimetype):
+            # Stream straight to storage: werkzeug has already spooled the upload
+            # to a temp file, so file.read() would only copy disk -> RAM.
+            return self._create_from_stream(
+                file, name=filename, mimetype=mimetype, **vals
+            )
         return self.create(
             {
                 "name": filename,
                 "type": "binary",
-                "raw": file.read(),  # load the entire file in memory :(
+                "raw": file.read(),  # image autoresize needs the full payload
                 "mimetype": mimetype,
                 **vals,
             }
         )
+
+    def _should_stream_upload(self, mimetype: str) -> bool:
+        """Whether an upload of *mimetype* can be streamed to storage.
+
+        Streaming keeps peak memory flat but bypasses the in-memory content
+        pipeline, so it is used only when no transform rewrites the bytes. The
+        one such transform is image autoresize (:meth:`_postprocess_contents`);
+        everything else needs at most a prefix (mimetype sniff, ``_index``) or
+        just metadata. So buffer only for an image autoresize may shrink, and
+        stream everything else.
+
+        :param str mimetype: the resolved upload mimetype
+        :rtype: bool
+        """
+        if self.env.context.get("image_no_postprocess"):
+            return True
+        maintype, _, subtype = (mimetype or "").partition("/")
+        if maintype != "image":
+            return True
+        subtypes, max_width, _height, _quality = self._get_image_autoresize_config()
+        return not (max_width and subtype in subtypes)
+
+    def _create_from_stream(
+        self, fileobj: Any, *, name: str, mimetype: str, **vals: Any
+    ) -> Self:
+        """Create a binary attachment by streaming *fileobj* into storage.
+
+        The row is created first (running create()'s access checks and post-add
+        hooks) WITHOUT content, then the payload is streamed into the configured
+        backend and the derived metadata written back internally — mirroring how
+        :meth:`copy` sets content metadata via a ``super()`` write. Peak memory
+        stays O(chunk), unlike the buffered ``raw=file.read()`` path.
+
+        :param fileobj: a binary file-like supporting ``read(size)``
+        :rtype: ir.attachment
+        """
+        record = self.create(
+            {"name": name, "type": "binary", "mimetype": mimetype, **vals}
+        )
+        # Resolve the write-side backend once and stream the payload into it.
+        store_values = self._storage_backend().write_stream(fileobj)
+        # index_content from a bounded prefix of the stored content (text only).
+        # _index returns None for non-text, so this is a no-op for binaries.
+        prefix = b""
+        if store_values.get("store_fname"):
+            prefix = self._backend_for_key(store_values["store_fname"]).read(
+                store_values["store_fname"], self._INDEX_MAX_BYTES
+            )
+        elif store_values.get("db_datas"):
+            prefix = (store_values["db_datas"] or b"")[: self._INDEX_MAX_BYTES]
+        store_values["index_content"] = self._index(prefix, record.mimetype)
+        # Content metadata is internal: bypass the public write override, exactly
+        # as copy() does for relinked content.
+        super(IrAttachment, record.sudo()).write(store_values)
+        # The content of a (possibly served) binary changed; re-check serving
+        # permission, which the super() write bypassed (IRA-P1-1).
+        record._check_serving_attachments()
+        return record
 
     def _to_http_stream(self) -> Stream:
         """Create a :class:`~Stream`: from an ir.attachment record."""
