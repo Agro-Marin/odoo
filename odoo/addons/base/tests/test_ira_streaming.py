@@ -14,11 +14,14 @@ chunks instead of buffered whole via ``file.read()``. These tests pin:
 import hashlib
 import io
 import os
+from unittest.mock import patch
 
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.base.models.ir_attachment import IrAttachment
 
 
 class _ReadSpy:
@@ -138,6 +141,38 @@ class TestIraStreaming(TransactionCase):
         a2 = self._upload(data, "b.bin", "application/octet-stream")
         self.assertNotEqual(a1.id, a2.id)
         self.assertEqual(a1.store_fname, a2.store_fname)
+
+    def test_from_request_file_routes_to_streaming_primitive(self):
+        """Isolation: prove the path taken, not just the resulting bytes.
+
+        An image_no_postprocess upload must go through _file_write_stream; an
+        autoresize-eligible image (no such context) must NOT — it buffers so PIL
+        can resize. Same payload both times, so only the route differs.
+        """
+        payload = self._solid_jpeg(3000, 3000)
+        calls = []
+        real = IrAttachment._file_write_stream
+
+        def spy(model, fileobj, **kwargs):
+            calls.append(1)
+            return real(model, fileobj, **kwargs)
+
+        with patch.object(IrAttachment, "_file_write_stream", spy):
+            fs = FileStorage(
+                stream=io.BytesIO(payload), filename="a.jpg", content_type="image/jpeg"
+            )
+            self.Attachment.with_context(image_no_postprocess=True)._from_request_file(
+                fs, mimetype="TRUST"
+            )
+            self.assertEqual(len(calls), 1, "image_no_postprocess must stream")
+
+            fs2 = FileStorage(
+                stream=io.BytesIO(payload), filename="b.jpg", content_type="image/jpeg"
+            )
+            self.Attachment._from_request_file(fs2, mimetype="TRUST")
+            self.assertEqual(
+                len(calls), 1, "autoresize image must NOT use the streaming primitive"
+            )
 
     def test_from_request_file_db_location_buffers(self):
         icp = self.env["ir.config_parameter"].sudo()
