@@ -21,7 +21,7 @@ from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.parse_version import parse_version
-from odoo.modules.module import Manifest, MissingDependency
+from odoo.modules.module import Manifest, MissingDependencyError
 from odoo.orm._typing import ValuesType
 from odoo.tools import config
 from odoo.tools.misc import get_flag, topological_sort
@@ -533,7 +533,7 @@ class IrModuleModule(models.Model):
             return  # unavailable module, there is no point in checking dependencies
         try:
             manifest.check_manifest_dependencies()
-        except MissingDependency as e:
+        except MissingDependencyError as e:
             if newstate == "to install":
                 msg = _(
                     'Unable to install module "%(module)s" because an external dependency is not met: %(dependency)s',

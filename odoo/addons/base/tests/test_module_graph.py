@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
-from odoo.modules.module_graph import ModuleGraph
+from odoo.modules.module_graph import ModuleGraph, ModuleNode
 from odoo.tests.common import BaseCase
-from odoo.tools import mute_logger
+from odoo.tools import OrderedSet, mute_logger
 
 
 class TestGraph(BaseCase):
@@ -136,6 +136,24 @@ class TestGraph(BaseCase):
             ["base", "module1", "module2"],
         )
 
+    def test_graph_order_shared_cycle_members_removed(self):
+        # Two cycles sharing nodes 'a' and 'd' (a->b->d->a and a->c->d->a).
+        # Every participant must be dropped; only 'base' survives.  This guards
+        # the Tarjan SCC rewrite against a regression to the old single-pass DFS.
+        dependency = {
+            "base": [],
+            "module1": ["base"],
+            "a": ["base", "b", "c"],
+            "b": ["d"],
+            "c": ["d"],
+            "d": ["a"],
+        }
+        self._test_graph_order(
+            dependency,
+            [["base"], ["module1", "a", "b", "c", "d"]],
+            ["base", "module1"],
+        )
+
     def test_graph_order_with_test_modules(self):
         dependency = {
             "base": [],
@@ -175,3 +193,55 @@ class TestGraph(BaseCase):
                 "test_b",
             ],
         )
+
+
+class TestCycleDetection(BaseCase):
+    """Unit tests for ModuleGraph._find_cycle_members (Tarjan SCC).
+
+    These exercise the algorithm directly, before ``extend`` removes the
+    offending nodes.  An end-to-end order test cannot distinguish a correct
+    detector from a buggy one here, because ``_remove`` cascades to dependents
+    and would prune a missed node transitively anyway.
+    """
+
+    @staticmethod
+    def _graph(edges: dict[str, list[str]]) -> ModuleGraph:
+        """Build a graph of bare ModuleNodes with the given depends edges.
+
+        Bypasses __init__ (no manifest/DB needed): _find_cycle_members only
+        reads ``.name`` and ``.depends``.
+        """
+        graph = ModuleGraph.__new__(ModuleGraph)
+        graph._modules = {}
+        graph.mode = "load"
+        graph._cr = None
+        nodes = {}
+        for name in edges:
+            node = ModuleNode.__new__(ModuleNode)
+            node.name = name
+            node.module_graph = graph
+            nodes[name] = node
+            graph._modules[name] = node
+        for name, deps in edges.items():
+            nodes[name].depends = OrderedSet(nodes[d] for d in deps)
+        return graph
+
+    def test_shared_node_two_cycles(self):
+        # a->b->d->a and a->c->d->a: one SCC {a,b,c,d}.  The previous DFS could
+        # reach 'c' only after 'd' was DONE and miss it; Tarjan flags all four.
+        graph = self._graph(
+            {"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": ["a"]}
+        )
+        self.assertEqual(graph._find_cycle_members(), {"a", "b", "c", "d"})
+
+    def test_acyclic_graph_has_no_members(self):
+        graph = self._graph({"base": [], "a": ["base"], "b": ["a", "base"]})
+        self.assertEqual(graph._find_cycle_members(), set())
+
+    def test_self_loop_is_a_cycle(self):
+        graph = self._graph({"x": ["x"], "y": ["x"]})
+        self.assertEqual(graph._find_cycle_members(), {"x"})
+
+    def test_simple_two_cycle_leaves_dependents_clean(self):
+        graph = self._graph({"p": ["q"], "q": ["p"], "r": ["p"]})
+        self.assertEqual(graph._find_cycle_members(), {"p", "q"})

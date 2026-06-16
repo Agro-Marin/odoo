@@ -41,9 +41,8 @@ VERSION_RE = re.compile(
             # x.saas~y, where x >= 7 and x <= 10
             (7|8|9|10)\.saas~[1-9]\d*|
 
-            # saas~x.y, where x >= 11 and y between 1 and 9
-            # FIXME handle version >= saas~100 (expected in year 2106)
-            saas~(1[1-9]|[2-9]\d+)\.[1-9]
+            # saas~x.y, where x >= 11 (any number of digits) and y between 1 and 9
+            saas~(1[1-9]|[2-9]\d|[1-9]\d{2,})\.[1-9]
         )\.)?
         # After Odoo version we allow precisely 2 or 3 parts
         # note this will also allow 0.0.0 which has a special meaning
@@ -51,6 +50,50 @@ VERSION_RE = re.compile(
     $""",
     re.VERBOSE | re.ASCII,
 )
+
+
+def _convert_version(version: str) -> str:
+    """Normalize a migration-folder name to a comparable version string.
+
+    A bare ``x.y[.z]`` module version is prefixed with the server major version;
+    a name that already carries the server version (more than two dots) and the
+    special ``0.0.0`` marker are returned unchanged.
+    """
+    if version == "0.0.0":
+        return version
+    if version.count(".") > 2:
+        # the version number already contains the server version, see VERSION_RE
+        return version
+    return f"{release.major_version}.{version}"
+
+
+def _migration_applies(
+    version: str, installed_version: str, target_version: str
+) -> bool:
+    """Return whether the migration folder ``version`` must run for this upgrade.
+
+    :param version: migration folder name ('2.0', '0.0.0', '17.0.1.2', ...)
+    :param installed_version: module version currently recorded in the database
+    :param target_version: module version declared in the manifest being upgraded to
+    """
+    parsed_installed = parse_version(installed_version or "")
+    parsed_target = parse_version(_convert_version(target_version))
+
+    if version == "0.0.0" and parsed_installed < parsed_target:
+        return True
+
+    full_version = _convert_version(version)
+    if version != full_version:
+        # A "majorless" script (e.g. '2.0') must not re-run when only the Odoo
+        # major version bumps: compare just the module part so a 9.0.2.0 ->
+        # 10.0.2.0 upgrade does not replay the 2.0 script.
+        return (
+            parsed_installed[2:]
+            < parse_version(full_version)[2:]
+            <= parsed_target[2:]
+        )
+
+    return parsed_installed < parse_version(full_version) <= parsed_target
 
 
 class MigrationManager:
@@ -172,13 +215,6 @@ class MigrationManager:
             # call signature. _get_files() above hoists it for its own loop.
             return
 
-        def convert_version(version: str) -> str:
-            if version == "0.0.0":
-                return version
-            if version.count(".") > 2:
-                return version  # the version number already contains the server version, see VERSION_RE for details
-            return f"{release.major_version}.{version}"
-
         def _get_migration_versions(
             pkg: module_graph.ModuleNode, stage: str
         ) -> list[str]:
@@ -189,7 +225,7 @@ class MigrationManager:
                     for ver, lf in lv.items()
                     if lf
                 },
-                key=lambda k: parse_version(convert_version(k)),
+                key=lambda k: parse_version(_convert_version(k)),
             )
             if "0.0.0" in versions:
                 # reorder versions
@@ -221,35 +257,11 @@ class MigrationManager:
             )
 
         installed_version = pkg.load_version or ""
-        parsed_installed_version = parse_version(installed_version)
-        current_version = parse_version(convert_version(pkg.manifest["version"]))
-
-        def compare(version: str) -> bool:
-            if version == "0.0.0" and parsed_installed_version < current_version:
-                return True
-
-            full_version = convert_version(version)
-            majorless_version = version != full_version
-
-            if majorless_version:
-                # We should not re-execute major-less scripts when upgrading to new Odoo version
-                # a module in `9.0.2.0` should not re-execute a `2.0` script when upgrading to `10.0.2.0`.
-                # In which case we must compare just the module version
-                return (
-                    parsed_installed_version[2:]
-                    < parse_version(full_version)[2:]
-                    <= current_version[2:]
-                )
-
-            return (
-                parsed_installed_version
-                < parse_version(full_version)
-                <= current_version
-            )
+        target_version = pkg.manifest["version"]
 
         versions = _get_migration_versions(pkg, stage)
         for version in versions:
-            if compare(version):
+            if _migration_applies(version, installed_version, target_version):
                 for pyfile in _get_migration_files(pkg, version, stage):
                     exec_script(
                         self.cr,

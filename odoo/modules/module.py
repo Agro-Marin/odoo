@@ -23,7 +23,10 @@ try:
     from packaging.requirements import InvalidRequirement, Requirement
 except ImportError:
 
-    class InvalidRequirement(Exception):  # type: ignore[no-redef]
+    # The Error-suffix lint is suppressed on the class below: the name must
+    # mirror packaging.requirements.InvalidRequirement, which this shadows when
+    # `packaging` is unavailable.
+    class InvalidRequirement(Exception):  # type: ignore[no-redef]  # noqa: N818
         ...
 
     class Requirement:  # type: ignore[no-redef]
@@ -32,7 +35,7 @@ except ImportError:
                 r"[\w\-]+", pydep
             ):  # check that we have no versions or marker in pydep
                 msg = f"Package `packaging` is required to parse `{pydep}` external dependency and is not installed"
-                raise Exception(msg)
+                raise ImportError(msg)
             self.marker = None
             self.specifier = None
             self.name = pydep
@@ -118,7 +121,7 @@ _logger = logging.getLogger(__name__)
 if typing.TYPE_CHECKING:
     from odoo.tests.common import TestCase
 
-current_test: "TestCase | bool" = False
+current_test: TestCase | bool = False
 """Test-mode marker observed by loggers, mail, reports and the ORM.
 
 The value follows a small state machine driven by ``odoo.tests``:
@@ -207,7 +210,7 @@ def initialize_sys_path() -> None:
         "odoo.addons.base.maintenance", None, is_package=True
     )
     maintenance_pkg = importlib.util.module_from_spec(spec)
-    maintenance_pkg.migrations = odoo.upgrade  # type: ignore
+    maintenance_pkg.migrations = odoo.upgrade  # type: ignore[attr-defined]
     sys.modules["odoo.addons.base.maintenance"] = maintenance_pkg
     sys.modules["odoo.addons.base.maintenance.migrations"] = odoo.upgrade
 
@@ -220,7 +223,7 @@ def initialize_sys_path() -> None:
             None
         )  # prevent path invalidation
         sys.meta_path.insert(0, UpgradeHook())
-        initialize_sys_path.called = True  # type: ignore
+        initialize_sys_path.called = True  # type: ignore[attr-defined]
 
 
 @typing.final
@@ -344,7 +347,7 @@ class Manifest(Mapping[str, typing.Any]):
                 tools.find_in_path(binary)
             except OSError as e:
                 msg = "Unable to find {dependency!r} in path"
-                raise MissingDependency(msg, binary) from e
+                raise MissingDependencyError(msg, binary) from e
 
     def __bool__(self) -> bool:
         return True
@@ -705,7 +708,7 @@ def check_version(version: str, should_raise: bool = True) -> bool:
     return False
 
 
-class MissingDependency(Exception):
+class MissingDependencyError(Exception):
     def __init__(self, msg_template: str, dependency: str) -> None:
         self.dependency = dependency
         super().__init__(msg_template.format(dependency=dependency))
@@ -737,10 +740,10 @@ def check_python_external_dependency(pydep: str) -> None:
         except ImportError:
             pass
         msg = f"External dependency {{dependency!r}} not installed: {e}"
-        raise MissingDependency(msg, pydep) from e
+        raise MissingDependencyError(msg, pydep) from e
     if requirement.specifier and not requirement.specifier.contains(version):
         msg = f"External dependency version mismatch: {{dependency}} (installed: {version})"
-        raise MissingDependency(msg, pydep)
+        raise MissingDependencyError(msg, pydep)
 
 
 def load_script(path: str, module_name: str) -> types.ModuleType:
