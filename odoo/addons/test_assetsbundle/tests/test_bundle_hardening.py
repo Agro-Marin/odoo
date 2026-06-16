@@ -17,6 +17,7 @@ import logging
 import re
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.libs.esbuild import _find_esbuild
@@ -34,6 +35,7 @@ from odoo.addons.base.models.assetsbundle import (
     AssetNotFoundError,
     AssetsBundle,
     CompileError,
+    CssPipeline,
     JavascriptAsset,
     PreprocessedCSS,
     ScssStylesheetAsset,
@@ -419,8 +421,14 @@ class TestBacktickMinification(TransactionCase):
         self.assertIn("in  ner", content)
 
     def test_esbuild_failure_ships_unminified(self):
-        """minify_js returning None degrades to the raw source, never an error."""
-        src = "window.testRaw = `keep   me`;\nvar    spaced = 1;\n"
+        """minify_js returning None degrades to the raw source, never an error.
+
+        Uses a NESTED template literal so the gate actually routes to esbuild: a
+        ``${``-free backtick file now stays on rjsmin (see TestBacktickMinifyGate
+        in test_review_followup), where minify_js is never called and this
+        fallback would not be exercised.
+        """
+        src = "window.testRaw = `outer ${`in  ner`} end`;\nvar    spaced = 1;\n"
         with patch("odoo.addons.base.models.assetsbundle.minify_js", return_value=None):
             bundle = AssetsBundle(
                 f"{self.BUNDLE}_fallback",
@@ -672,9 +680,7 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ) as escalate:
-            urls = bundle._bridges._persist_bridge_shims(
-                {"@web/decoupled": "export const decoupled = 1;"}
-            )
+            urls = bundle._bridges._persist_bridge_shims({"@web/decoupled": "export const decoupled = 1;"})
         escalate.assert_called_once()
         url = urls["@web/decoupled"]
         self.assertTrue(
@@ -690,9 +696,7 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=False
         ):
-            urls = bundle._bridges._persist_bridge_shims(
-                {"@web/degraded": "export const degraded = 2;"}
-            )
+            urls = bundle._bridges._persist_bridge_shims({"@web/degraded": "export const degraded = 2;"})
         self.assertTrue(
             urls["@web/degraded"].startswith("data:text/javascript"),
             "data: URIs are reserved for a genuinely unwritable primary",
@@ -812,18 +816,13 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
 
     @staticmethod
     def _sanitize(source):
-        # A passthrough compiler exercises only the @import sanitization with
-        # no Sass subprocess; compile_css touches only ``rx_preprocess_imports``
-        # and ``css_errors`` before the compiler call, so a tiny shim suffices.
-        class _Shim:
-            rx_preprocess_imports = AssetsBundle.rx_preprocess_imports
-
-            def __init__(self):
-                self.css_errors = []
-
-        shim = _Shim()
-        out = AssetsBundle.compile_css(shim, lambda s: s, source)
-        return out, shim.css_errors
+        # A passthrough compiler exercises only the @import sanitization with no
+        # Sass subprocess; compile_css touches ``CssPipeline.rx_preprocess_imports``
+        # (a class attr) and the bundle's ``css_errors`` before the compiler
+        # call, so a tiny fake bundle suffices.
+        bundle = SimpleNamespace(css_errors=[])
+        out = CssPipeline(bundle).compile_css(lambda s: s, source)
+        return out, bundle.css_errors
 
     def test_single_media_query_preserved(self):
         out, errs = self._sanitize('@import "foo" screen;')
@@ -979,6 +978,9 @@ class TestStylesheetErrorInversion(BaseCase):
             self.css_errors = []
             self.rtl = False
             self.autoprefix = False
+            # Mirrors AssetsBundle.__init__: preprocess_css's idempotency guard
+            # reads this before recomputing.
+            self._at_rules_asset = None
 
     def test_asset_records_error_without_touching_bundle(self):
         class BareBundle:  # deliberately has no css_errors attribute
@@ -1146,7 +1148,7 @@ class TestCssErrorBanner(BaseCase):
     tour (``css_error_tour``), which never asserted either property.
     """
 
-    H = AssetsBundle._CSS_ERROR_HEADER
+    H = CssPipeline._CSS_ERROR_HEADER
 
     def test_message_is_escaped_for_a_css_string_literal(self):
         out = AssetsBundle._render_css_error_banner(['boom "x" *\n y'], "")
