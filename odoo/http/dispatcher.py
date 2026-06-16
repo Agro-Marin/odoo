@@ -119,6 +119,19 @@ class Dispatcher(ABC):
         self.request._inject_future_response(response)
         root.set_csp(response)
 
+    def _call_endpoint(self, endpoint: Callable) -> Any:
+        """Invoke ``endpoint`` with the request's deserialized params.
+
+        With a database, the call is routed through ``ir.http._dispatch``
+        (which layers captcha/recaptcha checks and module overrides on top);
+        without one (``auth='none'`` / no-db serving) the endpoint is called
+        directly. Shared by every dispatcher so the db/no-db branch lives in a
+        single place instead of being copied into each ``dispatch``.
+        """
+        if self.request.db:
+            return self.request.registry["ir.http"]._dispatch(endpoint)
+        return endpoint(**self.request.params)
+
     @abstractmethod
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
         """
@@ -176,10 +189,7 @@ class HttpDispatcher(Dispatcher):
                 msg = "Session expired (invalid CSRF token)"
                 raise werkzeug.exceptions.BadRequest(msg)
 
-        if self.request.db:
-            return self.request.registry["ir.http"]._dispatch(endpoint)
-        else:
-            return endpoint(**self.request.params)
+        return self._call_endpoint(endpoint)
 
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
         """
@@ -217,7 +227,11 @@ class HttpDispatcher(Dispatcher):
 
         if isinstance(exc, UserError):
             description = exc.args[0] if exc.args else str(exc) or None
-            status = getattr(exc, "http_status", None)
+            # ``UserError`` and its subclasses always define ``http_status``;
+            # read it directly, consistent with ``Json2Dispatcher.handle_error``
+            # (the previous ``getattr(..., None)`` implied an absence that
+            # cannot occur for this branch).
+            status = exc.http_status
             exc_cls = werkzeug_default_exceptions.get(status)
             if exc_cls is not None:
                 return exc_cls(description)
@@ -271,20 +285,22 @@ class JsonRPCDispatcher(Dispatcher):
         """
         try:
             self.jsonrequest = self.request.get_json_data()
-            self.request_id = self.jsonrequest.get("id")
         except ValueError:
-            # must use abort+Response to bypass handle_error
+            # Malformed JSON: no request id is parseable, so a JSON-RPC error
+            # envelope cannot be built — abort+Response bypasses handle_error.
             werkzeug.exceptions.abort(Response("Invalid JSON data", status=400))
-        except AttributeError:
+
+        # JSON-RPC requires a top-level object. Check it explicitly rather than
+        # letting ``dict.get`` raise AttributeError on a list/scalar/null body
+        # (which conflated unrelated AttributeErrors with a malformed payload).
+        if not isinstance(self.jsonrequest, dict):
             # must use abort+Response to bypass handle_error
             werkzeug.exceptions.abort(Response("Invalid JSON-RPC data", status=400))
 
+        self.request_id = self.jsonrequest.get("id")
         self.request.params = self.jsonrequest.get("params", {}) | args
 
-        if self.request.db:
-            result = self.request.registry["ir.http"]._dispatch(endpoint)
-        else:
-            result = endpoint(**self.request.params)
+        result = self._call_endpoint(endpoint)
         return self._response(result)
 
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
@@ -378,10 +394,7 @@ class Json2Dispatcher(Dispatcher):
         else:
             self.request.params = self.jsonrequest | args
 
-        if self.request.db:
-            result = self.request.registry["ir.http"]._dispatch(endpoint)
-        else:
-            result = endpoint(**self.request.params)
+        result = self._call_endpoint(endpoint)
         if isinstance(result, Response):
             return result
         return self.request.make_json_response(result)

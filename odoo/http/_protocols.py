@@ -6,8 +6,22 @@ The :class:`HttpExtension` protocol declares the methods on
 * Documents the contract in one place rather than scattered across call sites.
 * Enables IDE navigation and static type checking when used at call sites
   via ``cast(HttpExtension, env["ir.http"])``.
-* Surfaces breakage at type-check time when ``ir.http`` changes a hook
-  signature, instead of at request time.
+* Surfaces breakage when ``ir.http`` changes a hook signature.
+
+No static type checker is currently configured for this fork, so the third
+guarantee is provided at *test* time instead of type-check time:
+``odoo.addons.test_http.tests.test_http_audit.TestIrHttpContract`` asserts that
+``IrHttp`` keeps satisfying this protocol (presence + argument arity). Keep the
+two in sync — if you add or change a hook the http package calls on
+``ir.http``, update this protocol and that test will confirm the match.
+
+Implementation note: every method below is a ``@classmethod`` on
+``odoo.addons.base.models.ir_http.IrHttp`` *except* :meth:`routing_map` (a
+regular method). The protocol models the **caller-visible** shape — the http
+package always invokes these on a model recordset
+(``env["ir.http"].method(...)``), so they are declared as instance methods
+here regardless of the classmethod implementation; Python's descriptor
+protocol resolves both identically at the call site.
 
 The protocol uses ``typing.Protocol`` so it does not impose nominal
 inheritance on the ``ir.http`` model — duck-typing remains the runtime
@@ -34,11 +48,15 @@ class HttpExtension(Protocol):
     extended in modules like ``website``, ``portal`` and ``http_routing``.
     """
 
-    def routing_map(self) -> werkzeug.routing.Map:
-        """Return the werkzeug routing map for the active database."""
+    def routing_map(self, key: str | None = None) -> werkzeug.routing.Map:
+        """Return the werkzeug routing map for the active database.
 
-    def _match(self, path: str) -> tuple[werkzeug.routing.Rule, dict[str, Any]]:
-        """Match ``path`` against the routing map; raise NotFound on miss."""
+        ``key`` is the ``ormcache`` key (``cache="routing"``); the http
+        package always calls this with no argument and lets the cache fill it.
+        """
+
+    def _match(self, path_info: str) -> tuple[werkzeug.routing.Rule, dict[str, Any]]:
+        """Match ``path_info`` against the routing map; raise NotFound on miss."""
 
     def _dispatch(self, endpoint: Callable) -> Any:
         """Invoke the controller endpoint, returning its raw result."""
@@ -56,13 +74,13 @@ class HttpExtension(Protocol):
     def _post_dispatch(self, response: Response) -> None:
         """Post-process the response (CSP, headers, session save)."""
 
-    def _handle_error(self, exc: BaseException) -> Response:
+    def _handle_error(self, exception: Exception) -> Response:
         """Convert an unhandled exception into an HTTP response."""
 
     def _serve_fallback(self) -> Response | None:
         """Try alternative serving paths (attachment, blog, etc.) on 404."""
 
-    def _redirect(self, location: str, code: int) -> Response:
+    def _redirect(self, location: str, code: int = 303) -> Response:
         """Build a redirect response targeting ``location`` with ``code``."""
 
     def _is_allowed_cookie(self, cookie_type: str) -> bool:
