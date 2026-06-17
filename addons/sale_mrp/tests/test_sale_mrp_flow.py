@@ -200,7 +200,7 @@ class TestSaleMrpFlowCommon(ValuationReconciliationTestCommon, TestSaleCommon):
             f.location_dest_id = warehouse.lot_stock_id
             f.product_id = comp
             f.product_uom = qty_to_process[comp][1]
-            f.product_qty = qty_to_process[comp][0]
+            f.product_uom_qty = qty_to_process[comp][0]
             move = f.save()
             move._action_confirm()
             move._action_assign()

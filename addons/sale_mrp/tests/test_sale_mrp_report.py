@@ -99,7 +99,7 @@ class TestSaleMrpInvoices(TestSaleCommon):
                 'line_ids': [Command.create({
                     'name': product.name,
                     'product_id': product.id,
-                    'product_uom_qty': 8.0,
+                    'product_qty': 8.0,
                     'price_unit': product.list_price,
                 })]
             },
@@ -108,7 +108,7 @@ class TestSaleMrpInvoices(TestSaleCommon):
                 'line_ids': [Command.create({
                     'name': product.name,
                     'product_id': product.id,
-                    'product_uom_qty': 7.0,
+                    'product_qty': 7.0,
                     'price_unit': product.list_price,
                 })]
             },
