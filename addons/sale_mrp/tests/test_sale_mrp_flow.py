@@ -823,6 +823,46 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # A fully delivered kit must not remain pending transfer.
         self.assertEqual(line.qty_to_transfer, 0)
 
+    def test_t23023_kit_qty_transferred_idempotent(self) -> None:
+        """Regression t23023: recomputing a kit line's qty_transferred is idempotent.
+
+        The relevant_bom branch of the sale_mrp _compute_qty_transferred override
+        used ``+=`` on the stored field instead of assignment, so every recompute
+        accumulated on the previous value and inflated qty_transferred.
+        """
+        stock_location = self.company_data['default_warehouse'].lot_stock_id
+        self.env['stock.quant']._update_available_quantity(self.component_a, stock_location, 20)
+        self.env['stock.quant']._update_available_quantity(self.component_b, stock_location, 10)
+        self.env['stock.quant']._update_available_quantity(self.component_c, stock_location, 30)
+
+        partner = self.env['res.partner'].create({'name': 'Kit idempotency Partner'})
+        f = Form(self.env['sale.order'])
+        f.partner_id = partner
+        with f.line_ids.new() as line:
+            line.product_id = self.kit_1
+            line.product_qty = 10.0
+        so = f.save()
+        so.action_confirm()
+
+        # Deliver every component in full (10 kits worth).
+        picking = so.picking_ids
+        self._process_quantities(picking.move_ids, {
+            self.component_a: 20,
+            self.component_b: 10,
+            self.component_c: 30,
+        })
+        picking.button_validate()
+
+        line = so.line_ids[0]
+        line._compute_qty_transferred()
+        first = line.qty_transferred
+        self.assertEqual(first, 10)
+
+        # Recomputing must not drift the value (used to inflate via +=).
+        for _ in range(3):
+            line._compute_qty_transferred()
+            self.assertEqual(line.qty_transferred, first)
+
     def test_04_sale_mrp_kit_qty_transferred(self):
         """ Test that the quantities delivered are correct when
         a kit with subkits is ordered with multiple backorders and returns

@@ -115,7 +115,7 @@ class SaleOrderLine(models.Model):
                 }
                 order_qty = line.product_uom_id._compute_quantity(line.product_uom_qty, relevant_bom.product_uom_id)
                 qty_transferred = moves._compute_kit_quantities(line.product_id, order_qty, relevant_bom, filters)
-                line.qty_transferred += relevant_bom.product_uom_id._compute_quantity(qty_transferred, line.product_uom_id)
+                line.qty_transferred = relevant_bom.product_uom_id._compute_quantity(qty_transferred, line.product_uom_id)
 
             # If no relevant BOM is found, fall back on the all-or-nothing policy. This happens
             # when the product sold is made only of kits. In this case, the BOM of the stock moves
