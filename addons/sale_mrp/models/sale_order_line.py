@@ -127,9 +127,9 @@ class SaleOrderLine(models.Model):
                 else:
                     line.qty_transferred = 0.0
 
-        # t23020: the override sets qty_transferred in the kit branches but,
-        # unlike sale_stock, did not refresh the co-computed qty_to_transfer,
-        # leaving fully delivered kits stuck in a 'partial' transfer state.
+        # The override sets qty_transferred in the kit branches but, unlike
+        # sale_stock, did not refresh the co-computed qty_to_transfer, leaving
+        # fully delivered kits stuck in a 'partial' transfer state.
         for line in lines_by_stock_move:
             line.qty_to_transfer = max(0.0, line.product_qty - line.qty_transferred)
 

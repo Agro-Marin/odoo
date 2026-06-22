@@ -773,8 +773,8 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # All kits should be delivered
         self.assertEqual(line_ids.qty_transferred, 10)
 
-    def test_t23020_kit_qty_to_transfer_recomputed(self) -> None:
-        """Regression t23020: a fully delivered kit line recomputes qty_to_transfer.
+    def test_kit_qty_to_transfer_recomputed(self) -> None:
+        """A fully delivered kit line recomputes qty_to_transfer.
 
         The sale_mrp override of ``_compute_qty_transferred`` used to set only
         ``qty_transferred`` in the kit branches without refreshing the
@@ -813,7 +813,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         picking.button_validate()
         line._compute_qty_transferred()
 
-        # t23020: the kit branches set qty_transferred but used to leave the
+        # The kit branches set qty_transferred but used to leave the
         # co-computed qty_to_transfer (sale_stock) stale, so a delivered kit
         # stayed pending. The fix keeps both fields consistent.
         self.assertEqual(
@@ -823,8 +823,8 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # A fully delivered kit must not remain pending transfer.
         self.assertEqual(line.qty_to_transfer, 0)
 
-    def test_t23023_kit_qty_transferred_idempotent(self) -> None:
-        """Regression t23023: recomputing a kit line's qty_transferred is idempotent.
+    def test_kit_qty_transferred_idempotent(self) -> None:
+        """Recomputing a kit line's qty_transferred is idempotent.
 
         The relevant_bom branch of the sale_mrp _compute_qty_transferred override
         used ``+=`` on the stored field instead of assignment, so every recompute
