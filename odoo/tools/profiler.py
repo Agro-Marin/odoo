@@ -1,13 +1,4 @@
-"""
-Sampling profiler for Odoo — flamegraphs, SQL tracing, memory tracking.
-
-See Also
---------
-- ``odoo.tools.orm_profiler`` — Aggregate per-model/operation stats per transaction
-- ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
-- ``odoo.tests.benchmark`` — Micro-benchmark statistical utilities
-- ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
-"""
+"""Sampling profiler for Odoo — flamegraphs, SQL tracing, memory tracking."""
 
 import json
 import logging
@@ -32,7 +23,7 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# ensure we have a non patched time for profiling times when using freezegun
+# Non-patched time functions, so profiling is unaffected by freezegun.
 real_datetime_now = datetime.now
 real_time = time.time.__call__
 real_cpu_time = time.thread_time.__call__
@@ -90,11 +81,10 @@ def make_session(name: str = "") -> str:
 
 
 def force_hook() -> None:
-    """
-    Force periodic profiling collectors to generate some stack trace.  This is
-    useful before long calls that do not release the GIL, so that the time
-    spent in those calls is attributed to a specific stack trace, instead of
-    some arbitrary former frame.
+    """Force periodic collectors to take a stack trace now.
+
+    Useful before long calls that do not release the GIL, so their time is
+    attributed to the right stack trace instead of some arbitrary former frame.
     """
     thread = threading.current_thread()
     for func in getattr(thread, "profile_hooks", ()):
@@ -102,15 +92,11 @@ def force_hook() -> None:
 
 
 class Collector:
-    """
-    Base class for objects that collect profiling data.
+    """Base class for objects that collect profiling data.
 
-    A collector object is used by a profiler to collect profiling data, most
-    likely a list of stack traces with time and some context information added
-    by ExecutionContext decorator on current thread.
-
-    This is a generic implementation of a basic collector, to be inherited.
-    It defines default behaviors for creating an entry in the collector.
+    A collector gathers profiling data for a profiler — usually stack traces
+    with timing and context added by ExecutionContext on the current thread.
+    Meant to be inherited; defines default entry-creation behavior.
     """
 
     name = None  # symbolic name of the collector
@@ -245,8 +231,8 @@ class _BasePeriodicCollector(Collector):
     :param interval: time to wait in seconds between two samples.
     """
 
-    _min_interval: float = 0.001  # minimum interval allowed
-    _max_interval: float = 5  # maximum interval allowed
+    _min_interval: float = 0.001
+    _max_interval: float = 5
     _default_interval: float = 0.001
 
     def __init__(self, interval: float | None = None) -> None:
@@ -281,7 +267,7 @@ class _BasePeriodicCollector(Collector):
     def stop(self) -> None:
         self.active = False
         self._stop_event.set()
-        self._entries.append({"stack": [], "start": real_time()})  # add final end frame
+        self._entries.append({"stack": [], "start": real_time()})  # final end frame
         if self.__thread.is_alive() and self.__thread is not threading.current_thread():
             self.__thread.join()
         self.profiler.init_thread.profile_hooks.remove(self.progress)
@@ -295,11 +281,9 @@ class PeriodicCollector(_BasePeriodicCollector):
         if self.last_frame:
             duration = real_time() - self._last_time
             if duration > self.frame_interval * 10 and self.last_frame:
-                # The profiler has unexpectedly slept for more than 10 frame intervals. This may
-                # happen when calling a C library without releasing the GIL. In that case, the
-                # last frame was taken before the call, and the next frame is after the call, and
-                # the call itself does not appear in any of those frames: the duration of the call
-                # is incorrectly attributed to the last frame.
+                # Slept >10 intervals, typically a C call that didn't release
+                # the GIL: the call falls between two frames and is wrongly
+                # attributed to the last one. Flag it explicitly.
                 self._entries[-1]["stack"].append(
                     (
                         "profiling",
@@ -308,13 +292,12 @@ class PeriodicCollector(_BasePeriodicCollector):
                         "",
                     )
                 )
-            self.last_frame = None  # skip duplicate detection for the next frame.
+            self.last_frame = None  # skip duplicate detection on the next frame
         self._last_time = real_time()
 
         frame = frame or get_current_frame(self.profiler.init_thread)
         if frame == self.last_frame:
-            # don't save if the frame is exactly the same as the previous one.
-            # maybe modify the last entry to add a last seen?
+            # Don't save an identical consecutive frame.
             return
         self.last_frame = frame
         super().add(entry=entry, frame=frame)
@@ -326,7 +309,7 @@ _lock = threading.Lock()
 class MemoryCollector(_BasePeriodicCollector):
     name = "memory"
     _store = "others"
-    _min_interval = 0.01  # minimum interval allowed
+    _min_interval = 0.01
     _default_interval = 1
 
     def start(self):
@@ -366,9 +349,9 @@ class MemoryCollector(_BasePeriodicCollector):
 
 
 class SyncCollector(Collector):
-    """
-    Record complete execution synchronously.
-    Note that --limit-memory-hard may need to be increased when launching Odoo.
+    """Record complete execution synchronously.
+
+    Note: ``--limit-memory-hard`` may need to be increased when launching Odoo.
     """
 
     name = "traces_sync"
@@ -392,23 +375,20 @@ class SyncCollector(Collector):
             return None
         entry = {"event": event, "frame": _format_frame(_frame)}
         if event == "call" and _frame.f_back:
-            # we need the parent frame to determine the line number of the call
+            # Parent frame gives the line number of the call.
             entry["parent_frame"] = _format_frame(_frame.f_back)
         self.progress(entry, frame=_frame)
         return self.hook
 
     def _get_stack_trace(self, frame=None):
-        # Getting the full stack trace is slow, and not useful in this case.
-        # SyncCollector only saves the top frame and event at each call and
-        # recomputes the complete stack at the end.
+        # Full stack traces are slow and unneeded here: SyncCollector saves only
+        # the top frame and event per call, rebuilding the full stack at the end.
         return None
 
     def post_process(self):
-        # Transform the evented traces to full stack traces. This processing
-        # could be avoided since speedscope will transform that back to
-        # evented anyway, but it is actually simpler to integrate into the
-        # current speedscope logic, especially when mixed with SQLCollector.
-        # We could improve it by saving as evented and manage it later.
+        # Rebuild full stack traces from the evented traces. Speedscope would
+        # re-event these anyway, but reconstructing here is simpler to integrate
+        # with the speedscope logic, especially when mixed with SQLCollector.
         stack = []
         for entry in self._entries:
             frame = entry.pop("frame")

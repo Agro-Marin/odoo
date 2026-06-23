@@ -1,19 +1,5 @@
-"""
-Import/Export operations mixin for BaseModel.
-
-This module provides the IOMixin class containing all import/export-related
-methods. BaseModel inherits from this mixin.
-
-Methods:
-- _ensure_xml_ids: Create missing external ids for export
-- _export_rows: Export records to row format
-- export_data: Public export API
-- load: Import data matrix
-- _extract_records: Extract records from import data
-- _convert_records: Convert imported records for database
-- _load_records_write: Write during data loading
-- _load_records_create: Create during data loading
-- _load_records: Main data loading implementation
+"""Import/export operations mixin for BaseModel (IOMixin): data export and the
+``load()`` import pipeline.
 """
 
 import collections
@@ -46,11 +32,7 @@ if typing.TYPE_CHECKING:
 
 
 class IOMixin:
-    """Mixin providing import/export operations functionality.
-
-    This mixin is inherited by BaseModel and provides methods for importing
-    and exporting data.
-    """
+    """Import/export operations, inherited by BaseModel."""
 
     __slots__ = ()
 
@@ -133,7 +115,7 @@ class IOMixin:
         """Export fields of the records in ``self``.
 
         :param fields: list of lists of fields to traverse
-        :param _is_toplevel_call: used when recursing, avoid using when calling from outside
+        :param _is_toplevel_call: internal recursion flag; do not pass externally
         :return: list of lists of corresponding values
         """
         import_compatible = self.env.context.get("import_compat", True)
@@ -148,10 +130,10 @@ class IOMixin:
             )
 
             def fill_properties_cache(records, fnames_by_path, fname):
-                """Fill the cache for the ``fname`` properties field and return it"""
+                """Fill the cache for the ``fname`` properties field."""
                 cache_properties_field = cache_properties[records._fields[fname]]
 
-                # read properties to have all the logic of Properties.convert_to_read_multi
+                # read() runs Properties.convert_to_read_multi
                 for row in records.read([fname]):
                     properties = row[fname]
                     if not properties:
@@ -197,7 +179,9 @@ class IOMixin:
                         cache_by_id[rec_id] = value
 
             def fetch_fields(records, field_paths):
-                """Fill the cache of ``records`` for all ``field_paths`` recursively included properties"""
+                """Fill the cache of ``records`` for all ``field_paths``
+                recursively, including properties.
+                """
                 if not records:
                     return
 
@@ -212,23 +196,21 @@ class IOMixin:
                     )
                 )
 
-                # Fetch needed fields (remove '.property_name' part)
+                # fetch needed fields (drop the '.property_name' part)
                 fnames = list(unique(fname.split(".")[0] for fname in fnames_by_path))
                 records.fetch(fnames)
-                # Fill the cache of the properties field
                 for fname in fnames:
                     field = records._fields[fname]
                     if field.type == "properties":
                         fill_properties_cache(records, fnames_by_path, fname)
 
-                # Call it recursively for relational field (included property relational field)
+                # recurse on relational fields (incl. relational properties)
                 for fname, paths in fnames_by_path.items():
-                    if "." in fname:  # Properties field
+                    if "." in fname:  # properties field
                         fname, prop_name = fname.split(".")
                         field = records._fields[fname]
-                        # raise (not assert) — under python -O a non-property
-                        # field with a dot in its expression would silently
-                        # export blank data instead of erroring out.
+                        # raise (not assert): under python -O a dotted non-
+                        # property field would silently export blank data.
                         if not (field.type == "properties" and prop_name):
                             raise ValueError(
                                 f"export expected a properties subfield, got {field!r}.{prop_name!r}"
@@ -250,7 +232,7 @@ class IOMixin:
                                 if rec_id in property_cache
                             ]
                         )
-                    else:  # Normal field
+                    else:  # normal field
                         field = records._fields[fname]
                         if not field.relational:
                             continue
@@ -266,10 +248,9 @@ class IOMixin:
             current = [""] * len(fields)
             lines.append(current)
 
-            # set of primary fields followed by secondary field(s)
+            # primary fields already exported with their secondary field(s)
             primary_done = set()
 
-            # process column by column
             for i, path in enumerate(fields):
                 if not path:
                     continue
@@ -284,20 +265,19 @@ class IOMixin:
                     current[i] = (record._name, record.id)
                 else:
                     prop_name = None
-                    if "." in name:  # Properties field
+                    if "." in name:  # properties field
                         fname, prop_name = name.split(".")
                         field = record._fields[fname]
                         field_type, cache_value = cache_properties[field].get(
                             prop_name, ("char", None)
                         )
                         value = cache_value.get(record.id, "") if cache_value else ""
-                    else:  # Normal field
+                    else:  # normal field
                         field = record._fields[name]
                         field_type = field.type
                         value = record[name]
 
-                    # this part could be simpler, but it has to be done this way
-                    # in order to reproduce the former behavior
+                    # convoluted, but kept this way to reproduce former behavior
                     if not isinstance(value, IOMixin):
                         current[i] = field.convert_to_export(value, record)
 
@@ -313,20 +293,18 @@ class IOMixin:
                             for p in fields
                         ]
 
-                        # in import_compat mode, m2m should always be exported as
-                        # a comma-separated list of xids or names in a single cell
+                        # in import_compat mode, m2m exports as a comma-separated
+                        # list of xids or names in a single cell
                         if import_compatible and field_type == "many2many":
                             index = None
-                            # find out which subfield the user wants & its
-                            # location as we might not get it as the first
-                            # column we encounter
+                            # find which subfield the user wants and its column
+                            # (may not be the first one we encounter)
                             for name in ["id", "name", "display_name"]:
                                 with contextlib.suppress(ValueError):
                                     index = fields2.index([name])
                                     break
                             if index is None:
-                                # not found anything, assume we just want the
-                                # display_name in the first column
+                                # none found: default to display_name, first column
                                 name = None
                                 index = i
 
@@ -352,23 +330,23 @@ class IOMixin:
                         else:
                             current[i] = ""
 
-        # if any xid should be exported, only do so at toplevel
+        # export xids only at toplevel
         if _is_toplevel_call and any(f[-1] == "id" for f in fields):
             bymodels = collections.defaultdict(set)
             xidmap = collections.defaultdict(list)
-            # collect all the tuples in "lines" (along with their coordinates)
+            # collect the (model, id) tuples in "lines" with their coordinates
             for i, line in enumerate(lines):
                 for j, cell in enumerate(line):
                     if isinstance(cell, tuple):
                         bymodels[cell[0]].add(cell[1])
                         xidmap[cell].append((i, j))
-            # for each model, xid-export everything and inject in matrix
+            # per model, resolve xids and inject them into the matrix
             for model, ids in bymodels.items():
                 for record, xid in self.env[model].browse(ids)._ensure_xml_ids():
                     for i, j in xidmap.pop((record._name, record.id)):
                         lines[i][j] = xid
-            # raise (not assert) — under python -O leftover xids would silently
-            # ship raw (model, id) tuples in exported cells.
+            # raise (not assert): under python -O leftover xids would ship raw
+            # (model, id) tuples in exported cells.
             if xidmap:
                 raise RuntimeError(
                     "failed to export xids for "
@@ -409,17 +387,16 @@ class IOMixin:
         the same order they were extracted from the file. They can be passed
         directly to :meth:`~read`.
 
-        :param fields: list of fields to import, at the same index as the corresponding data
+        :param fields: fields to import, at the same index as their data column
         :param data: row-major matrix of data to import
         :returns: ``{ids: list[int] | False, messages: list[dict], nextrow: int}``
         """
         from ...fields.relational import One2many
 
-        # determine values of mode, current_module and noupdate
         mode = self.env.context.get("mode", "init")
         current_module = self.env.context.get("module", "__import__")
         noupdate = self.env.context.get("noupdate", False)
-        # add current module in context for the conversion of xml ids
+        # current module is needed in context for xml-id conversion
         self = self.with_context(_import_current_module=current_module)
 
         cr = self.env.cr
@@ -433,9 +410,8 @@ class IOMixin:
         # list of (xid, vals, info) for records to be created in batch
         batch = []
         batch_xml_ids = set()
-        # models in which we may have created / modified data, therefore might
-        # require flushing in order to name_search: the root model and any
-        # o2m
+        # models that may need flushing before a name_search (we create/modify
+        # data in them): the root model and any o2m comodel
         creatable_models = {self._name}
         for field_path in fields:
             if field_path[0] in (None, "id", ".id"):
@@ -454,8 +430,8 @@ class IOMixin:
             if not batch:
                 return
 
-            # raise (not assert) — mutual-exclusivity of xml_id/model is a
-            # caller contract, must hold under python -O.
+            # raise (not assert): xml_id/model mutual exclusivity is a caller
+            # contract that must hold under python -O.
             if xml_id and model:
                 raise ValueError(
                     "flush can specify *either* an external id or a model, not both"
@@ -482,7 +458,7 @@ class IOMixin:
                     ids.extend(recs.ids)
                 return
             except psycopg.InternalError as e:
-                # broken transaction, exit and hope the source error was already logged
+                # broken transaction: bail and hope the source error was logged
                 if not any(message["type"] == "error" for message in messages):
                     info = data_list[0]["info"]
                     messages.append(
@@ -524,8 +500,7 @@ class IOMixin:
                         if len(e_fields) == 1:
                             pg_error_info["field"] = e_fields[0]
                     messages.append(dict(info, type="error", **pg_error_info))
-                    # Failed to write, log to messages, rollback savepoint (to
-                    # avoid broken transaction) and keep going
+                    # rolled back savepoint to avoid a broken transaction; keep going
                     errors += 1
                 except UserError as e:
                     savepoint.rollback()
@@ -550,8 +525,6 @@ class IOMixin:
                             moreinfo=moreinfo,
                         )
                     )
-                    # Failed for some reason, perhaps due to invalid data supplied,
-                    # rollback savepoint and keep going
                     errors += 1
                 if errors >= 10 and (errors >= i / 10):
                     messages.append(
@@ -568,16 +541,15 @@ class IOMixin:
                 and global_error_message
                 and global_error_message not in messages
             ):
-                # If we cannot create the records 1 by 1, we display the error raised when we created the records simultaneously
+                # 1-by-1 also failed: surface the original batch-create error
                 messages.insert(0, global_error_message)
 
         # make 'flush' available to the methods below, in the case where XMLID
         # resolution fails, for instance
         flush_recordset = self.with_context(import_flush=flush, import_cache=LRU(1024))
 
-        # The import limit is passed via context because load()'s public API
-        # (fields, data) has no parameter for it.  Changing the API would break
-        # all callers (web client, base_import, etc.) — not worth the churn.
+        # Import limit comes via context: load()'s public (fields, data) API has
+        # no parameter for it and changing it would break all callers.
         limit = self.env.context.get("_import_limit")
         if limit is None:
             limit = float("inf")
@@ -610,7 +582,7 @@ class IOMixin:
         if any(message["type"] == "error" for message in messages):
             savepoint.rollback()
             ids = False
-            # cancel all changes done to the registry/ormcache
+            # undo registry/ormcache changes
             self.pool.reset_changes()
         savepoint.close(rollback=False)
 
@@ -800,8 +772,8 @@ class IOMixin:
 
         def _log(base, record, field, exception):
             type = "warning" if isinstance(exception, Warning) else "error"
-            # logs the logical (not human-readable) field name for automated
-            # processing of response, but injects human readable in message
+            # log the logical field name (for automated processing) but put the
+            # human-readable name in the message
             field_name = field_names[field]
             exc_vals = dict(base, record=record, field=field_name)
             record = dict(
@@ -815,22 +787,19 @@ class IOMixin:
                 info = {}
                 if exception.args[1] and isinstance(exception.args[1], dict):
                     info = exception.args[1]
-                # ensure field_name is added to the exception. Used in import to
-                # concatenate multiple errors in the same block
+                # field_name lets import concatenate multiple errors per block
                 info["field_name"] = field_name
                 record.update(info)
             log(record)
 
         for stream_index, (record, extras) in enumerate(records):
-            # xid
             xid = record.get("id", False)
-            # dbid
             dbid = False
             if record.get(".id"):
                 try:
                     dbid = int(record[".id"])
                 except ValueError:
-                    # in case of overridden id column
+                    # overridden (non-int) id column
                     dbid = record[".id"]
                 if not self.search([("id", "=", dbid)]):
                     log(
@@ -850,7 +819,7 @@ class IOMixin:
 
     def _load_records_write(self, values: ValuesType) -> None:
         self.ensure_one()
-        to_write = {}  # Deferred the write to avoid using the old definition if it changed
+        to_write = {}  # defer properties write so a changed definition isn't reused
         for fname in list(values):
             if fname not in self._fields or self._fields[fname].type != "properties":
                 continue
@@ -863,9 +832,8 @@ class IOMixin:
         self.write(values)
         if to_write:
             self.write(to_write)
-            # Because we don't know which properties was linked to which definition,
-            # we can know clean properties (note that it is not mandatory, we can wait
-            # that client change the record in a Form view)
+            # Clean properties now that they are written (optional — the client
+            # would otherwise clean them on the next Form-view edit).
             self._clean_properties()
 
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
@@ -886,10 +854,8 @@ class IOMixin:
 
         imd = self.env["ir.model.data"].sudo()
 
-        # The algorithm below partitions 'data_list' into three sets: the ones
-        # to create, the ones to update, and the others. For each set, we assign
-        # data['record'] for each data. All those records are then retrieved for
-        # the result.
+        # partition 'data_list' into records to create / update / leave; set
+        # data['record'] on each, then return them all.
 
         # determine existing xml_ids
         xml_ids = [data["xml_id"] for data in data_list if data.get("xml_id")]
@@ -978,9 +944,8 @@ class IOMixin:
         # create records
         if to_create:
             records = self._load_records_create([data["values"] for data in to_create])
-            # strict=True: create() must return exactly one record per vals dict.
-            # A length mismatch silently dropped data["record"] on trailing rows
-            # (then KeyError'd at the final concat); fail loudly instead.
+            # strict=True: create() must return one record per vals dict; a
+            # mismatch would otherwise drop data["record"] and fail later.
             for data, record in zip(to_create, records, strict=True):
                 data["record"] = record
                 if data.get("xml_id"):

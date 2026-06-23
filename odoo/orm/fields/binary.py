@@ -57,15 +57,12 @@ class Binary(Field):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> bytes | None:
-        # Binary values are byte strings. The legacy convention is to transfer
-        # and store binaries as base64-encoded strings. The base64 string may
-        # be provided as a unicode in some circumstances, hence the str() cast here.
-        # This str() coercion will only work for pure ASCII unicode strings,
-        # on purpose - non base64 data must be passed as 8-bit byte strings.
+        # Binaries are transferred/stored as base64 strings (legacy convention),
+        # sometimes as unicode, hence the str() cast below. It only works for
+        # pure-ASCII strings on purpose: raw binary must be passed as bytes.
         if not value:
             return None
-        # Detect if the binary content is an SVG for restricting its upload
-        # only to system users.
+        # Detect SVG content to restrict its upload to system users.
         magic_bytes = {
             b"P",  # first 6 bits of '<' (0x3C) b64 encoded
             b"<",  # plaintext XML tag opening
@@ -99,8 +96,8 @@ class Binary(Field):
             ) from e
 
     def get_column_update(self, record: BaseModel) -> bytes | None:
-        """Return the raw binary bytes for ``record``, bypassing bin_size context."""
-        # Binary depends on context (bin_size); force bin_size=False to get actual data.
+        """Return the raw binary bytes for ``record``, bypassing bin_size."""
+        # force bin_size=False to get actual data, not the size
         bin_size_name = "bin_size_" + self.name
         record = record.with_context(**{"bin_size": False, bin_size_name: False})
         value = self._get_cache(record.env)[record.id]
@@ -223,18 +220,17 @@ class Binary(Field):
         # discard recomputation of self on records
         records.env.remove_to_compute(self, records)
 
-        # update the cache, and discard the records that are not modified
+        # update the cache, discarding records that are not modified
         cache_value = self.convert_to_cache(value, records)
         records = self._filter_not_equal(records, cache_value)
         if not records:
             return
         if self.store:
-            # determine records that are known to be not null
             not_null = self._filter_not_equal(records, None)
 
         self._update_cache(records, cache_value)
 
-        # retrieve the attachments that store the values, and adapt them
+        # retrieve and adapt the attachments that store the values
         if self.store and any(records._ids):
             real_records = records.filtered("id")
             atts = records.env["ir.attachment"].sudo()
@@ -347,11 +343,9 @@ class Image(Binary):
             new_value = self._image_process(value, records.env)
         except UserError:
             if not any(records._ids):
-                # Some crap is assigned to a new record. This can happen in an
-                # onchange, where the client sends the "bin size" value of the
-                # field instead of its full value (this saves bandwidth). In
-                # this case, we simply don't assign the field: its value will be
-                # taken from the records' origin.
+                # Invalid value on a new record: in onchange the client may send
+                # the field's "bin size" instead of its content (to save
+                # bandwidth). Skip the assignment; the value comes from origin.
                 return
             raise
 

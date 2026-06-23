@@ -38,24 +38,20 @@ _logger = logging.getLogger(__name__)
 
 @functools.lru_cache(maxsize=1024)
 def _monodb_dblist_cached(host: str, _ttl_bucket: int) -> tuple[str, ...]:
-    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) is part of the cache
-    # key solely so the entry expires every TTL seconds; its value is otherwise
-    # unused. ``maxsize`` bounds memory across many — possibly attacker-supplied
-    # — Host header values (LRU eviction, never unbounded). A tuple is cached
-    # (immutable) so the shared entry cannot be mutated by a caller. ``db_list``
-    # is resolved from this module's namespace, which keeps the existing test
-    # monkeypatch of ``odoo.http.request_class.db_list`` effective.
+    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) is in the key only so
+    # the entry expires every TTL seconds; its value is unused. ``maxsize`` bounds
+    # memory across many (attacker-supplied) Host values. A tuple is cached so the
+    # shared entry can't be mutated. ``db_list`` is resolved from this module's
+    # namespace, keeping the ``request_class.db_list`` test monkeypatch effective.
     return tuple(db_list(force=True, host=host))
 
 
 def _monodb_dblist(host: str) -> list[str]:
     """``db_list(force=True, host)`` for monodb detection, memoised per host.
 
-    See :data:`~odoo.http.constants.DB_MONODB_CACHE_TTL` for the rationale and
-    the (benign, self-healing) staleness contract. Only this database-less
-    detection path is cached; the shared :func:`db_list` — and the DB-manager /
-    cron existence checks that depend on its freshness — is left uncached.
-    Returns a fresh, caller-owned list.
+    See :data:`DB_MONODB_CACHE_TTL` for the staleness contract. Only this
+    db-less detection path is cached; the shared :func:`db_list` is not. Returns
+    a fresh, caller-owned list.
     """
     return list(_monodb_dblist_cached(host, int(time.time() // DB_MONODB_CACHE_TTL)))
 
@@ -63,9 +59,8 @@ def _monodb_dblist(host: str) -> list[str]:
 def clear_monodb_cache() -> None:
     """Drop the memoised monodb database list.
 
-    Production relies on :data:`DB_MONODB_CACHE_TTL` expiry; this exists for
-    tests, which monkeypatch ``db_list`` per request and must not observe a
-    value cached under a previous patch within the same TTL bucket.
+    For tests only (production relies on TTL expiry): they monkeypatch
+    ``db_list`` per request and must not see a value cached under a prior patch.
     """
     _monodb_dblist_cached.cache_clear()
 
@@ -85,15 +80,12 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     """
 
     def __init__(self, httprequest: HTTPRequest, app: Any = None) -> None:
-        # ``app`` is the :class:`Application` serving this request. In
-        # production only ``Application.__call__`` builds requests and it
-        # injects ``app=self``, making the dependency explicit on the hot
-        # path instead of reaching for the ``root`` module singleton from a
-        # dozen scattered lazy imports. The fallback keeps the singleton
-        # available for the few standalone constructors (tests, tooling) and
-        # is what lets a test inject a fake app without monkeypatching the
-        # global. ``Any`` (not ``Application``) avoids a request_class<->
-        # application import cycle while staying ``test_pep649``-clean.
+        # ``app`` is the :class:`Application` serving this request.
+        # ``Application.__call__`` injects ``app=self``, making the dependency
+        # explicit on the hot path instead of a ``root`` singleton lazy import;
+        # the fallback keeps standalone constructors (tests, tooling) working and
+        # lets a test inject a fake app. ``Any`` (not ``Application``) avoids a
+        # request_class<->application import cycle, staying ``test_pep649``-clean.
         if app is None:
             from .application import root
 
@@ -123,35 +115,28 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if not sid or not root.session_store.is_valid_key(sid):
             session = root.session_store.new()
         else:
-            # ``get()`` honours ``renew_missing=True`` and returns a session
-            # with a freshly generated sid when the file does not exist. Do
-            # NOT override ``session.sid`` back to the client-supplied value
-            # — that would let any client dictate their own session id,
-            # weakening the defence-in-depth around session fixation (the
-            # primary mitigation is the hard rotation performed by
-            # :meth:`Session.finalize` on login).
+            # ``get()`` honours ``renew_missing=True``, returning a fresh sid when
+            # the file is missing. Do NOT override ``session.sid`` back to the
+            # client value — that lets a client dictate their own session id,
+            # weakening session-fixation defence (hard rotation on login is the
+            # primary mitigation, see :meth:`Session.finalize`).
             session = root.session_store.get(sid)
 
         for key, val in get_default_session().items():
             session.setdefault(key, val)
-        # A hand-edited or cross-version session file can carry
-        # ``"context": null``; ``setdefault`` will not overwrite that ``None``,
-        # and the ``.get("lang")`` below — plus every later in-place
-        # ``session.context[...] = ...`` — would raise AttributeError, i.e. a 500
-        # on EVERY request bearing that cookie (the main path, not just static).
-        # Normalise a non-dict context to a fresh dict once, here, so the value
-        # callers mutate in place is real. (Unlike ``Session.debug``, the getter
-        # cannot coerce on read: callers rely on it returning the same stored
-        # mapping so their in-place writes persist.)
+        # A hand-edited / cross-version session file can carry ``"context": null``;
+        # ``setdefault`` won't overwrite that ``None``, so ``.get("lang")`` and
+        # later in-place ``context[...] = ...`` would AttributeError — a 500 on
+        # every request with that cookie. Normalise a non-dict context to a fresh
+        # dict here (the getter can't coerce on read: callers mutate it in place).
         if not isinstance(session.context, dict):
             session.context = {}
         if not session.context.get("lang"):
             session.context["lang"] = self.default_lang()
 
         dbname = None
-        # HTTP/1.1 mandates Host, but HTTP/1.0 or malformed clients may omit it.
-        # Fall back to "" (the same default db_filter uses) rather than letting
-        # a missing key KeyError the whole request into a 500.
+        # HTTP/1.0 or malformed clients may omit Host; fall back to "" (db_filter's
+        # default) rather than KeyError-ing the request into a 500.
         host = self.httprequest.environ.get("HTTP_HOST", "")
         header_dbname = self.httprequest.headers.get("X-Odoo-Database")
         if session.db and db_filter([session.db], host=host):
@@ -160,21 +145,16 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 e = "Cannot use both the session_id cookie and the x-odoo-database header."
                 raise werkzeug.exceptions.Forbidden(e)
         elif header_dbname:
-            # Presence of the X-Odoo-Database header marks the request as a
-            # stateless API call, so the session is never persisted — even when
-            # the named database is rejected by ``db_filter`` below and the
-            # request ends up served db-less. This is deliberate: an API client
-            # opted out of cookie/session management by sending the header, and
-            # only such clients send it (browsers never do), so the rejected-db
-            # case degrading to "no session save" is harmless rather than a
-            # silent footgun for interactive users.
+            # The X-Odoo-Database header marks a stateless API call, so the session
+            # is never persisted — even when ``db_filter`` rejects the named db and
+            # the request is served db-less. Only API clients send it (browsers
+            # never do), so degrading to "no session save" is harmless.
             session.can_save = False  # stateless
             if db_filter([header_dbname], host=host):
                 dbname = header_dbname
         else:
-            # Memoised per host for a short TTL: this ``pg_database`` query
-            # otherwise ran on every database-less request. See ``_monodb_dblist``
-            # / ``DB_MONODB_CACHE_TTL``.
+            # Memoised per host (short TTL): otherwise this ``pg_database`` query
+            # runs on every db-less request. See ``_monodb_dblist``.
             all_dbs = _monodb_dblist(host)
             if len(all_dbs) == 1:
                 dbname = all_dbs[0]  # monodb
@@ -207,9 +187,8 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         :param dict context: optional context dictionary to change the current context
         :param bool su: optional boolean to change the superuser mode
         """
-        # Passing ``cr=None`` to ``env(...)`` keeps the current cursor; the
-        # ``Environment.__call__`` body resolves ``cr = self.cr if cr is
-        # None else cr`` before constructing the new environment.
+        # ``cr=None`` keeps the current cursor: ``Environment.__call__`` resolves
+        # ``cr = self.cr if cr is None else cr``.
         self.env = self.env(None, user, context, su)
         self.env.transaction.default_env = self.env
         threading.current_thread().uid = self.env.uid
@@ -229,18 +208,16 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             return None
 
         try:
-            # ``parse_locale`` returns a 4- or 5-tuple (the 5th element is a
-            # modifier, e.g. ``it-IT@euro`` — which a client *can* send in
-            # Accept-Language and werkzeug surfaces verbatim via ``.best``).
-            # Slice to the first two so a modifier resolves the locale instead
-            # of raising ``ValueError`` and silently degrading to en_US.
+            # ``parse_locale`` returns a 4- or 5-tuple (5th is a modifier, e.g.
+            # ``it-IT@euro``, which a client can send via Accept-Language). Slice
+            # to the first two so a modifier resolves instead of ValueError-ing.
             code, territory = babel.core.parse_locale(lang, sep="-")[:2]
             if territory:
                 lang = f"{code}_{territory}"
             else:
                 lang = babel.core.LOCALE_ALIASES[code]
             return lang
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return None
 
     @functools.cached_property
@@ -257,10 +234,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     # :class:`_RequestCsrfMixin`.
 
     def default_context(self) -> dict[str, Any]:
-        # ``get_default_session()['context']`` is currently ``{}`` so the
-        # only effective key is ``lang``. If the default session ever
-        # acquires more context keys, add them here explicitly rather
-        # than re-introducing a ``dict|dict`` merge that obscures intent.
+        # ``get_default_session()['context']`` is ``{}`` today, so ``lang`` is the
+        # only effective key. Add new keys here explicitly rather than a
+        # ``dict|dict`` merge.
         return {"lang": self.default_lang()}
 
     def default_lang(self) -> str:
@@ -287,10 +263,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         }
 
     def get_json_data(self) -> Any:
-        # orjson parses UTF-8 bytes directly (RFC 8259 mandates UTF-8 for JSON),
-        # so feed it the raw body and skip werkzeug's decode-to-str on every
-        # JSON request. Invalid UTF-8 — already a malformed JSON body — raises
-        # the same ValueError the callers already handle.
+        # orjson parses UTF-8 bytes directly (RFC 8259), so feed it the raw body
+        # and skip werkzeug's decode-to-str. Invalid UTF-8 (already malformed JSON)
+        # raises the same ValueError callers handle.
         return _fast_loads(self.httprequest.get_data())
 
     def _get_profiler_context_manager(self) -> contextlib.AbstractContextManager:
@@ -300,12 +275,12 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         nothing.
         """
         if self.session.get("profile_session") and self.db:
-            # ``.get(..., "")`` (not ``[...]``) so a session that somehow has
-            # ``profile_session`` without ``profile_expiration`` (manual edit,
-            # cross-version migration) treats the missing expiration as
-            # already-elapsed and disables profiling, instead of crashing the
-            # request with KeyError.
-            if self.session.get("profile_expiration", "") < str(odoo.fields.Datetime.now()):
+            # ``.get(..., "")`` not ``[...]`` so a session with ``profile_session``
+            # but no ``profile_expiration`` (manual edit) treats it as elapsed and
+            # disables profiling instead of KeyError-ing the request.
+            if self.session.get("profile_expiration", "") < str(
+                odoo.fields.Datetime.now()
+            ):
                 # avoid having session profiling for too long if user forgets to disable profiling
                 self.session["profile_session"] = None
                 _logger.warning("Profiling expiration reached, disabling profiling")
@@ -318,13 +293,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 _logger.debug("Profiling disabled for evented server")
             else:
                 try:
-                    # Use ``.get`` with the same defaults ir_profile sets
-                    # (``collectors=[]``, ``params={}``) so a session missing
-                    # those keys (cross-version migration, manual edit) gets
-                    # the documented default instead of a KeyError caught only
-                    # by the broad ``except`` below — which would log
-                    # "Failure during Profiler creation" with a misleading
-                    # traceback rooted in the missing-key error.
+                    # ``.get`` with ir_profile's defaults (``collectors=[]``,
+                    # ``params={}``) so a session missing those keys gets the
+                    # default instead of a KeyError mislogged as "Failure during
+                    # Profiler creation" by the broad ``except`` below.
                     return profiler.Profiler(
                         db=self.db,
                         description=self.httprequest.full_path,
@@ -341,20 +313,14 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     def _inject_future_response(self, response: Response) -> Response:
         """Merge ``future_response`` headers into ``response``.
 
-        ``Set-Cookie`` is the only header in our pipeline that can
-        legitimately appear multiple times (one per cookie) and is
-        accumulated. Every other header that the dispatcher / session
-        save flow puts on ``future_response`` (CORS, Content-Security-
-        Policy, custom session-id replacement) is single-valued in
-        practice; using :meth:`Headers.extend` blindly duplicated them
-        when both ``future_response`` and ``response`` had a value, which
-        produced HTTP responses with two ``Content-Type`` headers when
-        controllers built responses by hand.
+        ``Set-Cookie`` (one per cookie) is accumulated; every other header on
+        ``future_response`` (CORS, CSP, session-id replacement) is single-valued
+        and is set, not extended — a blind :meth:`Headers.extend` duplicated them,
+        yielding two ``Content-Type`` headers on hand-built responses.
         """
-        # ``response.headers`` (a ProxyAttr getter) builds a fresh ``Headers``
-        # facade on every access; hoist it once instead of per header. The
-        # facade wraps the live werkzeug ``Headers``, so mutations still land on
-        # the real response (same pattern as ``Application.set_csp``).
+        # ``response.headers`` builds a fresh facade on each access; hoist it once.
+        # The facade wraps the live werkzeug ``Headers``, so writes still land on
+        # the real response.
         headers = response.headers
         for key, value in self.future_response.headers.items():
             if key.lower() == "set-cookie":
@@ -395,18 +361,14 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         elif sess.is_dirty:
             root.session_store.save(sess)
 
-        # Compare against the RAW client cookie (what the browser will send
-        # back), not the sanitized ``self.cookies`` facade: ``_sanitize_cookies``
-        # never touches ``session_id``, so the values are identical, but reading
-        # it here would force the whole sanitized-cookie build (an ``ir.http``
-        # registry call) on the session-save path of requests that never
-        # otherwise access ``request.cookies``.
+        # Compare against the RAW client cookie, not the sanitized ``self.cookies``
+        # facade: the values are identical (``_sanitize_cookies`` ignores
+        # ``session_id``), but reading the facade forces an ``ir.http`` call on the
+        # session-save path of requests that never touch ``request.cookies``.
         cookie_sid = self.httprequest.session_id
         if sess.is_dirty or cookie_sid != sess.sid:
-            # For logged-out sessions (e.g. after DB drop or explicit
-            # logout), skip the DB query — the custom inactivity timeout
-            # only matters for authenticated sessions, and the DB
-            # connection may already be dead.
+            # Logged-out sessions skip the DB query: the inactivity timeout only
+            # matters when authenticated, and the connection may be dead.
             max_age = get_session_max_inactivity(env) if sess.uid else SESSION_LIFETIME
             # secure / samesite are filled in by ``_apply_cookie_defaults``
             # based on request scheme.
@@ -417,15 +379,13 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 httponly=True,
             )
 
+
 # Routing methods (`_set_request_dispatcher`, `_serve_static`, `_serve_db`,
 # `_serve_nodb`, `_update_served_exception`, `_serve_ir_http_fallback`,
 # `_serve_ir_http`) live on :class:`_RequestServeMixin` in `_serve.py`.
 
 
-# Late import to break the Request <-> Dispatcher cycle.  ``_dispatchers``
-# is referenced only inside ``Request.__init__`` at runtime (never at
-# class-definition time), so moving the import below the class definition
-# is safe.  dispatcher.py does the mirror move with
-# ``from .request_class import Request`` at its own bottom, making the cycle
-# resolvable regardless of which module Python loads first.
+# Late import to break the Request <-> Dispatcher cycle. ``_dispatchers`` is used
+# only inside ``Request.__init__`` at runtime, so importing below the class is
+# safe; dispatcher.py mirrors this. Do NOT move under TYPE_CHECKING (test_pep649).
 from .dispatcher import _dispatchers  # noqa: E402  — see note above

@@ -1,8 +1,6 @@
-"""
-Traversal operations mixin for BaseModel.
+"""Traversal and transformation mixin for BaseModel.
 
-This module contains methods for traversing and transforming recordsets:
-mapped, filtered, grouped, sorted, and update.
+Provides mapped, filtered, grouped, sorted, and update.
 """
 
 import functools
@@ -30,8 +28,8 @@ if typing.TYPE_CHECKING:
 
 T = typing.TypeVar("T")
 
-# Field types where convert_to_record(value, rec) is identity when value is not None.
-# For these types we bypass singleton record creation AND method dispatch in mapped().
+# Field types where convert_to_record(value, rec) is identity for non-None
+# values, so mapped() can skip singleton creation and method dispatch.
 _MAPPED_IDENTITY_TYPES = frozenset(
     {
         "boolean",
@@ -85,15 +83,7 @@ class ReversibleComparator:
 
 
 class TraversalMixin:
-    """Mixin providing traversal and transformation operations for recordsets.
-
-    This mixin contains methods for:
-    - Mapping over records (mapped)
-    - Filtering records (filtered, filtered_domain)
-    - Grouping records (grouped)
-    - Sorting records (sorted)
-    - Updating records (update)
-    """
+    """Mixin providing traversal and transformation operations for recordsets."""
 
     __slots__ = ()
 
@@ -140,17 +130,15 @@ class TraversalMixin:
             for rel_field_name in rel_field_names:
                 records = records[rel_field_name]
             if len(records) > PREFETCH_MAX:
-                # fetch fields for all recordset in case we have a recordset
-                # that is larger than the prefetch
+                # fetch the field for the whole set when it exceeds the prefetch
                 records.fetch([field_name])
             field = records._fields[field_name]
             getter = field.__get__
             if field.relational:
                 # union of records
                 return getter(records)
-            # Non-relational fast path: batch preconditions once, then
-            # loop with direct cache access.  Falls back to __get__ on
-            # cache miss (handles DB fetch, defaults, new records).
+            # Non-relational fast path: batch preconditions once, then loop
+            # with direct cache access.  Falls back to __get__ on cache miss.
             if not records:
                 return []
             field.ensure_access(records[:1])
@@ -161,12 +149,9 @@ class TraversalMixin:
             _get = field_cache.get
             result = []
             _append = result.append
-            # Identity-convert optimisation: for most scalar types,
-            # convert_to_record(value, rec) == value when value is not
-            # None.  Skip convert_to_record method dispatch entirely.
-            # We still iterate records (not raw _ids) to preserve the
-            # prefetch group — on cache miss, __get__ fetches the whole
-            # batch via the shared _prefetch_ids.
+            # Identity-convert: skip convert_to_record for scalar types where
+            # it is a no-op.  Iterate records (not raw _ids) to preserve the
+            # prefetch group so __get__ batch-fetches on a cache miss.
             if field.type in _MAPPED_IDENTITY_TYPES or (
                 field.type in _MAPPED_CHAR_TEXT and not callable(field.translate)
             ):
@@ -175,8 +160,8 @@ class TraversalMixin:
                     field_cache, records._ids, PENDING, _none_val
                 )
                 if miss_indices:
-                    # Create singletons only for missed indices — list()
-                    # preserves _prefetch_ids (shared from __iter__).
+                    # Singletons only for missed indices; list() preserves
+                    # _prefetch_ids (shared from __iter__).
                     rec_list = list(records)
                     for idx in miss_indices:
                         result[idx] = getter(rec_list[idx])
@@ -238,8 +223,8 @@ class TraversalMixin:
                     if any(rec.mapped(func))
                 )
             # Fast path: batch ACL + recompute, then C-level cache scan.
-            # Falls back to __get__ only for missed indices (preserves
-            # prefetch groups via list(self) which shares _prefetch_ids).
+            # Falls back to __get__ for missed indices (list(self) preserves
+            # prefetch groups).
             field = self._fields[func]
             field.ensure_access(self[0:1])
             field.ensure_computed(self)
@@ -253,9 +238,7 @@ class TraversalMixin:
                 for idx in miss_indices:
                     if _field_get(rec_list[idx]):
                         passing_ids.append(rec_list[idx]._ids[0])
-                # Re-establish original order: cache-hit IDs come out in
-                # order, but miss IDs are appended at the end.  Rebuild
-                # using a set + original tuple scan to restore order.
+                # Restore original order: miss IDs were appended at the end.
                 all_passing = set(passing_ids)
                 passing_ids = [id_ for id_ in self._ids if id_ in all_passing]
             return self.browse(passing_ids)
@@ -295,9 +278,8 @@ class TraversalMixin:
         if isinstance(key, str):
             field = self._fields[key]
             if not field.relational:
-                # Scalar fast path: batch ACL + recompute, then direct cache
-                # loop.  Groups by convert_to_record(cache_value), falling back
-                # to __get__ on cache miss.
+                # Scalar fast path: batch ACL + recompute, then group by
+                # convert_to_record(cache_value), falling back to __get__ on miss.
                 field.ensure_access(self[:1])
                 field.ensure_computed(self)
                 field_cache = field._get_cache(self.env)
@@ -306,8 +288,7 @@ class TraversalMixin:
                 _get = field_cache.get
                 _field_get = field.__get__
                 collator = defaultdict(list)
-                # Identity-convert: skip convert_to_record dispatch for
-                # types where it's a no-op (same pattern as mapped()).
+                # Identity-convert: skip convert_to_record where it is a no-op.
                 if field.type in _MAPPED_IDENTITY_TYPES or (
                     field.type in _MAPPED_CHAR_TEXT and not callable(field.translate)
                 ):
@@ -317,8 +298,7 @@ class TraversalMixin:
                         field_cache, ids, PENDING, _none_val
                     )
                     if not miss_indices:
-                        # All values from cache — Rust groups ids by value in
-                        # one C-level pass (no Python loop, no defaultdict).
+                        # All cached: Rust groups ids by value in one C pass.
                         collator = _batch_group_ids(ids, results)
                     else:
                         miss_set = set(miss_indices)
@@ -408,8 +388,8 @@ class TraversalMixin:
             return self
         if isinstance(key, str):
             order = key
-            # Batch ensure_computed for all sort fields — avoids redundant
-            # pending_ids checks in __get__ during O(N log N) comparisons.
+            # Batch ensure_computed so both sort paths can read the cache
+            # directly instead of going through __get__ per record.
             self._sorted_ensure_computed(order)
             # Try ID-based sort: avoids creating N singleton records
             ids = self._sorted_by_ids(order, reverse)
@@ -473,14 +453,11 @@ class TraversalMixin:
     def _sorted_by_ids(self, order: str, reverse: bool) -> tuple | None:
         """Try to sort ``self._ids`` directly from cache values.
 
-        Returns the sorted tuple of IDs on success, or ``None`` if the
-        fast path is not applicable (relational, property, boolean, or
-        cache miss).
+        Handles single- and multi-field sorts, avoiding the N singleton records
+        the general ``sorted(self, key=...)`` path requires.
 
-        Supports single-field AND multi-field sorts.  This avoids creating
-        N singleton record objects that the general ``sorted(self, key=...)``
-        path requires.  For 100 records × 2 fields, this eliminates ~100
-        object.__new__ calls and ~1600 ReversibleComparator allocations.
+        :return: the sorted tuple of IDs, or ``None`` if the fast path does not
+            apply (relational, property, boolean, or cache miss)
         """
         parts = order.split(",")
         _SENTINEL = SENTINEL
@@ -509,31 +486,27 @@ class TraversalMixin:
             sort_specs.append((field._get_cache(env), desc, nulls_first))
 
         if len(sort_specs) == 1:
-            # ── Single-field fast path ──
+            # Single-field fast path
             field_cache, desc, nulls_first = sort_specs[0]
             values = _batch_cache_values(field_cache, ids, _PENDING)
             if values is None:
                 return None
 
             reverse_param = desc != reverse
-            # Rust handles both null and non-null cases: pass null_high only
-            # when values actually contain None/False (short-circuits on first
-            # hit); otherwise pass None to skip null checks in the comparator.
+            # Pass null_high only when values contain None/False, else None to
+            # skip null checks in the Rust comparator.
             has_nulls = any(v is None or v is False for v in values)
             null_high = (nulls_first == desc) if has_nulls else None
             return _sort_ids_by_values(ids, values, reverse_param, null_high)
 
-        # ── Multi-field path ──
-        # Only handle uniform direction (all ASC or all DESC).
-        # Mixed-direction multi-field sorts (e.g. "name ASC, id DESC") are
-        # rare and need per-field negation — fall back to record-based path.
+        # Multi-field path: only uniform direction (all ASC or all DESC).
+        # Mixed-direction sorts need per-field negation — fall back instead.
         all_desc = sort_specs[0][1]
         for _, desc, _ in sort_specs[1:]:
             if desc != all_desc:
                 return None
 
-        # Uniform direction: build composite tuple keys from cache values.
-        # The tuple comparison naturally gives multi-field ordering.
+        # Build composite tuple keys; tuple comparison gives multi-field order.
         reverse_param = all_desc != reverse
         has_nulls = False
         columns = []
@@ -662,21 +635,17 @@ class TraversalMixin:
         for name, value in values.items():
             self[name] = value
 
-    # -------------------------------------------------------------------------
     # Cycle detection
-    # -------------------------------------------------------------------------
 
     def _has_cycle(self, field_name: str | None = None) -> bool:
-        """
-        Return whether the records in ``self`` are in a loop by following the
-        given relationship of the field.
-        By default the **parent** field is used as the relationship.
+        """Return whether the records in ``self`` form a loop along ``field_name``
+        (default: the parent field).
 
-        Note that since the method does not use EXCLUSIVE LOCK for the sake of
-        performance, loops may still be created by concurrent transactions.
+        No EXCLUSIVE LOCK is taken (for performance), so concurrent transactions
+        may still create loops.
 
         :param field_name: optional field name (default: ``self._parent_name``)
-        :return: **True** if a loop was found, **False** otherwise.
+        :return: ``True`` if a loop was found
         """
         if not field_name:
             field_name = self._parent_name

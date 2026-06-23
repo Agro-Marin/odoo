@@ -23,13 +23,10 @@ from .constants import (
 )
 from .core import request
 
-# A generated session id is sha512().digest()[:-1] base64-urlsafe-encoded:
-# 63 bytes → 84 chars, no padding (63 is a multiple of 3). The static prefix
-# (first STORED_SESSION_BYTES chars) survives soft rotation; the suffix
-# (remaining chars) is replaced. Soft rotation requires the static prefix to
-# be strictly shorter than the full sid — assert it here so a future change
-# to STORED_SESSION_BYTES that breaks rotation fails at import time, not on
-# the first concurrent request.
+# A session id is sha512().digest()[:-1] base64-urlsafe-encoded: 63 bytes → 84
+# chars, no padding. Its static prefix (first STORED_SESSION_BYTES chars) survives
+# soft rotation; the suffix is replaced. The assert below pins the prefix shorter
+# than the full sid, so a bad STORED_SESSION_BYTES fails at import, not at runtime.
 _SESSION_KEY_LENGTH = 84
 assert STORED_SESSION_BYTES < _SESSION_KEY_LENGTH, (
     f"STORED_SESSION_BYTES ({STORED_SESSION_BYTES}) must be < "
@@ -38,9 +35,8 @@ assert STORED_SESSION_BYTES < _SESSION_KEY_LENGTH, (
 _base64_urlsafe_re = re.compile(rf"^[A-Za-z0-9_-]{{{_SESSION_KEY_LENGTH}}}$")
 _session_identifier_re = re.compile(rf"^[A-Za-z0-9_-]{{{STORED_SESSION_BYTES}}}$")
 
-# Cap the per-session ``_trace`` device-log list so a session shared across
-# many devices/IPs (mobile users on rotating networks) doesn't grow without
-# bound. Eviction is LRU by ``last_activity``.
+# Cap the per-session ``_trace`` device-log list so a session on many devices/IPs
+# doesn't grow unbounded. Eviction is LRU by ``last_activity``.
 _TRACE_MAX_ENTRIES = 50
 
 
@@ -63,11 +59,9 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
     def delete_old_sessions(self, session: Session) -> None:
         if "gc_previous_sessions" in session:
             if session["create_time"] + SESSION_DELETION_TIMER < time.time():
-                # Delete ONLY the pre-rotation files that share the static
-                # prefix, keeping the current session file intact. Previously
-                # the delete-then-save pattern created a brief window where
-                # the current file was gone, letting concurrent requests
-                # trigger ``renew_missing`` and silently log the user out.
+                # Delete ONLY the pre-rotation files sharing the static prefix,
+                # keeping the current file intact — a delete-then-save would leave
+                # a window where ``renew_missing`` logs the user out.
                 self.delete_from_identifiers(
                     [session.sid[:STORED_SESSION_BYTES]],
                     exclude_sid=session.sid,
@@ -89,31 +83,24 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         return super().get(sid)
 
     def rotate(self, session: Session, env: Any, soft: bool = False) -> None:
-        # With a soft rotation, things like the CSRF token will still work. It's used for rotating
-        # the session in a way that half the bytes remain to identify the user and the other half
-        # to authenticate the user. Meanwhile with a hard rotation the entire session id is changed,
-        # which is useful in cases such as logging the user out.
+        # Soft rotation keeps the static prefix (so the CSRF token still works) and
+        # replaces the rest; hard rotation changes the whole sid (e.g. on logout).
         if soft:
-            # Multiple network requests can occur at the same time, all using the old session.
-            # We don't want to create a new session for each request, it's better to reference the one already made.
+            # Concurrent requests share the old session; adopt the already-rotated
+            # one rather than creating a new sid per request.
             static = session.sid[:STORED_SESSION_BYTES]
             recent_session = self.get(session.sid)
             if "next_sid" in recent_session:
-                # A concurrent request already rotated. Adopt the peer's
-                # authoritative session-management metadata (token,
-                # create_time, gc marker) so the cookie/token stay
-                # consistent for subsequent requests, then flush B's
-                # local modifications so they are not lost.
+                # A concurrent request already rotated; adopt its sid and
+                # authoritative metadata (token, create_time, gc marker), then
+                # flush this session's local edits so they are not lost.
                 new_sid = recent_session["next_sid"]
                 if session.is_dirty:
-                    # This session was loaded from the pre-rotation file
-                    # DURING the grace window, so its own ``__data`` carries
-                    # the peer's rotation-management keys (``next_sid``,
-                    # ``deletion_time``). Drop them before flushing onto the
-                    # live ``new_sid`` file — otherwise we poison the current
-                    # session: a stale ``deletion_time`` makes ``check_session``
-                    # log the active user out ~SESSION_DELETION_TIMER later, and
-                    # a stale ``next_sid`` re-arms a spurious rotation.
+                    # Loaded from the pre-rotation file during the grace window,
+                    # so this ``__data`` carries the peer's ``next_sid`` /
+                    # ``deletion_time``. Drop them before flushing onto ``new_sid``
+                    # — a stale ``deletion_time`` would log the user out later and
+                    # a stale ``next_sid`` would re-arm a spurious rotation.
                     for key in ("next_sid", "deletion_time"):
                         if key in session:
                             del session[key]
@@ -125,21 +112,17 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     self.save(session)
                 else:
                     session.sid = new_sid
-                # Match the postcondition of every other rotation path: a
-                # completed rotation clears ``should_rotate``. Today this branch
-                # is only reached with it already ``False`` (callers route a
-                # pending rotation through the hard path, ``soft=False``), so
-                # this is defensive — it keeps ``rotate()`` self-consistent if a
-                # future caller ever soft-rotates a should_rotate session.
+                # A completed rotation clears ``should_rotate`` (matching every
+                # other path). Defensive: this branch is only reached with it
+                # already ``False`` today, but keeps ``rotate()`` self-consistent.
                 session.should_rotate = False
                 return
             next_sid = static + self.generate_key()[STORED_SESSION_BYTES:]
         else:
             next_sid = self.generate_key()
 
-        # Compute the new session token BEFORE any destructive operation on disk.
-        # If token computation fails (e.g. transient DB error), the session
-        # remains untouched so the user stays logged in.
+        # Compute the new token BEFORE any destructive disk op, so a failure
+        # (e.g. transient DB error) leaves the session intact and the user in.
         new_token = None
         if session.uid:
             if not env:
@@ -161,10 +144,9 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             self.delete(session)
             session.sid = next_sid
 
-        # ``_compute_session_token`` can return ``False`` (deleted user,
-        # forged uid, or empty field values). ``is not None`` would let
-        # that ``False`` through and silently log the user out on the next
-        # request. Treat any falsy token as "don't update".
+        # ``_compute_session_token`` can return ``False`` (deleted/forged user);
+        # ``is not None`` would let it through and log the user out next request.
+        # Treat any falsy token as "don't update".
         if new_token:
             session.session_token = new_token
         session.should_rotate = False
@@ -172,45 +154,26 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         self.save(session)
 
     def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
-        # Operate on THIS store's own directory. Reaching through the global
-        # ``root.session_store.path`` made the method ignore ``self`` — it
-        # always vacuumed the singleton's filestore regardless of which store
-        # it was called on (harmless while the only caller is
-        # ``http.root.session_store.vacuum(...)``, but a latent bug for any
-        # other store and a plain encapsulation violation).
+        # Operate on THIS store's directory (``self.path``), not the global
+        # ``root.session_store.path`` — the latter ignored ``self`` and vacuumed
+        # the singleton's filestore regardless of which store was called.
         threshold = time.time() - max_lifetime
         base_path = Path(self.path)
-        # Two layouts must both be reaped: the current scattered
-        # ``<base>/<sid[:2]>/<sid>`` files (``*/*``) AND the legacy flat
-        # ``<base>/<filename_template % sid>`` files the vendored store wrote
-        # before the scatter migration. ``get()`` only migrates a flat file on
-        # access, so a flat session that is never touched again would otherwise
-        # never expire — globbing ``*/*`` alone skipped it (it lives one level
-        # up), leaking stale session files forever on upgraded deployments.
+        # Reap both layouts: the scattered ``<base>/<sid[:2]>/<sid>`` files
+        # (``*/*``) and the legacy flat files the vendored store wrote pre-scatter.
+        # ``get()`` only migrates a flat file on access, so globbing ``*/*`` alone
+        # would leak never-touched flat sessions forever.
         flat_glob = self.filename_template % "*"
-        for path in itertools.chain(
-            base_path.glob("*/*"), base_path.glob(flat_glob)
-        ):
+        for path in itertools.chain(base_path.glob("*/*"), base_path.glob(flat_glob)):
             with contextlib.suppress(OSError):
                 st = path.stat()
                 if S_ISREG(st.st_mode) and st.st_mtime < threshold:
                     path.unlink()
 
     def generate_key(self, salt: bytes | None = None) -> str:
-        # The generated key is case sensitive (base64) and the length is 84 chars.
-        # In the worst-case scenario, i.e. in an insensitive filesystem (NTFS for example)
-        # taking into account the proportion of characters in the pool and a length
-        # of 42 (stored part in the database), the entropy for the base64 generated key
-        # is 217.875 bits which is better than the 160 bits entropy of a hexadecimal key
-        # with a length of 40 (method ``generate_key`` of ``SessionStore``).
-        # The risk of collision is negligible in practice.
-        # Formulas:
-        #   - L: length of generated word
-        #   - p_char: probability of obtaining the character in the pool
-        #   - n: size of the pool
-        #   - k: number of generated word
-        #   Entropy = - L * sum(p_char * log2(p_char))
-        #   Collision ~= (1 - exp((-k * (k - 1)) / (2 * (n**L))))
+        # 84-char case-sensitive base64 key. Even on a case-insensitive filesystem
+        # (NTFS), the 42-char stored prefix gives ≈217 bits of entropy (vs 160 for
+        # the vendored hex ``generate_key``), so collisions are negligible.
         key = str(time.time()).encode() + os.urandom(64)
         hash_key = sha512(key).digest()[:-1]  # prevent base64 padding
         return base64.urlsafe_b64encode(hash_key).decode("utf-8")
@@ -226,9 +189,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         :return: the identifiers which are not present on the filesystem
         :rtype: set
         """
-        # There are a lot of session files.
-        # Use the param ``identifiers`` to select the necessary directories.
-        # In the worst case, we have 4096 directories (64^2).
+        # Use ``identifiers`` to scan only the needed directories (up to 4096).
         identifiers = set(identifiers)
         base = Path(self.path)
         directories = {str(base / identifier[:2]) for identifier in identifiers}
@@ -259,17 +220,14 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         files_to_unlink: list[Path] = []
         base_path = Path(self.path)
         for identifier in identifiers:
-            # Avoid to remove a session if it does not match an identifier.
-            # This prevent malicious user to delete sessions from a different
-            # database by specifying a custom ``res.device.log``.
+            # Reject non-matching identifiers so a malicious ``res.device.log``
+            # can't delete sessions from another database.
             if not _session_identifier_re.match(identifier):
                 msg = "Identifier format incorrect, did you pass in a string instead of a list?"
                 raise ValueError(msg)
             parent_dir = base_path / identifier[:2]
-            # Defense-in-depth: the regex above already restricts ``identifier``
-            # to ``[A-Za-z0-9_-]`` so ``identifier[:2]`` cannot escape the
-            # filestore — but we re-check the constructed path anyway, in case
-            # the regex is later loosened or ``base_path`` is symlinked.
+            # Defense-in-depth: the regex already restricts ``identifier``, but
+            # re-check the path in case it is loosened or ``base_path`` is symlinked.
             if parent_dir.is_relative_to(base_path):
                 files_to_unlink.extend(parent_dir.glob(identifier + "*"))
         for fn in files_to_unlink:
@@ -279,31 +237,22 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 fn.unlink()
 
 
-# JSON-native types that survive a round-trip through the session file
-# WITHOUT silent coercion.  ``tuple`` is intentionally NOT in this set:
-# tuples become lists in JSON, and the test contract treats that as a
-# "not recommended" case (allowed, but the round-trip yields a list, so
-# callers must re-tuple if they need tuple semantics).
+# JSON-native types that round-trip through the session file without coercion.
+# ``tuple`` is excluded: it becomes a list in JSON (allowed, but callers must
+# re-tuple if they need tuple semantics).
 _SESSION_JSON_PRIMITIVES = (str, int, float, bool, type(None))
 
 
 def _coerce_session_value(value: Any) -> Any:
     """Recursively validate and coerce ``value`` for session storage.
 
-    Returns the (possibly coerced) value if it is representable as JSON.
-    Raises ``TypeError`` for anything else — see ``Session.__setitem__``
-    for the rationale.
-
-    ``bool`` is checked BEFORE ``int`` because ``isinstance(True, int)``
-    is ``True`` in Python and we want bools to short-circuit cleanly to
-    the primitive branch (the reverse order would still work, but the
-    explicit ordering documents the intent).
+    Returns the (possibly coerced) JSON-representable value, else raises
+    ``TypeError`` (see ``Session.__setitem__`` for the rationale).
     """
     if isinstance(value, _SESSION_JSON_PRIMITIVES):
         return value
     if isinstance(value, dict):
-        # Validate keys are strings (JSON object keys must be strings),
-        # then recurse on values.
+        # JSON object keys must be strings; validate then recurse on values.
         coerced = {}
         for k, v in value.items():
             if not isinstance(k, str):
@@ -313,8 +262,7 @@ def _coerce_session_value(value: Any) -> Any:
             coerced[k] = _coerce_session_value(v)
         return coerced
     if isinstance(value, (list, tuple)):
-        # tuple → list coercion is the "not recommended" case from the
-        # test contract: allowed, but the user gets a list back.
+        # tuple → list: allowed, but the caller gets a list back.
         return [_coerce_session_value(v) for v in value]
     raise TypeError(
         f"Session values must be JSON-serializable "
@@ -326,17 +274,11 @@ def _coerce_session_value(value: Any) -> Any:
 class Session(collections.abc.MutableMapping):
     """Structure containing data persisted across requests.
 
-    The session tracks modifications through ``__setitem__`` only.
-    Mutating a nested value in place (e.g. ``session.context['lang'] =
-    'es_MX'``) does not mark the session dirty and the change will not
-    be persisted. After such mutations, call :meth:`touch` explicitly.
-
-    Reassigning the top-level key is NOT a reliable substitute: because
-    ``__setitem__`` flags dirty only when the new value differs from what is
-    stored, ``session['context'] = session.context`` after an in-place edit
-    compares the (already-mutated) stored mapping against an equal copy and
-    stays clean. Only assigning a value that genuinely differs from the stored
-    one — or calling :meth:`touch` — marks the session dirty.
+    Dirty-tracking happens through ``__setitem__`` only. Mutating a nested value
+    in place (``session.context['lang'] = 'es_MX'``) does NOT mark the session
+    dirty — call :meth:`touch` afterwards. Reassigning (``session['context'] =
+    session.context``) does not help either, since ``__setitem__`` compares equal
+    values; only a genuinely different value or :meth:`touch` marks it dirty.
     """
 
     __slots__ = (
@@ -350,18 +292,13 @@ class Session(collections.abc.MutableMapping):
 
     def __init__(self, data: dict[str, Any], sid: str, new: bool = False) -> None:
         self.can_save: bool = True
-        # ``data`` here is always trusted: either ``{}`` (a brand-new session)
-        # or a payload the store JUST parsed from a session file via
-        # ``_json_loads`` — so it is already JSON-native. Assign it directly
-        # instead of routing every key through ``__setitem__`` /
-        # ``_coerce_session_value``: that recursive validate-and-deep-copy
-        # exists to reject/normalise *application* writes, it can neither
-        # reject nor alter JSON-loaded data, and it ran on every authenticated
-        # request's session load (≈300 isinstance walks for a session at the
-        # ``_trace`` cap). ``dict(data)`` matches the shallow copy the vendored
-        # base performed; the store discards its local ``data`` reference, so
-        # the session owns these structures exclusively. Application writes
-        # still go through ``__setitem__`` and keep their validation + copy.
+        # ``data`` is always trusted here: ``{}`` or a payload the store just
+        # parsed from a session file, so already JSON-native. Assign directly
+        # rather than routing every key through ``__setitem__`` /
+        # ``_coerce_session_value`` — that validation is for *application* writes
+        # and ran on every authenticated session load (≈300 isinstance walks at
+        # the ``_trace`` cap). ``dict(data)`` is the shallow copy the vendored base
+        # made; the store drops its reference, so the session owns the data.
         self.__data: dict[str, Any] = dict(data)
         self.is_dirty: bool = False
         self.is_new: bool = new
@@ -374,34 +311,19 @@ class Session(collections.abc.MutableMapping):
     def __setitem__(self, item: str, value: Any) -> None:
         """Store ``value`` under ``item`` and mark the session dirty.
 
-        Sessions persist as JSON files, so values must be representable
-        in JSON.  This setter VALIDATES the value structure and rejects
-        anything that would round-trip lossily:
+        Sessions persist as JSON, so values must round-trip without loss:
+        str/int/float/bool/None and (recursively) list/dict are stored as-is,
+        ``tuple`` is coerced to ``list``, anything else raises ``TypeError``.
 
-        * ``str, int, float, bool, None``    → stored as-is
-        * ``list, dict``                     → recursively validated
-        * ``tuple``                          → coerced to ``list`` (lossy
-                                               but JSON-natively supported,
-                                               so accepted with type
-                                               coercion silently performed)
-        * Anything else                      → ``TypeError`` raised
+        Stricter than the lenient ``orjson_default`` used by HTTP responses:
+        those fall back to ``str(obj)`` mid-render, but a session lives across
+        requests, so silently storing a ``datetime`` as a string bites callers
+        later. Reject loudly so the caller picks the representation (e.g.
+        ``session["foo"] = some_dt.isoformat()``). In-place mutation of a nested
+        value does NOT trigger this; call :meth:`touch`.
 
-        The strict validation differs from the lenient ``orjson_default``
-        used by HTTP responses and ``fields.Json``: those callers cannot
-        reject values mid-render, so they fall back to ``str(obj)``.  A
-        session lives across requests, and silently storing
-        ``datetime.datetime.now()`` as the string ``"2026-05-09 19:23:02"``
-        bites callers months later when they read the value back and find a
-        string where they expected a datetime.  Reject loudly at write
-        time instead — the caller picks the right representation
-        explicitly (e.g. ``session["foo"] = some_dt.isoformat()``).
-
-        Mutating a nested value in place (e.g. ``session.context['lang'] =
-        'es_MX'``) does NOT trigger this method and will not be persisted
-        unless ``self.touch()`` is called or ``self.should_rotate`` is set.
-
-        :raises TypeError: if ``value`` (or any nested element of a list/
-            dict/tuple) is not JSON-serializable.
+        :raises TypeError: if ``value`` (or a nested element) is not
+            JSON-serializable.
         """
         value = _coerce_session_value(value)
         if item not in self.__data or self.__data[item] != value:
@@ -459,14 +381,9 @@ class Session(collections.abc.MutableMapping):
 
     @property
     def debug(self) -> str:
-        # Coerce to ``str`` on read so every consumer can treat it as one.
-        # The default is ``""`` (see ``get_default_session``) and ``_handle_debug``
-        # always stores a string, but a hand-edited or cross-version session file
-        # could carry ``"debug": null``; ``setdefault`` would not overwrite that
-        # ``None``, and ``"assets" in None`` (``Request._serve_static``) would then
-        # raise ``TypeError`` -> a 500 on a static asset. The JS side already
-        # guards with ``typeof o.debug === "string"``, so normalising to ``""``
-        # here matches the contract every reader assumes.
+        # Coerce to ``str`` on read so consumers can rely on it. A hand-edited
+        # session file could carry ``"debug": null``, which ``setdefault`` won't
+        # replace, and ``"assets" in None`` would then 500 a static asset.
         return self.get("debug") or ""
 
     @debug.setter
@@ -501,9 +418,8 @@ class Session(collections.abc.MutableMapping):
         wsgienv = {
             "interactive": True,
             "base_location": request.httprequest.url_root.rstrip("/"),
-            # ``.get`` (not ``[...]``): a no-Host HTTP/1.0 or malformed request
-            # should not KeyError the login into a 500; an empty fallback is
-            # consistent with how the rest of the http layer reads these.
+            # ``.get`` not ``[...]``: a no-Host request should not KeyError the
+            # login into a 500.
             "HTTP_HOST": request.httprequest.environ.get("HTTP_HOST", ""),
             "REMOTE_ADDR": request.httprequest.environ.get("REMOTE_ADDR", ""),
         }
@@ -567,13 +483,9 @@ class Session(collections.abc.MutableMapping):
         :return: dict if a device log has to be inserted, ``None`` otherwise
         """
         if self.get("_trace_disable"):
-            # To avoid generating useless logs, e.g. for automated technical sessions,
-            # a session can be flagged with `_trace_disable`. This should never be done
-            # without a proper assessment of the consequences for auditability.
-            # Non-admin users have no direct or indirect way to set this flag, so it can't
-            # be abused by unprivileged users. Such sessions will of course still be
-            # subject to all other auditing mechanisms (server logs, web proxy logs,
-            # metadata tracking on modified records, etc.)
+            # ``_trace_disable`` suppresses device logging for automated technical
+            # sessions. Only admins can set it (no unprivileged path), and other
+            # auditing (server/proxy logs, record metadata) still applies.
             return None
 
         user_agent = request.httprequest.user_agent

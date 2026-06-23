@@ -1,9 +1,4 @@
-"""
-SQL generation methods for read_group operations.
-
-Contains the _ReadGroupSQLMixin with methods that generate SQL expressions
-for SELECT (aggregation), GROUP BY, HAVING, and ORDER BY clauses.
-"""
+"""SQL generation for read_group: SELECT, GROUP BY, HAVING, ORDER BY."""
 
 import typing
 
@@ -30,22 +25,15 @@ from ..search import _SQL_DIR, _SQL_NULLS
 
 
 def _safe_sql_str_literal(value: str) -> str:
-    """Return *value* formatted as a single-quoted SQL string literal.
+    """Return *value* as a single-quoted SQL string literal.
 
-    This helper is used at the four sites in this module where the value
-    must be embedded into the SQL **text** rather than parameter-bound,
-    because the resulting expression appears in both ``SELECT`` and
-    ``GROUP BY`` clauses and PostgreSQL requires byte-identical text for
-    expression matching.  Server-side prepared statements assign each
-    parameter binding a unique ``$N`` number, so the same value used in
-    two places looks like two different expressions to PG and the
-    GROUP BY validation fails.
-
-    Each call site passes a value that has already been validated against
-    a fixed allow-list (timezone name, granularity keyword).  This helper
-    adds a final defense-in-depth check: any string containing a quote
-    or backslash raises :exc:`ValueError`, failing the query loudly
-    rather than producing malformed SQL.
+    Embedded into the SQL text (not parameter-bound) because the expression
+    appears in both SELECT and GROUP BY and PG matches them by byte-identical
+    text — server-side prepared statements give each bound param a distinct
+    ``$N``, so the same value bound twice looks like two expressions and
+    GROUP BY validation fails. Callers pass allow-listed values (timezone,
+    granularity); this adds a defense-in-depth check, raising on a quote or
+    backslash rather than emitting malformed SQL.
 
     :raises TypeError: when *value* is not a :class:`str`
     :raises ValueError: when *value* contains ``'`` or ``\\``
@@ -63,15 +51,11 @@ def _safe_sql_str_literal(value: str) -> str:
 
 
 class _ReadGroupSQLMixin:
-    """SQL generation methods for read_group.
-
-    Generates SQL expressions for aggregation (SELECT), grouping (GROUP BY),
-    filtering (HAVING), and ordering (ORDER BY).
-    """
+    """SQL expression generation for read_group (SELECT/GROUP BY/HAVING/ORDER BY)."""
 
     __slots__ = ()
 
-    # Type hints for attributes provided by BaseModel (runtime)
+    # Attributes provided by BaseModel at runtime
     _fields: dict
     _table: str
     _name: str
@@ -79,9 +63,9 @@ class _ReadGroupSQLMixin:
     pool: typing.Any
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """Return <SQL expression> corresponding to the given aggregation.
-        The method also checks whether the fields used in the aggregate are
-        accessible for reading.
+        """Return the SQL expression for *aggregate_spec*.
+
+        Also checks the aggregated fields are readable.
         """
         if aggregate_spec == "__count":
             return SQL("COUNT(*)")
@@ -163,9 +147,9 @@ class _ReadGroupSQLMixin:
         return READ_GROUP_AGGREGATE[func](self._table, sql_field)
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
-        """Return <SQL expression> corresponding to the given groupby element.
-        The method also checks whether the fields used in the groupby are
-        accessible for reading.
+        """Return the SQL expression for *groupby_spec*.
+
+        Also checks the grouped fields are readable.
         """
         fname, seq_fnames, granularity = parse_read_group_spec(groupby_spec)
         if fname not in self._fields:
@@ -228,8 +212,8 @@ class _ReadGroupSQLMixin:
                 raise ValueError(
                     f"Group by non-stored many2many field: {groupby_spec!r}"
                 )
-            # special case for many2many fields: prepare a query on the comodel
-            # and inject the query as an extra condition of the left join
+            # many2many: query the comodel and inject it as an extra LEFT JOIN
+            # condition.
             codomain = field.get_comodel_domain(self)
             comodel = self.env[field.comodel_name].with_context(**field.context)
             coquery = comodel._search(
@@ -270,19 +254,17 @@ class _ReadGroupSQLMixin:
                 )
 
             if field.type == "properties":
-                # For properties, _read_group_groupby_properties already
-                # built a proper DATE/TIMESTAMP CASE expression.  Apply
-                # date operations directly instead of going through
-                # Properties.property_to_sql (which treats the argument as
-                # a JSON key, not a granularity).
+                # _read_group_groupby_properties already built a DATE/TIMESTAMP
+                # CASE expr, so apply date ops directly rather than via
+                # Properties.property_to_sql (which treats its arg as a JSON key,
+                # not a granularity).
                 definition = self.get_property_definition(f"{field.name}.{seq_fnames}")
                 prop_type = definition.get("type")
                 if prop_type == "datetime":
                     if tz_name := self.env.context.get("tz"):
                         if tz_name in _get_all_timezones_set():
-                            # tz_name is from a controlled allow-list
-                            # (pytz canonical names).  Embedded — not
-                            # parameter-bound — for GROUP BY consistency
+                            # tz_name is allow-listed (pytz canonical names);
+                            # embedded, not bound, for GROUP BY consistency
                             # (see ``_safe_sql_str_literal``).
                             sql_expr = SQL(
                                 "timezone(%s, timezone('UTC', %%s))"
@@ -307,14 +289,11 @@ class _ReadGroupSQLMixin:
                 # first_week_day: 0=Monday, 1=Tuesday, ...
                 first_week_day = int(get_lang(self.env).week_start) - 1
                 days_offset = first_week_day and 7 - first_week_day
-                # Embed days_offset as a SQL integer literal for GROUP BY
-                # consistency: with server-side binding, bound params get
-                # unique $N numbers, making SELECT and GROUP BY expressions
-                # differ.  ``%d`` enforces integer-only formatting at the
-                # Python level — a non-int ``days_offset`` raises TypeError
-                # so this site can never produce a malformed INTERVAL clause.
-                # The leading ``-`` is part of the format string (the original
-                # value of ``interval`` was always ``-{days_offset} DAY``).
+                # Embed days_offset as a SQL int literal for GROUP BY consistency
+                # (bound params get distinct $N, splitting SELECT and GROUP BY).
+                # ``%d`` forces int formatting — a non-int raises TypeError, so
+                # no malformed INTERVAL can be produced. The leading ``-`` is
+                # part of the format string (interval was always ``-{n} DAY``).
                 sql_expr = SQL(
                     "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
                     " + INTERVAL '-%d DAY')"
@@ -322,7 +301,7 @@ class _ReadGroupSQLMixin:
                     sql_expr,
                 )
             elif granularity in READ_GROUP_TIME_GRANULARITY:
-                # Embed granularity as SQL literal for GROUP BY consistency
+                # Embed granularity as a SQL literal for GROUP BY consistency
                 # (see ``_safe_sql_str_literal``).
                 sql_expr = SQL(
                     "date_trunc(%s, %%s::timestamp)"
@@ -330,12 +309,12 @@ class _ReadGroupSQLMixin:
                     sql_expr,
                 )
 
-            # If the granularity is a part number, the result is a number (double) so no conversion is needed
+            # A part-number granularity yields a number, so needs no conversion.
             if (
                 field.type == "date"
                 and granularity not in READ_GROUP_NUMBER_GRANULARITY
             ):
-                # If the granularity uses date_trunc, we need to convert the timestamp back to a date.
+                # date_trunc returns a timestamp; convert it back to a date.
                 sql_expr = SQL("%s::date", sql_expr)
 
         elif field.type == "boolean":
@@ -364,10 +343,9 @@ class _ReadGroupSQLMixin:
                         f"Invalid having clause {item!r}: supported comparators are {SUPPORTED}"
                     )
                 sql_left = self._read_group_select(left, query)
-                # For in/not in the right operand must be a tuple so SQL()
-                # expands it to ``(%s, %s, ...)``.  A list/set would bind as a
-                # single array parameter and produce invalid ``IN (ARRAY[...])``
-                # SQL — accept the natural domain shapes by normalizing here.
+                # in/not in: the right operand must be a tuple so SQL() expands
+                # it to ``(%s, %s, ...)``; a list/set would bind as one array
+                # param, giving invalid ``IN (ARRAY[...])``. Normalize here.
                 if operator in ("in", "not in") and isinstance(
                     right, (list, set, frozenset)
                 ):
@@ -386,14 +364,13 @@ class _ReadGroupSQLMixin:
     def _read_group_orderby(
         self, order: str, groupby_terms: dict[str, SQL], query: Query
     ) -> SQL:
-        """Return (<SQL expression>, <SQL expression>)
-        corresponding to the given order and groupby terms.
+        """Return the ORDER BY SQL for *order* and *groupby_terms*.
 
-        Note: this method may change groupby_terms
+        May mutate *groupby_terms*.
 
         :param order: the order specification
-        :param groupby_terms: the group by terms mapping ({spec: sql_expression})
-        :param query: The query we are building
+        :param groupby_terms: ``{spec: sql_expression}`` group by terms
+        :param query: the query being built
         """
         if order:
             traverse_many2one = True
@@ -437,17 +414,15 @@ class _ReadGroupSQLMixin:
                 and field.type == "many2one"
                 and self.env[field.comodel_name]._order != "id"
             ):
-                # Use ANY_VALUE() (PG16+) for ORDER BY columns that are
-                # functionally dependent on the GROUP BY column. This avoids
-                # adding comodel fields (e.g., partner.name) to GROUP BY
-                # when ordering by a many2one with custom _order.
-                # Also enabled for GROUPING SETS: without ANY_VALUE, comodel
-                # fields with parameters (e.g., translated JSONB fields) get
-                # different parameter placeholders in ORDER BY vs GROUPING
-                # SETS, causing PostgreSQL to reject the query. For sets that
-                # include the many2one field, ANY_VALUE returns the correct
-                # (only) value; for other sets, ordering is non-deterministic
-                # but rows are dispatched separately via GROUPING().
+                # ANY_VALUE() (PG16+) for ORDER BY columns functionally
+                # dependent on the GROUP BY column: avoids adding comodel fields
+                # (e.g. partner.name) to GROUP BY when ordering by a many2one
+                # with a custom _order. Also needed for GROUPING SETS, where
+                # parameterized comodel fields (e.g. translated JSONB) otherwise
+                # get different placeholders in ORDER BY vs GROUPING SETS and PG
+                # rejects the query. Sets including the many2one get its (only)
+                # value; for others ordering is non-deterministic but rows are
+                # dispatched separately via GROUPING().
                 query._any_value_orderby = True
                 try:
                     sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
@@ -456,8 +431,8 @@ class _ReadGroupSQLMixin:
                 if sql_order:
                     orderby_terms.append(sql_order)
                     if query._order_groupby:
-                        # Fallback for overridden _order_to_sql that doesn't
-                        # check _any_value_orderby (e.g., addon overrides).
+                        # Fallback for an overridden _order_to_sql that ignores
+                        # _any_value_orderby (e.g. addon overrides).
                         groupby_terms[term] = SQL(", ").join(
                             [groupby_terms[term], *query._order_groupby]
                         )
@@ -519,7 +494,7 @@ class _ReadGroupSQLMixin:
             if property_type == "tags":
                 # ignore invalid tags
                 tags = [tag[0] for tag in definition.get("tags") or []]
-                # `->>0 : convert "JSON string" into string
+                # ->>0 converts a JSON string into a text value
                 condition = SQL(
                     "%s->>0 = ANY(%s::text[])",
                     SQL.identifier(property_alias),

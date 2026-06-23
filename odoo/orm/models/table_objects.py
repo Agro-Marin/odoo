@@ -1,15 +1,7 @@
-"""
-Declarative SQL table objects for ORM models.
+"""Declarative SQL table objects for ORM models.
 
-These descriptor classes are used as class attributes on model definitions
-to declaratively specify SQL constraints and indexes:
-
-- TableObject: Base class for SQL objects related to a model
-- Constraint: SQL table constraint (CHECK, FOREIGN KEY, UNIQUE)
-- Index: SQL index on the table
-- UniqueIndex: Unique SQL index on the table
-
-Usage::
+Descriptor classes (Constraint, Index, UniqueIndex) used as class attributes
+on model definitions to declare SQL constraints and indexes::
 
     class MyModel(models.Model):
         _name = "my.model"
@@ -32,8 +24,7 @@ if typing.TYPE_CHECKING:
 
     from ..runtime import Environment, Registry
 
-    # Forward reference - BaseModel will be defined later
-    BaseModel = typing.Any
+    BaseModel = typing.Any  # forward reference
 
     ConstraintMessageType = str | Callable[[Environment, Diagnostic | None], str]
     IndexDefinitionType = str | Callable[[Registry], str]
@@ -50,14 +41,12 @@ class TableObject:
     _module: str = ""
 
     def __init__(self) -> None:
-        """Abstract SQL object"""
-        # to avoid confusion: name is unique inside the model, full_name is in the database
+        # name is unique within the model; full_name is the database identifier
         self.name = ""
 
     def __set_name__(self, owner: type, name: str) -> None:
-        # database objects should be private member fo the class:
-        # first of all, you should not need to access them from any model
-        # and this avoid having them in the middle of the fields when listing members
+        # SQL objects must be private members: not meant to be accessed from a
+        # model, and kept out of the way when listing fields.
         if not name.startswith("_"):
             raise TypeError(
                 f"Name {name!r} of SQL object on {owner.__name__!r} must start with '_'"
@@ -113,16 +102,14 @@ class Constraint(TableObject):
         definition: str,
         message: ConstraintMessageType = "",
     ) -> None:
-        """SQL table containt.
+        """SQL table constraint.
 
-        The definition is the SQL that will be used to add the constraint.
-        If the constraint is violated, we will show the message to the user
-        or an empty string to get a default message.
+        ``definition`` is the SQL added to the table; ``message`` is shown on
+        violation (empty for a default message). Example definitions::
 
-        Examples of constraint definitions:
-        - CHECK (x > 0)
-        - FOREIGN KEY (abc) REFERENCES some_table(id)
-        - UNIQUE (user_id)
+            CHECK (x > 0)
+            FOREIGN KEY (abc) REFERENCES some_table(id)
+            UNIQUE (user_id)
         """
         super().__init__()
         self._definition = definition
@@ -160,14 +147,10 @@ class Index(TableObject):
     unique: bool = False
 
     def __init__(self, definition: IndexDefinitionType):
-        """Index in SQL.
+        """SQL index. ``definition`` is the SQL used to create it. Examples::
 
-        The name of the SQL object will be "{model._table}_{key}". The definition
-        is the SQL that will be used to create the constraint.
-
-        Example of definition:
-        - (group_id, active) WHERE active IS TRUE
-        - USING btree (group_id, user_id)
+            (group_id, active) WHERE active IS TRUE
+            USING btree (group_id, user_id)
         """
         super().__init__()
         self._index_definition = definition
@@ -187,12 +170,12 @@ class Index(TableObject):
         definition = self.get_definition(model.pool)
         db_definition, db_comment = sql.index_definition(cr, conname)
         if db_comment == definition or (not db_comment and db_definition):
-            # keep when the definition matches the comment in the database
-            # or if we have an index without a comment (this is used by support to tweak indexes)
+            # keep when the definition matches the comment in the database, or when
+            # an index has no comment (used by support to tweak indexes manually)
             return
 
         if db_definition:
-            # constraint exists but its definition may have changed
+            # index exists but its definition may have changed
             sql.drop_index(cr, conname, model._table)
 
         if callable(self._index_definition):
@@ -229,15 +212,11 @@ class UniqueIndex(Index):
         definition: IndexDefinitionType,
         message: ConstraintMessageType = "",
     ):
-        """Unique index in SQL.
+        """Unique SQL index. ``definition`` is the SQL used to create it;
+        ``message`` is shown on violation. Examples::
 
-        The name of the SQL object will be "{model._table}_{key}". The definition
-        is the SQL that will be used to create the constraint.
-        You can also specify a message to be used when constraint is violated.
-
-        Example of definition:
-        - (group_id, active) WHERE active IS TRUE
-        - USING btree (group_id, user_id)
+            (group_id, active) WHERE active IS TRUE
+            USING btree (group_id, user_id)
         """
         super().__init__(definition)
         if message:

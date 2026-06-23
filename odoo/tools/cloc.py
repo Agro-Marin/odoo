@@ -34,13 +34,11 @@ class Cloc:
         self.excluded: dict[str, dict[str, tuple[int, int]]] = {}
         self.max_width: int = 70
 
-    # ------------------------------------------------------
     # Parse
-    # ------------------------------------------------------
     def parse_xml(self, s: str) -> tuple[int, int]:
         s = s.strip() + "\n"
-        # Unbalanced xml comments inside a CDATA are not supported, and xml
-        # comments inside a CDATA will (wrongly) be considered as comment
+        # xml comments inside a CDATA are (wrongly) treated as comments;
+        # unbalanced comments inside a CDATA are not supported
         total = s.count("\n")
         s = re.sub(r"(<!--.*?-->)", "", s, flags=re.DOTALL)
         s = re.sub(r"\s*\n\s*", r"\n", s).lstrip()
@@ -63,8 +61,7 @@ class Cloc:
         # Based on https://stackoverflow.com/questions/241327
         s = s.strip() + "\n"
         total = s.count("\n")
-        # To avoid to use too much memory we don't try to count file
-        # with very large line, usually minified file
+        # Skip files with very long lines (usually minified) to limit memory use
         if max(len(l) for l in s.split("\n")) > MAX_LINE_SIZE:
             return -1, "Max line size exceeded"
 
@@ -103,9 +100,7 @@ class Cloc:
             return self.parse_scss(s)
         return None
 
-    # ------------------------------------------------------
     # Enumeration
-    # ------------------------------------------------------
     def book(
         self,
         module: str,
@@ -164,8 +159,7 @@ class Cloc:
                     continue
 
                 with Path(file_path).open("rb") as f:
-                    # Decode using latin1 to avoid error that may raise by decoding with utf8
-                    # The chars not correctly decoded in latin1 have no impact on how many lines will be counted
+                    # latin1 never fails to decode; mis-decoded chars don't affect the line count
                     content = f.read().decode("latin1")
                 self.book(module_name, file_path, self.parse(content, ext))
 
@@ -178,7 +172,7 @@ class Cloc:
         }
 
         domain = [("state", "=", "installed")]
-        # if base_import_module is present
+        # 'imported' field exists only when base_import_module is installed
         if env["ir.module.module"]._fields.get("imported"):
             domain.append(("imported", "=", False))
         module_list = env["ir.module.module"].search(domain).mapped("name")
@@ -291,8 +285,7 @@ class Cloc:
                 self.book(module_name, attach.url, (-1, "Max file size exceeded"))
                 continue
 
-            # Decode using latin1 to avoid error that may raise by decoding with utf8
-            # The chars not correctly decoded in latin1 have no impact on how many lines will be counted
+            # latin1 never fails to decode; mis-decoded chars don't affect the line count
             content = attach.raw.decode("latin1")
             self.book(
                 module_name,
@@ -312,9 +305,7 @@ class Cloc:
             env = api.Environment(cr, uid, {})
             self.count_env(env)
 
-    # ------------------------------------------------------
     # Report
-    # ------------------------------------------------------
     # pylint: disable=W0141
     def report(self, verbose: bool = False, width: int | None = None) -> str:
         # Prepare format

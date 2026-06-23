@@ -15,48 +15,33 @@ if TYPE_CHECKING:
 
 
 def _none_if_null(value: Any) -> Any:
-    """Normalise the geoip2-absent null sentinel to ``None`` for *leaf* values.
+    """Map the geoip2-absent null sentinel to ``None`` for *leaf* values.
 
-    When geoip2 is not installed, ``GEOIP_EMPTY_COUNTRY`` / ``GEOIP_EMPTY_CITY``
-    are :data:`~odoo.http.constants._GEOIP_NULL`, and attribute chains through it
-    return the *same* sentinel rather than ``None``. That chaining is deliberate
-    so intermediate access (``geoip.country``, ``geoip.location``) stays safe to
-    dot through, but a scalar leaf (``country_code``, the ``city`` name, a
-    ``time_zone`` ...) is documented — and behaves, when geoip2 *is* installed —
-    as ``None`` when unresolved.
-
-    A leaked ``_GeoIPNull`` breaks that contract in three concrete ways: it is
-    ``is not None`` (so ``x is None`` guards miss it), it is not
-    JSON-serialisable, and psycopg cannot adapt it as a SQL parameter — the last
-    one turns ``website.visitor``'s ``country_code`` upsert into a hard error for
-    every anonymous visitor on a deployment without geoip2. Coerce the sentinel
-    to ``None`` at the leaf so the scalar/dict API keeps its contract regardless
-    of whether geoip2 is installed. A genuine ``0`` / ``0.0`` (e.g. a latitude on
-    the equator) is preserved — only the sentinel itself maps to ``None``.
+    When geoip2 is absent, attribute chains through :data:`_GEOIP_NULL` return
+    the *same* sentinel (so intermediate access stays safe to dot through), but a
+    leaked sentinel at a scalar leaf breaks the contract: it is ``is not None``,
+    not JSON-serialisable, and psycopg cannot adapt it (e.g. ``website.visitor``'s
+    ``country_code`` upsert hard-errors for anonymous visitors without geoip2).
+    Coerce it to ``None`` at the leaf; a genuine ``0`` / ``0.0`` is preserved.
     """
     return None if value is _GEOIP_NULL else value
 
-# Sentinel exception tuple used in the ``except`` clauses below. When
-# geoip2/maxminddb are not installed we cannot reference their exception
-# classes — evaluating ``maxminddb.InvalidDatabaseError`` against ``None``
-# would raise ``AttributeError`` at except-match time and replace the
-# original error. Falling back to ``OSError`` alone in that case keeps
-# the defensive fallback behaviour intact.
+
+# Exception tuples for the ``except`` clauses below. With geoip2/maxminddb absent
+# we cannot name their exception classes (evaluating them against ``None`` raises
+# AttributeError at except-match time), so fall back to ``OSError`` /
+# ``LookupError``.
 _GEOIP_DB_ERRORS: tuple[type[BaseException], ...] = (
     (OSError, maxminddb.InvalidDatabaseError) if maxminddb is not None else (OSError,)
 )
 _GEOIP_NOT_FOUND: type[BaseException] = (
     geoip2.errors.AddressNotFoundError if geoip2 is not None else LookupError
 )
-# A malformed or missing IP makes geoip2/maxminddb raise ``ValueError`` (via
-# ``ipaddress.ip_address`` deep inside ``Reader.city``/``country``) or
-# ``TypeError`` (when ``self.ip`` is ``None``) — NOT an ``AddressNotFoundError``.
-# ``self.ip`` is ``request.httprequest.remote_addr``, which is attacker-influenced
-# under ``proxy_mode`` (a forged ``X-Forwarded-For`` hop) and may be absent. The
-# class contract (see :class:`GeoIP` docstring) is that a *bad address* yields an
-# empty record, so catch these and degrade to "no GeoIP context" instead of
-# letting an un-geolocalizable address 500 a website page load
-# (``website.ir_http`` reads ``request.geoip.location.time_zone`` unguarded).
+# A malformed/missing IP makes geoip2 raise ``ValueError`` (bad address) or
+# ``TypeError`` (``self.ip is None``), not ``AddressNotFoundError``. ``self.ip``
+# is the attacker-influenceable ``remote_addr``; per the :class:`GeoIP` contract a
+# bad address yields an empty record, so catch these and degrade to "no GeoIP"
+# rather than 500-ing a page that reads ``geoip.location.time_zone`` unguarded.
 _GEOIP_BAD_ADDRESS: tuple[type[BaseException], ...] = (ValueError, TypeError)
 
 
@@ -88,11 +73,9 @@ class GeoIP(collections.abc.Mapping):
     """
 
     def __init__(self, ip: str, app: Any = None) -> None:
-        # ``app`` is the :class:`Application` whose cached GeoIP ``Reader``s
-        # this instance reads. :class:`~odoo.http.Request` injects its own
-        # ``app``; the lazy fallback keeps standalone constructors
-        # (``res.device``, tests) working without the module singleton on
-        # their call site.
+        # ``app`` is the :class:`Application` holding the cached GeoIP ``Reader``s.
+        # Request injects its own; the lazy fallback keeps standalone constructors
+        # (``res.device``, tests) working without the module singleton.
         if app is None:
             from .application import root
 

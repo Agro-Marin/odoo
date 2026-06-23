@@ -1,10 +1,7 @@
-"""
-Read Group constants for the ORM.
+"""read_group constants: time/number granularity, aggregates, display formats.
 
-This module provides the read_group-specific constants: time/number granularity
-mappings, aggregate functions, and display format strings. These are kept here
-(rather than in primitives.py) because they depend on dateutil and have a
-narrower audience than the core primitives.
+Kept separate from primitives.py because they depend on dateutil and have a
+narrower audience.
 """
 
 from typing import TYPE_CHECKING, Final
@@ -16,11 +13,7 @@ from odoo.tools import SQL
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# =============================================================================
-# Read Group Constants
-# =============================================================================
-
-# Time granularity for date grouping (returns relativedelta intervals)
+# Time granularity for date grouping (relativedelta intervals)
 READ_GROUP_TIME_GRANULARITY: Final[dict[str, dateutil.relativedelta.relativedelta]] = {
     "hour": dateutil.relativedelta.relativedelta(hours=1),
     "day": dateutil.relativedelta.relativedelta(days=1),
@@ -30,12 +23,12 @@ READ_GROUP_TIME_GRANULARITY: Final[dict[str, dateutil.relativedelta.relativedelt
     "year": dateutil.relativedelta.relativedelta(years=1),
 }
 
-# Number granularity for extracting date parts (maps to PostgreSQL date_part functions)
+# Number granularity for date parts (maps to PostgreSQL date_part functions)
 READ_GROUP_NUMBER_GRANULARITY: Final[dict[str, str]] = {
     "year_number": "year",
     "quarter_number": "quarter",
     "month_number": "month",
-    "iso_week_number": "week",  # ISO week number because anything else than ISO is nonsense
+    "iso_week_number": "week",  # ISO week (only sane week numbering)
     "day_of_year": "doy",
     "day_of_month": "day",
     "day_of_week": "dow",
@@ -70,23 +63,16 @@ READ_GROUP_AGGREGATE: Final[dict[str, Callable[[str, SQL], SQL]]] = {
     ),
     "count": lambda table, expr: SQL("COUNT(%s)", expr),
     "count_distinct": lambda table, expr: SQL("COUNT(DISTINCT %s)", expr),
-    # any_value (PG16+): returns an arbitrary non-null value from the group.
-    # Useful for fields that are functionally dependent on the GROUP BY columns
-    # (e.g., partner name when grouping by partner_id) without adding them
-    # to GROUP BY or using a heavier aggregate like MIN/MAX.
+    # any_value (PG16+): arbitrary non-null value from the group; for fields
+    # functionally dependent on the GROUP BY columns, without GROUP BY/MIN/MAX.
     "any_value": lambda table, expr: SQL("ANY_VALUE(%s)", expr),
 }
 
 
-# Display formats for read_group date groupings (Babel format strings)
-# Careful with week/year formats:
-#  - yyyy (lower) must always be used, *except* for week+year formats
-#  - YYYY (upper) must always be used for week+year format
-#         e.g. 2006-01-01 is W52 2005 in some locales (de_DE),
-#                         and W1 2006 for others
-#
-# Mixing both formats, e.g. 'MMM YYYY' would yield wrong results,
-# such as 2006-01-01 being formatted as "January 2005" in some locales.
+# Display formats for read_group date groupings (Babel format strings).
+# Use yyyy (lower) everywhere EXCEPT week-year, which needs YYYY (upper):
+# 2006-01-01 is W52 2005 in de_DE but W1 2006 elsewhere, so mixing the two
+# (e.g. 'MMM YYYY') yields wrong results like "January 2005".
 # Cfr: http://babel.pocoo.org/en/latest/dates.html#date-fields
 READ_GROUP_DISPLAY_FORMAT: Final[dict[str, str]] = {
     "hour": "hh:00 dd MMM",

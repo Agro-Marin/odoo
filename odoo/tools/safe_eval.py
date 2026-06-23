@@ -1,10 +1,7 @@
-"""
-safe_eval module - methods intended to provide more restricted alternatives to
-                   evaluate simple and/or untrusted code.
+"""Restricted alternatives to eval() for simple and/or untrusted code.
 
-Methods in this module are typically used as alternatives to eval() to parse
-Odoo domain strings, conditions and expressions, mostly based on locals
-condition/math builtins.
+Used to parse Odoo domain strings, conditions and expressions, mostly built on
+locals plus condition/math builtins.
 """
 
 import dis
@@ -28,16 +25,15 @@ unsafe_eval = eval
 
 __all__ = ["const_eval", "safe_eval"]
 
-# The time module is usually already provided in the safe_eval environment
-# but some code, e.g. datetime.datetime.now() (Windows/Python 2.5.2, bug
-# lp:703841), does import time.
+# `time` is usually already present, but some code imports it, e.g.
+# datetime.datetime.now() on Windows/Python 2.5.2 (bug lp:703841).
 _ALLOWED_MODULES = ["_strptime", "math", "time"]
 
 
-# Mock __import__ function, as called by cpython's import emulator `PyImport_Import` inside
-# timemodule.c, _datetimemodule.c and others.
-# This function does not actually need to do anything, its expected side-effect is to make the
-# imported module available in `sys.modules`. The _ALLOWED_MODULES are imported below to make it so.
+# Mock __import__ as called by cpython's import emulator `PyImport_Import` inside
+# timemodule.c, _datetimemodule.c and others. It need not do anything: its only
+# job is to make the module available in `sys.modules`, which the imports of
+# _ALLOWED_MODULES below ensure.
 def _import(
     name: str,
     globals: dict | None = None,
@@ -61,7 +57,7 @@ _UNSAFE_ATTRIBUTES = [
     "f_code",
     "f_globals",
     "f_locals",
-    # Legacy Python 2 attribute names (blocked for defence-in-depth; these do not exist in Python 3 but are blocked preemptively)
+    # Legacy Python 2 names: don't exist in Python 3, blocked for defence-in-depth
     "func_code",
     "func_globals",
     # Code object
@@ -304,31 +300,23 @@ _SAFE_OPCODES = (
 
 _logger = logging.getLogger(__name__)
 
-# Cache for validated bytecode: (co_code, co_names, allowed_codes_id) -> True
-# Same expression always compiles to identical bytecode, so this avoids
-# re-scanning opcodes and names for expressions already seen.
+# Cache keyed by (co_code, co_names, allowed_codes_id): identical bytecode need
+# not be re-scanned for opcodes and names.
 _validated_bytecode_cache: dict[tuple, bool] = {}
 _VALIDATED_CACHE_MAX = 8192
 
 
 def assert_no_dunder_name(code_obj: CodeType, expr: str) -> None:
-    """assert_no_dunder_name(code_obj, expr) -> None
+    """Assert the code object refers to no name containing two underscores.
 
-    Asserts that the code object does not refer to any "dunder name"
-    (__$name__), so that safe_eval prevents access to any internal-ish Python
-    attribute or method (both are loaded via LOAD_ATTR which uses a name, not a
-    const or a var).
-
-    Checks that no such name exists in the provided code object (co_names).
+    This blocks dunder names (``__name__``) and thus access to internal-ish
+    Python attributes/methods, which are loaded via LOAD_ATTR by name (in
+    co_names), not as a const or var.
 
     :param code_obj: code object to name-validate
     :type code_obj: CodeType
-    :param str expr: expression corresponding to the code object, for debugging
-                     purposes
-    :raises NameError: in case a forbidden name (containing two underscores)
-                       is found in ``code_obj``
-
-    .. note:: actually forbids every name containing 2 underscores
+    :param str expr: expression for the code object, for debugging
+    :raises NameError: a forbidden name (with two underscores) is found
     """
     for name in code_obj.co_names:
         if "__" in name or name in _UNSAFE_ATTRIBUTES:
@@ -338,22 +326,18 @@ def assert_no_dunder_name(code_obj: CodeType, expr: str) -> None:
 def assert_valid_codeobj(
     allowed_codes: set[int], code_obj: CodeType, expr: str
 ) -> None:
-    """Asserts that the provided code object validates against the bytecode
-    and name constraints.
+    """Assert the code object validates against the bytecode and name constraints.
 
-    Recursively validates the code objects stored in its co_consts in case
-    lambdas are being created/used (lambdas generate their own separated code
-    objects and don't live in the root one)
+    Also recurses into code objects nested in co_consts, so lambdas (which get
+    their own separate code objects) are validated too.
 
-    :param allowed_codes: list of permissible bytecode instructions
+    :param allowed_codes: permissible bytecode instructions
     :type allowed_codes: set(int)
-    :param code_obj: code object to name-validate
+    :param code_obj: code object to validate
     :type code_obj: CodeType
-    :param str expr: expression corresponding to the code object, for debugging
-                     purposes
-    :raises ValueError: in case of forbidden bytecode in ``code_obj``
-    :raises NameError: in case a forbidden name (containing two underscores)
-                       is found in ``code_obj``
+    :param str expr: expression for the code object, for debugging
+    :raises ValueError: forbidden bytecode in ``code_obj``
+    :raises NameError: a forbidden name (with two underscores) is found
     """
     # Fast path: identical bytecode + names + allowed set already validated
     cache_key = (code_obj.co_code, code_obj.co_names, id(allowed_codes))
@@ -407,13 +391,10 @@ def compile_codeobj(
 
 
 def const_eval(expr: str) -> typing.Any:
-    """const_eval(expression) -> value
+    """Safely evaluate a string describing a Python constant.
 
-    Safe Python constant evaluation
-
-    Evaluates a string that contains an expression describing
-    a Python constant. Strings that are not valid Python expressions
-    or that contain other code besides the constant raise ValueError.
+    Strings that are not valid Python expressions, or that contain code beyond
+    the constant, raise ValueError.
 
     >>> const_eval("10")
     10
@@ -430,13 +411,9 @@ def const_eval(expr: str) -> typing.Any:
 
 
 def expr_eval(expr: str) -> typing.Any:
-    """expr_eval(expression) -> value
+    """Evaluate a string expression that uses only Python constants.
 
-    Restricted Python expression evaluation
-
-    Evaluates a string that contains an expression that only
-    uses Python constants. This can be used to e.g. evaluate
-    a numerical expression from an untrusted source.
+    Useful e.g. to evaluate a numerical expression from an untrusted source.
 
     >>> expr_eval("1+2")
     3
@@ -509,30 +486,25 @@ def safe_eval(
     mode: typing.Literal["eval", "exec"] = "eval",
     filename: str | None = None,
 ) -> typing.Any:
-    """System-restricted Python expression evaluation
+    """Evaluate an expression using Python constants, arithmetic, and the
+    objects provided in ``context``.
 
-    Evaluates a string that contains an expression that mostly
-    uses Python constants, arithmetic expressions and the
-    objects directly provided in context.
+    Useful e.g. to evaluate a domain expression from an untrusted source.
 
-    This can be used to e.g. evaluate
-    a domain expression from an untrusted source.
-
-    :param expr: The Python expression (or block, if ``mode='exec'``) to evaluate.
+    :param expr: Python expression (or block, if ``mode='exec'``) to evaluate
     :type expr: string | bytes
-    :param context: Namespace available to the expression.
-                    This dict will be mutated with any variables created during
-                    evaluation
+    :param context: namespace available to the expression; mutated with any
+                    variables created during evaluation
     :type context: dict
     :param mode: ``exec`` or ``eval``
     :type mode: str
     :param filename: optional pseudo-filename for the compiled expression,
-                     displayed for example in traceback frames
+                     shown e.g. in traceback frames
     :type filename: string
-    :throws TypeError: If the expression provided is a code object
-    :throws SyntaxError: If the expression provided is not valid Python
-    :throws NameError: If the expression provided accesses forbidden names
-    :throws ValueError: If the expression provided uses forbidden bytecode
+    :raises TypeError: the expression is a code object
+    :raises SyntaxError: the expression is not valid Python
+    :raises NameError: the expression accesses forbidden names
+    :raises ValueError: the expression uses forbidden bytecode
     """
     if type(expr) is CodeType:
         msg = "safe_eval does not allow direct evaluation of code objects."
@@ -547,7 +519,7 @@ def safe_eval(
     c = compile_codeobj(expr, filename=filename, mode=mode)
     assert_valid_codeobj(_SAFE_OPCODES, c, expr)
     try:
-        # empty locals dict makes the eval behave like top-level code
+        # locals=None makes locals default to globals, like top-level code
         return unsafe_eval(c, globals_dict, None)
 
     except _BUBBLEUP_EXCEPTIONS:

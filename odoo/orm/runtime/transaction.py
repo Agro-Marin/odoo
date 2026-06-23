@@ -1,9 +1,8 @@
 """ORM Transaction — per-cursor state container.
 
-A :class:`Transaction` owns the cache (:class:`FieldCache`), compute engine,
-:class:`OrmCore` facade, :class:`UnitOfWork`, and profiling tools for a
-single database cursor lifetime.  Created lazily on first
-``Environment.__new__`` call for a cursor that has no transaction yet.
+A :class:`Transaction` owns the cache, compute engine, :class:`OrmCore` facade,
+:class:`UnitOfWork`, and profiling tools for a single cursor's lifetime.  Created
+lazily on the first ``Environment.__new__`` for a cursor with no transaction yet.
 """
 
 import logging
@@ -52,51 +51,40 @@ class Transaction:
 
     def __init__(self, registry: Registry, storage=None):
         self.registry = registry
-        # Optional in-memory storage backend (DictBackend).  When set, ORM
-        # CRUD methods dispatch to this backend instead of generating SQL.
-        # ``None`` (default) means the normal PostgreSQL path via ``cr``.
+        # Optional in-memory storage backend (DictBackend): when set, CRUD
+        # dispatches here instead of generating SQL.  ``None`` = PostgreSQL.
         self.storage = storage
-        # weak OrderedSet of environments
         self.envs: WeakSet[Environment] = WeakSet()
         self.envs.data = OrderedSet()  # type: ignore[attr-defined]
         # default environment (for flushing)
         self.default_env: Environment | None = None
-        # MRU cache for fast env lookup (covers repeated with_user/sudo calls).
-        # Stored as weakref so that holding it does not prolong env lifetime —
-        # the recovery callsite at Environment.__new__ calls it like
-        # ``_last_env() if _last_env is not None else None``.
+        # MRU env-lookup cache (repeated with_user/sudo).  Weakref so it does not
+        # prolong env lifetime; callers do ``_last_env() if _last_env else None``.
         self._last_env: "weakref_ref[Environment] | None" = None
 
-        # Standalone cache component — owns the data structures for
-        # cached field values, dirty tracking, and x2many patches.
-        # The dirty factory is OrderedSet to preserve write order during flush.
+        # OrderedSet dirty factory preserves write order during flush.
         self.cache_store = FieldCache(dirty_factory=OrderedSet)
 
-        # Standalone compute scheduling engine — owns pending recomputations
-        # and field protection scopes.  OrderedSet ensures deterministic order.
+        # OrderedSet pending factory gives deterministic recompute order.
         self.compute_engine = ComputeEngine(pending_factory=OrderedSet)
 
-        # Layer 1 facade — flat API over cache + compute for internal ORM
-        # consumers.  Accessed via env._core (cached_property on Environment).
+        # Layer 1 facade (env._core).
         self.core = OrmCore(cache=self.cache_store, engine=self.compute_engine)
 
-        # Standalone flush scheduling engine — convergence loop + stall detection.
         self.unit_of_work = UnitOfWork(
             self.cache_store,
             self.compute_engine,
             max_iterations=MAX_FIXPOINT_ITERATIONS,
         )
-        # Wire topological recompute order from the registry's model graph.
-        # This lets the UnitOfWork process pending fields in dependency order,
-        # reducing convergence iterations from O(depth) to O(1).  A *callable*
-        # (not a one-time snapshot) is passed so the order tracks ``reset()``
-        # registry swaps and metadata rebuilds — both create new Field
-        # identities that a snapshot keyed by field identity would stop matching.
+        # Process pending fields in dependency order (fewer convergence
+        # iterations).  A callable, not a snapshot, so the order tracks reset()
+        # registry swaps and metadata rebuilds — both make new Field identities
+        # that a snapshot keyed on field identity would stop matching.
         self.unit_of_work.set_recompute_order(self._live_recompute_order)
 
         # backward-compatible view of the cache
         self.cache = Cache(self)
-        # cache for env.ref() exists() results, keyed by (model_name, record_id)
+        # env.ref() exists() results, keyed by (model_name, record_id)
         self._ref_cache: dict[tuple[str, int], bool] = {}
 
         # N+1 CRUD detection (None when disabled, zero overhead)
@@ -109,7 +97,7 @@ class Transaction:
             OrmProfiler() if _orm_profiling_enabled else None
         )
 
-        # temporary directories (managed in odoo.tools.file_open_temporary_directory)
+        # temporary directories (see odoo.tools.file_open_temporary_directory)
         self.__file_open_tmp_paths = []  # type: ignore # noqa: PLE0237
 
     def flush(self) -> None:
@@ -117,13 +105,9 @@ class Transaction:
         if self.default_env is not None:
             self.default_env.flush_all()
         elif env := next(iter(self.envs), None):
-            # Rare: every env created so far had uid==0 (no real user) so
-            # default_env was never set.  Fall back to SUPERUSER instead of
-            # base.public_user — public_user typically lacks write access on
-            # most models, so a flush as that user could raise AccessError on
-            # whatever happens to be dirty.  SUPERUSER is the safe choice
-            # because the records were already mutated by some path that
-            # didn't go through ACL anyway (otherwise default_env would be set).
+            # No default_env (every env had uid==0).  Flush as SUPERUSER, not
+            # public_user (which often lacks write access → AccessError); the
+            # dirty records bypassed ACL anyway, else default_env would be set.
             _logger.warning(
                 "Transaction.flush(): no default_env; flushing as SUPERUSER"
             )
@@ -131,17 +115,15 @@ class Transaction:
             from .environment import Environment
 
             Environment(env.cr, SUPERUSER_ID, {}).flush_all()
-        # Report N+1 violations at end of request
         if self._n1_tracker is not None:
             self._n1_tracker.report()
             self._n1_tracker.clear()
-        # Report aggregate ORM profile at end of request
         if self._orm_profiler is not None:
             self._orm_profiler.report()
             self._orm_profiler.clear()
 
     def clear(self):
-        """Clear the caches and pending computations and updates in the transactions."""
+        """Clear the caches and pending computations/updates."""
         self.cache_store.clear()  # data + dirty + patches
         self.compute_engine.clear()  # pending recomputations
         self._ref_cache.clear()
@@ -155,26 +137,22 @@ class Transaction:
             env.cr.cache.clear()
 
     def _live_recompute_order(self) -> dict[typing.Any, int] | None:
-        """Return the *current* registry's topological recompute order, or None.
+        """Return the current registry's recompute order, or None.
 
-        Bound into :class:`UnitOfWork` as a live source (see
-        :meth:`UnitOfWork.set_recompute_order`) so the flush loop always reads
-        the order of the currently-assigned ``self.registry``.  This survives a
-        :meth:`reset` registry swap and a ``ModelGraph.reset_field_metadata``
-        rebuild, both of which invalidate the field identities a one-time
-        snapshot was keyed on.
+        Bound into :class:`UnitOfWork` as a live source so the flush loop always
+        reads ``self.registry``'s order, surviving a :meth:`reset` registry swap
+        or metadata rebuild (which invalidate the field identities a snapshot
+        would be keyed on).
         """
         model_graph = getattr(self.registry, "model_graph", None)
         return model_graph.recompute_order if model_graph is not None else None
 
     def reset(self) -> None:
-        """Reset the transaction.  This clears the transaction, and reassigns
-        the registry on all its environments.  This operation is strongly
-        recommended after reloading the registry.
+        """Clear the transaction and reassign the registry on all its envs.
 
-        The :class:`UnitOfWork` recompute order needs no re-wiring here: it was
-        bound to :meth:`_live_recompute_order`, which reads ``self.registry``
-        lazily and therefore picks up the freshly-assigned registry below.
+        Recommended after reloading the registry.  The :class:`UnitOfWork`
+        recompute order needs no re-wiring: :meth:`_live_recompute_order` reads
+        ``self.registry`` lazily and picks up the new registry below.
         """
         self.registry = Registry(self.registry.db_name)
         for env in self.envs:
@@ -182,11 +160,9 @@ class Transaction:
         self.clear()
 
     def invalidate_field_data(self) -> None:
-        """Invalidate the cache of all the fields.
+        """Invalidate the cache of all fields.
 
-        This operation is unsafe by default, and must be used with care.
-        Indeed, invalidating a dirty field on a record may lead to an error,
-        because doing so drops the value to be written in database.
+        Unsafe: invalidating a dirty field drops the value to be written.
         """
         self.cache_store.invalidate_all()
         self._ref_cache.clear()

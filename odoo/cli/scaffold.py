@@ -15,8 +15,8 @@ class Scaffold(Command):
 
     def __init__(self) -> None:
         super().__init__()
-        # Probe templates/ lazily — iterdir() in __init__ would crash every
-        # invocation (including --help) if the directory were missing.
+        # Tolerate a missing templates/ dir: iterdir() would otherwise crash
+        # every invocation (including --help).
         try:
             templates = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
         except OSError:
@@ -30,10 +30,8 @@ class Scaffold(Command):
     def run(self, cmdargs: list[str]) -> None:
         # TODO: bash completion file
         parser = self.parser
-        # A string default is converted through `type` by argparse only at
-        # the end of parsing — after --help has been handled. A Template
-        # instance here would probe templates/ on every invocation and kill
-        # even `--help` when the directory is missing.
+        # default="default" (a str), not Template("default"): argparse runs
+        # `type` only after --help, so --help works even if templates/ is gone.
         parser.add_argument(
             "-t",
             "--template",
@@ -78,12 +76,9 @@ def snake(s: str) -> str:
         APIMyTest  -> api_my_test
         HTTPServer -> http_server
     """
-    # First pass: split an initialism from the following capitalised word
-    # (e.g. 'APITest' -> 'API Test'), by inserting a space before the last
-    # uppercase of a run that is followed by a lowercase.
+    # Split an initialism from the next word: 'APITest' -> 'API Test'.
     s = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r" \1", s)
-    # Second pass: split a lowercase/digit -> uppercase boundary
-    # (e.g. 'FooBar' -> 'Foo Bar', 'api2Test' -> 'api2 Test').
+    # Split a lowercase/digit -> uppercase boundary: 'FooBar' -> 'Foo Bar'.
     s = re.sub(r"(?<=[a-z0-9])([A-Z])", r" \1", s)
     return "_".join(s.lower().split())
 
@@ -94,11 +89,9 @@ def pascal(s: str) -> str:
 
 
 def directory(p: str, create: bool = False) -> Path:
-    """Resolve and validate a directory path.
+    """Resolve and validate a directory path (expanding ~ and $VAR).
 
-    Args:
-        p: Directory path (supports ~ and $VAR expansion).
-        create: If True, create the directory if it doesn't exist.
+    :param create: create the directory if it doesn't exist
     """
     expanded = Path(os.path.expandvars(p)).expanduser().resolve()
     if create and not expanded.exists():
@@ -127,9 +120,8 @@ class Template:
         self.path = Path(identifier)
         if self.path.is_dir():
             return
-        # ArgumentTypeError, not sys.exit: this runs as an argparse `type`
-        # callable, so argparse renders it as a standard usage error
-        # (usage line + exit code 2) instead of a bare exit-1 message.
+        # ArgumentTypeError, not sys.exit: as an argparse `type` callable this
+        # renders as a usage error (exit 2), not a bare exit-1 message.
         raise argparse.ArgumentTypeError(
             f"{identifier!r} is not a valid module template"
         )
@@ -147,12 +139,10 @@ class Template:
     def parse_params(self, name: str) -> dict[str, str]:
         """Parse the user-supplied ``name`` into Jinja rendering params.
 
-        Most templates just need ``{'name': name}``. Specialised templates
-        (like ``l10n_payroll``, which encodes both a country and its locale
-        code in a single argument) override the default here.
+        Most templates need only ``{'name': name}``; specialised ones (e.g.
+        ``l10n_payroll``, encoding a country and locale code) override here.
 
-        Raises ``ValueError`` for malformed input; the caller should route
-        the message through its argparse error handler.
+        :raises ValueError: on malformed input
         """
         if self.id == "l10n_payroll":
             if "-" not in name:
@@ -167,9 +157,8 @@ class Template:
     def modname_for(self, name: str, params: dict[str, str]) -> str:
         """Resolve the on-disk module directory name from ``name``/``params``.
 
-        Mirrors ``parse_params``: same special-cases, same id-based dispatch.
-        Keeping both here (rather than scattering through ``Scaffold.run``)
-        means adding a new template-with-naming-convention touches one class.
+        Mirrors ``parse_params``: same special-cases. Keeping both here means a
+        new template naming convention touches one class.
         """
         if self.id == "l10n_payroll":
             return f"l10n_{params['code']}_hr_payroll"

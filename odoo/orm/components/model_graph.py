@@ -1,31 +1,14 @@
 """Standalone dependency graph for ORM fields.
 
-This module provides :class:`ModelGraph`, an isolated data structure that
-holds the field dependency graph (triggers, inverses, computed groups,
-context dependencies).  It also houses :class:`TriggerTree`, a pure-data
-tree structure representing the backwards-traversal plan for field
-recomputation, and :class:`_Collector`, a lightweight key→tuple mapping
-used for inverses, depends, and context dependencies.
+:class:`ModelGraph` holds the field dependency graph (triggers, inverses,
+computed groups, context dependencies). Helpers: :class:`TriggerTree`, the
+backwards-traversal plan for recomputation, and :class:`_Collector`, a
+key→tuple mapping. No dependency on Environment, BaseModel, or cursors —
+testable with pure Python.
 
-All classes have **no dependency** on Environment, BaseModel, or database
-cursors, making them fully testable with pure Python unit tests.
-
-The graph is **static after construction**: built once when the registry
-loads, then queried (read-only) by the trigger traversal, ComputeEngine,
-and CRUD pipeline.  ModelGraph is the **single source of truth** for all
-field metadata — Registry builds into it and delegates reads to it.
-
-Usage from Registry::
-
-    graph = ModelGraph()
-    # Registry builds directly into graph's internal collections:
-    graph._depends[field] = tuple(depends)
-    graph._depends_context[field] = tuple(context_keys)
-    # Triggers are built incrementally:
-    graph.reset_triggers()
-    graph.add_trigger(dep_field, path, [target_field])
-    # Query:
-    tree = graph.get_trigger_tree([field_a, field_b], select=bool)
+The graph is static after construction: built once when the registry loads,
+then queried read-only. It is the single source of truth for field metadata —
+Registry builds into it and delegates reads to it.
 """
 
 from collections import defaultdict
@@ -34,20 +17,15 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
 
-# ---------------------------------------------------------------------------
-# _Collector — lightweight key→tuple mapping (standalone Collector)
-# ---------------------------------------------------------------------------
+# _Collector — lightweight key→tuple mapping
 
 
 class _Collector(dict):
     """A mapping from keys to tuples, implementing a relation.
 
-    Standalone equivalent of ``odoo.libs.collections.misc.Collector`` —
-    kept here so that :class:`ModelGraph` has zero Odoo imports and remains
-    fully testable with pure Python.
-
-    Semantically a ``defaultdict(tuple)`` with convenience methods for
-    adding individual values and bulk discarding.
+    Standalone equivalent of ``odoo.libs.collections.misc.Collector`` (the Odoo
+    import is avoided to stay pure-Python testable). Semantically a
+    ``defaultdict(tuple)`` with add and bulk-discard helpers.
     """
 
     __slots__ = ()
@@ -76,22 +54,18 @@ class _Collector(dict):
             self[key] = tuple(val for val in vals if val not in excludes)
 
 
-# ---------------------------------------------------------------------------
 # TriggerTree — pure data structure
-# ---------------------------------------------------------------------------
 
 
 class TriggerTree(dict):
     r"""Tree of field triggers for backwards dependency traversal.
 
-    Each node contains:
-    - ``root``: collection of fields that need recomputation when the
-      trigger fires at this level of the tree.
-    - dict entries: ``{edge_field: subtree}`` for traversing backwards
-      along relational fields.
+    Each node holds ``root`` (fields to recompute when the trigger fires at this
+    level) and ``{edge_field: subtree}`` entries for traversing backwards along
+    relational fields.
 
-    For instance, assume that G depends on F, H depends on X.F, I depends
-    on W.X.F, and J depends on Y.F.  The triggers of F will be the tree::
+    For instance, if G depends on F, H on X.F, I on W.X.F, and J on Y.F, the
+    triggers of F form the tree::
 
                                      [G]
                                    X/   \\Y
@@ -99,12 +73,8 @@ class TriggerTree(dict):
                                W/
                              [I]
 
-    This tree provides perfect support for the trigger mechanism:
-    when F is modified on records,
-     - mark G to recompute on records,
-     - mark H to recompute on inverse(X, records),
-     - mark I to recompute on inverse(W, inverse(X, records)),
-     - mark J to recompute on inverse(Y, records).
+    When F is modified on records, mark G on records, H on inverse(X, records),
+    I on inverse(W, inverse(X, records)), and J on inverse(Y, records).
     """
 
     __slots__ = ("root",)
@@ -138,15 +108,11 @@ class TriggerTree(dict):
     def merge(cls, trees: list[TriggerTree], select: Callable = bool) -> TriggerTree:
         """Merge trigger trees into a single tree.
 
-        The function *select* is called on every field to determine which
-        fields should be kept in the tree nodes.  This enables discarding
-        some fields from the tree nodes (e.g. non-stored computed fields
-        with no cached data).
+        *select* is called on every field; only those it keeps stay in the tree
+        nodes (e.g. drop non-stored computed fields with no cached data).
         """
-        # Fast path: single tree — skip merge overhead (defaultdict, dedup).
-        # For the common case (single-field write), this avoids ~15 Python
-        # operations and returns the cached tree directly when all root
-        # fields pass ``select`` and the tree has no subtrees.
+        # Fast path: single tree (common single-field write) — skip the merge
+        # overhead and return the cached tree directly when possible.
         if len(trees) == 1:
             return trees[0]._filtered(select)
 
@@ -175,9 +141,9 @@ class TriggerTree(dict):
         return result
 
     def _filtered(self, select: Callable) -> TriggerTree:
-        """Return a filtered copy of this tree, or ``self`` if nothing
-        was filtered out.  Avoids allocations in the common case where
-        all root fields pass *select*.
+        """Return a *select*-filtered copy, or ``self`` if nothing was removed.
+
+        Avoids allocations when all root fields pass *select*.
         """
         root = self.root
         filtered_root = [f for f in root if select(f)]
@@ -192,19 +158,14 @@ class TriggerTree(dict):
         return result
 
 
-# ---------------------------------------------------------------------------
 # ModelGraph — frozen dependency graph
-# ---------------------------------------------------------------------------
 
 
 class ModelGraph:
     """Frozen directed graph of field dependencies.
 
-    Static after construction — all query methods are read-only.
-    Constructed once when the registry loads, then shared immutably
-    by Transaction, ComputeEngine, and the trigger traversal.
-
-    Internal data structures:
+    Static after construction (all query methods read-only); built once when the
+    registry loads, then shared immutably. Internal data structures:
 
     * ``_triggers``: raw trigger data —
       ``{dep_field: {path: list_of_target_fields}}``
@@ -213,8 +174,7 @@ class ModelGraph:
     * ``_depends_context``: ``{field: tuple_of_context_keys}``
     * ``_computed``: ``{field: list_of_co_computed_fields}``
 
-    The ``_trigger_trees`` dict is a lazy cache of per-field TriggerTrees
-    computed from ``_triggers`` on first access.
+    ``_trigger_trees`` is a lazy per-field cache built from ``_triggers``.
     """
 
     __slots__ = (
@@ -229,7 +189,7 @@ class ModelGraph:
     )
 
     def __init__(self) -> None:
-        # Raw trigger data: {dep_field: {path_tuple: set_of_target_fields}}
+        # Raw trigger data: {dep_field: {path_tuple: list_of_target_fields}}
         self._triggers: defaultdict[Any, defaultdict[tuple, list]] = defaultdict(
             lambda: defaultdict(list)
         )
@@ -246,9 +206,7 @@ class ModelGraph:
         self._modifying_relations: dict[Any, bool] = {}
         self._recompute_order: dict[Any, int] | None = None
 
-    # ------------------------------------------------------------------
     # Construction API
-    # ------------------------------------------------------------------
 
     def add_trigger(self, dep_field: Any, path: tuple, targets: Iterable) -> None:
         """Register that *targets* depend on *dep_field* via *path*.
@@ -320,9 +278,7 @@ class ModelGraph:
 
         self.clear_caches()
 
-    # ------------------------------------------------------------------
     # Query API — trigger trees
-    # ------------------------------------------------------------------
 
     def has_triggers(self, field: Any) -> bool:
         """Return whether *field* has any dependents (is in the trigger map)."""
@@ -415,9 +371,7 @@ class ModelGraph:
         self._modifying_relations[field] = result
         return result
 
-    # ------------------------------------------------------------------
     # Topological ordering for recomputation
-    # ------------------------------------------------------------------
 
     @property
     def recompute_order(self) -> dict[Any, int]:
@@ -513,9 +467,7 @@ class ModelGraph:
 
         return order
 
-    # ------------------------------------------------------------------
     # Direct access — backward-compatible properties
-    # ------------------------------------------------------------------
 
     @property
     def field_inverses(self) -> _Collector:
@@ -538,9 +490,7 @@ class ModelGraph:
         return self._computed
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _concat_paths(seq1: tuple, seq2: tuple, inverses: dict) -> tuple:

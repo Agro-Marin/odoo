@@ -1,12 +1,10 @@
 """CSRF token utilities for :class:`~odoo.http.Request`.
 
-Mixed into Request via :class:`_RequestCsrfMixin`. Tokens are HMAC-SHA256
-of ``f"{sid_static_prefix}{max_ts}"``, formatted as ``{hexdigest}o{max_ts}``.
-The static prefix (first :data:`STORED_SESSION_BYTES` chars of the sid)
-survives soft-rotation, so a token issued before rotation remains valid
-afterwards. ``max_ts`` is ``int(now + time_limit)``, so it changes on every
-issuance (per-second granularity under the default 1-year time-limit),
-giving each rendered token a fresh salt that defeats BREACH-style attacks.
+Mixed into Request via :class:`_RequestCsrfMixin`. Tokens are HMAC-SHA256 of
+``f"{sid_static_prefix}{max_ts}"``, formatted as ``{hexdigest}o{max_ts}``. The
+static prefix (first :data:`STORED_SESSION_BYTES` sid chars) survives soft
+rotation, so a token stays valid across it. ``max_ts`` (``int(now + time_limit)``)
+changes on every issuance, salting each token against BREACH-style attacks.
 """
 
 from __future__ import annotations
@@ -33,15 +31,10 @@ class _RequestCsrfMixin:
         """
         Generates and returns a CSRF token for the current session.
 
-        :param int | None time_limit: validity duration in seconds. When
-            ``None`` (the default), :data:`~odoo.http.CSRF_TOKEN_MAX_AGE`
-            (one year) is used; the embedded ``max_ts`` changes on every
-            issuance (per-second) and effectively acts as a per-token
-            salt against BREACH-style attacks. In practice the token
-            outlives the session, so session expiry — not the CSRF
-            ``max_ts`` — is what limits the token's useful life. Pass
-            a small int (e.g. ``3600``) for sensitive forms that need a
-            tighter window.
+        :param int | None time_limit: validity duration in seconds.
+            Defaults to :data:`~odoo.http.CSRF_TOKEN_MAX_AGE` (one year), so
+            session expiry — not ``max_ts`` — limits the token in practice.
+            Pass a small int (e.g. ``3600``) for sensitive forms.
         :returns: ASCII token string
         :rtype: str
         """
@@ -50,22 +43,17 @@ class _RequestCsrfMixin:
             msg = "CSRF protection requires a configured database secret"
             raise ValueError(msg)
 
-        # if no `time_limit` => distant 1y expiry so max_ts acts as salt, e.g. vs BREACH
         max_ts = int(time.time() + (time_limit or CSRF_TOKEN_MAX_AGE))
         msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
 
         hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
 
-        # Issuing a token binds it to this session's static sid prefix. The
-        # validating request (e.g. the form POST) MUST load the same session
-        # file so the prefix still matches. A brand-new anonymous session is
-        # never dirtied by a plain GET (``is_dirty`` is reset in
-        # ``_get_session_and_dbname`` and it has no ``uid`` to trigger
-        # rotation), so without this touch it is never written to disk: the
-        # next request's ``renew_missing`` hands out a fresh sid whose prefix
-        # no longer matches the token, yielding a spurious "Session expired
-        # (invalid CSRF token)". Persisting only when a token is actually
-        # issued keeps pure API/asset hits from creating session files.
+        # Persist the session so its sid prefix survives to the validating
+        # request. A brand-new anonymous session is never dirtied by a plain GET,
+        # so without this touch it is never written to disk and the next
+        # request's ``renew_missing`` hands out a fresh sid whose prefix no longer
+        # matches the token (spurious "Session expired"). Touching only on
+        # issuance keeps pure API/asset hits from creating session files.
         self.session.touch()
         return f"{hm}o{max_ts}"
 

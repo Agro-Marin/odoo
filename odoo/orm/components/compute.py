@@ -1,25 +1,13 @@
 """Standalone compute-scheduling engine for the ORM.
 
-This module provides :class:`ComputeEngine`, an isolated data structure
-that manages pending field recomputations and field protection scopes.
-It has **no dependency** on Environment, BaseModel, or database cursors,
-making it fully testable with pure Python unit tests.
-
-The engine tracks:
+:class:`ComputeEngine` manages pending field recomputations and field protection
+scopes. No dependency on Environment, BaseModel, or cursors — testable with pure
+Python. It tracks:
 
 * **Pending recomputations** — ``{field: set_of_record_ids}`` marking which
   stored-computed fields need recomputation on which records.
-* **Field protection** — a stack of ``{field: frozenset_of_ids}`` scopes
-  that suppress recomputation/invalidation during write operations.
-
-Usage from Transaction::
-
-    engine = ComputeEngine()
-    engine.schedule(field, record_ids)
-    engine.mark_done(field, record_ids)
-    engine.push_protection()
-    engine.protect(field, frozenset(record_ids))
-    engine.pop_protection()
+* **Field protection** — a stack of ``{field: frozenset_of_ids}`` scopes that
+  suppress recomputation/invalidation during write operations.
 """
 
 from collections import defaultdict
@@ -32,16 +20,9 @@ if TYPE_CHECKING:
 class _StackMap:
     """Minimal stack of mappings for field protection scopes.
 
-    Equivalent to ``odoo.libs.collections.misc.StackMap`` but without the
-    Odoo import dependency, so the component remains standalone and testable
-    with pure Python (see ``components/pytest.ini``).
-
-    This intentional duplication is the cost of standalone testability:
-    importing from ``odoo.libs`` would trigger the full ``odoo`` package
-    init chain, defeating the purpose of the components package.
-
-    Lookups search from top (most recent) to bottom.  Mutations affect
-    the topmost mapping only.
+    Standalone equivalent of ``odoo.libs.collections.misc.StackMap``; the Odoo
+    import is avoided so the component stays pure-Python testable. Lookups search
+    from top (most recent) to bottom; mutations affect the topmost mapping only.
     """
 
     __slots__ = ("_maps",)
@@ -84,28 +65,24 @@ class _StackMap:
         raise KeyError(key)
 
     def __len__(self) -> int:
-        """Number of mappings on the stack (scope depth).
+        """Return the number of mappings on the stack (scope depth).
 
-        Note this is the stack depth, *not* the number of distinct keys
-        across scopes — use ``sum(1 for _ in self)`` if you want the latter.
+        This is stack depth, *not* the count of distinct keys across scopes —
+        use ``sum(1 for _ in self)`` for the latter.
         """
         return len(self._maps)
 
 
 class ComputeEngine:
-    """Manages pending recomputations and field protection.
+    """Manage pending recomputations and field protection.
 
-    Testable without database — operates on field keys (any hashable) and
-    record IDs (any hashable, typically ``int`` or ``NewId``).
-
-    Internal data structures:
+    Operates on field keys and record IDs (any hashable). Internal structures:
 
     * ``_pending``: ``defaultdict(set_factory)`` — ``{field: mutable_set_of_ids}``
     * ``_protected``: ``_StackMap`` — ``{field: frozenset_of_ids}``
 
-    The ``_pending`` defaultdict uses a configurable factory (default:
-    ``set``) so Transaction can pass ``OrderedSet`` for deterministic
-    recomputation order.
+    ``_pending`` uses a configurable factory (default ``set``) so Transaction can
+    pass ``OrderedSet`` for deterministic recomputation order.
     """
 
     __slots__ = ("_pending", "_protected")
@@ -114,25 +91,19 @@ class ComputeEngine:
         self._pending: defaultdict[Any, set] = defaultdict(pending_factory or set)
         self._protected = _StackMap()
 
-    # ------------------------------------------------------------------
     # Raw data access
-    # ------------------------------------------------------------------
 
     @property
     def pending(self) -> defaultdict[Any, set]:
-        """The raw pending-recomputation dict: ``{field: mutable_set_of_ids}``.
+        """Return the raw pending dict ``{field: mutable_set_of_ids}``.
 
-        Exposed for callers that need direct dict access — primarily
-        :class:`RecomputeScheduler`, which reads it as a ``marked`` set
-        for cycle detection when ``before=True``, and
-        :meth:`~CacheMixin.modified`, which applies scheduler results
-        via :meth:`schedule`.
+        For callers needing direct dict access — mainly
+        :class:`RecomputeScheduler`, which reads it as the ``marked`` set for
+        cycle detection when ``before=True``.
         """
         return self._pending
 
-    # ------------------------------------------------------------------
     # Scheduling
-    # ------------------------------------------------------------------
 
     def schedule(self, field: Any, ids: Iterable) -> None:
         """Mark *field* for recomputation on *ids*."""
@@ -141,8 +112,8 @@ class ComputeEngine:
     def mark_done(self, field: Any, ids: Iterable) -> None:
         """Mark *field* as computed on *ids*.
 
-        Removes *ids* from the pending set.  If the set becomes empty,
-        the field entry is deleted to avoid accumulation.
+        Removes *ids* from the pending set; deletes the field entry if it
+        becomes empty.
         """
         pending = self._pending.get(field)
         if pending is None:
@@ -170,39 +141,32 @@ class ComputeEngine:
     def has_pending_field(self, field: Any) -> bool:
         """Return whether *field* has any pending recomputations.
 
-        Equivalent to ``bool(pending_ids(field))`` but avoids creating
-        an intermediate return value — important for the ``Field.__get__``
-        hot path where this is checked on every attribute access.
+        Cheaper than ``bool(pending_ids(field))`` — matters on the
+        ``Field.__get__`` hot path, checked on every attribute access.
         """
         return field in self._pending
 
     def pending_real_fields(self) -> list[Any]:
         """Return fields with at least one real (truthy) pending record ID.
 
-        Filters out fields where only NewIds (falsy) are pending, since
-        new records are not recomputed by the fixpoint loop.
+        Filters out fields with only NewIds (falsy) pending, since new records
+        are not recomputed by the fixpoint loop.
         """
         return [field for field, ids in self._pending.items() if any(ids)]
 
     def discard_field(self, field: Any) -> None:
         """Remove *field* entirely from pending recomputations.
 
-        No-op if the field is not pending.  Used when a field is deleted
-        from the registry (e.g. ``ir.model.fields.unlink``).
+        No-op if not pending. Used when a field is deleted from the registry.
         """
         self._pending.pop(field, None)
 
     def prune_empty(self) -> None:
-        """Remove fields with empty pending sets.
-
-        Called after recomputation to avoid accumulation of empty entries.
-        """
+        """Remove fields with empty pending sets (called after recomputation)."""
         for field in [f for f in self._pending if not self._pending[f]]:
             del self._pending[field]
 
-    # ------------------------------------------------------------------
     # Protection
-    # ------------------------------------------------------------------
 
     def is_protected(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* is protected for *field*."""
@@ -221,16 +185,11 @@ class ComputeEngine:
         return self._protected.popmap()
 
     def protect(self, field: Any, ids: frozenset) -> None:
-        """Protect *ids* for *field* in the current scope.
-
-        Merges with any existing protection for *field* in the current scope.
-        """
+        """Protect *ids* for *field*, merging with existing protection in scope."""
         existing = self._protected.get(field)
         self._protected[field] = existing.union(ids) if existing else ids
 
-    # ------------------------------------------------------------------
     # Bulk operations
-    # ------------------------------------------------------------------
 
     def clear(self) -> None:
         """Clear all pending computations (protection is NOT cleared)."""

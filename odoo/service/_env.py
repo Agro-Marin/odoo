@@ -1,25 +1,13 @@
-"""Guarded environment-variable parsing shared across ``odoo.service``.
+"""Guarded parsing of the ``ODOO_*`` environment-variable service knobs.
 
-A handful of service knobs are tuned through ``ODOO_*`` environment variables
-(the pg_dump / pg_restore timeouts, the HTTP socket timeout, the max
-HTTP-thread cap, the reload timeout, the preload-profiler interval, the admin
-password floor).  Each was parsed inline with its own copy of the same
-"read → convert → on garbage warn and fall back" shape, and the copies drifted:
-some clamped to a floor, some logged a warning, some were silent — and one
-(``ODOO_PG_DUMP_WAIT_TIMEOUT``) dropped the guard entirely, so a malformed
-value raised ``ValueError`` from inside a ``finally`` block, crashing a
-successful dump and masking the real error of a failed one.
+One ``read → convert → on garbage warn and fall back`` mechanism for every
+service knob (pg_dump/pg_restore timeouts, HTTP socket timeout, reload timeout,
+preload-profiler interval, ...) so none can silently skip the guard.  Imports
+only ``os`` and ``logging``, so it sits below the rest of ``odoo.service`` with
+no import cycle.
 
-Centralising the mechanism here makes the guard structural: a new knob cannot
-silently skip it.  The module imports only ``os`` and ``logging`` so every
-``odoo.service`` submodule can use it without an import cycle (it sits strictly
-below ``db`` / ``server`` / ``wsgi`` / ``_worker`` / ``lifecycle`` in the
-dependency graph).
-
-Logging policy stays the CALLER's: pass the module's own ``logger`` to surface
-the warning under that operator-facing logger name (e.g. ``odoo.service.server``
-or ``odoo.service.db``), or omit it to parse silently — preserving the
-per-knob behavior the inline code had.
+Logging is the caller's: pass a ``logger`` to surface the warning under that
+operator-facing name, or omit it to parse silently.
 """
 
 from __future__ import annotations
@@ -54,8 +42,7 @@ def env_int(
     """Integer sibling of :func:`env_float`.
 
     ``int("2.0")`` raises ``ValueError`` (no implicit truncation), so a
-    non-integer string falls back to ``default`` — matching the historical
-    ``int(os.environ[...])`` call sites this replaces.
+    non-integer string falls back to ``default`` rather than being truncated.
     """
     return _parse(name, default, int, "an integer", minimum, logger)
 

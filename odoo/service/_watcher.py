@@ -1,19 +1,14 @@
-"""Filesystem watcher for autoreload — extracted from ``server.py``.
+"""Filesystem watcher for autoreload.
 
 Two backends, picked at import time:
 
 * ``inotify`` (POSIX preferred — kernel events, no polling)
 * ``watchdog`` (cross-platform fallback — uses fsevents/kqueue/polling)
 
-The classes are constructed by ``server.start()`` when ``--dev=reload`` is
-active.  Both call ``server.restart()`` when a Python source file under
-the addons path changes; the call is performed via lazy import so this
-module has no top-level dependency on ``server.py``.
-
-Splitting these out of ``server.py`` shaves ~115 lines off a 2000-line
-file and groups the autoreload concern in one place — operators looking
-for "why did the server reload?" don't have to grep through HTTP, prefork,
-and signal-handling code.
+The classes are constructed by ``lifecycle.start()`` when ``--dev=reload`` is
+active.  Both call ``lifecycle.restart()`` when a Python source file under the
+addons path changes, via lazy import so this module has no top-level
+dependency on ``lifecycle``.
 """
 
 from __future__ import annotations
@@ -23,16 +18,9 @@ import os
 import threading
 from pathlib import Path
 
-# Backend selection — POSIX prefers inotify (kernel-level, zero polling),
-# everything else falls back to watchdog (which itself picks fsevents on
-# macOS, ReadDirectoryChangesW on Windows, polling otherwise).
-#
-# Both names are initialized at module scope unconditionally so that
-# ``server.py``'s ``from ._watcher import (..., inotify, watchdog)`` always
-# resolves regardless of which backend (if any) is installed. Without this,
-# a host with ``inotify`` available but ``watchdog`` absent would fail
-# server startup with ``ImportError: cannot import name 'watchdog'`` — the
-# ``if not inotify:`` branch below is skipped, leaving ``watchdog`` undefined.
+# Both names are bound to ``None`` up front so ``lifecycle`` can always
+# ``from ._watcher import inotify, watchdog`` whichever backend — if any —
+# actually imports below.
 inotify = None
 watchdog = None
 
@@ -61,27 +49,20 @@ if not inotify:
         from watchdog.observers import Observer  # type: ignore[import-not-found]
     except ImportError:
         watchdog = None  # reset in case partial import bound the name
-# else-branch intentionally absent: ``watchdog`` is pre-initialized to
-# ``None`` above (alongside ``inotify``), so it is bound whether or not
-# this branch ran. ``server.py``'s top-level import of both names then
-# resolves on every host, regardless of which backend was loaded.
+# No else-branch needed: both names are pre-bound to ``None`` above.
 
-# ``odoo.addons`` is imported after the optional inotify/watchdog blocks
-# above so the failure mode of "watcher backend missing" surfaces before
-# the (slower, larger) addon namespace is touched.
+# Imported after the backend blocks so a missing-backend failure surfaces
+# before the slower addon namespace is touched.
 import odoo.addons  # noqa: E402
 
 _logger = logging.getLogger("odoo.service.server")  # operator log-config preserved
 
 
 def _trigger_restart() -> None:
-    """Call ``lifecycle.restart()`` lazily to avoid an import cycle.
+    """Call ``lifecycle.restart()`` via lazy import to avoid an import cycle.
 
-    ``server.py`` imports this module to wire up the watcher; this module
-    can't import ``server.py`` (or ``lifecycle.py`` which imports
-    ``server.py`` lazily) at top level without breaking that.  The
-    per-call lookup is fine — ``restart()`` is invoked rarely (one Python
-    source edit per dev iteration).
+    ``lifecycle`` imports this module, so importing it back at top level would
+    cycle.  The per-call lookup is cheap — restart fires once per source edit.
     """
     from . import lifecycle
 
@@ -115,13 +96,9 @@ class FSWatcherBase:
                     path,
                 )
             else:
-                # Lazy import keeps this module free of a lifecycle.py
-                # dependency at top-level (lifecycle imports _watcher).  Read the
-                # flag via attribute access (``lifecycle.server_phoenix``), never
-                # ``from .lifecycle import server_phoenix`` — a value-import would
-                # freeze it at load time and miss later rebinds, breaking the
-                # invariant documented in ``lifecycle.py`` / ``server.py`` (and
-                # matching how ``_threaded`` / ``_prefork`` read it).
+                # Lazy import (lifecycle imports _watcher).  Read the flag as
+                # ``lifecycle.server_phoenix`` — a value-import would freeze it
+                # at load time and miss later rebinds.
                 from . import lifecycle
 
                 if not lifecycle.server_phoenix:

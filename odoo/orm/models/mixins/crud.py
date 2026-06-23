@@ -1,10 +1,5 @@
-"""
-CRUD operations mixin for BaseModel.
-
-This module contains the create, write, and unlink methods, along with
-their supporting private methods for database operations.
-
-Copy/duplication operations have been extracted to copy.py (CopyMixin).
+"""CRUD operations mixin for BaseModel: create, write, unlink and supporting
+private methods. Copy/duplication lives in copy.py (CopyMixin).
 """
 
 import logging
@@ -36,11 +31,10 @@ from ...primitives import (
     Command,
 )
 
-# Minimum batch size to use COPY protocol instead of INSERT.
-# COPY avoids SQL parsing/planning overhead and is faster for large batches,
-# but adds +1 query (SELECT nextval) for ID pre-generation.
-# Below threshold, multi-row INSERT with RETURNING is used (single query).
-# With binary COPY on PG18, the break-even is ~5 rows; 10 is conservative.
+# Min batch size to use COPY instead of INSERT. COPY avoids SQL parsing
+# overhead but adds +1 query (nextval) for ID pre-generation; below this,
+# multi-row INSERT RETURNING is a single query. Break-even ~5 rows on PG18;
+# 10 is conservative.
 COPY_THRESHOLD = int(os.environ.get("ODOO_COPY_THRESHOLD", "10"))
 COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
     "1",
@@ -48,12 +42,9 @@ COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
     "yes",
 )
 
-# Pre-computed bad_names sets, shared by create() and write() — avoids
-# recreating per call.  Both operations strip the same names:
-#   _BAD_NAMES_LOG: models with _log_access (the default)
-#   _BAD_NAMES:     models without _log_access
-# create() additionally re-adds the log-access columns via setdefault after
-# stripping them.  Derived from LOG_ACCESS_COLUMNS so the two stay in sync.
+# Names stripped from create()/write() vals, precomputed to avoid rebuilding
+# per call. _BAD_NAMES_LOG adds the log-access columns for _log_access models;
+# create() re-adds those via setdefault. Derived from LOG_ACCESS_COLUMNS.
 _BAD_NAMES = frozenset({"id", "parent_path"})
 _BAD_NAMES_LOG = _BAD_NAMES | frozenset(LOG_ACCESS_COLUMNS)
 
@@ -67,113 +58,34 @@ _orm_crud = logging.getLogger("odoo.orm.crud")
 
 
 class CrudMixin:
-    """Mixin providing CRUD (Create, Read, Update, Delete) operations.
+    """CRUD operations: create, write, unlink (plus default_get) and their
+    SQL-supporting private methods. Copy/duplication is in CopyMixin (copy.py).
 
-    This mixin contains the core data manipulation methods:
-    - default_get(): Return default values for fields
-    - create(): Create new records
-    - write(): Update existing records
-    - unlink(): Delete records
+    Key asymmetries between the three mutators, by design:
 
-    And their supporting private methods for database operations.
-    Copy/duplication is in CopyMixin (copy.py).
-
-    Operation Contracts
-    ===================
-
-    The three mutation methods (create/write/unlink) follow a standardized
-    pipeline with guaranteed step ordering.  Understanding this contract is
-    critical for writing correct compute methods, constraints, and overrides.
-
-    **create()** — Immediate INSERT
-    ::
-
-        1. Model-level ACL check + field-level access
-        2. Prepare values: defaults, precomputed fields, magic fields
-        3. Classify fields: stored / inversed / inherited / protected
-        4. Create _inherits parent records (recursive)
-        5. SQL INSERT (or COPY for ≥10 rows) — IMMEDIATE
-        6. Populate cache, update parent_path
-        7. modified(ALL_FIELDS, create=True) — trigger recomputation
-        8. Validate Pass 1: stored fields
-        9. Run inverse methods for inversed fields
-        10. Validate Pass 2: inversed fields (excl. stored)
-        11. _check_company()
-        12. Record-level ACL check (late — needs record to exist)
-
-    **write()** — Deferred UPDATE (see ``flush_all()``)
-    ::
-
-        1. Record-level ACL check + field-level access
-        2. Prepare values: magic fields (write_uid/write_date)
-        3. Classify fields, pre-fetch x2many inverse fields
-        4. Force recompute co-computed fields not being assigned
-        5. WITH protecting(dependents):
-           a. _modified_before(RELATIONAL fields) — OLD dependency graph
-           b. mark_dirty(fields) in write_sequence order — NO SQL YET
-           c. modified(WRITTEN fields) — NEW dependency graph
-           d. Validate Pass 1: vals minus inversed
-           e. Run inverse methods
-           f. Validate Pass 2: inversed fields only
-        6. _check_company()
-
-        SQL UPDATE is deferred until flush_all()/flush_model()/implicit flush.
-        Multiple writes are batched into a single UPDATE FROM VALUES.
-
-    **unlink()** — Immediate DELETE
-    ::
-
-        1. Record-level ACL check
-        2. Run @api.ondelete methods
-        3. Clear pending recomputes for deleted IDs
-        4. Targeted flush: self + FK-referencing models
-        5. _modified_before(ALL_FIELDS) — capture ALL dependency paths
-        6. Batched DELETE WHERE id IN (...) — IMMEDIATE
-        7. Handle company-dependent M2O cascade/set-null (raw SQL)
-        8. Targeted cache invalidation (per-field, per-ID)
-        9. Recursive cleanup: ir.model.data, ir.attachment
-
-    Key Asymmetries (by design)
-    ---------------------------
-
-    - **SQL timing**: write() is deferred (batched), create()/unlink() are
-      immediate.  Raw SQL after write() sees OLD values until flush.
-    - **modified() scope**: write() uses _modified_before(RELATIONAL) only,
-      because scalar fields don't change the dependency graph.  unlink() uses
-      _modified_before(ALL_FIELDS) because deletion breaks every path.
-    - **Validation**: create() validates stored→inversed; write() validates
-      (vals-inversed)→inversed.  Both are two-pass.
-    - **ACL timing**: create() checks record-level rules LATE (needs record);
-      write()/unlink() check them EARLY (records exist).
-
-    See Also
-    --------
-    - ``CacheMixin.modified()``: trigger tree propagation
-    - ``CacheMixin.flush_model()``: dirty guard + flush
-    - ``Environment.flush_all()``: convergence loop (recompute → flush → repeat)
-    - ``Field.write_sequence``: field processing order in write()
+    - **SQL timing**: write() is deferred (batched until flush); create() and
+      unlink() are immediate. Raw SQL after write() sees OLD values until flush.
+    - **modified() scope**: write() captures only RELATIONAL fields via
+      _modified_before() (scalars don't change the dependency graph); unlink()
+      captures ALL fields because deletion breaks every dependency path.
+    - **Validation**: both are two-pass — create() validates stored→inversed,
+      write() validates (vals-inversed)→inversed.
+    - **ACL timing**: create() checks record-level rules LATE (records must
+      exist); write()/unlink() check them EARLY.
     """
 
     __slots__ = ()
 
-    # -------------------------------------------------------------------------
     # Default values
-    # -------------------------------------------------------------------------
 
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
-        """Return default values for the fields in ``fields_list``. Default
-        values are determined by the context, user defaults, user fallbacks
-        and the model itself.
+        """Return default values for the named ``fields``, determined by the
+        context, user defaults, user fallbacks and the model itself.
 
-        :param fields: names of field whose default is requested
-        :return: a dictionary mapping field names to their corresponding default values,
-            if they have a default value.
-
-        .. note::
-
-            Unrequested defaults won't be considered, there is no need to return a
-            value for fields whose names are not in `fields_list`.
+        :param fields: names of fields whose default is requested
+        :return: dict mapping field names to their default value, when they have
+            one. Fields not in ``fields`` are not considered.
         """
         defaults = {}
         parent_fields = defaultdict(list)
@@ -210,14 +122,9 @@ class CrudMixin:
                 field = field.related_field
                 parent_fields[field.model_name].append(field.name)
 
-        # convert default values to the right format
-        #
-        # we explicitly avoid using _convert_to_write() for x2many fields,
-        # because the latter leaves values like [(Command.LINK, 2),
-        # (Command.LINK, 3)], which are not supported by the web client as
-        # default values; stepping through the cache allows to normalize
-        # such a list to [(Command.SET, 0, [2, 3])], which is properly
-        # supported by the web client
+        # Convert via the cache (not _convert_to_write) for x2many: the latter
+        # yields [(LINK, 2), (LINK, 3)] which the web client rejects as a
+        # default; the cache round-trip normalizes to [(SET, 0, [2, 3])].
         for fname, value in defaults.items():
             if fname in self._fields:
                 field = self._fields[fname]
@@ -236,11 +143,9 @@ class CrudMixin:
         values: ValuesType,
         _missing_defaults_cache: dict[frozenset[str], list[str]] | None = None,
     ) -> ValuesType:
-        # Determine which fields need defaults.  When called in a batch from
-        # _prepare_create_values, the ``_missing_defaults_cache`` argument caches
-        # the (expensive) missing-defaults computation per unique set of provided
-        # field names.  This avoids iterating all model fields for every record
-        # when the provided keys are identical.
+        # _missing_defaults_cache memoizes the missing-fields computation per
+        # unique set of provided keys, so a batch create with uniform keys does
+        # not iterate all model fields per record.
         vals_keys = frozenset(values)
         if _missing_defaults_cache is not None and vals_keys in _missing_defaults_cache:
             missing_defaults = _missing_defaults_cache[vals_keys]
@@ -278,7 +183,7 @@ class CrudMixin:
                 _missing_defaults_cache[vals_keys] = missing_defaults
 
         if missing_defaults:
-            # override defaults with the provided values, never allow the other way around
+            # provided values override defaults, never the other way around
             defaults = self.default_get(missing_defaults)
             for name, value in defaults.items():
                 if (
@@ -298,11 +203,9 @@ class CrudMixin:
             defaults.update(values)
 
         else:
-            # Copy: the properties loop below and the caller
-            # (_prepare_create_values — magic-field injection, bad_names
-            # stripping) mutate the returned dict in place.  Aliasing the
-            # caller's ``values`` here would leak those mutations back into the
-            # caller's vals_list.  (The branch above already builds a fresh dict.)
+            # Copy: the properties loop below and the caller mutate the result
+            # in place; aliasing ``values`` would leak that back into the
+            # caller's vals_list. (The branch above already builds a fresh dict.)
             defaults = dict(values)
 
         # delegate the default properties to the properties field
@@ -312,9 +215,7 @@ class CrudMixin:
 
         return defaults
 
-    # -------------------------------------------------------------------------
     # Create
-    # -------------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -335,15 +236,15 @@ class CrudMixin:
             see :meth:`~.write` for details
 
         :return: the created records
-        :raise AccessError: if the current user is not allowed to create records of the specified model
-        :raise ValidationError: if user tries to enter invalid value for a selection field
-        :raise ValueError: if a field name specified in the create values does not exist.
-        :raise UserError: if a loop would be created in a hierarchy of objects a result of the operation
-          (such as setting an object as its own parent)
+        :raise AccessError: if the user may not create records of this model
+        :raise ValidationError: on an invalid value for a selection field
+        :raise ValueError: if a field name in the create values does not exist
+        :raise UserError: if the operation would create a loop in an object
+          hierarchy (e.g. setting an object as its own parent)
         """
-        # raise (not assert) so the contract holds under python -O.  A
-        # non-list/tuple here would otherwise crash much later inside the
-        # field classification loop with an opaque error.
+        # raise (not assert): the contract must hold under python -O, else a
+        # non-list crashes much later in field classification with an opaque
+        # error.
         if not isinstance(vals_list, (list, tuple)):
             raise TypeError(
                 f"create() expects a list of dicts, got {type(vals_list).__name__}"
@@ -447,16 +348,11 @@ class CrudMixin:
         if _debug:
             _t_sql = time.perf_counter()
 
-        # Validation strategy for create() — two passes:
-        #   Pass 1 (in _create): _validate_fields(stored_names) — constraints
-        #     touching only stored fields.
-        #   Pass 2 (below):      _validate_fields(inversed, excluded=stored) —
-        #     constraints touching inversed fields, excluding any that also
-        #     touch stored fields (already covered in pass 1).
-        # Inverse methods run BEFORE both passes because they write to related
-        # models — constraints may need those related records to exist.
-        # Compare with write(), which validates non-inversed first because
-        # dirty cache values are already available without running inverses.
+        # Two-pass validation: pass 1 (in _create) validates stored fields;
+        # pass 2 (below) validates inversed fields, excluding those also touching
+        # stored (covered by pass 1). Inverses run BEFORE both passes since they
+        # write to related models that constraints may need to exist. (write()
+        # validates non-inversed first — its dirty values are already in cache.)
 
         # protect fields being written against recomputation
         protected_fields = [(data["protected"], data["record"]) for data in data_list]
@@ -485,8 +381,9 @@ class CrudMixin:
 
                 inv_records = self.browse(inv_rec_ids)
                 next(iter(fields)).determine_inverse(inv_records)
-                # Values of non-stored fields were cached before running inverse methods. In case of x2many create
-                # commands, the cache may therefore hold NewId records. We must now invalidate those values.
+                # non-stored fields were cached before the inverse ran, so for
+                # x2many create commands the cache may hold NewId records;
+                # invalidate them now.
                 inv_relational_fnames = [
                     field.name
                     for field in fields
@@ -528,17 +425,9 @@ class CrudMixin:
         return records
 
     def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[ValuesType]:
-        """Clean up and complete the given create values, and return a list of
-        new vals containing:
-
-        * default values,
-        * discarded forbidden values (magic fields),
-        * precomputed fields.
-
-        :param vals_list: List of create values
-        :returns: new list of completed create values
+        """Clean up and complete create values: add defaults and precomputed
+        fields, strip forbidden (magic) fields. Return the new vals list.
         """
-        # Use pre-computed static bad_names sets (module-level frozensets).
         if self._log_access:
             # the superuser can set log_access fields while loading registry
             if not (self.env.uid == SUPERUSER_ID and not self.pool.ready):
@@ -548,8 +437,8 @@ class CrudMixin:
         else:
             bad_names = _BAD_NAMES
 
-        # Also discard precomputed readonly fields (to force their computation).
-        # Cache the set on the model class to avoid iterating all fields per call.
+        # Also strip precomputed readonly fields to force their computation.
+        # Cache the set on the class to avoid iterating all fields per call.
         precompute_readonly = getattr(type(self), "_precompute_readonly_names", None)
         if precompute_readonly is None:
             precompute_readonly = frozenset(
@@ -561,17 +450,15 @@ class CrudMixin:
         if precompute_readonly:
             bad_names = bad_names | precompute_readonly
 
-        # Pre-compute missing_defaults for each unique set of provided field names.
-        # In batch creates, all vals typically have the same keys, so this
-        # avoids iterating ~150 fields N times to determine defaults.
+        # Memoize missing_defaults per unique key set: batch creates usually
+        # share keys, so this avoids iterating all fields N times.
         missing_defaults_cache: dict[frozenset[str], list[str]] = {}
 
         result_vals_list = []
         for vals in vals_list:
-            # add default values (with cached missing_defaults)
             vals = self._add_missing_default_values(vals, missing_defaults_cache)
 
-            # add magic fields
+            # strip bad_names, then set magic log-access fields
             for fname in bad_names:
                 vals.pop(fname, None)
             if self._log_access:
@@ -613,18 +500,16 @@ class CrudMixin:
             vals["__precomputed__"] = precomputed = set()
             for fname, field in precomputable.items():
                 if fname not in vals:
-                    # computed stored fields with a column
-                    # have to be computed before create
-                    # s.t. required and constraints can be applied on those fields.
+                    # compute stored-column fields before create so required
+                    # and constraints can apply to them
                     vals[fname] = field.convert_to_write(record[fname], self)
                     precomputed.add(field)
 
     @api.model
     def _create(self, data_list: list[ValuesType]) -> Self:
         """Create records from the stored field values in ``data_list``."""
-        # raise (not assert) so the contract holds under python -O.  An
-        # empty data_list would otherwise produce no INSERT, no records,
-        # and confuse callers expecting at least one created record.
+        # raise (not assert): contract must hold under python -O — an empty
+        # data_list would produce no records, confusing callers.
         if not data_list:
             raise ValueError("_create() called with empty data_list")
         cr = self.env.cr
@@ -651,16 +536,15 @@ class CrudMixin:
                     other_fields.add(field)
 
                 if field.type == "properties":
-                    # force calling fields.create for properties field because
-                    # we might want to update the parent definition
+                    # force field.create() for properties: it may update the
+                    # parent definition
                     other_fields.add(field)
 
-            # --- Backend dispatch: DictBackend or PostgreSQL ---
+            # Backend dispatch: in-memory storage vs PostgreSQL
             storage = self.env.transaction.storage
             if storage is not None:
-                # In-memory path: insert rows into the storage backend.
-                # Converts values identically to the SQL paths, but stores
-                # via the backend's public row API instead of issuing SQL.
+                # In-memory path: convert values as the SQL paths do, but store
+                # via the backend row API instead of issuing SQL.
                 row_dicts: list[dict[str, typing.Any]] = []
                 for stored in stored_list:
                     new_id = storage.next_id(self._table)
@@ -684,10 +568,10 @@ class CrudMixin:
                 _t0 = time.perf_counter()
 
             if use_copy:
-                # COPY path: 2-5x faster than INSERT for large batches.
-                # Uses None instead of SQL_DEFAULT (safe: _prepare_create_values
-                # already applied all Python defaults; remaining gaps are
-                # non-required fields whose database default is NULL).
+                # COPY path: 2-5x faster than INSERT for large batches. Missing
+                # columns use None, not SQL_DEFAULT: _prepare_create_values
+                # already applied Python defaults, so remaining gaps are
+                # non-required fields whose DB default is NULL.
                 copy_rows = []
                 for stored in stored_list:
                     row = tuple(
@@ -699,15 +583,12 @@ class CrudMixin:
                         for fname, field in zip(columns, col_fields, strict=True)
                     )
                     copy_rows.append(row)
-                # Binary COPY is faster ONLY when no column is numeric.  psycopg's
-                # binary numeric dumper requires Decimal, forcing a per-value
-                # float->Decimal(str()) conversion that makes binary ~2x SLOWER
-                # than text for any table with a Monetary / Float-with-digits
-                # column (measured on PG18: 3int+3num+2txt -> text 1.9x faster;
-                # 8 numeric -> 2.6x).  Text COPY stores byte-identical rows, so
-                # this only trades speed, never correctness.  Company-dependent /
-                # translated numerics are stored as jsonb (column_type "jsonb"),
-                # pay no Decimal tax, and correctly keep the binary fast path.
+                # Use binary COPY only when no column is numeric: psycopg's
+                # binary numeric dumper needs Decimal, so a float->Decimal
+                # conversion makes binary ~2x slower than text for Monetary /
+                # Float-with-digits columns. Text COPY is byte-identical, so this
+                # trades speed only, never correctness. jsonb numerics (company-
+                # dependent / translated) pay no Decimal tax and stay binary.
                 use_binary = not any(
                     field.column_type[0] == "numeric" for field in col_fields
                 )
@@ -728,17 +609,12 @@ class CrudMixin:
                         len(columns),
                     )
             else:
-                # INSERT path: used for small batches and empty-record edge case.
-                # Uses None instead of SQL_DEFAULT for missing columns (same
-                # rationale as the COPY path): _prepare_create_values already
-                # applied all Python defaults; remaining gaps are non-required
-                # fields whose database default is NULL.  This produces uniform
-                # rows without DEFAULT keywords, enabling standard parameter
-                # binding for the entire VALUES clause.
+                # INSERT path: small batches and the empty-record edge case.
+                # Missing columns use None, not SQL_DEFAULT (same rationale as
+                # COPY): uniform rows with no DEFAULT keyword let the whole VALUES
+                # clause use standard parameter binding.
                 rows: list[list[typing.Any]] = [[] for _ in stored_list]
                 if col_fields:
-                    # Populated path: columns and col_fields are appended in
-                    # lockstep above, so strict=True enforces that invariant.
                     for fname, field in zip(columns, col_fields, strict=True):
                         for stored, row in zip(stored_list, rows, strict=True):
                             if fname in stored:
@@ -816,11 +692,9 @@ class CrudMixin:
 
         # Pass 1: validate constraints touching stored fields.
         records._validate_fields(name for data in data_list for name in data["stored"])
-        # Record-level rules: check that ir.rules allow creating *these
-        # specific* records (e.g. multi-company rules).  This is NOT a
-        # duplicate of the model-level check above — that one verified ACLs
-        # on an empty recordset; this one evaluates record rules against the
-        # actual created records.
+        # Record-level rules against the actual created records (e.g. multi-
+        # company). Not a duplicate of the earlier model-level check, which ran
+        # on an empty recordset.
         records.check_access("create")
 
         if _debug:
@@ -860,8 +734,8 @@ class CrudMixin:
         # Pre-classify stored fields once (avoids re-checking per record).
         # Also pre-get field caches to avoid repeated _get_cache() calls.
         env = self.env
-        _stored_x2m_caches = []  # [(field, cache)] for x2many stored fields
-        _stored_scalar_caches = []  # [(field, field_name, cache, default)] for scalar stored fields
+        _stored_x2m_caches = []  # x2many: [(field, cache)]
+        _stored_scalar_caches = []  # scalar: [(field, field_name, cache, default)]
         for field in self._fields.values():
             if not field.store:
                 continue
@@ -940,9 +814,10 @@ class CrudMixin:
         """Update all records in ``self`` with the provided values.
 
         :param vals: fields to update and the value to set on them
-        :raise AccessError: if user is not allowed to modify the specified records/fields
-        :raise ValidationError: if invalid values are specified for selection fields
-        :raise UserError: if a loop would be created in a hierarchy of objects a result of the operation (such as setting an object as its own parent)
+        :raise AccessError: if the user may not modify these records/fields
+        :raise ValidationError: on an invalid value for a selection field
+        :raise UserError: if the operation would create a loop in an object
+            hierarchy (e.g. setting an object as its own parent)
 
         * For numeric fields (:class:`~odoo.fields.Integer`,
           :class:`~odoo.fields.Float`) the value should be of the
@@ -977,17 +852,13 @@ class CrudMixin:
 
         * Other non-relational fields use a string for value
 
-        .. note:: **Deferred SQL.**
-            Unlike :meth:`create` and :meth:`unlink` which execute SQL
-            immediately, ``write()`` only updates the ORM cache and marks
-            fields as dirty.  The actual ``UPDATE`` statement is deferred
-            until :meth:`flush_all` (or an implicit flush triggered by
-            ``search()``, ``read()``, or transaction commit).  This enables
-            batching multiple writes into a single ``UPDATE FROM VALUES``.
-
-            **Consequence:** a raw SQL ``SELECT`` immediately after
-            ``write()`` may return OLD values.  Always use the ORM to read
-            values, or call ``flush_model()`` first if raw SQL is needed.
+        .. note:: **Deferred SQL.** Unlike :meth:`create`/:meth:`unlink`,
+            ``write()`` only updates the cache and marks fields dirty; the
+            ``UPDATE`` is deferred to :meth:`flush_all` (or an implicit flush
+            from ``search``/``read``/commit), batching writes into one
+            ``UPDATE FROM VALUES``. So a raw SQL ``SELECT`` right after
+            ``write()`` may see OLD values — read via the ORM, or
+            ``flush_model()`` first.
         """
         if not self:
             return True
@@ -1012,8 +883,8 @@ class CrudMixin:
             _t_acl = time.perf_counter()
         env = self.env
 
-        # Select pre-computed frozenset of fields to strip from vals.
-        # The superuser can set log_access fields while loading registry.
+        # Fields to strip from vals. The superuser may set log_access fields
+        # while loading the registry.
         if self._log_access and not (env.uid == SUPERUSER_ID and not self.pool.ready):
             bad_names = _BAD_NAMES_LOG
         else:
@@ -1043,22 +914,19 @@ class CrudMixin:
                 fnames_modifying_relations.append(fname)
             if field.inverse or (field.compute and not field.readonly):
                 if field.store or field.type not in ("one2many", "many2many"):
-                    # Protect the field from being recomputed while being
-                    # inversed. In the case of non-stored x2many fields, the
-                    # field's value may contain unexpeced new records (created
-                    # by command 0). Those new records are necessary for
-                    # inversing the field, but should no longer appear if the
-                    # field is recomputed afterwards. Not protecting the field
-                    # will automatically invalidate the field from the cache,
-                    # forcing its value to be recomputed once dependencies are
-                    # up-to-date.
+                    # Protect the field from recomputation while it is being
+                    # inversed. For non-stored x2many fields, the value may hold
+                    # new records (from command 0) needed for inversing but that
+                    # should not survive a later recompute; not protecting the
+                    # field invalidates it from cache, forcing recomputation once
+                    # dependencies are up-to-date.
                     protected.update(self.pool.field_computed.get(field, [field]))
 
-        # Pre-read all x2many inverse fields in a single batch.  These fields
-        # use command-based writes (add/remove/update), so their current value
-        # must be in cache before the field is protected from recomputation.
-        # Using fetch() instead of self[fname] per field: it populates cache
-        # for all records at once without triggering ensure_one().
+        # Pre-read all x2many inverse fields in one batch. They use command-
+        # based writes (add/remove/update), so their current value must be in
+        # cache before the field is protected from recomputation. fetch() (vs
+        # self[fname] per field) populates all records at once without
+        # triggering ensure_one().
         if x2m_inverse_fnames:
             self.fetch(x2m_inverse_fnames)
 
@@ -1077,24 +945,12 @@ class CrudMixin:
 
         # protect fields being written against recomputation
         with env.protecting(protected, self):
-            # Determine records depending on values. When modifying a relational
-            # field, you have to recompute what depends on the field's values
-            # before and after modification.  This is because the modification
-            # has an impact on the "data path" between a computed field and its
-            # dependency.  Note that this double call to modified() is only
-            # necessary for relational fields.
-            #
-            # It is best explained with a simple example: consider two sales
-            # orders SO1 and SO2.  The computed total amount on sales orders
-            # indirectly depends on the many2one field 'order_id' linking lines
-            # to their sales order.  Now consider the following code:
-            #
-            #   line = so1.line_ids[0]      # pick a line from SO1
-            #   line.order_id = so2         # move the line to SO2
-            #
-            # In this situation, the total amount must be recomputed on *both*
-            # sales order: the line's order before the modification, and the
-            # line's order after the modification.
+            # Modifying a relational field changes the "data path" between a
+            # computed field and its dependency, so dependents must be recomputed
+            # for both the OLD and NEW values (hence two modified() calls; only
+            # needed for relational fields). E.g. moving a line from SO1 to SO2
+            # (line.order_id = so2) must recompute the total amount on both
+            # orders.
             if fnames_modifying_relations:
                 self._modified_before(fnames_modifying_relations)
             if _debug:
@@ -1116,18 +972,11 @@ class CrudMixin:
             if _debug:
                 _t_dirty = time.perf_counter()
 
-            # determine records depending on new values
-            #
-            # Call modified after write, because the modified can trigger a
-            # search which can trigger a flush which can trigger a recompute
-            # which remove the field from the recompute list while all the
-            # values required for the computation could not be yet in cache.
-            # e.g. Write on `name` of `res.partner` trigger the recompute of
-            # `display_name`, which triggers a search on child_ids to find the
-            # childs to which the display_name must be recomputed, which
-            # triggers the flush of `display_name` because the _order of
-            # res.partner includes display_name. The computation of display_name
-            # is then done too soon because the parent_id was not yet written.
+            # Call modified() after mark_dirty: it may trigger a search ->
+            # flush -> recompute that would compute a field before its
+            # dependencies are written. E.g. writing res.partner.name recomputes
+            # display_name, which searches child_ids and flushes display_name
+            # (it is in _order) before parent_id is written, computing too early.
             # (`test_01_website_reset_password_tour`)
             self.modified(vals)
             if _debug:
@@ -1136,16 +985,11 @@ class CrudMixin:
             if self._parent_store and self._parent_name in vals:
                 self.flush_model([self._parent_name])
 
-            # Validation strategy for write() — two passes:
-            #   Pass 1: _validate_fields(vals, excluded=inverse_fields) —
-            #     constraints touching written fields, excluding inversed.
-            #   Pass 2: _validate_fields(inverse_fields) — constraints
-            #     touching only inversed fields, after inverses have run.
-            # Non-inversed fields are validated first because their values
-            # are already in the dirty cache.  Inverse methods run between
-            # the passes because they write to related models.
-            # Compare with create(), which runs inverses before both passes
-            # because constraints may need the related records to exist.
+            # Two-pass validation: pass 1 validates written fields excluding
+            # inversed (their values are already in the dirty cache); inverses
+            # run between the passes (they write to related models); pass 2
+            # validates inversed fields. (create() runs inverses before both
+            # passes since constraints may need the related records to exist.)
             inverse_fields = [f.name for fs in determine_inverses.values() for f in fs]
             real_recs._validate_fields(vals, inverse_fields)
             if _debug:
@@ -1217,16 +1061,15 @@ class CrudMixin:
         """Low-level implementation of write()"""
         self._write_multi([vals] * len(self))
         # _write_multi bypasses field.write() and modified(), so the cache
-        # retains stale pre-_write values.  Invalidate the updated fields to
-        # ensure filtered_domain / Field.__get__ reads fresh DB values.
+        # retains stale pre-_write values. Invalidate the updated fields so
+        # filtered_domain / Field.__get__ read fresh DB values.
         if self:
             self.invalidate_recordset(list(vals), flush=False)
 
     def _write_multi(self, vals_list: list[ValuesType]) -> None:
         """Low-level implementation of write()"""
-        # raise (not assert) so contract holds under python -O — a length
-        # mismatch would silently zip-truncate the rows and persist wrong
-        # values on the trailing records.
+        # raise (not assert): under python -O a length mismatch would zip-
+        # truncate rows and persist wrong values on the trailing records.
         if len(self) != len(vals_list):
             raise ValueError(
                 f"_write_multi: len(records)={len(self)} != "
@@ -1259,7 +1102,7 @@ class CrudMixin:
                         "write_date": self.env.cr.now(),
                     } | vals
                 fnames, template_row = zip(*sorted(vals.items()), strict=False)
-                # Iterate _ids directly — avoids creating N singleton recordset objects
+                # iterate _ids directly — avoids N singleton recordset objects
                 rows = [((id_,) + template_row) for id_ in self._ids]
                 for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
                     self._execute_update(fnames, sub_rows)
@@ -1298,14 +1141,12 @@ class CrudMixin:
         :param fnames: Tuple of field names being updated (sorted).
         :param rows: List of tuples (id, val1, val2, ...) — one per record.
         """
-        # --- Backend dispatch: DictBackend or PostgreSQL ---
+        # Backend dispatch: in-memory storage vs PostgreSQL
         storage = self.env.transaction.storage
         if storage is not None:
-            # In-memory path: update rows via the storage backend.
-            # Skips JSONB merge for translated/company-dependent fields —
-            # stores as plain values (sufficient for business logic tests).
+            # In-memory path: store plain values, skipping the JSONB merge for
+            # translated/company-dependent fields (enough for business tests).
             updates = [
-                # row is a plain tuple: (id, val1, val2, ...)
                 (row[0], dict(zip(fnames, row[1:], strict=True)))
                 for row in rows
             ]
@@ -1316,10 +1157,8 @@ class CrudMixin:
         assignments = []
         for fname in fnames:
             field = self._fields[fname]
-            # raise (not assert) so contract holds under python -O — building
-            # SQL UPDATE for a non-column field would otherwise produce a
-            # malformed query that fails at execution time with an opaque
-            # error reference to ``column_type``.
+            # raise (not assert): under python -O a non-column field would build
+            # a malformed UPDATE failing later with an opaque column_type error.
             if not field.is_column:
                 raise RuntimeError(
                     f"_execute_update: {field} is not a stored column field"
@@ -1376,8 +1215,8 @@ class CrudMixin:
     def unlink(self) -> typing.Literal[True]:
         """Delete the records in ``self``.
 
-        :raise AccessError: if the user is not allowed to delete all the given records
-        :raise UserError: if the record is default property for other records
+        :raise AccessError: if the user may not delete all the given records
+        :raise UserError: if a record is the default property of other records
         """
         if not self:
             return True
@@ -1403,14 +1242,13 @@ class CrudMixin:
         if _debug:
             _t_ondelete = time.perf_counter()
 
-        # TOFIX: this avoids an infinite loop when trying to recompute a
-        # field, which triggers the recomputation of another field using the
-        # same compute function, which then triggers again the computation
-        # of those two fields
+        # TOFIX: avoids an infinite loop where recomputing a field triggers
+        # recompute of another field sharing the same compute function, which
+        # re-triggers both.
         core = self.env._core
         if core.has_any_pending():
             # Iterate pending entries (typically few) rather than all model
-            # fields (often 100+).  Only clear entries for the current model.
+            # fields (often 100+); clear only entries for the current model.
             model_name = self._name
             deleted_ids = self._ids
             for field in list(core.pending_fields()):
@@ -1510,12 +1348,11 @@ class CrudMixin:
         :param Attachment: ir.attachment model proxy (sudo)
         :return: (data_records, attachment_records) to unlink after all batches
         """
-        # --- Backend dispatch: DictBackend or PostgreSQL ---
+        # Backend dispatch: in-memory storage vs PostgreSQL
         storage = self.env.transaction.storage
         if storage is not None:
-            # In-memory path: remove rows via the storage backend.
-            # Skip ir.model.data / ir.attachment / company-dependent cleanup —
-            # those models may not exist in the test context.
+            # In-memory path: skip ir.model.data / ir.attachment / company-
+            # dependent cleanup — those models may not exist in test context.
             storage.delete_rows(self._table, list(sub_ids))
             return Data.browse(), Attachment.browse()
 
@@ -1532,19 +1369,15 @@ class CrudMixin:
             )
         )
 
-        # Removing the ir_model_data reference if the record being deleted
-        # is a record created by xml/csv file, as these are not connected
-        # with real database foreign keys, and would be dangling references.
-        #
-        # Note: the following steps are performed as superuser to avoid
-        # access rights restrictions, and with no context to avoid possible
+        # Remove the ir_model_data reference for xml/csv-created records:
+        # they have no real FK, so the reference would dangle. Done as
+        # superuser and with no context to avoid access restrictions and
         # side-effects during admin calls.
         data = Data.search([("model", "=", self._name), ("res_id", "in", sub_ids)])
 
-        # For the same reason, remove the relevant records in ir_attachment
-        # (the search is performed with sql as the search method of
-        # ir_attachment is overridden to hide attachments of deleted
-        # records)
+        # Likewise remove the relevant ir_attachment records (via raw SQL:
+        # ir_attachment's search() is overridden to hide attachments of
+        # deleted records).
         cr.execute(
             SQL(
                 "SELECT id FROM ir_attachment WHERE res_model=%s AND res_id = ANY(%s)",
@@ -1554,8 +1387,9 @@ class CrudMixin:
         )
         attachments = Attachment.browse(row[0] for row in cr.fetchall())
 
-        # don't allow fallback value in ir.default for many2one company dependent fields to be deleted
-        # Exception: when MODULE_UNINSTALL_FLAG, these fallbacks can be deleted by Defaults.discard_records(records)
+        # block deleting a record used as an ir.default fallback for a company-
+        # dependent m2o, unless MODULE_UNINSTALL_FLAG (then discard_records below
+        # clears the fallback)
         if (
             many2one_fields := self.env.registry.many2one_company_dependents[self._name]
         ) and not self.env.context.get(MODULE_UNINSTALL_FLAG):
@@ -1584,13 +1418,11 @@ class CrudMixin:
                     )
                 )
 
-        # on delete set null/restrict for jsonb company dependent many2one
+        # on delete set null/restrict for jsonb company-dependent many2one.
         # Defensive: the JSONPath below interpolates each id via f-string
-        # because PostgreSQL's jsonpath syntax does not accept psycopg
-        # parameter binding inside the path expression.  Currently safe
-        # because ``self.ids`` filters NewIds and only returns int.  Reject
-        # anything else loudly so a future caller cannot smuggle a SQL
-        # fragment through ``sub_ids``.
+        # (psycopg can't bind parameters inside a jsonpath expression). Safe
+        # because ``self.ids`` returns only ints; reject anything else loudly so
+        # a future caller can't smuggle a SQL fragment through ``sub_ids``.
         if many2one_fields and not all(
             isinstance(id_, int) and id_ > 0 for id_ in sub_ids
         ):

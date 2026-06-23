@@ -15,16 +15,12 @@ from .storage import DictBackend
 from .unit_of_work import LoopResult, UnitOfWork
 
 __all__ = [
-    # Data structures
     "ComputeEngine",
     "DictBackend",
     "FieldCache",
-    # Flush scheduling
     "LoopResult",
     "ModelGraph",
-    # Layer 1 facade
     "OrmCore",
-    # Recomputation scheduling
     "RecomputeScheduler",
     "TriggerTree",
     "UnitOfWork",

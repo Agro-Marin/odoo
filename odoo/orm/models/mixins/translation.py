@@ -1,14 +1,5 @@
-"""
-Field translation mixin for BaseModel.
-
-This module provides the TranslationMixin class containing all translation-related
-methods. BaseModel inherits from this mixin.
-
-Methods:
-- update_field_translations: Update translations for a field
-- _update_field_translations: Internal implementation with digest support
-- get_field_translations: Get translations for a field
-- _get_base_lang: Get base language of a record
+"""Field translation mixin for BaseModel: get/update translations of
+translatable fields.
 """
 
 import typing
@@ -24,15 +15,11 @@ if typing.TYPE_CHECKING:
 
 
 class TranslationMixin:
-    """Mixin providing field translation functionality.
-
-    This mixin is inherited by BaseModel and provides methods for managing
-    translations of translatable fields.
-    """
+    """Mixin providing field translation functionality."""
 
     __slots__ = ()
 
-    # Type hints for attributes provided by BaseModel (runtime)
+    # Attributes provided by BaseModel at runtime
     _fields: dict
     _table: str
     env: typing.Any
@@ -120,15 +107,14 @@ class TranslationMixin:
             return False  # or raise error
 
         if not field.store and not field.related and field.compute:
-            # a non-related non-stored computed field cannot be translated, even if it has inverse function
+            # a non-related non-stored computed field cannot be translated,
+            # even with an inverse function
             return False
 
-        # Strictly speaking, a translated related/computed field cannot be stored
-        # because the compute function only support one language
-        # `not field.store` is a redundant logic.
-        # But some developers store translated related fields.
-        # In these cases, only all translations of the first stored translation field will be updated
-        # For other stored related translated field, the translation for the flush language will be updated
+        # A translated related/computed field normally cannot be stored (compute
+        # supports one language only), but some developers store them anyway. For
+        # those, only the first stored translation field gets all translations;
+        # other stored related translated fields update only the flush language.
         if field.related and not field.store:
             related_path, field_name = field.related.rsplit(".", 1)
             return self.mapped(related_path)._update_field_translations(
@@ -136,7 +122,7 @@ class TranslationMixin:
             )
 
         if field.translate is True:
-            # falsy values (except emtpy str) are used to void the corresponding translation
+            # falsy values (except empty str) void the corresponding translation
             if any(
                 translation and not isinstance(translation, str)
                 for translation in translations.values()
@@ -191,7 +177,7 @@ class TranslationMixin:
                 return False
 
             for lang in translations:
-                # for languages to be updated, use the unconfirmed translated value to replace the language value
+                # for langs to update, replace the value with the unconfirmed one
                 if f"_{lang}" in old_values:
                     old_values[lang] = old_values.pop(f"_{lang}")
             translations = {
@@ -267,9 +253,9 @@ class TranslationMixin:
         :param field_name: field name
         :param langs: languages
 
-        :return: (translations, context) where
-            translations: list of dicts like [{"lang": lang, "source": source_term, "value": value_term}]
-            context: {"translation_type": "text"/"char", "translation_show_source": True/False}
+        :return: ``(translations, context)`` where translations is a list of
+            ``{"lang", "source", "value"}`` dicts and context holds
+            ``translation_type`` ("text"/"char") and ``translation_show_source``.
         """
         self.ensure_one()
         field = self._fields[field_name]

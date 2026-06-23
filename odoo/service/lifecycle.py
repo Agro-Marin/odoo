@@ -1,31 +1,20 @@
 """Process-lifecycle entry points: ``start``, ``restart``, ``_reexec``,
 ``preload_registries``, ``load_server_wide_modules``.
 
-Extracted from ``server.py``.  Kept module-level (no class wrapper) because
-external callers — ``cli/shell.py``, ``http/application.py``, the autoreload
-watcher in ``_watcher.py`` — invoke them as plain functions and the fork's
-existing import surface points at this layer.
+Module-level functions (no class wrapper) because external callers —
+``cli/shell.py``, ``http/application.py``, ``_watcher.py`` — invoke them as
+plain functions.
 
 Also defines the ``server`` and ``server_phoenix`` module globals.  Other
-parts of ``service/`` mutate them via ``lifecycle.server_phoenix = True``
-rather than a ``global server_phoenix`` declaration in their own module
-namespace — that way every reader sees the same binding.
+parts of ``service/`` mutate them as ``lifecycle.server_phoenix = True`` (not a
+``global`` in their own namespace) so every reader sees the same binding.
 
-* ``server`` — current server instance (set by ``start``); readable via
-  ``odoo.service.lifecycle.server``.
-* ``server_phoenix`` — module-level "should we re-exec after stop?" flag.
-  Mutated from:
-    * ThreadedServer.signal_handler on SIGHUP (Python delivers signals to
-      the main thread)
-    * PreforkServer.process_signals after draining its signal queue
-      (also main-thread)
-    * PreforkServer.stop (synchronous, from the main loop)
-  Read by ``start()`` after ``server.run()`` returns, by
-  ``ThreadedServer.stop`` for log wording, and by
-  ``_watcher._trigger_restart`` (autoreload).  The watcher's read is racy
-  in principle, but the only effect of a stale read is one extra SIGHUP
-  delivery — idempotent because the handler just sets the flag again.
-  Do NOT add a Lock here: it would serialize signal delivery with no benefit.
+* ``server`` — current server instance, set by ``start``.
+* ``server_phoenix`` — "should we re-exec after stop?" flag, set on SIGHUP
+  (``ThreadedServer.signal_handler``, ``PreforkServer.process_signals``) and in
+  ``PreforkServer.stop``, read by ``start()`` after ``server.run()`` returns.
+  The watcher's read is racy, but a stale read only costs one extra (idempotent)
+  SIGHUP, so no Lock is needed.
 """
 
 from __future__ import annotations
@@ -51,9 +40,8 @@ from odoo.tools.misc import stripped_sys_argv
 
 from ._env import env_float
 
-# Watcher backends — picked at the watcher-module level, surfaced here so
-# ``start()`` can dispatch on the actual loaded backend without re-doing
-# the OS-name probe.
+# Watcher backends, selected in ``_watcher``; surfaced here so ``start()`` can
+# dispatch on whichever one actually loaded.
 from ._watcher import (
     FSWatcherInotify,
     FSWatcherWatchdog,
@@ -97,20 +85,15 @@ def _reexec(updated_modules: list[str] | None = None) -> None:
     args = stripped_sys_argv()
     if updated_modules:
         args += ["-u", ",".join(updated_modules)]
-    # Insert the interpreter path as argv[0] unless it is already there
-    # in either form (full path or basename).  The "basename only" check
-    # used previously double-inserted in the rare case where
-    # ``sys.argv[0] == sys.executable`` (e.g. ``python /usr/bin/python3
-    # odoo-bin``): the resulting argv ``['python3', '/usr/bin/python3',
-    # 'odoo-bin', ...]`` makes ``os.execve`` interpret the python binary
-    # as a script ("source code cannot contain null bytes" on the ELF
-    # header).  Match upstream's two-form check.
+    # Insert the interpreter as argv[0] unless already present in either form
+    # (full path or basename).  Checking both avoids a double-insert when
+    # ``sys.argv[0] == sys.executable``, which would make ``os.execve`` treat
+    # the python binary as a script.
     if not args or args[0] not in (sys.executable, exe):
         args.insert(0, sys.executable)
-    # ``os.execve`` (no shell): replaces the current process with a new
-    # invocation, preserving the LISTEN_* env vars required for systemd
-    # socket activation on reexec.  ``args`` is built from ``stripped_sys_argv``
-    # which sanitises the parent's argv.
+    # ``os.execve`` (no shell): replaces the process in place, preserving the
+    # LISTEN_* env vars systemd socket activation needs.  ``args`` comes from
+    # ``stripped_sys_argv`` (sanitised).
     os.execve(sys.executable, args, os.environ)  # noqa: S606
 
 
@@ -124,9 +107,8 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
-            # Guarded parse: a malformed interval used to raise ``ValueError``
-            # straight out of the preload loop, aborting the run; now it warns
-            # and falls back to 0.1s.
+            # Guarded parse: a malformed interval warns and falls back to 0.1s
+            # instead of aborting the preload run.
             interval = env_float(
                 "ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger
             )
@@ -193,19 +175,16 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
     """Start the odoo http server and cron processor."""
-    # Module-level ``server`` is the canonical handle for the running server
-    # instance; other parts of ``service/`` read it via ``lifecycle.server``
-    # to follow the binding (see module docstring).  PLW0603 is suppressed
-    # because that binding IS the design — moving it into a class would lose
-    # the cross-module reader pattern.
+    # ``server`` is the canonical handle other modules read as
+    # ``lifecycle.server`` (see module docstring); the global binding is the
+    # design, hence the PLW0603 suppression.
     global server  # noqa: PLW0603
 
     load_server_wide_modules()
     import odoo.http
 
-    # Server classes are imported lazily here (not at module top) so that
-    # ``server.py`` can do ``from . import lifecycle`` without a top-level
-    # cycle.  See module docstring for the import-order invariant.
+    # Imported lazily (not at module top) so ``server.py`` can do
+    # ``from . import lifecycle`` without a top-level cycle.
     from .server import EventServer, PreforkServer, ThreadedServer
 
     if odoo.evented:

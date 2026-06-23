@@ -25,9 +25,8 @@ class Reference(Selection):
 
     _column_type = ("varchar", pg_varchar())
 
-    # Reference must bypass Selection.__get__ because convert_to_record is
-    # non-trivial: it splits "model,id" and browses. The Selection shortcut
-    # would return the raw string instead of a record.
+    # Bypass Selection.__get__: convert_to_record splits "model,id" and browses,
+    # whereas the Selection shortcut would return the raw string.
     __get__ = Field.__get__
 
     @override
@@ -51,9 +50,8 @@ class Reference(Selection):
             ):
                 return f"{value._name},{value.id}" if value else None
         elif isinstance(value, str):
-            # cache format is exactly "model,id"; parse defensively so malformed
-            # RPC input (extra commas, non-numeric id) falls through to the
-            # uniform error below instead of raising a raw unpack/int ValueError.
+            # parse defensively so malformed RPC input (extra commas, non-numeric
+            # id) falls through to the uniform error below.
             res_model, sep, res_id = value.partition(",")
             if sep and res_model:
                 try:

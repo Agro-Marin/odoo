@@ -33,16 +33,11 @@ def db_mod():
 
 
 class _MockConfig(dict):
-    """Test stand-in for ``odoo.tools.config``.
+    """Test stand-in for ``odoo.tools.config`` (a dict/object hybrid).
 
-    ``odoo.tools.config`` is a dict-AND-object hybrid: callers use both
-    ``config["list_db"]`` and ``config.filestore(name)``.  A plain dict
-    sufficed for the management decorator (which only needs ``["list_db"]``)
-    but ``restore_db`` and friends call ``.filestore(...)``.  Subclassing
-    ``dict`` keeps the existing dict semantics while exposing ``filestore``
-    as an actual method.  Returns paths under ``/nonexistent/`` so any
-    ``Path(...).exists()`` check returns False — which is what every
-    pre-flight in these tests wants.
+    Subclasses ``dict`` for ``config["list_db"]`` and adds ``filestore()``,
+    which ``restore_db`` and friends call. Paths are under ``/nonexistent/`` so
+    every ``Path(...).exists()`` pre-flight returns False.
     """
 
     def filestore(self, name: str) -> str:
@@ -433,11 +428,8 @@ class TestDumpDbDumpFormat:
 
 class TestCheckFaketimeMode:
     """``_check_faketime_mode`` injects a clock-shifting ``public.now()`` SQL
-    function — test-only infrastructure that must never fire in production.
-
-    Regression: gated ONLY on the ``ODOO_FAKETIME_TEST_MODE`` env var. An
-    accidental export in a systemd unit would have silently corrupted every
-    timestamp in the DB. The fix requires BOTH the env var AND ``test_enable``.
+    function — test-only, and gated on BOTH ``ODOO_FAKETIME_TEST_MODE`` and
+    ``test_enable`` so a stray env var alone can't corrupt production timestamps.
     """
 
     def test_noop_when_env_var_absent(self, db_mod):
@@ -513,13 +505,11 @@ class TestCheckFaketimeMode:
 
 
 class TestCreateEmptyDatabaseTOCTOU:
-    """``_create_empty_database`` must let PG be the source of truth for existence.
+    """``_create_empty_database`` lets PG be the source of truth for existence.
 
-    Regression: the prior ``SELECT datname ... / CREATE DATABASE`` pair was
-    racy — two concurrent callers could both pass the check and one got a
-    raw ``psycopg.errors.DuplicateDatabase`` instead of the canonical
-    ``DatabaseExists``. The fix removes the pre-flight query and translates
-    PG's 42P04 error directly.
+    A pre-flight ``SELECT datname`` was racy (two callers could both pass);
+    instead CREATE DATABASE runs and PG's 42P04 is translated to the canonical
+    ``DatabaseExists``.
     """
 
     def test_duplicate_database_translates_to_databaseexists(self, db_mod):
@@ -566,13 +556,11 @@ class TestCreateEmptyDatabaseTOCTOU:
 
 
 class TestRestoreDbZipSlip:
-    """``restore_db`` must refuse to process an archive member that escapes
-    the extraction directory, even if the stdlib's ``extractall`` mangles
-    the filename to stay in-bounds.
+    """``restore_db`` must refuse an archive member that escapes the extraction
+    directory.
 
-    Regression: the defense previously relied entirely on Python 3.6+
-    behavior stripping ``..`` components. An explicit post-extract check
-    pins the invariant to THIS file, not the stdlib version.
+    An explicit check pins the ZipSlip invariant to this file rather than
+    relying on the stdlib's ``..``-stripping behaviour.
     """
 
     def test_zipslip_check_is_present(self, db_mod):
@@ -592,10 +580,10 @@ class TestRestoreDbZipSlip:
 
 
 class TestExpDumpMemory:
-    """``exp_dump`` must not materialise the raw dump + encoded output + str
-    simultaneously — a 4 GB DB used to peak at ~16 GB before returning.
+    """``exp_dump`` base64-encodes in a chunk loop, not ``b64encode(t.read())``.
 
-    Regression: switched from ``b64encode(t.read())`` to a chunk loop.
+    Materialising raw dump + encoded output + str at once peaked a 4 GB DB at
+    ~16 GB.
     """
 
     def test_dump_is_streamed_in_chunks(self, db_mod, bypass_db_mgmt):
@@ -603,9 +591,8 @@ class TestExpDumpMemory:
         import ast  # noqa: PLC0415
         import inspect  # noqa: PLC0415
 
-        # Parse the function body so we match actual code, not docstring prose
-        # (the docstring mentions the old ``b64encode(t.read())`` form as
-        # historical context, which would false-match a substring check).
+        # Parse the AST, not the source text: the docstring mentions the old
+        # ``t.read()`` form and would false-match a substring check.
         tree = ast.parse(inspect.getsource(db_mod.exp_dump))
         reads_with_arg = False
         reads_without_arg = False
@@ -648,30 +635,27 @@ class TestExpDumpMemory:
 
 
 class TestRestoreDbCleanupHelper:
-    """``restore_db`` rollback path must use ``_drop_database`` directly,
-    bypassing the ``@check_db_management_enabled`` decorator that guards
-    ``exp_drop``.
+    """``restore_db`` rolls back via the internal ``_drop_database`` (through
+    ``_rollback_new_database``), not the ``list_db``-gated ``exp_drop``.
 
-    Regression: a runtime toggle of ``list_db`` between the initial
-    check and cleanup would orphan the empty database.
+    A runtime ``list_db`` toggle between the initial check and cleanup would
+    otherwise orphan the empty database.
     """
 
     def test_cleanup_uses_internal_drop_helper(self, db_mod):
-        """The cleanup path must call ``_drop_database``, not ``exp_drop``."""
+        """Cleanup must drop via the internal helper, not the gated ``exp_drop``."""
         import inspect  # noqa: PLC0415
 
-        src = inspect.getsource(db_mod.restore_db)
-        # Find the except branch
-        lines = src.splitlines()
-        # The line "exp_drop(db)" in the cleanup is the bug pattern.
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("exp_drop("):
-                pytest.fail(
-                    f"restore_db cleanup must use _drop_database, not exp_drop: {stripped!r}"
-                )
-        # And the internal helper must actually be called
-        assert "_drop_database(" in src
+        # restore_db delegates rollback to _rollback_new_database ...
+        restore_src = inspect.getsource(db_mod.restore_db)
+        assert "exp_drop(" not in restore_src
+        assert "_rollback_new_database(" in restore_src
+
+        # ... which drops through _drop_database, bypassing the list_db-gated
+        # exp_drop (a runtime toggle would otherwise orphan the empty database).
+        rollback_src = inspect.getsource(db_mod._rollback_new_database)
+        assert "_drop_database(" in rollback_src
+        assert "exp_drop(" not in rollback_src
 
 
 # ---------------------------------------------------------------------------
@@ -682,10 +666,9 @@ class TestRestoreDbCleanupHelper:
 class TestDropDatabaseRetry:
     """``_drop_database`` retries DROP on ``ObjectInUse``.
 
-    Regression: a new HTTP request or cron tick can open a connection between
-    ``pg_terminate_backend`` and ``DROP DATABASE``. Before the fix, PG's
-    ``ObjectInUse`` (sqlstate 55006) surfaced immediately as RuntimeError
-    with no retry. The fix re-runs terminate + drop up to 3 times.
+    A request or cron tick can open a connection between
+    ``pg_terminate_backend`` and ``DROP DATABASE``; the drop retries
+    terminate+drop instead of failing on the first ``ObjectInUse``.
     """
 
     @pytest.fixture()
@@ -809,10 +792,9 @@ class TestListDbIncompatibleDocstring:
 
 
 class TestAdminPasswordComplexity:
-    """The master admin password authorises every destructive DB-level
-    operation. Rejecting trivial passwords (<8 chars) reduces the effective
-    attack surface from "brute-force short passwords" to "brute-force >=8-char
-    passwords"; not a full policy, but a meaningful floor.
+    """The master admin password authorises every destructive DB operation, so
+    ``exp_change_admin_password`` rejects trivial (<8 char) passwords as a
+    minimum floor.
     """
 
     def test_rejects_short_password(self, db_mod):
@@ -903,16 +885,10 @@ class TestPublicApiDocstrings:
 class TestDispatchInvariants:
     """Pin the structural invariants of the unified ``_DISPATCH`` table.
 
-    Replaces the old ``_DISPATCH_PUBLIC`` / ``_DISPATCH_ADMIN`` disjointness
-    test: with one dict, no key can be in both "public" and "admin" — that
-    bug class is now structurally impossible.  What remains to verify:
-
-    1. Every method that requires the master password actually exists in
-       the dispatch table (typo in ``_REQUIRES_MASTER_PASSWORD`` would
-       silently disable auth for a method that exists, or enable it for
-       a non-existent method).
-    2. The dispatch table contains every documented exp_* RPC method we
-       intend to expose (catches "added handler, forgot dispatch entry").
+    One dict (vs the old ``_DISPATCH_PUBLIC``/``_DISPATCH_ADMIN`` pair) makes
+    public/admin overlap impossible. What remains: every
+    ``_REQUIRES_MASTER_PASSWORD`` entry must exist in ``_DISPATCH``, and every
+    intended ``exp_*`` method must be registered.
     """
 
     def test_master_password_set_is_subset_of_dispatch(self, db_mod):
@@ -946,19 +922,12 @@ class TestDispatchInvariants:
         )
 
     def test_public_methods_not_password_gated(self, db_mod):
-        """Public dispatch endpoints MUST be callable without master password.
+        """Public dispatch endpoints must be callable without the master password.
 
-        ``list_countries`` reads bundled XML and is invoked by the
-        unauthenticated database-creation wizard; ``db_exist``, ``list``,
-        ``list_lang``, and ``server_version`` are similarly public. Listing
-        any of them in ``_REQUIRES_MASTER_PASSWORD`` causes:
-
-        * ``ValueError`` from ``passwd, *params = []`` when the client sends
-          no leading password (the wizard's normal flow), or
-        * ``AccessDenied`` when the client sends any non-master password.
-
-        Either failure is a regression from the documented contract that the
-        wizard's pre-DB pages reach these endpoints without credentials.
+        The unauthenticated DB-creation wizard reaches ``list_countries``,
+        ``db_exist``, ``list``, ``list_lang``, and ``server_version``; gating
+        any of them would break that flow (ValueError on the empty password,
+        or AccessDenied).
         """
         public_methods = frozenset({
             "db_exist",
@@ -1017,11 +986,9 @@ class TestDispatchInvariants:
     def test_dispatch_skips_check_super_for_public_method(self, db_mod):
         """Public methods must NOT call check_super (no leading password arg).
 
-        Patches the handler in ``_DISPATCH`` itself — patching
-        ``db_mod.exp_db_exist`` alone does not change what's already
-        registered in the dispatch table.  Without this patch, the test
-        falls through to a real ``db_connect`` and times out (~30s) on
-        a missing database.
+        Patch the handler inside ``_DISPATCH`` (patching ``exp_db_exist`` alone
+        wouldn't change the registered entry, and a real ``db_connect`` would
+        hang ~30s on a missing DB).
         """
         mock_handler = MagicMock(return_value=True)
         with patch.object(db_mod, "check_super") as mock_check, \
@@ -1038,23 +1005,20 @@ class TestDispatchInvariants:
 
 
 class TestExpDuplicateRollback:
-    """``exp_duplicate_database`` must drop the newly-created database when
-    the filestore copy (or any post-CREATE step) fails.
+    """``exp_duplicate_database`` drops the new database if any post-CREATE
+    step fails.
 
-    Regression: previously the post-CREATE work ran without a try/except.  A
-    ``shutil.copytree`` failure (disk full, permission, source vanished mid-
-    copy) left a perfectly valid PG database whose ``ir.attachment`` rows
-    pointed at a filestore that was never created — a silent data
-    inconsistency that's only noticed when a user opens an attachment.
+    A ``shutil.copytree`` failure (disk full, permission, source vanished)
+    would otherwise leave a valid DB whose ``ir.attachment`` rows point at a
+    filestore that was never created.
     """
 
     @pytest.fixture()
     def duplicate_env(self, db_mod, tmp_path):
-        """Patches around exp_duplicate_database so we can inject failures.
+        """Patches around exp_duplicate_database for injecting failures.
 
-        Does NOT depend on ``bypass_db_mgmt`` (which replaces ``config`` with a
-        bare dict that lacks ``filestore``).  Instead, leaves the real config
-        in place and patches ``filestore`` on it.
+        Leaves the real config in place (patching only ``filestore``) instead
+        of ``bypass_db_mgmt``, whose bare dict lacks ``filestore``.
         """
         from contextlib import ExitStack  # noqa: PLC0415
 
@@ -1092,9 +1056,8 @@ class TestExpDuplicateRollback:
 
     def test_drops_db_when_filestore_copy_fails(self, db_mod, duplicate_env):
         """A ``shutil.copytree`` failure must trigger ``_drop_database``."""
-        # Patch Environment globally — its __new__ asserts isinstance(cr, BaseCursor)
-        # which our MagicMock cursor is not.  We don't care about the env behavior
-        # here; we only care that the failure path runs the cleanup.
+        # Patch Environment: its __new__ asserts isinstance(cr, BaseCursor),
+        # which the MagicMock cursor isn't. We only exercise the cleanup path.
         fake_registry = MagicMock()
         fake_registry.cursor.return_value.__enter__ = MagicMock(return_value=MagicMock())
         fake_registry.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -1148,21 +1111,16 @@ class TestExpDuplicateRollback:
 
 
 class TestExpRenameRollback:
-    """``exp_rename`` must roll back the SQL rename if the filestore move fails.
+    """``exp_rename`` rolls back the SQL rename if the filestore move fails.
 
-    Regression: the half-done state ("DB at new_name, filestore at old_name")
-    silently serves attachments to the wrong database after a future rename.
-    The fix issues an ALTER DATABASE RENAME back to the old name; if THAT
-    also fails, both errors are surfaced for manual intervention.
+    The half-done state (DB renamed, filestore not) would serve attachments
+    from the wrong database. On rollback failure both errors are surfaced.
     """
 
     @pytest.fixture()
     def rename_env(self, db_mod, tmp_path):
-        """Setup with a real source filestore and patched DB layer.
-
-        Self-contained: doesn't depend on ``bypass_db_mgmt`` (which replaces
-        the config object with a bare dict).
-        """
+        """Real source filestore + patched DB layer (self-contained, no
+        ``bypass_db_mgmt``)."""
         from contextlib import ExitStack  # noqa: PLC0415
 
         fake_cr = MagicMock()
@@ -1249,9 +1207,8 @@ class TestExpRenameRollback:
 class TestDropDatabaseRetryBudget:
     """The retry budget covers the realistic worst-case for a busy DB.
 
-    Regression: a 3-attempt / 0.6s budget consistently failed under load.
-    The new budget (5 attempts / 6.2s cumulative) gives a connection holder
-    enough time to receive ``pg_terminate_backend``, unwind, and release.
+    3 attempts / 0.6s failed under load; 5 attempts / ~6.2s gives a connection
+    holder time to receive ``pg_terminate_backend``, unwind, and release.
     """
 
     def test_retry_count_is_at_least_5(self, db_mod):
@@ -1279,12 +1236,10 @@ class TestDropDatabaseRetryBudget:
 
 
 class TestExpListNoRedundantCheck:
-    """``exp_list`` must rely on ``list_dbs()`` for the ``list_db`` gate.
+    """``exp_list`` relies on ``list_dbs()`` for the ``list_db`` gate.
 
-    Regression-prevention: the prior body re-implemented the same gate as
-    ``list_dbs()``.  A future change to ``list_dbs`` (e.g. adding a context
-    where it should NOT raise) would silently be subverted by the
-    redundant pre-check that ``exp_list`` did itself.
+    A redundant pre-check would silently diverge if ``list_dbs`` ever changed
+    when it raises.
     """
 
     def test_passthrough_when_list_db_enabled(self, db_mod):
@@ -1313,12 +1268,10 @@ class TestExpListNoRedundantCheck:
 
 
 class TestDropConnLogging:
-    """``_drop_conn`` logs at debug level when ``pg_terminate_backend`` fails.
+    """``_drop_conn`` logs at debug when ``pg_terminate_backend`` fails.
 
-    Regression: the prior bare ``suppress(Exception)`` made permission errors
-    invisible — operators investigating "DROP DATABASE keeps hitting
-    ObjectInUse" had no way to discover that their PG role lacked
-    ``pg_signal_backend`` membership.
+    A bare ``suppress(Exception)`` hid permission errors (e.g. a PG role
+    missing ``pg_signal_backend``) from operators chasing ObjectInUse.
     """
 
     def test_failure_is_logged_at_debug(self, db_mod, caplog):

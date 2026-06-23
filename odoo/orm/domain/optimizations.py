@@ -1,18 +1,12 @@
-"""Domain optimization functions.
+"""Domain optimization functions transforming and simplifying expressions.
 
-This module contains all the optimization functions that are registered
-to transform and simplify domain expressions.
+Optimizations run at three levels: BASIC (transaction-independent: type
+coercion, operator normalization), DYNAMIC_VALUES (may depend on dynamic values
+like relative dates), and FULL (field search methods and record rules).
 
-The optimization system works in multiple levels:
-- BASIC: Transaction-independent optimizations (type coercion, operator normalization)
-- DYNAMIC_VALUES: Optimizations that may depend on dynamic values (relative dates)
-- FULL: Complete optimizations including field search methods and record rules
-
-Optimization functions are registered using decorators:
-- @operator_optimization: Register optimization for specific operators
-- @field_type_optimization: Register optimization for specific field types
-- @nary_optimization: Register optimization for n-ary domain merging
-- @nary_condition_optimization: Register optimization for condition merging
+They are registered with the ``@operator_optimization`` (by operator),
+``@field_type_optimization`` (by field type), ``@nary_optimization`` (n-ary
+merging) and ``@nary_condition_optimization`` (condition merging) decorators.
 """
 
 import functools
@@ -55,9 +49,7 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.domains")
 
 
-# --------------------------------------------------
 # Optimizations: registration decorators
-# --------------------------------------------------
 
 
 def operator_optimization(
@@ -93,20 +85,12 @@ def field_type_optimization(
 
 
 def nary_optimization(optimization: typing.Any) -> typing.Any:
-    """Register an optimization to a list of children of an nary domain.
+    """Register a merge over the (optimized, sorted) children of an n-ary domain.
 
-    The function will take an iterable containing optimized children of a
-    n-ary domain and returns *optimized* domains.
-
-    Note that you always need to optimize both AND and OR domains. It is always
-    possible because if you can optimize `a & b` then you can optimize `a | b`
-    because it is optimizing `~(~a & ~b)`. Since operators can be negated,
-    all implementations of optimizations are implemented in a mirrored way:
-    `(optimize AND) if some_condition == cls.ZERO.value else (optimize OR)`.
-
-    The optimization of nary domains starts by optimizing the children,
-    then sorts them by (field, operator_type, operator) where operator type
-    groups similar operators together.
+    Both AND and OR must be handled: optimizing ``a | b`` is optimizing
+    ``~(~a & ~b)``, so implementations mirror the two cases, e.g.
+    ``(optimize AND) if cond == cls.ZERO.value else (optimize OR)``. Children
+    arrive optimized and sorted by (field, operator type, operator).
     """
     _MERGE_OPTIMIZATIONS.append(optimization)
     return optimization
@@ -115,15 +99,11 @@ def nary_optimization(optimization: typing.Any) -> typing.Any:
 def nary_condition_optimization(
     operators: Collection[str], field_types: Collection[str] | None = None
 ) -> typing.Callable[[typing.Any], typing.Any]:
-    """Register an optimization for condition children of an nary domain.
+    """Register a merge over same-field condition children (via nary_optimization).
 
-    The function will take a list of domain conditions of the same field and
-    returns *optimized* domains.
-
-    This is a adapter function that uses `nary_optimization`.
-
-    NOTE: if you want to merge different operators, register for
-    `operator=CONDITION_OPERATORS` and find conditions that you want to merge.
+    The wrapped function receives a list of same-field conditions and returns
+    optimized domains. To merge across operators, register for
+    ``operator=CONDITION_OPERATORS`` and select the conditions to merge.
     """
 
     def register(optimization: typing.Any) -> typing.Any:
@@ -131,7 +111,7 @@ def nary_condition_optimization(
         def optimizer(
             cls: type[DomainNary], domains: list[Domain], model: BaseModel
         ) -> list[Domain]:
-            # find adjacent conditions with the same field and operators
+            # group adjacent conditions sharing field and operators
             result = []
             merge_conditions: list[DomainCondition] = []
             for domain in domains:
@@ -170,9 +150,7 @@ def nary_condition_optimization(
     return register
 
 
-# --------------------------------------------------
 # Optimizations: conditions
-# --------------------------------------------------
 
 
 @operator_optimization(["=?"])
@@ -186,7 +164,6 @@ def _operator_equal_if_value(condition, _):
 @operator_optimization(["<>"])
 def _operator_different(condition, _):
     """a <> b  =>  a != b"""
-    # already a rewrite-rule
     warnings.warn(
         "Operator '<>' is deprecated since 19.0, use '!=' directly",
         DeprecationWarning,
@@ -198,7 +175,6 @@ def _operator_different(condition, _):
 @operator_optimization(["=="])
 def _operator_equals(condition, _):
     """a == b  =>  a = b"""
-    # rewrite-rule
     warnings.warn(
         "Operator '==' is deprecated since 19.0, use '=' directly",
         DeprecationWarning,
@@ -216,12 +192,11 @@ def _operator_equal_as_in(condition, _):
     value = condition.value
     operator = "in" if condition.operator == "=" else "not in"
     if isinstance(value, COLLECTION_TYPES):
-        # Equality against a collection (e.g., ('user_ids', '=', [])) is common
-        # in views.  Kept at debug level because it's noisy and already handled
-        # by silently converting to 'in'/'not in'.
+        # Equality against a collection is common in views; debug-level since
+        # it's noisy and already handled by converting to 'in'/'not in'.
         if (
             not value
-        ):  # views sometimes use ('user_ids', '!=', []) to indicate the user is set
+        ):  # views use ('user_ids', '!=', []) to mean the field is set
             _logger.debug(
                 "The domain condition %r should compare with False.", condition
             )
@@ -245,7 +220,7 @@ def _optimize_in_set(condition, _model):
     """Make sure the value is an OrderedSet or use 'any' operator"""
     value = condition.value
     if isinstance(value, OrderedSet) and value:
-        # very common case, just skip creation of a new Domain instance
+        # common case: skip creating a new Domain instance
         return condition
     if isinstance(value, ANY_TYPES):
         operator = "any" if condition.operator == "in" else "not any"
@@ -264,12 +239,10 @@ def _optimize_in_set(condition, _model):
 def _optimize_in_required(condition, model):
     """Remove checks against a null value for required fields.
 
-    Registered at ``FULL`` (not ``BASIC``): this reads ``model._ids`` to skip
-    the rewrite when new records are present, so its result depends on the
-    record binding — which the ``BASIC`` contract (field-definitions only,
-    reusable across transactions / sent to the client) forbids.  Stripping a
-    ``False`` from the set for a required NOT NULL field is only valid for
-    persisted records; a new record may legitimately hold ``False`` in memory.
+    Registered at FULL, not BASIC: it reads ``model._ids`` (depends on the
+    record binding), and stripping ``False`` from a required NOT NULL field is
+    valid only for persisted records — a new record may legitimately hold
+    ``False`` in memory.
     """
     value = condition.value
     field = condition._field(model)
@@ -292,7 +265,6 @@ def _optimize_any_domain(condition, model):
     value = condition.value
     if isinstance(value, ANY_TYPES) and not isinstance(value, Domain):
         if condition.operator in ("any", "not any"):
-            # update operator to 'any!'
             return DomainCondition(
                 condition.field_expr, condition.operator + "!", condition.value
             )
@@ -322,8 +294,7 @@ def _optimize_any_domain_at_level(level: OptimizationLevel, condition, model):
     except KeyError:
         condition._raise("Cannot determine the comodel relation")
     domain = domain._optimize(comodel, level)
-    # const if the domain is empty, the result is a constant
-    # if the domain is True, we keep it as is
+    # a false sub-domain collapses to a constant; a true one is kept as is
     if domain.is_false():
         return _FALSE_DOMAIN if condition.operator in ("any", "any!") else _TRUE_DOMAIN
     if domain is condition.value:
@@ -424,17 +395,14 @@ def _optimize_boolean_in(condition, model):
             type(value),
         )
     if not all(isinstance(v, bool) for v in value):
-        # parse the values
         if any(isinstance(v, str) for v in value):
-            # String-to-bool coercion happens during data import.  Kept at
-            # debug level because import scenarios trigger this frequently.
+            # string-to-bool coercion is frequent during data import; debug-level
             _logger.debug("Comparing boolean with a string in %s", condition)
         value = {
             str2bool(v.lower(), False) if isinstance(v, str) else bool(v) for v in value
         }
     if len(value) == 1 and not any(value):
-        # when comparing boolean values, always compare to [True] if possible
-        # it eases the implementation of search methods
+        # normalize to [True] when possible: eases search-method implementations
         operator = INVERSE_OPERATOR[operator]
         value = [True]
     return DomainCondition(condition.field_expr, operator, value)
@@ -447,9 +415,8 @@ def _optimize_boolean_in_all(condition, model):
         False,
         True,
     }:
-        # tautology is simplified to a boolean
-        # note that this optimization removes fields (like active) from the domain
-        # so we do this only on FULL level to avoid removing it from sub-domains
+        # the tautology collapses to a boolean, dropping the field (e.g. active);
+        # FULL-only so it is not stripped from sub-domains
         return Domain(condition.operator == "in")
     return condition
 
@@ -521,11 +488,10 @@ def _value_to_datetime(
     env: object,
     iso_only: bool = False,
 ) -> tuple[datetime | str | OrderedSet | SQL | typing.Literal[False], bool]:
-    """Convert a value(s) to datetime.
+    """Convert value(s) to datetime.
 
-    :returns: A tuple containing the converted value and a boolean indicating
-              that all input values were dates.
-              These are handled differently during rewrites.
+    :return: ``(converted_value, all_dates)`` where *all_dates* flags that every
+        input was a date (handled differently during rewrites).
     """
     if isinstance(value, datetime):
         if value.tzinfo:
@@ -560,11 +526,9 @@ def _value_to_datetime(
         return value, True
     if isinstance(value, COLLECTION_TYPES):
         if not value:
-            # ``zip(*())`` yields nothing; unpacking 0 values into 2 raises
-            # ValueError.  Empty collections are mitigated upstream by
-            # _optimize_in_set short-circuiting empty in/not in to
-            # TRUE/FALSE, but the helper itself must be safe for direct
-            # callers.
+            # guard the empty case: ``zip(*())`` unpacking into 2 names would
+            # raise ValueError. Direct callers must be safe even though
+            # _optimize_in_set short-circuits empty in/not in upstream.
             return OrderedSet(), True
         value, is_date = zip(
             *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
@@ -677,19 +641,13 @@ def _optimize_type_binary_attachment(condition, model):
 
 @operator_optimization(["parent_of", "child_of"], OptimizationLevel.FULL)
 def _operator_hierarchy(condition, model):
-    """Transform a hierarchy operator into a simpler domain.
+    """Transform a hierarchy operator ``(field, operator, value)`` into a domain.
 
-    ### Semantic of hierarchical operator: `(field, operator, value)`
-
-    `field` is either 'id' to indicate to use the default parent relation (`_parent_name`)
-    or it is a field where the comodel is the same as the model.
-    The value is used to search a set of `related_records`. We start from the given value,
-    which can be ids, a name (for searching by name), etc. Then we follow up the relation;
-    forward in case of `parent_of` and backward in case of `child_of`.
-    The resulting domain will have 'id' if the field is 'id' or a many2one.
-
-    In the case where the comodel is not the same as the model, the result is equivalent to
-    `('field', 'any', ('id', operator, value))`
+    *field* is 'id' (default ``_parent_name`` relation) or a field whose comodel
+    equals the model. *value* (ids, a name to search, etc.) seeds the set of
+    records, then the relation is followed up for ``parent_of`` / down for
+    ``child_of``. The result keys on 'id' for an 'id' or many2one field; when the
+    comodel differs from the model it is ``('field', 'any', ('id', op, value))``.
     """
     if condition.operator == "parent_of":
         hierarchy = _operator_parent_of_domain
@@ -698,11 +656,8 @@ def _operator_hierarchy(condition, model):
     value = condition.value
     if value is False:
         return _FALSE_DOMAIN
-    # Get:
-    # - field: used in the resulting domain)
-    # - parent (str | None): field name to find parent in the hierarchy
-    # - comodel_sudo: used to resolve the hierarchy
-    # - comodel: used to search for ids based on the value
+    # field: keys the result domain; parent: relation field name; comodel:
+    # searches ids from the value; comodel_sudo: resolves the hierarchy
     field = condition._field(model)
     if field.type == "many2one":
         comodel = model.env[field.comodel_name].with_context(active_test=False)
@@ -741,7 +696,7 @@ def _operator_hierarchy(condition, model):
     if not coids:
         return _FALSE_DOMAIN
     result = hierarchy(comodel_sudo.browse(coids), parent)
-    # Format the resulting domain
+    # wrap the result (a domain or an id set) into the final condition
     if isinstance(result, Domain):
         if field.name == "id":
             return result
@@ -750,7 +705,7 @@ def _operator_hierarchy(condition, model):
 
 
 def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | OrderedSet:
-    """Return a set of ids or a domain to find all children of given model"""
+    """Return a domain or id set matching all children of *comodel*."""
     if comodel._parent_store and parent == comodel._parent_name:
         try:
             paths = comodel.mapped("parent_path")
@@ -760,9 +715,8 @@ def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | Order
             DomainCondition("parent_path", "=like", path + "%") for path in paths
         )  # type: ignore
     else:
-        # recursively retrieve all children nodes with sudo(); the
-        # filtering of forbidden records is done by the rest of the
-        # domain
+        # walk children with sudo(); forbidden records are filtered by the
+        # rest of the domain
         child_ids: OrderedSet[int] = OrderedSet()
         while comodel:
             child_ids.update(comodel._ids)
@@ -774,7 +728,7 @@ def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | Order
 
 
 def _operator_parent_of_domain(comodel: BaseModel, parent: str) -> OrderedSet:
-    """Return a set of ids or a domain to find all parents of given model"""
+    """Return the id set of all parents of *comodel*."""
     parent_ids: OrderedSet[int]
     if comodel._parent_store and parent == comodel._parent_name:
         try:
@@ -785,9 +739,8 @@ def _operator_parent_of_domain(comodel: BaseModel, parent: str) -> OrderedSet:
             int(label) for path in paths for label in path.split("/")[:-1]
         )
     else:
-        # recursively retrieve all parent nodes with sudo() to avoid
-        # access rights errors; the filtering of forbidden records is
-        # done by the rest of the domain
+        # walk parents with sudo() to avoid access errors; forbidden records
+        # are filtered by the rest of the domain
         parent_ids = OrderedSet()
         try:
             comodel.mapped(parent)
@@ -818,7 +771,7 @@ def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
         and subdomain.field_expr == "id"
         and (suboperator := subdomain.operator) in ("in", "not in", "any!", "not any!")
     ):
-        # We are bypassing permissions, we can transform:
+        # permissions are bypassed, so transform:
         #  a ANY (id IN X)  =>  a IN (X - {False})
         #  a ANY (id NOT IN X)  =>  a NOT IN (X | {False})
         #  a ANY (id ANY X)  =>  a ANY X
@@ -846,22 +799,16 @@ def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
     return condition
 
 
-# --------------------------------------------------
 # Optimizations: nary
-# --------------------------------------------------
 
 
 def _merge_set_conditions(
     cls: type[DomainNary], conditions: list[DomainCondition]
 ) -> list[DomainCondition]:
-    """Base function to merge equality conditions.
+    """Merge 'in'/'not in' conditions on one field into a single value set.
 
-    Combine the 'in' and 'not in' conditions to a single set of values.
-
-    Examples:
-
-        a in {1} or a in {2}  <=>  a in {1, 2}
-        a in {1, 2} and a not in {2, 5}  =>  a in {1}
+    E.g. ``a in {1} or a in {2}`` -> ``a in {1, 2}``;
+    ``a in {1, 2} and a not in {2, 5}`` -> ``a in {1}``.
     """
     assert all(isinstance(cond.value, OrderedSet) for cond in conditions)
 
@@ -902,16 +849,7 @@ def union(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:
 
 @nary_condition_optimization(operators=("in", "not in"))
 def _optimize_merge_set_conditions_mono_value(cls: type[DomainNary], conditions, model):
-    """Merge equality conditions.
-
-    Combine the 'in' and 'not in' conditions to a single set of values.
-    Do not touch x2many fields which have a different semantic.
-
-    Examples:
-
-        a in {1} or a in {2}  <=>  a in {1, 2}
-        a in {1, 2} and a not in {2, 5}  =>  a in {1}
-    """
+    """Merge 'in'/'not in' conditions; skip x2many (different semantics)."""
     field = conditions[0]._field(model)
     if field.type in ("many2many", "one2many", "properties"):
         return conditions
@@ -920,7 +858,7 @@ def _optimize_merge_set_conditions_mono_value(cls: type[DomainNary], conditions,
 
 @nary_condition_optimization(operators=("in",), field_types=["many2many", "one2many"])
 def _optimize_merge_set_conditions_x2many_in(cls: type[DomainNary], conditions, model):
-    """Merge domains of 'in' conditions for x2many fields like for 'any' operator."""
+    """Merge x2many 'in' conditions, as for the 'any' operator."""
     if cls is DomainAnd:
         return conditions
     return _merge_set_conditions(cls, conditions)
@@ -932,7 +870,7 @@ def _optimize_merge_set_conditions_x2many_in(cls: type[DomainNary], conditions, 
 def _optimize_merge_set_conditions_x2many_not_in(
     cls: type[DomainNary], conditions, model
 ):
-    """Merge domains of 'not in' conditions for x2many fields like for 'not any' operator."""
+    """Merge x2many 'not in' conditions, as for the 'not any' operator."""
     if cls is DomainOr:
         return conditions
     return _merge_set_conditions(cls, conditions)
@@ -941,13 +879,10 @@ def _optimize_merge_set_conditions_x2many_not_in(
 @nary_condition_optimization(["any"], ["many2one", "one2many", "many2many"])
 @nary_condition_optimization(["any!"], ["many2one", "one2many", "many2many"])
 def _optimize_merge_any(cls, conditions, model):
-    """Merge domains of 'any' conditions for relational fields.
+    """Merge 'any' conditions on relational fields into fewer sub-queries.
 
-    This will lead to a smaller number of sub-queries which are equivalent.
-    Example:
-
-        a any (f = 8) or a any (g = 5)  <=>  a any (f = 8 or g = 5)     (for all fields)
-        a any (f = 8) and a any (g = 5)  <=>  a any (f = 8 and g = 5)   (for many2one fields only)
+    ``a any (f=8) or a any (g=5)`` -> ``a any (f=8 or g=5)`` (all fields);
+    ``a any (f=8) and a any (g=5)`` -> ``a any (f=8 and g=5)`` (many2one only).
     """
     field = conditions[0]._field(model)
     if field.type != "many2one" and cls is DomainAnd:
@@ -968,13 +903,10 @@ def _optimize_merge_any(cls, conditions, model):
 @nary_condition_optimization(["not any"], ["many2one", "one2many", "many2many"])
 @nary_condition_optimization(["not any!"], ["many2one", "one2many", "many2many"])
 def _optimize_merge_not_any(cls, conditions, model):
-    """Merge domains of 'not any' conditions for relational fields.
+    """Merge 'not any' conditions on relational fields into fewer sub-queries.
 
-    This will lead to a smaller number of sub-queries which are equivalent.
-    Example:
-
-        a not any (f = 1) or a not any (g = 5) => a not any (f = 1 and g = 5)   (for many2one fields only)
-        a not any (f = 1) and a not any (g = 5) => a not any (f = 1 or g = 5)   (for all fields)
+    ``a not any (f=1) or a not any (g=5)`` -> ``a not any (f=1 and g=5)``
+    (many2one only); the ``and`` form -> ``a not any (f=1 or g=5)`` (all fields).
     """
     field = conditions[0]._field(model)
     if field.type != "many2one" and cls is DomainOr:

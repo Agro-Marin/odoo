@@ -4,17 +4,90 @@
 AgroMarin Coding Guidelines
 =============================
 
-:Version: 3.0
-:Date: 2026-04-20
+:Version: 4.0
+:Date: 2026-06-22
 :Language: English
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_ + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
-AgroMarin-specific rules are marked with **[AM]**. For Odoo 17-19 API
-changes, see ``odoo-19-development-context.md`` in the knowledge repository.
+This is AgroMarin's single coding standard for the fork. For Odoo 19 API
+changes, see ``odoo-19-development-context.md`` in the knowledge repository
+(``knowledge/agromarin-knowledge/reference/``). A per-revision changelog lives
+in *Appendix D — Document History*.
+
+**Enforcement markers.** Every rule is one of:
+
+* 🔧 — **machine-enforced** by ``ruff`` (or another tool); the cited code (e.g.
+  ``B904``) blocks CI. If a rule says 🔧, ``ruff check`` will fail on a violation.
+* 👁 — **review-enforced**; a human reviewer confirms it (see the §9 checklist).
+  The linter does *not* catch it.
+* 🔧👁 — partially linted, partially review (e.g. a linted rule with carve-outs,
+  or a tool gate plus a manual PR step).
+
+Where a section predates these markers, the enforcement is stated inline instead.
+**Do not assume a rule is linted unless it is marked 🔧** — several rules that
+*read* like lint rules are deliberately review-only because the corresponding
+``ruff`` code is disabled (see §2.7, §2.9.7, §10.3, §10.4).
 
 .. contents::
    :local:
    :depth: 2
+
+Golden Rules (TL;DR)
+--------------------
+
+The one-screen cheat-sheet. Each links to the full rule. When in doubt, read the
+section; when really in doubt, read the Odoo 19 source in ``core/``.
+
+**Python**
+
+* Double quotes everywhere; line length 88; ``ruff format`` is authoritative (§2.1). 🔧
+* One model per file; file name = model ``_name`` (§1.3). 👁
+* Every model declares ``_name`` **and** ``_description`` (§2.2, §M-rules). 👁
+* Override ``create`` as ``@api.model_create_multi def create(self, vals_list)`` (§2.6). 👁
+* Always ``super()`` in ``create``/``write``/``unlink``/``copy_data``/``default_get`` (§2.6). 👁
+* Name new buttons ``action_*`` — but **never rename an inherited core method** (§2.4). 👁
+* Use ``odoo.fields.Command`` for x2many writes, not raw ``(0, 0, {})`` tuples (§2.6). 👁
+* Never compare money/floats with ``==``/``<`` — use ``float_compare``/``float_is_zero`` (§2.6). 🔧 ``RUF069``
+* User-facing text goes through ``self.env._(...)`` with ``%s`` args, never f-strings (§2.7). 🔧 ``INT``
+* ``raise X from Y`` inside ``except`` (§2.7). 🔧 ``B904``
+* No ``cr.commit()`` in business code; the framework owns transactions (§2.6). 👁
+* ``datetime.now(UTC)``; ``datetime.utcnow()`` is banned (§2.9.6). 🔧 ``DTZ003``
+
+**Performance**
+
+* ``search_count()`` not ``len(search())``; ``_read_group()`` not Python ``sum()`` (§11.2). 👁
+* No ``search``/``search_count``/``_read_group`` inside a loop over a recordset (§11.1). 👁
+
+**XML / JS**
+
+* ``<list>`` not ``<tree>``; ``invisible=``/``readonly=`` not ``attrs=`` (§3.3). 👁
+* XML IDs use the **suffix** style: ``sale_order_view_form``, ``sale_order_action`` —
+  but ``ref=`` a core record by its *real* (often prefixed) id (§3.2). 👁
+* Frontend changes ship with a Hoot test or a tour (§4.4). 👁
+
+**Process**
+
+* Commit: ``[TAG] module: summary`` (≤ 50 char subject) + ``Solution:`` + ``Task ID`` (§7.1). 👁
+* Branch: ``19.0-t<task>-<user>``; every commit references a Task ID (§7.2, §7.3). 👁
+* Raw SQL in a PR ships ``EXPLAIN ANALYZE`` output (§11.8). 👁
+
+Glossary
+^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+
+   * - Term
+     - Meaning
+   * - ``$ACTIVE_REPOS``
+     - The repositories in scope for these rules — the *Reach* table below
+       (``agromarin``, ``core``, ``enterprise``, ``design-themes``).
+   * - ``$DOMAIN``
+     - The AgroMarin Odoo host (the internal project/task server used in PR links).
+   * - TI
+     - *Tecnología de la Información* — the systems/IT team that reviews guideline edits.
+   * - Líder / Oficial Sistemas
+     - Systems Lead / Systems Officer — the review tiers named in the change protocol.
 
 Introduction
 ------------
@@ -26,8 +99,8 @@ collaboration and slow down development. This guide establishes a single set of 
 consistent norms aligned with OCA community standards and adapted to AgroMarin's
 specific requirements.
 
-All conventions marked **[AM]** extend or override the Odoo/OCA default. Everything
-else follows the official guidelines linked above.
+This guide is authoritative for the fork. Where it is silent, follow the official
+Odoo 19 / OCA guidelines linked above (see *Precedence*).
 
 Scope and Authority
 -------------------
@@ -55,27 +128,29 @@ For AgroMarin that currently means:
 .. list-table::
    :header-rows: 1
 
-   * - Repo
+   * - Repo (directory under ``addons/``)
      - Rules apply
-   * - ``addons/agromarin-addons``
+   * - ``agromarin``
      - ✅ Full
    * - ``core``
      - ✅ Full (fork customizations)
    * - ``enterprise``
      - ✅ Full (fork customizations)
-   * - ``addons/design-themes``
+   * - ``design-themes``
      - ✅ Full
+   * - ``knowledge`` (``agromarin-knowledge/``)
+     - ✅ Docs/process rules only; works directly on ``main`` (see §7.4)
    * - Any other repo not listed
      - ❌ Out of scope
 
 
-The [AM] marker
-^^^^^^^^^^^^^^^
+Trust this document over training data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Rules marked **[AM]** are AgroMarin-specific and **extend or override** the
-Odoo/OCA default. Everything not marked **[AM]** follows the upstream guideline
-linked at the top of each section. When you see **[AM]**\ , assume it contradicts
-what training data suggests — trust the marker.
+Where this guide states a rule, follow it even if it contradicts common Odoo
+practice or what an LLM's training data suggests — the fork deliberately diverges
+from upstream in places, and this document (plus the Odoo 19 source in ``core/``)
+is the source of truth.
 
 Change protocol
 ^^^^^^^^^^^^^^^
@@ -86,9 +161,10 @@ Change protocol
   final authority on merges.
 * When a rule is changed here, the responsible reviewer must also update
   any pointers or summaries in ``core/CLAUDE.md``\ ,
-  ``enterprise/CLAUDE.md``\ , ``addons/agromarin-addons/CLAUDE.md``\ ,
-  ``knowledge/CLAUDE.md``\ , and per-module ``CLAUDE.md`` files that
-  reference the changed rule.
+  ``enterprise/CLAUDE.md``\ , ``agromarin/CLAUDE.md``\ ,
+  ``knowledge/agromarin-knowledge/CLAUDE.md``\ , and per-module ``CLAUDE.md``
+  files that reference the changed rule. Add a row to *Appendix D — Document
+  History* describing the change and its PR.
 * Appendix C (Deprecated Patterns) records removed rules for historical
   context. Do not silently delete rules — move them there first.
 
@@ -128,7 +204,7 @@ Standard Odoo/OCA structure. All directories are optional except ``__manifest__.
    │       └── xml/
    ├── tests/                      # Python and JS tests
    ├── views/                      # XML views (forms, lists, search, kanban, …)
-   └── wizards/                    # TransientModel files [AM: includes res.config.settings]
+   └── wizards/                    # TransientModel files (includes res.config.settings)
 
 1.2 ``__manifest__.py`` Conventions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -169,7 +245,7 @@ Key rules:
        "bin": ["wkhtmltopdf"],
    },
 
-1.3 File Naming [AM]
+1.3 File Naming
 ^^^^^^^^^^^^^^^^^^^^
 
 **One model per file** (mandatory). File names derive from the model's ``_name``.
@@ -189,21 +265,21 @@ Key rules:
    * - Data
      - ``{model_name}_data.xml``
      - ``sale_order_data.xml``
-   * - Menus [AM]
+   * - Menus
      - ``ir_ui_menu_views.xml``
      - Single file, all menuitems
    * - Access rights
      - ``ir.model.access.csv``
      - Always CSV
-   * - Groups [AM]
+   * - Groups
      - ``res_groups_security.xml``
      - Group definitions
-   * - Record rules [AM]
+   * - Record rules
      - ``ir_rule_security.xml``
      - All ``ir.rule`` records in one file
    * - Wizards
      - ``wizards/{model_name}.py`` + ``_views.xml``
-     - Includes ``res.config.settings`` [AM]
+     - Includes ``res.config.settings``
 
 
 **Example module layout:**
@@ -218,14 +294,14 @@ Key rules:
      views/
        sale_order_views.xml             # sale.order views
        sale_order_line_views.xml        # sale.order.line views
-       ir_ui_menu_views.xml             # all menuitems [AM]
+       ir_ui_menu_views.xml             # all menuitems
      wizards/
-       res_config_settings.py           # settings (TransientModel) [AM]
+       res_config_settings.py           # settings (TransientModel)
        res_config_settings_views.xml
      security/
        ir.model.access.csv
-       res_groups_security.xml          # groups [AM]
-       ir_rule_security.xml             # record rules (ir.rule) [AM]
+       res_groups_security.xml          # groups
+       ir_rule_security.xml             # record rules (ir.rule)
 
 ----
 
@@ -241,7 +317,7 @@ Base: `Odoo Coding Guidelines -- Python <https://www.odoo.com/documentation/19.0
 * PEP 8 compliance, **line length = 88** (enforced by ``ruff format``\ )
 * Break long lines at logical points; the formatter handles the mechanics
 * Import order: stdlib, third-party, odoo, odoo.addons (alphabetical within each group — enforced by isort via ``ruff``\ )
-* **Double quotes everywhere** [AM]: strings, field attributes, docstrings (enforced by ``ruff format`` with ``quote-style = "double"``\ )
+* **Double quotes everywhere**: strings, field attributes, docstrings (enforced by ``ruff format`` with ``quote-style = "double"``\ )
 
 .. code-block:: python
 
@@ -254,7 +330,7 @@ Base: `Odoo Coding Guidelines -- Python <https://www.odoo.com/documentation/19.0
 
    from odoo.addons.sale.models.sale_order import SaleOrder
 
-2.2 Model Class Organization [AM]
+2.2 Model Class Organization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Private attributes first, then section-organized code.
@@ -325,15 +401,18 @@ Private attributes first, then section-organized code.
      - ``_auto_init``\ , ``init``\ , pre/post hooks
 
 
-**Rules**\ : Not all sections required. ALL CAPS mandatory. Domain-specific sections (12)
-go after ACTION METHODS.
+**Rules** 👁: Not all sections required — omit empty ones. Use ``# UPPERCASE``
+banners; the dashed-banner variant used by Odoo core (``# ----`` above/below the
+title, as in ``sale_order.py``) is also acceptable — be consistent within a file.
+Sections 14–15 (``# TOOLING``, ``# VALIDATIONS``) are optional refinements of
+``# HELPER METHODS``; use them only when the distinction is real. Domain-specific
+sections (12) go after ACTION METHODS.
 
-**Method ordering within COMPUTE and ONCHANGE sections:**
-
-
-#. **Rule 1 (base)**\ : Ascending by ``@api.depends`` dependency count (0 deps first, N deps last)
-#. **Rule 2 (tiebreaker)**\ : Context field relevance: ``company_id`` > ``partner_id`` > ``state`` > ``currency_id`` > ``user_id`` > other
-#. **Rule 3 (override)**\ : Semantic dependency chains preserved — methods consuming output of earlier computes go AFTER, regardless of count
+**Method ordering within COMPUTE and ONCHANGE sections** 👁: order for
+readability — a compute that consumes another compute's output is defined
+*after* it (define before use). Beyond that, group related methods together; no
+strict numeric ordering is mandated (Odoo core does not follow one, and no tool
+can verify it).
 
 **Anti-pattern — wrong section placement:**
 
@@ -367,11 +446,14 @@ go after ACTION METHODS.
 2.3 Field Conventions
 ^^^^^^^^^^^^^^^^^^^^^
 
-**Ordering: semantic/functional grouping** (NOT by type) [AM].
+**Ordering: semantic/functional grouping** (NOT by type) 👁.
 
-Every field must belong to a named ``# block``. No orphan fields allowed. Each model
-defines its own blocks based on its domain. The ``# Noun block`` or ``# Noun`` comment
-pattern is mandatory.
+Group related fields and label each group with a ``# <Noun> block`` (or
+``# <Noun>``) comment; each model defines its own blocks based on its domain.
+Semantic grouping is **strongly recommended** and is **expected on models with
+~10+ fields**; small single-purpose models need not. (This is a house
+convention, not a tooled rule — adoption in core and the fork is partial, so
+reviewers apply judgement rather than rejecting every ungrouped field.)
 
 ..
 
@@ -462,7 +544,7 @@ pattern is mandatory.
        # UI block
        is_locked = fields.Boolean()
 
-**Naming patterns** [AM]:
+**Naming patterns**:
 
 .. list-table::
    :header-rows: 1
@@ -483,11 +565,12 @@ pattern is mandatory.
      - ``amount_`` prefix
      - ``total_amount`` -> ``amount_total``
    * - Counters
-     - ``count_`` prefix
-     - ``picking_count`` -> ``count_picking_ids``
+     - ``_count`` suffix
+     - ``picking_count`` (matches Odoo core: ``sale_order_count``, ``invoice_count``)
    * - Quantities
      - ``qty_`` prefix
-     - ``delivered_qty`` -> ``qty_transferred``
+     - ``delivered_qty`` -> ``qty_transferred`` (note: core also uses the
+       ``product_qty`` / ``qty_done`` suffix forms — both coexist)
    * - Booleans
      - ``is_`` prefix
      - ``order_sent`` -> ``is_sent``
@@ -502,7 +585,7 @@ Default functions: use ``lambda self:`` (allows inheritance).
 
    user_id = fields.Many2one("res.users", default=lambda self: self.env.user)
 
-2.4 Method Naming [AM]
+2.4 Method Naming
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
@@ -512,11 +595,11 @@ Default functions: use ``lambda self:`` (allows inheritance).
      - Convention
      - Example
    * - Button actions
-     - ``action_`` (NEVER ``button_``\ )
-     - ``button_confirm`` -> ``action_confirm``
+     - ``action_`` for **new** methods (not ``button_``\ )
+     - new ``action_confirm`` (but keep inherited ``button_confirm`` — see below)
    * - View openers
-     - ``action_view_`` (NEVER ``action_open_``\ )
-     - ``action_open_invoices`` -> ``action_view_invoices``
+     - ``action_view_`` for opening a view of records
+     - ``action_view_invoices`` (``action_open_*`` stays valid for wizards/parent actions)
    * - Compute
      - ``_compute_`` (plurals when multi-field)
      - ``_compute_total`` -> ``_compute_amounts``
@@ -540,16 +623,32 @@ Default functions: use ``lambda self:`` (allows inheritance).
      - ``set_quantity`` -> ``_inverse_quantity``
    * - Search
      - ``_search_``
-     - ``_name_search`` -> ``_search_display_name``
+     - ``_search_display_name(self, operator, value)`` (API hook, see below)
    * - Default
      - ``_default_``
      - ``get_default_warehouse`` -> ``_default_warehouse_id``
 
 
+**Inheritance safety** 👁: these naming rules apply to **new** methods you
+author. **Never rename an inherited Odoo core method** to fit them — Odoo core
+ships 100+ ``button_*`` methods (with matching XML ``name="button_*"`` bindings)
+and 140+ ``action_open_*`` methods (e.g. ``ir.cron.action_open_parent_action``).
+Renaming one breaks the XML binding and every ``super().button_*()`` caller.
+Override core methods under their **original** name.
+
+``_search_display_name`` is not a cosmetic rename — it is the Odoo 19 **API hook**
+(signature ``_search_display_name(self, operator, value)``) that backs
+``name_search``; override it, not the removed ``_name_search``.
+
+
 2.5 Docstrings
 ^^^^^^^^^^^^^^
 
-Mandatory on **models** and **complex methods**. Simple getters/setters may omit.
+Mandatory on **models** and **complex methods** 👁. Simple getters/setters may
+omit. Note: ``ruff``'s ``D`` (pydocstyle) is linter-enforced **only** in
+``odoo/libs/`` and ``odoo/orm/components/`` (pure-Python packages); for all addon
+code under ``addons/**`` it is suppressed in ``ruff.toml``, so this is a
+**review-only** expectation there.
 
 **Template** (Sphinx format):
 
@@ -579,8 +678,28 @@ Mandatory on **models** and **complex methods**. Simple getters/setters may omit
 
 These rules apply to every model in ``$ACTIVE_REPOS``.
 
-**Always call** ``super()`` in ``create``\ , ``write``\ , ``unlink``\ , ``copy``\ , ``default_get``\ ,
-and ``_compute_display_name``. Overriding without delegation is a regression vector.
+**Always call** ``super()`` in ``create``\ , ``write``\ , ``unlink``\ , ``copy_data``\ ,
+``default_get``\ , and ``_compute_display_name`` 👁. Overriding without delegation is
+a regression vector. (Prefer overriding ``copy_data`` over ``copy`` in 19.0 — it
+is the values hook ``copy`` builds on.)
+
+**Override** ``create`` **with** ``@api.model_create_multi`` 👁 and the batch
+signature ``def create(self, vals_list)``. The single-dict ``create(self, vals)``
+form is obsolete:
+
+.. code-block:: python
+
+   @api.model_create_multi
+   def create(self, vals_list):
+       for vals in vals_list:
+           ...
+       return super().create(vals_list)
+
+**Every new model declares** ``_name`` **and** ``_description`` 👁 (Odoo logs a
+warning when ``_description`` is missing). Set ``_order`` when the default
+insertion order is wrong. For the record label, set ``_rec_name = "<field>"`` for
+a simple field, or override ``_compute_display_name`` (calling ``super()``) for a
+computed label — do not override the removed ``name_get``.
 
 **Let the framework manage transactions.** Do not call ``self.env.cr.commit()`` or
 ``rollback()`` from business code. Only the framework, cron runner, and custom
@@ -606,11 +725,14 @@ cursors (\ ``self.env.registry.cursor()``\ ) are allowed to commit.
        if any(r.state != "draft" for r in self):
            raise UserError(self.env._("Cannot delete a confirmed order."))
 
-**Propagate context with** ``with_context`` — ``self.env.context`` is a frozen dict:
+**Propagate context with** ``with_context`` — ``self.env.context`` is a frozen dict.
+For **company scoping use** ``with_company`` — the ``force_company`` context key
+was **removed in 19.0 and now raises** (``odoo/orm/models/mixins/env.py``):
 
 .. code-block:: python
 
-   order.with_context(force_company=company.id).action_confirm()
+   order.with_context(tracking_disable=True).action_confirm()
+   order.with_company(company).action_confirm()  # NOT with_context(force_company=...)
 
 **Prefer recordset methods** (\ ``filtered``\ , ``mapped``\ , ``sorted``\ ) over manual loops:
 
@@ -633,15 +755,10 @@ methods so other modules can override specific pieces without copy-paste.
    def _prepare_invoice(self):
        return self._prepare_invoice_vals()
 
-**Computed-field dependency rule** [AM]: every sub-field accessed in a compute
-method body must appear in ``@api.depends``. If the method reads
-``record.partner_id.country_id``\ , then ``"partner_id.country_id"`` must be listed —
-``"partner_id"`` alone is insufficient and causes silent stale data.
-
-**Exception — initialization-only computes**\ : when a ``store=True, readonly=False``
-compute is designed to set an initial default (inheriting ``lang`` from parent on
-reparenting), a coarser dependency like ``"parent_id"`` is intentional to avoid
-overwriting user edits. Document the choice in a comment.
+**Computed-field dependency rule** 👁: every sub-field accessed in a compute
+body must appear in ``@api.depends`` (``"partner_id.country_id"``, not just
+``"partner_id"``) — incomplete chains cause silent stale data. Full statement,
+including the initialization-only exception, is in **§11.6** (single source).
 
 **Performance rules** (enforced by ``ruff`` where possible):
 
@@ -671,10 +788,9 @@ overwriting user edits. Document the choice in a comment.
      - ``search(...)`` then accessing fields
 
 
-**\** ``ormcache``\ : use ``@ormcache`` for read-heavy, rarely-changing data (metadata,
-view parsing, ACL lookups). Cached methods **must not return recordsets** — the
-cursor used to build the recordset is closed on subsequent calls and will raise
-``InterfaceError``. Return plain Python types.
+**``ormcache``**: use ``@ormcache`` for read-heavy, rarely-changing data; cached
+methods **must not return recordsets** (return plain Python types). Full rule and
+invalidation in **§11.5**.
 
 **Indexing**\ : add ``index=True`` on fields used in ``search()`` domains, ``ORDER BY``\ ,
 or ``GROUP BY``. Use ``models.Index()`` for composite/partial/BRIN/expression indexes.
@@ -684,32 +800,16 @@ Partial indexes are preferred when queries filter on a specific state.
 for job queues. Always handle ``OperationalError`` when using ``NOWAIT``. Minimize
 lock duration: lock → operate → commit as fast as possible.
 
-**Raw SQL review rule** [AM]: any raw ``cr.execute()`` added to a PR must include
+**Raw SQL review rule**: any raw ``cr.execute()`` added to a PR must include
 ``EXPLAIN ANALYZE`` output in the PR description, demonstrating index use. This
 is a review gate.
 
-**Cron batch processing** [AM]:
-
-.. code-block:: python
-
-   from itertools import batched
-
-   def _cron_process_orders(self):
-       orders = self.env["sale.order"].search([("state", "=", "pending")])
-       commit_progress = self.env["ir.cron"]._commit_progress
-       for batch_ids in batched(orders.ids, 100):
-           batch = orders.browse(batch_ids)
-           batch._process()
-           remaining = commit_progress(
-               processed=len(batch),
-               remaining=len(orders) - len(batch),
-           )
-           if remaining <= 0:
-               break
-
-Do **not** call ``cr.commit()`` directly. ``_commit_progress`` handles the commit
-and returns remaining execution time. ``split_every`` is deprecated since 19.0 —
-use ``itertools.batched``.
+**Cron batch processing**: process large recordsets in batches with
+``itertools.batched`` and ``self.env["ir.cron"]._commit_progress``. Do **not**
+call ``cr.commit()`` directly. ``_commit_progress`` returns the **remaining cron
+time in seconds** (not a record count), and its ``remaining`` argument is
+keyword-only — full corrected pattern in **§11.10**. (``split_every`` is
+deprecated since 19.0.)
 
 2.7 Error Handling
 ^^^^^^^^^^^^^^^^^^
@@ -735,7 +835,10 @@ Use the most specific exception for the situation:
      - Invalid arguments in internal/private methods (not user-facing)
 
 
-**All user-facing messages go through** ``self.env._()`` (10x faster than ``_()``\ ):
+**All user-facing messages go through** ``self.env._()`` 🔧 ``INT`` (preferred over
+the legacy ``_()`` — it takes the language from the environment instead of
+walking the call stack, and works with lazy translations; ~4× faster for
+``en_US`` per Odoo's benchmark):
 
 .. code-block:: python
 
@@ -759,7 +862,7 @@ Use the most specific exception for the situation:
        _logger.error("Payment processing failed", exc_info=True)
        raise UserError(self.env._("Payment could not be processed. Contact support."))
 
-**Fail-closed discipline** [AM]: exception handlers in state-mutation code must
+**Fail-closed discipline**: exception handlers in state-mutation code must
 leave the system in a consistent state. Wrap each iteration in a savepoint:
 
 .. code-block:: python
@@ -773,14 +876,17 @@ leave the system in a consistent state. Wrap each iteration in a savepoint:
            order.state = "error"
            _logger.error("Failed to process order %s", order.name, exc_info=True)
 
-``except Exception`` is flagged by the linter (\ ``BLE001``\ ). Use only for
+``except Exception`` is a **review-only** rule 👁 — ``BLE001`` is intentionally
+**disabled** in ``ruff.toml`` (Odoo legitimately catches ``Exception`` from
+external/ORM calls), so the linter does *not* flag it. Use it only for
 catch-log-reraise or integration adapters. In financial or state-mutation code,
 log-and-continue is a violation — each failure must roll back or transition to
 an explicit error state.
 
-**Exception chaining**\ : always use ``raise X from Y`` so the original traceback
-is preserved. New code must chain; legacy code is allowed to omit (\ ``B904`` is
-suppressed) but should be upgraded when touched.
+**Exception chaining** 🔧 ``B904``: always use ``raise X from Y`` (or
+``from None``) so the original traceback is preserved. ``B904`` is **enforced**
+in ``ruff.toml`` — both new and touched code must chain; a bare ``raise`` inside
+``except`` fails ``ruff check``.
 
 2.8 Controllers
 ^^^^^^^^^^^^^^^
@@ -962,7 +1068,9 @@ Omitting the currency field raises at runtime.
 2.9.6 Datetime handling
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-``datetime.utcnow()`` is banned (DTZ003 via ``banned-api``\ ). Use ``datetime.now(UTC)``\ :
+``datetime.utcnow()`` is banned 🔧 — by **two** mechanisms: ``DTZ003`` (kept
+enforced; most other ``DTZ`` rules are disabled because the ORM uses naive
+datetimes) **and** ``flake8-tidy-imports`` ``banned-api``. Use ``datetime.now(UTC)``\ :
 
 .. code-block:: python
 
@@ -986,20 +1094,26 @@ raises ``TypeError``. Strip ``tzinfo`` before comparing with ORM values.
    * - Rule
      - Enforcement
    * - No ``print()`` in production code
-     - ``T20`` (allowed in tests)
+     - 🔧 ``T20`` (allowed in tests / CLI)
    * - No ``breakpoint()`` / ``pdb.set_trace()``
-     - ``T10``
-   * - No commented-out code
-     - ``ERA001`` (warn — delete, rely on git history)
-   * - Prefer ``pathlib.Path`` over ``os.path``
-     - ``PTH``
+     - 🔧 ``T10``
    * - No mutable default arguments
-     - — (review rule; use ``None`` sentinel)
+     - 🔧 ``B006`` (use the ``None`` sentinel)
+   * - Prefer ``pathlib.Path`` over ``os.path``
+     - 🔧 ``PTH`` (relaxed in migrations)
+   * - No ``optparse`` (use ``argparse``\ )
+     - 🔧 ``banned-api``
+   * - No commented-out code
+     - 👁 review only — ``ERA001`` is **disabled** in ``ruff.toml`` (too many
+       false positives in this doc-dense codebase). Delete dead code; rely on git.
 
 
-**Cyclomatic complexity** is capped at ``max-complexity = 20`` (\ ``C90``\ ). Method
-bodies above ~40 lines should be split — the linter cannot measure lines, so
-this is a review rule.
+**Cyclomatic complexity**: ``max-complexity = 20`` is configured for ``C90``, but
+note ``C901`` (the message code) is currently in the ``ruff.toml`` ignore list,
+so complexity is **not** actually blocking today — treat it as a review rule 👁
+until the config is corrected (drop ``C901``/``PLR0912`` from ``ignore`` to make
+it enforce). Method bodies above ~40 lines should be split regardless (the linter
+cannot measure lines — review rule).
 
 2.9.8 Logging levels
 ~~~~~~~~~~~~~~~~~~~~
@@ -1030,9 +1144,14 @@ identifier in every log line so a business transaction can be traced end-to-end:
 2.9.9 Type hints
 ~~~~~~~~~~~~~~~~
 
-Optional but encouraged for public API, framework-level code, and complex return
-types. Python 3.14's PEP 649 deferred annotations means forward references work
-without string-quoting.
+Optional but encouraged 👁 for public API, framework-level code, and complex
+return types (``ANN`` is linter-enforced only in ``odoo/libs/`` and
+``odoo/orm/components/``; review-only elsewhere). Python 3.14's PEP 649 deferred
+annotations mean forward references work without string-quoting.
+
+**Use modern generics** 🔧 ``banned-api``: ``list[X]``, ``dict[K, V]``,
+``tuple[X, ...]``, ``X | None``. The legacy ``typing.Optional``\ /\ ``List``\ /\
+``Dict``\ /\ ``Tuple``\ /\ ``Set``\ /\ ``Union`` are banned in ``ruff.toml``.
 
 .. code-block:: python
 
@@ -1052,9 +1171,88 @@ without string-quoting.
            ...
            return super().create(vals_list)
 
-Apply ``@typing.override`` (Python 3.12+) to ``create``\ , ``write``\ , ``unlink``\ ,
-``_compute_*``\ , and any overridden parent method. This catches silent breakage
-when the parent is renamed.
+**Recommended** (not mandatory) 👁: apply ``@typing.override`` (Python 3.12+) to
+``create``\ , ``write``\ , ``unlink``\ , ``copy_data``\ , and other overridden parent
+methods — it catches silent breakage when a parent is renamed. It is not
+linter-enforced (``ruff``'s ``TC``/type-checking group is deliberately disabled
+for PEP-649 reasons), so the §9 checklist treats it as "should," not "must."
+
+2.9.10 ``Command`` for x2many writes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``odoo.fields.Command`` for One2many/Many2many writes 👁 — never the raw
+magic-tuples (``(0, 0, {...})``\ , ``(6, 0, [...])``\ , ``(4, id)``\ ), which are
+unreadable and error-prone:
+
+.. code-block:: python
+
+   from odoo.fields import Command
+
+   order.write({
+       "line_ids": [
+           Command.create({"product_id": p.id, "qty": 1}),  # was (0, 0, {...})
+           Command.link(existing_line.id),                   # was (4, id)
+           Command.set(new_line_ids),                        # was (6, 0, [...])
+           Command.clear(),                                  # was (5, 0, 0)
+       ],
+   })
+
+2.9.11 SQL constraints
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Declare SQL constraints with ``models.Constraint`` (Odoo 19) 👁 in the
+``# CONSTRAINTS`` section. The legacy ``_sql_constraints = [...]`` list is
+deprecated — do not use it in new code:
+
+.. code-block:: python
+
+   # CONSTRAINTS
+   _amount_positive = models.Constraint(
+       "CHECK(amount >= 0)",
+       "The amount must be positive.",
+   )
+   _code_unique = models.Constraint("UNIQUE(code, company_id)", "Code must be unique per company.")
+
+2.9.12 Multi-company
+~~~~~~~~~~~~~~~~~~~~
+
+Multi-company correctness is a fork-wide requirement 👁:
+
+* Relational fields that must stay within the record's company use
+  ``check_company=True`` (the model needs a ``company_id``). The ORM then
+  enforces company consistency on write.
+* Per-company scalar configuration uses ``company_dependent=True``.
+* Read the active company via ``self.env.company`` and scope work with
+  ``with_company(company)`` — never hard-code or guess ``company_id``.
+* Company record rules use ``[("company_id", "in", company_ids + [False])]`` so
+  shared (company-less) records remain visible — see §10.x Access Control.
+
+.. code-block:: python
+
+   company_id = fields.Many2one("res.company", default=lambda self: self.env.company)
+   warehouse_id = fields.Many2one("stock.warehouse", check_company=True)
+   default_journal_id = fields.Many2one("account.journal", company_dependent=True)
+
+2.9.13 Float and currency comparison
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Never compare floats or Monetary values with** ``==``\ /\ ``!=``\ /\ ``<``\ /\ ``>``
+directly 🔧 ``RUF069`` — binary float representation makes them unreliable. Use the
+ORM helpers from ``odoo.tools``\ :
+
+.. code-block:: python
+
+   from odoo.tools import float_compare, float_is_zero, float_round
+
+   rounding = order.currency_id.rounding
+   if float_is_zero(line.price_subtotal, precision_rounding=rounding):
+       ...
+   if float_compare(paid, total, precision_rounding=rounding) >= 0:   # paid >= total
+       order.state = "paid"
+   amount = float_round(raw_amount, precision_rounding=rounding)
+
+Pass ``precision_rounding=<currency>.rounding`` (or
+``precision_digits=<n>``\ ) — do not invent epsilons.
 
 2.10 Lazy imports
 ^^^^^^^^^^^^^^^^^
@@ -1108,18 +1306,22 @@ Base: `Odoo Coding Guidelines -- XML Files <https://www.odoo.com/documentation/1
 * Root element: ``<odoo>`` (not ``<data>``\ )
 * Attribute order on records: ``id``\ , ``model``\ ; on fields: ``name`` first
 
-3.2 XML IDs and Naming [AM]
+3.2 XML IDs and Naming
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Suffix style** — the model/entity comes first, the role comes last. This
-matches the Odoo 19 core convention and keeps related records alphabetically
-grouped in the manifest and in search:
+matches the **official Odoo coding guidelines** and current Enterprise code, and
+keeps related records alphabetically grouped in the manifest and in search.
+(Heads-up: legacy Odoo **Community** core is largely *prefix*-style —
+``view_sale_order_form``, ``action_sale_order`` — so when you **inherit or
+reference** a core record you must ``ref`` its real, often prefixed, id. New
+AgroMarin records use the suffix style below.)
 
 .. list-table::
    :header-rows: 1
 
    * - Type
-     - Pattern [AM]
+     - Pattern
      - Example
    * - Views
      - ``{model}_view_{type}``
@@ -1277,7 +1479,7 @@ grouped in the manifest and in search:
 expressions directly (\ ``invisible=``\ , ``readonly=``\ ), NEVER ``attrs=``. Invisible fields for
 expressions are auto-injected (18.0+).
 
-3.4 Wizard Forms [AM]
+3.4 Wizard Forms
 ^^^^^^^^^^^^^^^^^^^^^
 
 TransientModel views go in ``wizards/`` directory (Python + XML).
@@ -1301,7 +1503,7 @@ TransientModel views go in ``wizards/`` directory (Python + XML).
 * ``<footer>`` for action buttons (renders at dialog bottom)
 * ``<separator/>`` for visual grouping
 * ``nolabel="1"`` on full-width fields
-* ``res.config.settings`` goes in ``wizards/`` [AM]
+* ``res.config.settings`` goes in ``wizards/``
 
 3.5 View Inheritance
 ^^^^^^^^^^^^^^^^^^^^
@@ -1360,9 +1562,13 @@ Three-part structure:
    </record>
 
 
-* ``report_name`` and ``report_file`` both = ``module.template_id``
+* ``report_name`` = ``module.template_id`` (required, points at the QWeb template).
+  ``report_file`` is **optional** and may differ (it is a PDF base-filename hint);
+  in core it is frequently omitted or set to a different template.
 * ``binding_model_id`` for Print menu binding
-* `binding_type`: `"report"` (Print) or `"action"` (Action); `binding_view_types`: ``"list,form"`` (default)
+* `binding_type`: `"report"` (Print) or `"action"` (Action); `binding_view_types`
+  is order-significant — the common value is ``"list,kanban"`` (or
+  ``"list,kanban,form"``\ ), not ``"list,form"``
 * ``t-lang=`` at ``t-call`` level for localization
 
 3.7 Action Windows
@@ -1394,7 +1600,7 @@ Three-part structure:
 
 .. code-block:: xml
 
-   <!-- wizards/res_config_settings_views.xml [AM] -->
+   <!-- wizards/res_config_settings_views.xml -->
    <record id="res_config_settings_view_form_inherit" model="ir.ui.view">
      <field name="name">res.config.settings.form.inherit.module</field>
      <field name="model">res.config.settings</field>
@@ -1414,9 +1620,9 @@ Three-part structure:
 
 
 * New structure: ``<app>`` -> ``<block>`` -> ``<setting>``
-* File: ``wizards/res_config_settings_views.xml`` [AM]
+* File: ``wizards/res_config_settings_views.xml``
 
-3.9 Menu Files [AM]
+3.9 Menu Files
 ^^^^^^^^^^^^^^^^^^^
 
 Single file per module: ``views/ir_ui_menu_views.xml``.
@@ -1454,7 +1660,9 @@ Base: `Odoo Coding Guidelines -- JavaScript <https://www.odoo.com/documentation/
 ^^^^^^^^^^^^^^^^^^^^^
 
 
-* Source files in ``static/src/js/``\ , templates in ``static/src/xml/``
+* **Colocate** each component's ``.js`` and ``.xml`` template in a feature folder
+  (``static/src/<feature>/<component>.js`` + ``<component>.xml``) — the modern core
+  layout. The flat ``static/src/js/`` + ``static/src/xml/`` split is legacy.
 * ES6 imports, no ``require()``
 
 .. code-block:: javascript
@@ -1464,13 +1672,26 @@ Base: `Odoo Coding Guidelines -- JavaScript <https://www.odoo.com/documentation/
    import { _t } from "@web/core/l10n/translation";
 
 
-* ``/** @odoo-module **/`` header is optional (18.0+)
+* ``/** @odoo-module **/`` is a **header directive for the asset bundler** (parsed
+  in ``odoo/libs/esm_graph.py``), not a cosmetic comment. Files under
+  ``static/src`` / ``static/tests`` are routed through the ESM pipeline by **path**,
+  so the bare header is **optional** there. Use it explicitly when you need a
+  modifier, or for a file outside those paths:
+
+  * ``@odoo-module ignore`` — keep the file **out** of the ESM pipeline (plain
+    classic script / vendored lib).
+  * ``@odoo-module native`` — treat as a true native ES module.
+  * ``@odoo-module alias=<specifier>`` — register under an additional import path.
+  * ``@odoo-module default=<name>`` — control default-export bridging.
 
 4.2 Naming
 ^^^^^^^^^^
 
 
-* **Method names must match Python exactly** [AM]: if Python uses ``action_view_invoices``\ , JS must use the same name
+* **When JS calls a Python method, the string must match exactly**: an ORM call
+  or button ``name`` that targets ``action_view_invoices`` must use that exact name.
+  Frontend-only handlers stay camelCase (next bullets) — this rule is about the
+  call target, not all JS methods.
 * Portal template ``t-name`` values follow field naming conventions (e.g. ``invoice_state``\ , not ``invoice_status``\ )
 * Component names: PascalCase (\ ``MyComponent``\ )
 * Methods/variables: camelCase (\ ``onButtonClick``\ )
@@ -1489,16 +1710,19 @@ every ``.js`` file that declares or patches a component.
 
    * - Rule
      - Detail
-   * - **No `/** @odoo-module **/` header**
-     - Auto-handled since 18.0 — do not add it
+   * - **``@odoo-module`` is a bundler routing flag**
+     - Optional under ``static/src`` (path auto-routes); required outside it and for
+       the ``ignore`` / ``native`` / ``alias=`` / ``default=`` modifiers (see §4.1)
    * - **Always ``super.setup()`` first**
      - When patching, call ``super.setup()`` before anything else
    * - **Use ``useState`` for reactive state**
      - Plain object assignments do not trigger re-render
    * - **Verify import paths before using**
      - Odoo moves components between releases — assume training data is stale
-   * - **POS customizations prefer DOM manipulation**
-     - Template inheritance in POS is fragile; patch + ``onMounted`` is more stable
+   * - **POS: ``t-inherit`` for markup, ``patch`` for behavior**
+     - Prefer template inheritance (``t-inherit``) and ``patch()`` (both standard in
+       core POS). Reserve ``onMounted`` DOM access for measurement/focus — not as a
+       substitute for templating (raw DOM injection breaks on re-render)
 
 
 4.3.2 Patch template
@@ -1533,8 +1757,8 @@ every ``.js`` file that declares or patches a component.
 .. code-block::
 
    Need frontend modification?
-   ├─ Extend existing component?     → patch(Component.prototype, { ... })
-   │   └─ POS component?             → Prefer DOM manipulation in onMounted
+   ├─ Change markup of an existing component? → t-inherit template
+   ├─ Change behavior of an existing component? → patch(Component.prototype, { ... })
    ├─ Brand new UI element?          → New OWL component + register in registry
    │   └─ Needs popup?               → Register in the pos_popups registry
    └─ Unsure?                        → Read reference/owl/ before guessing
@@ -1551,7 +1775,34 @@ every ``.js`` file that declares or patches a component.
    import { useService } from "@web/core/utils/hooks";
    import { useState, onWillStart, onMounted } from "@odoo/owl";
 
-Full OWL reference (hooks, stores, lifecycle) lives in ``reference/owl/``.
+Full OWL reference (hooks, stores, lifecycle) lives in
+``knowledge/agromarin-knowledge/reference/owl/``.
+
+4.4 JavaScript tests
+^^^^^^^^^^^^^^^^^^^^
+
+Frontend changes ship with a test 👁. Odoo 19 uses two layers (QUnit is removed —
+do not write QUnit):
+
+* **Unit / component tests — Hoot.** Files live in ``static/tests/**/*.test.js``
+  and import from ``@odoo/hoot`` / ``@odoo/hoot-dom``. Use the mock server for ORM
+  calls. This is the default for component logic and pure functions.
+
+  .. code-block:: javascript
+
+     import { expect, test } from "@odoo/hoot";
+     import { click } from "@odoo/hoot-dom";
+
+     test("counter increments on click", async () => {
+         // mount component, then:
+         await click("button.increment");
+         expect("span.value").toHaveText("1");
+     });
+
+* **Integration / E2E — tours.** Register a tour in the ``web_tour.tours`` registry
+  and drive it from a Python ``HttpCase`` (tagged ``@tagged("post_install", "-at_install")``\ )
+  via ``self.start_tour(url, "tour_name", login=...)``. Use tours for flows that
+  span the backend and UI.
 
 ----
 
@@ -1572,11 +1823,48 @@ Base: `Odoo Coding Guidelines -- CSS and SCSS <https://www.odoo.com/documentatio
 
 
 * Files in ``static/src/css/`` or ``static/src/scss/``
-* Declare in ``__manifest__.py`` under ``assets``\ :
+* Declare in ``__manifest__.py`` under ``assets``\ , in the **correct bundle**:
 
 .. code-block:: python
 
    "assets": {"web.assets_backend": ["module_name/static/src/scss/style.scss"]}
+
+5.3 Asset bundles
+^^^^^^^^^^^^^^^^^
+
+Put each asset in the bundle that actually loads where it's needed — wrong-bundle
+CSS either does nothing or bloats every page:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Bundle
+     - Loads in
+   * - ``web.assets_backend``
+     - Backend web client (most module UI)
+   * - ``web.assets_frontend``
+     - Website / portal (public pages)
+   * - ``point_of_sale._assets_pos``
+     - Point of Sale client
+   * - ``web.report_assets_common``
+     - QWeb PDF reports (print styling)
+   * - ``web._assets_primary_variables``
+     - SCSS variable **overrides** (loaded before everything; no rules emitted)
+
+
+5.4 Theming
+^^^^^^^^^^^
+
+* **Bootstrap-first.** Odoo's UI is Bootstrap 5 — reuse its utilities and
+  components before writing custom SCSS.
+* **Override variables, not values.** Customize via Odoo/Bootstrap SCSS variables
+  (``$o-*``\ ) injected into ``web._assets_primary_variables`` (or
+  ``..._secondary_variables``\ ) — never hard-code colors/spacing that a variable
+  already controls.
+* **Dark mode.** Drive colors from CSS variables / Odoo's color-scheme system
+  (``web.dark_color_scheme``\ ); do not hard-code light-only hex values.
+* **RTL.** Use logical properties (``margin-inline-start``, etc.) and Odoo's
+  RTL-aware mixins instead of hard ``left``/``right`` — Odoo auto-generates RTL.
 
 ----
 
@@ -1615,14 +1903,19 @@ File layout:
 ^^^^^^^^^^^^^^^^^^
 
 * **Create all test records** in ``setUpClass()`` or the test method.
-* **Use fixed dates** — ``datetime.now()`` creates flaky tests.
-* **Mock external services** — tests must run offline.
+* **Freeze time** — ``datetime.now()`` creates flaky tests. Use
+  ``odoo.tests.freeze_time`` (Odoo-aware freezegun wrapper) or
+  ``freezegun.freeze_time``.
+* **Mock external services** — tests must run offline (``unittest.mock.patch``\ ).
 * **Test with minimal permissions** — create a user with only the group being
   tested to catch access rule issues early.
-* **Never call** ``cr.commit()`` **in tests**. All test data must be created
-  within the test transaction and automatically rolled back. A committed
-  transaction permanently pollutes the test database and causes cascading
-  failures.
+* **Never call** ``cr.commit()`` **in tests** — all test data lives in the test
+  transaction and is rolled back; a commit permanently pollutes the test DB. The
+  **only** exception is a dedicated concurrency/cron test that deliberately opens a
+  separate cursor (``self.registry.cursor()``\ ).
+* A test class is **either** ``at_install`` **or** ``post_install`` — never both,
+  never neither (the framework enforces this XOR). Use ``at_install`` for pure-ORM
+  unit tests, ``post_install`` for anything touching other modules, web, or tours.
 
 6.3 ``setUpClass`` Convention
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1645,8 +1938,11 @@ state that one test method may alter in a way that affects another).
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``odoo.addons.base.tests.common.BaseCommon`` provides a standard test environment
-with mail/tracking disabled, independent users and companies, and convenience
-helpers:
+with mail/tracking disabled and convenience helpers. Use it when you want a quiet
+(no-mail) setup; it is **not** the default base class (most tests still use
+``TransactionCase``\ ). Note it does **not** create an independent user/company by
+default — ``setup_independent_user``/``setup_independent_company`` return ``None``
+unless a subclass overrides them.
 
 .. code-block:: python
 
@@ -1663,7 +1959,8 @@ Key features:
 
 * ``DISABLED_MAIL_CONTEXT`` — disables tracking, mail notifications, and password
   resets during test setup for performance.
-* Pre-created ``cls.company``\ , ``cls.currency``\ , ``cls.partner``\ , ``cls.group_*``.
+* Pre-created ``cls.company``\ , ``cls.currency``\ , ``cls.partner``\ , and the groups
+  ``cls.group_user``\ , ``cls.group_portal``\ , ``cls.group_system``.
 * Helpers: ``quick_ref(xmlid)``\ , ``_create_partner()``\ , ``_create_new_internal_user()``\ ,
   ``_create_new_portal_user()``.
 
@@ -1688,16 +1985,18 @@ Without flushing, the ORM may not have written pending values to the database ye
 6.6 Lint Relaxations in Tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following rules are **suppressed** for test files (``**/tests/**``\ ) via
-per-file-ignores in ``ruff.toml``\ :
+These rules are **suppressed** for test files (``**/tests/**``\ ) via
+per-file-ignores in ``ruff.toml`` (the full set — keep this list in sync):
 
-* ``print()`` is allowed (\ ``T201``\ ).
-* Broad ``assertRaises`` context managers are allowed (\ ``B017``\ ).
-* ``global`` statements for test fixtures are allowed (\ ``PLW0603``\ ).
-* Literal membership tests (\ ``x in [1, 2, 3]``\ ) prefer readability over
-  performance (\ ``PLR6201``\ ).
-* First-element access via ``list(x)[0]`` instead of ``next(iter(x))`` is
-  allowed (\ ``RUF015``\ ).
+* ``print()`` (\ ``T201``\ ) and HTTP without ``timeout`` (\ ``S113``\ ).
+* Broad ``assertRaises`` context managers (\ ``B017``\ ).
+* ``global`` statements for test fixtures (\ ``PLW0603``\ ).
+* Literal membership tests (\ ``PLR6201``\ ) and self-comparisons (\ ``PLR0124``\ ).
+* First-element access via ``list(x)[0]`` (\ ``RUF015``\ ).
+* ``try``/``except``/``pass`` cleanup (\ ``S110``\ ).
+* Bare ``raise Exception()`` / useless try-except in fixtures (\ ``TRY002``\ ,
+  ``TRY203``\ ); string literals in exceptions (\ ``EM101``\ ).
+* Builtin shadowing in helpers (\ ``A001``\ , ``A002``\ ).
 
 6.7 Test Naming
 ^^^^^^^^^^^^^^^
@@ -1737,7 +2036,8 @@ method:
 6.9 Test Structure
 ^^^^^^^^^^^^^^^^^^
 
-Use the **Arrange / Act / Assert** pattern. Separate sections with blank lines:
+Structure tests as **setup → action → assertion**, separated by blank lines (the
+``# Arrange``/``# Act``/``# Assert`` comments below are illustrative, not required):
 
 .. code-block:: python
 
@@ -1760,16 +2060,40 @@ Use the **Arrange / Act / Assert** pattern. Separate sections with blank lines:
 
 * Default: ``standard`` + ``at_install``.
 * For ``HttpCase``\ : ``@tagged("post_install", "-at_install")``.
-* For slow or integration tests: ``@tagged("-standard", "heavy")``.
+* For slow/integration tests excluded from the standard run: ``@tagged("-standard")``
+  (optionally with a real selector tag such as ``external`` or ``nightly`` that you
+  then pass to ``--test-tags``). There is no ``heavy`` tag in core — don't invent one.
 
-6.11 Coverage [AM]
+6.11 Coverage
 ^^^^^^^^^^^^^^^^^^
 
-* Target **>80%** on custom modules.
+* Target **>80%** on custom modules (aspirational — not gated in CI today; see
+  *Running tests* below for how to measure it locally).
 * Test edge cases, constraints, and validations.
 * Every ``action_*`` method should have at least one test.
-* ``Form`` simulator (\ ``odoo.tests.common.Form``\ ) for onchange testing without HTTP.
+* ``Form`` simulator (\ ``from odoo.tests import Form``\ ) for onchange testing
+  without HTTP — **not** ``odoo.tests.common.Form`` (it is not exported there).
+* Lock hot paths against N+1 regressions with ``with self.assertQueryCount(n):``
+  (optionally ``@warmup`` to prime caches) — a query-count increase is a regression.
 * ``@users("demo")`` decorator for multi-user permission testing.
+
+6.12 Running tests
+^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   # All tests for a module (install + run its tagged tests)
+   ./odoo-bin -d <db> -i <module> --test-enable --test-tags /<module> --stop-after-init
+
+   # A single class or method
+   ./odoo-bin -d <db> --test-enable --test-tags /<module>:TestClass.test_method --stop-after-init
+
+   # The post_install (HttpCase / tour) phase
+   ./odoo-bin -d <db> -i <module> --test-enable --test-tags post_install --stop-after-init
+
+   # Coverage (the >80% target in §6.11)
+   coverage run ./odoo-bin -d <db> -i <module> --test-enable --test-tags /<module> --stop-after-init
+   coverage report
 
 ----
 
@@ -1781,9 +2105,13 @@ Base: `OCA CONTRIBUTING.rst -- Git <https://github.com/OCA/odoo-community.org/bl
 7.1 Commit Messages
 ^^^^^^^^^^^^^^^^^^^
 
-First line: ``[TAG] module: description`` (max 80 chars)
+First line: ``[TAG] module: description`` — aim for ≤ 50 chars (Odoo's
+recommendation), hard cap 72. Keep it shorter than the PR title (§7.4).
 
-**Unified tag catalog** (13 tags — no other tags allowed):
+**Unified tag catalog** (13 tags — no other tags allowed). The first seven
+(``FIX``, ``IMP``, ``ADD``, ``REM``, ``REF``, ``MOV``, ``REV``) are the upstream
+Odoo set; the rest (``REL``, ``MERGE``, ``I18N``, ``PERF``, ``CLN``, ``LINT``) are
+AgroMarin additions:
 
 .. list-table::
    :header-rows: 1
@@ -1832,11 +2160,11 @@ First line: ``[TAG] module: description`` (max 80 chars)
 * If the change spans two intents, split the commit
 * ``LINT`` and ``CLN`` must not contain any behavior change — if they do, use ``REF``
 
-Body structure (mandatory) [AM]:
+Body structure (mandatory):
 
 .. code-block::
 
-   [TAG] module: short summary (max 80 chars)
+   [TAG] module: short summary (≤ 50 chars)
 
    Problem / context sentence explaining why this change was needed.
 
@@ -1861,7 +2189,7 @@ Example:
 
    Task ID: 17012
 
-7.2 Branch Naming [AM]
+7.2 Branch Naming
 ^^^^^^^^^^^^^^^^^^^^^^
 
 Format: ``<odoo_version>-t<task_id>-<github_username>``
@@ -1870,7 +2198,7 @@ Format: ``<odoo_version>-t<task_id>-<github_username>``
 
    19.0-t17352-suniagajose
 
-7.3 Task ID Requirement [AM]
+7.3 Task ID Requirement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
@@ -1878,7 +2206,7 @@ Format: ``<odoo_version>-t<task_id>-<github_username>``
 * Every branch MUST include the task ID
 * Traceability: code change -> task -> business requirement
 
-7.4 Pull Requests [AM]
+7.4 Pull Requests
 ^^^^^^^^^^^^^^^^^^^^^^
 
 All code changes in ``$ACTIVE_REPOS`` (except the ``knowledge/`` repo, which works
@@ -1915,7 +2243,9 @@ change, the commits inside carry the ``[TAG]`` prefix.
 * Task ID in the title line as a hyperlink (not plain text)
 * At least one commit per logical unit — do not squash unrelated changes
 * No merge commits from ``main`` in the PR history — rebase instead
-* No force push to shared branches (\ ``main``\ , ``19.0``\ , ``19.0-marin``\ , ``19.0-dev``\ )
+* No force push to **shared** branches (\ ``main``\ , ``19.0``\ , ``19.0-marin``\ ,
+  ``19.0-dev``\ ). Force-push **is** expected on your personal
+  ``19.0-t<task>-<user>`` feature branch (rebasing it requires it).
 
 ----
 
@@ -1927,7 +2257,9 @@ Base: `Odoo Translations Reference <https://www.odoo.com/documentation/19.0/deve
 8.1 Python
 ^^^^^^^^^^
 
-Preferred: ``self.env._()`` (10x faster than ``_()``\ , resolves user language automatically).
+Preferred: ``self.env._()`` (faster than the legacy ``_()`` — it reads the language
+from the environment instead of walking the call stack; ~4× for ``en_US`` per
+Odoo's benchmark — and resolves user language automatically).
 
 .. code-block:: python
 
@@ -1965,6 +2297,20 @@ Required if your module has JS translations:
        def _get_translation_frontend_modules_name(cls):
            return super()._get_translation_frontend_modules_name() + ["my_module"]
 
+8.4 ``.pot`` / ``.po`` workflow
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Keep a translation **template** at ``i18n/<module>.pot`` and language files at
+  ``i18n/<lang>.po``. Export the template after changing user-facing strings:
+
+  .. code-block:: bash
+
+     ./odoo-bin -d <db> --i18n-export=i18n/<module>.pot --modules=<module> --stop-after-init
+
+* Never hand-edit ``msgid`` values to "fix" English — change the source string and
+  re-export. Translations are synced through **Weblate** (see ``core/.weblate.json``);
+  do not commit machine-merged ``.po`` churn that fights the Weblate round-trip.
+
 ----
 
 9. Code Review Checklist
@@ -1972,7 +2318,10 @@ Required if your module has JS translations:
 
 Use this 44-item checklist for every PR review. The reviewer confirms each
 applicable item before approving. Non-applicable items (e.g. no raw SQL in the
-diff) may be skipped with a note.
+diff) may be skipped with a note. The "Linter-enforced" group is what
+``ruff check`` already blocks in **production** code — verify it still passes
+(tests, CLI and migrations have documented relaxations); the other groups are
+the human's job.
 
 Security (8)
 ^^^^^^^^^^^^
@@ -1993,13 +2342,13 @@ Correctness (9)
 
 #. ``search()`` / ``search_count()`` called outside loops (no N+1)
 #. Compute methods assign fields directly (\ ``self.x = y``\ ), never ``write()``
-#. CRUD overrides (\ ``create``\ , ``write``\ , ``unlink``\ , ``copy``\ ) call ``super()``
+#. CRUD overrides (\ ``create``\ , ``write``\ , ``unlink``\ , ``copy_data``\ ) call ``super()``; ``create`` uses ``@api.model_create_multi``
 #. ``@api.depends`` lists every sub-field accessed in the method body
 #. ``fields.Monetary`` has a matching currency field on the same model
 #. Error types match intent: ``UserError`` for business, ``ValidationError`` for constraints, ``MissingError`` for deleted records
 #. ``.exists()`` is called when records may have been deleted by another transaction
 #. No mutable default arguments — uses the ``None`` sentinel pattern
-#. Method overrides use the ``@typing.override`` decorator
+#. Overridden framework methods *should* carry ``@typing.override`` (recommended, not gated)
 
 Performance (7)
 ^^^^^^^^^^^^^^^
@@ -2033,12 +2382,12 @@ Style — human-reviewed (7)
 #. Methods stay under ~40 lines — extract sub-methods for longer logic
 #. Comprehensions use at most one ``for`` and one ``if`` clause
 
-Linter-enforced — verify ``ruff check`` passes (10)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Linter-enforced — verify ``ruff check`` passes, production code (10)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 #. No ``print()`` or debugger statements in production code (\ ``T10`` / ``T20``\ )
-#. No commented-out code blocks (\ ``ERA001``\ )
+#. No mutable default arguments (\ ``B006``\ ); no legacy ``typing.List``/``Optional`` (\ ``banned-api``\ )
 #. ``pathlib.Path`` used instead of ``os.path`` (\ ``PTH``\ )
 #. New exception re-raises use ``raise X from Y`` chaining (\ ``B904``\ )
 #. No ``datetime.utcnow()`` — uses ``datetime.now(UTC)`` (\ ``DTZ003`` / ``DTZ004``\ )
@@ -2062,14 +2411,23 @@ public methods do **not** automatically enforce access rules.
 
 * **Default all methods to private** (prefix with ``_``\ ). Remove the
   underscore only after deliberate review.
+* Odoo 19 also provides ``@api.private`` to block RPC on a method that must keep a
+  public **name** (e.g. an already-public method becoming internal). It is enforced
+  at the RPC boundary across the MRO — a subclass cannot re-expose it. Use the
+  ``_`` prefix for new code; ``@api.private`` to retrofit existing public methods.
 
 10.2 ``sudo()`` Discipline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Whitelist which fields are allowed when writing user-submitted payloads.
+* **Prefer narrower escalation.** ``with_user(user)`` / ``with_company(company)``
+  keep ACL and record rules **enforced** under a specific identity — use them when
+  you only need a different user/company, not a full bypass. Reserve ``sudo()`` for
+  genuine cross-tenant/system operations.
+* Whitelist which fields are allowed when writing user-submitted payloads under
+  ``sudo()`` (a sudo *read* of one field is low-risk; ``sudo().write(payload)`` is
+  the dangerous case).
 * Minimize scope — apply ``sudo()`` to the smallest recordset and fewest
-  operations.
-* Every ``sudo()`` call should be flagged for review.
+  operations. Every ``sudo()`` call should be flagged for review.
 
 .. code-block:: python
 
@@ -2090,6 +2448,10 @@ mode). Any validation that guards security-sensitive logic **must** use
    # Validate security-sensitive input
    if access_mode not in ("read", "write", "create", "unlink"):
        raise ValueError(f"Invalid access mode: {access_mode!r}")
+
+This is a **manual review gate** 👁 — ``ruff``'s ``S101`` (assert-used) is disabled
+(Odoo uses ``assert`` for ORM invariants), so the linter will **not** catch a
+security ``assert``.
 
 10.4 SQL Injection Prevention
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2114,13 +2476,22 @@ Use the ``SQL`` wrapper for defense-in-depth:
        value,
    ))
 
+This is a **manual review gate** 👁 — ``ruff``'s ``S608`` (hardcoded-SQL) is
+disabled because the ORM builds SQL dynamically via the ``SQL()`` wrapper, so the
+linter does not flag f-string SQL. Reviewers must catch it (§9, Security #1).
+
 10.5 Related Fields and ACLs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Related fields are computed in ``sudo`` mode, bypassing access control. A
-related field pointing to a sensitive model (\ ``ir.attachment``\ ,
-``hr.payslip``\ ) can leak data. Prefer ``fields.Binary`` or controlled
-``search()`` calls when accessing protected records.
+**Related fields default to** ``compute_sudo=True``\ , so a related field
+traversing into a sensitive model (\ ``ir.attachment``\ , ``hr.payslip``\ ) is read
+as superuser and **bypasses the reader's ACL/record rules**. (Plain computed
+fields default to ``compute_sudo = store`` — sudo only when stored.) To avoid a
+leak on a sensitive related field, do **not** rely on field type — instead:
+
+* set ``compute_sudo=False`` explicitly on that field, **or**
+* restrict it with ``groups="..."``\ , **or**
+* replace the related field with an explicit, ACL-respecting compute.
 
 10.6 Controller Security
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2129,50 +2500,23 @@ related field pointing to a sensitive model (\ ``ir.attachment``\ ,
 * ``auth="none"`` means no database access — mainly for framework use.
 * Validate and sanitize all controller parameters.
 * Use ``Markup()`` for intentional HTML output; escape user-generated content.
+* Do **not** set ``csrf=False`` on a ``type="http"`` POST route without a written
+  justification (``jsonrpc`` is CSRF-exempt by design).
+* Rate-limit and strictly schema-validate ``auth="public"`` endpoints. Validate and
+  scope ``auth="bearer"`` tokens; never log them.
 
-10.7 Fail-Closed Error Handling
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+10.7 Fail-closed handling & error disclosure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Exception handlers in state-mutation code **must** leave the system in a
-consistent state. Use ``cr.savepoint()`` so partial operations roll back on
-failure:
+These are security-critical, but the full rules live in **§2.7 Error Handling**
+(single source) — do not duplicate:
 
-.. code-block:: python
-
-   for order in orders:
-       try:
-           with self.env.cr.savepoint():
-               order._process_payment()
-               order.action_confirm()
-       except UserError:
-           order.state = "error"
-           _logger.error("Failed to process order %s", order.name, exc_info=True)
-
-``except Exception`` is flagged by the linter (\ ``BLE001``\ ). Use it only when
-genuinely necessary (e.g. catch-log-reraise patterns, integration adapters).
-Always re-raise or transition to an explicit error state — never silently
-swallow exceptions.
-
-Broad ``except Exception`` blocks that log-and-continue are a violation in
-financial or state-mutation code. Each failure must either roll back its
-changes or explicitly transition to an error state.
-
-10.8 Error Information Disclosure
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Never expose raw exceptions to users.** Internal error details (SQL
-fragments, Python tracebacks, file paths) aid attackers:
-
-.. code-block:: python
-
-   # Wrong — leaks internals
-   except Exception as e:
-       raise UserError(str(e))
-
-   # Correct — generic user message, full details in server log
-   except Exception:
-       _logger.error("Payment processing failed", exc_info=True)
-       raise UserError(_("Payment could not be processed. Contact support."))
+* **Fail-closed**: wrap each iteration of state-mutation code in
+  ``with self.env.cr.savepoint():`` so a failure rolls back or transitions to an
+  explicit error state. ``except Exception`` log-and-continue is a violation in
+  financial/state-mutation code. (``BLE001`` is **disabled** — this is review-only.)
+* **No information disclosure**: never ``raise UserError(str(e))``. Log the
+  traceback (``exc_info=True``\ ) and show a generic ``self.env._(...)`` message.
 
 10.9 Configuration and Secrets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2180,6 +2524,11 @@ fragments, Python tracebacks, file paths) aid attackers:
 * **No hardcoded URLs, credentials, or service endpoints** in Python code. Use
   ``ir.config_parameter``\ , environment variables, or ``odoo.conf`` for all
   external configuration.
+* **Namespace** config keys as ``<module>.<setting>`` (e.g.
+  ``sale.default_warehouse_id``\ ); read with
+  ``self.env["ir.config_parameter"].sudo().get_param(key, default)``.
+* ``ir.config_parameter`` values are readable by ``base.group_system`` — for true
+  secrets (API keys, tokens) prefer environment variables / ``odoo.conf``, not the DB.
 * **External dependencies** must be declared in ``__manifest__.py``
   ``external_dependencies`` AND in a ``requirements.txt`` at the addon root.
   Pin minimum versions.
@@ -2191,13 +2540,39 @@ Before production deployment, verify:
 
 * ``--dev`` mode is disabled.
 * ``list_db = False`` in configuration.
-* Default admin password is changed.
-* ``proxy_mode = True`` if behind a reverse proxy.
+* ``admin_passwd`` (master password) is changed from the default.
+* ``proxy_mode = True`` if behind a reverse proxy; ``http_interface`` bound to
+  localhost so only the proxy is public.
 * ``dbfilter`` is set to restrict database access.
-* ``server_wide_modules`` is minimal.
+* ``server_wide_modules`` is minimal (the 19.0 default is ``base,rpc,web``\ ).
+* ``workers`` > 0 (prefork); tune ``limit_time_cpu`` / ``limit_time_real`` /
+  ``limit_memory_soft`` / ``limit_memory_hard`` / ``limit_request``.
+* ``db_sslmode = require`` (or ``verify-full``\ ) — the default ``prefer`` does
+  **not** enforce TLS to PostgreSQL.
+* ``gevent_port`` is set for websockets/longpolling (the old ``longpolling_port``
+  was removed); ``x_sendfile = True`` when fronted by nginx/apache; ``data_dir`` on
+  a persistent, backed-up volume.
 * Python dependencies are pinned with hashes. Run ``pip-audit`` in CI.
 
-----
+10.11 Access control (ACL & record rules)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Every new model ships explicit access rules 👁 — a model with no
+``ir.model.access`` line is inaccessible (or, worse, silently admin-only).
+
+* **ACLs** (table-level) go in ``security/ir.model.access.csv``\ : one line per
+  (model, group) with ``perm_read,perm_write,perm_create,perm_unlink`` flags.
+  Grant the minimum — e.g. a user group as ``1,1,1,0`` (no delete) and a manager
+  group as ``1,1,1,1``\ ; avoid group-less (global) lines.
+* **Record rules** (``ir.rule``\ , row-level) restrict *which* records a group sees
+  — use them when access depends on the record's data (owner, company, state),
+  not just the model. A global rule (no groups) applies to everyone.
+* **Multi-company**: company rules use the domain
+  ``[("company_id", "in", company_ids + [False])]`` so shared (company-less)
+  records stay visible. Pair with ``check_company=True`` on relational fields
+  (see §2.9.12).
+* Restrict sensitive **fields** with ``groups="module.group_xxx"`` — field-level
+  access is enforced on read and write.
 
 11. Performance
 ---------------
@@ -2263,8 +2638,9 @@ Use dictionary lookups to avoid nested loops:
    # Wrong — loads every record into Python
    total = sum(line.amount for line in self.env["account.move.line"].search(domain))
 
-   # Correct — single SQL query
-   [total] = self.env["account.move.line"]._read_group(
+   # Correct — single SQL query. Note the double-unpack: a groupless _read_group
+   # returns [(value,)], so [[total]] extracts the scalar (not [total], a tuple).
+   [[total]] = self.env["account.move.line"]._read_group(
        domain, aggregates=["amount:sum"],
    )
 
@@ -2418,21 +2794,22 @@ commit each batch and report progress to the framework:
    def _cron_process_orders(self):
        orders = self.env["sale.order"].search([("state", "=", "pending")])
        commit_progress = self.env["ir.cron"]._commit_progress
+       commit_progress(0, remaining=len(orders))  # set the total ONCE
        for batch_ids in batched(orders.ids, 100):
            batch = orders.browse(batch_ids)
            batch._process()
-           remaining = commit_progress(
-               processed=len(batch),
-               remaining=len(orders) - len(batch),
-           )
-           if remaining <= 0:
-               break  # time limit reached
+           # pass only `processed`; the framework decrements `remaining` for you
+           time_left = commit_progress(processed=len(batch))
+           if not time_left:        # 0 → cron time budget exhausted; it reschedules
+               break
 
 * Process in batches (100–1000 records) using ``itertools.batched()`` to limit
   memory and lock duration. (\ ``split_every`` is deprecated since 19.0.)
-* Use ``self.env["ir.cron"]._commit_progress(processed, remaining)`` — it
-  calls ``cr.commit()`` internally and returns remaining execution time
-  (seconds).
+* ``_commit_progress(processed=0, *, remaining=None, deactivate=False)`` — note
+  ``remaining`` is **keyword-only**. It commits internally and **returns the
+  remaining cron time in seconds** (``inf`` outside a cron, ``0`` at the deadline)
+  — *not* a record count. Set ``remaining`` once to the total; thereafter pass only
+  ``processed`` and the framework decrements it.
 * Set ``deactivate=True`` on the final call for one-time cron jobs.
 * **Do not** call ``cr.commit()`` directly — the framework manages it through
   ``_commit_progress()`` and the cron runner.
@@ -2489,8 +2866,13 @@ PostgreSQL row-level locking prevents concurrent modifications:
        pre-migrate.py
        post-migrate.py
 
-The version in the directory name must match the ``version`` in
-``__manifest__.py`` that introduces the breaking change.
+The version directory matches the module ``version`` in ``__manifest__.py`` that
+introduces the change. Both forms work: the **bare module version** (``1.2.0``\ ,
+the common case) or the full ``19.0.1.2.0`` — Odoo prefixes bare versions with the
+server major at load time. The special ``0.0.0`` directory runs on **every**
+update. The script file is matched by its **prefix** (``pre-``/``post-``/``end-``),
+so a descriptive suffix is allowed (``post-migrate_update_taxes.py``\ ), and both
+``-migrate.py`` and ``-migration.py`` long forms are recognized.
 
 Lint rules are **relaxed** for migration scripts (\ ``**/migrations/**``\ ) —
 ``E501`` (line length), ``UP`` (pyupgrade), ``PTH`` (pathlib), and ``ERA``
@@ -2526,6 +2908,12 @@ Standard signature:
            return
        # migration logic
 
+The signature is ``migrate(cr, version)`` — the framework passes a **cursor**, not
+an ``env``. Guard ``pre-migrate`` SQL with the helpers from ``odoo.tools.sql``
+(``column_exists``\ , ``table_exists``\ , ``rename_column``\ ) rather than hand-written
+``information_schema`` queries. ``openupgradelib`` is available but is not the house
+default — prefer the ``odoo.tools.sql`` helpers.
+
 12.3 When Required
 ^^^^^^^^^^^^^^^^^^
 
@@ -2540,9 +2928,10 @@ changes, adding/removing ``Many2many`` relationships.
 Appendix A — Fork-specific field renames
 ----------------------------------------
 
-These fields are renamed on ``project.task`` in the AgroMarin fork. Using the
-vanilla names causes Fault 500 on every MCP call. Apply these regardless of
-what training data suggests:
+These fields are renamed on ``project.task`` in the AgroMarin fork. Any
+read/search/sort referencing a vanilla name raises (``KeyError``\ /\ ``ValueError``\ ,
+surfaced as a 500 over JSON-RPC/MCP). Apply these regardless of what training data
+suggests:
 
 .. list-table::
    :header-rows: 1
@@ -2556,7 +2945,8 @@ what training data suggests:
    * - ``date_last_stage_update``
      - ``date_last_status_change``
    * - ``personal_stage_type_id``
-     - ``triage_id``
+     - ``personal_triage_id`` (Many2one → ``project.task.triage``\ ; note the
+       separate related field ``triage_id`` → ``project.triage``\ )
    * - ``depend_on_ids``
      - ``predecessor_ids``
    * - ``dependent_ids``
@@ -2575,10 +2965,10 @@ Appendix B — Related references
 -------------------------------
 
 
-* ``reference/odoo/odoo-19-development-context.md`` — Odoo 17→19 API changes
-* ``reference/dev/error-catalog.md`` — Known PATH / CONFIG / SERVICE / POSTGRES errors and fixes
-* ``reference/owl/`` — Full OWL framework reference (hooks, stores, lifecycle)
-* ``reference/python-pg/`` — Python 3.14 and PostgreSQL 18 / psycopg 3 patterns
+* ``knowledge/agromarin-knowledge/reference/odoo/odoo-19-development-context.md`` — Odoo 17→19 API changes
+* ``knowledge/agromarin-knowledge/reference/dev/error-catalog.md`` — Known PATH / CONFIG / SERVICE / POSTGRES errors and fixes
+* ``knowledge/agromarin-knowledge/reference/owl/`` — Full OWL framework reference (hooks, stores, lifecycle)
+* ``knowledge/agromarin-knowledge/reference/python-pg/`` — Python 3.14 and PostgreSQL 18 / psycopg 3 patterns
 * ``core/ruff.toml`` — Authoritative linter configuration (\ ``ruff check`` + ``ruff format``\ )
 * `Odoo 19 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
 * `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -2642,8 +3032,8 @@ C.4 Python — method ordering by Spanish category
 Validations → Actions → Business logic → Integrations".
 
 **Replaced by**\ : §2.2 — 16 UPPERCASE section headers (\ ``# FIELDS``\ , ``# CRUD METHODS``\ ,
-``# COMPUTE METHODS``\ , ``# ONCHANGE METHODS``\ , ...) with the method-ordering rules
-inside each section (dependency count, context relevance, semantic chain).
+``# COMPUTE METHODS``\ , ``# ONCHANGE METHODS``\ , ...). Within a section, group
+related methods and define a method before the ones that consume its output.
 
 **Why**\ : the old ordering was a flat 7-bucket list that did not scale — there
 was no home for ``# SEARCH METHODS``\ , ``# INVERSE METHODS``\ , or ``# MAIL METHODS``\ ,
@@ -2660,3 +3050,67 @@ C.5 Docstrings — Google style
 **Why**\ : Sphinx format matches what the Odoo codebase and upstream coding
 guidelines use. Mixing styles inside the same repo defeats tooling that parses
 docstrings (IDE tooltips, generated API docs).
+
+C.6 XML — ``<tree>`` element
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Retired**\ : ``<tree>`` views and ``view_mode`` value ``tree``.
+
+**Replaced by**\ : ``<list>`` and ``view_mode`` ``list`` (§3.3). Flag any ``<tree>``
+on sight — Odoo 19 core is fully migrated.
+
+C.7 XML — ``attrs=`` / ``states=``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Retired**\ : ``attrs="{...}"`` and ``states="..."`` on view nodes.
+
+**Replaced by**\ : direct Python expressions ``invisible=``\ , ``readonly=``\ ,
+``required=`` (§3.3). Removed in 17.0; invisible fields needed by expressions are
+auto-injected.
+
+C.8 Python — method renames that break inheritance
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Retired**\ : renaming inherited core methods to fit naming rules — e.g.
+``button_confirm`` → ``action_confirm``\ , or treating ``action_open_*`` as forbidden.
+
+**Replaced by**\ : §2.4 — apply naming rules to **new** methods only; override core
+methods under their original name. ``action_open_*`` is a valid core convention.
+
+C.9 Deprecated APIs flagged on sight
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* ``split_every`` → ``itertools.batched`` (deprecated 19.0; §11.10).
+* ``with_context(force_company=...)`` → ``with_company()`` (removed 19.0; §2.6).
+* ``_sql_constraints = [...]`` → ``models.Constraint`` (§2.9.11).
+* ``def create(self, vals)`` → ``@api.model_create_multi def create(self, vals_list)`` (§2.6).
+* Magic x2many tuples ``(0, 0, {})`` → ``Command.*`` (§2.9.10).
+
+----
+
+Appendix D — Document History
+-----------------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Version
+     - Date
+     - Summary
+   * - 4.0
+     - 2026-06-22
+     - Reconciled every "linter-enforced" claim with ``ruff.toml`` (B904, ERA001,
+       BLE001, B006, S101/S608 manual gates); fixed broken examples
+       (``force_company``\ , ``_commit_progress``\ , ``_read_group`` unpack, ``Form``
+       import, ``heavy`` tag); added enforcement markers (🔧/👁), a Golden-Rules
+       TL;DR and a glossary; added rules for ``Command``\ , ``models.Constraint``\ ,
+       ``@api.model_create_multi``\ , multi-company, float comparison, modern typing;
+       expanded §5 (asset bundles / theming) and added §4.4 JS testing, §6.12
+       running tests, §10.11 access control; corrected §3.2 XML-ID rationale, §3.6
+       reports, §4 ``@odoo-module`` semantics; fixed Appendix A
+       (``personal_triage_id``\ ) and B (reference paths); removed the ``[AM]``
+       marker system (the whole doc is the AgroMarin standard).
+   * - 3.0
+     - 2026-04-20
+     - Prior canonical revision (suffix XML IDs, 16-section model layout, Sphinx
+       docstrings, unified 13-tag commit catalog).
