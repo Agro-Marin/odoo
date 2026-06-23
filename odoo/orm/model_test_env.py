@@ -6,7 +6,7 @@ real :class:`Environment` to exercise compute methods, field logic, or business
 rules without issuing SQL. :func:`model_test_env` builds a lightweight
 :class:`ModelRegistry` from class definitions for fully DB-free testing.
 
-See :class:`~odoo.orm.components.testing.InMemoryEnvironment` for the
+See :class:`~odoo.orm.components.in_memory.InMemoryEnvironment` for the
 lighter-weight alternative using plain Python callables instead of
 ``@api.depends`` compute methods.
 """
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from .runtime.environment import Environment
     from .runtime.registry import Registry
 
-_logger = logging.getLogger("odoo.orm.testing")
+_logger = logging.getLogger("odoo.orm.model_test_env")
 
 
 # Minimal 'base' model for testing

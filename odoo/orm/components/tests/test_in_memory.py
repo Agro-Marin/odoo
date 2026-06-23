@@ -6,7 +6,7 @@ dirty tracking, flush to DictBackend, and convergence.
 
 import unittest
 
-from odoo.orm.components.testing import FieldDef, InMemoryEnvironment, ModelDef
+from odoo.orm.components.in_memory import FieldDef, InMemoryEnvironment, ModelDef
 
 
 class TestCreateAndRead(unittest.TestCase):

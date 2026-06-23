@@ -276,8 +276,10 @@ ignore = [
 
 # Tests inside D/ANN-enforced packages (libs/, orm/components/) — suppress D/ANN
 # to match the project-wide convention that tests are exempt from docstring/annotation rules.
-"odoo/libs/tests/**" = ["D", "ANN"]
-"odoo/orm/components/tests/**" = ["D", "ANN"]
+# Structural globs (not hand-listed dirs) so EVERY tests/ dir nested under these two
+# packages inherits the exemption — e.g. libs/_field_access/tests — with no drift.
+"odoo/libs/**/tests/**" = ["D", "ANN"]
+"odoo/orm/components/**/tests/**" = ["D", "ANN"]
 
 # __manifest__.py: Standalone dict expression is the whole file
 "**/__manifest__.py" = ["B018"]
@@ -346,7 +348,7 @@ ignore = [
 "odoo/orm/primitives.py" = ["D", "ANN"]
 "odoo/orm/protocols.py" = ["D", "ANN"]
 "odoo/orm/registration.py" = ["D", "ANN"]
-"odoo/orm/testing.py" = ["D", "ANN"]
+"odoo/orm/model_test_env.py" = ["D", "ANN"]
 "odoo/orm/_typing.py" = ["D", "ANN"]
 "odoo/orm/validation.py" = ["D", "ANN"]
 # odoo/orm/ subdirectories (everything except components/)

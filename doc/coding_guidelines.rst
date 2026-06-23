@@ -1873,6 +1873,58 @@ CSS either does nothing or bloats every page:
 
 Base: `Odoo Testing Reference <https://www.odoo.com/documentation/19.0/developer/reference/backend/testing.html>`_ | `OCA Guidelines -- Tests <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
+6.0 Test infrastructure tiers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The framework ships **three tiers** of test infrastructure. Pick the lightest
+tier that can express the test. §6.1–§6.12 below concern Tier 3 (the integration
+framework), which is what most addon tests use.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 38 46
+
+   * - Tier
+     - Entry point
+     - Use when
+   * - **1 — Component**
+     - ``InMemoryEnvironment`` (``odoo/orm/components/in_memory.py``)
+     - Exercising ORM *algorithms* in isolation — cache, compute scheduling,
+       flush convergence, trigger graph — with plain-Python ``FieldDef`` /
+       ``ModelDef`` callables. No real fields, no ``@api.depends``, zero ``odoo``
+       imports. ~3 ms.
+   * - **2 — ORM, DB-free**
+     - ``model_test_env`` / ``ModelRegistry`` (``odoo/orm/model_test_env.py``)
+     - Testing real model methods, real ``@api.depends`` computes and real
+       ``Field`` descriptors against an in-memory ``DictBackend`` — no PostgreSQL.
+   * - **3 — Integration**
+     - ``TransactionCase`` / ``HttpCase`` (``odoo/tests/``)
+     - Anything needing SQL, ACL, multi-module, or web/tours. Seconds. Run via
+       ``odoo-bin --test-enable`` (see §6.12).
+
+Tiers 1 and 2 are plain ``pytest`` suites with **no database**. Tier 1's
+hand-rolled dependency graph is the *subject under test* — it deliberately does
+**not** reuse Tier 2's real ORM, so the component layer can be validated
+standalone (this is intentional, not duplication to be "fixed").
+
+Running the standalone (Tier 1 / Tier 2) suites takes **two** invocations:
+
+.. code-block:: bash
+
+   cd addons/core
+
+   # Tier 1 component suite + standalone unit suites (config: addons/core/pytest.ini)
+   pytest
+
+   # Tier 2 real-ORM model suites + service tests — SEPARATE invocation.
+   # The Tier 1 suites register process-global sys.modules stubs for odoo.*,
+   # which would shadow these suites' real ``import odoo.*`` if run together.
+   pytest tests/models tests/service
+
+The ``sys.modules`` stub bootstrap shared by the standalone suites lives in
+``odoo/_testing_bootstrap.py``; each suite's ``conftest.py`` is a thin wrapper
+around it.
+
 6.1 Test Classes
 ^^^^^^^^^^^^^^^^
 

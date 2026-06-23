@@ -46,7 +46,7 @@ from odoo.modules.registry import Registry
 from odoo.service.db import exp_drop
 from odoo.tests import common
 from odoo.tests.common import BaseCase, HttpCase
-from odoo.tests.test_cursor import TestCursor
+from odoo.tests.cursor import TestCursor
 from odoo.tools import SQL
 
 ADMIN_USER_ID = common.ADMIN_USER_ID
