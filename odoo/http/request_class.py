@@ -17,6 +17,7 @@ from ._csrf import _RequestCsrfMixin
 from ._response import _RequestResponseMixin
 from ._serve import _RequestServeMixin
 from .constants import (
+    DB_MONODB_CACHE_TTL,
     DEFAULT_LANG,
     SESSION_LIFETIME,
     SESSION_ROTATION_EXCLUDED_PATHS,
@@ -35,6 +36,40 @@ from .wrappers import FutureResponse, HTTPRequest, Response
 _logger = logging.getLogger(__name__)
 
 
+@functools.lru_cache(maxsize=1024)
+def _monodb_dblist_cached(host: str, _ttl_bucket: int) -> tuple[str, ...]:
+    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) is part of the cache
+    # key solely so the entry expires every TTL seconds; its value is otherwise
+    # unused. ``maxsize`` bounds memory across many — possibly attacker-supplied
+    # — Host header values (LRU eviction, never unbounded). A tuple is cached
+    # (immutable) so the shared entry cannot be mutated by a caller. ``db_list``
+    # is resolved from this module's namespace, which keeps the existing test
+    # monkeypatch of ``odoo.http.request_class.db_list`` effective.
+    return tuple(db_list(force=True, host=host))
+
+
+def _monodb_dblist(host: str) -> list[str]:
+    """``db_list(force=True, host)`` for monodb detection, memoised per host.
+
+    See :data:`~odoo.http.constants.DB_MONODB_CACHE_TTL` for the rationale and
+    the (benign, self-healing) staleness contract. Only this database-less
+    detection path is cached; the shared :func:`db_list` — and the DB-manager /
+    cron existence checks that depend on its freshness — is left uncached.
+    Returns a fresh, caller-owned list.
+    """
+    return list(_monodb_dblist_cached(host, int(time.time() // DB_MONODB_CACHE_TTL)))
+
+
+def clear_monodb_cache() -> None:
+    """Drop the memoised monodb database list.
+
+    Production relies on :data:`DB_MONODB_CACHE_TTL` expiry; this exists for
+    tests, which monkeypatch ``db_list`` per request and must not observe a
+    value cached under a previous patch within the same TTL bucket.
+    """
+    _monodb_dblist_cached.cache_clear()
+
+
 class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     """
     Wrapper around the incoming HTTP request with deserialized request
@@ -49,13 +84,28 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     * :class:`_RequestCsrfMixin` — CSRF token issuance and validation.
     """
 
-    def __init__(self, httprequest: HTTPRequest) -> None:
+    def __init__(self, httprequest: HTTPRequest, app: Any = None) -> None:
+        # ``app`` is the :class:`Application` serving this request. In
+        # production only ``Application.__call__`` builds requests and it
+        # injects ``app=self``, making the dependency explicit on the hot
+        # path instead of reaching for the ``root`` module singleton from a
+        # dozen scattered lazy imports. The fallback keeps the singleton
+        # available for the few standalone constructors (tests, tooling) and
+        # is what lets a test inject a fake app without monkeypatching the
+        # global. ``Any`` (not ``Application``) avoids a request_class<->
+        # application import cycle while staying ``test_pep649``-clean.
+        if app is None:
+            from .application import root
+
+            app = root
+        self.app = app
+
         self.httprequest: HTTPRequest = httprequest
         self.future_response: FutureResponse = FutureResponse()
         self.dispatcher = _dispatchers["http"](self)  # until we match
         self.params: dict[str, Any] = {}
 
-        self.geoip: GeoIP = GeoIP(httprequest.remote_addr)
+        self.geoip: GeoIP = GeoIP(httprequest.remote_addr, app=app)
         self.registry: Registry | None = None
         self.env: odoo.api.Environment | None = None
         self._post_init_done: bool = False
@@ -67,9 +117,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self._post_init_done = True
 
     def _get_session_and_dbname(self) -> tuple[Session, str | None]:
-        from .application import (
-            root,
-        )
+        root = self.app
 
         sid = self.httprequest.session_id
         if not sid or not root.session_store.is_valid_key(sid):
@@ -86,11 +134,25 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         for key, val in get_default_session().items():
             session.setdefault(key, val)
+        # A hand-edited or cross-version session file can carry
+        # ``"context": null``; ``setdefault`` will not overwrite that ``None``,
+        # and the ``.get("lang")`` below — plus every later in-place
+        # ``session.context[...] = ...`` — would raise AttributeError, i.e. a 500
+        # on EVERY request bearing that cookie (the main path, not just static).
+        # Normalise a non-dict context to a fresh dict once, here, so the value
+        # callers mutate in place is real. (Unlike ``Session.debug``, the getter
+        # cannot coerce on read: callers rely on it returning the same stored
+        # mapping so their in-place writes persist.)
+        if not isinstance(session.context, dict):
+            session.context = {}
         if not session.context.get("lang"):
             session.context["lang"] = self.default_lang()
 
         dbname = None
-        host = self.httprequest.environ["HTTP_HOST"]
+        # HTTP/1.1 mandates Host, but HTTP/1.0 or malformed clients may omit it.
+        # Fall back to "" (the same default db_filter uses) rather than letting
+        # a missing key KeyError the whole request into a 500.
+        host = self.httprequest.environ.get("HTTP_HOST", "")
         header_dbname = self.httprequest.headers.get("X-Odoo-Database")
         if session.db and db_filter([session.db], host=host):
             dbname = session.db
@@ -98,11 +160,22 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 e = "Cannot use both the session_id cookie and the x-odoo-database header."
                 raise werkzeug.exceptions.Forbidden(e)
         elif header_dbname:
+            # Presence of the X-Odoo-Database header marks the request as a
+            # stateless API call, so the session is never persisted — even when
+            # the named database is rejected by ``db_filter`` below and the
+            # request ends up served db-less. This is deliberate: an API client
+            # opted out of cookie/session management by sending the header, and
+            # only such clients send it (browsers never do), so the rejected-db
+            # case degrading to "no session save" is harmless rather than a
+            # silent footgun for interactive users.
             session.can_save = False  # stateless
             if db_filter([header_dbname], host=host):
                 dbname = header_dbname
         else:
-            all_dbs = db_list(force=True, host=host)
+            # Memoised per host for a short TTL: this ``pg_database`` query
+            # otherwise ran on every database-less request. See ``_monodb_dblist``
+            # / ``DB_MONODB_CACHE_TTL``.
+            all_dbs = _monodb_dblist(host)
             if len(all_dbs) == 1:
                 dbname = all_dbs[0]  # monodb
 
@@ -156,13 +229,18 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             return None
 
         try:
-            code, territory, _, _ = babel.core.parse_locale(lang, sep="-")
+            # ``parse_locale`` returns a 4- or 5-tuple (the 5th element is a
+            # modifier, e.g. ``it-IT@euro`` — which a client *can* send in
+            # Accept-Language and werkzeug surfaces verbatim via ``.best``).
+            # Slice to the first two so a modifier resolves the locale instead
+            # of raising ``ValueError`` and silently degrading to en_US.
+            code, territory = babel.core.parse_locale(lang, sep="-")[:2]
             if territory:
                 lang = f"{code}_{territory}"
             else:
                 lang = babel.core.LOCALE_ALIASES[code]
             return lang
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             return None
 
     @functools.cached_property
@@ -209,7 +287,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         }
 
     def get_json_data(self) -> Any:
-        return _fast_loads(self.httprequest.get_data(as_text=True))
+        # orjson parses UTF-8 bytes directly (RFC 8259 mandates UTF-8 for JSON),
+        # so feed it the raw body and skip werkzeug's decode-to-str on every
+        # JSON request. Invalid UTF-8 — already a malformed JSON body — raises
+        # the same ValueError the callers already handle.
+        return _fast_loads(self.httprequest.get_data())
 
     def _get_profiler_context_manager(self) -> contextlib.AbstractContextManager:
         """
@@ -269,11 +351,16 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         produced HTTP responses with two ``Content-Type`` headers when
         controllers built responses by hand.
         """
+        # ``response.headers`` (a ProxyAttr getter) builds a fresh ``Headers``
+        # facade on every access; hoist it once instead of per header. The
+        # facade wraps the live werkzeug ``Headers``, so mutations still land on
+        # the real response (same pattern as ``Application.set_csp``).
+        headers = response.headers
         for key, value in self.future_response.headers.items():
             if key.lower() == "set-cookie":
-                response.headers.add(key, value)
+                headers.add(key, value)
             else:
-                response.headers.set(key, value)
+                headers.set(key, value)
         return response
 
     # Response builders (``make_response``/``make_json_response``/``redirect``/
@@ -288,9 +375,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             MUST be left ``None`` (in which case it uses the request's
             env) UNLESS the database changed.
         """
-        from .application import (
-            root,
-        )
+        root = self.app
 
         sess = self.session
         if env is None:
@@ -310,7 +395,13 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         elif sess.is_dirty:
             root.session_store.save(sess)
 
-        cookie_sid = self.cookies.get("session_id")
+        # Compare against the RAW client cookie (what the browser will send
+        # back), not the sanitized ``self.cookies`` facade: ``_sanitize_cookies``
+        # never touches ``session_id``, so the values are identical, but reading
+        # it here would force the whole sanitized-cookie build (an ``ir.http``
+        # registry call) on the session-save path of requests that never
+        # otherwise access ``request.cookies``.
+        cookie_sid = self.httprequest.session_id
         if sess.is_dirty or cookie_sid != sess.sid:
             # For logged-out sessions (e.g. after DB drop or explicit
             # logout), skip the DB query — the custom inactivity timeout

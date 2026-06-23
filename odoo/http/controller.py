@@ -1,6 +1,8 @@
 import collections
 from typing import TYPE_CHECKING, Any
 
+from .core import request
+
 if TYPE_CHECKING:
     import odoo.api
 
@@ -64,6 +66,4 @@ class Controller:
 
     @property
     def env(self) -> odoo.api.Environment | None:
-        from . import request  # lazy import
-
         return request.env if request else None

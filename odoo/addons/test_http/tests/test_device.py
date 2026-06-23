@@ -510,12 +510,17 @@ class TestDevice(TestHttpBase):
         internal_device = self.user_internal.device_ids
         self.assertEqual(len(internal_device), 1)
         self.assertFalse(internal_device.revoked)
+        # Capture the identifier BEFORE revoking: the res.device view excludes
+        # revoked logs (``WHERE revoked IS NOT TRUE``), so once ``_revoke`` flags
+        # the log the device row leaves the view and reading any field on
+        # ``internal_device`` raises MissingError.
+        session_identifier = internal_device.session_identifier
 
         internal_device.with_user(self.user_admin)._revoke()
         self.DeviceLog.flush_model()
         self.Device.invalidate_model()
         revoked_log = self.DeviceLog.search(
-            [("session_identifier", "=", internal_device.session_identifier)]
+            [("session_identifier", "=", session_identifier)]
         )
         self.assertTrue(revoked_log.revoked)
 

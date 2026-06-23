@@ -4,8 +4,9 @@ Mixed into Request via :class:`_RequestCsrfMixin`. Tokens are HMAC-SHA256
 of ``f"{sid_static_prefix}{max_ts}"``, formatted as ``{hexdigest}o{max_ts}``.
 The static prefix (first :data:`STORED_SESSION_BYTES` chars of the sid)
 survives soft-rotation, so a token issued before rotation remains valid
-afterwards. ``max_ts`` rolls daily under the default 1-year time-limit,
-giving each user a per-day salt that defeats BREACH-style attacks.
+afterwards. ``max_ts`` is ``int(now + time_limit)``, so it changes on every
+issuance (per-second granularity under the default 1-year time-limit),
+giving each rendered token a fresh salt that defeats BREACH-style attacks.
 """
 
 from __future__ import annotations
@@ -34,8 +35,8 @@ class _RequestCsrfMixin:
 
         :param int | None time_limit: validity duration in seconds. When
             ``None`` (the default), :data:`~odoo.http.CSRF_TOKEN_MAX_AGE`
-            (one year) is used; the embedded ``max_ts`` rolls daily
-            under that distant expiry and effectively acts as a per-user
+            (one year) is used; the embedded ``max_ts`` changes on every
+            issuance (per-second) and effectively acts as a per-token
             salt against BREACH-style attacks. In practice the token
             outlives the session, so session expiry — not the CSRF
             ``max_ts`` — is what limits the token's useful life. Pass

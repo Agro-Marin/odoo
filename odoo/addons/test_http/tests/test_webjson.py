@@ -22,14 +22,26 @@ CSRF_USER_HEADERS = {
 
 def read_group_list(model, domain=None, groupby=(), aggregates=("__count",)):
     result = model.web_read_group(domain or [], groupby=groupby, aggregates=aggregates)
-    # transform result:
+    # Mirror the /json controller's cleanup of internal keys not exposed to API
+    # consumers:
+    # - pop the ``@versioned`` ``__version`` cache stamp
+    # - pop each group's '__extra_domain'
     # - tuple into list
-    # - pop '__extra_domain'
+    result.pop("__version", None)
     for group in result["groups"]:
         del group["__extra_domain"]
         for k, v in group.items():
             if isinstance(v, tuple):
                 group[k] = list(v)
+    return result
+
+
+def search_read_clean(model, domain, spec):
+    """``web_search_read`` result as the /json API exposes it — without the
+    internal ``@versioned`` ``__version`` cache stamp (mirrors the controller's
+    cleanup of internal keys, like ``read_group_list`` does for groups)."""
+    result = model.web_search_read(domain, spec)
+    result.pop("__version", None)
     return result
 
 
@@ -190,8 +202,8 @@ class TestHttpWebJson_1(TestHttpBase):
         res = self.url_open_json("/test_http.stargate")
         self.assertEqual(
             res.json(),
-            env["test_http.stargate"].web_search_read(
-                [], {"name": {}, "sgc_designation": {}}
+            search_read_clean(
+                env["test_http.stargate"], [], {"name": {}, "sgc_designation": {}}
             ),
         )
 
@@ -228,8 +240,8 @@ class TestHttpWebJson_1(TestHttpBase):
         res = self.url_open_json(f"/test_http.stargate?domain={domain!r}")
         self.assertEqual(
             res.json(),
-            env["test_http.stargate"].web_search_read(
-                domain, {"name": {}, "sgc_designation": {}}
+            search_read_clean(
+                env["test_http.stargate"], domain, {"name": {}, "sgc_designation": {}}
             ),
         )
 
@@ -280,8 +292,8 @@ class TestHttpWebJson_1(TestHttpBase):
         res = self.url_open_json("/test_http.stargate")
         self.assertEqual(
             res.json(),
-            env["test_http.stargate"].web_search_read(
-                domain, {"name": {}, "sgc_designation": {}}
+            search_read_clean(
+                env["test_http.stargate"], domain, {"name": {}, "sgc_designation": {}}
             ),
         )
         self.assertEqual(len(res.history), 1, "should had been redirected")
