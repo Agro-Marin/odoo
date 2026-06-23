@@ -20,11 +20,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from odoo import SUPERUSER_ID, api
+from odoo.db import db_connect
 from odoo.libs.esbuild import _find_esbuild
 from odoo.libs.esm_bridges import BridgeShimManager
 from odoo.libs.esm_graph import _MODULE_SYNTAX_RE
 from odoo.libs.esm_registry import esm_registry, validate_esm_config
-from odoo.tests.common import BaseCase, TransactionCase
+from odoo.modules.registry import Registry
+from odoo.tests.common import BaseCase, TransactionCase, get_db_name
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
@@ -44,6 +47,7 @@ from odoo.addons.base.models.assetsbundle import (
     XMLAsset,
     XMLAssetError,
     _cached_module_classification,
+    _check_rtlcss,
     is_odoo_module,
 )
 from odoo.addons.base.models.ir_attachment import IrAttachment
@@ -143,6 +147,32 @@ class TestAssetAttachmentStoreUnit(BaseCase):
         self.assertEqual(calls[-1][0], "web.assets_web.rtl.autoprefixed.min.css")
         store.get_asset_url("v", "min.js")
         self.assertEqual(calls[-1][0], "web.assets_web.min.js")
+
+    def test_attachment_values_pins_the_write_side_identity(self):
+        """``_attachment_values`` is the single create payload for both
+        ``save_attachment`` and the cross-params fallback copy. Its identity
+        columns must match what ``get_attachments`` / ``_clean_attachments``
+        filter on (``res_model='ir.ui.view'``, ``res_id`` -> 0, ``public``),
+        so the read and write halves cannot drift."""
+        values = self._store([])._attachment_values(
+            name="web.assets_web.min.css",
+            mimetype="text/css",
+            raw=b"x{}",
+            url="/web/assets/abc1234/web.assets_web.min.css",
+        )
+        self.assertEqual(
+            values,
+            {
+                "name": "web.assets_web.min.css",
+                "mimetype": "text/css",
+                "res_model": "ir.ui.view",
+                "res_id": False,
+                "type": "binary",
+                "public": True,
+                "raw": b"x{}",
+                "url": "/web/assets/abc1234/web.assets_web.min.css",
+            },
+        )
 
 
 class TestModuleSyntaxGuard(TransactionCase):
@@ -383,6 +413,39 @@ class TestUnlinkAttachmentsReturning(TransactionCase):
         )
 
 
+class TestCleanAttachmentsIdentityFilter(TransactionCase):
+    """``_clean_attachments`` GCs only rows the serving read would surface.
+
+    Regression (2026-06-18): the delete filtered on ``url`` + ``public`` only,
+    while ``get_attachments`` also filters ``res_model`` / ``res_id`` /
+    ``create_uid``. So a public row that merely shares the bundle's URL pattern
+    but is not a served bundle artifact (different ``res_model``) could be
+    deleted despite being invisible to the serving path. The two halves now
+    cover the same set.
+    """
+
+    def test_rogue_same_url_row_survives_clean(self):
+        bundle = AssetsBundle("test_assetsbundle.c2filter", [], env=self.env)
+        store = bundle._store
+        real = store.save_attachment("min.css", "body{color:red}")
+        rogue = self.env["ir.attachment"].create(
+            {
+                "name": "rogue",
+                "type": "binary",
+                "raw": b"x",
+                "res_model": "ir.attachment",  # NOT ir.ui.view
+                "res_id": 0,
+                "public": True,
+                "url": real.url,  # same URL the bundle artifact uses
+            }
+        )
+        # Clean with a keep_url that excludes neither row by the ``!=`` clause,
+        # so only the identity columns decide what is deleted.
+        store._clean_attachments("min.css", keep_url="/web/assets/nomatch/x.min.css")
+        self.assertFalse(real.exists(), "the real outdated artifact is GC'd")
+        self.assertTrue(rogue.exists(), "the rogue non-ir.ui.view row is left alone")
+
+
 @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
 class TestBacktickMinification(TransactionCase):
     """Backtick files are minified through esbuild; templates survive intact."""
@@ -526,9 +589,14 @@ class TestXmlInlineErrorPath(TransactionCase):
 
 
 class TestCssVersionStability(TransactionCase):
-    """The advertised css version survives preprocess_css's at-rules mutation."""
+    """The advertised css version is independent of preprocess_css.
 
-    def test_version_pinned_before_preprocess(self):
+    preprocess_css no longer mutates ``stylesheets`` (the Sass-hoisted @at-rules
+    go to the pipeline's ``_rendered_assets``), so the version is trivially
+    stable across it — and the source list it reads is left pristine.
+    """
+
+    def test_source_list_untouched_by_preprocess(self):
         files = [_file("/test_assetsbundle/static/src/x.scss", "h1 { color: red; }")]
         with patch.object(
             ScssStylesheetAsset,
@@ -540,15 +608,17 @@ class TestCssVersionStability(TransactionCase):
             )
             version_before = bundle.get_version("css")
             bundle.preprocess_css()
-            # The at-rules fragment was inserted (the mutation is real)...
-            self.assertEqual(len(bundle.stylesheets), 2)
-            # ...but the cached checksum keeps the advertised URL stable.
+            # The source list is NOT mutated (was grown to 2 by the old insert)...
+            self.assertEqual(len(bundle.stylesheets), 1)
+            # ...the hoisted @at-rules fragment lives in the render list instead.
+            self.assertEqual(len(bundle._css._rendered_assets), 2)
+            # ...and the advertised URL stays stable.
             self.assertEqual(bundle.get_version("css"), version_before)
 
     def test_version_independent_of_call_order(self):
-        """The version no longer depends on whether get_version runs before
-        or after preprocess_css — it reads the __init__ snapshot, not the
-        live list the at-rules fragment is inserted into.
+        """The version does not depend on whether get_version runs before or
+        after preprocess_css — it reads the __init__ snapshot, and preprocess
+        does not touch the live ``stylesheets`` list at all.
         """
         files = [_file("/test_assetsbundle/static/src/x.scss", "h1 { color: red; }")]
         with patch.object(
@@ -562,13 +632,16 @@ class TestCssVersionStability(TransactionCase):
             )
             version_first = bundle_a.get_version("css")
 
-            # Bundle B (identical): preprocess FIRST, mutating the live list,
-            # THEN read the version. Pre-fix this returned a different hash.
+            # Bundle B (identical): preprocess FIRST, THEN read the version.
+            # Pre-fix this returned a different hash (the at-rules insert moved
+            # the live list); now the list is untouched.
             bundle_b = AssetsBundle(
                 "test_assetsbundle.cssorder", files, env=self.env, js=False
             )
             bundle_b.preprocess_css()
-            self.assertEqual(len(bundle_b.stylesheets), 2, "at-rules fragment inserted")
+            self.assertEqual(
+                len(bundle_b.stylesheets), 1, "source list not mutated"
+            )
             self.assertEqual(
                 bundle_b.get_version("css"),
                 version_first,
@@ -651,6 +724,34 @@ class TestScssMinifySkipsRegex(TransactionCase):
         )
         asset = ScssStylesheetAsset(bundle, inline='x { content: "a  b"; }')
         self.assertIn('"a  b"', asset.minify())
+
+
+class TestDebugCssMinifySkipsRegex(BaseCase):
+    """Plain-CSS ``minify`` skips the regex passes in debug mode.
+
+    In debug, ``css_with_sourcemap`` rebuilds the served bundle from each
+    asset's ``content`` and the minified join ``preprocess`` produces is
+    consumed only for @import extraction — so running ``_minify_css_body`` per
+    render is wasted work. The guard mirrors ``ScssStylesheetAsset.minify``;
+    the served debug CSS is unminified either way, so output stays
+    byte-identical. Production must still minify (there the join IS the
+    ``.min.css`` body). The minify reads only ``bundle.is_debug_assets`` and
+    ``content``, so a fake bundle exercises the guard without a DB.
+    """
+
+    def _minify(self, *, debug):
+        bundle = SimpleNamespace(is_debug_assets=debug)
+        return StylesheetAsset(bundle, inline="body {  color:   red ; }").minify()
+
+    def test_debug_leaves_content_unminified(self):
+        # The collapsed whitespace surviving proves _minify_css_body was skipped:
+        # had it run, the double space would be gone.
+        self.assertIn("  color", self._minify(debug=True))
+
+    def test_production_minifies(self):
+        out = self._minify(debug=False)
+        self.assertNotIn("  color", out)
+        self.assertIn("body{", out)
 
 
 class TestBridgePersistenceDecoupled(TransactionCase):
@@ -858,6 +959,98 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         self.assertEqual(out, "")
         self.assertTrue(errs)
 
+    def test_repeated_forbidden_import_reported_once(self):
+        # Regression (2026-06-17): the forbidden-import check used to run BEFORE
+        # the dedup check and return without recording the statement as seen, so
+        # the same forbidden import repeated across concatenated files appended
+        # one ``css_errors`` entry (and emitted one server warning) per
+        # occurrence. ``css_errors`` is joined verbatim into the degraded-CSS
+        # banner, so N copies stacked into N identical banner lines. Deduping
+        # first collapses them to one.
+        with self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as cm:
+            out, errs = self._sanitize(
+                '@import "./a.scss";\n@import "./a.scss";\n@import "./a.scss";'
+            )
+        self.assertEqual(out, "")
+        self.assertEqual(len(errs), 1, "one forbidden statement => one error")
+        self.assertEqual(
+            sum("forbidden" in m for m in cm.output), 1, "and one server warning"
+        )
+
+    def test_distinct_forbidden_imports_each_reported(self):
+        # Dedup keys on the full statement, so two DIFFERENT forbidden imports
+        # are still each reported — the collapse is per-statement, not blanket.
+        with self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING"):
+            _out, errs = self._sanitize('@import "./a.scss";\n@import "./b.scss";')
+        self.assertEqual(len(errs), 2)
+
+    # ── comment / string awareness (regression 2026-06-18) ──
+    # The sanitizer scanned raw text, so an @import inside a comment or string
+    # was treated as a directive: it could poison the dedup set (dropping a real
+    # later import) or trip the security check (degrading the whole bundle).
+
+    @staticmethod
+    def _code_imports(out):
+        """@import statements surviving in actual code (not commented out)."""
+        return [ln for ln in out.splitlines() if ln.strip().startswith("@import")]
+
+    def test_line_commented_import_does_not_poison_dedup(self):
+        # ``// @import "mixins";`` in an earlier file must NOT suppress the real
+        # ``@import "mixins";`` later — the previously-silent data-loss bug.
+        out, errs = self._sanitize(
+            '// @import "mixins";\n.a{}\n@import "mixins";\n.b{}'
+        )
+        self.assertEqual(self._code_imports(out), ['@import "mixins";'])
+        self.assertFalse(errs)
+
+    def test_forbidden_import_in_line_comment_ignored(self):
+        # A commented-out local import must not raise the security error that
+        # would replace the whole bundle with the red error banner.
+        out, errs = self._sanitize('// @import "theme/foo.scss";\n.a{}')
+        self.assertFalse(errs)
+        self.assertIn('// @import "theme/foo.scss";', out)
+
+    def test_forbidden_import_in_block_comment_ignored(self):
+        out, errs = self._sanitize('/* @import "theme/foo.scss"; */\n.a{}')
+        self.assertFalse(errs)
+        self.assertIn('/* @import "theme/foo.scss"; */', out)
+
+    def test_import_inside_string_value_left_intact(self):
+        out, errs = self._sanitize('.c::before{content:"@import bad"}\n@import "ok";')
+        self.assertIn('content:"@import bad"', out)
+        self.assertEqual(self._code_imports(out), ['@import "ok";'])
+        self.assertFalse(errs)
+
+    def test_real_forbidden_import_still_caught(self):
+        # Comment-awareness must NOT weaken the security check for real code.
+        with self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING"):
+            out, errs = self._sanitize('@import "./evil.scss";\n.a{}')
+        self.assertTrue(errs)
+        self.assertNotIn("evil", out)
+
+
+class TestEmbeddedSassFallbackWarning(BaseCase):
+    """The embedded-Sass → CLI fallback is surfaced once at WARNING.
+
+    Regression (2026-06-18): a broken sass-embedded install logged the
+    degrade-to-CLI only at DEBUG, so every bundle silently paid the slower
+    per-compile subprocess with no operator-visible signal.
+    """
+
+    def test_warns_once_then_debug(self):
+        with patch.object(ScssStylesheetAsset, "_embedded_fallback_warned", False):
+            with self.assertLogs(
+                "odoo.addons.base.models.assetsbundle", "WARNING"
+            ) as cm:
+                ScssStylesheetAsset._warn_embedded_fallback(RuntimeError("boom"))
+            self.assertEqual(sum("markedly slower" in m for m in cm.output), 1)
+            # A second fallback must NOT emit another WARNING (only DEBUG).
+            with self.assertLogs(
+                "odoo.addons.base.models.assetsbundle", "DEBUG"
+            ) as cm2:
+                ScssStylesheetAsset._warn_embedded_fallback(RuntimeError("boom"))
+            self.assertEqual(sum("markedly slower" in m for m in cm2.output), 0)
+
 
 class _NativeStubBundle:
     """Minimal bundle exposing only what ``get_native_module_data`` reads."""
@@ -978,9 +1171,6 @@ class TestStylesheetErrorInversion(BaseCase):
             self.css_errors = []
             self.rtl = False
             self.autoprefix = False
-            # Mirrors AssetsBundle.__init__: preprocess_css's idempotency guard
-            # reads this before recomputing.
-            self._at_rules_asset = None
 
     def test_asset_records_error_without_touching_bundle(self):
         class BareBundle:  # deliberately has no css_errors attribute
@@ -1245,3 +1435,231 @@ class TestVendoredCssMinifyCorpus(BaseCase):
             checked,
             differed,
         )
+
+
+# ── coverage-gap batch (2026-06-17 audit follow-up) ────────────────────────
+# Three behaviours that were present but only happy-path asserted: the JS
+# source-map line mapping (only the header-offset constant was pinned), the RTL
+# *transform* output (only URL naming / the flag were checked, never the flip),
+# and ``_unlink_attachments`` under a genuinely concurrent lock (only the
+# all-rows-deleted path, where ``deleted_ids`` trivially equals every id).
+
+_B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+
+def _vlq_decode_mappings(mappings):
+    """Decode a source-map v3 ``mappings`` string to ``[(gen_line, src_idx, orig_line)]``.
+
+    The inverse of ``SourceMapGenerator._serialize_mappings`` (which has only an
+    encoder), so the test reads back what the generator wrote. Generated lines
+    are 1-based (one per ``;``); ``src_idx`` / ``orig_line`` are cumulative VLQ
+    deltas, and ``orig_line`` is returned 1-based (the wire format stores it
+    0-based, matching the generator's ``original_line - 1``).
+    """
+    out = []
+    gen_line = 0
+    src_idx = 0
+    orig_line0 = 0  # 0-based cumulative original line
+    for field in mappings.split(";"):
+        gen_line += 1
+        for seg in field.split(","):
+            if not seg:
+                continue
+            vals = []
+            shift = acc = 0
+            for ch in seg:
+                d = _B64.index(ch)
+                acc += (d & 31) << shift
+                if d & 32:
+                    shift += 5
+                else:
+                    vals.append((acc >> 1) * (-1 if acc & 1 else 1))
+                    acc = shift = 0
+            if len(vals) >= 4:  # [genCol, srcIdxΔ, srcLineΔ, srcColΔ]
+                src_idx += vals[1]
+                orig_line0 += vals[2]
+                out.append((gen_line, src_idx, orig_line0 + 1))
+    return out
+
+
+class TestJsSourceMapAccuracy(TransactionCase):
+    """The debug JS source map maps bundle lines back to the right source line.
+
+    Gap: ``test_js_header_line_count`` pins only the header-offset constant; the
+    emitted ``mappings`` (the actual line correspondence ``JsPipeline.sourcemap_bundle``
+    feeds the generator) were never decoded and checked. This builds a real debug
+    bundle, reads the ``js.map`` attachment, decodes its VLQ mappings, and asserts
+    the round trip: for every content-line mapping, the text at the mapped bundle
+    line equals the text at the source line it claims to come from.
+    """
+
+    def test_map_round_trips_to_source_lines(self):
+        a = "const a1 = 1;\nconst a2 = 2;\nconst a3 = 3;\n"
+        b = "const b1 = 10;\nconst b2 = 20;\n"
+        files = [
+            {"url": "/test/a.js", "filename": None, "content": a, "last_modified": 1.0},
+            {"url": "/test/b.js", "filename": None, "content": b, "last_modified": 1.0},
+        ]
+        bundle = AssetsBundle(
+            "test_assetsbundle.srcmap",
+            files,
+            env=self.env,
+            css=False,
+            js=True,
+            debug_assets=True,
+        )
+        js_attachment = bundle.js()
+        body_lines = js_attachment.raw.decode().split("\n")
+
+        smap = bundle.get_attachments("js.map")
+        self.assertTrue(smap, "a js.map sibling must be produced in debug mode")
+        raw = smap.raw.decode()
+        # get_content() prefixes the XSSI guard ")]}'\n" before the JSON.
+        data = json.loads(raw.split("\n", 1)[1] if raw.startswith(")]}'") else raw)
+
+        self.assertEqual(data["sources"], ["/test/a.js", "/test/b.js"])
+        self.assertTrue(data["mappings"], "mappings must not be empty")
+
+        src_lines = {0: a.split("\n"), 1: b.split("\n")}
+        checked = 0
+        for gen_line, src_idx, orig_line in _vlq_decode_mappings(data["mappings"]):
+            # Skip line 1 of each source: the verbose header region is also
+            # mapped to original line 1, so line 1 is ambiguous by design.
+            lines = src_lines[src_idx]
+            if orig_line < 2 or orig_line > len(lines):
+                continue
+            expected = lines[orig_line - 1]
+            if not expected.strip():
+                continue
+            self.assertEqual(
+                body_lines[gen_line - 1],
+                expected,
+                f"map claims bundle line {gen_line} == "
+                f"{data['sources'][src_idx]}:{orig_line}",
+            )
+            checked += 1
+        self.assertGreaterEqual(checked, 3, "expected several content-line mappings")
+
+
+@unittest.skipUnless(_check_rtlcss(), "rtlcss binary not available")
+class TestRtlTransformOutput(TransactionCase):
+    """RTL bundles actually flip directional properties (not just the URL).
+
+    Gap: the RTL suite asserted URL naming (``…rtl…min.css``) and the ``rtl``
+    flag, but never that rtlcss transformed the content. This builds an RTL CSS
+    bundle with directional declarations and asserts left/right are swapped in
+    the served ``min.css`` — the one thing rtlcss exists to do.
+    """
+
+    def test_directional_properties_are_flipped(self):
+        files = [
+            {
+                "url": "/test/dir.css",
+                "filename": None,
+                "content": ".box { padding-left: 10px; margin-right: 5px; }",
+                "last_modified": 1.0,
+            }
+        ]
+        bundle = AssetsBundle(
+            "test_assetsbundle.rtltransform",
+            files,
+            env=self.env,
+            css=True,
+            js=False,
+            rtl=True,
+        )
+        out = bundle.css().raw.decode()
+        self.assertFalse(bundle.css_errors, f"unexpected css_errors: {bundle.css_errors}")
+        self.assertIn("padding-right", out, "padding-left must flip to padding-right")
+        self.assertNotIn("padding-left", out)
+        self.assertIn("margin-left", out, "margin-right must flip to margin-left")
+        self.assertNotIn("margin-right", out)
+
+
+class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
+    """A row a concurrent txn holds locked is skipped, and NOT filestore-marked.
+
+    Gap: ``test_deleted_rows_drive_file_marks`` covers only the all-deleted path,
+    where ``deleted_ids`` (from ``RETURNING``) trivially equals every id — so the
+    very reason the SQL filters marks by ``RETURNING`` (a ``SKIP LOCKED`` row that
+    was NOT deleted) is unexercised. Real cross-transaction locking needs
+    committed rows the test transaction can't provide, so this BaseCase manages
+    its own real cursors: a committed two-row fixture, a second connection holding
+    one row locked, then the actual ``_unlink_attachments`` on a third cursor.
+    """
+
+    def test_locked_row_survives_and_is_not_marked(self):
+        db = get_db_name()
+        reg = Registry(db)
+        ids = []
+        locker = None
+        try:
+            # committed fixture: two filestore-backed attachments
+            with reg.cursor() as cr:
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                atts = env["ir.attachment"].create(
+                    [
+                        {
+                            "name": f"skiplock_{i}.js",
+                            "type": "binary",
+                            "raw": (f"// skip locked {i} " + "x" * 200).encode(),
+                            "res_model": "ir.ui.view",
+                            "res_id": 0,
+                            "public": True,
+                            "url": f"/web/assets/skiplocktest/{i}.js",
+                        }
+                        for i in range(2)
+                    ]
+                )
+                env.flush_all()
+                ids = atts.ids
+                fname_by_id = {a.id: a.store_fname for a in atts}
+                cr.commit()
+            self.assertTrue(
+                all(fname_by_id.values()), "fixture rows must use the filestore"
+            )
+            locked_id, free_id = ids[0], ids[1]
+
+            # hold a lock on the first row from an independent connection
+            locker = db_connect(db).cursor()
+            locker.execute("SET lock_timeout = '2000ms'")
+            locker.execute(
+                "SELECT id FROM ir_attachment WHERE id = %s FOR NO KEY UPDATE",
+                (locked_id,),
+            )
+
+            # run the REAL method on a third cursor; SKIP LOCKED must skip the row
+            with reg.cursor() as cr:
+                cr.execute("SET lock_timeout = '3000ms'")
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                store = AssetsBundle(
+                    "test_assetsbundle.skiplock", [], env=env
+                )._store
+                attachments = env["ir.attachment"].browse(ids)
+                with patch.object(IrAttachment, "_file_delete") as file_delete:
+                    store._unlink_attachments(attachments)
+                marked = {call.args[-1] for call in file_delete.call_args_list}
+                cr.commit()
+
+            # only the deleted (unlocked) row's fname is marked; the locked one isn't
+            self.assertEqual(
+                marked,
+                {fname_by_id[free_id]},
+                "only the row SKIP LOCKED actually deleted may be filestore-marked",
+            )
+            with reg.cursor() as cr:
+                cr.execute(
+                    "SELECT id FROM ir_attachment WHERE id = ANY(%s)", (ids,)
+                )
+                survivors = {r[0] for r in cr.fetchall()}
+            self.assertEqual(
+                survivors, {locked_id}, "the locked row must survive SKIP LOCKED"
+            )
+        finally:
+            if locker is not None:
+                locker.connection.rollback()
+                locker.close()
+            if ids:
+                with reg.cursor() as cr:
+                    cr.execute("DELETE FROM ir_attachment WHERE id = ANY(%s)", (ids,))
+                    cr.commit()
