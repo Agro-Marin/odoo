@@ -8,9 +8,14 @@ from psycopg.adapt import Loader
 
 from odoo import tools
 
-# Emit the ODOO_PGAPPNAME deprecation at most once per process.  On a
-# busy server connection_info_for() fires on every borrow, so the naive
-# warn() call produces thousands of duplicates in a single request.
+# Emit the ODOO_PGAPPNAME deprecation at most once per process.
+# connection_info_for() runs on every db_connect(), not on every borrow:
+# Registry caches its Connection (Registry._db) and reuses it for every
+# cursor(), so a request does NOT re-parse the DSN.  But db_connect() is
+# still called repeatedly across a process's life — per cron job
+# (ir_cron), per log flush when log_db is set (logutils), and from the
+# odoo.service.db admin paths — so an unguarded warn() would keep
+# re-firing.  De-duplicate to a single record per process.
 _ODOO_PGAPPNAME_WARNED = False
 
 
@@ -156,8 +161,14 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
     for p in ("host", "port", "user", "password", "sslmode"):
         cfg = tools.config["db_" + p]
-        if readonly:
-            # Use replica config only if it's set (not None/empty)
+        # A read-only replica overrides only host/port — those are the only
+        # registered ``db_replica_*`` options (``--db_replica_host`` /
+        # ``--db_replica_port``, env PGHOST_REPLICA / PGPORT_REPLICA).  A
+        # streaming replica shares the primary cluster's roles, so user /
+        # password / sslmode are intentionally inherited from the primary
+        # ``db_*`` config; there is no ``db_replica_user`` (etc.) option to
+        # override them with, so they are not consulted here.
+        if readonly and p in ("host", "port"):
             replica_cfg = tools.config.get("db_replica_" + p)
             if replica_cfg:
                 cfg = replica_cfg

@@ -1,20 +1,40 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import logging
+import os
 import threading
 from time import monotonic
 from typing import TYPE_CHECKING
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 from psycopg_pool import ConnectionPool as _PsycopgPool
 from psycopg_pool import PoolClosed, PoolTimeout
 
 from odoo.release import MIN_PG_VERSION
 
-from .utils import register_adapters
+# DSN normalization + connect-error classification live in their own module
+# (pure, security-sensitive, independently testable).  Re-imported here so the
+# pool's probe/lifecycle code and existing ``from odoo.db.pool import
+# _normalize_dsn_key`` references keep resolving unchanged.
+from .dsn import (
+    _NON_RETRYABLE_CONNECT_ERRORS,
+    _expand_conninfo,
+    _normalize_dsn_key,
+    _translate_connect_error,
+)
+
+# Per-physical-connection lifecycle callbacks (configure/reset/check) live in
+# their own module — they hold no pool state and are tested directly.  Imported
+# here because pool creation passes them to each per-DSN psycopg_pool; the
+# tuning constants they share (``_HEALTHCHECK_GRACE_PERIOD`` / ``_IDLE_SINCE_ATTR``
+# / …) stay private to that module and are imported from ``odoo.db.lifecycle``
+# by the white-box tests that need them.
+from .lifecycle import (
+    _check_connection,
+    _configure_connection,
+    _reset_connection,
+)
 
 if TYPE_CHECKING:
     from .cursor import Cursor
@@ -69,19 +89,41 @@ MAX_LIFETIME = 3600  # recycle each pooled connection hourly (stale prep caches)
 # borrow() can never silently drift apart.
 _BORROW_TIMEOUT = 30.0
 
-# Connection failures whose cause is permanent: retrying cannot help, because
-# the database, role, or password is the problem — not transient capacity.
-# psycopg_pool's background worker does not know this; left alone it retries
-# the failed connection until ``borrow``'s ~30s getconn budget expires, then
-# surfaces an opaque ``PoolTimeout``.  The pre-flight probe in
-# ``_get_or_create_pool`` raises these immediately instead, which is what makes
-# ``exp_db_exist``'s ``except InvalidCatalogName`` fast path reachable again.
-# NB: InvalidPassword (28P01) is NOT a subclass of
-# InvalidAuthorizationSpecification (28000) in psycopg 3 — list both.
-_NON_RETRYABLE_CONNECT_ERRORS: tuple[type[psycopg.Error], ...] = (
-    psycopg.errors.InvalidCatalogName,  # 3D000 — database does not exist
-    psycopg.errors.InvalidAuthorizationSpecification,  # 28000 — role / pg_hba rejection
-    psycopg.errors.InvalidPassword,  # 28P01 — wrong password
+# Idle per-DSN pool reaper.  Each database this process touches keeps its own
+# psycopg_pool alive — ~3 worker threads plus up to ``maxconn`` idle connections
+# — until ``close_database`` / ``close_all``.  A host that serves many databases
+# over time therefore accumulates pools (and threads) for ones long gone idle;
+# nothing trims the pool OBJECTS, only their connections (``max_idle``).  When a
+# NEW pool is created (the cold path, already under ``self._lock``), close any
+# sibling that has not been borrowed from in ``_REAP_IDLE_TTL`` seconds AND holds
+# no checked-out connection — so a long-lived ``LISTEN`` / cron connection is
+# never reaped.  ``_REAP_IDLE_TTL`` is set far above ``_BORROW_TIMEOUT`` so a pool
+# this idle provably has no borrow in flight; the residual microsecond race (a
+# borrower read the pool from the fast path the instant it was reaped) is
+# recovered by ``borrow``'s rebuild-on-``PoolClosed`` retry.  ``0`` disables the
+# reaper.  Read once at import — the env never changes mid-process.
+try:
+    _REAP_IDLE_TTL: float = float(
+        os.environ.get("ODOO_DB_POOL_REAP_IDLE", "300") or "300"
+    )
+except ValueError:
+    _REAP_IDLE_TTL = 300.0
+# Monotonic timestamp stamped on each per-DSN psycopg pool whenever it is handed
+# out by _get_or_create_pool; the reaper measures idleness against it.
+_LAST_BORROW_ATTR = "_odoo_last_borrow"
+
+# Throttle for the give_back-path reap sweep (see
+# ``ConnectionPool._maybe_reap_idle_pools``).  The cold-path reap in
+# ``_get_or_create_pool`` only fires when a NEW per-DSN pool is created, so a
+# process serving a FIXED set of databases never reaps idle siblings (their
+# worker threads and idle connections survive until ``close_*``).  Sweeping on
+# the common return path closes that gap, throttled so the hot give_back path is
+# a single monotonic compare almost every time.  A quarter of the TTL: prompt
+# enough that an idle pool is reaped soon after crossing the TTL, coarse enough
+# to stay off the per-return cost; floored at 1s so a tiny test TTL still yields
+# a usable cadence.  ``0`` disables it in lock-step with the reaper itself.
+_REAP_CHECK_INTERVAL: float = (
+    max(1.0, _REAP_IDLE_TTL / 4) if _REAP_IDLE_TTL > 0 else 0.0
 )
 
 # libpq connect timeout (seconds) for that probe.  Kept short: a permanent
@@ -91,153 +133,8 @@ _NON_RETRYABLE_CONNECT_ERRORS: tuple[type[psycopg.Error], ...] = (
 _PROBE_CONNECT_TIMEOUT = 5
 
 
-def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | None:
-    """Map an untyped connection-phase ``OperationalError`` to its precise,
-    permanent psycopg class — or ``None`` when the cause may be transient.
-
-    A connection failure crosses libpq before a SQLSTATE is parsed, so
-    ``diag.sqlstate`` is ``None`` and the precise subclass
-    (``InvalidCatalogName``, …) is never raised on a *connect*.  The server's
-    English FATAL text is the only discriminator left — the same signal
-    :class:`_SuppressKnownPoolWarnings` already keys on.  Matching fails SAFE:
-    an unrecognised or localised message returns ``None`` and is left to the
-    pool's retry, so a genuinely transient "connection refused"/timeout (which
-    never contains these phrases) is never mistaken for permanent.
-
-    Returning the precise class — rather than a generic error — lets callers
-    such as ``exp_db_exist`` keep matching ``InvalidCatalogName`` unchanged.
-
-    .. note::
-        This text-match is **locale-dependent** and intentionally only the
-        *fast* path: on a server with ``lc_messages`` set to e.g. ``es_MX`` the
-        FATAL reads "no existe la base de datos" and this returns ``None``.
-        That gap is closed by :meth:`ConnectionPool._database_absent`, which
-        confirms a missing database via the ``postgres`` catalog regardless of
-        server language.  Pinning the probe's language via
-        ``options='-c lc_messages=C'`` was rejected: the database-existence
-        check fires *before* startup ``-c`` GUCs are applied (verified — a
-        bogus ``-c`` param yields "database does not exist", not "unrecognized
-        configuration parameter", against a missing DB).
-    """
-    msg = str(exc).lower()
-    if 'database "' in msg and "does not exist" in msg:
-        return psycopg.errors.InvalidCatalogName(str(exc))
-    if (
-        "password authentication failed" in msg
-        or "no pg_hba.conf entry" in msg
-        or ('role "' in msg and "does not exist" in msg)
-        or "is not permitted to log in" in msg
-    ):
-        return psycopg.errors.InvalidAuthorizationSpecification(str(exc))
-    return None
-
-
 class PoolError(Exception):
     """Connection pool error."""
-
-
-def _normalize_dsn_key(dsn: dict | str) -> frozenset:
-    """Normalize a DSN to a hashable key for pool lookup.
-
-    Aliases ``dbname`` → ``database``.  Folds the password into an opaque
-    fingerprint so rotating the password invalidates the cached pool, but
-    the cleartext never lives in memory as a dict key or log artifact.
-    """
-    alias_keys = {"dbname": "database"}
-    if isinstance(dsn, str):
-        dsn = conninfo_to_dict(dsn)
-    elif "dsn" in dsn:
-        # Expand a URI/conninfo entry into its components so they join the
-        # key the same way keyword parameters do.  Without this the raw URI
-        # string — cleartext password included — becomes part of the key
-        # (and of the DEBUG/INFO pool logs), and the password-fingerprint
-        # guarantee below is silently bypassed.  Explicit keywords override
-        # URI components, matching psycopg's own precedence.
-        uri_parts = conninfo_to_dict(dsn["dsn"])
-        dsn = {**uri_parts, **{k: v for k, v in dsn.items() if k != "dsn"}}
-    # BLAKE2s-64 is fast, collision-resistant enough for pool routing, and
-    # avoids leaking password length information via the key repr.
-    password = dsn.get("password")
-    if password:
-        pw_fp = hashlib.blake2s(str(password).encode(), digest_size=8).hexdigest()
-    else:
-        pw_fp = ""
-    items = (
-        (alias_keys.get(k, k), str(v))
-        for k, v in dsn.items()
-        if k != "password" and v is not None
-    )
-    return frozenset((*items, ("password_fp", pw_fp)))
-
-
-def _configure_connection(conn: psycopg.Connection) -> None:
-    """Configure each new connection created by psycopg_pool.
-
-    Type adapters (numeric→float) are registered here, per-connection, via
-    :func:`utils.register_adapters` — deliberately NOT on the process-global
-    ``psycopg.adapters``, so importing the db package does not change numeric
-    decoding for unrelated psycopg users in the process.
-
-    Prepared statement tuning: Odoo's ORM generates the same query
-    shapes repeatedly (SELECT with same columns, UPDATE same fields).
-    Auto-preparing after the 2nd execution (instead of default 5)
-    skips parse+plan on subsequent calls.  A 500-statement LRU cache
-    (instead of default 100) covers the hot ORM paths without bloat.
-    PG18's improved plan-cache invalidation makes this safe.
-
-    Per-session GUCs (jit, work_mem) are set via the ``options``
-    connection parameter in :func:`_get_or_create_pool` to avoid
-    cursor operations in this callback (which runs in pool worker
-    threads and can interact badly with pool lifecycle).
-
-    NB: the PostgreSQL minimum-version gate lives in
-    :meth:`ConnectionPool.borrow`, not here.  Raising from this callback
-    runs inside a pool worker thread: psycopg_pool just logs the error,
-    retries with backoff, and the caller eventually gets a generic 30s
-    ``PoolTimeout`` — the actionable "upgrade your PostgreSQL" message
-    never reaches them.  Checking in ``borrow()`` is a local attribute
-    read (no round-trip) and fails fast with the real message.
-    """
-    # Register Odoo's type adapters on THIS connection (per-connection, not
-    # process-global — see utils.register_adapters for the rationale).
-    register_adapters(conn)
-
-    # Prepared statement tuning (PG18-optimized)
-    conn.prepare_threshold = 2
-    conn.prepared_max = 500
-
-
-def _reset_connection(conn: psycopg.Connection) -> None:
-    """Reset connection state when returned to pool.
-
-    psycopg_pool auto-rolls back active transactions before calling
-    this. We reset session-level settings that Cursor.__init__ may
-    have changed (isolation_level, read_only) and ensure autocommit
-    is off for the next user. Using attribute assignment avoids a
-    round-trip (unlike ``RESET ALL``).
-
-    Also restore the prepared-statement tuning set by
-    :func:`_configure_connection`.  ``Cursor.execute`` may have set
-    ``prepare_threshold = None`` in the DDL-fallback path (when
-    ``Connection._prepared`` is unavailable) — without this restore the
-    next borrower inherits disabled auto-prepare for up to max_lifetime.
-
-    .. warning::
-        Arbitrary session-level GUCs set via ``SET x = y`` are NOT
-        reset here — they persist on the connection until its
-        ``max_lifetime`` (1h) and leak to the next borrower.  Callers
-        that need short-lived GUC overrides (``statement_timeout``,
-        ``work_mem``, ``search_path``, etc.) MUST use ``SET LOCAL``
-        (transaction-scoped) or issue an explicit ``RESET`` before
-        releasing the cursor.  Unconditional ``RESET ALL`` here would
-        add a round-trip on every pool return and is not justified
-        by current callers.
-    """
-    conn.autocommit = False
-    conn.isolation_level = None  # restore server default
-    conn.read_only = None  # restore server default
-    conn.prepare_threshold = 2  # matches _configure_connection
-    conn.prepared_max = 500
 
 
 class ConnectionPool:
@@ -291,18 +188,39 @@ class ConnectionPool:
         # Per-instance semaphore — gates connections to this pool, not the
         # process.  Name reflects the scope: pool-local, not global.
         self._pool_sem = threading.BoundedSemaphore(self._maxconn)
+        # Last monotonic time the give_back-path idle reaper swept (see
+        # _maybe_reap_idle_pools).  0.0 lets the first eligible give_back sweep
+        # immediately; thereafter throttled to once per _REAP_CHECK_INTERVAL.
+        self._last_reap_check = 0.0
 
     def __repr__(self) -> str:
-        # NB: get_stats() acquires internal locks — looks expensive, but
-        # __repr__ is only evaluated by logging when DEBUG is enabled
-        # (Python's logger lazily evaluates %r).  Acceptable at DEBUG.
-        total = sum(p.get_stats().get("pool_size", 0) for p in self._pools.values())
-        available = sum(
-            p.get_stats().get("pool_available", 0) for p in self._pools.values()
-        )
+        # Materialize the pools in ONE atomic step before calling get_stats():
+        # ``list()`` over the dict view holds the GIL for its whole duration,
+        # so no concurrent _get_or_create_pool()/close_*() can interleave.  The
+        # old form iterated ``self._pools.values()`` *lazily* in a generator
+        # while calling get_stats() between elements — and get_stats() runs
+        # Python / acquires locks, letting another thread create or evict a pool
+        # mid-iteration and raise "dictionary changed size during iteration".
+        #
+        # Deliberately NOT guarded by self._lock (unlike get_stats/close_*):
+        # __repr__ is evaluated lazily by logging from inside _debug(), which is
+        # itself called while self._lock is held (see _get_or_create_pool).
+        # Re-acquiring the non-reentrant lock here would DEADLOCK.  The atomic
+        # snapshot is enough — a momentarily-stale entry only skews a debug
+        # string, never behaviour.  get_stats() is also called once per pool now
+        # (the old code called it twice).
+        pools = list(self._pools.values())
+        total = available = 0
+        for p in pools:
+            stats = p.get_stats()
+            total += stats.get("pool_size", 0)
+            available += stats.get("pool_available", 0)
         used = total - available
         mode = "read-only" if self._readonly else "read/write"
-        return f"ConnectionPool({mode};used={used}/total={total}/limit={self._maxconn};dbs={len(self._pools)})"
+        return (
+            f"ConnectionPool({mode};used={used}/total={total}"
+            f"/limit={self._maxconn};dbs={len(pools)})"
+        )
 
     @property
     def readonly(self) -> bool:
@@ -321,6 +239,16 @@ class ConnectionPool:
         permanent errors in milliseconds.  Anything that might be transient
         (server unreachable, still starting up) is swallowed so the pool's
         normal retry can still recover it.
+
+        .. note::
+            This probe runs on every COLD pool creation — including
+            *re*-creation after the idle-pool reaper
+            (:meth:`_collect_reapable_pools_locked`, ``_REAP_IDLE_TTL``) has
+            closed a pool.  On a host that touches a database just slower than
+            ``_REAP_IDLE_TTL``, each access pays the reap→recreate→re-probe
+            cycle (a fresh synchronous connect, new pool worker threads, and a
+            cold prepared-statement cache).  Raise ``ODOO_DB_POOL_REAP_IDLE`` if
+            that thrash outweighs the idle-pool savings for your access pattern.
 
         :raises psycopg.Error: re-raised verbatim for a non-retryable failure,
             so callers see the precise cause (e.g. ``exp_db_exist`` matches
@@ -387,20 +315,19 @@ class ConnectionPool:
             original error as transient, so this can never manufacture a false
             ``InvalidCatalogName``.
         """
-        components = conninfo_to_dict(conninfo) if conninfo else {}
-        db_name = kwargs.get("dbname") or components.get("dbname")
+        # Merge the URI/conninfo components with the explicit kwargs (kwargs win,
+        # matching psycopg precedence) through the shared expander, which also
+        # folds away any embedded ``dsn`` key.
+        maint = _expand_conninfo({"dsn": conninfo, **kwargs}) if conninfo else dict(kwargs)
+        db_name = kwargs.get("dbname") or maint.get("dbname")
         # Nothing to disambiguate, or the failing target *is* the maintenance
         # DB (probing it through itself is circular) — defer to the caller.
         if not db_name or db_name == "postgres":
             return False
         # Reuse the same host/port/user/password/sslmode; only swap the dbname
         # to ``postgres`` and force autocommit + the short probe timeout.  Drop
-        # ``options`` (per-session GUCs are irrelevant to a catalog lookup) and
-        # any leftover ``dsn`` key.  Explicit kwargs override URI components,
-        # matching psycopg precedence.
-        maint = {**components, **kwargs}
-        for k in ("dsn", "options", "dbname"):
-            maint.pop(k, None)
+        # ``options`` (per-session GUCs are irrelevant to a catalog lookup).
+        maint.pop("options", None)
         maint["dbname"] = "postgres"
         maint["autocommit"] = True
         maint["connect_timeout"] = _PROBE_CONNECT_TIMEOUT
@@ -415,7 +342,8 @@ class ConnectionPool:
             # tell, so report "not confirmed absent" and let the original error
             # be handled as transient (today's behaviour, no regression).
             _logger.debug(
-                "pg_database existence check unavailable for %r", db_name,
+                "pg_database existence check unavailable for %r",
+                db_name,
                 exc_info=True,
             )
             return False
@@ -426,6 +354,11 @@ class ConnectionPool:
         """Get an existing pool for this DSN or create a new one."""
         pool = self._pools.get(key)
         if pool is not None and not pool.closed:
+            # Stamp before returning so the reaper sees this pool as freshly
+            # used; the write is atomic and intentionally outside the lock to
+            # keep the hot fast path lock-free (the reaper's TTL >> borrow time
+            # plus borrow()'s PoolClosed retry cover the resulting microrace).
+            setattr(pool, _LAST_BORROW_ATTR, monotonic())
             return pool
 
         # Build conninfo and run the synchronous pre-flight probe BEFORE taking
@@ -476,6 +409,7 @@ class ConnectionPool:
             # the pool for this key while we were probing.
             pool = self._pools.get(key)
             if pool is not None and not pool.closed:
+                setattr(pool, _LAST_BORROW_ATTR, monotonic())
                 return pool
 
             pool = _PsycopgPool(
@@ -489,10 +423,13 @@ class ConnectionPool:
                 reconnect_timeout=15,
                 configure=_configure_connection,
                 reset=_reset_connection,
-                check=_PsycopgPool.check_connection,
+                check=_check_connection,
                 num_workers=3,
                 open=True,
             )
+            # Stamp before publishing so a fresh pool is never seen as idle by a
+            # concurrent reaper running for another key.
+            setattr(pool, _LAST_BORROW_ATTR, monotonic())
             self._pools[key] = pool
             self._debug("Created pool for %s", dict(key))
 
@@ -516,20 +453,117 @@ class ConnectionPool:
             # reason the pre-flight probe runs outside self._lock).
             stale_pools = [self._pools.pop(k) for k in stale_keys]
 
+            # Reap idle sibling pools while we already hold the lock (stale-cred
+            # siblings are gone from the dict now, so the two sets never
+            # overlap).  Same pop-under-lock / close-outside-lock discipline.
+            reap_keys = self._collect_reapable_pools_locked(exclude_key=key)
+            reaped_pools = [self._pools.pop(k) for k in reap_keys]
+
         for sp in stale_pools:
-            try:
-                sp.close()
-            except Exception:
-                _logger.debug("Failed to close stale-credential pool", exc_info=True)
+            self._safe_close(sp)
         if stale_pools:
             _logger.info(
                 "%r: evicted %d stale-credential pool(s) after key change",
                 self,
                 len(stale_pools),
             )
+        for rp in reaped_pools:
+            self._safe_close(rp)
+        if reaped_pools:
+            _logger.info(
+                "%r: reaped %d idle pool(s) (>%.0fs since last borrow)",
+                self,
+                len(reaped_pools),
+                _REAP_IDLE_TTL,
+            )
         return pool
 
-    def borrow(self, connection_info: dict) -> psycopg.Connection:
+    def _collect_reapable_pools_locked(
+        self, exclude_key: frozenset | None = None
+    ) -> list:
+        """Return the keys of idle per-DSN pools safe to close.  Caller holds
+        ``self._lock``.
+
+        *exclude_key* is the pool the caller is about to use and must never reap
+        (the cold path passes the just-created key); ``None`` excludes nothing —
+        used by the give_back sweep, where the just-returned pool is protected
+        anyway by its fresh ``_LAST_BORROW_ATTR`` stamp.
+
+        A pool is reapable when BOTH hold:
+
+        * it has not been handed out by :meth:`_get_or_create_pool` in the last
+          ``_REAP_IDLE_TTL`` seconds (so — given the TTL is far above a borrow's
+          ~30s budget — no borrow can be in flight against it), and
+        * it currently has no checked-out connection
+          (``pool_size - pool_available == 0``).  ``get_stats`` is reliable here
+          precisely because the pool has been idle past the TTL: any async
+          ``reset`` task from a prior return has long since drained, so a
+          non-zero reading means a connection is genuinely held (e.g. a cron
+          ``LISTEN``), which must NOT be reaped.
+
+        Returns ``[]`` when the reaper is disabled (``_REAP_IDLE_TTL <= 0``).
+        Pools are popped and closed by the caller (outside the lock).
+        """
+        if _REAP_IDLE_TTL <= 0:
+            return []
+        now = monotonic()
+        reapable = []
+        for k, pool in self._pools.items():
+            if k == exclude_key:
+                continue
+            if now - getattr(pool, _LAST_BORROW_ATTR, now) <= _REAP_IDLE_TTL:
+                continue
+            stats = pool.get_stats()
+            if stats.get("pool_size", 0) - stats.get("pool_available", 0) > 0:
+                continue
+            reapable.append(k)
+        return reapable
+
+    def _maybe_reap_idle_pools(self) -> None:
+        """Throttled idle-pool sweep run from the hot :meth:`give_back` path.
+
+        The cold-path reap in :meth:`_get_or_create_pool` only fires when a NEW
+        per-DSN pool is created.  A worker that settles on a fixed set of
+        databases never creates another pool after warm-up, so idle siblings for
+        quiet or dropped databases — each carrying ``num_workers`` threads plus up
+        to ``maxconn`` idle connections — would survive until ``close_*``.  This
+        sweeps them on the common return path instead.
+
+        Throttled to at most once per :data:`_REAP_CHECK_INTERVAL`: the lock-free
+        monotonic compare below is the only cost the vast majority of give_backs
+        pay.  Same pop-under-lock / close-outside-lock discipline as the cold
+        path (``_PsycopgPool.close()`` joins worker threads and must not block
+        under ``self._lock``).  The just-returned pool is never reaped — its
+        ``_LAST_BORROW_ATTR`` stamp is fresh, well within the TTL
+        ``_collect_reapable_pools_locked`` requires.
+        """
+        if _REAP_CHECK_INTERVAL <= 0:
+            return
+        now = monotonic()
+        # Lock-free throttle: almost every give_back stops here.
+        if now - self._last_reap_check < _REAP_CHECK_INTERVAL:
+            return
+        with self._lock:
+            # Re-check under the lock so a burst of concurrent returns runs the
+            # (lock-holding) sweep once, not once per thread.
+            if now - self._last_reap_check < _REAP_CHECK_INTERVAL:
+                return
+            self._last_reap_check = now
+            reap_keys = self._collect_reapable_pools_locked()
+            reaped_pools = [self._pools.pop(k) for k in reap_keys]
+        for rp in reaped_pools:
+            self._safe_close(rp)
+        if reaped_pools:
+            _logger.info(
+                "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
+                self,
+                len(reaped_pools),
+                _REAP_IDLE_TTL,
+            )
+
+    def borrow(
+        self, connection_info: dict, key: frozenset | None = None
+    ) -> psycopg.Connection:
         """Borrow a connection from the appropriate per-database pool.
 
         Acquires a slot from the pool-scoped semaphore first, ensuring the
@@ -539,9 +573,15 @@ class ConnectionPool:
         per-database ``getconn()`` call.
 
         :param dict connection_info: dict of psql connection keywords
+        :param key: optional pre-normalized pool routing key.  ``Connection``
+            memoizes it once (the dsn is immutable for its life) and passes it
+            on every cursor()/borrow, so the ``_normalize_dsn_key`` work — a
+            dict expansion plus a BLAKE2s hash of the password — is not redone
+            on this per-request hot path.  ``None`` recomputes it (bare callers).
         :rtype: psycopg.Connection
         """
-        key = _normalize_dsn_key(connection_info)
+        if key is None:
+            key = _normalize_dsn_key(connection_info)
         pool = self._get_or_create_pool(key, connection_info)
 
         deadline = monotonic() + _BORROW_TIMEOUT
@@ -552,38 +592,55 @@ class ConnectionPool:
                 f"all connections are in use across {len(self._pools)} database(s)"
             )
         try:
-            remaining = max(0.1, deadline - monotonic())
-            try:
-                conn = pool.getconn(timeout=remaining)
-            except psycopg.Error as e:
-                if isinstance(e, (PoolTimeout, PoolClosed)):
-                    # A timeout means the pool couldn't ESTABLISH a
-                    # connection in time (the semaphore guarantees checkout
-                    # capacity).  Tear the pool down only when it holds no
-                    # live connections — i.e. the database is gone or fully
-                    # unreachable (e.g. after DB drop), so the next borrow()
-                    # builds a fresh pool.  If live connections exist, the
-                    # server is reachable but slow; closing them here would
-                    # turn a latency blip into a reconnect storm.
-                    pool_size = (
-                        0
-                        if isinstance(e, PoolClosed)
-                        else (pool.get_stats().get("pool_size", 0))
+            # getconn, rebuilding ONCE if the per-DSN pool was closed out from
+            # under us — the idle-pool reaper or a concurrent close_database can
+            # close a pool a borrower already holds a reference to.  The
+            # semaphore permit is already held and is NOT re-acquired on retry;
+            # the shared ``deadline`` still bounds the total wait.
+            for attempt in range(2):
+                remaining = max(0.1, deadline - monotonic())
+                try:
+                    conn = pool.getconn(timeout=remaining)
+                    break
+                except PoolClosed as e:
+                    # Drop the stale mapping and rebuild once.  A second
+                    # PoolClosed means the pool is being actively torn down (not
+                    # a one-shot reap race), so surface it as PoolError.
+                    with self._lock:
+                        if self._pools.get(key) is pool:
+                            del self._pools[key]
+                    self._safe_close(pool)  # idempotent on an already-closed pool
+                    if attempt == 1:
+                        _logger.info("Connection to the database failed: %s", e)
+                        raise PoolError(str(e)) from e
+                    self._debug(
+                        "Pool closed under borrow(); rebuilding for %s", dict(key)
                     )
-                    if pool_size == 0:
+                    # Rebuild may re-probe and raise InvalidCatalogName if the
+                    # database is genuinely gone — that propagates (correctly) to
+                    # the outer handler, which releases the semaphore.
+                    pool = self._get_or_create_pool(key, connection_info)
+                except PoolTimeout as e:
+                    # A timeout means the pool couldn't ESTABLISH a connection in
+                    # time (the semaphore guarantees checkout capacity).  Tear
+                    # the pool down only when it holds no live connections — i.e.
+                    # the database is gone or fully unreachable (e.g. after DB
+                    # drop), so the next borrow() builds a fresh pool.  If live
+                    # connections exist, the server is reachable but slow;
+                    # closing them here would turn a latency blip into a
+                    # reconnect storm.
+                    if pool.get_stats().get("pool_size", 0) == 0:
                         with self._lock:
                             if self._pools.get(key) is pool:
                                 del self._pools[key]
-                        try:
-                            pool.close()
-                        except Exception:
-                            _logger.debug("Failed to close dead pool", exc_info=True)
+                        self._safe_close(pool)
                     _logger.info("Connection to the database failed: %s", e)
                     raise PoolError(str(e)) from e
-                _logger.info("Connection to the database failed: %s", e)
-                raise
-            except Exception as e:
-                raise PoolError(str(e)) from e
+                except psycopg.Error as e:
+                    _logger.info("Connection to the database failed: %s", e)
+                    raise
+                except Exception as e:
+                    raise PoolError(str(e)) from e
             # Post-getconn validation.  Any failure here must do TWO things:
             # return the connection to its psycopg pool (the inner handler) so
             # the pool slot is not leaked, AND release the semaphore (the outer
@@ -603,7 +660,15 @@ class ConnectionPool:
                         f"minimum required {MIN_PG_VERSION}.0. Please upgrade "
                         f"to PostgreSQL {MIN_PG_VERSION} or later."
                     )
-                self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
+                # ``conn.info`` allocates a fresh ConnectionInfo and
+                # ``backend_pid`` is a libpq call, both eager as a call argument
+                # — gate on the level so this hot path (every cursor creation)
+                # pays nothing when DEBUG is off.  Mirrors the isEnabledFor guard
+                # in give_back() and Connection.cursor().
+                if _logger_conn.isEnabledFor(logging.DEBUG):
+                    self._debug(
+                        "Borrow connection backend PID %d", conn.info.backend_pid
+                    )
                 # Tag the connection with an Odoo-owned back-reference to its
                 # per-DSN psycopg pool.  give_back() uses THIS marker — not
                 # psycopg_pool's private ``conn._pool`` — both to locate the
@@ -684,6 +749,40 @@ class ConnectionPool:
                 _logger.debug("Failed to return connection to pool", exc_info=True)
         finally:
             self._pool_sem.release()
+        # Opportunistically reap idle sibling pools on this common return path
+        # (throttled — see _maybe_reap_idle_pools) so they don't accumulate when
+        # no new pool is ever created.  Best-effort housekeeping: the connection
+        # is already back and the permit released, so a reap failure must never
+        # escape give_back into the cursor-close finally that calls it.
+        try:
+            self._maybe_reap_idle_pools()
+        except Exception:
+            _logger.debug("Idle-pool reap on give_back failed", exc_info=True)
+
+    @staticmethod
+    def _safe_close(pool: _PsycopgPool) -> None:
+        """``pool.close()``, swallowing a per-pool failure.
+
+        One pool's ``close()`` must not abort cleanup of its siblings, nor
+        propagate out of the ``atexit`` handler (``close_all``) or a
+        post-upgrade ``drain_all``.  ``close()`` joins worker threads and can
+        raise (e.g. ``PythonFinalizationError`` if reached during interpreter
+        finalization).  Mirrors the isolation already applied in
+        :meth:`give_back` and the stale-credential eviction in
+        :meth:`_get_or_create_pool`.
+        """
+        try:
+            pool.close()
+        except Exception:
+            _logger.debug("Failed to close pool during teardown", exc_info=True)
+
+    @staticmethod
+    def _safe_drain(pool: _PsycopgPool) -> None:
+        """``pool.drain()``, swallowing a per-pool failure (see :meth:`_safe_close`)."""
+        try:
+            pool.drain()
+        except Exception:
+            _logger.debug("Failed to drain pool", exc_info=True)
 
     def close_database(self, db_name: str) -> None:
         """Close every per-DSN pool connected to *db_name*.
@@ -698,33 +797,26 @@ class ConnectionPool:
             keys = [k for k in self._pools if dict(k).get("database") == db_name]
             pools = [self._pools.pop(k) for k in keys]
         for pool in pools:
-            pool.close()
+            self._safe_close(pool)
         if pools:
             _logger.info("%r: Closed %d pool(s) for %s", self, len(pools), db_name)
 
-    def close_all(self, dsn: dict | str | None = None) -> None:
-        """Close pool(s) — by DSN or all.
+    def close_all(self) -> None:
+        """Close every per-DSN pool in this instance.
 
-        :param dsn: If given, close only the pool matching this DSN.
-            If None, close all pools.
+        Used for full teardown (server shutdown, ``atexit``).  Closing the
+        pools for a single database is :meth:`close_database` (name-based);
+        there is intentionally no by-DSN variant — nothing needs one.
         """
-        if dsn is not None:
-            key = _normalize_dsn_key(dsn)
-            with self._lock:
-                pool = self._pools.pop(key, None)
-            if pool:
-                pool.close()
-                _logger.info("%r: Closed pool for %s", self, dict(key))
-        else:
-            with self._lock:
-                pools = list(self._pools.values())
-                self._pools.clear()
-            count = 0
-            for pool in pools:
-                pool.close()
-                count += 1
-            if count:
-                _logger.info("%r: Closed %d pool(s)", self, count)
+        with self._lock:
+            pools = list(self._pools.values())
+            self._pools.clear()
+        count = 0
+        for pool in pools:
+            self._safe_close(pool)
+            count += 1
+        if count:
+            _logger.info("%r: Closed %d pool(s)", self, count)
 
     def drain_database(self, db_name: str) -> None:
         """Drain every per-DSN pool connected to *db_name*.
@@ -740,37 +832,29 @@ class ConnectionPool:
             ]
         for pool in pools:
             if not pool.closed:
-                pool.drain()
+                self._safe_drain(pool)
         if pools:
             _logger.debug("%r: Drained %d pool(s) for %s", self, len(pools), db_name)
 
-    def drain(self, dsn: dict | str | None = None) -> None:
-        """Drain pool(s) — replace all idle connections with fresh ones.
+    def drain(self) -> None:
+        """Drain every pool — replace all idle connections with fresh ones.
 
         After module upgrades, idle connections may hold stale prepared
         statement caches referencing old schema.  ``drain()`` recycles
         them so the next borrow gets a freshly configured connection.
-
-        :param dsn: If given, drain only the pool matching this DSN.
-            If None, drain all pools.
+        Draining a single database is :meth:`drain_database` (name-based);
+        there is intentionally no by-DSN variant — nothing needs one.
         """
-        if dsn is not None:
-            key = _normalize_dsn_key(dsn)
-            pool = self._pools.get(key)
-            if pool and not pool.closed:
-                pool.drain()
-                _logger.debug("%r: Drained pool for %s", self, dict(key))
-        else:
-            # Snapshot under the lock so a concurrent _get_or_create_pool()
-            # or close_all() can't mutate the dict mid-iteration (would
-            # raise "dictionary changed size during iteration" otherwise).
-            with self._lock:
-                pools = list(self._pools.values())
-            for pool in pools:
-                if not pool.closed:
-                    pool.drain()
-            if pools:
-                _logger.debug("%r: Drained %d pool(s)", self, len(pools))
+        # Snapshot under the lock so a concurrent _get_or_create_pool()
+        # or close_all() can't mutate the dict mid-iteration (would
+        # raise "dictionary changed size during iteration" otherwise).
+        with self._lock:
+            pools = list(self._pools.values())
+        for pool in pools:
+            if not pool.closed:
+                self._safe_drain(pool)
+        if pools:
+            _logger.debug("%r: Drained %d pool(s)", self, len(pools))
 
     def get_stats(self) -> dict[str, dict]:
         """Return pool statistics for all databases.
@@ -792,12 +876,19 @@ class ConnectionPool:
 class Connection:
     """A lightweight instance of a connection to postgres"""
 
-    __slots__ = ("__dbname", "__dsn", "__pool")
+    __slots__ = ("__dbname", "__dsn", "__key", "__pool")
 
     def __init__(self, pool: ConnectionPool, dbname: str, dsn: dict):
         self.__dbname = dbname
         self.__dsn = dsn
         self.__pool = pool
+        # Memoize the pool routing key once.  ``dsn`` is immutable for this
+        # Connection's life — ``db_connect`` builds a fresh dict and never
+        # mutates it, and ``_get_or_create_pool`` copies it before mutating —
+        # so the key (which includes a BLAKE2s hash of the password) need not be
+        # recomputed on every cursor()/borrow().  Registry caches the Connection
+        # and reuses it per request, making borrow() the module's hottest path.
+        self.__key = _normalize_dsn_key(dsn)
 
     @property
     def dsn(self) -> dict:
@@ -807,15 +898,13 @@ class Connection:
         string value, not under a ``password`` key, so a bare
         ``pop("password")`` leaks it whenever this dict is logged — e.g. by
         ``cursor()`` at DEBUG, reachable in production via ``log_db`` URIs
-        (``logutils``).  Expand the conninfo string into discrete components
-        first — the same treatment :func:`_normalize_dsn_key` and psycopg's
-        own ``info.dsn`` apply — then drop the password.  Explicit keywords
-        win over URI components, matching psycopg's precedence.
+        (``logutils``).  :func:`_expand_conninfo` expands the conninfo string
+        into discrete components first — the same treatment
+        :func:`_normalize_dsn_key` and psycopg's own ``info.dsn`` apply, with
+        explicit keywords winning per psycopg precedence — after which the
+        password drops out cleanly.
         """
-        dsn = dict(self.__dsn)
-        raw = dsn.pop("dsn", None)
-        if raw:
-            dsn = {**conninfo_to_dict(raw), **dsn}
+        dsn = _expand_conninfo(self.__dsn)
         dsn.pop("password", None)
         return dsn
 
@@ -834,4 +923,4 @@ class Connection:
         # when DEBUG is actually enabled (cursor creation is per-request).
         if _logger.isEnabledFor(logging.DEBUG):
             _logger.debug("create cursor to %r", self.dsn)
-        return Cursor(self.__pool, self.__dbname, self.__dsn)
+        return Cursor(self.__pool, self.__dbname, self.__dsn, key=self.__key)
