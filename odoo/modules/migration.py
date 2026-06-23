@@ -10,8 +10,9 @@ import odoo.upgrade
 from odoo import release
 from odoo.libs.parse_version import parse_version
 from odoo.modules.module import load_script
-from odoo.orm.runtime import Registry
 from odoo.tools.misc import file_path
+
+from .registry import Registry
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
@@ -96,6 +97,47 @@ def _migration_applies(
     return parsed_installed < parse_version(full_version) <= parsed_target
 
 
+def _iter_upgrade_paths(pkg: str) -> Iterator[str]:
+    """Yield the existing ``odoo.upgrade/<pkg>`` directories on the upgrade path."""
+    for path in odoo.upgrade.__path__:  # type: ignore[attr-defined]
+        upgrade_path = Path(path, pkg)
+        if upgrade_path.exists():
+            yield str(upgrade_path)
+
+
+def _is_upgrade_version_dir(path: str, version: str) -> bool:
+    """Return whether ``<path>/<version>`` is a valid migration version folder."""
+    full_path = Path(path, version)
+    if not full_path.is_dir():
+        return False
+    if version == "tests":
+        return False
+    if not VERSION_RE.match(version):
+        _logger.warning("Invalid version for upgrade script %r", str(full_path))
+        return False
+    return True
+
+
+def _scripts_by_version(path: str) -> dict[str, list[str]]:
+    """Map each valid version folder under ``path`` to its list of ``.py`` scripts."""
+    if not path:
+        return {}
+    p = Path(path)
+    return {
+        entry.name: [str(f) for f in (p / entry.name).glob("*.py")]
+        for entry in p.iterdir()
+        if _is_upgrade_version_dir(path, entry.name)
+    }
+
+
+def _resolve_addon_path(path: str) -> str:
+    """Resolve an addon-relative path to an absolute one, or '' if it does not exist."""
+    try:
+        return file_path(path)
+    except FileNotFoundError:
+        return ""
+
+
 class MigrationManager:
     """Manages the migration of modules.
 
@@ -134,64 +176,32 @@ class MigrationManager:
         self.cr = cr
         self.graph = graph
         self.migrations = defaultdict(dict)
+        # Snapshot once: Registry() acquires a lock per call and this set does
+        # not change while a graph is being loaded.  Reused by migrate_module().
+        self._force_upgrade_scripts = Registry(cr.dbname)._force_upgrade_scripts
         self._get_files()
 
+    def _needs_migration(self, pkg: module_graph.ModuleNode) -> bool:
+        """Whether ``pkg`` should have its migration scripts collected/run."""
+        return pkg.load_state == "to upgrade" or pkg.name in self._force_upgrade_scripts
+
     def _get_files(self) -> None:
-        def _get_upgrade_path(pkg: str) -> Iterator[str]:
-            for path in odoo.upgrade.__path__:  # type: ignore[attr-defined]
-                upgrade_path = Path(path, pkg)
-                if upgrade_path.exists():
-                    yield str(upgrade_path)
-
-        def _verify_upgrade_version(path: str, version: str) -> bool:
-            full_path = Path(path, version)
-            if not full_path.is_dir():
-                return False
-
-            if version == "tests":
-                return False
-
-            if not VERSION_RE.match(version):
-                _logger.warning("Invalid version for upgrade script %r", str(full_path))
-                return False
-
-            return True
-
-        def get_scripts(path: str) -> dict[str, list[str]]:
-            if not path:
-                return {}
-            p = Path(path)
-            return {
-                entry.name: [str(f) for f in (p / entry.name).glob("*.py")]
-                for entry in p.iterdir()
-                if _verify_upgrade_version(path, entry.name)
-            }
-
-        def check_path(path: str) -> str:
-            try:
-                return file_path(path)
-            except FileNotFoundError:
-                return ""
-
-        # Resolve once: the registry singleton acquires a lock per call, and we
-        # would otherwise pay it on every loop iteration.
-        force_upgrade_scripts = Registry(self.cr.dbname)._force_upgrade_scripts
-
         for pkg in self.graph:
-            if (
-                pkg.load_state != "to upgrade"
-                and pkg.name not in force_upgrade_scripts
-            ):
+            if not self._needs_migration(pkg):
                 continue
 
             self.migrations[pkg.name] = {
-                "module": get_scripts(check_path(pkg.name + "/migrations")),
-                "module_upgrades": get_scripts(check_path(pkg.name + "/upgrades")),
+                "module": _scripts_by_version(
+                    _resolve_addon_path(pkg.name + "/migrations")
+                ),
+                "module_upgrades": _scripts_by_version(
+                    _resolve_addon_path(pkg.name + "/upgrades")
+                ),
             }
 
             scripts = defaultdict(list)
-            for p in _get_upgrade_path(pkg.name):
-                for v, s in get_scripts(p).items():
+            for p in _iter_upgrade_paths(pkg.name):
+                for v, s in _scripts_by_version(p).items():
                     scripts[v].extend(s)
             self.migrations[pkg.name]["upgrade"] = scripts
 
@@ -206,13 +216,7 @@ class MigrationManager:
             "post": "[%s>]",
             "end": "[$%s]",
         }
-        if (
-            pkg.load_state != "to upgrade"
-            and pkg.name not in Registry(self.cr.dbname)._force_upgrade_scripts
-        ):
-            # NOTE: this method is called per-package by load_module_graph;
-            # the Registry() lookup is unavoidable here without changing the
-            # call signature. _get_files() above hoists it for its own loop.
+        if not self._needs_migration(pkg):
             return
 
         def _get_migration_versions(
@@ -220,7 +224,7 @@ class MigrationManager:
         ) -> list[str]:
             versions = sorted(
                 {
-                    ver: None
+                    ver
                     for lv in self.migrations[pkg.name].values()
                     for ver, lf in lv.items()
                     if lf

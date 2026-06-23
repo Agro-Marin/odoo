@@ -1,7 +1,17 @@
+import shutil
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+from odoo.modules import migration as migmod
 from odoo.modules.migration import (
     VERSION_RE,
+    MigrationManager,
     _convert_version,
+    _is_upgrade_version_dir,
     _migration_applies,
+    _resolve_addon_path,
+    _scripts_by_version,
 )
 from odoo.release import major_version
 from odoo.tests.common import BaseCase
@@ -85,3 +95,101 @@ class TestVersionRegex(BaseCase):
         self.assertIsNone(VERSION_RE.match("abc"))
         # a server prefix with no module version is not a complete version
         self.assertIsNone(VERSION_RE.match("saas~18.1"))
+
+
+class TestUpgradeScriptDiscovery(BaseCase):
+    """The module-level helpers extracted from MigrationManager._get_files so
+    they can be unit-tested in isolation.
+    """
+
+    def _tmpdir(self):
+        d = tempfile.mkdtemp(prefix="odoo_test_upgrade_")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_is_upgrade_version_dir_accepts_valid_version_folder(self):
+        d = self._tmpdir()
+        Path(d, "19.0.1.0").mkdir()
+        self.assertTrue(_is_upgrade_version_dir(d, "19.0.1.0"))
+
+    def test_is_upgrade_version_dir_rejects_tests_and_non_dirs(self):
+        d = self._tmpdir()
+        Path(d, "tests").mkdir()
+        self.assertFalse(_is_upgrade_version_dir(d, "tests"))
+        self.assertFalse(_is_upgrade_version_dir(d, "does_not_exist"))
+
+    def test_scripts_by_version_collects_py_and_skips_non_version_entries(self):
+        d = self._tmpdir()
+        version_dir = Path(d, "19.0.1.0")
+        version_dir.mkdir()
+        (version_dir / "pre-a.py").write_text("def migrate(cr, version): pass\n")
+        (version_dir / "README.txt").write_text("ignored")
+        Path(d, "tests").mkdir()
+        result = _scripts_by_version(d)
+        self.assertIn("19.0.1.0", result)
+        self.assertNotIn("tests", result)
+        self.assertTrue(any(f.endswith("pre-a.py") for f in result["19.0.1.0"]))
+        self.assertFalse(any(f.endswith("README.txt") for f in result["19.0.1.0"]))
+
+    def test_scripts_by_version_empty_path_returns_empty(self):
+        self.assertEqual(_scripts_by_version(""), {})
+
+    def test_resolve_addon_path_missing_returns_empty(self):
+        self.assertEqual(_resolve_addon_path("no/such/addon_xyz/migrations"), "")
+
+
+class _FakeCursor:
+    rowcount = 0
+    dbname = "testdb"
+
+    def execute(self, *a, **k):
+        pass
+
+    def fetchall(self):
+        return []
+
+    def fetchone(self):
+        return None
+
+
+class _FakePkg:
+    def __init__(self, name, load_state="installed"):
+        self.name = name
+        self.load_state = load_state
+        self.load_version = "1.0"
+        self.manifest = {"version": "1.0"}
+
+
+class _FakeGraph:
+    def __init__(self, pkgs):
+        self._pkgs = pkgs
+
+    def __iter__(self):
+        return iter(self._pkgs)
+
+
+class TestMigrationManagerRegistry(BaseCase):
+    """The registry's force-upgrade set is resolved once (in __init__), not on
+    every per-package migrate_module() call.
+    """
+
+    def test_registry_resolved_once_not_per_migrate_call(self):
+        calls = []
+
+        class FakeRegistry:
+            _force_upgrade_scripts = set()
+
+            def __init__(self, dbname):
+                calls.append(dbname)
+
+        pkgs = [_FakePkg(f"p{i}") for i in range(5)]
+        with patch.object(migmod, "Registry", FakeRegistry):
+            manager = MigrationManager(_FakeCursor(), _FakeGraph(pkgs))
+            # exactly one Registry() lookup, performed in __init__
+            self.assertEqual(len(calls), 1)
+            calls.clear()
+            for pkg in pkgs:
+                for stage in ("pre", "post", "end"):
+                    manager.migrate_module(pkg, stage)
+            # none of the 15 migrate_module() calls re-instantiates the Registry
+            self.assertEqual(calls, [])
