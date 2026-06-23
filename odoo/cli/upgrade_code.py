@@ -62,11 +62,9 @@ try:
     import odoo.addons
     from . import Command
 except ImportError:
-    # Assume the script is directly executed (by opposition to be
-    # executed via odoo-bin), happily release/parse_version are
-    # standalone so we can hack our way there without importing odoo.
-    # Guard the sys.path prepend so repeated imports don't accumulate
-    # duplicate entries (relevant under test collection / IDE indexing).
+    # Direct execution (not via odoo-bin): release/parse_version are
+    # standalone, so import them without odoo. Guard the sys.path prepend
+    # against duplicate entries on repeated imports.
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     import release
@@ -78,12 +76,10 @@ except ImportError:
     parse_version = _parse_version_module.parse_version
 
     class Command:
-        """Simplified version of the one in command.py, for standalone execution.
+        """Simplified ``cli.command.Command`` for standalone execution.
 
-        Caches the parser on first access (mirroring ``cli.command.Command``) so
-        subclasses can register arguments incrementally in ``__init__``. Without
-        the cache, every ``self.parser`` access returned a fresh parser and all
-        registrations were silently dropped.
+        Caches the parser so a subclass can register args incrementally in
+        ``__init__``; without it each ``self.parser`` access dropped them.
         """
 
         def __init__(self) -> None:
@@ -144,9 +140,7 @@ class FileManager:
             if path.suffix in AVAILABLE_EXT
             if path.is_file()
         }
-        # The progress line is written to stderr, so probe stderr — the
-        # previous import-time probe checked stdout AND froze the decision
-        # before any stream redirection could happen.
+        # Probe stderr (where the progress line goes), not stdout.
         self._show_progress = sys.stderr.isatty()
 
     def __iter__(self) -> Iterator[FileAccessor]:
@@ -196,11 +190,9 @@ def migrate(
     dry_run: bool = False,
 ) -> bool:
     if script:
-        # Scripts are named {version}-{name}.py. Accept either:
-        #   1. an exact stem, e.g. `--script 17.5-00-example`
-        #   2. a name-only suffix,  e.g. `--script foo`  → matches `19.0-foo.py`
-        # Anchor the suffix form on the hyphen so `foo` does not pick up
-        # `19.0-foobar.py` or `18.0-bar-foo-baz.py`.
+        # Scripts are named {version}-{name}.py. Accept an exact stem
+        # (`17.5-00-example`) or a name-only suffix (`foo` -> `19.0-foo.py`).
+        # Anchor the suffix on the hyphen so `foo` doesn't match `19.0-foobar.py`.
         stem = script.removesuffix(".py")
         exact = UPGRADE / f"{stem}.py"
         if exact.is_file():
@@ -215,10 +207,9 @@ def migrate(
         script_path = candidates[0] if candidates else None
         if not script_path:
             raise FileNotFoundError(script)
-        # Safeguard against path traversal (e.g. `--script ../../etc/x`): the
-        # exact-stem branch above does `UPGRADE / f"{stem}.py"`, which a `..`
-        # in the stem can escape. Path.relative_to is purely lexical and does
-        # NOT raise for `..`, so resolve both sides and compare.
+        # Guard against path traversal (`--script ../../etc/x`): the exact-stem
+        # branch can escape UPGRADE via `..`. Resolve both sides before
+        # comparing, since is_relative_to is purely lexical.
         if not script_path.resolve().is_relative_to(UPGRADE.resolve()):
             raise FileNotFoundError(f"--script {script!r} resolves outside {UPGRADE}")
         module = _load_module_from_file(script_path.name, script_path)
@@ -291,9 +282,8 @@ class UpgradeCode(Command):
 
     def run(self, cmdargs: list[str]) -> None:
         options = self.parser.parse_args(cmdargs)
-        # Catch inverted ranges early — without this, the version filter in
-        # get_upgrade_code_scripts silently matches zero scripts and exits 0,
-        # which reads as "nothing to do".
+        # Catch inverted ranges early; otherwise the version filter matches
+        # zero scripts and exits 0, reading as "nothing to do".
         if options.from_version and options.to_version < options.from_version:
             self.parser.error(
                 f"--to {options.to_version} is older than --from {options.from_version}"
@@ -308,9 +298,8 @@ class UpgradeCode(Command):
             options.addons_path = [p for p in options.addons_path if p]
         if not options.addons_path:
             self.parser.error("--addons-path is required when used standalone")
-        # Explicit kwargs, NOT migrate(**vars(options)): the splat coupled
-        # migrate's signature 1:1 to the argparse namespace, so any new CLI
-        # flag became an instant "unexpected keyword argument" TypeError.
+        # Explicit kwargs, not migrate(**vars(options)): the splat coupled
+        # migrate's signature to the namespace, so a new flag broke it.
         is_dirty = migrate(
             options.addons_path,
             options.glob,

@@ -1,20 +1,13 @@
-"""
-Expression and specification parsing for the ORM.
+"""Expression and specification parsing for the ORM.
 
-Provides parsing functions used across the ORM for field expressions,
-read_group specifications, and import/export field paths. Absorbs the
-regex patterns that were previously in core/constants.py.
-
-This is the most widely shared utility in the ORM (6+ consumers for
-parse_field_expr alone).
+Parsing for field expressions, read_group specifications, and import/export
+field paths. Widely shared (6+ consumers for parse_field_expr alone).
 """
 
 import functools
 import re
 
-# =============================================================================
-# Parsing Patterns
-# =============================================================================
+# Parsing patterns
 
 # For import/export field path ID fixing
 _FIX_DB_ID_RE = re.compile(r"([^/])\.id")
@@ -56,38 +49,24 @@ regex_order = re.compile(
 )
 
 
-# =============================================================================
-# Parsing Functions
-# =============================================================================
+# Parsing functions
 
 
-# Bounded cache: these parsers are reachable from authenticated RPC
-# (read_group / web_read_group / ir.default specs) with user-controlled,
-# effectively unbounded distinct inputs (e.g. ``props.<arbitrary>``).  An
-# unbounded ``functools.cache`` would grow without limit — a slow memory-
-# exhaustion vector.  LRU keeps the hot working set while capping memory.
+# Bounded cache: these parsers are reachable from authenticated RPC with
+# user-controlled, effectively unbounded distinct inputs (e.g.
+# ``props.<arbitrary>``). An unbounded ``functools.cache`` would be a slow
+# memory-exhaustion vector; LRU caps memory while keeping the hot set.
 _PARSE_CACHE_MAXSIZE = 2048
 
 
 @functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
-    """Parse a field expression into field name and optional property name.
+    """Parse ``"field"`` or ``"field.property"`` into ``(field, property)``.
 
-    Args:
-        field_expr: A field expression like "field_name" or "field_name.property".
+    ``property`` is ``None`` when absent.
 
-    Returns:
-        A tuple of (field_name, property_name) where property_name may be None.
-
-    Raises:
-        ValueError: If the field expression is empty or malformed (leading dot,
-                    trailing dot, or any empty segment between dots).
-
-    Examples:
-        >>> parse_field_expr("amount")
-        ('amount', None)
-        >>> parse_field_expr("partner_id.name")
-        ('partner_id', 'name')
+    :raises ValueError: empty or malformed expression (leading/trailing dot,
+        or an empty segment between dots).
     """
     raw = field_expr
     if (property_index := field_expr.find(".")) >= 0:
@@ -108,24 +87,12 @@ def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
 
 @functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def parse_read_group_spec(spec: str) -> tuple[str, str | None, str | None]:
-    """Return a triplet corresponding to the given field/property_name/aggregate specification.
+    """Parse a read_group spec into ``(field, property, aggregate/granularity)``.
 
-    Args:
-        spec: A read_group specification like "amount:sum" or "date:month".
+    E.g. ``"amount:sum"`` → ``('amount', None, 'sum')``;
+    ``"properties.color:count"`` → ``('properties', 'color', 'count')``.
 
-    Returns:
-        A tuple of (field_name, property_name, aggregate/granularity).
-
-    Raises:
-        ValueError: If the specification format is invalid.
-
-    Examples:
-        >>> parse_read_group_spec("amount:sum")
-        ('amount', None, 'sum')
-        >>> parse_read_group_spec("date:month")
-        ('date', None, 'month')
-        >>> parse_read_group_spec("properties.color:count")
-        ('properties', 'color', 'count')
+    :raises ValueError: if the spec format is invalid.
     """
     res_match = regex_read_group_spec.match(spec)
     if not res_match:
@@ -141,25 +108,11 @@ def parse_read_group_spec(spec: str) -> tuple[str, str | None, str | None]:
 
 @functools.cache
 def fix_import_export_id_paths(fieldname: str) -> tuple[str, ...]:
-    """Fix the id fields in import and exports, and split field paths on '/'.
+    """Normalize import/export id syntax and split the field path on '/'.
 
-    This function handles special id field syntax used in import/export operations:
-    - Converts ".id" (database id) to "/.id"
-    - Converts ":id" (external id) to "/id"
-
-    Args:
-        fieldname: Name of the field path to import/export.
-
-    Returns:
-        Split field path as a tuple of strings.
-
-    Examples:
-        >>> fix_import_export_id_paths("partner_id.id")
-        ('partner_id', '.id')
-        >>> fix_import_export_id_paths("partner_id:id")
-        ('partner_id', 'id')
-        >>> fix_import_export_id_paths("partner_id/name")
-        ('partner_id', 'name')
+    Converts ``.id`` (database id) to ``/.id`` and ``:id`` (external id) to
+    ``/id``, then splits into a tuple. E.g. ``"partner_id.id"`` →
+    ``('partner_id', '.id')``; ``"partner_id:id"`` → ``('partner_id', 'id')``.
     """
     fixed_db_id = _FIX_DB_ID_RE.sub(r"\1/.id", fieldname)
     fixed_external_id = _FIX_EXTERNAL_ID_RE.sub(r"\1/id", fixed_db_id)

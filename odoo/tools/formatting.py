@@ -1,6 +1,4 @@
-"""
-Date, time, and number formatting utilities for Odoo.
-"""
+"""Date, time, and number formatting utilities for Odoo."""
 
 import datetime
 import re
@@ -87,8 +85,7 @@ def formatLang(
         "decimals", "units", "thousands", "lakhs", "millions"
     ] = "decimals",
 ) -> str:
-    """
-    This function will format a number `value` to the appropriate format of the language used.
+    """Format ``value`` to the appropriate number format of the language in use.
 
     :param env: The environment.
     :param value: The value to be formatted.
@@ -113,7 +110,7 @@ def formatLang(
 
     :returns: The value formatted.
     """
-    # We don't want to return 0
+    # Empty string is a valid "no value" input; pass it through unformatted.
     if value == "":
         return ""
 
@@ -157,17 +154,14 @@ def format_date(
     lang_code: str | None = None,
     date_format: str | typing.Literal[False] = False,
 ) -> str:
-    """
-    Formats the date in a given format.
+    """Format a date in a given format.
 
     :param env: an environment.
-    :param date, datetime or string value: the date to format.
-    :param string lang_code: the lang code, if not specified it is extracted from the
-        environment context.
-    :param string date_format: the format or the date (LDML format), if not specified the
-        default format of the lang.
-    :return: date formatted in the specified format.
-    :rtype: string
+    :param value: the date to format (date, datetime or string).
+    :param lang_code: the lang code; if omitted, taken from the environment context.
+    :param date_format: the LDML format; if omitted, the lang's default format.
+    :return: the date formatted in the specified format.
+    :rtype: str
     """
     if not value:
         return ""
@@ -198,14 +192,11 @@ def format_date(
 def parse_date(
     env: Environment, value: str, lang_code: str | None = None
 ) -> datetime.date | str:
-    """
-    Parse the date from a given format. If it is not a valid format for the
-    localization, return the original string.
+    """Parse a localized date string, returning the original string if invalid.
 
     :param env: an environment.
-    :param string value: the date to parse.
-    :param string lang_code: the lang code, if not specified it is extracted from the
-        environment context.
+    :param value: the date to parse.
+    :param lang_code: the lang code; if omitted, taken from the environment context.
     :return: date object from the localized string
     :rtype: datetime.date
     """
@@ -224,7 +215,7 @@ def format_datetime(
     dt_format: str = "medium",
     lang_code: str | None = None,
 ) -> str:
-    """Formats the datetime in a given format.
+    """Format the datetime in a given format.
 
     :param env:
     :param str|datetime value: naive datetime to format either in string or in datetime
@@ -276,16 +267,15 @@ def format_time(
     time_format: str = "medium",
     lang_code: str | None = None,
 ) -> str:
-    """Format the given time (hour, minute and second) with the current user preference (language, format, ...)
+    """Format the given time (hour, minute, second) per the user's preferences (language, format, ...).
 
     :param env:
     :param value: the time to format
-    :type value: `datetime.time` instance. Could be timezoned to display tzinfo according to format (e.i.: 'full' format)
-    :param tz: name of the timezone  in which the given datetime should be localized
+    :type value: `datetime.time` instance; may be timezoned to display tzinfo in formats that show it (e.g. 'full')
+    :param tz: name of the timezone in which the given datetime should be localized
     :param time_format: one of "full", "long", "medium", or "short", or a custom time pattern
-    :param lang_code: ISO
-
-    :rtype str
+    :param lang_code: ISO language code
+    :rtype: str
     """
     if not value:
         return ""
@@ -341,11 +331,10 @@ def _format_time_ago(
 
 
 def format_decimalized_number(number: float, decimal: int = 1) -> str:
-    """Format a number to display to nearest metrics unit next to it.
+    """Format a number with the nearest metric unit appended.
 
-    Do not display digits if all visible digits are null.
-    Do not display units higher then "Tera" because most people don't know what
-    a "Yotta" is.
+    Omit decimals when all visible digits are zero. Cap at "Tera"; most people
+    don't know what a "Yotta" is.
 
     ::
 

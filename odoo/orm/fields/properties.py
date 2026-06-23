@@ -72,7 +72,8 @@ class Properties(Field):
     definition_record = (
         None  # field on the current model that point to the definition record
     )
-    definition_record_field = None  # field on the definition record which defined the Properties field definition
+    # field on the definition record that defined the Properties field definition
+    definition_record_field = None
 
     _description_definition_record = property(attrgetter("definition_record"))
     _description_definition_record_field = property(
@@ -147,14 +148,8 @@ class Properties(Field):
             self.definition = self.inherited_field.definition
             self._setup_definition_attrs(model)
 
-    # Database/cache format: a value is either None, or a dict mapping property
-    # names to their corresponding value, like
-    #
-    #       {
-    #           '3adf37f3258cfe40': 'red',
-    #           'aa34746a6851ee4e': 1337,
-    #       }
-    #
+    # Database/cache format: None, or a dict {property_name: value}, e.g.
+    # {'3adf37f3258cfe40': 'red', 'aa34746a6851ee4e': 1337}.
     @override
     def convert_to_column(
         self,
@@ -209,36 +204,15 @@ class Properties(Field):
 
         return value
 
-    # Record format: the value is either False, or a dict mapping property
-    # names to their corresponding value, like
-    #
-    #       {
-    #           '3adf37f3258cfe40': 'red',
-    #           'aa34746a6851ee4e': 1337,
-    #       }
-    #
+    # Record format: False, or a dict {property_name: value} (as cache format).
     @override
     def convert_to_record(self, value: typing.Any, record: BaseModel) -> Property:
         return Property(value or {}, self, record)
 
-    # Read format: the value is a list, where each element is a dict containing
-    # the definition of a property, together with the property's corresponding
-    # value, where relational field values have a display name.
-    #
-    #       [{
-    #           'name': '3adf37f3258cfe40',
-    #           'string': 'Color Code',
-    #           'type': 'char',
-    #           'default': 'blue',
-    #           'value': 'red',
-    #       }, {
-    #           'name': 'aa34746a6851ee4e',
-    #           'string': 'Partner',
-    #           'type': 'many2one',
-    #           'comodel': 'test_orm.partner',
-    #           'value': [1337, 'Bob'],
-    #       }]
-    #
+    # Read format: a list of dicts, each merging a property's definition with
+    # its value; relational values carry a display name. E.g.
+    #   [{'name': '3adf...', 'type': 'char', 'value': 'red', ...},
+    #    {'name': 'aa34...', 'type': 'many2one', 'value': [1337, 'Bob'], ...}]
     @override
     def convert_to_read(
         self, value: typing.Any, record: BaseModel, use_display_name: bool = True
@@ -253,8 +227,8 @@ class Properties(Field):
     ) -> list[typing.Any]:
         if not records:
             return values
-        # raise (not assert) — under python -O len mismatch would slip past
-        # this contract and silently truncate the result list.
+        # raise (not assert): asserts are stripped under python -O, and this
+        # gives a clearer message than the strict-zip below
         if len(values) != len(records):
             raise ValueError(
                 f"convert_to_record: expected {len(records)} values, got {len(values)}"
@@ -292,7 +266,6 @@ class Properties(Field):
 
     @override
     def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
-        """Convert value from the record format to the export format."""
         if isinstance(value, Property):
             value = value._values
         return value or ""
@@ -300,15 +273,12 @@ class Properties(Field):
     def _get_res_ids_per_model(
         self, env: typing.Any, values_list: list[typing.Any]
     ) -> dict[str, set[int]]:
-        """Read everything needed in batch for the given records.
+        """Prefetch relational property records in batch.
 
-        To retrieve relational properties names, or to check their existence,
-        we need to do some SQL queries. To reduce the number of queries when we read
-        in batch, we prefetch everything needed before calling
-        convert_to_record / convert_to_read.
+        Resolving relational property names and checking their existence needs
+        SQL; batching it here avoids per-record queries in convert_to_read.
 
-        Return a dict {model: record_ids} that contains
-        the existing ids for each needed models.
+        :return: ``{model: existing_record_ids}`` for the needed models.
         """
         # ids per model we need to fetch in batch to put in cache
         ids_per_model = defaultdict(OrderedSet)
@@ -457,9 +427,9 @@ class Properties(Field):
                 and any(d.get("definition_changed") for d in properties_values)
             )
         ):
-            # If a parent is set without properties, we might want to change its definition
-            # when we create the new record. But if we just set the value without changing
-            # the definition, in that case we can just ignored the passed values
+            # setting a parent without properties may change its definition on
+            # create; but if the value is set without changing the definition,
+            # the passed values can be ignored
             return {}
 
         assert isinstance(properties_values, (list, dict))
@@ -694,35 +664,14 @@ class Properties(Field):
     def _list_to_dict(
         cls, values_list: list[dict[str, typing.Any]]
     ) -> dict[str, typing.Any]:
-        """Convert a list of properties with definition into a dict {name: value}.
+        """Convert a list of properties with definition into ``{name: value}``.
 
-        To not repeat data in database, we only store the value of each property on
-        the child. The properties definition is stored on the container.
+        Only the value of each property is stored on the child; the definition
+        lives on the container. So the read-format list is reduced to its
+        ``{name: value}`` essence here.
 
-        E.G.
-            Input list:
-            [{
-                'name': '3adf37f3258cfe40',
-                'string': 'Color Code',
-                'type': 'char',
-                'default': 'blue',
-                'value': 'red',
-            }, {
-                'name': 'aa34746a6851ee4e',
-                'string': 'Partner',
-                'type': 'many2one',
-                'comodel': 'test_orm.partner',
-                'value': [1337, 'Bob'],
-            }]
-
-            Output dict:
-            {
-                '3adf37f3258cfe40': 'red',
-                'aa34746a6851ee4e': 1337,
-            }
-
-        :param values_list: List of properties definition and value
-        :return: Generate a dict {name: value} from this definitions / values list
+        :param values_list: list of properties definitions with values.
+        :return: a ``{name: value}`` dict.
         """
         if not is_list_of(values_list, dict):
             raise ValueError(f"Wrong properties value {values_list!r}")
@@ -838,11 +787,10 @@ class Properties(Field):
         query: Query,
     ) -> SQL:
         check_property_field_value_name(property_name)
-        # Embed property name as SQL literal (not bound parameter).
-        # With server-side binding (psycopg3), each %s gets a unique $N,
-        # so the same expression in SELECT and GROUP BY would differ
-        # (e.g., col -> $1 vs col -> $3).  Property names are validated
-        # to [a-z0-9_]+, safe for literal embedding.
+        # Embed the property name as a SQL literal (not a bound parameter) so the
+        # expression matches between SELECT and GROUP BY: server-side binding
+        # gives each %s a distinct $N. The name is validated to [a-z0-9_]+, so
+        # literal embedding is safe.
         return SQL("(%%s -> '%s')" % property_name, field_sql)  # pylint: disable=sql-injection
 
     @override
@@ -992,21 +940,16 @@ class Property(abc.Mapping):
         self._values = values
         self.record = record
         self.field = field
-        # lazy ``{name: definition}`` index, built once by ``_definitions`` —
-        # see there for why this matters.
+        # lazy ``{name: definition}`` index, built once by ``_definitions``
         self._definitions_by_name: dict[str, typing.Any] | None = None
 
     def _definitions(self) -> dict[str, typing.Any]:
         """Return the read-format definitions indexed by name, built once.
 
-        ``Properties.convert_to_read`` rebuilds the *entire* property list
-        (parsing types and resolving relational values) on every call.  The
-        previous implementation called it inside ``__getitem__`` and re-derived
-        the whole list per key, making ``__iter__`` / ``dict(record.prop)`` /
-        any ``Mapping`` traversal O(n²) with one full rebuild per property.
-        Memoising the converted list once and indexing it by name makes lookup
-        O(1).  The instance is an ephemeral, per-access view over an immutable
-        ``_values`` snapshot, so a single build is always consistent.
+        ``convert_to_read`` rebuilds the entire property list on every call, so
+        memoizing it once and indexing by name keeps per-key lookup O(1) (and
+        ``Mapping`` traversal O(n) instead of O(n²)). Safe to cache: the
+        instance is an ephemeral view over an immutable ``_values`` snapshot.
         """
         index = self._definitions_by_name
         if index is None:
@@ -1036,7 +979,6 @@ class Property(abc.Mapping):
         return self._values == (other._values if isinstance(other, Property) else other)
 
     def __getitem__(self, property_name: str) -> typing.Any:
-        """Will make the verification."""
         if not self.record:
             return False
 
@@ -1121,26 +1063,10 @@ class PropertiesDefinition(Field):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
-        """Convert the value before inserting it in database.
+        """Convert a properties-definition list before inserting it in database.
 
-        This method accepts a list properties definition.
-
-        The relational properties (many2one / many2many) default value
-        might contain the display_name of those records (and will be removed).
-
-        [{
-            'name': '3adf37f3258cfe40',
-            'string': 'Color Code',
-            'type': 'char',
-            'default': 'blue',
-            'value': 'red',
-        }, {
-            'name': 'aa34746a6851ee4e',
-            'string': 'Partner',
-            'type': 'many2one',
-            'comodel': 'test_orm.partner',
-            'default': [1337, 'Bob'],
-        }]
+        Relational properties (many2one/many2many) defaults may carry the
+        records' display_name from the client; it is stripped here.
         """
         if not value:
             return None
@@ -1214,15 +1140,10 @@ class PropertiesDefinition(Field):
                     property_definition["comodel"] = False
                     property_definition.pop("domain", None)
                 elif property_domain := property_definition.get("domain"):
-                    # some fields in the domain might have been removed
-                    # (e.g. if the module has been uninstalled)
-                    # check if the domain is still valid.
-                    #
-                    # ast.literal_eval is safe from code execution but accepts
-                    # arbitrarily-nested literals.  Bound the input length so
-                    # a malicious property definition cannot DoS the server
-                    # by submitting a 10 MB nested-list string.  Real domain
-                    # strings are short (a few hundred chars at most).
+                    # Re-validate the domain: fields may have been removed (e.g.
+                    # module uninstalled). ast.literal_eval is safe from code
+                    # execution but accepts arbitrarily-nested literals, so bound
+                    # the length to prevent a DoS via a huge nested-list string.
                     if len(property_domain) > 8192:
                         del property_definition["domain"]
                     else:

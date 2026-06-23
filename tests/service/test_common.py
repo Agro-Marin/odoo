@@ -27,12 +27,10 @@ def common_mod():
 
 
 class TestDispatchAllowlist:
-    """``dispatch()`` must only expose methods present in ``_DISPATCH``.
+    """``dispatch()`` only exposes methods present in ``_DISPATCH``.
 
-    Regression: the prior implementation used ``globals()`` reflection —
-    ANY module-level function prefixed ``exp_`` was reachable by an
-    unauthenticated XML-RPC caller. The explicit allowlist prevents a
-    future debug helper or operator tool from becoming a public endpoint.
+    The old ``globals()`` reflection made any module-level ``exp_*`` function
+    reachable unauthenticated; the explicit allowlist prevents that.
     """
 
     def test_allowlist_contains_expected_public_methods(self, common_mod):
@@ -45,19 +43,16 @@ class TestDispatchAllowlist:
             common_mod.dispatch("not_a_real_method", [])
 
     def test_accidental_exp_helper_is_not_reachable(self, common_mod):
-        """Adding a module-level ``exp_*`` function does NOT expose it.
+        """A module-level ``exp_*`` helper must NOT become a public RPC method.
 
-        Simulates a future maintainer writing a debug helper they forgot
-        was prefixed ``exp_``. Under the old globals()-based dispatch,
-        this would be callable unauthenticated; under the allowlist, it is not.
+        Under the old ``globals()`` dispatch it would be callable
+        unauthenticated; the allowlist blocks it.
         """
 
         def exp_accidental_debug_helper():
             return "this should never be reachable via RPC"
 
-        # Inject the helper at module level just as a real contributor would
         with patch.object(common_mod, "exp_accidental_debug_helper", exp_accidental_debug_helper, create=True):
-            # Must NOT be exposed by dispatch
             with pytest.raises(AttributeError, match="Method not found"):
                 common_mod.dispatch("accidental_debug_helper", [])
 
@@ -88,18 +83,11 @@ class TestDispatchAllowlist:
 class TestExpAuthenticateExceptionAbsorption:
     """``exp_authenticate`` collapses every connection-level failure into ``False``.
 
-    Regression: the prior catch was ``except psycopg.OperationalError, LookupError:``.
-    Today's connection layer wraps every ``getconn`` failure (missing DB, dead PG,
-    bad credentials, semaphore saturation) in ``odoo.db.PoolError`` — which is not
-    a subclass of either caught exception.  An attacker could distinguish a
-    missing database (``False``) from an existing-but-overloaded one (``PoolError``
-    propagated to the RPC layer), defeating the database-enumeration mitigation
-    documented in the function's own docstring.
-
-    LookupError was also dropped from the catch — it never matched the real-world
-    failure modes (``Registry.__new__`` swallows the only KeyError it can raise),
-    and catching it silently swallowed any unrelated ``KeyError`` programming
-    error.
+    The connection layer wraps ``getconn`` failures (missing DB, dead PG, bad
+    credentials, saturation) in ``odoo.db.PoolError``; if that escaped, an
+    attacker could tell a missing DB from an overloaded one, defeating the
+    database-enumeration mitigation. ``LookupError`` is no longer caught — it
+    never matched a real failure and hid unrelated ``KeyError`` bugs.
     """
 
     def test_pool_error_returns_false_not_raise(self, common_mod):
@@ -125,10 +113,8 @@ class TestExpAuthenticateExceptionAbsorption:
     def test_unrelated_keyerror_propagates(self, common_mod):
         """Programming errors must NOT be silently swallowed.
 
-        The prior ``LookupError`` catch incidentally caught ``KeyError`` (a
-        ``LookupError`` subclass) raised by application bugs inside Registry
-        construction.  Removing ``LookupError`` from the catch ensures those
-        bugs surface in logs and tracebacks.
+        The old ``LookupError`` catch also swallowed ``KeyError`` from Registry
+        bugs; dropping it lets those surface.
         """
         with patch.object(
             common_mod, "Registry", side_effect=KeyError("missing module")
@@ -154,10 +140,8 @@ class TestExpAuthenticateExceptionAbsorption:
 class TestServiceModuleDocstring:
     """The ``odoo.service`` package docstring must be reachable as ``__doc__``.
 
-    Regression: the docstring used to live AFTER the ``from . import ...``
-    statements in ``service/__init__.py``, making it a top-level expression
-    statement instead of the module docstring.  ``odoo.service.__doc__`` was
-    ``None``, breaking ``help(odoo.service)`` and api-doc generators.
+    A docstring placed after the ``from . import ...`` lines becomes a plain
+    expression, leaving ``__doc__`` None and breaking ``help()``/api-doc tools.
     """
 
     def test_service_package_has_docstring(self):

@@ -54,11 +54,8 @@ class Integer(Field[int]):
         if value.__class__ is int:
             return value
         if isinstance(value, dict):
-            # special case, when an integer field is used as inverse for a one2many
-            # ``or 0`` keeps the convention from convert_to_column: a missing or
-            # falsy ``id`` collapses to 0, never None.  Storing None here would
-            # later become 0 anyway via ``int(None or 0)`` but only after the
-            # cache has briefly held an out-of-type value.
+            # integer field used as inverse for a one2many: a missing/falsy id
+            # collapses to 0 (never None) to keep the cache in-type.
             return value.get("id") or 0
         return int(value or 0)
 
@@ -164,11 +161,9 @@ class Float(Field[float]):
 
     @property
     def _column_type(self) -> tuple[str, str]:
-        # Explicit support for "falsy" digits (0, False) to indicate a NUMERIC
-        # field with no fixed precision. The values are saved in the database
-        # with all significant digits.
-        # FLOAT8 type is still the default when there is no precision because it
-        # is faster for most operations (sums, etc.)
+        # falsy digits (0, False) -> NUMERIC with no fixed precision (all
+        # significant digits kept). float8 is the default (no precision) since
+        # it is faster for most operations (sums, etc.).
         return (
             ("numeric", "numeric")
             if self._digits is not None
@@ -332,9 +327,7 @@ class Monetary(Field[float]):
         value = float(value or 0.0)
         if not value:
             return value
-        # Apply currency rounding when record is actual (not model class).
-        # This aligns with convert_to_column_insert for company-dependent
-        # field paths (get_column_update, fallback comparison).
+        # Apply currency rounding only on actual records (not the model class).
         if record.ids:
             currency_field_name = self.get_currency_field(record)
             if currency_field_name:
@@ -392,10 +385,9 @@ class Monetary(Field[float]):
         # cache format: float
         value = float(value or 0.0)
         if value and validate:
-            # Currency field may not be initialized yet if it is a computed or
-            # related field (e.g., during record creation before all fields are
-            # set).  The prefetch_fields=False guard prevents reading unrelated
-            # fields that could overwrite the value currently being cached.
+            # The currency field may be uninitialized (computed/related, during
+            # creation). prefetch_fields=False avoids reading unrelated fields
+            # that could overwrite the value being cached.
             currency_field = self.get_currency_field(record)
             currency = record.sudo().with_context(prefetch_fields=False)[currency_field]
             if len(currency) > 1:
@@ -436,7 +428,7 @@ class Monetary(Field[float]):
         if not records:
             return records
         # check that the values were rounded properly when put in cache
-        # see fix odoo/odoo#177200 (commit 7164d5295904b08ec3a0dc1fb54b217671ff531c)
+        # (see odoo/odoo#177200)
         env = records.env
         field_cache = self._get_cache(env)
         currency_field = records._fields[self.get_currency_field(records)]

@@ -1,32 +1,15 @@
 """Structural type definitions for the http package's external contracts.
 
-The :class:`HttpExtension` protocol declares the methods on
-``env["ir.http"]`` that the http package calls. It serves three purposes:
+:class:`HttpExtension` declares the ``env["ir.http"]`` methods the http package
+calls — documenting the contract in one place and surfacing breakage when a hook
+signature changes. No type checker runs on this fork, so that guarantee is
+enforced at test time: ``test_http_audit.TestIrHttpContract`` asserts ``IrHttp``
+still satisfies this protocol (presence + arity). Keep the two in sync.
 
-* Documents the contract in one place rather than scattered across call sites.
-* Is available for IDE navigation / static type checking via
-  ``cast(HttpExtension, env["ir.http"])`` — note no call site does this today;
-  the http package still reaches ``ir.http`` through the untyped recordset.
-* Surfaces breakage when ``ir.http`` changes a hook signature.
-
-No static type checker is currently configured for this fork, so the third
-guarantee is provided at *test* time instead of type-check time:
-``odoo.addons.test_http.tests.test_http_audit.TestIrHttpContract`` asserts that
-``IrHttp`` keeps satisfying this protocol (presence + argument arity). Keep the
-two in sync — if you add or change a hook the http package calls on
-``ir.http``, update this protocol and that test will confirm the match.
-
-Implementation note: every method below is a ``@classmethod`` on
-``odoo.addons.base.models.ir_http.IrHttp`` *except* :meth:`routing_map` (a
-regular method). The protocol models the **caller-visible** shape — the http
-package always invokes these on a model recordset
-(``env["ir.http"].method(...)``), so they are declared as instance methods
-here regardless of the classmethod implementation; Python's descriptor
-protocol resolves both identically at the call site.
-
-The protocol uses ``typing.Protocol`` so it does not impose nominal
-inheritance on the ``ir.http`` model — duck-typing remains the runtime
-discipline.
+Methods are declared as instance methods to model the **caller-visible** shape
+(``env["ir.http"].method(...)``), even though most are ``@classmethod`` on
+``IrHttp``. Being a ``typing.Protocol``, it imposes no nominal inheritance —
+duck-typing stays the runtime discipline.
 """
 
 from __future__ import annotations

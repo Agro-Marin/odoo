@@ -60,12 +60,9 @@ class Start(Command):
         # check if one of the subfolders has at least one module
         mods = self.get_module_list(project_path)
         if mods and not _has_arg(cmdargs, "--addons-path"):
-            # The dispatcher's bootstrap parser consumes --addons-path from
-            # any argv position, so a user-supplied path never appears in
-            # cmdargs (_has_arg above only covers direct invocations that
-            # bypass main()). Appending the bare project path here would
-            # make the second config parse *replace* the user's value —
-            # merge instead, user paths first.
+            # main()'s bootstrap parser already consumed any user --addons-path
+            # (so it's absent from cmdargs; _has_arg only catches direct calls
+            # that bypass main()). Merge user paths first instead of replacing.
             addons_paths = [str(project_path)]
             if bootstrap_value := odoo.cli.BOOTSTRAP_ADDONS_PATH:
                 user_paths = [p for p in bootstrap_value.split(",") if p]
@@ -95,11 +92,9 @@ class Start(Command):
         # Remove --path /-p options from the command arguments
         def is_path_arg(index: int, args: list[str]) -> bool:
             arg = args[index]
-            # `-p`/`--path` with a separate value, `--path=X`, and the
-            # concatenated short form `-pX` that argparse also accepts.
-            # Leaking `-pX` is worse than a parse error: the server parser
-            # maps `-p` to --http-port, so a numeric path would silently
-            # change the listening port.
+            # Match `-p X`, `--path X`, `--path=X`, and the concatenated `-pX`.
+            # Leaking `-pX` is worse than a parse error: the server maps `-p` to
+            # --http-port, so a numeric path would silently change the port.
             if arg == "--path" or arg.startswith(("--path=", "-p")):
                 return True
             return index > 0 and args[index - 1] in ("-p", "--path")

@@ -2,10 +2,6 @@ import enum
 import typing
 from collections.abc import Collection, Mapping
 from collections.abc import Set as AbstractSet
-
-# =============================================================================
-# Type Aliases
-# =============================================================================
 from typing import Self
 
 from odoo.tools import SQL
@@ -16,36 +12,22 @@ type ValuesType = dict[str, typing.Any]
 # Types handled as collections in the ORM
 COLLECTION_TYPES = (list, tuple, AbstractSet)
 
-# =============================================================================
+
 # Identifiers
-# =============================================================================
 
 
 class NewId:
-    """Pseudo-ids for new records, encapsulating an optional origin id (actual
-    record id) and an optional reference (any value).
+    """Pseudo-id for a new record, with an optional origin id and a ref.
 
-    Equality and hashing
-    --------------------
-    Two NewIds are equal in exactly one of these cases:
+    Equality/hashing: two NewIds are equal only when (a) same identity, (b) both
+    origins set and equal, or (c) both origins None and both refs set and equal.
+    An origin-set NewId is never equal to an origin-less one. Hash uses origin,
+    else ref, else ``id(self)``, preserving ``a == b ⟹ hash(a) == hash(b)``.
 
-    1. Same identity (``self is other``).
-    2. Both have a non-None ``origin`` and origins are equal.
-    3. Both have ``origin is None``, both have a non-None ``ref``, refs are equal.
-
-    A NewId with ``origin`` set is **never** equal to one without ``origin``,
-    even if their refs match — they describe different kinds of pseudo-record.
-    Hash uses ``origin`` if set, else ``ref`` if set, else ``id(self)``,
-    keeping the invariant ``a == b ⟹ hash(a) == hash(b)``.
-
-    Ordering
-    --------
-    NewId(N) sorts as position ``N + 0.5`` against integer ids — strictly
-    between N and N+1.  NewId() (no origin) sorts as ``+infinity`` —
-    after every integer id and every NewId-with-origin.  Two distinct
-    NewId() instances are mutually incomparable: ``<``, ``<=``, ``>``,
-    ``>=`` all return ``False`` when neither identity nor equality holds.
-    This matches the production expectations in ``test_orm.test_sort``.
+    Ordering: NewId(N) sorts as ``N + 0.5`` (between N and N+1); NewId() sorts as
+    ``+infinity`` (after every int and every NewId-with-origin). Two distinct
+    NewId() are mutually incomparable (all comparisons False without identity or
+    equality). Matches ``test_orm.test_sort``.
     """
 
     __slots__ = ("origin", "ref", "__hash")  # noqa: RUF023
@@ -97,14 +79,13 @@ class NewId:
         if self is other:
             return True
         if isinstance(other, NewId):
-            # equality (e.g. shared ref with no origin) implies ≤; the +inf
-            # branch below would otherwise return False and break the
-            # invariant ``a == b ⟹ a <= b``.
+            # equality implies ≤; without this the +inf branch below would
+            # return False and break ``a == b ⟹ a <= b``.
             if self == other:
                 return True
             s, o = self.origin, other.origin
             if s is None:
-                return False  # +inf is only ≤ to itself (identity/equality handled above)
+                return False  # +inf ≤ only itself (handled above)
             if o is None:
                 return True  # finite ≤ +inf
             return s <= o
@@ -152,9 +133,8 @@ class NewId:
         return NotImplemented
 
     def __repr__(self) -> str:
-        # Use ``is not None`` (matching __init__/__eq__): origin=0 is "set",
-        # not "absent".  Truthiness checks would silently render origin=0
-        # NewIds as anonymous and break debugging.
+        # ``is not None`` (matching __eq__): origin=0 is "set", not "absent" —
+        # a truthiness check would render it anonymous and break debugging.
         if self.origin is not None:
             return f"<NewId origin={self.origin!r}>"
         if self.ref is not None:
@@ -162,8 +142,8 @@ class NewId:
         return f"<NewId 0x{id(self):x}>"
 
     def __str__(self) -> str:
-        # Origin takes precedence (matches __eq__); falsy refs (0, "", []) must
-        # not be conflated with "absent ref".
+        # Origin takes precedence (matches __eq__); falsy refs (0, "", []) are
+        # not "absent ref".
         if self.origin is not None:
             id_part = repr(self.origin)
         elif self.ref is not None:
@@ -173,15 +153,12 @@ class NewId:
         return f"NewId_{id_part}"
 
 
-# By default, in the ORM we initialize it as an int, but any type should work.
-# However, some parts of the ORM may assume it is an integer.
-# Non-exhaustive list: relational fields, references, hierarchies, etc.
+# Initialized as int by default, but any type should work. Some parts of the
+# ORM assume an integer (relational fields, references, hierarchies, etc.).
 type IdType = int | NewId | str
 
 
-# =============================================================================
 # Commands
-# =============================================================================
 
 
 class Command(enum.IntEnum):
@@ -307,9 +284,7 @@ type CommandValue = tuple[
 ]
 
 
-# =============================================================================
-# SQL Constants
-# =============================================================================
+# SQL constants
 
 # The hard-coded super-user id (a.k.a. root user, or OdooBot).
 SUPERUSER_ID = 1
@@ -317,8 +292,8 @@ SUPERUSER_ID = 1
 # SQL default placeholder for INSERT statements
 SQL_DEFAULT = SQL("DEFAULT")
 
-# SQL operators with spaces around them
-# Hardcoded to avoid changing SQL injection linting
+# SQL operators with surrounding spaces. Hardcoded to avoid changing SQL
+# injection linting.
 SQL_OPERATORS = {
     "=": SQL(" = "),
     "!=": SQL(" != "),
@@ -339,9 +314,7 @@ SQL_OPERATORS = {
 }
 
 
-# =============================================================================
-# Column Constants
-# =============================================================================
+# Column constants
 
 # Special columns automatically created by the ORM for logging record access
 LOG_ACCESS_COLUMNS = ["create_uid", "create_date", "write_uid", "write_date"]
@@ -349,24 +322,15 @@ LOG_ACCESS_COLUMNS = ["create_uid", "create_date", "write_uid", "write_date"]
 # All magic columns (id + log access columns)
 MAGIC_COLUMNS = ["id"] + LOG_ACCESS_COLUMNS
 
-# Hacky-ish way to prevent access to a field through the ORM (except for sudo mode)
+# Prevents access to a field through the ORM (except in sudo mode)
 NO_ACCESS = "."
 
 
-# =============================================================================
-# Batch Size Constants
-# =============================================================================
+# Batch sizes
 
-# Batch size for INSERT operations
 INSERT_BATCH_SIZE = 100
-
-# Batch size for UPDATE operations
 UPDATE_BATCH_SIZE = 100
 
-
-# =============================================================================
-# Exports
-# =============================================================================
 
 __all__ = [
     # Batch Constants

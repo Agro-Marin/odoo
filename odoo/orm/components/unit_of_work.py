@@ -1,22 +1,8 @@
 """Standalone flush scheduling engine for the ORM.
 
-This module provides :class:`UnitOfWork`, an isolated component that
-encapsulates the fixpoint convergence loop and dirty-tracking queries
-currently embedded in ``Environment.flush_all()`` and
-``Environment._recompute_all()``.
-
-It has **no dependency** on Environment, BaseModel, or database cursors.
-Actual recomputation and SQL flushing are injected via callbacks.
-
-Usage::
-
-    uow = UnitOfWork(cache_store, compute_engine)
-
-    # Recompute loop only
-    result = uow.run_recompute_loop(recompute_fn)
-
-    # Full flush loop (recompute → flush → repeat)
-    result = uow.run_flush_loop(recompute_fn, flush_fn)
+:class:`UnitOfWork` encapsulates the fixpoint convergence loop and dirty-tracking
+scans used when flushing. It has no dependency on Environment, BaseModel, or
+cursors: recomputation and SQL flushing are injected via callbacks.
 """
 
 from dataclasses import dataclass, field
@@ -31,14 +17,7 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class LoopResult:
-    """Result of a convergence loop execution.
-
-    Attributes:
-        iterations: number of iterations executed
-        converged: whether the loop converged before max_iterations
-        stalled_fields: field keys that stalled (same snapshot twice)
-
-    """
+    """Outcome of a convergence loop: iterations, converged flag, stalled fields."""
 
     iterations: int = 0
     converged: bool = True
@@ -48,15 +27,8 @@ class LoopResult:
 class UnitOfWork:
     """Flush scheduling engine: convergence detection + ordering.
 
-    Owns the algorithm for:
-
-    * Determining which fields/models need flushing (dirty field scan)
-    * Computing flush order
-    * Detecting convergence stalls in recomputation
-    * Tracking monotonicity (progress detection)
-
-    Does NOT own: actual SQL execution, recomputation dispatch.
-    These are injected via callbacks.
+    Owns dirty-field scanning, flush ordering, and stall/progress detection.
+    SQL execution and recomputation dispatch are injected via callbacks.
     """
 
     __slots__ = ("_recompute_order", "cache", "engine", "max_iterations")
@@ -80,38 +52,24 @@ class UnitOfWork:
     ) -> None:
         """Set the topological recompute order from ModelGraph.
 
-        :param order: either a ``{field: priority_int}`` mapping (lower
-            priority = compute first), or a **zero-argument callable** returning
-            such a mapping (or ``None``).
-
-            Prefer the callable form whenever the underlying order can change
-            during the transaction's lifetime — e.g. after a registry reload
-            (``Transaction.reset``) or a field-metadata rebuild
-            (``ModelGraph.reset_field_metadata``).  ``recompute_order`` is keyed
-            by *field identity*, so a snapshot taken once in ``__init__`` silently
-            stops matching the new ``Field`` objects after either event, and the
-            ordering optimization degrades to insertion order.  A callable is
-            re-resolved on every :meth:`run_recompute_loop`, so it always reads
-            the live order.  A plain mapping is captured as-is (legacy/test use).
+        :param order: a ``{field: priority}`` mapping (lower = compute first), or
+            a zero-arg callable returning such a mapping (or ``None``). Prefer the
+            callable when the order can change mid-transaction (registry reload,
+            metadata rebuild): the order is keyed by field identity, so a one-time
+            snapshot stops matching the rebuilt ``Field`` objects and degrades to
+            insertion order. A callable is re-resolved each
+            :meth:`run_recompute_loop`; a plain mapping is captured as-is.
         """
         self._recompute_order = order
 
-    # ------------------------------------------------------------------
     # Inspection
-    # ------------------------------------------------------------------
 
     def dirty_fields(self) -> list[Any]:
         """Return fields with dirty entries."""
         return list(self.cache.iter_dirty_fields())
 
     def dirty_models(self) -> list[str]:
-        """Return unique model names with dirty fields, preserving order.
-
-        This extracts the pattern from ``flush_all`` line 541:
-        ``OrderedSet(field.model_name for field in cache_store.iter_dirty_fields())``
-
-        Uses a dict for ordered-unique (preserves insertion order in Python 3.7+).
-        """
+        """Return unique model names with dirty fields, in first-seen order."""
         seen: dict[str, None] = {}
         for fld in self.cache.iter_dirty_fields():
             model_name = getattr(fld, "model_name", None)
@@ -123,9 +81,7 @@ class UnitOfWork:
         """Whether there are pending recomputations or dirty fields."""
         return self.engine.has_pending() or self.cache.is_any_dirty()
 
-    # ------------------------------------------------------------------
     # Convergence detection
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _field_label(field: Any) -> str:
@@ -137,10 +93,9 @@ class UnitOfWork:
     ) -> frozenset[tuple[Any, int]]:
         """Snapshot of ``(field, pending_count)`` for convergence detection.
 
-        Only includes fields with at least one real (truthy) pending ID,
-        matching the ``pending_real_fields()`` filter.  Pass *fields* (an
-        already-computed ``pending_real_fields()`` list) to reuse it and
-        avoid re-scanning the pending dict on the hot loop path.
+        Includes only fields with at least one real (truthy) pending ID. Pass
+        *fields* (a precomputed ``pending_real_fields()`` list) to avoid
+        re-scanning the pending dict on the hot loop path.
         """
         if fields is None:
             fields = self.engine.pending_real_fields()
@@ -155,12 +110,11 @@ class UnitOfWork:
     ) -> tuple[bool, list[str]]:
         """Check whether recomputation is making progress.
 
-        Returns ``(progressing, stalled_field_descriptions)`` where:
-        - ``progressing`` is True if the snapshot changed (or prev was None)
-        - ``stalled_field_descriptions`` lists field info for diagnostics
-
-        :param prev_snapshot: previous result of :meth:`recompute_snapshot`
-        :param curr_snapshot: current result of :meth:`recompute_snapshot`
+        :param prev_snapshot: previous result of :meth:`recompute_snapshot`.
+        :param curr_snapshot: current result of :meth:`recompute_snapshot`.
+        :return: ``(progressing, stalled_labels)`` — *progressing* is True if the
+            snapshot changed (or *prev* was ``None``); *stalled_labels* lists
+            field diagnostics when stalled.
         """
         if prev_snapshot is None or curr_snapshot != prev_snapshot:
             return True, []
@@ -176,7 +130,7 @@ class UnitOfWork:
     ) -> tuple[bool, list[str]]:
         """Check whether flushing is making progress.
 
-        Returns ``(progressing, stalled_field_descriptions)``.
+        :return: ``(progressing, stalled_labels)``.
         """
         if curr_dirty_count < prev_dirty_count:
             return True, []
@@ -186,9 +140,7 @@ class UnitOfWork:
         )
         return False, stalled
 
-    # ------------------------------------------------------------------
     # Convergence loops
-    # ------------------------------------------------------------------
 
     def run_recompute_loop(
         self,
@@ -196,25 +148,20 @@ class UnitOfWork:
     ) -> LoopResult:
         """Execute the fixpoint recompute loop.
 
-        Repeatedly collects fields with pending real recomputations and
-        calls ``recompute_fn(field)`` for each.  When a topological order
-        is available (via :meth:`set_recompute_order`), fields are processed
-        in dependency order — dependencies before dependents — so that a
-        single pass resolves acyclic chains without re-iteration.
+        Repeatedly collects fields with pending real recomputations and calls
+        ``recompute_fn(field)`` for each, in dependency order when an order is
+        available (see :meth:`set_recompute_order`) so a single pass resolves
+        acyclic chains. Tracks monotonicity to detect stalls.
 
-        Tracks monotonicity to detect stalls.
-
-        :param recompute_fn: called as ``recompute_fn(field)`` for each
-            field needing recomputation.  Expected to update the cache
-            and call ``engine.mark_done()``.
-        :returns: :class:`LoopResult` with iteration count and convergence info
+        :param recompute_fn: called as ``recompute_fn(field)``; expected to
+            update the cache and call ``engine.mark_done()``.
+        :return: :class:`LoopResult` with iteration count and convergence info.
         """
         result = LoopResult()
         prev_snapshot = None
-        # Resolve the order source once per loop.  A callable source (wired by
-        # Transaction) reads the *live* registry order, so it survives a
-        # registry reload / metadata rebuild that invalidates field identities;
-        # a plain mapping is used as-is.
+        # Resolve the order source once per loop. A callable (wired by
+        # Transaction) reads the live registry order, surviving a registry
+        # reload / metadata rebuild that invalidates field identities.
         order = self._recompute_order
         if callable(order):
             order = order()
@@ -229,21 +176,18 @@ class UnitOfWork:
             curr_snapshot = self.recompute_snapshot(fields)
             progressing, stalled = self.check_convergence(prev_snapshot, curr_snapshot)
             if progressing:
-                # Transient stall recovered — drop the previously-recorded
-                # stalled list so the final LoopResult does not report
-                # stalled fields when the loop did in fact converge.
+                # Transient stall recovered: clear it so a converged loop does
+                # not report stalled fields.
                 result.stalled_fields = []
             else:
                 result.stalled_fields = stalled
 
             prev_snapshot = curr_snapshot
 
-            # Sort fields by topological priority when available.
-            # Dependencies are processed first (lower priority value),
-            # so their results are in cache when dependents compute.
+            # Sort by topological priority: dependencies (lower value) compute
+            # first, so their results are cached when dependents run.
             if order:
-                # Unknown fields (not in the order map) get max priority,
-                # placing them last — safe fallback for dynamic fields.
+                # Unknown fields sort last (max priority) — safe for dynamic ones.
                 _max = len(order)
                 fields.sort(key=lambda f: order.get(f, _max))
 
@@ -269,14 +213,13 @@ class UnitOfWork:
     ) -> LoopResult:
         """Execute the outer flush loop: recompute → flush → repeat.
 
-        Each flush may trigger new computations (via ``modified()`` in
-        write), which may dirty more fields, requiring another iteration.
+        Each flush may trigger new computations (via ``modified()``), dirtying
+        more fields and requiring another iteration.
 
-        :param recompute_fn: called as ``recompute_fn(field)`` for each
-            field needing recomputation
-        :param flush_fn: called as ``flush_fn(model_names)`` with the list
-            of model names that need flushing
-        :returns: :class:`LoopResult`
+        :param recompute_fn: called as ``recompute_fn(field)`` for each field.
+        :param flush_fn: called as ``flush_fn(model_names)`` with the models to
+            flush.
+        :return: :class:`LoopResult`.
         """
         result = LoopResult()
         prev_dirty_count = 0
@@ -285,9 +228,8 @@ class UnitOfWork:
             # Inner recompute loop
             recompute_result = self.run_recompute_loop(recompute_fn)
             if not recompute_result.converged:
-                # Propagate recompute non-convergence: break the flush loop
-                # immediately (matching the original _recompute_all() which
-                # raises before flushing when computes don't converge).
+                # Computes must settle before flushing: break immediately on
+                # recompute non-convergence.
                 result.iterations = iteration + 1
                 result.converged = False
                 result.stalled_fields = recompute_result.stalled_fields

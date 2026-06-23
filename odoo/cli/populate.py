@@ -111,8 +111,8 @@ class Populate(DatabaseCommand):
             if (model := env.get(model_name)) is not None
             and not (model._transient or model._abstract)
         }
-        # A typo'd --models entry was previously dropped without a trace and
-        # the command still reported success.
+        # Warn on dropped models; previously they vanished silently and the
+        # command still reported success.
         if skipped := set(modelname_factors) - {m._name for m in model_factors}:
             _logger.warning(
                 "Ignoring unknown, transient or abstract models: %s",

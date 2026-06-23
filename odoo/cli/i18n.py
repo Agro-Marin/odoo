@@ -157,10 +157,9 @@ class I18n(DatabaseCommand):
                 ]
             )
         )
-        # A language is matched on iso_code OR code (see Domain.OR above), so
-        # the not-found set must subtract BOTH. Subtracting iso_code alone
-        # wrongly flags any full-code input (e.g. 'en_US', iso 'en') as not
-        # found even though it was matched and is about to be processed.
+        # Matched on iso_code OR code (see Domain.OR above), so subtract both
+        # from the not-found set. Subtracting iso_code alone would wrongly flag
+        # a full code like 'en_US' (iso 'en') as not found.
         matched_codes = set(languages.mapped("iso_code")) | set(
             languages.mapped("code")
         )

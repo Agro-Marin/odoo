@@ -55,7 +55,7 @@ class ResUsersSettings(models.Model):
         else:
             fields_to_format = [
                 name
-                for name, field in self._fields.items()
+                for name in self._fields
                 if name == "id"
                 or (name not in models.MAGIC_COLUMNS and name not in fields_blacklist)
             ]

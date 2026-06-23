@@ -105,9 +105,8 @@ class Json(Field):
         self, value: typing.Any, record: BaseModel, validate: bool = True
     ) -> typing.Any:
         if not value:
-            # Normalize all falsy values (None, False, {}, []) to None.
-            # convert_to_record maps None → False, maintaining the convention
-            # that "no value" for Json fields is False, never an empty container.
+            # Normalize all falsy values (None, False, {}, []) to None;
+            # convert_to_record maps None back to False ("no value").
             return None
         return _fast_loads(_fast_dumps(value, default=orjson_default))
 
@@ -152,9 +151,9 @@ class Id(Field[IdType | typing.Literal[False]]):
         self, record: BaseModel | None, owner: type | None = None
     ) -> typing.Any:
         if record is None:
-            return self  # the field is accessed through the class owner
+            return self
 
-        # the code below is written to make record.id as quick as possible
+        # kept inline for speed: record.id is extremely hot
         ids = record._ids
         size = len(ids)
         if size == 0:
@@ -179,9 +178,8 @@ class Id(Field[IdType | typing.Literal[False]]):
         return value
 
     def to_sql(self, model: BaseModel, alias: str) -> SQL:
-        # do not flush, just return the identifier
+        # do not flush; id is never flushed, just return the identifier
         assert self.store, "id field must be stored"
-        # id is never flushed
         return SQL.identifier(alias, self.name)
 
     def expression_getter(self, field_expr: str) -> typing.Any:

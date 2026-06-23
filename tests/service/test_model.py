@@ -154,15 +154,11 @@ class TestGetPublicMethod:
         assert method.__name__ == "public_method"
 
     def test_api_private_blocked_when_defined_in_base_class(self, mod) -> None:
-        """_api_private on a BASE class method must still block a subclass instance.
+        """``_api_private`` on a base-class method must still block a subclass.
 
-        This is the regression test for the __dict__ optimisation: the MRO loop
-        uses mro_cls.__dict__.get(name) which only returns non-None for the class
-        that DIRECTLY DEFINES the method.  With the old getattr() approach every
-        ancestor class returned non-None via inheritance, causing O(MRO depth)
-        redundant checks on the same function object.  With __dict__ the check is
-        O(definitions) — but it must still find _api_private even when the
-        definition lives deep in the hierarchy.
+        The MRO loop checks ``mro_cls.__dict__`` (the defining class only) for
+        speed, so it must still find ``_api_private`` defined deep in the
+        hierarchy.
         """
         from odoo.exceptions import AccessError  # noqa: PLC0415
 
@@ -254,11 +250,10 @@ class TestRetrying:
         mock_env.registry.signal_changes.assert_called_once()
 
     def test_closed_cursor_skips_flush_and_commit(self, mod, mock_env) -> None:
-        """When cr.closed is True after func(), both flush and commit are skipped.
+        """A closed cursor after func() skips both flush and commit.
 
-        ``closed`` is the property that ORs the wrapper-only ``_closed`` with the
-        underlying connection's ``_cnx.closed``, so this covers wrapper close,
-        connection death, and both.
+        ``cr.closed`` ORs the wrapper's ``_closed`` with ``_cnx.closed``, so it
+        covers wrapper close, connection death, and both.
         """
         mock_env.cr._closed = True
         mock_env.cr.closed = True
@@ -414,11 +409,10 @@ class TestRetrying:
                 mod.retrying(func, mock_env)
 
     def test_integrity_error_with_closed_connection_reraises(self, mod, mock_env) -> None:
-        """IntegrityError + closed cursor re-raises without ValidationError conversion.
+        """IntegrityError + closed cursor re-raises, no ValidationError conversion.
 
-        With ``closed=True`` the inner-except short-circuits at the unusable-cursor
-        check (model.py line 241) before ever reaching the IntegrityError-specific
-        constraint-name lookup, which would itself need a live connection.
+        The unusable-cursor check short-circuits before the constraint-name
+        lookup, which would itself need a live connection.
         """
         exc = _FakeIntegrityError()
         mock_env.cr._closed = False
@@ -443,17 +437,13 @@ class TestRetrying:
     def test_closed_cursor_in_inner_except_reraises_immediately(
         self, mod, mock_env, wrapper_closed, conn_dead
     ) -> None:
-        """If the cursor is unusable when catching a concurrency error, re-raise without retry.
+        """An unusable cursor when catching a concurrency error re-raises, no retry.
 
-        Regression: the prior implementation checked ``cr._closed`` (the wrapper-only flag)
-        which missed the case where the underlying psycopg connection had died (e.g. after
-        DB drop, idle timeout, network partition).  The fix checks ``cr.closed`` (the
-        property that ORs wrapper-close with ``_cnx.closed``), so connection death also
-        short-circuits the retry loop instead of burning the random-backoff budget on
-        a connection that will never recover.
+        Checking ``cr.closed`` (wrapper-close OR ``_cnx.closed``) rather than
+        just ``cr._closed`` means a dead connection also short-circuits the
+        retry loop instead of burning the backoff budget.
         """
-        # The cursor.closed property is `_closed or bool(_cnx.closed)`.  Reproduce
-        # both inputs so the parametrized cases cover the full truth table.
+        # cursor.closed == _closed or bool(_cnx.closed); drive both inputs.
         mock_env.cr._closed = wrapper_closed
         mock_env.cr.closed = wrapper_closed or conn_dead
         exc = psycopg.errors.SerializationFailure()

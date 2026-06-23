@@ -1,9 +1,7 @@
-"""
-Shared ORM helper functions.
+"""Shared ORM helper functions.
 
-Multi-consumer utilities that are used across several ORM modules.
-These are kept at the orm/ level to avoid circular imports between
-the models and fields layers.
+Multi-consumer utilities used across several ORM modules. Kept at the orm/
+level to avoid circular imports between the models and fields layers.
 """
 
 import typing
@@ -17,23 +15,16 @@ if typing.TYPE_CHECKING:
     from .models.base import BaseModel
 
 
-# =============================================================================
-# ID Utilities
-# =============================================================================
+# ID utilities
 
 
 def _origin_ids_python(ids: Iterable) -> list[int]:
-    """Extract origin IDs from any iterable of record IDs (pure Python).
+    """Extract origin IDs from an iterable of record IDs (pure Python).
 
-    For each ``id_``: yield ``id_`` itself when it is a truthy ``int``;
-    otherwise, yield ``id_.origin`` when present and truthy.  Values without
-    an origin (``False``-y plain ``id_`` and no ``origin`` attribute) are
-    skipped.
-
-    Per :class:`NewId`'s contract, ``origin`` is always an ``int`` or ``None``,
-    so the returned list is truly ``list[int]``.  A non-``int`` ``origin``
-    indicates misuse of ``NewId`` and is *not* filtered here — callers that
-    accept untrusted origins should validate themselves.
+    Keeps each truthy ``int`` id as-is, else its truthy ``id_.origin``; ids
+    that are falsy with no origin are skipped. Per :class:`NewId`'s contract
+    ``origin`` is always ``int`` or ``None``, so the result is ``list[int]``;
+    a non-``int`` origin is misuse and is not filtered here.
     """
     return [oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None))]
 
@@ -52,13 +43,11 @@ except ImportError:
 
 
 class OriginIds:
-    """A reversible iterable returning the origin ids of a collection of ``ids``.
+    """Reversible iterable of the origin ids of a collection of ``ids``.
 
-    Actual ids are returned as is, and ids without origin are not returned.
-    This is useful for handling NewId objects that may have an origin reference.
-
-    For eager consumption, prefer ``_origin_ids(ids)`` which uses Rust when
-    available (~3x faster for int-only tuples).
+    Actual ids pass through; ids without origin are dropped. For eager
+    consumption prefer ``_origin_ids(ids)`` (uses Rust when available,
+    ~3x faster for int-only tuples).
     """
 
     __slots__ = ["ids"]
@@ -75,30 +64,14 @@ class OriginIds:
                 yield id_
 
 
-# =============================================================================
-# Record Utilities
-# =============================================================================
+# Record utilities
 
 
 def itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
-    """Create an itemgetter that always returns a tuple.
+    """Build an itemgetter that always returns an n-tuple (n = len(items)).
 
-    Fixes itemgetter inconsistency of not returning a tuple if len(items) == 1:
-    this function always returns an n-tuple where n = len(items).
-
-    Args:
-        items: Sequence of keys to get from an object.
-
-    Returns:
-        A callable that returns a tuple of values.
-
-    Examples:
-        >>> getter = itemgetter_tuple(["a"])
-        >>> getter({"a": 1, "b": 2})
-        (1,)
-        >>> getter = itemgetter_tuple(["a", "b"])
-        >>> getter({"a": 1, "b": 2})
-        (1, 2)
+    Unlike :func:`operator.itemgetter`, returns a 1-tuple (not a bare value)
+    when ``len(items) == 1``.
     """
     if len(items) == 0:
         return lambda a: ()
@@ -108,21 +81,11 @@ def itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple
 
 
 def to_record_ids(arg) -> list[int]:
-    """Return the record ids of ``arg``.
+    """Return the non-zero record ids of ``arg``.
 
-    Args:
-        arg: May be a recordset, an integer, or a list of integers.
-
-    Returns:
-        List of non-zero integer IDs.
-
-    Examples:
-        >>> to_record_ids(5)
-        [5]
-        >>> to_record_ids([1, 2, 0, 3])
-        [1, 2, 3]
+    ``arg`` may be a recordset, an integer, or an iterable of integers.
     """
-    # Import here to avoid circular imports
+    # imported here to avoid circular dep
     from .models.base import BaseModel
 
     if isinstance(arg, BaseModel):
@@ -140,20 +103,14 @@ def to_record_ids(arg) -> list[int]:
 def get_columns_from_sql_diagnostics(
     cr: typing.Any, diagnostics: typing.Any, *, check_registry: bool = False
 ) -> list[str]:
-    """Given the diagnostics of an error, return the affected column names by the constraint.
+    """Return the column names affected by a failed constraint, for better
+    error messages.
 
-    This is useful for providing better error messages when database constraints fail.
-
-    Args:
-        cr: Database cursor.
-        diagnostics: PostgreSQL error diagnostics object with column_name,
-                    constraint_name, and table_name attributes.
-        check_registry: If True and column_name is not available, query
-                       pg_constraint to find the columns.
-
-    Returns:
-        List of column names affected by the constraint, or empty list if
-        columns cannot be determined.
+    :param diagnostics: PostgreSQL error diagnostics, with ``column_name``,
+        ``constraint_name``, ``table_name`` attributes.
+    :param check_registry: when ``column_name`` is absent, query
+        ``pg_constraint`` to find the columns.
+    :return: affected column names, or ``[]`` if undeterminable.
     """
     if column := diagnostics.column_name:
         return [column]
@@ -182,9 +139,7 @@ def get_columns_from_sql_diagnostics(
     return columns[0] if columns else []
 
 
-# =============================================================================
-# Company Domain Helpers
-# =============================================================================
+# Company domain helpers
 
 
 def check_company_domain_parent_of(
@@ -193,16 +148,9 @@ def check_company_domain_parent_of(
 ) -> list:
     """A ``_check_company_domain`` function for single company_id fields.
 
-    Lets a record be used if either:
-    - record.company_id = False (shared between all companies), or
-    - record.company_id is a parent of any of the given companies.
-
-    Args:
-        self: The model instance (provides access to env).
-        companies: Company recordset, list of IDs, single ID, or field reference string.
-
-    Returns:
-        Domain list for filtering records.
+    Allows a record when ``company_id`` is False (shared) or a parent of any
+    of the given companies. ``companies`` is a recordset, list of IDs, single
+    ID, or field reference string. Returns a domain list.
     """
     if isinstance(companies, str):
         return [
@@ -235,15 +183,9 @@ def check_companies_domain_parent_of(
 ) -> list:
     """A ``_check_company_domain`` function for multi-company company_ids fields.
 
-    Lets a record be used if any company in record.company_ids is a parent
-    of any of the given companies.
-
-    Args:
-        self: The model instance (provides access to env).
-        companies: Company recordset, list of IDs, single ID, or field reference string.
-
-    Returns:
-        Domain list for filtering records.
+    Allows a record when any company in ``company_ids`` is a parent of any of
+    the given companies. ``companies`` is a recordset, list of IDs, single ID,
+    or field reference string. Returns a domain list.
     """
     if isinstance(companies, str):
         return [("company_ids", "parent_of", companies)]

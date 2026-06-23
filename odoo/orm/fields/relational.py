@@ -116,9 +116,7 @@ class _Relational(Field["BaseModel"]):
         raise NotImplementedError
 
     def convert_to_record_multi(self, values: list, records: BaseModel) -> BaseModel:
-        """Convert a list of (relational field) values from the cache format to
-        the record format, for the sake of optimization.
-        """
+        """Convert cache-format values to record format in batch."""
         raise NotImplementedError
 
     @override
@@ -140,8 +138,7 @@ class _Relational(Field["BaseModel"]):
             # the callable can return either a list, Domain or a string
             domain = domain(model)
         if not domain or isinstance(domain, str):
-            # if we don't have a domain or
-            # domain=str is used only for the client-side
+            # no domain, or a str domain (client-side only) -> match all
             return Domain.TRUE
         return Domain(domain)
 
@@ -225,9 +222,8 @@ class _Relational(Field["BaseModel"]):
         getter = self.expression_getter(field_expr)
 
         if (self.bypass_search_access or operator == "any!") and not records.env.su:
-            # When filtering with bypass access, search the corecords with sudo
-            # and a special key in the context. To evaluate sub-domains, the
-            # special key makes the environment un-sudoed before evaluation.
+            # bypass access: search corecords with sudo plus a context key that
+            # un-sudoes the env before evaluating sub-domains.
             expr_getter = getter
             sudo_env = records.sudo().with_context(filter_function_reset_sudo=True).env
             getter = lambda rec: expr_getter(rec.with_env(sudo_env))  # noqa: E731
@@ -313,19 +309,19 @@ class Many2one(_Relational):
             record._check_field_access(self, "read")
         ids = record._ids
         if len(ids) != 1:
-            # Multi-record or empty: delegate to _Relational batch path
+            # multi-record or empty: delegate to _Relational batch path
             return super().__get__(record, owner)
         if self.is_stored_computed and env._core.has_pending(self):
             self.recompute(record)
         value = _scalar_cache_get(env.__dict__, self, ids[0], PENDING, SENTINEL)
         if value is not SENTINEL:
-            # Inline convert_to_record: create Many2one singleton
+            # inlined convert_to_record (singleton fast path)
             rs = object.__new__(record.pool[self.comodel_name])
             rs.env = env
             rs._ids = () if value is None else (value,)
             rs._prefetch_ids = PrefetchMany2one(record, self)
             return rs
-        # Cache miss: fall through to full Field.__get__ (triggers DB fetch)
+        # cache miss: full Field.__get__ triggers a DB fetch
         return Field.__get__(self, record, owner)
 
     def __init__(
@@ -354,17 +350,13 @@ class Many2one(_Relational):
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
-        # 3 cases:
-        # 1) The ondelete attribute is not defined, we assign it a sensible default
-        # 2) The ondelete attribute is defined and its definition makes sense
-        # 3) The ondelete attribute is explicitly defined as 'set null' for a required m2o,
-        #    this is considered a programming error.
+        # ondelete: assign a default if unset; 'set null' on a required m2o
+        # below is rejected as a programming error.
         if not self.ondelete:
             comodel = model.env[self.comodel_name]
             if model.is_transient() and not comodel.is_transient():
-                # Many2one relations from TransientModel Model are annoying because
-                # they can block deletion due to foreign keys. So unless stated
-                # otherwise, we default them to ondelete='cascade'.
+                # m2o from a TransientModel can block deletion via foreign keys,
+                # so default to 'cascade' unless stated otherwise.
                 self.ondelete = "cascade" if self.required else "set null"
             else:
                 self.ondelete = "restrict" if self.required else "set null"
@@ -402,7 +394,7 @@ class Many2one(_Relational):
         if self.company_dependent:
             return
         comodel = model.env[self.comodel_name]
-        # foreign keys do not work on views, and users can define custom models on sql views.
+        # foreign keys don't work on views, and custom models may be sql views
         if not model._is_an_ordinary_table() or not comodel._is_an_ordinary_table():
             return
         # ir_actions is inherited, so foreign key doesn't work on it
@@ -448,10 +440,9 @@ class Many2one(_Relational):
                 raise ValueError(f"Wrong value for {self}: {value!r}")
             id_ = value._ids[0] if value._ids else None
         elif isinstance(value, tuple):
-            # value is either a pair (id, name), or a tuple of ids.  Reject
-            # x2many Command tuples (length 3 with int command id at [0]):
-            # they would silently degrade to ``id_ = command_int`` (e.g.
-            # CREATE → 0 → None) and corrupt the M2O without an error.
+            # value is a pair (id, name) or a tuple of ids. Reject x2many Command
+            # tuples: they would degrade to ``id_ = command_int`` and silently
+            # corrupt the m2o.
             if validate and len(value) == 3 and isinstance(value[0], int):
                 from ..primitives import Command
 
@@ -460,11 +451,9 @@ class Many2one(_Relational):
                         f"Wrong value for {self}: x2many Command tuple "
                         f"{value!r} cannot be assigned to a many2one field"
                     )
-            # Normalise falsy ids to ``None``: web clients send ``(False, "")``
-            # to mean "no value", and the read format encodes "no relation" as
-            # the same shape.  Storing the literal ``False`` / ``0`` would
-            # build a recordset with ``_ids=(False,)`` whose ``len() == 1``
-            # but ``bool() == False`` — an inconsistent state.
+            # normalise falsy ids to None: web clients send (False, "") for "no
+            # value". A literal False/0 would yield _ids=(False,) with len()==1
+            # but bool()==False, an inconsistent recordset.
             id_ = (value[0] or None) if value else None
         elif isinstance(value, dict):
             # return a new record (with the given field 'id' as origin)
@@ -484,8 +473,7 @@ class Many2one(_Relational):
     def convert_to_record(
         self, value: int | NewId | None, record: BaseModel
     ) -> BaseModel:
-        # use registry to avoid creating a recordset for the model
-        # Inline object.__new__ — bypasses type.__call__ dispatch (~18% faster)
+        # use registry directly; object.__new__ bypasses type.__call__ dispatch
         rs = object.__new__(record.pool[self.comodel_name])
         rs.env = record.env
         rs._ids = () if value is None else (value,)
@@ -510,14 +498,14 @@ class Many2one(_Relational):
         use_display_name: bool = True,
     ) -> int | tuple[int, str] | typing.Literal[False]:
         if use_display_name and value:
-            # evaluate display_name as superuser, because the visibility of a
-            # many2one field value (id and name) depends on the current record's
-            # access rights, and not the value's access rights.
+            # display_name as superuser: visibility of the m2o value (id and
+            # name) depends on the current record's access rights, not the
+            # value's.
             try:
-                # performance: value.sudo() prefetches the same records as value
+                # value.sudo() prefetches the same records as value
                 return (value.id, value.sudo().display_name)
             except MissingError:
-                # Should not happen, unless the foreign key is missing.
+                # should not happen unless the foreign key is missing
                 return False
         else:
             return value.id
@@ -574,7 +562,7 @@ class Many2one(_Relational):
         self._update_inverses(records, cache_value)
 
     def _remove_inverses(self, records: BaseModel, value: int | NewId | None) -> None:
-        """Remove `records` from the cached values of the inverse fields (o2m) of `self`."""
+        """Remove ``records`` from the cached o2m inverse fields of ``self``."""
         inverse_fields = records.pool.field_inverses[self]
         if not inverse_fields:
             return
@@ -601,7 +589,7 @@ class Many2one(_Relational):
                     invf._update_cache(corecord, ids1)
 
     def _update_inverses(self, records: BaseModel, value: int | NewId | None) -> None:
-        """Add `records` to the cached values of the inverse fields (o2m) of `self`."""
+        """Add ``records`` to the cached o2m inverse fields of ``self``."""
         if value is None:
             return
         corecord = self.convert_to_record(value, records)
@@ -648,7 +636,7 @@ class Many2one(_Relational):
             operator not in ("any", "not any", "any!", "not any!")
             or field_expr != self.name
         ):
-            # for other operators than 'any', just generate condition based on column type
+            # non-'any' operators: build the condition from the column type
             return super().condition_to_sql(
                 field_expr, operator, value, model, alias, query
             )
@@ -659,15 +647,14 @@ class Many2one(_Relational):
         bypass_access = operator in ("any!", "not any!") or self.bypass_search_access
         positive = operator in ("any", "any!")
 
-        # Decide whether to use a LEFT JOIN
+        # decide whether to use a LEFT JOIN
         left_join = bypass_access and isinstance(value, Domain)
         if left_join and not positive:
-            # For 'not any!', we get a better query with a NOT IN when we have a
-            # lot of positive conditions which have a better chance to use
-            # indexes.
+            # for 'not any!' with mostly positive conditions, NOT IN is better:
+            # it has a better chance to use indexes. So prefer LEFT JOIN only
+            # when negatives dominate, except when filtering on 'id'.
             #   `field NOT IN (SELECT ... WHERE z = y)` better than
             #   `LEFT JOIN ... ON field = id WHERE z <> y`
-            # There are some exceptions: we filter on 'id'.
             left_join = sum(
                 (-1 if cond.operator in Domain.NEGATIVE_OPERATORS else 1)
                 for cond in value.iter_conditions()
@@ -743,9 +730,9 @@ class _RelationalMulti(_Relational):
 
     write_sequence = 20
 
-    # Important: the cache contains the ids of all the records in the relation,
-    # including inactive records.  Inactive records are filtered out by
-    # convert_to_record(), depending on the context.
+    # important: the cache holds the ids of all records in the relation,
+    # including inactive ones; convert_to_record() filters them out depending
+    # on the context.
 
     @override
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:
@@ -802,12 +789,10 @@ class _RelationalMulti(_Relational):
                     return comodel.browse((it and NewId(it),))
             else:
                 browse = comodel.browse
-            # determine the value ids: in case of a real record or a new record
-            # with origin, take its current value.  Read through the origin
-            # with ``active_test=False`` so archived lines survive the
-            # round-trip — the class docstring above explicitly states the
-            # cache must include inactive ids; ``convert_to_record`` will
-            # filter them when consumers read the field.
+            # take the current value of a real record (or new record with
+            # origin). Read with active_test=False so archived lines survive:
+            # the cache must include inactive ids (see class docstring);
+            # convert_to_record filters them on read.
             if record._origin:
                 ids = OrderedSet(
                     record.with_context(active_test=False)[self.name]._ids
@@ -854,7 +839,7 @@ class _RelationalMulti(_Relational):
         # use registry to avoid creating a recordset for the model
         prefetch_ids = PrefetchX2many(record, self)
         Comodel = record.pool[self.comodel_name]
-        # Inline object.__new__ — bypasses type.__call__ dispatch
+        # object.__new__ bypasses type.__call__ dispatch
         corecords = object.__new__(Comodel)
         corecords.env = record.env
         corecords._ids = value
@@ -912,8 +897,7 @@ class _RelationalMulti(_Relational):
             # make result with new and existing records
             inv_names = {field.name for field in record.pool.field_inverses[self]}
             result = [Command.set([])]
-            # NB: loop variable is ``rec`` — do not shadow the ``record`` param,
-            # which is still the relevant env/pool holder.
+            # loop var is ``rec``: the ``record`` param is still the env/pool holder
             for rec in value:
                 origin = rec._origin
                 if not origin:
@@ -1141,10 +1125,8 @@ class _RelationalMulti(_Relational):
             # add the field_domain to the query
             domain = field_domain.optimize_full(comodel)
             if not domain.is_true():
-                # Mutating the Query in-place: the caller (_condition_to_sql)
-                # passes a freshly-built Query from _search(), so cloning is
-                # unnecessary.  If this ever receives a shared Query, the
-                # caller should clone before passing.
+                # mutates the Query in place: the caller passes a fresh Query
+                # from _search(). A shared Query would need cloning first.
                 value.add_where(domain._to_sql(comodel, value.table, value))
             return value
         raise NotImplementedError(f"Cannot build query for {value}")
@@ -1225,8 +1207,8 @@ class One2many(_RelationalMulti):
             # link self to its inverse field and vice-versa
             invf = registry[self.comodel_name]._fields[self.inverse_name]
             if isinstance(invf, (Many2one, Many2oneReference)):
-                # setting one2many fields only invalidates many2one inverses;
-                # integer inverses (res_model/res_id pairs) are not supported
+                # only m2o inverses are invalidated; integer inverses
+                # (res_model/res_id pairs) are not supported
                 inverses.add(self, invf)
             inverses.add(invf, self)
 
@@ -1382,7 +1364,8 @@ class One2many(_RelationalMulti):
                         case Command.CLEAR | Command.SET:
                             line_ids = command[2] if command[0] == Command.SET else []
                             if not allow_full_delete:
-                                # do not try to delete anything in creation mode if nothing has been created before
+                                # in creation mode, don't delete if nothing
+                                # was created yet
                                 if line_ids:
                                     # equivalent to Command.LINK
                                     if line_ids.__class__ is int:
@@ -1534,10 +1517,9 @@ class One2many(_RelationalMulti):
     ) -> Query:
         inverse_field = comodel._fields[self.inverse_name]
         if inverse_field not in comodel.env.registry.not_null_fields:
-            # In the condition, one must avoid subqueries to return
-            # NULL values, since it makes the IN test NULL instead
-            # of FALSE.  This may discard expected results, as for
-            # instance "id NOT IN (42, NULL)" is never TRUE.
+            # exclude NULLs from the subquery: a NULL makes the IN test NULL
+            # instead of FALSE, discarding expected results -- e.g.
+            # "id NOT IN (42, NULL)" is never TRUE.
             if isinstance(value, Domain):
                 value &= Domain(inverse_field.name, "not in", {False})
             else:
@@ -1570,10 +1552,8 @@ class One2many(_RelationalMulti):
         comodel = model.env[self.comodel_name].sudo()
         inverse_field = comodel._fields[self.inverse_name]
         if not inverse_field.store:
-            # Non-stored inverse fields: fall back to fetching records and
-            # reading the inverse in Python.  Supporting this via SQL would
-            # require generating a subquery from the compute method, which
-            # is not feasible for arbitrary Python code.
+            # non-stored inverse: read it in Python instead of SQL (a subquery
+            # from arbitrary compute code is not feasible)
             recs = comodel.browse(coquery).with_context(prefetch_fields=False)
             if inverse_field.relational:
                 inverses = inverse_field.__get__(recs)
@@ -1673,10 +1653,7 @@ class Many2many(_RelationalMulti):
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
-        # 2 cases:
-        # 1) The ondelete attribute is defined and its definition makes sense
-        # 2) The ondelete attribute is explicitly defined as 'set null' for a m2m,
-        #    this is considered a programming error.
+        # only 'cascade'/'restrict' make sense for m2m; reject anything else
         if self.ondelete not in ("cascade", "restrict"):
             raise ValueError(
                 f"The m2m field {self.name} of model {model._name} declares its ondelete policy "
@@ -1817,8 +1794,8 @@ class Many2many(_RelationalMulti):
         context.update(self.context)
         comodel = records.env[self.comodel_name].with_context(**context)
 
-        # bypass the access during search if method is overwriten to avoid
-        # possibly filtering all records of the comodel before joining
+        # bypass access during search when _search is overridden, to avoid
+        # filtering all comodel records before joining
         from ..models import BaseModel as _BaseModel
 
         filter_access = (
@@ -1891,10 +1868,8 @@ class Many2many(_RelationalMulti):
         records = model.browse(ids)
 
         if self.store:
-            # Using `record[self.name]` generates 2 SQL queries when the value
-            # is not in cache: one that actually checks access rules for
-            # records, and the other one fetching the actual data. We use
-            # `self.read` instead to shortcut the first query.
+            # on a cache miss `record[self.name]` runs 2 queries (access-rule
+            # check + data fetch); `self.read` skips the access-rule query.
             missing_ids = tuple(self._cache_missing_ids(records))
             if missing_ids:
                 self.read(records.browse(missing_ids))
@@ -2244,7 +2219,7 @@ class Many2many(_RelationalMulti):
 
 
 class PrefetchMany2one(Reversible):
-    """Iterable for the values of a many2one field on the prefetch set of a given record."""
+    """Iterable over a many2one's values across a record's prefetch set."""
 
     __slots__ = ("field", "record")
 
@@ -2272,7 +2247,7 @@ class PrefetchMany2one(Reversible):
 
 
 class PrefetchX2many(Reversible):
-    """Iterable for the values of an x2many field on the prefetch set of a given record."""
+    """Iterable over an x2many's values across a record's prefetch set."""
 
     __slots__ = ("field", "record")
 

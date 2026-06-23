@@ -105,8 +105,8 @@ class Shell(Command):
 
         preferred_interface = self._shell_interface
         if preferred_interface:
-            # dict.fromkeys preserves order and dedupes when the user asked
-            # for 'python' explicitly — otherwise we'd attempt python twice.
+            # Order-preserving dedupe: avoid trying python twice when it's the
+            # explicit choice.
             shells_to_try = list(dict.fromkeys([preferred_interface, "python"]))
         else:
             shells_to_try = self.supported_shells
@@ -116,9 +116,8 @@ class Shell(Command):
                 shell_func = getattr(self, shell)
                 return shell_func(local_vars, pythonstartup)
             except ImportError:
-                # If the user explicitly requested this shell, surface the
-                # fallback — previously the failure was silent and users
-                # couldn't tell why --shell-interface=bpython gave them python.
+                # Surface the fallback when the user explicitly requested this
+                # shell; otherwise the switch to python is silent and confusing.
                 if shell == preferred_interface:
                     _logger.warning(
                         "Requested shell %r is not installed; falling back.",
@@ -184,9 +183,8 @@ class Shell(Command):
                 env = api.Environment(cr, uid, ctx)
                 local_vars["env"] = env
                 local_vars["self"] = env.user
-                # context_get() has started the transaction already. Rollback to
-                # avoid logging warning "rolling back the transaction before testing"
-                # from odoo.tests.shell.run_tests if the user hasn't done anything.
+                # context_get() already opened a transaction; roll back so
+                # odoo.tests.shell.run_tests doesn't warn about it later.
                 cr.rollback()
                 self.console(local_vars)
                 cr.rollback()

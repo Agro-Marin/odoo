@@ -1,16 +1,4 @@
-"""
-Read operations mixin for BaseModel.
-
-This module contains methods for reading records from the database:
-- read(): High-level read API returning list of dicts
-- _read_format(): Format cached values as read() output
-- _fetch_field(): Fetch a single field from database
-- fetch(): Ensure fields are in cache
-- _determine_fields_to_fetch(): Determine which fields to fetch
-- _fetch_query(): Execute fetch query and populate cache
-- fields_get(): Return field definitions
-- get_metadata(): Return record metadata (create/write info, xmlid)
-"""
+"""Read operations mixin for BaseModel."""
 
 import logging
 import time
@@ -45,13 +33,7 @@ _orm_read = logging.getLogger("odoo.orm.read")
 
 
 class ReadMixin:
-    """Mixin providing read and fetch operations for recordsets.
-
-    This mixin contains methods for:
-    - Reading records from the database (read, fetch)
-    - Formatting cached values as dictionaries
-    - Field metadata retrieval (fields_get, get_metadata)
-    """
+    """Mixin providing read and fetch operations for recordsets."""
 
     __slots__ = ()
 
@@ -150,10 +132,9 @@ class ReadMixin:
 
         return result
 
-    # Field types whose convert_to_record + convert_to_read chain is
-    # equivalent to ``False if v is None else v`` (or ``v or 0`` for
-    # numeric types).  For these types we can inline the conversion and
-    # skip 3 method calls per (record, field) pair in _read_format.
+    # Field types whose convert_to_record + convert_to_read chain reduces to
+    # ``none_val if v is None else v``, so _read_format can inline the
+    # conversion and skip 3 method calls per (record, field) pair.
     _SCALAR_READ_TYPES = frozenset(
         {
             "boolean",
@@ -162,11 +143,9 @@ class ReadMixin:
             "datetime",
             "char",
             "text",  # non-translate only (translate needs dict lookup)
-            # integer is safe here ONLY because Integer/Id are int4-backed:
-            # every persistable value is <= MAXINT, so Integer.convert_to_read
-            # (which coerces value > MAXINT to float for XML-RPC) is an
-            # identity for all stored values.  An int8-backed integer field
-            # would need the slow path and MUST NOT be added to this set.
+            # integer is safe ONLY because Integer/Id are int4-backed (always
+            # <= MAXINT, so convert_to_read is identity).  An int8-backed
+            # integer would need the slow path and MUST NOT be added here.
             "integer",
             "float",
             "monetary",
@@ -213,26 +192,19 @@ class ReadMixin:
             else:
                 record_fnames.append(name)
 
-        # Phase 1: Scalar stored fields — no singleton creation needed.
-        # Inline cache dict.get, skip read_cache() / convert_to_record() /
-        # convert_to_read() method calls.  For these field types the full
-        # conversion chain is equivalent to:
-        #   None  → none_val  (False, 0, or 0.0 depending on type)
-        #   other → cache_value unchanged
+        # Phase 1: scalar stored fields — inline cache dict.get, skip
+        # read_cache/convert_to_record/convert_to_read (chain reduces to
+        # ``none_val if value is None else cache_value``).
         results = [{"id": id_} for id_ in ids]
         for name in scalar_fnames:
             field = _fields[name]
             field.ensure_computed(self)
             field_cache = field._get_cache(env)
-            # Pre-compute the None replacement:
-            #   boolean/selection/date/datetime/char/text → False
-            #   integer → 0
-            #   float/monetary → 0.0
+            # None replacement: False / 0 / 0.0 depending on type.
             none_val = field.convert_to_record(None, None)
             if _batch_cache_fill_rust is not None and type(field_cache) is dict:
-                # Rust path: fills all cached values in one C-level pass,
-                # returns only the miss indices for the Python fallback.
-                # Requires a plain dict (not LangProxyDict for translated fields).
+                # Rust path: fill cached values in one C-level pass, return only
+                # miss indices.  Needs a plain dict (not a translated LangProxy).
                 miss_indices = _batch_cache_fill_rust(
                     field_cache, ids, results, name, _PENDING, none_val
                 )
@@ -253,11 +225,9 @@ class ReadMixin:
                         continue
                     cache_value = field_cache.get(id_, _SENTINEL)
                     if cache_value is _SENTINEL or cache_value is _PENDING:
-                        # Cache miss after fetch() — record likely missing or
-                        # a NewId (new record whose value comes from _origin).
-                        # Fall back to full __get__ path via singleton.
-                        # Wrap in tuple — NewId.__bool__ is False, so bare
-                        # browse(new_id) would produce an empty recordset.
+                        # Cache miss after fetch(): record missing or a NewId.
+                        # Fall back to __get__ via singleton.  Wrap in a tuple —
+                        # NewId.__bool__ is False, so bare browse() would be empty.
                         try:
                             record = self.browse((id_,))
                             vals[name] = field.convert_to_read(
@@ -273,11 +243,10 @@ class ReadMixin:
         if not record_fnames:
             return [vals for vals in results if vals]
 
-        # Phase 2: Fields that need singleton records (relational, translate,
+        # Phase 2: fields needing singleton records (relational, translate,
         # html, binary, json, properties, non-stored computed).
-        # Create singleton records lazily (only when needed).
-        # strict=True: results was built with one entry per record in self,
-        # so any length mismatch indicates an upstream bug in fetch().
+        # strict=True: results has one entry per record, so any length
+        # mismatch indicates an upstream bug in fetch().
         data = list(zip(self, results, strict=True))
 
         for name in record_fnames:
@@ -287,10 +256,9 @@ class ReadMixin:
                 records = []
                 valid_data = []
                 for record, vals in data:
-                    # Skip records cleared by an earlier field's MissingError;
-                    # without this guard, a successful properties read would
-                    # repopulate the empty dict and leak a partial record
-                    # through the final ``[v for v in data if v]`` filter.
+                    # Skip records cleared by an earlier field's MissingError,
+                    # else a successful properties read would repopulate the
+                    # empty dict and leak a partial record through the filter.
                     if not vals:
                         continue
                     try:
@@ -310,8 +278,7 @@ class ReadMixin:
                 continue
 
             if field.store:
-                # Stored field path: bypass Field.__get__, use explicit
-                # precondition API (ensure_computed, read_cache).
+                # Stored field: bypass __get__, use ensure_computed/read_cache.
                 field.ensure_computed(self)
                 _read_cache = field.read_cache
                 convert_to_record = field.convert_to_record
@@ -337,8 +304,8 @@ class ReadMixin:
                     except MissingError:
                         vals.clear()
                     except KeyError:
-                        # Rare: translation miss in translated Char/Text fields.
-                        # Fall back to standard __get__ path which handles this.
+                        # Translation miss in translated Char/Text: fall back to
+                        # the standard __get__ path, which handles it.
                         try:
                             vals[name] = convert_to_read(
                                 record[name], record, use_display_name
@@ -446,16 +413,15 @@ class ReadMixin:
         field_names: Collection[str] | None = None,
         ignore_when_in_cache: bool = False,
     ) -> list[Field]:
-        """
-        Return the fields to fetch from database among the given field names,
-        and following the dependencies of computed fields. The method is used
-        by :meth:`fetch` and :meth:`search_fetch`.
+        """Return the fields to fetch among the given field names, following the
+        dependencies of computed fields.  Used by :meth:`fetch` and
+        :meth:`search_fetch`.
 
         :param field_names: the collection of requested fields, or ``None`` for
             all accessible fields marked with ``prefetch=True``
-        :param ignore_when_in_cache: whether to ignore fields that are alreay in cache for ``self``
+        :param ignore_when_in_cache: skip fields already in cache for ``self``
         :return: the list of fields that must be fetched
-        :raise AccessError: when trying to fetch fields to which the user does not have access
+        :raise AccessError: when fetching fields the user cannot access
         """
         if field_names is None:
             return [
@@ -519,9 +485,8 @@ class ReadMixin:
         for field in fields:
             if field.name == "id":
                 continue
-            # raise (not assert) so contract holds under python -O —
-            # a non-stored field reaching this path would fail later
-            # at SQL generation with an opaque error.
+            # raise (not assert): holds under python -O; a non-stored field
+            # would otherwise fail later at SQL generation with an opaque error.
             if not field.store:
                 raise RuntimeError(
                     f"_fetch_query expects stored fields, got {field}"
@@ -530,16 +495,13 @@ class ReadMixin:
 
         context = self.env.context
 
-        # --- Backend dispatch: DictBackend or PostgreSQL ---
+        # Backend dispatch: DictBackend or PostgreSQL
         storage = self.env.transaction.storage
         if storage is not None:
-            # In-memory path: fetch from DictBackend, populate cache.
-            # Get IDs from the query (set by _search_storage or _as_query).
+            # In-memory path: IDs come from the query (_search_storage/_as_query).
             result_ids = query._ids
             if result_ids is None:
-                # Fallback: query hasn't been resolved yet — extract from
-                # storage using the table's known IDs.  This shouldn't happen
-                # once Phase 6 (search) is wired, but is safe.
+                # Query not resolved yet: fall back to the table's known IDs.
                 result_ids = tuple(storage.table_ids(self._table))
 
             if not result_ids:
@@ -547,8 +509,8 @@ class ReadMixin:
 
             fetched = self.browse(result_ids)
             if column_fields:
-                # Pre-resolve field caches once.  Context-dependent fields
-                # may fail (env.company unavailable) — write to base cache.
+                # Pre-resolve field caches once.  Context-dependent fields may
+                # fail (env.company unavailable) — write to base cache.
                 env = self.env
                 _fdc = env._field_depends_context
                 field_caches: dict = {}
@@ -585,11 +547,12 @@ class ReadMixin:
                 if field.type == "binary" and (
                     context.get("bin_size") or context.get("bin_size_" + field.name)
                 ):
-                    # pg_size_pretty has both (bigint) and (numeric) overloads; cast to disambiguate
+                    # pg_size_pretty has (bigint) and (numeric) overloads; cast
+                    # to disambiguate
                     sql = SQL("pg_size_pretty(length(%s)::bigint)", sql)
                 elif not field.translate:
-                    # flushing is necessary to retrieve the en_US value of fields without a translation
-                    # otherwise, re-create the SQL without flushing
+                    # flush to get the en_US value of untranslated fields;
+                    # otherwise re-create the SQL without flushing
                     to_flush = (f for f in sql.to_flush if f != field)
                     sql = SQL(sql.code, *sql.params, to_flush=to_flush)
                 sql_terms.append(sql)
@@ -602,17 +565,14 @@ class ReadMixin:
             if not rows:
                 return self.browse()
 
-            # rows = [(id1, a1, b1), (id2, a2, b2), ...]
-            # column_values = [(id1, id2, ...), (a1, a2, ...), (b1, b2, ...)]
+            # Transpose rows into per-column tuples; first column is the ids.
             column_values = zip(*rows, strict=False)
             ids = next(column_values)
             fetched = self.browse(ids)
 
-            # If we assume that the value of a pending update is in cache, we
-            # can avoid flushing pending updates if the fetched values do not
-            # overwrite values in cache.
+            # Insert without overwriting: a pending update's value is assumed
+            # cached, so we need not flush when fetched values don't clobber it.
             for field, values in zip(column_fields, column_values, strict=True):
-                # store values in cache, but without overwriting
                 field._insert_cache(fetched, values)
             if _debug:
                 _t_cache = time.perf_counter()

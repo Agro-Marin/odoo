@@ -1,27 +1,19 @@
 # ruff: noqa: F401
-"""
-Type aliases for the ORM.
+"""Composite ORM type aliases that depend on multiple ORM layers.
 
-This is the canonical location for composite ORM type aliases that depend
-on multiple ORM layers:
+- DomainType: search domain (Domain object or list of tuples)
+- ModelType: generic type for model classes
 
-- DomainType: Search domain (Domain object or list of tuples)
-- ModelType: Generic type for model classes
-
-Simple type aliases (Self, ContextType, ValuesType, IdType) live in
-``odoo.orm.primitives`` which has zero ORM dependencies.
-
-Note: This module is named _typing.py (with underscore) to avoid shadowing
-Python's standard library 'types' module.
-
-At runtime, this module only imports from ``primitives`` (Layer 0).
-Cross-layer imports (Domain, BaseModel, etc.) are deferred to TYPE_CHECKING.
+Simple aliases (Self, ContextType, ValuesType, IdType) live in
+``odoo.orm.primitives`` (zero ORM dependencies). Named ``_typing.py`` to avoid
+shadowing the stdlib ``types`` module. At runtime imports only ``primitives``
+(Layer 0); cross-layer imports are deferred to TYPE_CHECKING.
 """
 
 import typing
 from typing import Self
 
-# Re-export from primitives for convenience (zero-dep, Layer 0)
+# Re-export from primitives (zero-dep, Layer 0)
 from .primitives import ContextType, IdType, ValuesType
 
 if typing.TYPE_CHECKING:
@@ -31,7 +23,7 @@ if typing.TYPE_CHECKING:
     from .primitives import CommandValue
     from .runtime import Environment, Registry
 
-# Composite type aliases (PEP 695 — RHS lazily evaluated, no runtime import needed)
+# Composite type aliases (PEP 695 — RHS lazily evaluated)
 type DomainType = Domain | list[str | tuple[str, str, typing.Any]]
 ModelType = typing.TypeVar("ModelType", bound="BaseModel")
 

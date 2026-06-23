@@ -1,9 +1,8 @@
-"""Prefork (multiprocess) server — extracted from ``server.py``.
+"""Prefork (multiprocess) server.
 
-``PreforkServer`` (aka Multicorn) forks one ``Worker`` child per HTTP/cron
-slot (the ``Worker`` classes live in ``_worker.py``) and supervises them from
-a signal-driven master loop.  Subclasses ``CommonServer`` (``_base_server.py``);
-``server.py`` re-exports ``PreforkServer`` for backward compatibility.
+``PreforkServer`` (aka Multicorn) forks one ``Worker`` child (``_worker.py``)
+per HTTP/cron slot and supervises them from a signal-driven master loop.
+Subclasses ``CommonServer`` (``_base_server.py``).
 """
 
 from __future__ import annotations
@@ -53,11 +52,10 @@ class PreforkServer(CommonServer):
         super().__init__(app)
         # config
         self.population = config["workers"]
-        # ``limit_time_real <= 0`` means "no real-time watchdog" — same as the
-        # ``or None`` the cron line below uses.  Without it, a 0 makes every
-        # HTTP worker's ``watchdog_timeout`` 0, so ``process_timeout`` SIGKILLs
-        # brand-new workers immediately (``now - watchdog_time >= 0``) and the
-        # master respawns them in a loop.
+        # ``limit_time_real <= 0`` means "no real-time watchdog": a 0 would make
+        # every HTTP worker's ``watchdog_timeout`` 0, so ``process_timeout``
+        # would SIGKILL brand-new workers at once and the master would respawn
+        # them in a loop.
         self.timeout = config["limit_time_real"] or None
         self.limit_request = config["limit_request"]
         self.cron_timeout = config["limit_time_real_cron"] or None
@@ -69,9 +67,7 @@ class PreforkServer(CommonServer):
         self.workers_http = {}
         self.workers_cron = {}
         self.workers = {}
-        # Monotonic counter of worker spawns over this server's lifetime.
-        # Currently only used in logs/diagnostics; kept as ``int`` (unbounded
-        # in Python) so no rollover concern.  Not reset on reload.
+        # Worker spawns over this server's lifetime (logs/diagnostics only).
         self.generation = 0
         self.queue = deque()
         self.long_polling_pid = None
@@ -88,10 +84,9 @@ class PreforkServer(CommonServer):
             if e.errno not in [errno.EAGAIN, errno.EINTR]:
                 raise
 
-    #: Control signals must never be dropped — if the queue is full of
-    #: SIGCHLD storms from dying workers, an operator still needs SIGINT /
-    #: SIGTERM / SIGHUP to get through. SIGTTIN / SIGTTOU reshape the worker
-    #: pool and are also load-bearing, so they share the whitelist.
+    #: Control signals that must never be dropped even when the queue is full of
+    #: SIGCHLD storms: an operator still needs SIGINT/SIGTERM/SIGHUP to get
+    #: through, and SIGTTIN/SIGTTOU reshape the worker pool.
     _UNDROPPABLE_SIGNALS = frozenset(
         {
             signal.SIGINT,
@@ -120,14 +115,11 @@ class PreforkServer(CommonServer):
     def _close_inherited_pipe_fds_in_child(self, new_worker: Worker) -> None:
         """Release sibling workers' pipe fds that this child inherited via fork.
 
-        ``os.pipe2(O_CLOEXEC)`` only closes on ``execve`` — after a bare
-        ``fork`` the child still holds every fd the parent had open, including
-        the ``watchdog_pipe`` / ``eintr_pipe`` of every existing sibling
-        worker plus the parent's own master wakeup pipe. Left alone, those
-        fds stay open for the full lifetime of the child: with N=8 workers
-        that's 4*7 + 2 = 30 leaked descriptors per child, compounding under
-        reload. Close them explicitly here, except for the new worker's own
-        pipes which it still needs.
+        ``os.pipe2(O_CLOEXEC)`` only closes on ``execve``, so after a bare
+        ``fork`` the child still holds every sibling's ``watchdog_pipe`` /
+        ``eintr_pipe`` plus the master wakeup pipe — leaked for the child's
+        whole lifetime (N=8 workers → 30 fds/child, compounding under reload).
+        Close them all except the new worker's own pipes.
         """
         keep = {
             new_worker.watchdog_pipe[0],
@@ -162,28 +154,15 @@ class PreforkServer(CommonServer):
             workers_registry[pid] = worker
             return worker
         else:
-            # Detach from the master's queueing signal handler BEFORE we
-            # close the master's pipe fds.  Without this, a signal arriving
-            # in the child during the window between
-            # ``_close_inherited_pipe_fds_in_child`` and Worker.start's own
-            # ``signal.signal(...)`` calls would run the inherited
-            # ``master.signal_handler`` in the child, hit
-            # ``self.pipe_ping(self.pipe)`` against now-closed fds, raise
-            # ``OSError(EBADF)`` (not in the ``pipe_ping`` allowlist of
-            # EAGAIN/EINTR), and propagate out of bytecode dispatch —
-            # observable as a sporadic worker death under
-            # ``stop_workers_gracefully`` storms.
-            #
-            # Termination signals → SIG_DFL: if SIGINT/SIGTERM/SIGHUP
-            # arrives mid-startup, terminating the half-initialised worker
-            # is the right outcome (the master will respawn).
-            # Ignored signals → SIG_IGN: SIGCHLD (workers don't fork),
-            # SIGTTIN/SIGTTOU (workers don't read from TTY; the SIG_DFL
-            # default for these is *Stop*, which would silently suspend the
-            # worker if an operator's SIGTTOU to the master leaked to the
-            # child — strictly worse than ignoring it).
-            # Worker.start re-installs the worker-side handlers a few
-            # microseconds later.
+            # Detach from the master's queueing signal handler BEFORE closing
+            # the master's pipe fds: a signal landing in this window would run
+            # the inherited ``master.signal_handler``, ``pipe_ping`` a closed
+            # fd, and raise ``OSError(EBADF)`` — a sporadic worker death.
+            # Termination signals → SIG_DFL (killing a half-started worker is
+            # fine; the master respawns).  SIGCHLD/SIGTTIN/SIGTTOU → SIG_IGN
+            # (their SIG_DFL for TTIN/TTOU is *Stop*, which would suspend the
+            # worker if a stray SIGTTOU leaked from the master).  Worker.start
+            # re-installs the real handlers moments later.
             for _sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
                 with contextlib.suppress(OSError, ValueError):
                     signal.signal(_sig, signal.SIG_DFL)
@@ -209,11 +188,9 @@ class PreforkServer(CommonServer):
                     exc_info=exc,
                 )
                 exit_code = 1
-            # ``os._exit`` (not ``sys.exit``): the latter runs atexit handlers
-            # and flushes stdio, but after fork those file objects share OS
-            # fds with the parent — flushing in the child can double-write
-            # log lines or trip cleanup destructors that aren't fork-safe
-            # (psycopg pool, logging.shutdown, etc.).  Bypass them all.
+            # ``os._exit`` (not ``sys.exit``): after fork, atexit handlers and
+            # stdio flushing share fds with the parent — running them here can
+            # double-write logs or trip non-fork-safe destructors.
             os._exit(exit_code)
 
     def long_polling_spawn(self) -> None:
@@ -251,15 +228,11 @@ class PreforkServer(CommonServer):
     def process_signals(self) -> None:
         """Drain the signal queue and act on each pending signal.
 
-        Only signals routed through ``self.signal_handler`` (the queueing
-        path) reach this method.  ``SIGQUIT`` is bound directly to
-        ``dumpstacks`` and ``SIGUSR1``/``SIGUSR2`` directly to
-        ``log_ormcache_stats`` in ``start()`` — those run in the signal
-        handler context and never enter the queue, so previous branches
-        for them here were unreachable and have been removed.  ``SIGCHLD``
-        is enqueued to wake the master from ``sleep`` but the actual
-        reaping happens in ``process_zombie``; popping it here is a no-op
-        on purpose (no branch needed).
+        Only signals routed through ``self.signal_handler`` reach here.
+        ``SIGQUIT``/``SIGUSR1``/``SIGUSR2`` are bound directly to their handlers
+        in ``start()`` and never enter the queue.  ``SIGCHLD`` is enqueued only
+        to wake the master from ``sleep``; the actual reaping is in
+        ``process_zombie``, so it needs no branch here.
         """
         while self.queue:
             sig = self.queue.popleft()
@@ -274,23 +247,12 @@ class PreforkServer(CommonServer):
                 self.population += 1
             elif sig == signal.SIGTTOU:
                 # decrease number of workers; clamp at 0 so an over-zealous
-                # operator cannot drive population negative (which silently
-                # stops the spawn loop from ever entering — the server would
-                # drain to zero workers and refuse new connections).
+                # operator can't drive population negative (which would stop the
+                # spawn loop and drain the server to zero workers).
                 self.population = max(self.population - 1, 0)
 
     def process_zombie(self) -> None:
-        """Reap dead workers via ``waitpid(-1, WNOHANG)``.
-
-        The historical ``if (status >> 8) == 3`` branch (an ad-hoc sentinel
-        for "worker died unrecoverably") was removed: no path in the fork
-        produces exit code 3, the only commit that touched the line was the
-        2014 ``openerp`` → ``odoo`` rename, and the comparison was incorrect
-        for signal-killed workers (``status >> 8`` is the exit byte for
-        normal exits but undefined when ``WIFSIGNALED``).  If a future
-        scenario ever needs a "death" signal, use
-        ``os.waitstatus_to_exitcode(status)`` which handles both cases.
-        """
+        """Reap dead workers via ``waitpid(-1, WNOHANG)``."""
         while True:
             try:
                 wpid, _status = os.waitpid(-1, os.WNOHANG)
@@ -419,10 +381,9 @@ class PreforkServer(CommonServer):
         """Fork: parent re-execs the new server; child waits for SIGHUP then shuts down.
 
         Returns True if the new server signalled readiness (SIGHUP) within the
-        60-second timeout, False otherwise. The caller uses this to decide
-        whether the old server's workers should be terminated — if the new
-        server never came up, shutting down the workers leaves zero servers
-        listening on the port.
+        timeout, False otherwise. The caller uses this to decide whether the
+        old server's workers should be terminated — if the new server never
+        came up, shutting them down would leave zero listeners on the port.
         """
         self.logger.info("Reloading server")
         pid = os.fork()
@@ -445,14 +406,9 @@ class PreforkServer(CommonServer):
 
         signal.signal(signal.SIGHUP, sighup_handler)
 
-        # Reload timeout: how long the old master waits for the new master
-        # to signal readiness before giving up.  Default 60s suits most
-        # installs, but big-DB upgrades and asset rebuilds can exceed it.
-        # Override via ``ODOO_RELOAD_TIMEOUT`` env var.  Float for sub-second
-        # tests; clamped to ≥1s to prevent typos like "0" silently disabling
-        # the wait.
-        # ``env_float`` warns (under this server's logger) and falls back to
-        # 60s on a malformed value, and clamps a sub-floor value up to 1s.
+        # How long the old master waits for the new master to signal readiness.
+        # Default 60s; big-DB upgrades / asset rebuilds may need more, via
+        # ``ODOO_RELOAD_TIMEOUT``.  Floored at 1s so a "0" can't disable the wait.
         timeout_s = env_float(
             "ODOO_RELOAD_TIMEOUT", 60.0, minimum=1.0, logger=self.logger
         )
@@ -481,12 +437,8 @@ class PreforkServer(CommonServer):
             self.worker_kill(self.long_polling_pid, signal.SIGKILL)
             self.long_polling_pid = None
 
-        # Signal workers to finish their current workload then stop.
-        # ``list(self.workers)`` snapshots the keys: ``worker_kill`` may call
-        # ``worker_pop`` (on ESRCH for an already-dead worker) which mutates
-        # ``self.workers`` mid-loop and would otherwise raise
-        # "dictionary changed size during iteration".  Same fix as the SIGTERM
-        # path below; the SIGINT path was missed in the original cleanup.
+        # Snapshot the keys with ``list``: ``worker_kill`` may ``worker_pop`` an
+        # already-dead worker (ESRCH), mutating ``self.workers`` mid-loop.
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGINT)
 
@@ -495,9 +447,7 @@ class PreforkServer(CommonServer):
         )  # False if server reload, cannot reap children -> use psutil
         if not is_main_server:
             processes = {}
-            # Snapshot here too: worker_kill above may have already popped
-            # entries, and even if it didn't, defensive snapshotting matches
-            # the rest of this class.
+            # Snapshot here too: ``worker_kill`` above may have popped entries.
             for pid in list(self.workers):
                 with contextlib.suppress(psutil.NoSuchProcess):
                     processes[pid] = psutil.Process(pid)
@@ -565,11 +515,8 @@ class PreforkServer(CommonServer):
 
         ready_pid = os.environ.pop("ODOO_READY_SIGHUP_PID", None)
         if ready_pid:
-            # The env var is set by ``fork_and_reload`` and consumed once;
-            # a corrupted value (non-integer) or a stale PID (the child
-            # waiting for SIGHUP died before re-exec) would otherwise
-            # crash the freshly-execed master with a stack trace instead
-            # of letting it come up on the listening socket.
+            # Set by ``fork_and_reload``; a corrupt value or stale PID must not
+            # crash the freshly-execed master before it comes up on the socket.
             try:
                 os.kill(int(ready_pid), signal.SIGHUP)
             except (ValueError, ProcessLookupError, PermissionError) as e:
@@ -583,7 +530,6 @@ class PreforkServer(CommonServer):
         self.logger.debug("starting")
         while True:
             try:
-                # _logger.debug("Multiprocess beat (%s)",time.time())
                 self.process_signals()
                 self.process_zombie()
                 self.process_timeout()

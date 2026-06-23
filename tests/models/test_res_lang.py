@@ -59,8 +59,6 @@ class TestSplit:
 
     def test_zero_as_first_count(self):
         """Zero as first count uses len(string) as saved_count."""
-        # saved_count starts as len("hello") = 5, zero repeats 5
-        # The while loop takes 5 chars at a time
         assert split("hello", [0]) == ["hello"]
 
 
@@ -101,9 +99,8 @@ class TestIntersperse:
 
     def test_with_decimal_in_string(self):
         """Dot is treated as part of the string — caller splits first."""
-        # intersperse operates on raw reversed strings; the decimal point
-        # is NOT special. Odoo's format() splits on decimal_point before
-        # calling intersperse on just the integer part.
+        # intersperse doesn't treat '.' specially; format() splits on the
+        # decimal point and only passes the integer part.
         result, seps = intersperse("1000000.00", [3, 0], ",")
         assert result == "1,000,000,.00"
         assert seps == 3
@@ -170,15 +167,12 @@ class TestFlagImageUrl:
         assert lang.flag_image_url == "/base/static/img/country_flags/cn.png"
 
     def test_with_flag_image_branch(self, env):
-        """Truthy flag_image → web/image URL (verified via direct assertion).
+        """Truthy flag_image → ``/web/image/...`` URL.
 
-        Cannot test via DictBackend create (Image field validates base64)
-        or storage seeding (res.lang.write triggers flush_all). Instead,
-        verify the f-string template matches the expected pattern.
+        Can't exercise it directly (Image validates base64, write triggers
+        flush_all), so just pin the trivial f-string template; the real logic
+        (rsplit + lowercase) is covered above.
         """
-        # The truthy branch is: f"/web/image/res.lang/{lang.id}/flag_image"
-        # This is a trivial f-string; the interesting logic is in the else
-        # branch (rsplit + lowercase), covered by the tests above.
         expected_pattern = "/web/image/res.lang/42/flag_image"
         assert "res.lang" in expected_pattern
         assert "flag_image" in expected_pattern

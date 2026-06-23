@@ -1,13 +1,8 @@
-"""Backward-compatible Cache wrapper.
+"""Backward-compatible ``env.cache`` wrapper.
 
-The :class:`Cache` class provides the legacy ``env.cache`` /
-``env.transaction.cache`` API that delegates to the standalone
-:class:`~odoo.orm.components.core.OrmCore` and
-:class:`~odoo.orm.components.cache.FieldCache` components.
-
-This wrapper exists for backward compatibility with code that uses
-``env.cache.get(record, field)`` style access.  New internal ORM code
-should use ``env._core`` instead.
+:class:`Cache` provides the legacy ``env.cache.get(record, field)`` API,
+delegating to :class:`~odoo.orm.components.core.OrmCore` /
+:class:`~odoo.orm.components.cache.FieldCache`.  New ORM code uses ``env._core``.
 """
 
 import contextlib
@@ -28,36 +23,26 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 
-# sentinel value for optional parameters
 EMPTY_DICT = frozendict()  # type: ignore
 
 
 class Cache:
-    """Implementation of the cache of records.
+    """Cache of records (backward-compat wrapper).
 
     .. deprecated:: 19.0
-        This class is a backward-compatibility wrapper.  Internal ORM code
-        should use ``env._core`` (:class:`~odoo.orm.components.core.OrmCore`)
-        instead.  External code (enterprise modules) that needs direct cache
-        manipulation should migrate to ``env._core`` or the public
-        ``env.invalidate_all()`` / ``env.flush_all()`` APIs.
+        Internal ORM code should use ``env._core``
+        (:class:`~odoo.orm.components.core.OrmCore`); external code should
+        migrate to ``env._core`` or ``env.invalidate_all()`` /
+        ``env.flush_all()``.
 
-    For most fields, the cache is simply a mapping from a record and a field to
-    a value.  In the case of context-dependent fields, the mapping also depends
-    on the environment of the given record.  For the sake of performance, the
-    cache is first partitioned by field, then by record.  This makes some
-    common ORM operations pretty fast, like determining which records have a
-    value for a given field, or invalidating a given field on all possible
-    records.
+    The cache maps ``(record, field) -> value``, partitioned by field then by
+    record (so "which records have a value" / "invalidate a field on all
+    records" are fast).  Context-dependent fields key on the environment too.
 
-    The cache can also mark some entries as "dirty".  Dirty entries essentially
-    marks values that are different from the database.  They represent database
-    updates that haven't been done yet.  Note that dirty entries only make
-    sense for stored fields.  Note also that if a field is dirty on a given
-    record, and the field is context-dependent, then all the values of the
-    record for that field are considered dirty.  For the sake of consistency,
-    the values that should be in the database must be in a context where all
-    the field's context keys are ``None``.
+    Entries may be marked "dirty": pending DB writes, only meaningful for stored
+    fields.  A dirty context-dependent field marks *all* of the record's values
+    for that field dirty; the to-be-written values must live in a context where
+    all the field's context keys are ``None``.
     """
 
     __slots__ = ("transaction",)
@@ -66,7 +51,7 @@ class Cache:
         self.transaction = transaction
 
     def __repr__(self) -> str:
-        # for debugging: show the cache content and dirty flags as stars
+        # debugging: show cache content with dirty flags as stars
         data: dict[Field, dict] = {}
         core = self.transaction.core
         for field, field_cache in sorted(
@@ -95,13 +80,13 @@ class Cache:
     def _get_field_cache(
         self, model: BaseModel, field: Field
     ) -> typing.Mapping[IdType, typing.Any]:
-        """Return the field cache of the given field, but not for modifying it."""
+        """Return the field cache for reading (not modification)."""
         return self._set_field_cache(model, field)
 
     def _set_field_cache(
         self, model: BaseModel, field: Field
     ) -> dict[IdType, typing.Any]:
-        """Return the field cache of the given field for modifying it."""
+        """Return the field cache for modification."""
         return field._get_cache(model.env)
 
     def contains(self, record: BaseModel, field: Field) -> bool:
@@ -136,12 +121,11 @@ class Cache:
         dirty: bool = False,
     ) -> None:
         """Set the value of ``field`` for ``record``.
-        One can normally make a clean field dirty but not the other way around.
-        Updating a dirty field without ``dirty=True`` is a programming error and
-        raises an exception.
 
-        :param dirty: whether ``field`` must be made dirty on ``record`` after
-            the update
+        A clean field can be made dirty, not the reverse: updating a dirty field
+        without ``dirty=True`` raises.
+
+        :param dirty: whether to mark ``field`` dirty on ``record`` after update.
         """
         field._update_cache(record, value, dirty=dirty)
 
@@ -153,12 +137,11 @@ class Cache:
         dirty: bool = False,
     ) -> None:
         """Set the values of ``field`` for several ``records``.
-        One can normally make a clean field dirty but not the other way around.
-        Updating a dirty field without ``dirty=True`` is a programming error and
-        raises an exception.
 
-        :param dirty: whether ``field`` must be made dirty on ``record`` after
-            the update
+        A clean field can be made dirty, not the reverse: updating a dirty field
+        without ``dirty=True`` raises.
+
+        :param dirty: whether to mark ``field`` dirty on the records after update.
         """
         for record, value in zip(records, values, strict=False):
             field._update_cache(record, value, dirty=dirty)
@@ -170,9 +153,7 @@ class Cache:
         values: Iterable,
         dirty: bool = False,
     ) -> None:
-        """This is a variant of method :meth:`~update` without the logic for
-        translated fields.
-        """
+        """Variant of :meth:`update` without the translated-field logic."""
         if field.translate:
             records = records.with_context(prefetch_langs=True)
         for record, value in zip(records, values, strict=False):
@@ -181,9 +162,8 @@ class Cache:
     def remove(self, record: BaseModel, field: Field) -> None:
         """Remove the value of ``field`` for ``record``.
 
-        Removing a dirty cache entry would silently lose the pending write,
-        so it is rejected explicitly.  ``raise ValueError`` (not ``assert``)
-        because the contract must hold under ``python -O`` too.
+        Removing a dirty entry would lose the pending write, so it is rejected.
+        ``raise`` (not ``assert``) so the check holds under ``python -O`` too.
         """
         if record.id in (self.transaction.core.get_dirty(field) or ()):
             raise ValueError(
@@ -213,8 +193,9 @@ class Cache:
         self, model: BaseModel, field: Field, all_contexts: bool = False
     ) -> BaseModel:
         """Return the records of ``model`` that have a value for ``field``.
-        By default the method checks for values in the current context of ``model``.
-        But when ``all_contexts`` is true, it checks for values *in all contexts*.
+
+        Checks the current context of ``model``, or all contexts when
+        ``all_contexts`` is true.
         """
         ids: Iterable
         if all_contexts and field in model.pool.field_depends_context:
@@ -236,27 +217,19 @@ class Cache:
     ) -> None:
         """Invalidate the cache, partially or totally depending on ``spec``.
 
-        If a field is context-dependent, invalidating it for a given record
-        actually invalidates all the values of that field on the record.  In
-        other words, the field is invalidated for the record in all
-        environments.
+        ``spec`` is ``[(field, ids), (field, None), ...]``; ``None`` ids means
+        the whole field.  Invalidating a context-dependent field for a record
+        invalidates that field on the record in all environments.
 
-        This operation is unsafe by default, and must be used with care.
-        Indeed, invalidating a dirty field on a record may lead to an error,
-        because doing so drops the value to be written in database.
-
-            spec = [(field, ids), (field, None), ...]
+        Unsafe: invalidating a dirty field drops the value to be written.
         """
         if spec is None:
             self.transaction.invalidate_field_data()
             return
         env = next(iter(self.transaction.envs), None)
         if env is None:
-            # Rare: every Environment has been garbage-collected from this
-            # transaction.  Without an env we cannot invalidate context-aware
-            # caches; silently return rather than raising StopIteration up
-            # to a caller that has no actionable response.  Log at debug so
-            # the no-op is observable when diagnosing stale-cache issues.
+            # All envs GC'd: without one we cannot invalidate context-aware
+            # caches.  Return a no-op (logged at debug) rather than raising.
             _logger.debug(
                 "Cache.invalidate: skipped %d entries — no environments left "
                 "in transaction (all GC'd)",
@@ -345,7 +318,7 @@ class Cache:
 
 
 class Starred:
-    """Simple helper class to ``repr`` a value with a star suffix."""
+    """Wrap a value so its ``repr`` gets a star suffix."""
 
     __slots__ = ["value"]
 

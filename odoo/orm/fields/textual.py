@@ -68,20 +68,19 @@ class BaseString(Field[str | typing.Literal[False]]):
         ids = record._ids
         if len(ids) != 1:
             return super().__get__(record, owner)
-        # Callable translate still uses LangProxyDict (dict values in cache);
-        # delegate to the full path which handles KeyError → DB fetch.
+        # Callable translate stores dict values in cache; delegate to the full
+        # path which handles KeyError → DB fetch.
         if callable(self.translate):
             return super().__get__(record, owner)
-        # translate=True uses per-lang flat dicts → scalar fast path works.
+        # translate=True uses per-lang flat dicts, so the scalar fast path works.
         if self.is_stored_computed and env._core.has_pending(self):
             self.recompute(record)
         record_id = ids[0]
         value = _scalar_cache_get(env.__dict__, self, record_id, PENDING, SENTINEL)
         if value is not SENTINEL:
             return False if value is None else value
-        # en_US fallback for new records without origin and non-stored fields:
-        # when the current language is not in cache, fall back to en_US before
-        # hitting the DB (new records have no DB row to fall back to).
+        # en_US fallback for non-stored fields and new records without origin:
+        # such records have no DB row, so fall back to en_US before hitting it.
         if self.translate is True and not (
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
@@ -116,10 +115,9 @@ class BaseString(Field[str | typing.Literal[False]]):
                     "Translated stored fields (%s) cannot depend on context",
                     self,
                 )
-            # Model translation: use depends_context=('lang',) for per-lang
-            # flat cache dicts (replaces LangProxyDict).  Applies to both
-            # stored and non-stored fields so computed/related translated
-            # fields get per-language cache routing.
+            # Model translation: add depends_context=('lang',) so the cache is
+            # routed per language (flat per-lang dicts), for stored and
+            # non-stored (computed/related) translated fields alike.
             if "lang" not in dep_ctx:
                 dep_ctx = ("lang",) + tuple(dep_ctx)
             return dep, dep_ctx
@@ -236,8 +234,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                     # term number mismatch, ignore all translations
                     value = base_value
                     translated_terms = base_terms
-                # post-condition: lengths now match — strict=True surfaces any
-                # future regression that reintroduces a mismatch silently.
+                # lengths are guaranteed equal here, so zip strict=True is safe
                 get_base = dict(
                     zip(translated_terms, base_terms, strict=True)
                 ).__getitem__
@@ -305,8 +302,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                 for from_lang_term in from_lang_terms:
                     dictionary[from_lang_term][lang] = from_lang_term
             else:
-                # the else branch is gated by length equality — strict=True
-                # is the structurally correct choice and catches regressions.
+                # lengths are equal in this branch, so zip strict=True is safe
                 for from_lang_term, to_lang_term in zip(
                     from_lang_terms, to_lang_terms, strict=True
                 ):
@@ -314,10 +310,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         return dictionary
 
     def _get_stored_translations(self, record: BaseModel) -> dict[str, str] | None:
-        """
-        : return: {'en_US': 'value_en_US', 'fr_FR': 'French'}
-        """
-        # assert (self.translate and self.store and record)
+        """Return stored translations, e.g. ``{'en_US': '...', 'fr_FR': '...'}``."""
         record.flush_recordset([self.name])
         cr = record.env.cr
         cr.execute(
@@ -347,7 +340,7 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         if self.translate is True:
             # Model translation: depends_context=('lang',) routes via cache_key
-            # → returns a flat {id: scalar} dict per language (no LangProxyDict).
+            # to a flat {id: scalar} dict per language.
             return super()._get_cache_impl(env)
         cache = super()._get_cache_impl(env)
         if not self.translate or env.context.get("prefetch_langs"):
@@ -378,7 +371,7 @@ class BaseString(Field[str | typing.Literal[False]]):
 
         env = records.env
         if self.translate is True:
-            # Model translation: per-lang flat dicts via depends_context=('lang',)
+            # Model translation: per-lang flat dicts
             if env.context.get("prefetch_langs"):
                 # SQL fetched full JSONB → distribute across per-lang sub-dicts
                 field_data = env._core.field_data(self)
@@ -390,8 +383,8 @@ class BaseString(Field[str | typing.Literal[False]]):
                             sub = field_data.setdefault((lang,), {})
                             sub.setdefault(id_, None)
                     else:
-                        # val is JSONB dict like {"en_US": "Hello", "fr_FR": "Bonjour"}
-                        # Fill missing languages with en_US fallback
+                        # val is a JSONB dict {lang: value}; fill missing
+                        # languages with the en_US fallback
                         merged = {
                             **dict.fromkeys(langs, val.get("en_US")),
                             **val,
@@ -401,11 +394,11 @@ class BaseString(Field[str | typing.Literal[False]]):
                                 sub = field_data.setdefault((lang,), {})
                                 sub.setdefault(id_, scalar)
             else:
-                # Normal path: SQL returned scalar via COALESCE → base class handles it
+                # Normal path: SQL returned a scalar via COALESCE
                 super()._insert_cache(records, values)
             return
 
-        # callable translate: existing logic (LangProxyDict, multi-lang dicts)
+        # callable translate: LangProxyDict / multi-lang dicts
         field_cache = env._core.field_data(self)
         if env.context.get("prefetch_langs"):
             installed = [lang for lang, _ in env["res.lang"].get_installed()]
@@ -452,8 +445,8 @@ class BaseString(Field[str | typing.Literal[False]]):
             and cache_value is not None
             and isinstance(cache_value, dict)
         ):
-            # prefetch_langs path for model translation: cache_value is {lang: scalar}
-            # Distribute across per-lang sub-dicts
+            # model translation prefetch_langs: cache_value is {lang: scalar};
+            # distribute across per-lang sub-dicts
             field_data = records.env._core.field_data(self)
             ids = records._ids
             for lang, scalar in cache_value.items():
@@ -471,9 +464,8 @@ class BaseString(Field[str | typing.Literal[False]]):
         # translate=True with scalar value: store + en_US fallback for new records
         if self.translate is True and cache_value is not None:
             super()._update_cache(records, cache_value, dirty)
-            # Replicate LangProxyDict's en_US setdefault behavior: on new records
-            # without origin (non-computed), populate en_US so other languages
-            # can fall back to it.
+            # On new records without origin (non-computed), populate en_US so
+            # other languages can fall back to it.
             if not self.compute and not any(
                 id_ or getattr(id_, "origin", None) for id_ in records._ids
             ):
@@ -515,8 +507,8 @@ class BaseString(Field[str | typing.Literal[False]]):
         dirty_records = records.filtered(lambda rec: rec.id in dirty_ids)
         if dirty_records:
             if self.translate is True:
-                # With per-lang sub-dicts, None may be in a different language's
-                # sub-dict (e.g., en_US cleared, now writing fr_FR).  Check all.
+                # None may sit in another language's sub-dict (e.g. en_US
+                # cleared, now writing fr_FR), so check them all.
                 field_data = records.env._core.field_data(self)
                 has_dirty_none = any(
                     sub.get(rid, SENTINEL) is None
@@ -555,12 +547,12 @@ class BaseString(Field[str | typing.Literal[False]]):
 
         # model translation
         if not callable(self.translate):
-            # invalidate clean fields because them may contain fallback value
+            # invalidate clean fields because they may contain a fallback value
             clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
             clean_records.invalidate_recordset([self.name])
             self._update_cache(records, cache_value, dirty=True)
             if lang != "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
-                # if 'en_US' is not active, we always write en_US to make sure value_en is meaningful
+                # if 'en_US' is inactive, always write it so value_en stays meaningful
                 self._update_cache(
                     records.with_context(lang="en_US"), cache_value, dirty=True
                 )
@@ -575,8 +567,9 @@ class BaseString(Field[str | typing.Literal[False]]):
             if not new_terms:
                 new_translations_list.append({"en_US": cache_value, lang: cache_value})
                 continue
-            # _get_stored_translations can be refactored and prefetches translations for multi records,
-            # but it is really rare to write the same non-False/None/no-term value to multi records
+            # _get_stored_translations could be refactored to prefetch for
+            # multiple records, but writing the same non-False/None/no-term
+            # value to many records at once is very rare
             stored_translations = self._get_stored_translations(record)
             if not stored_translations:
                 new_translations_list.append({"en_US": cache_value, lang: cache_value})
@@ -627,7 +620,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                                 adapter = term_adapter(closest_term)
                                 if (
                                     adapter(old_term) is None
-                                ):  # old term and closest_term have different structures
+                                ):  # old and closest_term differ in structure
                                     continue
                                 translation_dictionary[closest_term] = {
                                     k: adapter(v)
@@ -727,8 +720,9 @@ class BaseString(Field[str | typing.Literal[False]]):
                 )
             )
         ):
-            # a prefilter using trigram index to speed up '=', 'like', 'ilike'
-            # '!=', '<=', '<', '>', '>=', 'in', 'not in', 'not like', 'not ilike' cannot use this trick
+            # prefilter via the trigram index to speed up '=', 'like', 'ilike';
+            # '!=', '<=', '<', '>', '>=', 'in', 'not in', 'not like', 'not ilike'
+            # cannot use this trick
             if operator == "in" and len(value) == 1:
                 value = value_to_translated_trigram_pattern(next(iter(value)))
             elif operator != "in":
@@ -863,8 +857,8 @@ class Html(BaseString):
     type = "html"
     _column_type = ("text", "text")
 
-    # Html must bypass BaseString.__get__ because convert_to_record wraps
-    # values in Markup().  The BaseString shortcut would return raw strings.
+    # Bypass BaseString.__get__: convert_to_record wraps values in Markup(),
+    # whereas the BaseString shortcut would return raw strings.
     __get__ = Field.__get__
 
     sanitize: bool = True  # whether value must be sanitized
@@ -886,13 +880,10 @@ class Html(BaseString):
     def _get_attrs(
         self, model_class: type[BaseModel], name: str
     ) -> dict[str, typing.Any]:
-        # called by _setup_attrs__(), working together with BaseString._setup_attrs__()
         attrs = super()._get_attrs(model_class, name)
-        # Shortcut for common sanitize options
-        # Outgoing and incoming emails should not be sanitized with the same options.
-        # e.g. conditional comments: no need to keep conditional comments for incoming emails,
-        # we do not need this Microsoft Outlook client feature for emails displayed Odoo's web client.
-        # While we need to keep them in mail templates and mass mailings, because they could be rendered in Outlook.
+        # Shortcut for outgoing emails: they need looser sanitization than
+        # incoming ones (e.g. keep conditional comments, an Outlook feature, in
+        # mail templates and mass mailings since they may be rendered in Outlook).
         if attrs.get("sanitize") == "email_outgoing":
             attrs["sanitize"] = True
             attrs.update(
@@ -907,10 +898,9 @@ class Html(BaseString):
                     if key not in attrs
                 }
             )
-        # Translated sanitized html fields must use html_translate or a callable.
-        # `elif` intended, because HTML fields with translate=True and sanitize=False
-        # where not using `html_translate` before and they must remain without `html_translate`.
-        # Otherwise, breaks `--test-tags .test_render_field`, for instance.
+        # Translated sanitized HTML fields must use html_translate. The `elif`
+        # is intentional: translate=True + sanitize=False must NOT get
+        # html_translate (else breaks e.g. test_render_field).
         elif attrs.get("translate") is True and attrs.get("sanitize", True):
             attrs["translate"] = html_translate
         return attrs
@@ -955,10 +945,9 @@ class Html(BaseString):
         if not validate or not self.sanitize:
             return value
 
-        # Fast path: if the value is identical to what's already cached,
-        # it was already sanitized on a previous write — skip re-sanitization.
-        # Skip when sanitize_overridable: the cached value may have been written
-        # by a user who bypasses sanitization, so re-sanitization is needed.
+        # Fast path: a value identical to the cached one was already sanitized
+        # on a previous write. Not when sanitize_overridable: the cached value
+        # may have been written by a user who bypasses sanitization.
         if record._ids and not self.sanitize_overridable:
             field_cache = self._get_cache(record.env)
             record_id = record._ids[0]
@@ -1057,7 +1046,7 @@ class Html(BaseString):
 
     @override
     def get_trans_terms(self, value: str | None) -> list[str]:
-        # ensure the translation terms are stringified, otherwise we can break the PO file
+        # stringify translation terms, otherwise we can break the PO file
         return list(map(str, super().get_trans_terms(value)))
 
 
@@ -1081,9 +1070,8 @@ class LangProxyDict(collections.abc.MutableMapping):
         if vals is None:
             return None
         if not (self._field.compute or (self._field.store and (key or key.origin))):
-            # the field's value is neither computed, nor in database
-            # (non-stored field or new record without origin), so fallback on
-            # its 'en_US' value in cache
+            # neither computed nor in DB (non-stored, or new record without
+            # origin): fall back to the cached 'en_US' value
             return vals.get(self._lang, vals.get("en_US", default))
         return vals.get(self._lang, default)
 
@@ -1092,9 +1080,8 @@ class LangProxyDict(collections.abc.MutableMapping):
         if vals is None:
             return None
         if not (self._field.compute or (self._field.store and (key or key.origin))):
-            # the field's value is neither computed, nor in database
-            # (non-stored field or new record without origin), so fallback on
-            # its 'en_US' value in cache
+            # neither computed nor in DB (non-stored, or new record without
+            # origin): fall back to the cached 'en_US' value
             return vals.get(self._lang, vals.get("en_US"))
         return vals[self._lang]
 
@@ -1109,9 +1096,8 @@ class LangProxyDict(collections.abc.MutableMapping):
         else:
             vals[self._lang] = value
         if not (self._field.compute or (self._field.store and (key or key.origin))):
-            # the field's value is neither computed, nor in database
-            # (non-stored field or new record without origin), so the cache
-            # must contain the fallback 'en_US' value for other languages
+            # neither computed nor in DB (non-stored, or new record without
+            # origin): store the 'en_US' fallback for other languages
             vals.setdefault("en_US", value)
 
     def __delitem__(self, key: IdType) -> None:

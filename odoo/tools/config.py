@@ -45,7 +45,7 @@ EMPTY = _Empty()
 
 
 class _OdooOption(optparse.Option):
-    config = None  # must be overriden
+    config = None  # must be overridden
 
     TYPES = [
         "int",
@@ -127,7 +127,7 @@ class _OdooOption(optparse.Option):
             for opt in self._short_opts + self._long_opts:
                 self.config.optional_options[opt] = self
         if env_name is None and is_new_option and self.file_loadable:
-            # generate an env_name for file_loadable settings that are in the index
+            # auto-derive an env_name for indexed file_loadable options
             self.env_name = "ODOO_" + self.dest.upper()
         elif env_name and not is_new_option:
             raise ValueError(
@@ -168,13 +168,11 @@ class _PosixOnlyOption(_OdooOption):
 
 
 def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
-    """Avoid saving multiple logging levels for the same loggers to a save
-    file, that just takes space and the list can potentially grow unbounded
-    if for some odd reason people use :option`--save`` all the time.
+    """Drop duplicate logger levels so repeated ``--save`` doesn't grow the
+    config file's log_handler list unboundedly.
     """
-    # dict(iterable) -> the last item of iterable for any given key wins,
-    # which is what we want and expect. Output order should not matter as
-    # there are no duplicates within the output sequence
+    # dict(): last value wins per key, which is what we want; output has no
+    # duplicates so its order is irrelevant.
     return (
         f"{logger}:{level}"
         for logger, level in dict(it.split(":") for it in loggers).items()
@@ -196,13 +194,13 @@ class configmanager:
             self._default_options,
         )
 
-        # dictionary mapping option destination (keys in self.options) to OdooOptions.
+        # option dest (key in self.options) -> _OdooOption
         self.options_index: dict[str, _OdooOption] = {}
 
-        # list of nargs='?' options, indexed by short/long option (-x, --xx)
+        # nargs='?' options, indexed by each short/long option string (-x, --xx)
         self.optional_options: dict[str, _OdooOption] = {}
 
-        # map old name -> new name
+        # deprecated alias -> current option name
         self.aliases: dict[str, str] = {
             "import_image_maxbytes": "import_file_maxbytes",
             "import_image_regex": "import_url_regex",
@@ -309,7 +307,7 @@ class configmanager:
             )
         )
 
-        # Server startup config
+        # Common options
         group = optparse.OptionGroup(parser, "Common options")
         group.add_option(
             "-c",
@@ -501,7 +499,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        # Testing Group
+        # Testing
         group = optparse.OptionGroup(parser, "Testing Configuration")
         group.add_option(
             "--test-file",
@@ -563,7 +561,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        # Logging Group
+        # Logging
         group = optparse.OptionGroup(parser, "Logging Configuration")
         group.add_option(
             "--logfile",
@@ -637,7 +635,7 @@ class configmanager:
 
         parser.add_option_group(group)
 
-        # SMTP Group
+        # SMTP
         group = optparse.OptionGroup(parser, "SMTP Configuration")
         group.add_option(
             "--email-from",
@@ -699,7 +697,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        # Database Group
+        # Database
         group = optparse.OptionGroup(parser, "Database related options")
         group.add_option(
             "-d",
@@ -821,7 +819,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        # i18n Group
+        # i18n
         group = optparse.OptionGroup(
             parser,
             "Internationalisation options",
@@ -845,7 +843,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        # Security Group
+        # Security
         security = optparse.OptionGroup(parser, "Security-related options")
         security.add_option(
             "--no-database-list",
@@ -1063,17 +1061,19 @@ class configmanager:
             rcfilepath = "~/.odoorc"
         self._default_options["config"] = self._normalize(rcfilepath)
 
-    _log_entries = []  # helpers for log() and warn(), accumulate messages
-    _warn_entries = []  # until logging is configured and the entries flushed
+    # buffers for _log()/_warn(); messages accumulate here until logging is
+    # configured, then get flushed by _flush_log_and_warn_entries()
+    _log_entries = []
+    _warn_entries = []
 
     @classmethod
     def _log(cls, loglevel: int, message: str, *args: Any, **kwargs: Any) -> None:
-        # is replaced by logger.log once logging is ready
+        # replaced by logger.log once logging is ready
         cls._log_entries.append((loglevel, message, args, kwargs))
 
     @classmethod
     def _warn(cls, message: str, *args: Any, **kwargs: Any) -> None:
-        # is replaced by warnings.warn once logging is ready
+        # replaced by warnings.warn once logging is ready
         cls._warn_entries.append((message, args, kwargs))
 
     @classmethod
@@ -1094,16 +1094,10 @@ class configmanager:
         *,
         setup_logging: bool | None = None,
     ) -> None:
-        """Parse the configuration file (if any) and the command-line
-        arguments.
+        """Parse the config file (if any) and command-line arguments.
 
-        This method initializes odoo.tools.config with library-wide
-        configuration values.
-
-        This method must be called before proper usage of this library can be
-        made.
-
-        Typical usage of this method:
+        Initializes odoo.tools.config with library-wide values and must be
+        called before the library can be used properly, e.g.::
 
             odoo.tools.config.parse_config(sys.argv[1:])
         """
@@ -1113,8 +1107,8 @@ class configmanager:
         opt = self._parse_config(args)
         if setup_logging is not False:
             init_logger()
-            # warn after having done setup, so it has a chance to show up
-            # (mostly once this warning is bumped to DeprecationWarning proper)
+            # warn only after setup, so the warning has a chance to show up
+            # (relevant once it's bumped to a proper DeprecationWarning)
             if setup_logging is None:
                 warnings.warn(
                     "As of Odoo 18, it's recommended to specify whether"
@@ -1129,7 +1123,7 @@ class configmanager:
         return opt
 
     def _parse_config(self, args: list[str] | None = None) -> optparse.Values:
-        # preprocess the args to add support for nargs='?'
+        # rewrite args to support nargs='?' (optparse lacks it)
         for arg_no, arg in enumerate(args or ()):
             if option := self.optional_options.get(arg):
                 if arg_no == len(args) - 1 or args[arg_no + 1].startswith("-"):
@@ -1145,10 +1139,10 @@ class configmanager:
                 f"the config file {opt.config!r} selected with -c/--config doesn't exist or is not readable, use -s/--save if you want to generate it"
             )
 
-        # Even if they are not exposed on the CLI, cli un-loadable variables still show up in the opt, remove them
-        for option_name in list(vars(opt).keys()):
+        # non-cli-loadable options still appear in opt; drop them
+        for option_name in list(vars(opt).keys()):  # list() so we can delattr while iterating
             if not self.options_index[option_name].cli_loadable:
-                delattr(opt, option_name)  # hence list(...) above
+                delattr(opt, option_name)
 
         self._load_env_options()
         self._load_cli_options(opt)
@@ -1176,8 +1170,8 @@ class configmanager:
             )
 
     def _load_cli_options(self, opt: optparse.Values) -> None:
-        # odoo.cli.command.main parses the config twice, the second time
-        # without --addons-path but expect the value to be persisted
+        # odoo.cli.command.main parses config twice; the second pass omits
+        # --addons-path but still expects its value to persist
         addons_path = self._cli_options.pop("addons_path", None)
         self._cli_options.clear()
         if addons_path is not None:
@@ -1202,7 +1196,7 @@ class configmanager:
     def _postprocess_options(self) -> None:
         self._runtime_options.clear()
 
-        # check for mutualy exclusive / dependant options
+        # check mutually exclusive / dependent options
         if self.options["syslog"] and self.options["logfile"]:
             self.parser.error("the syslog and logfile options are exclusive")
 
@@ -1254,13 +1248,11 @@ class configmanager:
         if self["db_replica_host"] == "":
             self._runtime_options["db_replica_host"] = None
             if "replica" not in self["dev_mode"]:
-                # Conditional warning so it is possible to have a single
-                # config file (with db_replica_host= dev_mode=replica)
-                # that works in both 18.0 and 19.0.
-                # TODO saas-21.1:
-                #   move this warning out of the if, as 18.0 won't be
-                #   supported anymore, so people remove db_replica_host=
-                #   from their config.
+                # Warn only when not already using dev_mode=replica, so one
+                # config file (db_replica_host= dev_mode=replica) works on both
+                # 18.0 and 19.0.
+                # TODO saas-21.1: drop this condition once 18.0 is unsupported,
+                #   so users remove db_replica_host= from their config.
                 self._warn(
                     (
                         "Since 19.0, an empty {replica_host} was the 18.0 "
@@ -1330,11 +1322,9 @@ class configmanager:
                 current_value = self[new_option_name]
 
                 if deprecated_value in (current_value, default_value):
-                    # Surely this is from a --save that was run in a
-                    # prior version. There is no point in emitting a
-                    # warning because: (1) it holds the same value as
-                    # the correct option, and (2) it is going to be
-                    # automatically removed on the next --save anyway.
+                    # Leftover from a --save in a prior version: no warning
+                    # needed since it matches the correct option's value and
+                    # the next --save drops it anyway.
                     self._log(
                         logging.INFO,
                         f"The {old_option_name!r} option found in the "
@@ -1344,8 +1334,7 @@ class configmanager:
                         "safely be removed.",
                     )
                 elif current_value == default_value:
-                    # deprecated_value != current_value == default_value
-                    # assume the new option was not set
+                    # new option left at default => take the deprecated value
                     self._runtime_options[new_option_name] = self.parse(
                         new_option_name, deprecated_value
                     )
@@ -1356,7 +1345,7 @@ class configmanager:
                         DeprecationWarning,
                     )
                 else:
-                    # deprecated_value != current_value != default_value
+                    # both options set to conflicting non-default values
                     self.parser.error(
                         f"The two options {old_option_name!r} "
                         f"(found in the {source_name} but deprecated) "
@@ -1593,7 +1582,6 @@ class configmanager:
             else:
                 p.set("options", opt, self.options[opt])
 
-        # try to create the directories and write the file
         try:
             if not rc_exists and not Path(self["config"]).parent.exists():
                 Path(str(Path(self["config"]).parent)).mkdir(parents=True)
@@ -1606,7 +1594,6 @@ class configmanager:
                 sys.stderr.write("ERROR: couldn't write the config file\n")
 
         except OSError:
-            # what to do if impossible?
             sys.stderr.write("ERROR: couldn't create the config directory\n")
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -1645,7 +1632,7 @@ class configmanager:
                 # bootstrap parent dir +rwx
                 if not Path(add_dir).exists():
                     Path(add_dir).mkdir(0o700, parents=True)
-                # try to make +rx placeholder dir, will need manual +w to activate it
+                # +rx placeholder dir; needs manual +w to activate
                 Path(d).mkdir(0o500, parents=True)
             except OSError:
                 self._log(logging.DEBUG, "Failed to create addons data dir %s", d)
@@ -1669,10 +1656,10 @@ class configmanager:
         self.options["admin_passwd"] = crypt_context.hash(new_password)
 
     def verify_admin_password(self, password: str) -> bool:
-        """Verifies the super-admin password, possibly updating the stored hash if needed"""
+        """Verify the super-admin password, rehashing the stored hash if needed."""
         stored_hash = self.options["admin_passwd"]
         if not stored_hash:
-            # empty password/hash => authentication forbidden
+            # empty hash => authentication forbidden
             return False
         result, updated_hash = crypt_context.verify_and_update(password, stored_hash)
         if result:
@@ -1696,7 +1683,7 @@ class configmanager:
         return normcase(str(Path(expandvars(path.strip())).expanduser().resolve()))
 
     def _get_sources(self, name: str) -> dict[str, Any]:
-        """Extract the option from the many sources"""
+        """Return the option's value from each source, keyed by source name."""
         return {
             **{
                 f"source#{no}": source.get(name, EMPTY)

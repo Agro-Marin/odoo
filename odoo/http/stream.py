@@ -46,17 +46,27 @@ class Stream:
     size: int | None = None
     public: bool = False
 
-    # Whitelist of kwargs accepted by ``__init__`` — kept in sync with the
-    # class attributes above. Without this, a typo like
-    # ``Stream(as_attatchment=True)`` silently set a bogus attribute and
-    # the real ``as_attachment`` defaulted to ``False``, producing a
-    # response whose disposition was not what the caller intended.
-    _ALLOWED_KWARGS: frozenset[str] = frozenset({
-        "type", "data", "path", "url",
-        "mimetype", "as_attachment", "download_name", "conditional",
-        "etag", "last_modified", "max_age", "immutable",
-        "size", "public",
-    })
+    # Whitelist of kwargs accepted by ``__init__`` (kept in sync with the class
+    # attributes above). Without it, a typo like ``Stream(as_attatchment=True)``
+    # silently set a bogus attribute, leaving ``as_attachment`` at its default.
+    _ALLOWED_KWARGS: frozenset[str] = frozenset(
+        {
+            "type",
+            "data",
+            "path",
+            "url",
+            "mimetype",
+            "as_attachment",
+            "download_name",
+            "conditional",
+            "etag",
+            "last_modified",
+            "max_age",
+            "immutable",
+            "size",
+            "public",
+        }
+    )
 
     def __init__(self, **kwargs: Any) -> None:
         unknown = kwargs.keys() - self._ALLOWED_KWARGS
@@ -78,44 +88,37 @@ class Stream:
             intermediate proxies, otherwise only let the browser caches
             it.
         """
-        # Validate that ``path`` resolves under a known ``addons_path``
-        # directory (raises ``FileNotFoundError`` — an ``OSError`` — when
-        # missing), then build from the now-trusted absolute path.
+        # Validate that ``path`` resolves under a known ``addons_path`` dir
+        # (raises FileNotFoundError if missing), then build from the trusted path.
         path = file_path(path, filter_ext)
         return cls._from_trusted_path(path, public=public)
 
     @classmethod
     def _from_trusted_path(cls, path: str, public: bool = False) -> Stream:
         """Build a ``type='path'`` :class:`~Stream` from an absolute path the
-        caller has ALREADY validated as living under the addons tree (e.g. via
+        caller has ALREADY validated as under the addons tree (e.g. via
         :func:`~odoo.tools.file_path` or :meth:`Application.get_static_file`).
 
-        Skips re-running that resolution — the single biggest per-request cost
-        of serving a static asset — but still stats the file for its
-        etag/mtime/size. ``stat()`` is called first so a file that vanished
-        after validation surfaces as an ``OSError`` (handled as a 404 by
-        :meth:`Request._serve_static`) rather than a misleading ``ValueError``.
+        Skips re-running that resolution (the biggest per-request static cost) but
+        still stats the file for etag/mtime/size. ``stat()`` runs first so a
+        vanished file surfaces as an ``OSError`` (404 in
+        :meth:`Request._serve_static`), not a misleading ``ValueError``.
         """
         p = Path(path)
         st = p.stat()  # FileNotFoundError (OSError) if the file vanished
         if not S_ISREG(st.st_mode):
             # A directory (or socket/fifo/device) is not streamable. Raise an
-            # OSError — never a bare ``ValueError`` — so callers that map OSError
-            # to a 404 (:meth:`Request._serve_static`) degrade gracefully. A
-            # ``ValueError`` escaped that ``except OSError`` handler and turned a
-            # probe of a directory URL (e.g. ``/web/static/src``) into a 500 with
-            # an ERROR-level traceback. This matches the method's own documented
-            # intent: error cases "surface as an OSError ... rather than a
-            # misleading ValueError".
+            # OSError (not ``ValueError``) so callers mapping OSError → 404
+            # (:meth:`Request._serve_static`) degrade gracefully; a ``ValueError``
+            # would turn a directory-URL probe (``/web/static/src``) into a 500.
             msg = f"Path {path!r} is not a regular file"
             if S_ISDIR(st.st_mode):
                 raise IsADirectoryError(msg)
             raise OSError(msg)
         check = adler32(path.encode())
-        # Use ``st_mtime_ns`` (not ``int(st_mtime)``) so a same-second rewrite
-        # of same-length content still busts the cache. ext4/xfs/apfs all
-        # provide nanosecond mtime; the size+adler32(path) suffix preserves
-        # the original collision-resistance guarantees.
+        # ``st_mtime_ns`` (not ``int(st_mtime)``) so a same-second rewrite of
+        # same-length content still busts the cache. The size+adler32(path) suffix
+        # preserves the original collision resistance.
         return cls(
             type="path",
             path=path,
@@ -144,10 +147,9 @@ class Stream:
     def read(self) -> bytes:
         """Get the stream content as bytes.
 
-        Mirrors the validation of :meth:`get_response` so the ``-> bytes``
-        contract holds: a ``'data'`` stream with no ``data`` (or any stream
-        with its backing attribute unset) raises ``ValueError`` instead of
-        silently returning ``None`` to a caller that expects bytes.
+        Mirrors :meth:`get_response`'s validation so the ``-> bytes`` contract
+        holds: a stream with its backing attribute unset raises ``ValueError``
+        instead of returning ``None``.
         """
         if self.type == "url":
             msg = "Cannot read an URL"
@@ -247,10 +249,8 @@ class Stream:
                 # NGINX wait for content that'll never arrive.
                 res.headers["Content-Length"] = "0"
 
-        # ``res.headers`` and ``res.cache_control`` each rebuild a proxy facade
-        # on every access (same pattern noted in
-        # ``Request._inject_future_response``); hoist them so this tail mutates a
-        # single facade instead of allocating a fresh one per write.
+        # ``res.headers`` / ``res.cache_control`` rebuild a proxy facade on every
+        # access; hoist them so this tail mutates one facade, not one per write.
         headers = res.headers
         headers["X-Content-Type-Options"] = "nosniff"
 

@@ -70,12 +70,10 @@ def expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
 def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
     """Build a recordset over *ids* sharing *records*' env and prefetch group.
 
-    Inlines ``object.__new__`` + slot assignment to skip the ``__init__``
-    dispatch — the same hot-path idiom used by ``BaseModel.browse`` and
-    ``Many2one.__get__``.  Unlike ``browse``, the original ``_prefetch_ids`` is
-    preserved (so later reads keep the broader prefetch group), which is why the
-    ``Field._assign_*`` paths cannot simply call ``browse``.  Centralised here so
-    adding a ``BaseModel`` slot only requires updating one assign-path site.
+    Inlines ``object.__new__`` + slot assignment to skip ``__init__`` (hot path).
+    Unlike ``browse``, the original ``_prefetch_ids`` is preserved so later reads
+    keep the broader prefetch group — hence ``Field._assign_*`` cannot use
+    ``browse``.
     """
     rs = object.__new__(records.__class__)
     rs.env = records.env
@@ -458,41 +456,21 @@ class Field[T]:
         cls.related_attrs = tuple(cls.related_attrs)
         cls.description_attrs = tuple(cls.description_attrs)
 
-    ############################################################################
+    # Base field setup (no dependency on other models/fields), via __set_name__():
+    # determines name, model_name, module and parameters. field._args__ holds the
+    # constructor parameters; most become an attribute of the same name.
     #
-    # Base field setup: things that do not depend on other models/fields
+    # When several definition classes redefine a field, the occurrences are merged
+    # into one runtime field on the model's registry class, passed as the
+    # '_base_fields__' parameter (a list in override order / reverse MRO).
     #
-    # The base field setup is done by field.__set_name__(), which determines the
-    # field's name, model name, module and its parameters.
-    #
-    # The dictionary field._args__ gives the parameters passed to the field's
-    # constructor.  Most parameters have an attribute of the same name on the
-    # field.  The parameters as attributes are assigned by the field setup.
-    #
-    # When several definition classes of the same model redefine a given field,
-    # the field occurrences are "merged" into one new field instantiated at
-    # runtime on the registry class of the model.  The occurrences of the field
-    # are given to the new field as the parameter '_base_fields__'; it is a list
-    # of fields in override order (or reverse MRO).
-    #
-    # In order to save memory, a field should avoid having field._args__ and/or
-    # many attributes when possible.  We call "direct" a field that can be set
-    # up directly from its definition class.  Direct fields are non-related
-    # fields defined on models, and can be shared across registries.  We call
-    # "toplevel" a field that is put on the model's registry class, and is
-    # therefore specific to the registry.
-    #
-    # Toplevel field are set up once, and are no longer set up from scratch
-    # after that.  Those fields can save memory by discarding field._args__ and
-    # field._base_fields__ once set up, because those are no longer necessary.
-    #
-    # Non-toplevel non-direct fields are the fields on definition classes that
-    # may not be shared.  In other words, those fields are never used directly,
-    # and are always recreated as toplevel fields.  On those fields, the base
-    # setup is useless, because only field._args__ is used for setting up other
-    # fields.  We therefore skip the base setup for those fields.  The only
-    # attributes of those fields are: '_sequence', '_args__', 'model_name', 'name'
-    # and '_module', which makes their __dict__'s size minimal.
+    # To save memory, fields avoid carrying _args__ and many attributes when
+    # possible. A "direct" field is a non-related field on a definition class,
+    # set up directly and shareable across registries. A "toplevel" field lives
+    # on the model's registry class and is registry-specific; it is set up once,
+    # then discards _args__/_base_fields__. Non-toplevel non-direct fields are
+    # never used directly (always recreated as toplevel), so their base setup is
+    # skipped — only _args__ matters, keeping their __dict__ minimal.
 
     def __set_name__(self, owner: type[BaseModel], name: str) -> None:
         """Perform the base setup of a field.
@@ -500,11 +478,9 @@ class Field[T]:
         :param owner: the owner class of the field (the model's definition or registry class)
         :param name: the name of the field
         """
-        # during initialization, when importing `_models` at the end of this
-        # file, it is not yet available and we already declare fields:
-        # id and display_name
-        # Note: also check for MetaModel attribute to handle partial module initialization
-        # (when _models package is being loaded but MetaModel not yet available)
+        # `_models` is imported at the end of this file, so it (and its
+        # MetaModel) may be unavailable when id/display_name are declared during
+        # init. Tolerate both states.
         _models_ref = globals().get("_models")
         assert (
             _models_ref is None
@@ -529,9 +505,7 @@ class Field[T]:
                     # keep _base_fields__ on related fields for incremental model setup
                     self.__dict__.pop("_base_fields__", None)
 
-    #
     # Setup field parameter attributes
-    #
 
     def _get_attrs(
         self, model_class: type[BaseModel], name: str
@@ -661,10 +635,7 @@ class Field[T]:
             value = self.default
             self.default = lambda model: value
 
-    ############################################################################
-    #
-    # Complete field setup: everything else
-    #
+    # Complete field setup
 
     def prepare_setup(self) -> None:
         """Reset the setup done flag so the field will be set up again."""
@@ -705,9 +676,7 @@ class Field[T]:
             # column_type might be changed during Field.setup
             reset_cached_properties(self)
 
-    #
     # Setup of non-related fields
-    #
 
     def setup_nonrelated(self, model: BaseModel) -> None:
         """Determine the dependencies and inverse field(s) of ``self``."""
@@ -752,17 +721,14 @@ class Field[T]:
 
         return depends, depends_context
 
-    #
     # Setup of related fields
-    #
 
     def setup_related(self, model: BaseModel) -> None:
         """Setup the attributes of a related field."""
         assert isinstance(self.related, str), self.related
 
-        # Parse the dotted path once at setup; the compute/inverse/search hot
-        # paths (traverse_related, _compute_related, _search_related) reuse this
-        # tuple instead of re-splitting the string on every invocation.
+        # Parse the dotted path once; the compute/inverse/search hot paths reuse
+        # this tuple instead of re-splitting the string on every invocation.
         self._related_names = related_names = tuple(self.related.split("."))
 
         # determine the chain of fields, and make sure they are all set up
@@ -805,10 +771,8 @@ class Field[T]:
 
         # copy attributes from field to self (string, help, etc.)
         for attr, prop in self.related_attrs:
-            # check whether 'attr' is explicitly set on self (from its field
-            # definition), and ignore its class-level value (only a default).
-            # ``prop`` is always a ``_related_*`` name by construction of
-            # ``related_attrs`` (see __init_subclass__), so no prefix check.
+            # copy only attrs not explicitly set on self (class-level value is
+            # just a default)
             if attr not in self.__dict__:
                 setattr(self, attr, getattr(field, prop))
 
@@ -821,9 +785,9 @@ class Field[T]:
             self.inherited_field = field
             if field.required:
                 self.required = True
-            # add modules from delegate and target fields; the first one ensures
-            # that inherited fields introduced via an abstract model (_inherits
-            # being on the abstract model) are assigned an XML id
+            # add modules from delegate and target fields; the delegate ensures
+            # inherited fields introduced via an abstract model (_inherits on the
+            # abstract model) get an XML id
             delegate_field = model._fields[related_names[0]]
             self._modules = tuple(
                 {*self._modules, *delegate_field._modules, *field._modules}
@@ -840,32 +804,10 @@ class Field[T]:
 
     def _compute_related(self, records: BaseModel) -> None:
         """Compute the related field ``self`` on ``records``."""
-        #
-        # Traverse fields one by one for all records, in order to take advantage
-        # of prefetching for each field access. In order to clarify the impact
-        # of the algorithm, consider traversing 'foo.bar' for records a1 and a2,
-        # where 'foo' is already present in cache for a1, a2. Initially, both a1
-        # and a2 are marked for prefetching. As the commented code below shows,
-        # traversing all fields one record at a time will fetch 'bar' one record
-        # at a time.
-        #
-        #       b1 = a1.foo         # mark b1 for prefetching
-        #       v1 = b1.bar         # fetch/compute bar for b1
-        #       b2 = a2.foo         # mark b2 for prefetching
-        #       v2 = b2.bar         # fetch/compute bar for b2
-        #
-        # On the other hand, traversing all records one field at a time ensures
-        # maximal prefetching for each field access.
-        #
-        #       b1 = a1.foo         # mark b1 for prefetching
-        #       b2 = a2.foo         # mark b2 for prefetching
-        #       v1 = b1.bar         # fetch/compute bar for b1, b2
-        #       v2 = b2.bar         # value already in cache
-        #
-        # This difference has a major impact on performance, in particular in
-        # the case where 'bar' is a computed field that takes advantage of batch
-        # computation.
-        #
+        # Traverse one field at a time across all records (not one record at a
+        # time across all fields) so each field access prefetches the whole
+        # batch. Major perf impact when the final field is itself a batch-
+        # computed field.
         values = list(records)
         for name in self._related_names[:-1]:
             try:
@@ -881,9 +823,7 @@ class Field[T]:
                         document_model=records._name,
                     )
                 ) from e
-        # assign final values to records
-        # values starts as list(records) and is transformed length-preserving,
-        # so strict=True catches a future refactor that breaks the invariant.
+        # assign final values; strict=True guards the length-preserving invariant
         for record, value in zip(records, values, strict=True):
             record[self.name] = self._process_related(
                 value[self.related_field.name], record.env
@@ -975,9 +915,7 @@ class Field[T]:
         """Return the base field of an inherited field, or ``self``."""
         return self.inherited_field.base_field if self.inherited_field else self
 
-    #
     # Company-dependent fields
-    #
 
     def get_company_dependent_fallback(self, records: BaseModel) -> typing.Any:
         assert self.company_dependent
@@ -991,9 +929,7 @@ class Field[T]:
         fallback = self.convert_to_cache(fallback, records, validate=False)
         return self.convert_to_record(fallback, records)
 
-    #
     # Setup of field triggers
-    #
 
     def resolve_depends(self, registry: Registry) -> Iterator[tuple[Field, ...]]:
         """Return the dependencies of `self` as a collection of field tuples."""
@@ -1066,10 +1002,7 @@ class Field[T]:
 
                 model_name = field.comodel_name
 
-    ############################################################################
-    #
     # Field description
-    #
 
     def get_description(
         self, env: Environment, attributes: Collection[str] | None = None
@@ -1079,8 +1012,6 @@ class Field[T]:
         for attr, prop in self.description_attrs:
             if attributes is not None and attr not in attributes:
                 continue
-            # ``prop`` is always a ``_description_*`` name by construction of
-            # ``description_attrs`` (see __init_subclass__); no prefix check.
             value = getattr(self, prop)
             if callable(value):
                 value = value(env)
@@ -1116,7 +1047,7 @@ class Field[T]:
         if self.is_column:  # shortcut
             return True
         if self.inherited_field and self.inherited_field._description_sortable(env):
-            # avoid compuation for inherited field
+            # avoid recomputing for inherited field
             return True
 
         model = env[self.model_name]
@@ -1133,7 +1064,7 @@ class Field[T]:
         if self.is_column:  # shortcut
             return True
         if self.inherited_field and self.inherited_field._description_groupable(env):
-            # avoid compuation for inherited field
+            # avoid recomputing for inherited field
             return True
 
         model = env[self.model_name]
@@ -1151,7 +1082,7 @@ class Field[T]:
         if not self.aggregator or self.is_column:  # shortcut
             return self.aggregator
         if self.inherited_field and self.inherited_field._description_aggregator(env):
-            # avoid compuation for inherited field
+            # avoid recomputing for inherited field
             return self.inherited_field.aggregator
 
         model = env[self.model_name]
@@ -1185,36 +1116,15 @@ class Field[T]:
         """Return whether the field can be editable in a view."""
         return not self.readonly
 
-    ############################################################################
+    # Conversion of values — the ORM keeps several value formats; each method
+    # bridges two adjacent ones. Canonical data flows:
     #
-    # Conversion of values
-    #
-    # The ORM maintains several value formats.  Each conversion method bridges
-    # two adjacent formats.  The canonical data flows are:
-    #
-    #   WRITE (user/API → cache):
-    #     write_value ──convert_to_cache──> cache_value
-    #
-    #   FLUSH (cache → database UPDATE):
-    #     cache_value ──get_column_update──> SQL param
-    #       (internally reads from cache_store, then calls
-    #        convert_to_column; handles translated/company-dependent JSONB)
-    #
-    #   CREATE (user/API → database INSERT, bypasses cache):
-    #     write_value ──convert_to_column_insert──> SQL param
-    #       (delegates to convert_to_column, then wraps for JSONB if needed)
-    #
-    #   READ (database → cache → Python):
-    #     SQL row ──(raw setdefault into cache)──> cache_value
-    #     cache_value ──convert_to_record──> record_value  (what record.field returns)
-    #
-    #   EXPORT (Python → web client / RPC):
-    #     record_value ──convert_to_read──> read_value  (dicts with display_name for m2o)
-    #
-    #   ROUNDTRIP (for __set__ on real records):
-    #     any_value ──convert_to_write──> write_value
-    #       (chains: convert_to_cache → convert_to_record → convert_to_read)
-    #
+    #   WRITE:     write_value  ──convert_to_cache──>        cache_value
+    #   FLUSH:     cache_value  ──get_column_update──>        SQL param (UPDATE)
+    #   CREATE:    write_value  ──convert_to_column_insert──> SQL param (INSERT)
+    #   READ:      cache_value  ──convert_to_record──>        record_value
+    #   EXPORT:    record_value ──convert_to_read──>          read_value
+    #   ROUNDTRIP: any_value    ──convert_to_write──>         write_value
 
     def convert_to_column(
         self,
@@ -1226,10 +1136,9 @@ class Field[T]:
         """Convert ``value`` from the write format to a SQL parameter for
         UPDATE conditions and column comparisons.
 
-        This is the base scalar conversion.  For INSERT, use
-        :meth:`convert_to_column_insert` (adds translated/company-dependent
-        JSONB wrapping).  For flushing dirty cache, :meth:`get_column_update`
-        reads from cache and delegates here.
+        Base scalar conversion. For INSERT use :meth:`convert_to_column_insert`
+        (adds translated/company-dependent JSONB wrapping); to flush dirty cache,
+        :meth:`get_column_update` reads from cache and delegates here.
         """
         if value is None or value is False:
             return None
@@ -1278,13 +1187,12 @@ class Field[T]:
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
     def get_column_update(self, record: BaseModel) -> typing.Any:
-        """Read the dirty value of ``record`` from cache and return it as a
-        SQL parameter for UPDATE queries.  This is the cache → SQL path used
-        by :meth:`~odoo.orm.models.mixins.cache.CacheMixin._flush`.
+        """Read ``record``'s dirty cache value as a SQL parameter for UPDATE.
 
-        For most fields: reads ``cache_store.get_field_data(self)[record.id]``
-        and delegates to :meth:`convert_to_column`.  Translated and
-        company-dependent fields assemble JSONB directly.
+        The cache → SQL path used by
+        :meth:`~odoo.orm.models.mixins.cache.CacheMixin._flush`. Most fields
+        delegate to :meth:`convert_to_column`; translated and company-dependent
+        fields assemble JSONB directly.
         """
         record_id = record.id
         field_cache = record.env._core.field_data(self)
@@ -1295,14 +1203,11 @@ class Field[T]:
             flat_value = SENTINEL
             for cache_key, sub_cache in field_cache.items():
                 if not isinstance(sub_cache, dict):
-                    # Stale flat entry (``{id: scalar}``) written before
-                    # field_depends_context was populated — e.g. during a
-                    # _load_module_terms flush.  It still carries the
-                    # source-language value, so keep it as a fallback: a field
-                    # whose value survives ONLY in a flat entry must not be
-                    # flushed as SQL NULL.  That NULL raised NotNullViolation on
-                    # required translatable fields (the loyalty.reward.description
-                    # crash on -u base) and silently cleared others.
+                    # Stale flat entry ({id: scalar}) written before
+                    # field_depends_context was populated (e.g. a
+                    # _load_module_terms flush). Keep it as a fallback: a value
+                    # surviving ONLY in a flat entry must not flush as SQL NULL
+                    # (NotNullViolation on required translatable fields).
                     if cache_key == record_id and sub_cache is not None:
                         flat_value = sub_cache
                     continue
@@ -1312,8 +1217,7 @@ class Field[T]:
                         langs_dict[lang] = value
             if not langs_dict and flat_value is not SENTINEL:
                 # Only a stale flat entry held a value: preserve it under the
-                # current language (same key convention as line ~1246) rather
-                # than overwriting the column with NULL.
+                # current language rather than overwriting the column with NULL.
                 langs_dict[record.env.lang or "en_US"] = flat_value
             return PsycopgJson(langs_dict) if langs_dict else None
         if self.translate:
@@ -1341,15 +1245,10 @@ class Field[T]:
         flat_value = SENTINEL
         for ctx_key, cache in field_cache.items():
             if not isinstance(cache, dict):
-                # Stale flat entry (id → scalar) from before
-                # field_depends_context was populated (e.g. during a
-                # _load_module_terms flush).  Skipping it unconditionally loses
-                # the value and overwrites the column with NULL; keep a non-None
-                # one as a fallback so a value that survives ONLY in a flat
-                # entry is preserved.  (Same defect fixed in the
-                # ``translate is True`` branch above; the ``is not None`` guard
-                # still avoids the ``'NoneType' has no attribute 'get'`` crash
-                # the original skip was protecting against.)
+                # Stale flat entry (see the translate-is-True branch above):
+                # keep a non-None one as a fallback so a value surviving only in
+                # a flat entry is not flushed as NULL. The is-not-None guard also
+                # avoids 'NoneType has no attribute get'.
                 if ctx_key == record_id and cache is not None:
                     flat_value = cache
                 continue
@@ -1361,8 +1260,7 @@ class Field[T]:
                 )
         if not values and flat_value is not SENTINEL:
             # Only a stale flat entry held a value: preserve it under the current
-            # company (same key convention as the scalar company-dependent path)
-            # rather than overwriting the column with NULL.
+            # company rather than overwriting the column with NULL.
             values[record.env.company.id] = self._to_json_value(
                 self.convert_to_column(flat_value, record)
             )
@@ -1371,10 +1269,9 @@ class Field[T]:
     def convert_to_cache(
         self, value: typing.Any, record: BaseModel, validate: bool = True
     ) -> typing.Any:
-        """Convert ``value`` to the cache format.  This is the entry point of
-        the WRITE path: values from :meth:`BaseModel.write`,
-        :meth:`BaseModel.create`, or direct assignment pass through here
-        before being stored in the field cache (``cache_store``).
+        """Convert ``value`` to the cache format. Entry point of the WRITE path:
+        values from :meth:`BaseModel.write`, :meth:`BaseModel.create`, or direct
+        assignment pass through here before being stored in the field cache.
 
         If the value represents a recordset, it should be added for
         prefetching on ``record``.
@@ -1435,10 +1332,7 @@ class Field[T]:
         """Convert ``value`` from the record format to a suitable display name."""
         return str(value) if value else False
 
-    ############################################################################
-    #
     # Update database schema
-    #
 
     @property
     def column_order(self) -> int:
@@ -1535,9 +1429,8 @@ class Field[T]:
             # _init_column may delay computations in post-init phase
             @model.pool.post_init
             def add_not_null():
-                # At the time this function is called, the model's _fields may have been reset, although
-                # the model's class is still the same. Retrieve the field to see whether the NOT NULL
-                # constraint still applies.
+                # _fields may have been reset by the time this runs; re-fetch the
+                # field to check whether the NOT NULL constraint still applies.
                 field = model._fields[self.name]
                 if not field.required or not field.store:
                     return
@@ -1571,11 +1464,9 @@ class Field[T]:
                         if isinstance(value, (str, int, float, bool)):
                             sql_default = value
                     except Exception:
-                        # Best-effort only: the default factory may need a real
-                        # record or context that is unavailable at post-init.
-                        # Skip the SQL DEFAULT optimization (sql_default stays
-                        # None and NOT NULL is applied without one) but log so
-                        # the swallowed failure is observable rather than silent.
+                        # Best-effort: the default factory may need a real record
+                        # or context unavailable at post-init. Skip the SQL
+                        # DEFAULT (NOT NULL still applies) but log the failure.
                         _logger.debug(
                             "Could not derive a SQL DEFAULT for %s; "
                             "applying NOT NULL without one",
@@ -1615,10 +1506,7 @@ class Field[T]:
             )
         )
 
-    ############################################################################
-    #
     # SQL generation methods
-    #
 
     def to_sql(self, model: BaseModel, alias: str) -> SQL:
         """Return an :class:`SQL` object that represents the value of the given
@@ -1809,9 +1697,8 @@ class Field[T]:
             return sql
 
         # operator: any
-        # Note: relational operators overwrite this function for a more specific
-        # behaviour, here we check just the field against the subselect.
-        # Example usage: ('id', 'any!', Query | SQL)
+        # relational operators override this for more specific behaviour; here we
+        # just check the field against the subselect, e.g. ('id', 'any!', Query|SQL)
         if operator in ("any!", "not any!"):
             if isinstance(value, Query):
                 subselect = value.subselect()
@@ -1838,7 +1725,7 @@ class Field[T]:
         alias: str,
         query: Query,
     ) -> SQL:
-        """Add a not null condition on the field for company-dependent fields to use an existing index for better performance."""
+        """Add a NOT NULL guard on company-dependent fields to use the index."""
         if (
             self.company_dependent
             and self.index == "btree_not_null"
@@ -1857,10 +1744,7 @@ class Field[T]:
             )
         return sql_expr
 
-    ############################################################################
-    #
     # Expressions and filtering of records
-    #
 
     def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:
         """Given some field expression (what you find in domain conditions),
@@ -1881,9 +1765,7 @@ class Field[T]:
             "only positive operators are implemented"
         )
         getter = self.expression_getter(field_expr)
-        # assert not isinstance(value, (SQL, Query))
 
-        # -------------------------------------------------
         # operator: in (equality)
         if operator == "in":
             assert isinstance(value, COLLECTION_TYPES) and value, (
@@ -1897,7 +1779,6 @@ class Field[T]:
                 return lambda rec: (val := getter(rec)) in value or not val
             return lambda rec: getter(rec) in value
 
-        # -------------------------------------------------
         # operator: like
         if operator.endswith("like"):
             # we may get a value which is not a string
@@ -1913,8 +1794,7 @@ class Field[T]:
                 def unaccent(x):
                     return str(x) if x else ""
 
-            # build a regex that matches the SQL-like expression
-            # note that '\' is used for escaping in SQL
+            # build a regex matching the SQL-like expression ('\' escapes in SQL)
             def build_like_regex(value: str, exact: bool):
                 yield "^" if exact else ".*"
                 escaped = False
@@ -1940,7 +1820,6 @@ class Field[T]:
             )
             return lambda rec: like_regex.match(unaccent(getter(rec)))
 
-        # -------------------------------------------------
         # operator: inequality
         if pyop := PYTHON_INEQUALITY_OPERATOR.get(operator):
             can_be_null = False
@@ -1972,15 +1851,10 @@ class Field[T]:
 
             return check_inequality
 
-        # -------------------------------------------------
         raise NotImplementedError(f"Invalid simple operator {operator!r}")
 
-    ############################################################################
-    #
-    # Alternatively stored fields: if fields don't have a `column_type` (not
-    # stored as regular db columns) they go through a read/create/write
-    # protocol instead
-    #
+    # Alternatively stored fields: fields without a `column_type` (not stored as
+    # regular db columns) go through a read/create/write protocol instead.
 
     def read(self, records: BaseModel) -> None:
         """Read the value of ``self`` on ``records``, and store it in cache."""
@@ -2020,19 +1894,14 @@ class Field[T]:
         # update the cache
         self._update_cache(records, cache_value, dirty=True)
 
-    ############################################################################
-    #
     # Cache management methods
-    #
 
     def _get_cache(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
-        """Return the field's cache, i.e., a mutable mapping from record id to
-        a cache value.  The cache may be environment-specific.  This mapping is
-        the way to retrieve a field's value for a given record.
+        """Return the field's cache: a ``{record_id: cache_value}`` mapping
+        (possibly environment-specific).
 
-        Calling this function multiple times, always returns the same mapping
-        instance for a given environment, unless the transaction was entirely
-        invalidated.
+        Returns the same mapping instance for a given environment across calls,
+        unless the transaction was entirely invalidated.
         """
         field_cache = env._field_cache_memo.get(self)
         if field_cache is not None:
@@ -2053,16 +1922,15 @@ class Field[T]:
     def _invalidate_cache(
         self, env: Environment, ids: Collection[IdType] | None = None
     ) -> None:
-        """Invalidate the field's cache for the given ids, or all record ids if ``None``."""
+        """Invalidate cached values for the given ids (all if ``None``)."""
         cache = env._core.field_data_or_none(self)
         if not cache:
             return
 
         if self in env._field_depends_context:
-            # During module setup, field_data may contain both per-context
-            # sub-dicts (tuple keys → dict values) AND stale flat entries
-            # (id keys → scalar values) from before field_depends_context
-            # was populated.  Only iterate actual sub-dicts.
+            # During module setup, field_data may mix per-context sub-dicts and
+            # stale flat entries (from before field_depends_context was
+            # populated). Only iterate actual sub-dicts.
             caches = [v for v in cache.values() if isinstance(v, dict)]
         else:
             caches = [cache]
@@ -2121,8 +1989,8 @@ class Field[T]:
         field_cache = self._get_cache(record.env)
         prefetch_ids = record._prefetch_ids
         record_id = record.id
-        # Rust fast path: real records with tuple prefetch IDs and dict cache (~3-5x faster).
-        # LangProxyDict (callable-translate fields) and PrefetchX2many fall back to Python.
+        # Rust fast path (~3-5x): real records with tuple prefetch IDs and dict
+        # cache. LangProxyDict and PrefetchX2many fall back to Python.
         if (
             _to_prefetch_ids_rust is not None
             and isinstance(prefetch_ids, tuple)
@@ -2136,9 +2004,8 @@ class Field[T]:
         # Python fallback: NewId records or non-tuple prefetch IDs
         kind = bool(record_id)
         result = [record_id]
-        # Skip IDs already in field_cache (O(1) dict lookup) instead of
-        # building O(n) set from all cache keys.  Track added IDs in a
-        # small set to avoid duplicates from prefetch_ids.
+        # Skip IDs already cached (O(1) lookup); track added IDs to dedup
+        # prefetch_ids.
         added = {record_id}
         for id_ in prefetch_ids:
             if len(result) >= PREFETCH_MAX:
@@ -2154,14 +2021,8 @@ class Field[T]:
         enables to keep the pending updates of records, and flush them later.
         """
         field_cache = self._get_cache(records.env)
-        # call setdefault for all ids, values (looping in C)
-        # this is ~15% faster than the equivalent:
-        # ```
-        # for record, value in zip(records._ids, values):
-        #   field_cache.setdefault(record, value)
-        # ```
-        # strict=True: caller's contract is len(records._ids) == len(values).
-        # Length mismatches raise ValueError instead of silently truncating.
+        # bulk setdefault looping in C (~15% faster than a Python for-loop).
+        # strict=True enforces len(records._ids) == len(values).
         collections.deque(
             map(field_cache.setdefault, records._ids, values, strict=True), maxlen=0
         )
@@ -2184,9 +2045,8 @@ class Field[T]:
         """
         env = records.env
 
-        # Reject overwrites of pending dirty values *before* mutating the
-        # cache.  See ``Cache.remove`` for the symmetric guard on the bulk
-        # invalidation path.
+        # Reject overwrites of pending dirty values before mutating the cache
+        # (symmetric guard to the one on the bulk invalidation path).
         if self.is_column and not dirty:
             dirty_ids = env._core.get_dirty(self)
             if dirty_ids and not dirty_ids.isdisjoint(records._ids):
@@ -2210,10 +2070,7 @@ class Field[T]:
         if self.is_column and dirty:
             env._core.mark_dirty(self, (id_ for id_ in records._ids if id_))
 
-    ############################################################################
-    #
     # Descriptor methods
-    #
 
     def __get__(self, record: BaseModel | None, owner: type | None = None) -> T:
         """return the value of field ``self`` on ``record``"""
@@ -2221,9 +2078,8 @@ class Field[T]:
             return self  # the field is accessed through the owner class
 
         env = record.env
-        # Precondition 1: ACL check (see ensure_access()).
-        # Inlined here for performance: most fields have groups=None, so
-        # ``not self.groups`` short-circuits first, skipping env.su lookup.
+        # Precondition 1: ACL check (see ensure_access()), inlined for speed:
+        # most fields have groups=None, so ``not self.groups`` short-circuits.
         if not (not self.groups or env.su or record._has_field_access(self, "read")):
             record._check_field_access(self, "read")
 
@@ -2238,15 +2094,14 @@ class Field[T]:
             value = self.convert_to_cache(False, record, validate=False)
             return self.convert_to_record(value, record)
 
-        # Precondition 2: ensure recomputation (see ensure_computed()).
-        # Inlined: most fields are not stored-computed, so
-        # is_stored_computed short-circuits immediately.
+        # Precondition 2: ensure recomputation (see ensure_computed()), inlined:
+        # most fields are not stored-computed, so this short-circuits.
         if self.is_stored_computed and env._core.has_pending(self):
             self.recompute(record)
 
         record_id = record_ids[0]
-        # Inline _get_cache memo: double dict subscription bypasses the
-        # method dispatch + descriptor protocol overhead.
+        # Inline _get_cache memo: double dict lookup bypasses method dispatch
+        # and the descriptor protocol.
         try:
             field_cache = env.__dict__["_field_cache_memo"][self]
         except KeyError:
@@ -2265,10 +2120,8 @@ class Field[T]:
         # _to_prefetch) sees a true cache miss, not a stale placeholder.
         if value is PENDING:
             field_cache.pop(record_id, None)
-            # If the field is currently being computed (protected), return the
-            # falsy default instead of triggering a DB fetch.  This matches the
-            # pre-PENDING behavior where cache held None during _create(), and
-            # avoids a wasted roundtrip for the NULL value.
+            # If the field is being computed (protected), return the falsy
+            # default instead of a wasted DB roundtrip for the NULL value.
             if env.is_protected(self, record):
                 value = self.convert_to_cache(False, record, validate=False)
                 self._update_cache(record, value)
@@ -2367,7 +2220,7 @@ class Field[T]:
                         raise ValueError(
                             f"Compute method failed to assign {missing_recs}.{self.name}"
                         )
-                    # fallback to null value if compute gives nothing, do it for every unset record
+                    # fall back to null for every record the compute left unset
                     false_value = self.convert_to_cache(False, record, validate=False)
                     self._update_cache(missing_recs, false_value)
 
@@ -2394,11 +2247,8 @@ class Field[T]:
             # updates the inverse fields as well
             value = self.convert_to_cache(parent, record, validate=False)
             self._update_cache(record, value)
-            # Set inverse fields on new records in the comodel.
-            # This stays here (not in _update_cache) because inverse field
-            # updates are specific to delegate field setup, not general
-            # cache population.  Moving it would couple _update_cache with
-            # relational inverse semantics.
+            # Set inverse fields on new comodel records (delegate-specific, hence
+            # not folded into _update_cache).
             if inv_recs := parent.filtered(lambda r: not r.id):
                 for invf in env.registry.field_inverses[self]:
                     invf._update_inverse(inv_recs, record)
@@ -2409,12 +2259,9 @@ class Field[T]:
             self._update_cache(record, value)
             defaults = record.default_get([self.name])
             if self.name in defaults:
-                # The null value above is necessary to convert x2many field
-                # values. For instance, converting [(Command.LINK, id)]
-                # accesses the field's current value, then adds the given
-                # id. Without an initial value, the conversion ends up here
-                # to determine the field's value, and generates an infinite
-                # recursion.
+                # The null value set above is needed to convert x2many values:
+                # e.g. [(Command.LINK, id)] reads the field's current value, so
+                # without an initial value the conversion recurses infinitely.
                 value = self.convert_to_cache(defaults[self.name], record)
                 self._update_cache(record, value)
             # get the final value (see patches in x2many fields)
@@ -2436,9 +2283,8 @@ class Field[T]:
           including access checks, audit, validation, and constraints.
         """
         record_ids = records._ids
-        # Fast path: singleton record (the vast majority of __set__ calls
-        # during compute methods).  Skips list creation, loop, partitioning,
-        # function dispatch, and redundant recordset construction.
+        # Fast path: singleton (most __set__ calls during compute), skipping the
+        # partitioning loop and dispatch below.
         core = records.env._core
         if len(record_ids) == 1:
             record_id = record_ids[0]
@@ -2474,12 +2320,11 @@ class Field[T]:
     def _assign_protected(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        """Assign ``value`` to protected records (currently being computed).
+        """Assign ``value`` to protected records (being computed).
 
-        Minimal path: directly updates the cache via :meth:`mark_dirty`.
-        No access checks, no ``modified()`` triggers, no recomputation.
-        This is used inside compute methods where the field is being set
-        as part of its own computation.
+        Minimal path: direct cache write via :meth:`mark_dirty`, no access
+        checks, ``modified()`` triggers, or recomputation. Used inside compute
+        methods that set the field as part of their own computation.
         """
         self.mark_dirty(_recordset_like(records, ids), value)
 
@@ -2489,13 +2334,9 @@ class Field[T]:
         """Assign ``value`` to new (unsaved) records.
 
         Updates the cache and triggers ``modified()`` for dependency tracking,
-        so that computed fields depending on this one get recomputed.  No
-        access checks or constraint validation — new records are typically
-        being built in onchange handlers or ``new()`` calls where the full
-        ``write()`` flow would be inappropriate.
-
-        For inherited fields, also propagates the value to the parent record
-        if the parent is itself new.
+        but skips access checks and validation (new records are built in
+        onchange/``new()`` where the full ``write()`` flow is inappropriate).
+        For inherited fields, also propagates to a new parent record.
         """
         new_records = _recordset_like(records, ids)
         with records.env.protecting(
@@ -2516,24 +2357,16 @@ class Field[T]:
     ) -> None:
         """Assign ``value`` to real (saved) records.
 
-        Full ``write()`` path: the value is round-tripped through
-        :meth:`convert_to_write` and then passed to :meth:`BaseModel.write`,
-        which performs access checks, audit logging, constraint validation,
-        and triggers recomputation.
+        Full ``write()`` path: round-trips through :meth:`convert_to_write` then
+        :meth:`BaseModel.write` (access checks, audit, validation, recompute).
         """
         records = _recordset_like(records, ids)
         write_value = self.convert_to_write(value, records)
         records.write({self.name: write_value})
 
-    ############################################################################
-    #
-    # Precondition API — explicit contracts for cache-bypass fast paths
-    #
-    # Code that reads the field cache without going through __get__ must call
-    # these precondition methods first.  Together they form the documented
-    # contract so that future optimizers (like _read_format) can bypass
-    # __get__ safely without silently violating hidden invariants.
-    #
+    # Precondition API — explicit contracts for cache-bypass fast paths.
+    # Code reading the field cache without going through __get__ (e.g.
+    # _read_format) must call these precondition methods first.
 
     def ensure_access(self, record: BaseModel) -> None:
         """Check that the current user has read access to this field.
@@ -2561,10 +2394,7 @@ class Field[T]:
             return False, SENTINEL
         return True, value
 
-    ############################################################################
-    #
     # Computation of field values
-    #
 
     def ensure_computed(self, records: BaseModel) -> None:
         """Ensure pending recomputations of ``self`` are processed.
@@ -2594,7 +2424,7 @@ class Field[T]:
             _count = len(records)
 
         def apply_except_missing(func, records):
-            """Apply `func` on `records`, with a fallback ignoring non-existent records."""
+            """Apply `func` on `records`, ignoring non-existent records."""
             try:
                 func(records)
                 return
@@ -2660,11 +2490,9 @@ class Field[T]:
             records = records.sudo()
         fields = records.pool.field_computed[self]
 
-        # Just in case the compute method does not assign a value, we already
-        # mark the computation as done. This is also necessary if the compute
-        # method accesses the old value of the field: the field will be fetched
-        # with _read(), which will flush() it. If the field is still to compute,
-        # the latter flush() will recursively compute this field!
+        # Mark the computation done up front: if the compute method does not
+        # assign a value, or reads the field's old value (triggering _read ->
+        # flush), a field still marked to-compute would recurse into itself.
         for field in fields:
             if field.store:
                 env.remove_to_compute(field, records)
@@ -2714,14 +2542,11 @@ class Field[T]:
     def determine_group_expand(
         self, records: BaseModel, values: typing.Any, domain: DomainType
     ) -> typing.Any:
-        """Return a domain representing a condition on ``self``."""
+        """Expand the groups for ``self`` when grouping (via ``group_expand``)."""
         return determine(self.group_expand, records, values, domain)
 
 
-############################################################################
-#
 # Scalar __get__ factory
-#
 
 
 def _make_scalar_get(
@@ -2729,20 +2554,14 @@ def _make_scalar_get(
 ) -> Callable[..., typing.Any]:
     """Generate a ``__get__`` override for scalar field types.
 
-    The generated closure inlines all optimizations from :meth:`Field.__get__`:
-
-    - ``not self.groups`` ACL short-circuit
-    - C-level triple dict lookup via ``scalar_cache_get`` (bypasses bytecode
-      dispatch for the memo→cache→id chain and the try/except KeyError block)
-    - ``compute_engine.has_pending()`` guard before ``recompute()``
-    - ``PENDING`` / ``SENTINEL`` awareness via identity comparison in Rust
-
-    Each scalar subclass replaces its 18-line hand-written override with::
+    The generated closure inlines the :meth:`Field.__get__` optimizations: the
+    ``not self.groups`` ACL short-circuit, the C-level triple dict lookup via
+    ``scalar_cache_get`` (memo->cache->id), the ``has_pending()`` guard before
+    ``recompute()``, and PENDING/SENTINEL identity checks in Rust. Used as::
 
         __get__ = _make_scalar_get(lambda v: v or 0)
 
-    :param cache_to_record: ``callable(cache_value) -> record_value``
-        Converts a non-sentinel cache value to record format.
+    :param cache_to_record: ``callable(cache_value) -> record_value``.
     """
     _PENDING = PENDING
     _SENTINEL = SENTINEL

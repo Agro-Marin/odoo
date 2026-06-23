@@ -4,22 +4,10 @@ N+1 CRUD detection for Odoo ORM.
 Detects repeated single-record create/write/unlink calls from the same call
 site within a transaction — a pattern that is 5-15× slower than batching.
 
-Activation: ``--dev=n1`` (opt-in, NOT part of ``--dev=all``).
-
-When enabled, a lightweight tracker on the ``Transaction`` object records each
-CRUD call keyed by ``(operation, model, caller_file, caller_line)``.  At the
-end of the request (``Transaction.flush()``), violations above the threshold
-are reported via the ``odoo.orm.nplusone`` logger.
-
-When **disabled** the only overhead is a single boolean check per CRUD call
-(module-level ``_n1_enabled`` flag).
-
-See Also
---------
-- ``odoo.tools.orm_profiler`` — Aggregate per-model/operation stats per transaction
-- ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``odoo.tests.benchmark`` — Micro-benchmark statistical utilities
-- ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
+Activation: ``--dev=n1`` (opt-in, NOT part of ``--dev=all``). When disabled,
+overhead is a single boolean check per CRUD call (``_n1_enabled`` flag).
+Violations above the threshold are reported via the ``odoo.orm.nplusone``
+logger at ``Transaction.flush()``.
 """
 
 import logging
@@ -28,22 +16,16 @@ from pathlib import Path
 
 _logger = logging.getLogger("odoo.orm.nplusone")
 
-# ---------------------------------------------------------------------------
-# Module-level fast flag – one LOAD_GLOBAL + branch per CRUD call when off.
-# ---------------------------------------------------------------------------
+# Module-level fast flag: one LOAD_GLOBAL + branch per CRUD call when off.
 _n1_enabled: bool = False
 
-# Precomputed path prefix of the ORM package.  Frames whose filename starts
-# with this prefix are considered "internal" and skipped when determining the
-# external caller.
+# Frames under these prefixes are framework-internal and skipped when finding
+# the external caller: odoo/orm/ and odoo/api/.
 _ODOO_DIR = Path(__file__).resolve().parent.parent
 _ORM_PREFIX: str = str(_ODOO_DIR / "orm") + "/"
 
-# Also skip frames from the mail module's model layer (its create/write
-# wrappers are internal too) and from decorators.py.
 _SKIP_PREFIXES: tuple[str, ...] = (
     _ORM_PREFIX,
-    # decorators.py lives outside orm/ but is still framework-internal
     str(_ODOO_DIR / "api") + "/",
 )
 
@@ -61,11 +43,6 @@ def setup(dev_mode: list[str] | None = None) -> None:
     _n1_enabled = "n1" in dev_mode
     if _n1_enabled:
         _logger.info("N+1 CRUD detection enabled (--dev=n1)")
-
-
-# ---------------------------------------------------------------------------
-# Data structures
-# ---------------------------------------------------------------------------
 
 
 class _NplusOneEntry:
@@ -92,8 +69,6 @@ class NplusOneTracker:
 
     def __init__(self) -> None:
         self._data: dict[_Key, _NplusOneEntry] = {}
-
-    # -- recording ----------------------------------------------------------
 
     def record(
         self,
@@ -129,8 +104,6 @@ class NplusOneTracker:
         entry.count += 1
         entry.total_records += record_count
         entry.vals_fingerprints.add(field_fingerprint)
-
-    # -- reporting ----------------------------------------------------------
 
     def report(self) -> None:
         """Emit warnings for call sites that exceed the threshold."""

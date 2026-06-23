@@ -1,19 +1,6 @@
-"""
-Database schema management mixin for ORM models.
-
-SchemaMixin Methods:
-- _parent_store_compute: Compute parent_path field from scratch
-- _check_removed_columns: Check for columns to drop NOT NULL constraints
-- _init_column: Initialize column values for existing rows
-- _table_has_rows: Check if the model's table has rows
-- _auto_init: Initialize database schema
-- init: Hook for custom schema modifications
-- _check_parent_path: Validate parent_path field configuration
-- _add_sql_constraints: Apply SQL constraints to database
-- _sql_error_to_message: Convert SQL errors to user messages
-- _sql_error_to_message_generic: Generic SQL error message conversion
-
-Table object classes are defined in ``odoo.orm.models.table_objects``.
+"""Database schema management mixin: table/column init, constraints, and
+conversion of SQL errors to user messages. Table object classes are in
+``odoo.orm.models.table_objects``.
 """
 
 import logging
@@ -32,11 +19,10 @@ _logger = logging.getLogger("odoo.models")
 
 
 class SchemaMixin:
-    """Mixin providing database schema management functionality.
+    """Mixin providing database schema management.
 
-    This mixin is inherited by BaseModel and provides methods for managing
-    the database schema of models, including table creation, column initialization,
-    constraint management, and SQL error handling.
+    Table creation, column initialization, constraint management, and SQL
+    error handling.
     """
 
     __slots__ = ()

@@ -17,7 +17,6 @@ from .base import Field, _logger, _make_scalar_get
 
 @functools.cache
 def _get_all_timezones_set() -> frozenset[str]:
-    """Cached set of all available timezones for fast lookup."""
     return frozenset(all_timezones())
 
 
@@ -101,10 +100,10 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
         if self.type == "datetime" and (tz_name := model.env.context.get("tz")):
             # only use the timezone from the context
             if tz_name in _get_all_timezones_set():
-                # Embed timezone as SQL literal (not parameter) so that the
-                # expression is identical in SELECT and GROUP BY.  With
-                # server-side binding, each %s gets a unique $N, making
-                # PostgreSQL see SELECT and GROUP BY as different expressions.
+                # Embed the timezone as a SQL literal (not a parameter) so the
+                # expression is identical in SELECT and GROUP BY: server-side
+                # binding gives each %s a unique $N, which PostgreSQL would
+                # otherwise treat as different expressions.
                 sql_expr = SQL(
                     "timezone('%s', timezone('UTC', %%s))" % tz_name, sql_expr
                 )
@@ -118,7 +117,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
                 f"Error when processing the granularity {property_name} is not supported. Only {', '.join(READ_GROUP_NUMBER_GRANULARITY.keys())} are supported"
             )
         granularity = READ_GROUP_NUMBER_GRANULARITY[property_name]
-        # Embed granularity as SQL literal for GROUP BY consistency (see above).
+        # Embed granularity as a SQL literal for GROUP BY consistency (see above).
         return SQL("date_part('%s', %%s)" % granularity, sql_expr)
 
     @override
@@ -193,20 +192,16 @@ class Date(BaseDate[date]):
         # fromisoformat (C-level) is ~44x faster than strptime for ISO dates
         return date.fromisoformat(value[:DATE_LENGTH])
 
-    # kept for backwards compatibility, but consider `from_string` as deprecated, will probably
-    # be removed after V12
-    from_string = to_date
+    from_string = to_date  # deprecated alias, kept for backwards compatibility
 
     @staticmethod
     def to_string(
         value: date | typing.Literal[False],
     ) -> str | typing.Literal[False]:
-        """
-        Convert a :class:`date` or :class:`datetime` object to a string.
+        """Convert a :class:`date` or :class:`datetime` object to a string.
 
-        :param value: value to convert.
-        :return: a string representing ``value`` in the server's date format, if ``value`` is of
-            type :class:`datetime`, the hours, minute, seconds, tzinfo will be truncated.
+        Returns ``value`` in the server's date format; a :class:`datetime` is
+        truncated (hours, minutes, seconds, tzinfo dropped).
         """
         return value.strftime(DATE_FORMAT) if value else False
 
@@ -248,7 +243,7 @@ class Datetime(BaseDate[datetime]):
 
         .. note:: This function may be used to compute default values.
         """
-        # microseconds must be annihilated as they don't comply with the server datetime format
+        # drop microseconds: they don't comply with the server datetime format
         return datetime.now().replace(microsecond=0)
 
     @staticmethod
@@ -293,27 +288,22 @@ class Datetime(BaseDate[datetime]):
         if isinstance(value, date):
             if isinstance(value, datetime):
                 if value.tzinfo:
-                    # Accept UTC-aware datetimes, convert to naive UTC
+                    # aware datetimes: normalize to naive UTC
                     if value.tzinfo is UTC or value.tzinfo == UTC:
                         return value.replace(tzinfo=None)
-                    # Non-UTC aware datetimes: convert to UTC then strip
                     return value.astimezone(UTC).replace(tzinfo=None)
                 return value
             return datetime.combine(value, time.min)
 
         # fromisoformat (C-level) is ~61x faster than strptime for ISO datetimes
         value = datetime.fromisoformat(value)
-        # Handle timezone-aware results from ISO strings with offsets
-        # (e.g., "2026-03-19T16:09:18.000-06:00" sent by the JS client
-        # via Luxon's toISO()). Convert to naive UTC for consistency
-        # with the datetime input path (lines 295-300 above).
+        # ISO strings with offsets (e.g. Luxon's toISO() from the JS client)
+        # yield aware datetimes: normalize to naive UTC like the datetime path.
         if value.tzinfo:
             return value.astimezone(UTC).replace(tzinfo=None)
         return value
 
-    # kept for backwards compatibility, but consider `from_string` as deprecated, will probably
-    # be removed after V12
-    from_string = to_datetime
+    from_string = to_datetime  # deprecated alias, kept for backwards compatibility
 
     @staticmethod
     def to_string(

@@ -469,11 +469,9 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(close_sass)
         super().setUpClass()
         if "standard" in cls.test_tags or "click_all" in cls.test_tags:
-            # The lambda wrapper is required: patch.object sets the new value
-            # via setattr, and a bound classmethod's __get__ returns itself
-            # without passing the Session instance. A plain lambda IS a
-            # descriptor whose __get__ creates a bound method, so `session`
-            # is correctly forwarded as `s`.
+            # patch.object stores the value via setattr; an already-bound
+            # classmethod isn't re-bound on attribute access, so it would never
+            # receive the Session as `s`. A lambda binds and forwards it correctly.
             # pylint: disable=unnecessary-lambda
             # ruff: noqa: B023 — classmethod passthrough needs the lambda
             patcher = patch.object(
@@ -618,9 +616,8 @@ class BaseCase(case.TestCase):
         with ExitStack() as init:
             if self.env:
                 init.enter_context(self.env.cr.savepoint())
-                # ``assertRaises`` accepts either a single exception class or a
-                # tuple of classes; a tuple is invalid as ``issubclass`` first
-                # argument, so handle both forms explicitly.
+                # exception may be a class or a tuple of classes; issubclass
+                # rejects a tuple as its first argument, so handle each form.
                 if isinstance(exception, tuple):
                     clear_cache = any(issubclass(exc, AccessError) for exc in exception)
                 else:
@@ -1557,13 +1554,10 @@ class ChromeBrowser:
             "Page.frameStoppedLoading": self._handle_frame_stopped_loading,
             "Page.screencastFrame": self.screencaster,
         }
-        # Python 3.14 intermittently refuses pthread_create under test-suite
-        # load (even with only a handful of active threads), and it stays in
-        # that refusing state across tests — the first Chrome browser starts
-        # fine, the second errors at _receiver.start(). Retry with a fresh
-        # Thread object after gc + short sleep; the refusal clears within a
-        # few hundred milliseconds. Python's Thread.start() only accepts one
-        # call per instance, so each retry needs a new Thread.
+        # Python 3.14 intermittently refuses pthread_create under test-suite load,
+        # so Thread.start() can raise RuntimeError; the refusal clears within a few
+        # hundred ms. Retry after gc + a short sleep, with a fresh Thread each time
+        # (Thread.start() only accepts one call per instance).
         for attempt in range(5):
             self._receiver = threading.Thread(
                 target=self._receive,
@@ -1644,7 +1638,7 @@ class ChromeBrowser:
                         "awaitPromise": True,
                     },
                 )
-                # wait for the screenshot or whatever
+                # wait for any in-flight responses (e.g. the screenshot)
                 wait(self._responses.values(), 10)
                 self._result.cancel()
 
@@ -1728,8 +1722,7 @@ class ChromeBrowser:
             "Chrome headless failed to start:\n%s",
             log_path.read_text(encoding="utf-8"),
         )
-        # since the chrome never started, it's not going to be `stop`-ed so we
-        # need to cleanup the directory here
+        # Chrome never started, so stop() won't run — clean up the profile dir here.
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
         raise unittest.SkipTest(
@@ -2699,15 +2692,9 @@ class HttpCase(TransactionCase):
                 defer.callback(self.opener.cookies.pop, TEST_CURSOR_COOKIE_NAME, None)
             self.opener.cookies[TEST_CURSOR_COOKIE_NAME] = new_key
             if browser:
-                # ``http_only=True`` keeps this cookie out of
-                # ``document.cookie`` reads. The cookie exists solely so
-                # the HTTP worker can correlate a request with the
-                # running test cursor — JS never needs to read it.
-                # Without this flag the cookie leaks into the page's
-                # JS-visible cookie jar, which in turn pollutes HOOT's
-                # ``MockCookie._jar`` and breaks the framework's own
-                # ``setup network values`` / ``values are reset between
-                # test`` self-tests that assert on a clean cookie state.
+                # http_only keeps this cookie out of document.cookie: only the
+                # HTTP worker needs it (to match a request to its test cursor),
+                # and a JS-visible cookie would pollute HOOT's MockCookie jar.
                 browser.set_cookie(
                     TEST_CURSOR_COOKIE_NAME,
                     self.http_request_key,
@@ -2897,16 +2884,8 @@ class HttpCase(TransactionCase):
         self.opener.cookies.set("session_id", session.sid, domain=HOST)
         if browser:
             self._logger.info("Setting session cookie in browser")
-            # ``http_only=True`` matches the server-side
-            # ``response.set_cookie("session_id", ..., httponly=True)`` in
-            # ``http/request_class.py`` and ``http/dispatcher.py``. JS code
-            # never reads the session cookie (Odoo derives it from the
-            # session service, which is server-rendered into the page);
-            # leaving it JS-visible only here leaks it into
-            # ``document.cookie`` during browser tests, where it pollutes
-            # HOOT's ``MockCookie._jar`` and breaks the framework's own
-            # ``setup network values`` / ``values are reset between
-            # test`` self-tests.
+            # http_only mirrors the server's httponly session_id cookie; JS never
+            # reads it, and leaving it JS-visible would pollute HOOT's MockCookie jar.
             browser.set_cookie(
                 "session_id", session.sid, "/", HOST, http_only=True
             )

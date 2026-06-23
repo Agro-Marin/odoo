@@ -1,44 +1,22 @@
 """Domain expression processing package.
 
-The domain represents a first-order logical expression.
-The main duty of this package is to represent filter conditions on models
-and ease rewriting them.
+A domain is a first-order logical predicate filtering records, represented as an
+AST of boolean operators:
 
-The `Domain` is represented as an AST which is a predicate using boolean
-operators.
 - n-ary operators: AND, OR
 - unary operator: NOT
 - boolean constants: TRUE, FALSE
-- (simple) conditions: (expression, operator, value)
+- conditions: ``(expression, operator, value)``
 
-Conditions are triplets of `(expression, operator, value)`.
-`expression` is usually a field name. It can be an expression that uses the
-dot-notation to traverse relationships or accesses properties of the field.
-The traversal of relationships is equivalent to using the `any` operator.
-`operator` in one of the CONDITION_OPERATORS, the detailed description of what
-is possible is documented there.
-`value` is a Python value which should be supported by the operator.
+In a condition, *expression* is usually a field name, optionally using
+dot-notation to traverse relationships (equivalent to the ``any`` operator) or
+access field properties; *operator* is one of ``CONDITION_OPERATORS`` (described
+there); *value* is a Python value the operator supports.
 
-Package Structure:
-- constants.py: Operator constants and mappings
-- ast.py: Domain AST classes (Domain, DomainCondition, etc.)
-- optimizations.py: Domain optimization functions
-
-Usage:
-    from odoo.orm.domain import Domain, CONDITION_OPERATORS
-
-    # Create a domain
-    domain = Domain([('name', '=', 'test')])
-
-    # Combine domains
-    combined = Domain('a', '=', 1) & Domain('b', '=', 2)
-
-    # Use class methods
-    Domain.AND([dom1, dom2, dom3])
-    Domain.OR([dom1, dom2])
+Layout: ``constants.py`` (operators/mappings), ``ast.py`` (Domain classes),
+``optimizations.py`` (optimization functions).
 """
 
-# Import constants
 from .constants import (
     STANDARD_CONDITION_OPERATORS,
     CONDITION_OPERATORS,
@@ -50,7 +28,6 @@ from .constants import (
     FALSE_LEAF,
 )
 
-# Import AST classes
 from .ast import (
     # Optimization infrastructure
     OptimizationLevel,
@@ -67,8 +44,7 @@ from .ast import (
     DomainCondition,
 )
 
-# Import and register optimizations (MUST be after AST imports)
-# This ensures all optimization functions are registered
+# Importing registers all optimization functions; must follow the AST imports.
 from . import optimizations
 
 # Re-export optimization decorators for extending

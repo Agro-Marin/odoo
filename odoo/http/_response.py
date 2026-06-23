@@ -76,19 +76,16 @@ class _RequestResponseMixin:
         """
         data = _fast_dumps(data, default=orjson_default)
 
-        # Content-Length is intentionally not pre-set: ``data`` is a UTF-8
-        # ``str`` (orjson_wrapper.dumps), and werkzeug computes the
-        # response's Content-Length from the encoded byte length when it
-        # serializes the body — pre-setting ``len(data)`` would be the
-        # *char* count, which werkzeug overrides anyway.
+        # Don't pre-set Content-Length: ``data`` is a ``str``, so ``len(data)`` is
+        # a char count, but werkzeug computes the byte length on serialize and
+        # overrides it anyway.
         headers = werkzeug.datastructures.Headers(headers)
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json; charset=utf-8"
 
-        # Pass the ``Headers`` object straight through (NOT ``to_wsgi_list()``):
-        # werkzeug's ``Response`` keeps a ``Headers`` instance as-is, so this is
-        # the single hottest response path and flattening to a list here only to
-        # have werkzeug rebuild a ``Headers`` from it is a wasted construction.
+        # Pass the ``Headers`` object straight through (not ``to_wsgi_list()``):
+        # werkzeug keeps a ``Headers`` as-is, so flattening to a list just to have
+        # it rebuilt is wasted work on this hot path.
         return self.make_response(data, headers, cookies, status)
 
     def not_found(self, description: str | None = None) -> NotFound:
@@ -103,15 +100,11 @@ class _RequestResponseMixin:
             location = "/" + urlunsplit(
                 urlsplit(location)._replace(scheme="", netloc="")
             ).lstrip("/\\")
-        # Gate the ORM-backed redirect on ``env``, not ``db``: the two diverge on
-        # the error path. ``_serve_db``'s ``finally`` nulls ``request.env`` before
-        # ``Application.__call__`` invokes ``dispatcher.handle_error`` (e.g. the
-        # SessionExpired branch redirects to /web/login), where ``db`` is still
-        # set but ``env`` is gone. ``self.env["ir.http"]`` would then raise
-        # ``TypeError: 'NoneType' object is not subscriptable``. Fall back to the
-        # plain werkzeug redirect when there is no live env — it cannot apply
-        # website/portal URL rewriting, but a bare redirect is the correct
-        # degradation while the request is already unwinding an error.
+        # Gate the ORM-backed redirect on ``env`` not ``db``: on the error path
+        # ``_serve_db``'s ``finally`` nulls ``env`` while ``db`` stays set (e.g.
+        # the SessionExpired branch redirects here), and ``self.env["ir.http"]``
+        # would raise. The plain werkzeug redirect skips website/portal rewriting
+        # but is the right degradation while the request is unwinding an error.
         if self.db and self.env is not None:
             return self.env["ir.http"]._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
@@ -124,11 +117,9 @@ class _RequestResponseMixin:
         local: bool = True,
     ) -> Response:
         if query:
-            # Per RFC 3986 the fragment MUST come after the query. Split on
-            # '#' first so we append ?<query> to the pre-fragment portion,
-            # then reattach #<fragment>. Without this, /foo#bar + ?a=b
-            # produced /foo#bar?a=b — browsers treat everything after '#'
-            # as the fragment and the server never sees the query.
+            # Per RFC 3986 the query must precede the fragment. Append ?<query>
+            # to the pre-'#' part, then reattach #<fragment>; otherwise
+            # /foo#bar + ?a=b yields /foo#bar?a=b and the server never sees ?a=b.
             pre, hash_, fragment = location.partition("#")
             separator = "&" if "?" in pre else "?"
             pre += separator + urlencode(query)
@@ -165,10 +156,9 @@ class _RequestResponseMixin:
         string. This act as a light redirection, it does not return a
         3xx responses to the browser but still change the current URL.
         """
-        # WSGI encoding dance https://peps.python.org/pep-3333/#unicode-issues
-        # — every UTF-8 byte becomes a latin-1 char in the resulting str. No
-        # ``errors`` argument is needed: latin-1 has a codepoint for every
-        # byte 0-255, so strict decode never fails.
+        # WSGI encoding dance (PEP 3333): re-encode UTF-8 then decode latin-1, so
+        # every byte maps to one char. latin-1 covers all bytes 0-255, so strict
+        # decode never fails.
         if isinstance(path, str):
             path = path.encode("utf-8")
         path = path.decode("latin1")

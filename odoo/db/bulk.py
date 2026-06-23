@@ -41,18 +41,10 @@ if TYPE_CHECKING:
     class _CursorInternals(Protocol):
         """The host-cursor surface that :class:`_BulkAccessMixin` relies on.
 
-        Single source of truth for the coupling between the bulk-access methods
-        and their host :class:`~odoo.db.cursor.Cursor`.  Each mixin method
-        annotates ``self`` with this Protocol (the canonical mypy mixin pattern),
-        so the bodies type-check against exactly this surface without
-        re-declaring Cursor's members on the mixin; ``Cursor`` is in turn
-        asserted to satisfy it in ``cursor.py`` (also under ``TYPE_CHECKING``).
-        Either side drifting from the other is then a static-analysis error
-        rather than a latent ``AttributeError`` at runtime.
-
-        Members are those provided by Cursor / BaseCursor, plus the one sibling
-        mixin method (``_get_column_types``) that ``copy_from`` invokes through
-        ``self``.
+        Each mixin method annotates ``self`` with this Protocol so its body
+        type-checks against exactly these members without re-declaring Cursor's;
+        ``Cursor`` is asserted to satisfy it in ``cursor.py``, so either side
+        drifting is a type error, not a latent runtime ``AttributeError``.
         """
 
         _obj: psycopg.Cursor
@@ -89,10 +81,8 @@ if TYPE_CHECKING:
 class _BulkAccessMixin:
     """COPY / VALUES bulk-data methods mixed into :class:`Cursor`.
 
-    The methods annotate ``self`` with :class:`_CursorInternals` — a
-    ``TYPE_CHECKING``-only Protocol — so their bodies type-check against the
-    exact host-cursor surface they require, keeping that contract in one place
-    instead of re-declaring Cursor's members on this mixin.
+    The methods annotate ``self`` with :class:`_CursorInternals` so their bodies
+    type-check against the exact host-cursor surface they require.
     """
 
     def execute_values(
@@ -113,21 +103,13 @@ class _BulkAccessMixin:
         """
         if isinstance(query, _sql.Composable):
             query = query.as_string(self._obj)
-        # Reject non-positive page_size BEFORE touching argslist — page_size=0
-        # later crashes range() with a cryptic "arg 3 must not be zero", and
-        # page_size<0 produces an empty range() that silently drops every
-        # row the caller asked to insert (confirmed data-loss path).
+        # Reject non-positive page_size up front: 0 crashes range() cryptically,
+        # and <0 yields an empty range() that silently drops every row.
         if page_size <= 0:
             raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
-        # The query must have exactly one real `%s` marker — the position
-        # where the batched VALUES row-list gets expanded.  Any other `%s`
-        # would produce malformed SQL with a parameter-count mismatch at
-        # best.  Markers are located with an escape-aware scan: `%%`
-        # sequences (literal percent, e.g. LIKE 'a%%s') are NOT markers.
-        # Validate BEFORE the empty-argslist short-circuit (like page_size
-        # above) so a malformed query is rejected regardless of batch size —
-        # otherwise a caller's empty-data unit test passes a query that would
-        # only blow up once real rows arrive in production.
+        # Require exactly one real `%s` marker (where the VALUES row-list
+        # expands); ``%%`` escapes are skipped.  Validate BEFORE the empty
+        # short-circuit so a malformed query is rejected regardless of batch size.
         markers = _find_value_markers(query)
         if len(markers) != 1:
             raise ValueError(
@@ -213,10 +195,8 @@ class _BulkAccessMixin:
         :return: list of generated IDs when *returning_ids* is True, else None
         """
         if not columns:
-            # An empty column list builds ``COPY t () FROM STDIN``, which
-            # PostgreSQL rejects with a cryptic syntax error deep inside the
-            # COPY context.  Fail fast at the boundary with an actionable
-            # message, like the on_error / page_size validations.
+            # ``COPY t () FROM STDIN`` is a cryptic PG syntax error deep in the
+            # COPY context; fail fast at the boundary instead.
             raise ValueError("copy_from: columns must be a non-empty list")
         if on_error is not None and on_error not in ("ignore", "stop"):
             # Whitelist: on_error is interpolated into the COPY options
@@ -239,12 +219,9 @@ class _BulkAccessMixin:
                 "inserts that need IDs."
             )
         if returning_ids:
-            # The count is needed up-front (to pre-generate that many ids) and
-            # rows is iterated twice, so an unsized input must be materialized.
-            # Only copy when it is actually unsized: the ORM bulk-create path
-            # already passes a list, and copying it would waste a full O(rows)
-            # allocation on the hottest import path.  Mirrors executemany()'s
-            # sized-input handling.
+            # Need the count up-front (to pre-generate ids) and rows is iterated
+            # twice, so materialize an unsized input.  Sized callers (the ORM
+            # bulk-create path) pay nothing.
             if not hasattr(rows, "__len__"):
                 rows = list(rows)
             count = len(rows)
@@ -261,25 +238,19 @@ class _BulkAccessMixin:
             )
             ids = [row[0] for row in self.fetchall()]
             columns = ["id", *columns]
-            # strict: nextval() generated exactly len(rows) ids — a mismatch
-            # is a logic error and must not silently truncate the batch.
-            # ``(id_, *row)`` builds the id-prefixed tuple directly; a ``tuple(row)``
-            # wrapper would be a redundant per-row copy (row is already a sequence).
+            # strict: nextval() generated exactly len(rows) ids; a mismatch is a
+            # logic error, not something to silently truncate.
             rows = [(id_, *row) for id_, row in zip(ids, rows, strict=True)]
         else:
             ids = None
-            # Symmetric with the returning_ids ``count == 0`` short-circuit above:
-            # a sized empty input would otherwise open and close a COPY for zero
-            # rows — a wasted ~200us server round-trip.  Only sized inputs are
-            # tested, so a one-shot generator is never consumed prematurely (an
-            # empty generator falls through and the COPY loop is simply a no-op).
+            # Skip the COPY round-trip for a sized empty input.  Only sized
+            # inputs are tested, so a one-shot generator is never consumed early.
             if hasattr(rows, "__len__") and len(rows) == 0:
                 return None
 
         cols_sql = _sql.SQL(", ").join(map(_sql.Identifier, columns))
-        # Build COPY options: FORMAT and ON_ERROR are independent.
-        # ON_ERROR ignore (PG17) skips rows with type conversion errors
-        # in text/CSV mode; it has no effect in binary mode.
+        # Build COPY options: FORMAT and ON_ERROR are independent (ON_ERROR has
+        # no effect in binary mode).
         copy_opts = []
         if binary:
             copy_opts.append("FORMAT BINARY")
@@ -295,15 +266,12 @@ class _BulkAccessMixin:
             opts_sql,
         )
 
-        # Look up column types BEFORE entering the COPY context.
-        # Inside `with self._obj.copy(...)`, the connection is in COPY
-        # mode and cannot execute other queries (would block forever).
+        # Look up column types BEFORE the COPY context: inside it the connection
+        # is in COPY mode and cannot run other queries (would block forever).
         col_types = self._get_column_types(table, columns) if binary else None
 
-        # psycopg3's NumericBinaryDumper rejects Python float for PG
-        # "numeric" columns — it requires Decimal.  Pre-compute which
-        # column indices need float→Decimal conversion (Monetary fields
-        # and Float-with-digits both map to "numeric").
+        # psycopg3's binary numeric dumper requires Decimal, not float.
+        # Pre-compute which column indices need float→Decimal conversion.
         if col_types:
             _numeric_idxs = frozenset(
                 i for i, t in enumerate(col_types) if t == "numeric"
@@ -311,12 +279,10 @@ class _BulkAccessMixin:
         else:
             _numeric_idxs = None
 
-        # ``start`` (below) and ``metrics_query`` (after the COPY) are consumed
-        # only by query_hooks (profiler).  Resolve hook presence once: skip both
-        # the wall-clock read and the SQL render when none are installed — the
-        # common case on this hot path (imports, module installs).
+        # ``start`` and ``metrics_query`` are only for the profiler's query_hooks;
+        # resolve hook presence once and skip both when none are installed.
         have_hooks = getattr(self._thread, "query_hooks", None)
-        start = real_time() if have_hooks else 0.0  # t0 (monotonic) for duration
+        start = real_time() if have_hooks else 0.0  # t0 (monotonic) times the COPY
         t0 = monotonic()
         row_count = 0
         try:
@@ -325,15 +291,10 @@ class _BulkAccessMixin:
                     copy.set_types(col_types)
                 for row in rows:
                     if _numeric_idxs:
-                        # Convert ONLY the numeric columns: psycopg3's binary
-                        # NumericDumper rejects Python float for PG "numeric"
-                        # (it wants Decimal).  Rebuilding the whole tuple per
-                        # row — enumerate plus an ``i in frozenset`` test on
-                        # every column — is ~2x slower for wide tables (measured
-                        # ~0.8s per 1M rows on a 20-col row); mutate a list copy
-                        # at the known indices instead.  isinstance (not
-                        # ``type is float``) preserves the original semantics for
-                        # float subclasses.
+                        # Convert only the numeric columns (float→Decimal).
+                        # Mutating a list copy at the known indices beats
+                        # rebuilding the whole tuple per row (~2x faster, wide
+                        # tables).  isinstance covers float subclasses.
                         row = list(row)
                         for i in _numeric_idxs:
                             v = row[i]
@@ -342,15 +303,9 @@ class _BulkAccessMixin:
                     copy.write_row(row)
                     row_count += 1
         except Exception as e:
-            # Route through _log_sql_error (not a bare _logger.error) so a
-            # recoverable serialization failure / deadlock during a bulk COPY
-            # is demoted to WARNING and retried, exactly like execute().  The
-            # COPY statement is only rendered to text on this (rare) error path.
-            # _log_sql_error lives in odoo.db.errors (not cursor) precisely so
-            # this import can be top-level: cursor imports bulk's mixin at load,
-            # so bulk cannot import from cursor at load.  It still logs under the
-            # "odoo.db.cursor" logger that TestCopyFromRecoverableErrorLogLevel
-            # asserts on.
+            # Route through _log_sql_error so a recoverable serialization
+            # failure / deadlock during a bulk COPY is demoted to WARNING and
+            # retried, like execute().  The COPY is rendered to text only here.
             _log_sql_error(e, copy_stmt.as_string(self._obj), label="COPY")
             raise
         finally:
@@ -363,11 +318,8 @@ class _BulkAccessMixin:
                     row_count,
                 )
 
-        # Render copy_stmt to text only when a profiler query hook will read it
-        # (``have_hooks``, resolved before the COPY).  Building the SQL string
-        # unconditionally wasted a full render on every bulk insert in the common
-        # no-hook case.  _record_metrics only forwards `query` to thread
-        # query_hooks, so None is harmless when none are installed.
+        # Render copy_stmt to text only when a profiler hook will read it
+        # (``have_hooks``); None is harmless when none are installed.
         metrics_query = copy_stmt.as_string(self._obj) if have_hooks else None
         self._record_metrics(delay, query=metrics_query, start=start)
 
@@ -380,17 +332,10 @@ class _BulkAccessMixin:
         """Return the sequence name backing *table*'s ``id`` column (cached).
 
         ``pg_get_serial_sequence`` only finds a sequence *owned* by the column,
-        but ``_inherits`` child tables share the parent's sequence, so fall back
-        to the ``pg_depend`` catalog, which finds the sequence referenced by the
-        column's ``DEFAULT`` expression.
-
-        The resolved name is memoized per ``(dbname, table)``.  ``set_id_sequence``
-        itself skips session-local ``pg_temp.<seq>`` names: the cache key carries
-        no session, so handing that name to another session whose same-named
-        ``table`` is a *different* temp (or the permanent table the name shadows)
-        would resolve ``pg_temp`` to the wrong — or a nonexistent — sequence.
-        Permanent tables, the only ones that actually repeat across connections,
-        still cache.
+        but ``_inherits`` children share the parent's, so fall back to
+        ``pg_depend`` (the sequence referenced by the column's ``DEFAULT``).
+        Memoized per ``(dbname, table)``; ``set_id_sequence`` skips temp
+        sequences (see :class:`SchemaCache`).
 
         :raises ValueError: if no serial sequence backs ``<table>.id``.
         """
@@ -437,13 +382,9 @@ class _BulkAccessMixin:
         if types is None:
             self.execute(
                 SQL(
-                    # Resolve the table via ::regclass so search_path is honored
-                    # (TEMP tables live in pg_temp_N, never current_schema).  This
-                    # matches the pg_get_serial_sequence(table, 'id') resolution
-                    # used for returning_ids — the two lookups must agree, or
-                    # binary COPY into a temp table raises "column not found".
-                    # n.nspname is fetched to detect temp relations (cache skip
-                    # below); all rows share one attrelid, hence one namespace.
+                    # ::regclass so search_path is honored (TEMP tables live in
+                    # pg_temp_N), matching the returning_ids sequence lookup.
+                    # n.nspname is fetched to detect temp relations (cache skip).
                     """SELECT a.attname, t.typname, n.nspname
                     FROM pg_attribute a
                     JOIN pg_type t ON a.atttypid = t.oid
@@ -465,13 +406,9 @@ class _BulkAccessMixin:
                     f"{table!r} (current_schema)"
                 )
             types = [type_map[col] for col in columns]
-            # Cache the resolved types.  set_column_types() itself skips temp
-            # relations: the key is name-based, but a temp table lives in a
-            # session-local pg_temp_* schema, so another session's same-named
-            # temp (or the permanent table the name shadows) could be fed the
-            # wrong types via binary COPY set_types().  (rows is non-empty — the
-            # missing-column check passed, so rows[0][2] is this relation's
-            # pg_namespace.nspname.)
+            # Cache the resolved types; set_column_types() skips temp relations
+            # (see :class:`SchemaCache`).  rows is non-empty (missing-column
+            # check passed), so rows[0][2] is this relation's namespace.
             schema_cache.set_column_types(
                 self.dbname, table, columns, types, namespace=rows[0][2]
             )

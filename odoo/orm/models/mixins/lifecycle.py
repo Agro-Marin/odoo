@@ -1,14 +1,5 @@
-"""
-Lifecycle operations mixin for BaseModel.
-
-This module contains methods for model lifecycle management:
-- External ID operations (get_external_id, _get_external_ids)
-- Archive/Unarchive operations (action_archive, action_unarchive)
-- Registration hooks (_register_hook, _unregister_hook)
-- Onchange support (_has_onchange, _apply_onchange_methods, onchange)
-- Model identity helpers (is_transient)
-- URL/access helpers (_get_redirect_suggested_company, _can_return_content)
-- Placeholder support (_get_placeholder_filename)
+"""Lifecycle mixin for BaseModel: external IDs, archive/unarchive, registration
+hooks, onchange support, and model identity/URL helpers.
 """
 
 import typing
@@ -30,27 +21,16 @@ if typing.TYPE_CHECKING:
 
 
 class LifecycleMixin:
-    """Mixin providing lifecycle and metadata operations for recordsets.
-
-    This mixin contains methods for:
-    - External ID operations
-    - Archive/Unarchive operations
-    - Registration hooks
-    - Onchange support
-    - Model identity helpers
-    - URL/access helpers
-    """
+    """Mixin providing lifecycle and metadata operations for recordsets."""
 
     __slots__ = ()
 
     def _get_external_ids(self) -> dict[IdType, list[str]]:
         """Retrieve the External ID(s) of any database record.
 
-        **Synopsis**: ``_get_external_ids() -> { 'id': ['module.external_id'] }``
-
         :return: map of ids to the list of their fully qualified External IDs
-                 in the form ``module.key``, or an empty list when there's no External
-                 ID for a record, e.g.::
+                 in the form ``module.key``, or an empty list when there's no
+                 External ID for a record, e.g.::
 
                      {"id": ["module.ext_id", "module.ext_id_bis"], "id2": []}
         """
@@ -130,10 +110,10 @@ class LifecycleMixin:
         inactive_recs[field_name] = True
 
     def _register_hook(self) -> None:
-        """stuff to do right after the registry is built"""
+        """Run right after the registry is built (override point)."""
 
     def _unregister_hook(self) -> None:
-        """Clean up what `~._register_hook` has done."""
+        """Clean up what :meth:`_register_hook` has done."""
 
     def _get_redirect_suggested_company(self) -> typing.Any:
         """Return the suggested company to be set on the context

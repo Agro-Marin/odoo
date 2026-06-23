@@ -1,6 +1,4 @@
-"""The implementation of the ORM.
-
-Package Structure (layered architecture):
+"""The implementation of the ORM (layered architecture).
 
 Layer 0 — Zero-dependency foundations:
   primitives.py    Constants, Command, NewId, type aliases
@@ -9,13 +7,11 @@ Layer 0 — Zero-dependency foundations:
   constants.py     Read group constants (granularity, aggregates, display)
 
 Layer 1 — Field & domain system:
-  fields/          Field type definitions (base, relational, temporal, ...)
+  fields/          Field type definitions
   domain/          Domain expression processing and optimization
 
 Layer 2 — Model system:
   models/          BaseModel, MetaModel, mixins, table objects
-    mixins/        14 focused mixins (crud, copy, search, cache, ...)
-      read_group/  Read group sub-package (sql, format, fill, mixin)
 
 Layer 3 — Runtime:
   runtime/         Environment, Transaction, Registry
@@ -23,11 +19,11 @@ Layer 3 — Runtime:
 Cross-cutting:
   decorators.py    API method decorators (@api.depends, @api.constrains, ...)
   registration.py  Model registration and setup
-  helpers.py       Shared utility functions (OriginIds, company domain, etc.)
+  helpers.py       Shared utility functions
   _typing.py       Composite type aliases (DomainType, ModelType)
 
-Developers should import from the public API packages (odoo.api, odoo.fields,
-odoo.models) rather than directly from odoo.orm submodules.
+Import from the public API packages (odoo.api, odoo.fields, odoo.models)
+rather than directly from odoo.orm submodules.
 """
 
 # import first for core setup

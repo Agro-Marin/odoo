@@ -1,17 +1,8 @@
 """Standalone field-value cache for the ORM.
 
-This module provides :class:`FieldCache`, an isolated data structure that
-manages cached field values, dirty tracking, and deferred x2many patches.
-It has **no dependency** on Environment, BaseModel, or database cursors,
-making it fully testable with pure Python unit tests.
-
-The cache is keyed by *field objects* (any hashable key) and record IDs.
-
-Usage from Transaction::
-
-    cache_store = FieldCache()
-    cache_store.set_value(field, record_id, value)
-    cache_store.mark_dirty(field, [record_id])
+:class:`FieldCache` manages cached field values, dirty tracking, and deferred
+x2many patches. No dependency on Environment, BaseModel, or cursors — testable
+with pure Python. Keyed by field objects (any hashable) and record IDs.
 """
 
 import collections
@@ -21,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Iterator
 
-# Sentinel for missing values — distinct from any real cached value (including None).
+# Sentinel for missing values — distinct from any real cached value (incl. None).
 _MISSING = object()
 
 
@@ -32,11 +23,9 @@ class FieldCache:
 
     * ``_data``: ``{field: {record_id: value}}`` — cached values.
     * ``_dirty``: ``{field: set_of_ids}`` — ids whose cached value differs from DB.
-    * ``_patches``: ``{field: {record_id: [ids_to_add]}}`` — deferred x2many additions.
+    * ``_patches``: ``{field: {record_id: [ids_to_add]}}`` — deferred x2many adds.
 
-    The ``_data`` and ``_dirty`` dicts use ``defaultdict`` so that first access
-    auto-creates the sub-dict/set, matching the original Transaction behavior.
-    ``_patches`` uses a nested defaultdict for the same reason.
+    All three are ``defaultdict`` so first access auto-creates the sub-collection.
     """
 
     __slots__ = ("_data", "_dirty", "_patches")
@@ -48,14 +37,11 @@ class FieldCache:
             lambda: defaultdict(list)
         )
 
-    # ------------------------------------------------------------------
     # Data access
-    # ------------------------------------------------------------------
 
     def get_field_data(self, field: Any) -> dict[Any, Any]:
         """Return the cache dict for *field*, creating it if needed.
 
-        This is the low-level accessor that Field._get_cache_impl() uses.
         The returned dict is the *live* dict — mutations are visible to the cache.
         """
         return self._data[field]
@@ -86,16 +72,12 @@ class FieldCache:
         return field_cache is not None and record_id in field_cache
 
     def insert_if_absent(self, field: Any, ids: Iterable, values: Iterable) -> None:
-        """Set values only for IDs that are not already cached.
+        """Set values only for IDs not already cached (bulk ``setdefault``).
 
-        Equivalent to ``dict.setdefault`` in bulk — preserves pending updates
-        by not overwriting existing entries.  Uses ``collections.deque`` with
-        ``maxlen=0`` to consume the ``map(setdefault, ...)`` iterator in C,
-        which is ~15% faster than an explicit Python loop.
-
-        ``strict=True``: callers must pass equal-length iterables.  Length
-        mismatches raise ``ValueError`` at iteration time rather than
-        silently truncating to the shorter side.
+        Preserves pending updates by not overwriting existing entries. The
+        ``deque(maxlen=0)`` drains the ``map`` iterator in C (~15% faster than a
+        Python loop). ``strict=True`` raises on length-mismatched iterables
+        rather than truncating to the shorter side.
         """
         field_cache = self._data[field]
         collections.deque(
@@ -125,9 +107,7 @@ class FieldCache:
             return field_cache.pop(record_id)
         return field_cache.pop(record_id, default)
 
-    # ------------------------------------------------------------------
     # Dirty tracking
-    # ------------------------------------------------------------------
 
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*."""
@@ -144,9 +124,8 @@ class FieldCache:
     def pop_dirty_for_model(self, model_name: str) -> dict[Any, set]:
         """Pop all dirty fields belonging to *model_name*.
 
-        More efficient than iterating all model fields and popping each:
-        iterates the (usually small) dirty dict instead.  O(n_dirty_global)
-        vs O(n_model_fields).
+        Iterates the (usually small) dirty dict, so O(n_dirty_global) rather
+        than O(n_model_fields).
         """
         result: dict[Any, set] = {}
         for field in list(self._dirty):
@@ -172,9 +151,7 @@ class FieldCache:
         """Return the total number of dirty (field, record_id) entries."""
         return sum(len(ids) for ids in self._dirty.values())
 
-    # ------------------------------------------------------------------
     # Patches (deferred x2many additions)
-    # ------------------------------------------------------------------
 
     def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
         """Record a deferred x2many addition."""
@@ -184,9 +161,7 @@ class FieldCache:
         """Return the patches dict for *field*, or ``None``."""
         return self._patches.get(field)
 
-    # ------------------------------------------------------------------
     # Invalidation
-    # ------------------------------------------------------------------
 
     def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
         """Invalidate cached values for *field*.
@@ -206,26 +181,20 @@ class FieldCache:
     def invalidate_all(self) -> None:
         """Clear all cached data except dirty entries.
 
-        Dirty entries are preserved in ``_data`` so that a subsequent
-        :meth:`flush <odoo.orm.models.mixins.cache.CacheMixin._flush>`
-        can still read their values via :meth:`~odoo.orm.fields.base.Field.get_column_update`.
-        Non-dirty cached data is cleared to force re-fetching from the
-        database on next access.
-
-        ``_dirty`` flags and ``_patches`` are never touched.
+        Dirty entries stay in ``_data`` so a subsequent flush can still read
+        their values; non-dirty data is cleared to force re-fetch on next
+        access. ``_dirty`` flags and ``_patches`` are never touched.
         """
         if not self._dirty:
             self._data.clear()
             return
         # Restrict each dirty field's sub-dict to its dirty IDs only.
         # Context-dependent fields (translate=True, company_dependent) keep
-        # values in nested ``{cache_key: {id: value}}`` dicts; non-context
-        # fields keep flat ``{id: value}`` dicts.  Detect the shape by
-        # ``isinstance(k, tuple)`` — context-dep cache_keys are always tuples
-        # (built by ``Environment.cache_key()``), record ids are never tuples
-        # (``int`` or ``NewId``).  Inspecting the value would mis-classify
-        # flat dict-valued fields (Json, Properties) and silently evict their
-        # dirty entries — that bug was present until 2026-05.
+        # nested ``{cache_key: {id: value}}`` dicts; others keep flat
+        # ``{id: value}``. Detect the shape by ``isinstance(k, tuple)``:
+        # cache_keys are always tuples, record ids never are. Inspecting the
+        # value instead would mis-classify dict-valued fields (Json, Properties)
+        # and silently evict their dirty entries.
         for field in list(self._data):
             dirty_ids = self._dirty.get(field)
             if not dirty_ids:
@@ -252,9 +221,7 @@ class FieldCache:
         self._dirty.clear()
         self._patches.clear()
 
-    # ------------------------------------------------------------------
     # Iteration & introspection
-    # ------------------------------------------------------------------
 
     def iter_fields(self) -> Iterator[Any]:
         """Iterate over fields that have cached data."""

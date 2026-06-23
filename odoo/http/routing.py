@@ -20,16 +20,10 @@ _logger = logging.getLogger(__name__)
 def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
     """Build the werkzeug ``Rule`` keyword arguments for ``endpoint``.
 
-    Returns the :data:`~odoo.http.constants.ROUTING_KEYS` subset of
-    ``endpoint.routing`` with ``OPTIONS`` appended to ``methods`` whenever a
-    method allow-list is set, so a CORS preflight (an ``OPTIONS`` request)
-    matches the rule and reaches the dispatcher instead of being rejected with
-    ``405 Method Not Allowed``.
-
-    Shared by BOTH routing maps — the database-less map built in
-    :meth:`Application.nodb_routing_map` and the per-database map in
-    ``ir.http.routing_map`` — so the two cannot drift on which methods a rule
-    accepts (a divergence would silently break CORS on one but not the other).
+    Returns the :data:`ROUTING_KEYS` subset of ``endpoint.routing``, appending
+    ``OPTIONS`` to ``methods`` when an allow-list is set so a CORS preflight
+    reaches the dispatcher instead of a ``405``. Shared by both routing maps
+    (nodb and per-database) so they cannot drift on accepted methods.
     """
     routing = submap(endpoint.routing, ROUTING_KEYS)
     methods = routing.get("methods")
@@ -42,30 +36,20 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
     """Classify ``endpoint``'s parameters for request-arg filtering, ONCE.
 
     :returns: ``(accepts_var_keyword, accepted_named_params, bound_self_name)``
-        — whether the endpoint has a ``**kwargs`` catch-all (in which case every
-        request arg is accepted), the set of parameter names it accepts by
-        keyword, and the name of its first parameter (the bound controller
-        ``self``), which ``route_wrapper`` supplies positionally.
+        — whether it has a ``**kwargs`` catch-all (accepts every arg), the names
+        it accepts by keyword, and the name of its first parameter (the bound
+        ``self``, supplied positionally by ``route_wrapper``).
 
-    ``route_wrapper`` must drop request params the endpoint does not declare
-    before calling it. The previous implementation delegated to
-    :func:`odoo.libs.func.filter_kwargs`, which calls ``inspect.signature`` —
-    ~7.5us — on *every* request to the endpoint. An endpoint's signature is
-    fixed at decoration time, so classify it once here instead. The
-    keyword-acceptance rules mirror ``filter_kwargs``:
-    ``POSITIONAL_OR_KEYWORD`` / ``KEYWORD_ONLY`` params are accepted by name,
-    a ``VAR_KEYWORD`` (``**kwargs``) accepts everything, and ``POSITIONAL_ONLY``
-    / ``VAR_POSITIONAL`` are not accepted by keyword. ``test_session08`` locks
-    the observable "called ignoring args {...}" contract.
+    Classified once at decoration time instead of calling ``inspect.signature``
+    (~7.5us) per request as :func:`~odoo.libs.func.filter_kwargs` did. Acceptance
+    mirrors ``filter_kwargs`` (POSITIONAL_OR_KEYWORD / KEYWORD_ONLY by name,
+    VAR_KEYWORD accepts all, POSITIONAL_ONLY / VAR_POSITIONAL not by keyword);
+    ``test_session08`` locks the "called ignoring args {...}" contract.
 
-    The endpoint's FIRST parameter is the controller instance; ``route_wrapper``
-    binds it positionally, so it is deliberately EXCLUDED from the accepted set.
-    Otherwise a request arg sharing its name — most obviously ``self`` — would
-    be forwarded by keyword and collide with the positional instance, raising
-    ``TypeError: ... got multiple values for argument 'self'``: a
-    client-triggerable 500 on *every* route via ``?self=1``. This single
-    intentional divergence from ``filter_kwargs`` (which would keep such a name)
-    is locked by ``TestSelfParamCollision``.
+    The first parameter (the controller instance) is EXCLUDED: it is bound
+    positionally, so a same-named request arg (e.g. ``?self=1``) would otherwise
+    raise ``got multiple values for argument 'self'`` — a 500 on every route.
+    This divergence from ``filter_kwargs`` is locked by ``TestSelfParamCollision``.
     """
     accepts_var_keyword = False
     named: set[str] = set()
@@ -182,28 +166,25 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
             endpoint
         )
 
-        # ``controller_self`` is positional-only (``/``) and is NOT named
-        # ``self``: the dispatcher calls the bound wrapper as
-        # ``endpoint(**request.params)``, so a request arg literally named
-        # ``self`` must land in ``**params`` (to be filtered out) instead of
-        # colliding with the bound instance at the call boundary.
+        # ``controller_self`` is positional-only (``/``) and not named ``self``:
+        # the wrapper is called as ``endpoint(**request.params)``, so a request
+        # arg named ``self`` lands in ``**params`` (to be filtered) instead of
+        # colliding with the bound instance.
         @functools.wraps(endpoint)
         def route_wrapper(controller_self, /, *args, **params):
             if accepts_var_keyword:
                 params_ok = params
                 params_ko = None
-                # The endpoint takes **kwargs (so every arg is forwarded), but
-                # its first positional is still the bound ``self``; forwarding a
-                # same-named request arg would collide on the call below.
+                # ``**kwargs`` forwards every arg, but the first positional is
+                # still the bound ``self``; drop a same-named request arg.
                 if bound_self_name in params:
                     params_ok = {
                         k: v for k, v in params.items() if k != bound_self_name
                     }
                     params_ko = {bound_self_name}
             elif params.keys() <= accepted_params:
-                # Hot path: the endpoint already accepts every supplied arg, so
-                # forward ``params`` unchanged instead of rebuilding the dict and
-                # materialising an (always empty) set difference on each request.
+                # Hot path: every arg is accepted, so forward ``params`` unchanged
+                # instead of rebuilding the dict and an empty set difference.
                 params_ok = params
                 params_ko = None
             else:
@@ -217,10 +198,8 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
             if (
                 routing["type"] == "http"
             ):  # _generate_routing_rules() ensures type is set
-                # Pass ``fname`` so ``Response.load``'s misuse diagnostics
-                # ("returns an HTTPException instead of raising it", "returns an
-                # invalid value") name the offending endpoint instead of the
-                # useless literal "<function>" default.
+                # Pass ``fname`` so ``Response.load``'s misuse diagnostics name
+                # the offending endpoint instead of the literal "<function>".
                 return Response.load(result, fname)
             return result
 
@@ -315,10 +294,9 @@ def _generate_routing_rules(
                 "routes": [],
             }
 
-            # Walk the MRO ancestors-first, but skip Controller itself and
-            # object. Using a slice like ``mro()[:-2]`` silently drops mixins
-            # that appear after Controller in the base list; filter by identity
-            # instead so those mixins' ``@route`` decorators merge correctly.
+            # Walk the MRO ancestors-first, skipping Controller and object. Filter
+            # by identity, not a ``mro()[:-2]`` slice, which would drop mixins
+            # after Controller and lose their ``@route`` decorators.
             ancestors = [
                 cls
                 for cls in reversed(type(ctrl).mro())
@@ -331,23 +309,18 @@ def _generate_routing_rules(
                 submethod = getattr(cls, method_name)
 
                 if not hasattr(submethod, "original_routing"):
-                    # An override that forgot to re-apply @route. Log once and
-                    # skip: auto-decorating with route() produced an empty
-                    # routing dict that contributed nothing to the merged
-                    # routing while silently masking the missing decorator.
+                    # An override that forgot to re-apply @route: log once and
+                    # skip (auto-decorating would mask the missing decorator).
                     _logger.warning(
                         "The endpoint %s is overridden without @route(); skipping this override.",
                         f"{cls.__module__}.{cls.__name__}.{method_name}",
                     )
                     continue
 
-                # Remember the most-derived ancestor that actually declared a
-                # @route fragment for this endpoint, so the "without any route"
-                # warning below names a real, navigable class. The bare loop
-                # variable ``cls`` leaks the LAST item of ``unique(ancestors)``
-                # — the synthetic merged controller built by ``type(name, ...)``
-                # above, whose __module__ is this module (``odoo.http.routing``)
-                # and whose name may carry " (extended by ...)".
+                # Remember the most-derived ancestor that declared a @route
+                # fragment, so the "without any route" warning names a real class.
+                # The loop variable ``cls`` would instead leak the synthetic
+                # merged controller (``type(name, ...)`` above).
                 defining_cls = cls
 
                 _check_and_complete_route_definition(cls, submethod, merged_routing)
@@ -365,20 +338,16 @@ def _generate_routing_rules(
             if nodb_only and merged_routing["auth"] != "none":
                 continue
 
-            # Freeze the merged routing so dispatchers cannot accidentally
-            # mutate it at request time. The ``methods`` value (a list)
-            # remains mutable; convert to a tuple to lock the externally
-            # observable contract.
+            # Freeze the merged routing so dispatchers can't mutate it at request
+            # time; convert the ``methods`` list to a tuple too.
             if isinstance(merged_routing.get("methods"), list):
                 merged_routing["methods"] = tuple(merged_routing["methods"])
             frozen_routing = MappingProxyType(merged_routing)
 
             for url in merged_routing["routes"]:
-                # duplicates the function (partial) with a copy of the
-                # original __dict__ (update_wrapper) to keep a reference
-                # to `original_routing` and `original_endpoint`, assign
-                # the merged routing ONLY on the duplicated function to
-                # ensure method's immutability.
+                # Duplicate the function (partial + update_wrapper) and set the
+                # merged routing ONLY on the copy, so the original method stays
+                # immutable while keeping ``original_routing``/``original_endpoint``.
                 endpoint = functools.partial(method)
                 functools.update_wrapper(endpoint, method)
                 endpoint.routing = frozen_routing
@@ -391,13 +360,10 @@ def _check_and_complete_route_definition(
 ) -> None:
     """Verify and complete the route definition.
 
-    **Mutates** ``submethod.original_routing`` in place to fill in inferred
-    ``type`` / ``readonly`` keys so subsequent ancestor passes see the same
-    completed routing dict — the function is named ``_complete_`` to flag
-    that side effect, even though it reads as a validation step.
-
-    * Ensure 'type' is defined on each method's own routing.
-    * Ensure overrides don't change the routing type or the read/write mode
+    **Mutates** ``submethod.original_routing`` in place to fill inferred
+    ``type`` / ``readonly`` keys (hence ``_complete_``) so later ancestor passes
+    see the completed dict. Also warns when an override changes the routing type
+    or read/write mode.
 
     :param submethod: route method
     :param dict merged_routing: accumulated routing values

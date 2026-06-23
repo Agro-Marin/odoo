@@ -66,7 +66,7 @@ class IrModelFieldsSelection(models.Model):
         selection_fields = [
             field
             for model_name in model_names
-            for field_name, field in self.env[model_name]._fields.items()
+            for field in self.env[model_name]._fields.values()
             if field.type in ("selection", "reference")
             if isinstance(field.selection, list)
         ]

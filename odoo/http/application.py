@@ -52,21 +52,16 @@ _UNSET = object()
 class _locked_cached_property(functools.cached_property):
     """Thread-safe :func:`functools.cached_property`.
 
-    ``functools.cached_property`` dropped its internal lock in Python 3.12, so
-    under concurrent first-access (a cold worker hit by parallel requests) the
-    factory can run more than once. For the singleton :data:`root` that means
-    rebuilding the whole ``nodb_routing_map`` redundantly and — worse — opening
-    a second GeoIP ``Reader`` whose file handle then leaks. This subclass
-    double-checks the instance ``__dict__`` under a per-descriptor lock so the
-    factory runs exactly once.
+    Python 3.12 dropped the stdlib lock, so under concurrent first-access (a cold
+    worker hit by parallel requests) the factory can run twice — for :data:`root`
+    that rebuilds ``nodb_routing_map`` and leaks a second GeoIP ``Reader`` handle.
+    This subclass double-checks the instance ``__dict__`` under a per-descriptor
+    lock so the factory runs exactly once.
 
-    It deliberately *subclasses* ``functools.cached_property`` rather than
-    reimplementing the descriptor, so introspection that special-cases the
-    stdlib type keeps working — notably :func:`odoo.tools.reset_cached_properties`,
-    which the http test-suite uses to swap in in-memory ``session_store`` /
-    GeoIP test doubles. Like its base it stays a non-data descriptor, so once
-    the value is cached the instance ``__dict__`` shadows the descriptor and
-    the lock is never taken again on the hot read path.
+    It *subclasses* (rather than reimplements) so stdlib-type introspection still
+    works — notably :func:`odoo.tools.reset_cached_properties`, which the test
+    suite uses to swap in test doubles. It stays a non-data descriptor, so once
+    cached the ``__dict__`` shadows it and the lock is never taken on the hot read.
     """
 
     def __init__(self, func: Callable) -> None:
@@ -143,11 +138,9 @@ class Application:
         if netloc and netloc != host:
             return None
 
-        # Hostless URLs of the form ``odoo.com/<addon>/static/<file>`` have
-        # no scheme and no ``//``, so ``urlparse`` leaves ``netloc`` empty
-        # and stuffs the implicit authority into the first path segment
-        # (``_leading``).  Validate that against ``host`` too — otherwise a
-        # caller passing ``host=""`` would silently accept any host prefix.
+        # A hostless URL like ``odoo.com/<addon>/static/<file>`` has no ``//``, so
+        # ``urlparse`` leaves ``netloc`` empty and puts the authority in the first
+        # path segment (``_leading``). Validate that against ``host`` too.
         if not netloc and _leading and _leading != host:
             return None
 
@@ -192,11 +185,9 @@ class Application:
     def geoip_city_db(self):
         """A geoip2 City ``Reader``, or ``None`` when one cannot be opened.
 
-        Returning ``None`` (rather than raising) lets ``_locked_cached_property``
-        cache the *failure*: a missing/invalid database — or geoip2 not being
-        installed — is opened and logged at most once per worker, instead of
-        re-attempting the ``Reader`` open (and re-logging) on every request that
-        reaches GeoIP. IP resolution is optional, so the caller
+        Returning ``None`` lets ``_locked_cached_property`` cache the *failure*,
+        so a missing/invalid database (or absent geoip2) is opened and logged at
+        most once per worker. IP resolution is optional, so the caller
         (:meth:`GeoIP._city_record`) treats ``None`` as "no GeoIP context".
         """
         if geoip2 is None:
@@ -204,9 +195,8 @@ class Application:
         try:
             return geoip2.database.Reader(config["geoip_city_db"])
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
-            # Debug, not info: this fires once and a misconfigured/absent City
-            # database is an expected optional-feature state, not an operational
-            # error worth a per-worker INFO line.
+            # Debug, not info: an absent/misconfigured City db is an expected
+            # optional-feature state, logged once per worker.
             _logger.debug(
                 "Couldn't load Geoip City file at %s (%s). IP Resolver disabled.",
                 config["geoip_city_db"],
@@ -218,10 +208,9 @@ class Application:
     def geoip_country_db(self):
         """A geoip2 Country ``Reader``, or ``None`` when one cannot be opened.
 
-        Like :meth:`geoip_city_db`, the ``None`` failure result is cached so the
-        ``Reader`` open is attempted once per worker. The caller
-        (:meth:`GeoIP._country_record`) recovers from ``None`` by reading the
-        City database when available.
+        Like :meth:`geoip_city_db`, the ``None`` failure is cached (opened once
+        per worker). The caller (:meth:`GeoIP._country_record`) falls back to the
+        City database.
         """
         if geoip2 is None:
             return None
@@ -247,14 +236,12 @@ class Application:
         headers["Content-Security-Policy"] = "default-src 'none'"
 
     def _reset_thread_state(self) -> None:
-        """Reset the per-request bookkeeping stored on the reused worker thread.
+        """Reset per-request bookkeeping on the pooled worker thread.
 
-        Worker threads are pooled, so every field the perf logger / slow-request
-        watchdog reads (``query_count``, ``perf_t0``, ``cursor_mode``,
-        ``dbname``, ``uid``, ``url`` …) must be reset or cleared here. A request
-        that fails before populating one would otherwise report the PREVIOUS
-        request's value left on this thread. ``url`` in particular is only set
-        once ``_post_init`` has run, so it is cleared rather than zeroed.
+        Every field the perf logger / watchdog reads (``query_count``,
+        ``perf_t0``, ``cursor_mode``, ``dbname``, ``uid``, ``url`` …) must be reset
+        here, else a request failing before populating one reports the PREVIOUS
+        request's value. ``url`` is cleared (not zeroed) as it is set only later.
         """
         current_thread = threading.current_thread()
         current_thread.query_count = 0
@@ -272,13 +259,11 @@ class Application:
     def _apply_proxy_fix(self, environ: dict[str, object]) -> None:
         """Rewrite ``REMOTE_ADDR`` / scheme / host from trusted ``X-Forwarded-*``.
 
-        Runs only under ``proxy_mode`` and only when at least one trusted
-        ``X-Forwarded-*`` header is present. The gate covers For/Proto/Host
-        (not just Host): a proxy forwarding only For/Proto — e.g. an AWS ALB —
-        would otherwise leave ``REMOTE_ADDR`` and ``wsgi.url_scheme`` wrong,
-        breaking ``remote_addr``, GeoIP, device traces and ``request.is_secure``.
-        ``ProxyFix`` mutates ``environ`` as a side effect (no real middleware
-        chain is invoked); see https://github.com/pallets/werkzeug/pull/2184.
+        Runs only under ``proxy_mode`` with at least one trusted ``X-Forwarded-*``
+        header. The gate covers For/Proto/Host (not just Host): a proxy forwarding
+        only For/Proto (e.g. an AWS ALB) would otherwise leave ``REMOTE_ADDR`` /
+        scheme wrong, breaking GeoIP, device traces and ``is_secure``. ``ProxyFix``
+        mutates ``environ`` as a side effect; see pallets/werkzeug#2184.
         """
         if odoo.tools.config["proxy_mode"] and (
             environ.get("HTTP_X_FORWARDED_FOR")
@@ -292,11 +277,9 @@ class Application:
     ) -> Any:
         """Serve a request db-less after its database/registry became unusable.
 
-        ``_serve_db`` raises :class:`RegistryError` when the database is gone or
-        its registry is broken. Drop the db, log the session out, then retry the
-        request without a database. For ``ensure_db()``-protected routes, strip
-        the ``?db=`` query parameter first so no-db serving does not bounce
-        straight back to the same broken database.
+        Drop the db, log the session out, then retry without a database. For
+        ``ensure_db()``-protected routes, strip ``?db=`` first so db-less serving
+        does not bounce straight back to the same broken database.
         """
         _logger.warning(
             "Database or registry unusable, trying without",
@@ -358,9 +341,8 @@ class Application:
         else:
             from werkzeug.exceptions import InternalServerError
 
-            # ``str(Exception()) == ""``; pass ``None`` (not the empty string)
-            # so werkzeug uses its built-in description for the 500 page instead
-            # of rendering an empty <p>.
+            # ``str(Exception()) == ""``; pass ``None`` so werkzeug uses its
+            # built-in 500 description instead of an empty <p>.
             exc.error_response = InternalServerError(str(exc) or None)
 
     def __call__(
@@ -380,9 +362,8 @@ class Application:
         self._apply_proxy_fix(environ)
 
         with HTTPRequest(environ) as httprequest:
-            # Build Request and push to the stack *inside* the try so early
-            # failures (e.g. bad environ) are converted to an Odoo error
-            # response instead of bubbling raw to the WSGI server.
+            # Build/push inside the try so early failures (e.g. bad environ)
+            # become an Odoo error response instead of bubbling raw to WSGI.
             request: Request | None = None
             pushed = False
             try:
@@ -409,8 +390,8 @@ class Application:
                 return response(environ, start_response)
 
             except Exception as exc:
-                # Log here so the traceback starts with ``__call__``, then make
-                # sure the exception carries a WSGI error response to return.
+                # Log here (traceback rooted at ``__call__``), then ensure the
+                # exception carries a WSGI error response.
                 self._log_request_exception(exc)
                 self._ensure_error_response(exc, request)
                 return exc.error_response(environ, start_response)

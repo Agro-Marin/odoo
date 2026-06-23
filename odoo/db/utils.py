@@ -8,23 +8,16 @@ from psycopg.adapt import Loader
 
 from odoo import tools
 
-# Emit the ODOO_PGAPPNAME deprecation at most once per process.
-# connection_info_for() runs on every db_connect(), not on every borrow:
-# Registry caches its Connection (Registry._db) and reuses it for every
-# cursor(), so a request does NOT re-parse the DSN.  But db_connect() is
-# still called repeatedly across a process's life — per cron job
-# (ir_cron), per log flush when log_db is set (logutils), and from the
-# odoo.service.db admin paths — so an unguarded warn() would keep
-# re-firing.  De-duplicate to a single record per process.
+# Emit the ODOO_PGAPPNAME deprecation at most once per process: db_connect()
+# (which calls connection_info_for) runs repeatedly across a process's life —
+# per cron job, per log flush, and from odoo.service.db — so an unguarded warn()
+# would keep re-firing.
 _ODOO_PGAPPNAME_WARNED = False
 
 
-# Numeric-to-float loader for psycopg3.
 # Converts PostgreSQL numeric/decimal to Python float (Odoo convention).
-# psycopg3 never calls load() with None (NULLs bypass the loader).
-# NB: float loses precision vs Decimal for exact decimal fractions, but
-# Odoo's ORM, reports, and JS client all assume float.  Switching to
-# Decimal would require changes across the entire stack.
+# float loses precision vs Decimal, but the whole stack (ORM, reports, JS
+# client) assumes float.  psycopg3 never calls load() with None.
 class _NumericToFloatLoader(Loader):
     def load(self, data: bytes) -> float:
         return float(data)
@@ -33,26 +26,20 @@ class _NumericToFloatLoader(Loader):
 def register_adapters(conn: psycopg.Connection) -> None:
     """Register Odoo's psycopg type adapters on a single connection.
 
-    Scoped per-connection (called from the pool's ``configure`` callback)
-    rather than mutating the process-global ``psycopg.adapters`` at import
-    time.  A module import must not silently change numeric decoding for every
-    psycopg user in the process — a co-resident library, or the obfuscate
-    CLI's raw ``VACUUM`` connection, would otherwise inherit float decoding it
-    never asked for.  Odoo's query connections all come from the pool, so they
-    all get the adapter; nothing else does.
+    Per-connection (from the pool's ``configure`` callback), not on the
+    process-global ``psycopg.adapters``: a module import must not change numeric
+    decoding for other psycopg users in the process.  Odoo's connections all
+    come from the pool, so they all get it; nothing else does.
 
     :param conn: the freshly-created psycopg connection to configure.
     """
     conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
-# Query categorization patterns — used only for debug-level logging
-# statistics, not for correctness.  The optional `"?` handles the
-# common case of quoted identifiers but won't match hyphens or closing
-# quotes.  The optional schema prefix matches `public.res_users` and
-# `"public"."res_users"` — previously these fell through to "other".
-# Misclassified queries just produce slightly wrong debug stats, never
-# wrong behavior.
+# Query categorization patterns — debug-stats only, not correctness.  The
+# optional `"?` handles quoted identifiers; the optional schema prefix matches
+# `public.res_users` / `"public"."res_users"`.  Misclassification only skews
+# debug stats.
 re_from = re.compile(
     r'\bfrom\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
 )
@@ -90,10 +77,8 @@ _HEALTH_PARAMS: dict[str, str] = {
     "keepalives_idle": "60",  # first probe after 60s idle
     "keepalives_interval": "10",  # 10s between probes
     "keepalives_count": "3",  # give up after 3 failures
-    # PG18 wire protocol 3.2: 256-bit cancel keys (vs 32-bit in 3.0).
-    # First protocol change since PG 7.4 (2003).
-    # Lowered to 3.0 so psycopg accepts the downgrade when PgBouncer
-    # (which only speaks 3.0) sits between Odoo and PG18.
+    # Pin to 3.0 so psycopg accepts the downgrade when PgBouncer (which only
+    # speaks 3.0) sits between Odoo and PG18.
     "min_protocol_version": "3.0",
 }
 
@@ -133,10 +118,8 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
         elif us.username:
             db_name = us.username
         else:
-            # Last-ditch fallback: libpq defaults dbname to the username when
-            # the URI omits a path, so a URI without username or path is
-            # malformed.  Using the hostname as the dbname label is almost
-            # certainly wrong — warn so the misconfiguration surfaces.
+            # No path and no username: malformed URI.  Falling back to the
+            # hostname as the dbname label is almost certainly wrong — warn.
             warnings.warn(
                 f"PostgreSQL URI {db_or_uri!r} has no database path and no "
                 f"username; using hostname {us.hostname!r} as the database "
@@ -145,12 +128,9 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
                 stacklevel=2,
             )
             db_name = us.hostname
-        # Only inject keys NOT already present in the URI's query string.
-        # psycopg applies kwargs over DSN values, so blindly spreading
-        # _HEALTH_PARAMS would silently override an operator's explicit
-        # ?connect_timeout=60 with our default 10.  Same courtesy for
-        # application_name: an explicit ?application_name=... in the URI
-        # wins over the db_app_name config default.
+        # Only inject keys not already in the URI's query string: psycopg applies
+        # kwargs over DSN values, so spreading _HEALTH_PARAMS blindly would
+        # override an operator's explicit ?connect_timeout=60 (and application_name).
         uri_keys = {k for k, _ in parse_qsl(us.query)}
         merged = {k: v for k, v in _HEALTH_PARAMS.items() if k not in uri_keys}
         info = {"dsn": db_or_uri, **merged}
@@ -161,13 +141,9 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
     for p in ("host", "port", "user", "password", "sslmode"):
         cfg = tools.config["db_" + p]
-        # A read-only replica overrides only host/port — those are the only
-        # registered ``db_replica_*`` options (``--db_replica_host`` /
-        # ``--db_replica_port``, env PGHOST_REPLICA / PGPORT_REPLICA).  A
-        # streaming replica shares the primary cluster's roles, so user /
-        # password / sslmode are intentionally inherited from the primary
-        # ``db_*`` config; there is no ``db_replica_user`` (etc.) option to
-        # override them with, so they are not consulted here.
+        # A read-only replica overrides only host/port (the only registered
+        # ``db_replica_*`` options); a streaming replica shares the primary's
+        # roles, so user/password/sslmode are inherited from ``db_*``.
         if readonly and p in ("host", "port"):
             replica_cfg = tools.config.get("db_replica_" + p)
             if replica_cfg:

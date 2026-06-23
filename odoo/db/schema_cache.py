@@ -1,40 +1,27 @@
 """Process-global schema-lookup caches for bulk ``COPY``.
 
-:meth:`Cursor.copy_from` needs two pieces of catalog metadata that are
-expensive to re-query on every bulk insert: the id column's sequence name (for
-``returning_ids``) and the exact PostgreSQL type names of the target columns
-(for binary COPY's ``set_types``).  Both are stable for the life of a schema,
-so they are memoized here.
+:meth:`Cursor.copy_from` needs two pieces of catalog metadata too expensive to
+re-query per bulk insert: the id column's sequence name (for ``returning_ids``)
+and the column type names (for binary COPY's ``set_types``).  Both are stable for
+a schema's life, so they are memoized here.
 
-Kept in its own module — and behind one small object rather than the historical
-pair of bare module-global dicts — for the same reason :mod:`odoo.db.ddl` is
-split out: this is correctness-sensitive shared mutable state (read/written by
-``copy_from`` on request threads, invalidated by :mod:`odoo.db`'s ``close_db`` /
-``drain_*`` on schema changes), and giving it one owner with an explicit
-``get`` / ``set`` / ``clear`` contract keeps three rules that were previously
-duplicated across call sites in a single, independently testable place:
+One owner with an explicit ``get`` / ``set`` / ``clear`` contract keeps three
+correctness rules in one place:
 
 * **dbname keying** — one process serves several databases whose same-named
-  tables may have diverging schemas (staggered module versions).  Every key is
-  prefixed with the database name, so a stale cross-DB entry can never poison
-  another database's COPY (reproduced as ``ProtocolViolation`` /
-  ``UndefinedTable`` before the keying existed).
-* **never cache temp relations** — a temp table's name lives in a session-local
-  ``pg_temp_*`` schema, but the keys are name-based; caching one session's temp
-  sequence/types would hand them to another session whose same-named table is a
-  *different* temp (wrong types) or the permanent table the name shadows
-  (``pg_temp.<seq> does not exist``).  ``set_*`` silently refuses such entries
-  so the rule cannot be forgotten at a call site.
-* **race-free per-db clear** — invalidation runs concurrently with population
-  (registry signalling vs. an in-flight COPY).  :meth:`SchemaCache.clear`
-  snapshots the keys with ``list()`` before filtering, so it never raises
-  "dictionary changed size during iteration", and pops with ``pop(k, None)`` so
-  two concurrent clears of the same database cannot ``KeyError`` on the loser.
+  tables may diverge (staggered versions), so every key is prefixed with the
+  database name; a stale cross-DB entry can't poison another database's COPY.
+* **never cache temp relations** — temp tables live in a session-local
+  ``pg_temp_*`` schema but the keys are name-based, so a cached temp entry could
+  be fed to another session's same-named (different) temp or the permanent table
+  it shadows.  ``set_*`` silently refuses them so the rule can't be forgotten.
+* **race-free per-db clear** — invalidation runs concurrently with population.
+  :meth:`SchemaCache.clear` snapshots keys with ``list()`` before filtering (no
+  "dictionary changed size") and pops with ``pop(k, None)`` (no ``KeyError`` on
+  a concurrent clear of the same db).
 
-Thread-safety relies on CPython's GIL making single dict operations atomic — the
-same guarantee the original module-global dicts relied on.  No lock is
-introduced: a lock would have to be held across ``clear``'s iteration and could
-deadlock against the pool's connection callbacks.
+Thread-safety relies on the GIL making single dict ops atomic; no lock (it would
+span ``clear``'s iteration and could deadlock against pool callbacks).
 """
 
 from __future__ import annotations
@@ -44,9 +31,8 @@ class SchemaCache:
     """Owns the id-sequence and column-type caches used by ``copy_from``.
 
     A single process-global :data:`schema_cache` instance is shared by every
-    cursor; see the module docstring for why the state is process-wide rather
-    than per-pool (the metadata is a property of the database schema, identical
-    for every connection, and already disambiguated by the dbname in each key).
+    cursor (the metadata is a property of the schema, and each key carries the
+    dbname); see the module docstring.
     """
 
     __slots__ = ("_column_types", "_id_sequences")
@@ -110,9 +96,8 @@ class SchemaCache:
             if dbname is None:
                 cache.clear()
             else:
-                # snapshot the keys BEFORE filtering (a concurrent copy_from may
-                # be inserting) and pop(k, None) (a concurrent clear of the same
-                # db may have removed it) — see the module docstring.
+                # Snapshot keys before filtering, pop(k, None) for concurrency —
+                # see the module docstring.
                 for key in [k for k in list(cache) if k[0] == dbname]:
                     cache.pop(key, None)
 

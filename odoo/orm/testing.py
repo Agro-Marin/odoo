@@ -1,44 +1,14 @@
 """ORM-level testing utilities.
 
-Provides :class:`InMemoryCursor`, a :class:`~odoo.db.BaseCursor` subclass
-that emulates a database cursor without a
-PostgreSQL connection.  When paired with a pre-built
-:class:`~odoo.orm.runtime.registry.Registry`, it allows constructing a real
-:class:`~odoo.orm.runtime.environment.Environment` in tests that exercise
-model compute methods, field logic, or business rules without issuing any SQL.
-
-Usage::
-
-    from odoo.orm.testing import InMemoryCursor
-    from odoo.orm.runtime import Environment
-    from odoo.orm.primitives import SUPERUSER_ID
-
-    # In a TransactionCase (registry already loaded):
-    cr = InMemoryCursor(self.env.registry)
-    env = Environment(cr, SUPERUSER_ID, {})
-
-    # With fixture data for queries the model method will issue:
-    cr = InMemoryCursor(
-        self.env.registry,
-        fixtures={
-            "SELECT id FROM res_lang WHERE active": [(1,), (2,)],
-        },
-    )
-    env = Environment(cr, SUPERUSER_ID, {})
-
-For database-free testing of model methods with a lightweight registry::
-
-    from odoo.orm.testing import model_test_env
-    from odoo.addons.base.models.res_partner import Partner
-
-    with model_test_env(Partner) as env:
-        partner = env["res.partner"].create({"name": "Test"})
-        partner._compute_display_name()
-        assert partner.display_name == "Test"
+:class:`InMemoryCursor` emulates a database cursor with no PostgreSQL
+connection; paired with a pre-built :class:`Registry` it lets tests construct a
+real :class:`Environment` to exercise compute methods, field logic, or business
+rules without issuing SQL. :func:`model_test_env` builds a lightweight
+:class:`ModelRegistry` from class definitions for fully DB-free testing.
 
 See :class:`~odoo.orm.components.testing.InMemoryEnvironment` for the
-lighter-weight, fully DB-free alternative that uses plain Python callables
-instead of ``@api.depends`` compute methods.
+lighter-weight alternative using plain Python callables instead of
+``@api.depends`` compute methods.
 """
 
 import functools
@@ -68,9 +38,7 @@ if TYPE_CHECKING:
 _logger = logging.getLogger("odoo.orm.testing")
 
 
-# ---------------------------------------------------------------------------
 # Minimal 'base' model for testing
-# ---------------------------------------------------------------------------
 
 
 class _TestBase(AbstractModel):
@@ -91,36 +59,19 @@ class _TestBase(AbstractModel):
     _module = None
 
 
-# ---------------------------------------------------------------------------
-# InMemoryCursor (existing)
-# ---------------------------------------------------------------------------
-
-
 class InMemoryCursor(BaseCursor):
     """Cursor backed by fixture data — no PostgreSQL required.
 
-    Inherits :class:`~odoo.db.BaseCursor` to obtain the callback containers
-    (``precommit``, ``postcommit``, ``prerollback``, ``postrollback``) and
-    the ``savepoint()`` / ``flush()`` machinery without reimplementing them.
+    Inherits :class:`~odoo.db.BaseCursor` for the callback containers and the
+    ``savepoint()`` / ``flush()`` machinery. :meth:`__init__` pre-builds the
+    ``Transaction`` and assigns it to ``self.transaction``, so
+    ``Environment.__new__`` skips ``Transaction(Registry(cr.dbname))`` and never
+    opens a connection. Its :class:`DictBackend` ``storage`` makes ORM CRUD
+    dispatch to the in-memory backend instead of generating SQL.
 
-    The key trick: :meth:`__init__` pre-builds ``Transaction(registry)`` and
-    assigns it to ``self.transaction``.  When
-    :meth:`~odoo.orm.runtime.environment.Environment.__new__` checks
-    ``cr.transaction``, it finds a non-``None`` value and skips the
-    ``Transaction(Registry(cr.dbname))`` call — no database connection is
-    ever made.
-
-    A :class:`~odoo.orm.components.storage.DictBackend` is created and
-    attached to the transaction as ``storage``.  When ORM CRUD methods
-    detect ``transaction.storage is not None``, they dispatch to the
-    in-memory backend instead of generating SQL.
-
-    :param registry: Pre-built model registry (e.g. ``self.env.registry``
-        in a :class:`~odoo.tests.common.TransactionCase`).
-    :param fixtures: Optional mapping of query strings to result row lists.
-        When ``execute(query)`` is called, the string representation of
-        *query* is looked up in this dict.  Unrecognised queries return an
-        empty result set (``[]``).
+    :param registry: pre-built model registry (e.g. ``self.env.registry``).
+    :param fixtures: optional ``{query_string: rows}`` map; ``execute`` looks up
+        ``str(query)`` here, returning ``[]`` for unknown queries.
     """
 
     def __init__(
@@ -137,9 +88,7 @@ class InMemoryCursor(BaseCursor):
         self._fixtures: dict[str, list[tuple]] = fixtures or {}
         self._last_result: list[tuple] = []
 
-    # ------------------------------------------------------------------
     # Query execution — fixture-backed
-    # ------------------------------------------------------------------
 
     def execute(self, query, params=None, log_exceptions: bool = True) -> None:
         """Look up *query* in the fixture dict; default to empty result."""
@@ -168,9 +117,7 @@ class InMemoryCursor(BaseCursor):
         """Return ``[]`` — no column metadata available without a real cursor."""
         return []
 
-    # ------------------------------------------------------------------
     # Time
-    # ------------------------------------------------------------------
 
     def now(self) -> datetime:
         """Return the current wall-clock time as a naive UTC datetime.
@@ -181,9 +128,7 @@ class InMemoryCursor(BaseCursor):
         """
         return datetime.now(UTC).replace(tzinfo=None)
 
-    # ------------------------------------------------------------------
     # Transaction control — no-ops
-    # ------------------------------------------------------------------
 
     @contextmanager
     def pipeline(self):
@@ -200,34 +145,19 @@ class InMemoryCursor(BaseCursor):
         """No-op — there is no connection to close."""
 
 
-# ---------------------------------------------------------------------------
 # ModelRegistry — lightweight registry from class definitions
-# ---------------------------------------------------------------------------
 
 
 class ModelRegistry(Mapping):
     """Lightweight model registry built from Python class definitions.
 
-    Satisfies the same interface that :class:`Environment` and
-    :class:`Transaction` need from :class:`Registry`, without database
-    access or module loading.
+    Satisfies the interface that :class:`Environment` and :class:`Transaction`
+    need from :class:`Registry`, without database access or module loading —
+    just a ``Mapping[str, type[BaseModel]]`` with set-up field descriptors.
 
-    The real :class:`Registry` (~2 000 lines) performs addon scanning,
-    database table creation, translation setup, and caching.  For testing
-    model methods in isolation, none of that is needed — just a
-    ``Mapping[str, type[BaseModel]]`` with initialized field descriptors.
-
-    Usage::
-
-        from odoo.addons.base.models.res_partner import Partner
-
-        registry = ModelRegistry([Partner])
-        assert "res.partner" in registry
-        assert "base" in registry  # auto-injected
-
-    :param model_defs: Iterable of model definition classes.  The ``base``
-        model is auto-injected if not provided.
-    :param db_name: Fake database name (default ``":memory:"``).
+    :param model_defs: model definition classes; ``base`` is auto-injected if
+        absent.
+    :param db_name: fake database name (default ``":memory:"``).
     """
 
     def __init__(
@@ -278,9 +208,7 @@ class ModelRegistry(Mapping):
 
         self._build(list(model_defs))
 
-    # ------------------------------------------------------------------
     # Mapping protocol
-    # ------------------------------------------------------------------
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
         return self.models[model_name]
@@ -301,9 +229,7 @@ class ModelRegistry(Mapping):
     def __delitem__(self, model_name: str) -> None:
         del self.models[model_name]
 
-    # ------------------------------------------------------------------
     # Registry-compatible properties
-    # ------------------------------------------------------------------
 
     @property
     def field_depends(self) -> dict:
@@ -317,11 +243,10 @@ class ModelRegistry(Mapping):
 
     @functools.cached_property
     def field_computed(self) -> dict:
-        """Map each computed field to the list of co-computed fields.
+        """Map each computed field to its co-computed fields.
 
-        Same semantics as :attr:`Registry.field_computed`: fields that
-        share a ``compute`` method are grouped together so the ORM can
-        protect them atomically during create/write.
+        Like :attr:`Registry.field_computed`: fields sharing a ``compute``
+        method are grouped so the ORM can protect them atomically.
         """
         computed: dict = {}
         for model_cls in self.models.values():
@@ -336,8 +261,8 @@ class ModelRegistry(Mapping):
     def field_inverses(self) -> Collector:
         """Map each relational field to its inverse fields.
 
-        Calls ``field.setup_inverses()`` for every relational field, same
-        as :attr:`Registry.field_inverses`.
+        Like :attr:`Registry.field_inverses`: calls ``field.setup_inverses()``
+        for every relational field.
         """
         result: Collector = Collector()
         for model_cls in self.models.values():
@@ -355,20 +280,15 @@ class ModelRegistry(Mapping):
 
     @functools.cached_property
     def _field_triggers(self) -> dict:
-        """Empty trigger map — no cascading recomputation in test registry.
+        """Empty trigger map — no cascading recomputation in the test registry.
 
-        The real Registry delegates to ``model_graph._triggers``.  With an
-        empty dict the ``_modified_trigger_loop`` fast path is always taken,
-        meaning compute methods must be called explicitly in tests.
+        An empty dict makes the ``_modified_trigger_loop`` fast path always
+        fire, so compute methods must be called explicitly in tests.
         """
         return {}
 
     def is_modifying_relations(self, field) -> bool:
-        """Return whether modifying *field* might change dependent records.
-
-        Always returns ``False`` in :class:`ModelRegistry` — no trigger
-        graph is built for the test registry.
-        """
+        """Return ``False`` — no trigger graph in the test registry."""
         return False
 
     def get_trigger_tree(self, fields, select=bool):
@@ -379,9 +299,7 @@ class ModelRegistry(Mapping):
         """Yield nothing — no field dependency graph in tests."""
         return iter(())
 
-    # ------------------------------------------------------------------
     # No-op stubs for DB-only Registry methods
-    # ------------------------------------------------------------------
 
     def post_init(self, func, *args, **kwargs) -> None:
         """No-op — post-init callbacks are for real module loading."""
@@ -418,9 +336,7 @@ class ModelRegistry(Mapping):
         """Identity function — no accent removal in tests."""
         return text
 
-    # ------------------------------------------------------------------
     # Registry-compatible methods
-    # ------------------------------------------------------------------
 
     def descendants(
         self,
@@ -444,18 +360,15 @@ class ModelRegistry(Mapping):
                 queue.extend(func(model))
         return result
 
-    # ------------------------------------------------------------------
     # Internal: build the registry
-    # ------------------------------------------------------------------
 
     def _build(self, model_defs: list[type[BaseModel]]) -> None:
         """Register model definitions and set up field descriptors.
 
-        Auto-discovers ALL model definitions from the same modules as the
-        provided classes (via ``MetaModel._module_to_models__``).  This
-        ensures parent models, mixins, and extensions are registered in
-        the correct dependency order — callers only need to name the
-        models they actually want to test.
+        Auto-discovers all model definitions from the same modules as the
+        provided classes (via ``MetaModel._module_to_models__``), so parents,
+        mixins, and extensions register in dependency order — callers only name
+        the models they want to test.
         """
         from .models.metaclass import MetaModel
 
@@ -466,9 +379,8 @@ class ModelRegistry(Mapping):
             if module:
                 modules.add(module)
 
-        # 2. Collect ALL model definitions from those modules,
-        #    preserving import order (which respects dependencies).
-        #    Process 'base' first since all models inherit from it.
+        # 2. Collect all definitions from those modules in import order
+        #    (respects dependencies), 'base' first.
         all_defs: list[type[BaseModel]] = []
         seen_ids: set[int] = set()
 
@@ -478,15 +390,14 @@ class ModelRegistry(Mapping):
                     seen_ids.add(id(cls))
                     all_defs.append(cls)
 
-        # 3. Add any user-provided classes not already covered
-        #    (e.g., classes with _register=False or from unregistered modules)
+        # 3. Add user-provided classes not already covered (e.g. _register=False
+        #    or from unregistered modules)
         for cls in model_defs:
             if id(cls) not in seen_ids:
                 seen_ids.add(id(cls))
                 all_defs.append(cls)
 
-        # 4. Ensure 'base' is present — fallback to _TestBase when the
-        #    full base module wasn't imported
+        # 4. Ensure 'base' is present — fall back to _TestBase if not imported
         has_base = any(getattr(cls, "_name", None) == "base" for cls in all_defs)
         if not has_base:
             all_defs.insert(0, _TestBase)
@@ -557,11 +468,10 @@ class ModelRegistry(Mapping):
     ) -> None:
         """Set up field descriptors, tolerating missing comodels.
 
-        Unlike :func:`registration._setup_fields`, which raises on any
-        non-manual field error, this version catches exceptions and marks
-        the field as ``_setup_done = True``.  If a test later accesses a
-        field whose comodel was not registered, it will get a clear
-        runtime error at that point rather than a cryptic setup failure.
+        Unlike :func:`registration._setup_fields` (which raises on any
+        non-manual error), this catches exceptions and marks the field
+        ``_setup_done = True``, so a missing comodel only fails if the field
+        is later accessed in a test.
         """
         model = model_cls(env, (), ())
         for name, field in model_cls._fields.items():
@@ -583,9 +493,7 @@ class ModelRegistry(Mapping):
                     )
 
 
-# ---------------------------------------------------------------------------
 # model_test_env — convenience context manager
-# ---------------------------------------------------------------------------
 
 
 @contextmanager
@@ -594,68 +502,36 @@ def model_test_env(
     registry: ModelRegistry | None = None,
     db_name: str = ":memory:",
 ):
-    """Create a database-free :class:`Environment` for testing model methods.
+    """Yield a database-free :class:`Environment` for testing model methods.
 
-    Builds a :class:`ModelRegistry` from the given model definition classes,
-    creates a fresh :class:`InMemoryCursor` with a :class:`DictBackend`, and
-    yields a fully functional :class:`Environment`.
+    Builds a :class:`ModelRegistry` and a fresh :class:`InMemoryCursor` with a
+    :class:`DictBackend`. CRUD dispatches to the in-memory backend; compute
+    methods, field access, and ``filtered``/``mapped``/``sorted`` work as in
+    production. To reuse a registry across tests, pass ``registry=``.
 
-    CRUD operations (``create``, ``write``, ``unlink``, ``search``) dispatch
-    to the in-memory backend.  Compute methods, field access, and
-    ``filtered``/``mapped``/``sorted`` work exactly as in production.
-
-    Usage::
-
-        from odoo.addons.base.models.res_partner import Partner
-        from odoo.orm.testing import model_test_env
-
-        with model_test_env(Partner) as env:
-            partner = env["res.partner"].create({"name": "Alice"})
-            partner._compute_display_name()
-            assert partner.display_name == "Alice"
-
-            found = env["res.partner"].search([("name", "=", "Alice")])
-            assert found == partner
-
-    For performance, build the registry once and reuse it::
-
-        registry = ModelRegistry([Partner])
-        with model_test_env(registry=registry) as env:
-            ...  # fresh cursor + storage, same registry
-
-    :param model_classes: One or more model definition classes.  The ``base``
-        model is auto-injected if not included.  Ignored when *registry* is
-        provided.
-    :param registry: Pre-built :class:`ModelRegistry` to reuse.  When given,
-        *model_classes* and *db_name* are ignored.  Each call still gets a
-        fresh :class:`InMemoryCursor` and :class:`DictBackend`, so tests are
-        fully isolated.
-    :param db_name: Fake database name (default ``":memory:"``).
-    :yields: A fully functional :class:`Environment` backed by in-memory
-        storage.
+    :param model_classes: model definition classes (``base`` auto-injected);
+        ignored when *registry* is given.
+    :param registry: pre-built :class:`ModelRegistry` to reuse; each call still
+        gets a fresh cursor/storage, so tests stay isolated.
+    :param db_name: fake database name (default ``":memory:"``).
     """
     if registry is None:
         registry = ModelRegistry(model_classes, db_name=db_name)
 
-    # Clear ormcaches from any previous use of this registry.
-    # When reusing a registry across tests, cached method results may
-    # reference record IDs from a previous DictBackend.  Clearing
-    # ensures each test starts with a clean slate.
+    # Clear ormcaches: a reused registry may hold results keyed to record IDs
+    # from a previous DictBackend.
     for cache in registry._Registry__caches.values():
         cache.clear()
 
-    # Also clear cached_property values that reference old Transaction data
-    # (field_computed, field_inverses are stable; _field_triggers may not be).
+    # Clear cached_property values referencing old Transaction data.
     for attr in ("_field_triggers",):
         with suppress(AttributeError):
             delattr(registry, attr)
 
     cr = InMemoryCursor(registry)
 
-    # Pre-seed minimal records so env.user / env.company resolve.
-    # Many model methods (even simple create) access env.company via
-    # ormcache keys, which triggers env.user.company_id → fetch from
-    # DictBackend.  Without seed data, this fetch returns nothing.
+    # Pre-seed minimal records so env.user / env.company resolve: many methods
+    # access env.company (via ormcache keys) → env.user.company_id → DictBackend.
     _seed_fixtures(cr.storage, registry)
 
     from .runtime.environment import Environment
@@ -667,20 +543,16 @@ def model_test_env(
 def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
     """Insert minimal records into *storage* for ``env.user`` / ``env.company``.
 
-    These records satisfy the chain::
-
-        env.company → env.user.company_id → fetch res_users id=1 → company_id=1
-                    → fetch res_company id=1 → partner_id=1
-
-    Without them, any model method that accesses ``env.company`` (directly
-    or via an ormcache key) would fail with a missing-record error.
+    Satisfies the chain ``env.company → env.user.company_id → res_users id=1 →
+    res_company id=1 → partner_id=1``. Without them, any method accessing
+    ``env.company`` fails with a missing-record error.
     """
 
     def _inject(table: str, record_id: int, data: dict) -> None:
         """Insert a record with a specific ID, bypassing auto-increment."""
         data["id"] = record_id
-        # put_rows stores the row and advances the table's sequence past
-        # record_id, so later next_id() allocations won't collide.
+        # put_rows advances the table's sequence past record_id, so later
+        # next_id() allocations won't collide.
         storage.put_rows(table, [data])
 
     # Partner for the company (id=1)

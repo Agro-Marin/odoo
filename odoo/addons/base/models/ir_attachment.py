@@ -1141,7 +1141,7 @@ class IrAttachment(models.Model):
         # Clean up the checklist. The checklist is split in chunks and files are garbage-collected
         # for each chunk.
         removed = 0
-        for names in batched(checklist, self.env.cr.BATCH_SIZE):
+        for names in batched(checklist, self.env.cr.BATCH_SIZE, strict=False):
             # determine which files to keep among the checklist
             self.env.cr.execute(
                 "SELECT store_fname FROM ir_attachment WHERE store_fname = ANY(%s)",

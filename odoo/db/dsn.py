@@ -1,34 +1,23 @@
 """Connection-string normalization and connect-phase error classification.
 
-Split out of :mod:`odoo.db.pool` — like :mod:`odoo.db.ddl` / :mod:`odoo.db.errors`
-— so the security-sensitive, **pure** logic that turns a caller's connection
-info into a pool routing key (and that classifies a connection *attempt's*
-failure) lives in a small, independently testable unit with no pool, socket, or
-thread state.
-
-Two concerns live here, and only these:
+Split out of :mod:`odoo.db.pool` so this security-sensitive, **pure** logic
+(no pool/socket/thread state) lives in a small, independently testable unit.
+Two concerns, and only these:
 
 * **DSN normalization** (:func:`_expand_conninfo`, :func:`_normalize_dsn_key`):
-  flattening a URI/conninfo string or dict into discrete keywords, and folding
-  that into a hashable pool key whose password is reduced to an opaque
-  fingerprint.  This is the single place that must never leak a cleartext
-  password into a dict key or log artifact, so keeping it isolated — rather than
-  re-derived per call site — removes the risk of one copy drifting from the
-  others.  Every DSN consumer (the pool key, :meth:`Connection.dsn`, the
-  maintenance-DB probe) routes through :func:`_expand_conninfo`.
+  flatten a URI/conninfo string or dict into discrete keywords and fold them
+  into a hashable pool key whose password is an opaque fingerprint.  Every DSN
+  consumer routes through :func:`_expand_conninfo`, so the password can never
+  leak into a dict key or log artifact from a drifted copy.
 
 * **Connect-error classification** (:data:`_NON_RETRYABLE_CONNECT_ERRORS`,
-  :func:`_translate_connect_error`): deciding whether a connection *attempt*
-  failed for a permanent reason (missing database, bad auth) that retrying can
-  never fix.  The pool's pre-flight probe uses this to surface the precise
-  psycopg class in milliseconds instead of letting psycopg_pool retry for ~30s.
+  :func:`_translate_connect_error`): decide whether a connect *attempt* failed
+  permanently (missing database, bad auth).  The pool's pre-flight probe uses
+  this to surface the precise psycopg class in ms instead of a ~30s retry.
 
-The pool's network-touching probe orchestration (``_probe_connectable`` /
-``_database_absent``) stays in :mod:`odoo.db.pool`: it does I/O and reads as pool
-behaviour.  It imports these pure helpers from here.
-
-:mod:`odoo.db.pool` re-imports every public-to-it name below, so existing
-references such as ``from odoo.db.pool import _normalize_dsn_key`` keep working.
+The network-touching probe orchestration stays in :mod:`odoo.db.pool`, which
+re-imports the names below (so ``from odoo.db.pool import _normalize_dsn_key``
+keeps working).
 """
 
 from __future__ import annotations
@@ -38,14 +27,9 @@ import hashlib
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
 
-# Connection failures whose cause is permanent: retrying cannot help, because
-# the database, role, or password is the problem — not transient capacity.
-# psycopg_pool's background worker does not know this; left alone it retries
-# the failed connection until ``borrow``'s ~30s getconn budget expires, then
-# surfaces an opaque ``PoolTimeout``.  The pre-flight probe in
-# ``ConnectionPool._get_or_create_pool`` raises these immediately instead, which
-# is what makes ``exp_db_exist``'s ``except InvalidCatalogName`` fast path
-# reachable again.
+# Permanent connection failures: retrying can't help (the database, role, or
+# password is wrong, not transient capacity).  The pre-flight probe raises these
+# immediately instead of letting psycopg_pool retry into a ~30s ``PoolTimeout``.
 # NB: InvalidPassword (28P01) is NOT a subclass of
 # InvalidAuthorizationSpecification (28000) in psycopg 3 — list both.
 _NON_RETRYABLE_CONNECT_ERRORS: tuple[type[psycopg.Error], ...] = (
@@ -59,29 +43,17 @@ def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | N
     """Map an untyped connection-phase ``OperationalError`` to its precise,
     permanent psycopg class — or ``None`` when the cause may be transient.
 
-    A connection failure crosses libpq before a SQLSTATE is parsed, so
-    ``diag.sqlstate`` is ``None`` and the precise subclass
-    (``InvalidCatalogName``, …) is never raised on a *connect*.  The server's
-    English FATAL text is the only discriminator left — the same signal
-    :class:`odoo.db.pool._SuppressKnownPoolWarnings` already keys on.  Matching
-    fails SAFE: an unrecognised or localised message returns ``None`` and is left
-    to the pool's retry, so a genuinely transient "connection refused"/timeout
-    (which never contains these phrases) is never mistaken for permanent.
-
-    Returning the precise class — rather than a generic error — lets callers
-    such as ``exp_db_exist`` keep matching ``InvalidCatalogName`` unchanged.
+    A connect failure crosses libpq before a SQLSTATE is parsed, so the precise
+    subclass is never raised; the server's English FATAL text is the only
+    discriminator left.  Matching fails SAFE: an unrecognised or localised
+    message returns ``None`` and is left to the pool's retry, so a transient
+    "connection refused"/timeout is never mistaken for permanent.  Returning the
+    precise class lets ``exp_db_exist`` keep matching ``InvalidCatalogName``.
 
     .. note::
-        This text-match is **locale-dependent** and intentionally only the
-        *fast* path: on a server with ``lc_messages`` set to e.g. ``es_MX`` the
-        FATAL reads "no existe la base de datos" and this returns ``None``.
-        That gap is closed by :meth:`ConnectionPool._database_absent`, which
-        confirms a missing database via the ``postgres`` catalog regardless of
-        server language.  Pinning the probe's language via
-        ``options='-c lc_messages=C'`` was rejected: the database-existence
-        check fires *before* startup ``-c`` GUCs are applied (verified — a
-        bogus ``-c`` param yields "database does not exist", not "unrecognized
-        configuration parameter", against a missing DB).
+        Locale-dependent and intentionally only the *fast* path: a non-English
+        ``lc_messages`` returns ``None`` here, and the gap is closed by
+        :meth:`ConnectionPool._database_absent` (catalog lookup, any locale).
     """
     msg = str(exc).lower()
     if 'database "' in msg and "does not exist" in msg:
@@ -99,19 +71,13 @@ def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | N
 def _expand_conninfo(info: dict | str) -> dict:
     """Flatten connection info into discrete keyword components.
 
-    A bare conninfo/URI string is parsed in full.  A dict carrying an embedded
-    ``dsn`` URI/conninfo string has that string expanded into its components and
-    merged *under* the dict's own explicit keywords — which win, matching
-    psycopg's own precedence.  A plain keyword dict is returned as a shallow
-    copy.  The password is preserved verbatim; callers strip it (safe logging)
-    or fold it into a fingerprint (pool key) as their own contract requires.
+    A bare conninfo/URI string is parsed in full.  A dict with an embedded
+    ``dsn`` string has it expanded and merged *under* the dict's own keywords
+    (which win, per psycopg precedence).  A plain keyword dict is shallow-copied.
+    The password is preserved verbatim; callers strip or fingerprint it.
 
-    Single source of truth for the embedded-``dsn`` expansion that every DSN
-    consumer (:func:`_normalize_dsn_key`, :meth:`Connection.dsn`,
-    :meth:`ConnectionPool._database_absent`) needs.  Skipping that expansion is
-    exactly what leaks a URI's cleartext password into pool keys and DEBUG logs,
-    so keeping it in one audited place — rather than re-derived per call site —
-    removes the risk of one copy drifting from the others.
+    Single source of truth for the embedded-``dsn`` expansion every DSN consumer
+    needs — skipping it is what leaks a URI's password into pool keys and logs.
     """
     if isinstance(info, str):
         return conninfo_to_dict(info)
@@ -127,12 +93,10 @@ def _expand_conninfo(info: dict | str) -> dict:
 def _normalize_dsn_key(dsn: dict | str) -> frozenset:
     """Normalize a DSN to a hashable key for pool lookup.
 
-    Aliases ``dbname`` → ``database``.  Folds the password into an opaque
-    fingerprint so rotating the password invalidates the cached pool, but the
-    cleartext never lives in memory as a dict key or log artifact.  The embedded
-    -``dsn`` expansion (so a URI routes to the same pool as the equivalent
-    keywords, and its password is fingerprinted rather than leaked into the key)
-    is shared with the other DSN consumers via :func:`_expand_conninfo`.
+    Aliases ``dbname`` → ``database`` and folds the password into an opaque
+    fingerprint, so rotating it invalidates the cached pool without the cleartext
+    ever living in a dict key or log.  Embedded-``dsn`` expansion (so a URI and
+    the equivalent keywords route to one pool) is via :func:`_expand_conninfo`.
     """
     dsn = _expand_conninfo(dsn)
     # BLAKE2s-64 is fast, collision-resistant enough for pool routing, and

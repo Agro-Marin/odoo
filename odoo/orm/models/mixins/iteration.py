@@ -1,8 +1,7 @@
-"""
-Iteration and record set operations mixin for BaseModel.
+"""Iteration and set-operation mixin for BaseModel.
 
-This module contains methods for iterating over recordsets, combining them,
-and performing set operations (union, intersection, difference).
+Iterating over recordsets, combining them, and set operations (union,
+intersection, difference).
 """
 
 import typing
@@ -24,31 +23,14 @@ if typing.TYPE_CHECKING:
 
 
 class IterationMixin:
-    """Mixin providing iteration and set operations for recordsets.
-
-    This mixin contains methods for:
-    - Iterating over records (__iter__, __reversed__)
-    - Set operations (union, intersection, difference)
-    - Comparison operators
-    - Container operations (__contains__, __len__, __bool__)
-    - Item access (__getitem__, __setitem__)
-    """
+    """Mixin providing iteration and set operations for recordsets."""
 
     __slots__ = ()
 
-    #
-    # Instance creation
-    #
-    # An instance represents an ordered collection of records in a given
-    # execution environment. The instance object refers to the environment, and
-    # the records themselves are represented by their cache dictionary. The 'id'
-    # of each record is found in its corresponding cache dictionary.
-    #
-    # This design has the following advantages:
-    #  - cache access is direct and thus fast;
-    #  - one can consider records without an 'id' (see new records);
-    #  - the global cache is only an index to "resolve" a record 'id'.
-    #
+    # A recordset is an ordered collection of records in a given environment.
+    # It holds the env and a tuple of ids; values live in the global cache,
+    # keyed by id.  This makes cache access direct, allows id-less new records,
+    # and keeps the global cache a pure index.
 
     def __init__(
         self,
@@ -63,15 +45,9 @@ class IterationMixin:
         :param prefetch_ids: a reversible iterable of record ids (for prefetching)
 
         .. note::
-
-            Recordset construction is on the hot path of every ``env[name]``
-            call.  The fast path in :meth:`Environment.__getitem__` inlines
-            the equivalent of this body
-            (``object.__new__`` + the three slot assignments below) to skip
-            method dispatch.  If a future refactor adds a new attribute here,
-            the ``Environment.__getitem__`` fast path must be updated to set
-            it too — otherwise empty recordsets will be missing that
-            attribute.
+            :meth:`Environment.__getitem__` inlines this body (``object.__new__``
+            + the three slot assignments) on its hot path.  Any new attribute
+            added here must also be set there, or empty recordsets will lack it.
         """
         self.env = env
         self._ids = ids
@@ -100,9 +76,7 @@ class IterationMixin:
         rs._prefetch_ids = ids
         return rs
 
-    #
-    # Internal properties, for manipulating the instance's implementation
-    #
+    # Internal properties
 
     @property
     def ids(self) -> list[int]:
@@ -113,13 +87,11 @@ class IterationMixin:
             return list(self._ids)  # already real records
         return list(_origin_ids(self._ids))
 
-    #
     # "Dunder" methods
-    #
 
     def __bool__(self) -> bool:
         """Test whether ``self`` is nonempty."""
-        return bool(self._ids)  # fast version of bool(self._ids)
+        return bool(self._ids)
 
     def __len__(self) -> int:
         """Return the size of ``self``."""
@@ -130,13 +102,11 @@ class IterationMixin:
         ids = self._ids
         size = len(ids)
         if size <= 1:
-            # detect and handle small recordsets (single `1f`)
-            # early return if no records and avoid allocation if we have a one
+            # 0 or 1 record: avoid the allocation below.
             if size == 1:
                 yield self
             return
-        # Inline object creation — bypass type.__call__ dispatch chain
-        # (type.__call__ → __new__ → __init__) for ~30% faster iteration.
+        # Inline object creation, bypassing the type.__call__ dispatch chain.
         _new = object.__new__
         cls = self.__class__
         env = self.env
@@ -158,8 +128,8 @@ class IterationMixin:
                 yield rs
 
     def __reversed__(self) -> Iterator[Self]:
-        """Return an reversed iterator over ``self``."""
-        # same as __iter__ but reversed
+        """Return a reversed iterator over ``self``."""
+        # mirror of __iter__
         ids = self._ids
         size = len(ids)
         if size <= 1:
@@ -226,9 +196,8 @@ class IterationMixin:
         target = item.id
         ids = self._ids
         n = len(ids)
-        # Normalize negative offsets like ``list.index`` (CPython listobject.c).
-        # Without this, ``recordset.index(rec, -1)`` would return -1 verbatim
-        # via ``ids[-1]``, breaking the Sequence protocol contract.
+        # Normalize negative offsets like ``list.index``, else index(rec, -1)
+        # would return -1 verbatim and break the Sequence contract.
         if start < 0:
             start = max(0, n + start)
         if stop is None:
@@ -330,9 +299,8 @@ class IterationMixin:
             if not arg._ids:
                 return self
             if not self._ids:
-                # Must use self.browse() to preserve self's env; returning
-                # arg directly would leak arg's env (e.g. different company
-                # context), breaking company-dependent field resolution.
+                # browse() to keep self's env; returning arg would leak arg's
+                # env (e.g. company context) into the result.
                 return self.browse(arg._ids)
             return self.browse(OrderedSet(self._ids + arg._ids))
 
@@ -356,12 +324,9 @@ class IterationMixin:
             # fast paths: identity and equal id-tuples
             if s_ids is o_ids or s_ids == o_ids:
                 return True
-            # Recordsets compare equal "up to reordering", i.e. as SETS of ids.
-            # ``_ids`` may legitimately contain duplicates (concat / ``+``
-            # preserve them), so a length check on the raw tuples is WRONG:
-            # ``rec + rec`` has two ids but must equal the singleton ``rec``.
-            # Compare de-duplicated id sets, consistent with ``__hash__``
-            # (which hashes ``frozenset(self._ids)``).
+            # Compare as SETS of ids ("up to reordering").  ``_ids`` may hold
+            # duplicates (concat/+), so ``rec + rec`` must equal ``rec``; this
+            # is consistent with ``__hash__`` (frozenset of ids).
             return set(s_ids) == set(o_ids)
         except AttributeError:
             if other:
@@ -374,10 +339,8 @@ class IterationMixin:
     def __lt__(self, other: object) -> bool:
         try:
             if self._name == other._name:
-                # proper subset over de-duplicated ids.  A raw tuple-length
-                # guard is wrong when ``_ids`` contains duplicates (concat/+):
-                # ``(rec + rec) < (rec | other)`` must be True
-                # ({rec} ⊊ {rec, other}) even though both tuples have len 2.
+                # Proper subset over de-duplicated ids; raw tuple lengths are
+                # wrong when ``_ids`` has duplicates (concat/+).
                 return set(self._ids) < set(other._ids)
         except AttributeError:
             pass
@@ -386,9 +349,7 @@ class IterationMixin:
     def __le__(self, other: object) -> bool:
         try:
             if self._name == other._name:
-                # these are much cheaper checks than a proper subset check, so
-                # optimise for checking if a null or singleton are subsets of a
-                # recordset
+                # cheap checks first: empty or singleton subset
                 if not self or self in other:
                     return True
                 return set(self._ids) <= set(other._ids)
@@ -435,17 +396,8 @@ class IterationMixin:
     def __getitem__(self, key: str) -> typing.Any: ...
 
     def __getitem__(self, key: int | slice | str) -> Self | typing.Any:
-        """If ``key`` is an integer or a slice, return the corresponding record
-        selection as an instance (attached to ``self.env``).
-        Otherwise (a field name) return the value of field ``key``; ``self``
-        must be a single record (``ensure_one()`` is enforced for a field key).
-
-        Examples::
-
-            inst = model.search(dom)  # inst is a recordset
-            r4 = inst[3]  # fourth record in inst
-            rs = inst[10:20]  # subset of inst
-            nm = rs[0]["name"]  # name of the first record in rs
+        """Index with an int/slice to select records, or with a field name to
+        read that field's value (``self`` must then be a single record).
         """
         if isinstance(key, str):
             # important: one must call the field's getter

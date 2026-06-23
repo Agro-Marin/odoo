@@ -13,15 +13,13 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.api")
 
 
-# The following attributes are used, and reflected on wrapping methods:
-#  - method._constrains: set by @constrains, specifies constraint dependencies
-#  - method._depends: set by @depends, specifies compute dependencies
-#  - method._onchange: set by @onchange, specifies onchange fields
-#  - method._ondelete: set by @ondelete, used to raise errors for unlink operations
-#
-# On wrapping method only:
-#  - method._api_*: decorator function, used for re-applying decorator
-#
+# Marker attributes set on decorated methods:
+#  - _constrains: constraint dependencies (@constrains)
+#  - _depends: compute dependencies (@depends)
+#  - _onchange: onchange fields (@onchange)
+#  - _ondelete: unlink-error checks (@ondelete)
+#  - _api_model / _api_private: bool flags marking model-style / RPC-blocked
+#    methods (@api.model, @api.private)
 
 
 def attrsetter(attr: str, value: object) -> Decorator:
@@ -88,7 +86,6 @@ def constrains(*args, sudo: bool = True) -> Decorator:
 
     One may also pass a single function as argument.  In that case, the field
     names are given by calling the function with a model instance.
-
     """
     if args and callable(args[0]):
         args = args[0]
@@ -185,8 +182,8 @@ def onchange(*args: str) -> Decorator:
             },
         }
 
-    If the type is set to notification, the warning will be displayed in a notification.
-    Otherwise it will be displayed in a dialog as default.
+    If the type is set to notification, the warning is shown in a
+    notification; otherwise in a dialog (the default).
 
     .. warning::
 
@@ -208,7 +205,8 @@ def onchange(*args: str) -> Decorator:
     .. warning::
 
         It is not possible for a ``one2many`` or ``many2many`` field to modify
-        itself via onchange. This is a webclient limitation - see `#2693 <https://github.com/odoo/odoo/issues/2693>`_.
+        itself via onchange. This is a webclient limitation — see
+        `#2693 <https://github.com/odoo/odoo/issues/2693>`_.
 
     """
     return attrsetter("_onchange", args)

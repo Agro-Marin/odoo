@@ -100,10 +100,7 @@ from difflib import HtmlDiff
 
 from lxml import etree, objectify
 
-# -----------------------------------------------------------------------------
-# Collections (Agnostic - no Odoo dependencies)
-# Canonical: from odoo.libs.collections import ...
-# -----------------------------------------------------------------------------
+# Collections — canonical: odoo.libs.collections
 from odoo.libs.collections import (
     Collector,  # Collect items into groups
     ConstantMapping,  # Mapping returning constant value
@@ -119,10 +116,7 @@ from odoo.libs.collections import (
     submap,  # Extract subset of dict keys
 )
 
-# -----------------------------------------------------------------------------
-# Iteration Utilities (Agnostic - no Odoo dependencies)
-# Canonical: from odoo.libs.iteration import ...
-# -----------------------------------------------------------------------------
+# Iteration utilities — canonical: odoo.libs.iteration
 from odoo.libs.iteration import (
     PENDING,  # Stored computed field awaiting recomputation
     SENTINEL,  # Default sentinel instance
@@ -135,19 +129,13 @@ from odoo.libs.iteration import (
     unique,  # Yield unique items preserving order
 )
 
-# -----------------------------------------------------------------------------
-# Locale Mapping (Agnostic - no Odoo dependencies)
-# Canonical: from odoo.libs.locale import ...
-# -----------------------------------------------------------------------------
+# Locale mapping — canonical: odoo.libs.locale
 from odoo.libs.locale import (
     POSIX_TO_LDML,  # Mapping of POSIX to LDML format codes
     posix_to_ldml,  # Convert POSIX format to LDML
 )
 
-# -----------------------------------------------------------------------------
-# Logging Utilities
-# Canonical: from odoo.libs.logging import ...
-# -----------------------------------------------------------------------------
+# Logging utilities — canonical: odoo.libs.logging
 from odoo.libs.logging import (
     MungedTracebackLogRecord,  # Log record with munged traceback
     lower_logging,  # Context manager to lower log level
@@ -155,10 +143,7 @@ from odoo.libs.logging import (
     unquote,  # String with unquoted repr()
 )
 
-# -----------------------------------------------------------------------------
-# Text Processing (Agnostic - no Odoo dependencies)
-# Canonical: from odoo.libs.text import ...
-# -----------------------------------------------------------------------------
+# Text processing — canonical: odoo.libs.text
 from odoo.libs.text import (
     ADDRESS_REGEX,  # Regex for address parsing
     get_flag,  # Get emoji flag for country code
@@ -169,10 +154,7 @@ from odoo.libs.text import (
     street_split,  # Split address into components
 )
 
-# -----------------------------------------------------------------------------
-# General Utilities (Agnostic - no Odoo dependencies)
-# Canonical: from odoo.libs.utils import ...
-# -----------------------------------------------------------------------------
+# General utilities — canonical: odoo.libs.utils
 from odoo.libs.utils import (
     discardattr,  # Delete attr if exists (no error)
     format_frame,  # Format stack frame for logging
@@ -182,45 +164,34 @@ from odoo.libs.utils import (
     replace_exceptions,  # Context manager to replace exceptions
 )
 
-# -----------------------------------------------------------------------------
-# File Operations
-# Canonical: from odoo.tools.files import ...
-# -----------------------------------------------------------------------------
+# File operations — canonical: odoo.tools.files
 from .files import (
     file_open,  # Open file from addon
     file_open_temporary_directory,  # Temp dir context manager
     file_path,  # Get absolute path to addon file
 )
 
-# -----------------------------------------------------------------------------
-# Date/Number Formatting (Odoo-specific, uses environment)
-# Canonical: from odoo.tools.formatting import ...
-# -----------------------------------------------------------------------------
+# Date/number formatting (Odoo-specific, uses environment) — canonical: odoo.tools.formatting
 from .formatting import (
     DATE_LENGTH,
     DATETIME_FORMATS_MAP,
     DEFAULT_SERVER_DATE_FORMAT,
     DEFAULT_SERVER_DATETIME_FORMAT,
     DEFAULT_SERVER_TIME_FORMAT,
-    # Constants
     NON_BREAKING_SPACE,
     _format_time_ago,  # Format relative time ("2 hours ago")
     format_amount,  # Format amount with currency
     format_date,  # Format date with language settings
     format_datetime,  # Format datetime
-    format_decimalized_amount,  # Format monetary amount
-    format_decimalized_number,  # Format number with decimals
+    format_decimalized_amount,  # Format amount with currency + metric unit (e.g. "$123.5k")
+    format_decimalized_number,  # Format number with metric unit (e.g. "123.5k")
     format_duration,  # Format duration (hours:minutes)
     format_time,  # Format time
-    # Functions
     formatLang,  # Format number with language settings
     parse_date,  # Parse date string
 )
 
-# -----------------------------------------------------------------------------
-# Locale & Language Utilities
-# Canonical: from odoo.tools.locale_utils import ...
-# -----------------------------------------------------------------------------
+# Locale & language utilities — canonical: odoo.tools.locale_utils
 from .locale_utils import (
     babel_locale_parse,  # Parse Babel locale
     get_iso_codes,  # Get ISO language codes
@@ -228,10 +199,7 @@ from .locale_utils import (
     scan_languages,  # Scan available languages
 )
 
-# -----------------------------------------------------------------------------
-# Security Utilities
-# Canonical: from odoo.tools.security import ...
-# -----------------------------------------------------------------------------
+# Security utilities — canonical: odoo.tools.security
 from .security import (
     consteq,  # Constant-time string comparison
     hash_sign,  # Hash and sign data
@@ -241,14 +209,7 @@ from .security import (
     verify_limited_field_access_token,  # Verify field access token
 )
 
-# =============================================================================
-# RE-EXPORTS FOR BACKWARD COMPATIBILITY
-# New code should import from the canonical locations shown in comments
-# =============================================================================
-# -----------------------------------------------------------------------------
-# Subprocess & System Utilities
-# Canonical: from odoo.tools.subprocess import ...
-# -----------------------------------------------------------------------------
+# Subprocess & system utilities — canonical: odoo.tools.subprocess
 from .subprocess import (
     dumpstacks,  # Dump all thread stacks (debugging)
     exec_pg_environ,  # Get environ dict for pg tools
@@ -333,9 +294,7 @@ objectify.set_default_parser(default_parser)
 
 
 def clean_context(context: dict[str, typing.Any]) -> dict[str, typing.Any]:
-    """This function take a dictionary and remove each entry with its key
-    starting with ``default_``
-    """
+    """Return a copy of ``context`` without keys starting with ``default_``."""
     return {k: v for k, v in context.items() if not k.startswith("default_")}
 
 

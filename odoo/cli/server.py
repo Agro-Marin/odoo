@@ -101,9 +101,8 @@ def main(args: list[str]) -> None:
             db._create_empty_database(db_name)
             config["init"]["base"] = True
         except InsufficientPrivilege as err:
-            # We use an INFO loglevel on purpose in order to avoid
-            # reporting unnecessary warnings on build environment
-            # using restricted database access.
+            # INFO on purpose: avoids noisy warnings on build environments
+            # with restricted database access.
             _logger.info(
                 "Could not determine if database %s exists, skipping auto-creation: %s",
                 db_name,
