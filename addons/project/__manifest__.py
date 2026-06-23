@@ -85,7 +85,6 @@
             "project/static/src/scss/project_widgets.scss",
             "project/static/src/xml/**/*",
             ("remove", "project/static/src/**/*.dark.scss"),
-            "project/static/src/views/project_task_model_mixin",
         ],
         "web.assets_web_dark": [
             "project/static/src/**/*.dark.scss",

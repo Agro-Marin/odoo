@@ -23,20 +23,20 @@
                 <t t-call="hr_timesheet.portal_timesheet_table"/>
             </div>
         </xpath>
-        <xpath expr="//div[@name='portal_my_task_allocated_hours']" position="after">
-            <div t-if="task.allocated_hours > 0 and allow_timesheets and show_portal_timesheets"><strong>Progress:</strong> <span t-esc="task.progress * 100" t-options='{"widget": "float", "precision": 0}'/>%</div>
+        <xpath expr="//div[@name='portal_my_task_planned_hours']" position="after">
+            <div t-if="task.planned_hours > 0 and allow_timesheets and show_portal_timesheets"><strong>Progress:</strong> <span t-esc="task.progress * 100" t-options='{"widget": "float", "precision": 0}'/>%</div>
         </xpath>
-        <xpath expr="//div[@name='portal_my_task_allocated_hours']/t" position="replace">
-            <t t-call="hr_timesheet.portal_my_task_allocated_hours_template"></t>
+        <xpath expr="//div[@name='portal_my_task_planned_hours']/t" position="replace">
+            <t t-call="hr_timesheet.portal_my_task_planned_hours_template"></t>
         </xpath>
     </template>
 
-    <template id="portal_my_task_allocated_hours_template">
-        <t t-if="allow_timesheets and task.allocated_hours > 0">
+    <template id="portal_my_task_planned_hours_template">
+        <t t-if="allow_timesheets and task.planned_hours > 0">
             <t t-if="is_uom_day">
-                <span t-out="timesheets._convert_hours_to_days(task.allocated_hours)" t-options='{"widget": "timesheet_uom"}'/>
+                <span t-out="timesheets._convert_hours_to_days(task.planned_hours)" t-options='{"widget": "timesheet_uom"}'/>
             </t>
-            <t t-else="" t-call="project.portal_my_task_allocated_hours_template"></t>
+            <t t-else="" t-call="project.portal_my_task_planned_hours_template"></t>
         </t>
     </template>
 
