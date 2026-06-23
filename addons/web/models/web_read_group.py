@@ -14,7 +14,7 @@ from typing import Any
 
 from odoo import api, models
 from odoo.fields import Domain
-from odoo.models import BaseModel, regex_order
+from odoo.models import regex_order
 from odoo.api import DomainType
 from odoo.tools import unique
 
@@ -293,10 +293,20 @@ class Base(models.AbstractModel):
                     groupby.remove(group)
                     order_spec.append(f"{group} {direction}")
                     break
-            for agg_spec in aggregates:
-                if agg_spec.startswith(f"{fname}:"):
-                    order_spec.append(f"{agg_spec} {direction}")
-                    break
+            else:
+                # ``for/else``: only reached when NO groupby key matched. Without
+                # it, the aggregate loop ran even after a groupby match (emitting
+                # a duplicate, conflicting ORDER BY term), and ordering by an
+                # aggregatable field absent from both groupby and aggregates was
+                # silently dropped instead of falling back to its aggregator.
+                for agg_spec in aggregates:
+                    if agg_spec.startswith(f"{fname}:"):
+                        order_spec.append(f"{agg_spec} {direction}")
+                        break
+                else:
+                    field = self._fields.get(fname)
+                    if field and field.aggregator:
+                        order_spec.append(f"{fname}:{field.aggregator} {direction}")
 
         return ", ".join(order_spec + groupby)
 
@@ -757,19 +767,29 @@ class Base(models.AbstractModel):
         """
 
         def adapt(value):
-            if isinstance(value, BaseModel):
-                return value.id
+            # ``formatted_read_group`` returns relational and date(time) group
+            # keys as ``(server_value, label)`` tuples; the kanban client keys
+            # its progress-bar lookup on that ``server_value``. Grouping by
+            # granularity, the server_value for a datetime is the UTC string.
+            if isinstance(value, tuple):
+                return value[0]
             return value
 
         result = defaultdict(lambda: dict.fromkeys(progress_bar["colors"], 0))
 
-        for main_group, field_value, count in self._read_group(
+        # Must use ``formatted_read_group`` (not ``_read_group``): it produces the
+        # exact same group keys the kanban client derives from ``web_read_group``,
+        # so the two sides match for every field type. ``_read_group`` returns raw
+        # local-naive datetime buckets whose ``str()`` does NOT match the client's
+        # UTC keys, which zeroed every progress bar for non-UTC users.
+        for group in self.formatted_read_group(
             domain,
             [group_by, progress_bar["field"]],
             ["__count"],
         ):
+            field_value = group[progress_bar["field"]]
             if field_value in progress_bar["colors"]:
-                group_by_value = str(adapt(main_group))
-                result[group_by_value][field_value] += count
+                group_by_value = str(adapt(group[group_by]))
+                result[group_by_value][field_value] += group["__count"]
 
         return result

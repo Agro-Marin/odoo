@@ -158,6 +158,12 @@ class Base(models.AbstractModel):
         writes.
         """
         if self:
+            # web_save operates on a single existing record (the batch path is
+            # web_save_multi). Enforce the singleton up-front so BOTH concurrency
+            # branches share the precondition and a multi-record caller gets a
+            # clean error instead of a bare ``self.id`` failure deep in the
+            # legacy ``last_write_date`` branch.
+            self.ensure_one()
             if known_values is not None:
                 self._check_concurrent_field_changes(vals, known_values)
             elif last_write_date and 'write_date' in self._fields:
@@ -447,6 +453,29 @@ class Base(models.AbstractModel):
                         values[field_name] = sorted(
                             values[field_name], key=order_key.__getitem__
                         )
+                elif "fields" in field_spec:
+                    # Drop co-records the user cannot read (record rules) *before*
+                    # web_read, so a single restricted co-record does not raise
+                    # AccessError and abort the whole read. The ``order`` branch
+                    # above gets this filtering for free via ``search``; this
+                    # branch must do it explicitly. Only filter when the comodel
+                    # is readable at all; otherwise keep the relation ids
+                    # unchanged (e.g. hr.employee referenced from hr.appraisal for
+                    # a base.group_user).
+                    if co_records and co_records.env["ir.model.access"].check(
+                        co_records._name, "read", raise_exception=False
+                    ):
+                        accessible = co_records.with_context(
+                            active_test=False
+                        )._filtered_access("read")
+                        accessible_ids = set(accessible.ids)
+                        for values in values_list:
+                            values[field_name] = [
+                                id_
+                                for id_ in values[field_name]
+                                if id_ in accessible_ids
+                            ]
+                        co_records = accessible.with_context(co_records.env.context)
 
                 if "context" in field_spec:
                     co_records = co_records.with_context(**field_spec["context"])
