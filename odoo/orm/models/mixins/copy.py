@@ -152,9 +152,20 @@ class CopyMixin:
                         for k, v in old_stored_translations.items()
                         if k in valid_langs
                     }
+                    # Source term to diff against: prefer the record's own
+                    # language, then en_US.  Guard the en_US fallback — it may
+                    # be absent from the stored translations (data with no
+                    # en_US row, or en_US filtered out by valid_langs), in
+                    # which case there is no base term, so skip this field
+                    # rather than raising KeyError.
+                    source_term = old_translations.pop(lang, None)
+                    if source_term is None:
+                        source_term = old_translations.get("en_US")
+                    if source_term is None:
+                        continue
                     # {from_lang_term: {lang: to_lang_term}
                     translation_dictionary = field.get_translation_dictionary(
-                        old_translations.pop(lang, old_translations["en_US"]),
+                        source_term,
                         old_translations,
                     )
                     # {lang: {old_term: new_term}}

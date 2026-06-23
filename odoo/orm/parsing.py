@@ -61,7 +61,15 @@ regex_order = re.compile(
 # =============================================================================
 
 
-@functools.cache
+# Bounded cache: these parsers are reachable from authenticated RPC
+# (read_group / web_read_group / ir.default specs) with user-controlled,
+# effectively unbounded distinct inputs (e.g. ``props.<arbitrary>``).  An
+# unbounded ``functools.cache`` would grow without limit — a slow memory-
+# exhaustion vector.  LRU keeps the hot working set while capping memory.
+_PARSE_CACHE_MAXSIZE = 2048
+
+
+@functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
     """Parse a field expression into field name and optional property name.
 
@@ -98,7 +106,7 @@ def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
     return field_expr, property_name
 
 
-@functools.cache
+@functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def parse_read_group_spec(spec: str) -> tuple[str, str | None, str | None]:
     """Return a triplet corresponding to the given field/property_name/aggregate specification.
 

@@ -123,7 +123,9 @@ class BaseModel(
     If set to ``False``, override :meth:`~odoo.models.BaseModel.init`
     to create the database table.
 
-    Automatically defaults to `True` for abstract models.
+    Defaults to ``True`` for :class:`Model` and :class:`TransientModel`, and
+    ``False`` for :class:`AbstractModel`/:class:`BaseModel` (which have no
+    table).
 
     .. tip:: To create a model without any table, inherit
             from :class:`~odoo.models.AbstractModel`.

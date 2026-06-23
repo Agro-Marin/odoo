@@ -1,7 +1,7 @@
 """ORM-level testing utilities.
 
 Provides :class:`InMemoryCursor`, a :class:`~odoo.db.BaseCursor` subclass
-that satisfies :class:`~odoo.orm.protocols.CursorProtocol` without a
+that emulates a database cursor without a
 PostgreSQL connection.  When paired with a pre-built
 :class:`~odoo.orm.runtime.registry.Registry`, it allows constructing a real
 :class:`~odoo.orm.runtime.environment.Environment` in tests that exercise
@@ -678,10 +678,10 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
 
     def _inject(table: str, record_id: int, data: dict) -> None:
         """Insert a record with a specific ID, bypassing auto-increment."""
-        tbl = storage._tables.setdefault(table, {})
         data["id"] = record_id
-        tbl[record_id] = data
-        storage._sequences[table] = max(storage._sequences[table], record_id)
+        # put_rows stores the row and advances the table's sequence past
+        # record_id, so later next_id() allocations won't collide.
+        storage.put_rows(table, [data])
 
     # Partner for the company (id=1)
     if "res.partner" in registry:

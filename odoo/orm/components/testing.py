@@ -642,9 +642,11 @@ class InMemoryEnvironment:
                         for rid, vals in updates.items()
                         if rid in existing_ids
                     ]
-                    for rid, vals in to_insert.items():
-                        tbl = self.storage._tables.setdefault(model_name, {})
-                        tbl[rid] = vals
+                    if to_insert:
+                        self.storage.put_rows(
+                            model_name,
+                            [{**vals, "id": rid} for rid, vals in to_insert.items()],
+                        )
                     if to_update:
                         self.storage.update_rows(model_name, to_update)
 

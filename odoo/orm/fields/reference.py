@@ -51,12 +51,22 @@ class Reference(Selection):
             ):
                 return f"{value._name},{value.id}" if value else None
         elif isinstance(value, str):
-            res_model, res_id = value.split(",")
-            if not validate or res_model in self.get_values(record.env):
-                if record.env[res_model].browse(int(res_id)).exists():
-                    return value
-                else:
-                    return None
+            # cache format is exactly "model,id"; parse defensively so malformed
+            # RPC input (extra commas, non-numeric id) falls through to the
+            # uniform error below instead of raising a raw unpack/int ValueError.
+            res_model, sep, res_id = value.partition(",")
+            if sep and res_model:
+                try:
+                    res_id_int = int(res_id)
+                except ValueError:
+                    res_id_int = None
+                if res_id_int is not None and (
+                    not validate or res_model in self.get_values(record.env)
+                ):
+                    if record.env[res_model].browse(res_id_int).exists():
+                        return value
+                    else:
+                        return None
         elif not value:
             return None
         raise ValueError(f"Wrong value for {self}: {value!r}")

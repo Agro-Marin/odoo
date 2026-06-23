@@ -278,11 +278,21 @@ class ModelGraph:
         Called during full registry setup (``setup_models(model_names=None)``)
         to clear stale metadata before rebuilding.  Does NOT clear triggers
         or caches — those are handled separately.
+
+        Clears **in place** rather than rebinding fresh objects, so live
+        references survive the rebuild.  In particular ``_depends_context`` is
+        never reassigned elsewhere and is cached by
+        ``Environment._field_depends_context`` (read on the hot
+        ``Field._get_cache`` path): rebinding it here would orphan that cache,
+        making context-dependence membership tests stale until every env is
+        recreated.  (``_inverses``/``_computed`` are additionally rebound by the
+        registry's ``field_inverses``/``field_computed`` cached_properties; no
+        env caches them, so either reset style is fine.)
         """
-        self._inverses = _Collector()
-        self._depends = _Collector()
-        self._depends_context = _Collector()
-        self._computed = {}
+        self._inverses.clear()
+        self._depends.clear()
+        self._depends_context.clear()
+        self._computed.clear()
 
     def clear_caches(self) -> None:
         """Clear the lazily-computed caches (trigger trees, modifying relations).
