@@ -6,12 +6,22 @@ description = "Rust-accelerated hot paths for the Odoo ORM"
 
 [lib]
 name = "odoo_rust"
-crate-type = ["cdylib"]
+# rlib is needed so `cargo test` can build a test binary that links the crate.
+crate-type = ["cdylib", "rlib"]
+# Doc-comment examples illustrate Python-facing usage, not compilable Rust, so
+# they are not run as doctests — `cargo test` runs the real #[test] modules only.
+doctest = false
 
 [dependencies]
-pyo3 = { version = "0.28.2", features = ["extension-module"] }
+# extension-module is opt-in: bare `cargo test`/`cargo clippy` leave it off so
+# the test harness links libpython; maturin turns it on for the wheel (see
+# pyproject.toml [tool.maturin]).
+pyo3 = { version = "0.28.2" }
 
 # File scanning (used by test_lint for parallel pattern matching)
 memchr = "2"     # SIMD-accelerated byte search
 regex = "1"      # Compiled regex patterns
 ignore = "0.4"   # Parallel directory walking
+
+[features]
+extension-module = ["pyo3/extension-module"]
