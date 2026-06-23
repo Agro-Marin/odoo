@@ -115,7 +115,7 @@ class SaleOrderLine(models.Model):
                 }
                 order_qty = line.product_uom_id._compute_quantity(line.product_uom_qty, relevant_bom.product_uom_id)
                 qty_transferred = moves._compute_kit_quantities(line.product_id, order_qty, relevant_bom, filters)
-                line.qty_transferred += relevant_bom.product_uom_id._compute_quantity(qty_transferred, line.product_uom_id)
+                line.qty_transferred = relevant_bom.product_uom_id._compute_quantity(qty_transferred, line.product_uom_id)
 
             # If no relevant BOM is found, fall back on the all-or-nothing policy. This happens
             # when the product sold is made only of kits. In this case, the BOM of the stock moves
@@ -127,9 +127,9 @@ class SaleOrderLine(models.Model):
                 else:
                     line.qty_transferred = 0.0
 
-        # t23020: the override sets qty_transferred in the kit branches but,
-        # unlike sale_stock, did not refresh the co-computed qty_to_transfer,
-        # leaving fully delivered kits stuck in a 'partial' transfer state.
+        # The override sets qty_transferred in the kit branches but, unlike
+        # sale_stock, did not refresh the co-computed qty_to_transfer, leaving
+        # fully delivered kits stuck in a 'partial' transfer state.
         for line in lines_by_stock_move:
             line.qty_to_transfer = max(0.0, line.product_qty - line.qty_transferred)
 

@@ -49,16 +49,23 @@ class StockPicking(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    @api.depends("reference_ids.sale_ids", "move_ids.sale_line_id.order_id")
+    @api.depends(
+        "reference_ids.sale_ids",
+        "reference_ids.production_ids",
+        "move_ids.sale_line_id.order_id",
+    )
     def _compute_sale_id(self):
         for picking in self:
-            # picking and move should have a link to the SO to see the picking on the stat button.
-            # This will filter the move chain to the delivery moves only.
-            # First try from moves, then fall back to reference_ids for untracked deliveries.
-            picking.sale_id = (
-                picking.move_ids.sale_line_id.order_id
-                or picking.reference_ids.sale_ids[:1]
-            )
+            # Link the SO from the picking's own sale moves first. Only fall back
+            # to the shared stock.reference for pickings that are NOT part of a
+            # manufacturing route (no production link): in a multi-step (pbm_sam)
+            # MO the intermediate pickings carry no sale move yet share the SO's
+            # stock.reference, so the fallback would pull them into
+            # sale.order.picking_ids and break its singleton expectation.
+            sale_order = picking.move_ids.sale_line_id.order_id[:1]
+            if not sale_order and not picking.reference_ids.production_ids:
+                sale_order = picking.reference_ids.sale_ids[:1]
+            picking.sale_id = sale_order
 
     @api.depends("move_ids.sale_line_id")
     def _compute_move_type(self):
