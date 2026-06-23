@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import os
 import threading
 from time import monotonic
 from typing import TYPE_CHECKING
@@ -65,37 +64,29 @@ if not any(
 ):
     _psycopg_pool_logger.addFilter(_SuppressKnownPoolWarnings())
 
-MAX_IDLE_TIMEOUT = 60 * 10
-MAX_LIFETIME = 3600  # recycle each pooled connection hourly (stale prep caches)
-
-# Shared wall-clock budget for one borrow(): the semaphore wait and the per-DSN
-# getconn() both draw from this window (named so the two uses can't drift).
-_BORROW_TIMEOUT = 30.0
-
-# Idle per-DSN pool reaper.  Each database keeps its own psycopg_pool (worker
+# Default pool tuning.  These are the fallbacks for a directly constructed
+# ConnectionPool (tests, low-level callers); production overrides them from the
+# matching ``db_*`` options in ``tools.config`` (read in ``odoo/db/__init__.py``
+# and passed to the constructor), so the whole subsystem has ONE configuration
+# mechanism instead of a mix of constants, env vars and config.  Per-instance
+# copies live on ``self`` (see ``__init__``); nothing reads these at module level.
+_DEFAULT_MAX_IDLE = 60 * 10  # keep an idle pooled connection up to 10 min
+_DEFAULT_MAX_LIFETIME = 3600  # recycle each pooled connection hourly (stale prep caches)
+# Wall-clock budget for one borrow(): the semaphore wait and the per-DSN
+# getconn() both draw from this window (a shared deadline, so they can't drift).
+_DEFAULT_BORROW_TIMEOUT = 30.0
+# Idle per-DSN pool reaper TTL.  Each database keeps its own psycopg_pool (worker
 # threads + idle connections) until ``close_*``; nothing trims idle pool OBJECTS
 # otherwise, so a host serving many databases accumulates them.  A pool idle
-# longer than ``_REAP_IDLE_TTL`` with no checked-out connection is reaped (so a
-# long-lived ``LISTEN``/cron connection is never touched).  Set well above
-# ``_BORROW_TIMEOUT`` so no borrow can be in flight; the residual reap-vs-borrow
-# microrace is recovered by borrow()'s PoolClosed retry.  ``0`` disables it.
-try:
-    _REAP_IDLE_TTL: float = float(
-        os.environ.get("ODOO_DB_POOL_REAP_IDLE", "300") or "300"
-    )
-except ValueError:
-    _REAP_IDLE_TTL = 300.0
+# longer than this with no checked-out connection is reaped (so a long-lived
+# ``LISTEN``/cron connection is never touched).  Kept well above the borrow
+# timeout so no borrow can be in flight; the residual reap-vs-borrow microrace is
+# recovered by borrow()'s PoolClosed retry.  ``0`` disables it.
+_DEFAULT_REAP_IDLE_TTL = 300.0
+
 # Monotonic timestamp stamped on each per-DSN psycopg pool whenever it is handed
 # out by _get_or_create_pool; the reaper measures idleness against it.
 _LAST_BORROW_ATTR = "_odoo_last_borrow"
-
-# Throttle for the give_back-path reap sweep (see _maybe_reap_idle_pools): the
-# cold-path reap only fires on NEW pool creation, so a process on a fixed set of
-# databases would never reap idle siblings.  A quarter of the TTL — prompt but
-# off the hot path — floored at 1s for tiny test TTLs.  ``0`` disables it.
-_REAP_CHECK_INTERVAL: float = (
-    max(1.0, _REAP_IDLE_TTL / 4) if _REAP_IDLE_TTL > 0 else 0.0
-)
 
 # libpq connect timeout (seconds) for that probe.  Kept short: a permanent
 # rejection comes back in one round-trip, so this only bounds the exotic
@@ -131,7 +122,17 @@ class ConnectionPool:
         threads, and pools are only reaped by ``close_database``/``close_all``).
     """
 
-    def __init__(self, maxconn: int = 64, readonly: bool = False, minconn: int = 0):
+    def __init__(
+        self,
+        maxconn: int = 64,
+        readonly: bool = False,
+        minconn: int = 0,
+        *,
+        borrow_timeout: float = _DEFAULT_BORROW_TIMEOUT,
+        max_lifetime: int = _DEFAULT_MAX_LIFETIME,
+        max_idle: int = _DEFAULT_MAX_IDLE,
+        reap_idle_ttl: float = _DEFAULT_REAP_IDLE_TTL,
+    ):
         # Reject non-positive budgets loudly: a 0/negative maxconn would
         # otherwise wedge the whole server under trivial load.
         if maxconn <= 0:
@@ -149,6 +150,20 @@ class ConnectionPool:
         self._maxconn = maxconn
         self._minconn = minconn
         self._readonly = readonly
+        # Per-instance tuning (production reads these from tools.config in
+        # odoo/db/__init__.py; the defaults above serve direct construction).
+        self._borrow_timeout = borrow_timeout
+        self._max_lifetime = max_lifetime
+        self._max_idle = max_idle
+        self._reap_idle_ttl = reap_idle_ttl
+        # Throttle for the give_back-path reap sweep (see _maybe_reap_idle_pools):
+        # the cold-path reap only fires on NEW pool creation, so a process on a
+        # fixed set of databases would never reap idle siblings.  A quarter of the
+        # TTL — prompt but off the hot path — floored at 1s for tiny test TTLs.
+        # ``0`` disables it (mirrors ``reap_idle_ttl <= 0``).
+        self._reap_check_interval = (
+            max(1.0, reap_idle_ttl / 4) if reap_idle_ttl > 0 else 0.0
+        )
         self._lock = threading.Lock()
         # Per-instance semaphore — gates connections to this pool, not the process.
         self._pool_sem = threading.BoundedSemaphore(self._maxconn)
@@ -182,6 +197,18 @@ class ConnectionPool:
     def _debug(self, msg: str, *args: object) -> None:
         _logger_conn.debug(("%r " + msg), self, *args)
 
+    @staticmethod
+    def _checked_out(pool: _PsycopgPool) -> int:
+        """Connections *pool* currently has handed out (size minus available).
+
+        Once a pool has been idle past the reap TTL this reading is reliable: any
+        async ``reset`` from a recent return has long since drained, so a non-zero
+        value is a genuine hold (e.g. a cron ``LISTEN``), not a transient.  Single
+        source of truth for the ``pool_size - pool_available`` formula.
+        """
+        stats = pool.get_stats()
+        return stats.get("pool_size", 0) - stats.get("pool_available", 0)
+
     def _probe_connectable(self, conninfo: str, kwargs: dict) -> None:
         """Fail fast on a permanently-unreachable target before building a pool.
 
@@ -194,8 +221,8 @@ class ConnectionPool:
         .. note::
             Runs on every COLD pool creation, including re-creation after the
             idle-pool reaper closed a pool.  A database accessed just slower than
-            ``_REAP_IDLE_TTL`` pays the reap→recreate→re-probe cycle each time;
-            raise ``ODOO_DB_POOL_REAP_IDLE`` if that thrash hurts.
+            the reap TTL pays the reap→recreate→re-probe cycle each time;
+            raise ``db_pool_reap_idle`` if that thrash hurts.
 
         :raises psycopg.Error: re-raised verbatim for a non-retryable failure,
             so callers see the precise cause (e.g. ``InvalidCatalogName``).
@@ -332,8 +359,8 @@ class ConnectionPool:
                 kwargs=kwargs,
                 min_size=self._minconn,
                 max_size=self._maxconn,
-                max_lifetime=MAX_LIFETIME,
-                max_idle=MAX_IDLE_TIMEOUT,
+                max_lifetime=self._max_lifetime,
+                max_idle=self._max_idle,
                 reconnect_timeout=15,
                 configure=_configure_connection,
                 reset=_reset_connection,
@@ -382,7 +409,7 @@ class ConnectionPool:
                 "%r: reaped %d idle pool(s) (>%.0fs since last borrow)",
                 self,
                 len(reaped_pools),
-                _REAP_IDLE_TTL,
+                self._reap_idle_ttl,
             )
         return pool
 
@@ -397,24 +424,23 @@ class ConnectionPool:
         (the give_back sweep's just-returned pool is protected by its fresh stamp).
 
         A pool is reapable when BOTH: it has not been handed out in the last
-        ``_REAP_IDLE_TTL`` seconds (so no borrow can be in flight), and it holds
-        no checked-out connection (``pool_size - pool_available == 0`` — reliable
-        once idle past the TTL, since any async ``reset`` has long since drained,
-        so a non-zero reading is a genuine hold like a cron ``LISTEN``).
+        ``reap_idle_ttl`` seconds (so no borrow can be in flight), and it holds no
+        checked-out connection (:meth:`_checked_out` ``== 0`` — reliable once idle
+        past the TTL, since any async ``reset`` has long since drained, so a
+        non-zero reading is a genuine hold like a cron ``LISTEN``).
 
-        Returns ``[]`` when disabled (``_REAP_IDLE_TTL <= 0``).
+        Returns ``[]`` when disabled (``reap_idle_ttl <= 0``).
         """
-        if _REAP_IDLE_TTL <= 0:
+        if self._reap_idle_ttl <= 0:
             return []
         now = monotonic()
         reapable = []
         for k, pool in self._pools.items():
             if k == exclude_key:
                 continue
-            if now - getattr(pool, _LAST_BORROW_ATTR, now) <= _REAP_IDLE_TTL:
+            if now - getattr(pool, _LAST_BORROW_ATTR, now) <= self._reap_idle_ttl:
                 continue
-            stats = pool.get_stats()
-            if stats.get("pool_size", 0) - stats.get("pool_available", 0) > 0:
+            if self._checked_out(pool) > 0:
                 continue
             reapable.append(k)
         return reapable
@@ -425,19 +451,19 @@ class ConnectionPool:
         The cold-path reap only fires on NEW pool creation, so a worker on a
         fixed set of databases would never reap idle siblings for quiet/dropped
         databases.  This sweeps them on the common return path, throttled to once
-        per :data:`_REAP_CHECK_INTERVAL` (a lock-free monotonic compare on the
+        per ``self._reap_check_interval`` (a lock-free monotonic compare on the
         common path).  The just-returned pool is never reaped (fresh stamp).
         """
-        if _REAP_CHECK_INTERVAL <= 0:
+        if self._reap_check_interval <= 0:
             return
         now = monotonic()
         # Lock-free throttle: almost every give_back stops here.
-        if now - self._last_reap_check < _REAP_CHECK_INTERVAL:
+        if now - self._last_reap_check < self._reap_check_interval:
             return
         with self._lock:
             # Re-check under the lock so a burst of concurrent returns runs the
             # (lock-holding) sweep once, not once per thread.
-            if now - self._last_reap_check < _REAP_CHECK_INTERVAL:
+            if now - self._last_reap_check < self._reap_check_interval:
                 return
             self._last_reap_check = now
             reap_keys = self._collect_reapable_pools_locked()
@@ -449,7 +475,7 @@ class ConnectionPool:
                 "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
                 self,
                 len(reaped_pools),
-                _REAP_IDLE_TTL,
+                self._reap_idle_ttl,
             )
 
     def borrow(
@@ -459,9 +485,16 @@ class ConnectionPool:
 
         Acquires a slot from the pool-scoped semaphore first, ensuring the
         total number of checked-out connections across all databases in
-        THIS pool instance never exceeds ``maxconn``.  The 30-second
-        timeout budget is shared between the semaphore wait and the
-        per-database ``getconn()`` call.
+        THIS pool instance never exceeds ``maxconn``.  The borrow-timeout
+        budget (``db_borrow_timeout``) is shared between the semaphore wait
+        and the per-database ``getconn()`` call via a single ``deadline``.
+
+        Semaphore accounting lives ENTIRELY in this method: the permit is taken
+        here, released here on any failure, and otherwise travels with the
+        connection (tagged via ``_odoo_pool``) to be released by
+        :meth:`give_back`.  The two helpers it calls
+        (:meth:`_getconn_with_retry`, :meth:`_validate_borrowed_conn`) never
+        touch the semaphore, so the permit can neither leak nor double-release.
 
         :param dict connection_info: dict of psql connection keywords
         :param key: optional pre-normalized routing key.  ``Connection``
@@ -473,93 +506,120 @@ class ConnectionPool:
             key = _normalize_dsn_key(connection_info)
         pool = self._get_or_create_pool(key, connection_info)
 
-        deadline = monotonic() + _BORROW_TIMEOUT
-
-        if not self._pool_sem.acquire(timeout=_BORROW_TIMEOUT):
+        deadline = monotonic() + self._borrow_timeout
+        if not self._pool_sem.acquire(timeout=self._borrow_timeout):
             raise PoolError(
                 f"Could not acquire connection: pool limit ({self._maxconn}) reached, "
                 f"all connections are in use across {len(self._pools)} database(s)"
             )
         try:
-            # getconn, rebuilding ONCE if the pool was closed under us (by the
-            # reaper or a concurrent close_database).  The semaphore permit is
-            # held across the retry; the shared ``deadline`` bounds the total wait.
-            for attempt in range(2):
-                remaining = max(0.1, deadline - monotonic())
-                try:
-                    conn = pool.getconn(timeout=remaining)
-                    break
-                except PoolClosed as e:
-                    # Drop the stale mapping and rebuild once.  A second
-                    # PoolClosed means the pool is being actively torn down (not
-                    # a one-shot reap race), so surface it as PoolError.
-                    with self._lock:
-                        if self._pools.get(key) is pool:
-                            del self._pools[key]
-                    self._safe_close(pool)  # idempotent on an already-closed pool
-                    if attempt == 1:
-                        _logger.info("Connection to the database failed: %s", e)
-                        raise PoolError(str(e)) from e
-                    self._debug(
-                        "Pool closed under borrow(); rebuilding for %s", dict(key)
-                    )
-                    # Rebuild may re-probe and raise InvalidCatalogName if the DB
-                    # is gone; that propagates to the outer handler (releases the sem).
-                    pool = self._get_or_create_pool(key, connection_info)
-                except PoolTimeout as e:
-                    # Couldn't ESTABLISH a connection in time (the semaphore
-                    # already guarantees checkout capacity).  Tear the pool down
-                    # only if it has no live connections (DB gone/unreachable);
-                    # if some are live the server is just slow, and closing them
-                    # would turn a latency blip into a reconnect storm.
-                    if pool.get_stats().get("pool_size", 0) == 0:
-                        with self._lock:
-                            if self._pools.get(key) is pool:
-                                del self._pools[key]
-                        self._safe_close(pool)
-                    _logger.info("Connection to the database failed: %s", e)
-                    raise PoolError(str(e)) from e
-                except psycopg.Error as e:
-                    _logger.info("Connection to the database failed: %s", e)
-                    raise
-                except Exception as e:
-                    raise PoolError(str(e)) from e
-            # Post-getconn validation.  Any failure here must BOTH putconn the
-            # connection (inner handler, so the pool slot isn't leaked) AND
-            # release the semaphore (outer handler).
-            try:
-                # Minimum-version gate (server_version is client-side, no
-                # round-trip).  Here rather than in _configure_connection so the
-                # caller gets the real message, not a generic 30s PoolTimeout.
-                sv = conn.info.server_version
-                if sv < MIN_PG_VERSION * 10000:
-                    raise PoolError(
-                        f"PostgreSQL {sv // 10000}.{sv % 10000} is below the "
-                        f"minimum required {MIN_PG_VERSION}.0. Please upgrade "
-                        f"to PostgreSQL {MIN_PG_VERSION} or later."
-                    )
-                # Gate on the level: conn.info + backend_pid are eager and this
-                # runs on every cursor creation, so pay nothing when DEBUG is off.
-                if _logger_conn.isEnabledFor(logging.DEBUG):
-                    self._debug(
-                        "Borrow connection backend PID %d", conn.info.backend_pid
-                    )
-                # Tag the connection with an Odoo-owned back-reference to its
-                # pool.  give_back() uses THIS marker (not psycopg_pool's private
-                # ``conn._pool``) to find the pool and to know a ``_pool_sem``
-                # permit is held, making the accounting self-contained.  Set last,
-                # so only a fully-validated connection carries it; on a failure
-                # above the inner handler putconn()s it with no permit attributed.
-                conn._odoo_pool = pool
-            except BaseException:
-                with contextlib.suppress(Exception):
-                    pool.putconn(conn)
-                raise
+            conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
+            self._validate_borrowed_conn(conn, pool)
         except BaseException:
             self._pool_sem.release()
             raise
-
         return conn
+
+    def _getconn_with_retry(
+        self,
+        pool: _PsycopgPool,
+        key: frozenset,
+        connection_info: dict,
+        deadline: float,
+    ) -> tuple[psycopg.Connection, _PsycopgPool]:
+        """``getconn`` from *pool*, rebuilding ONCE if it was closed under us.
+
+        Returns ``(conn, pool)``; the returned pool differs from the argument
+        only when a ``PoolClosed`` (reaper / concurrent ``close_database`` race)
+        forced a rebuild — the caller must thread it on so the connection's
+        ``_odoo_pool`` marker points at the pool it actually came from.  The
+        caller holds the ``_pool_sem`` permit across the retry and the shared
+        *deadline* bounds the total wait; this method never touches the
+        semaphore, so every exit leaves the permit for the caller to release.
+
+        :raises PoolError: capacity/teardown failures (and any unexpected
+            non-psycopg error), so callers see one error type.
+        :raises psycopg.Error: a connect-phase failure is surfaced verbatim
+            (e.g. ``InvalidCatalogName``) so the caller gets the precise cause.
+        """
+        for attempt in range(2):
+            remaining = max(0.1, deadline - monotonic())
+            try:
+                return pool.getconn(timeout=remaining), pool
+            except PoolClosed as e:
+                # Drop the stale mapping and rebuild once.  A second PoolClosed
+                # means the pool is being actively torn down (not a one-shot reap
+                # race), so surface it as PoolError.
+                with self._lock:
+                    if self._pools.get(key) is pool:
+                        del self._pools[key]
+                self._safe_close(pool)  # idempotent on an already-closed pool
+                if attempt == 1:
+                    _logger.info("Connection to the database failed: %s", e)
+                    raise PoolError(str(e)) from e
+                self._debug("Pool closed under borrow(); rebuilding for %s", dict(key))
+                # Rebuild may re-probe and raise InvalidCatalogName if the DB is
+                # gone; that propagates to the caller (which releases the sem).
+                pool = self._get_or_create_pool(key, connection_info)
+            except PoolTimeout as e:
+                # Couldn't ESTABLISH a connection in time (the semaphore already
+                # guarantees checkout capacity).  Tear the pool down only if it
+                # has no live connections (DB gone/unreachable); if some are live
+                # the server is just slow, and closing them would turn a latency
+                # blip into a reconnect storm.
+                if pool.get_stats().get("pool_size", 0) == 0:
+                    with self._lock:
+                        if self._pools.get(key) is pool:
+                            del self._pools[key]
+                    self._safe_close(pool)
+                _logger.info("Connection to the database failed: %s", e)
+                raise PoolError(str(e)) from e
+            except psycopg.Error as e:
+                _logger.info("Connection to the database failed: %s", e)
+                raise
+            except Exception as e:
+                raise PoolError(str(e)) from e
+        # Unreachable: attempt 1's PoolClosed raises instead of looping, and every
+        # other branch returns or raises.  Kept so the function never implicitly
+        # returns None against its (conn, pool) contract.
+        raise PoolError("getconn retry budget exhausted")
+
+    def _validate_borrowed_conn(
+        self, conn: psycopg.Connection, pool: _PsycopgPool
+    ) -> None:
+        """Post-``getconn`` validation of a freshly borrowed *conn*.
+
+        On ANY failure, return *conn* to its per-DSN pool (so the pool slot is
+        not leaked) and re-raise; the caller's outer handler releases the
+        ``_pool_sem`` permit.  Like :meth:`_getconn_with_retry`, this never
+        touches the semaphore.
+        """
+        try:
+            # Minimum-version gate (server_version is client-side, no round-trip).
+            # Here rather than in _configure_connection so the caller gets the real
+            # message, not a generic borrow-timeout PoolTimeout.
+            sv = conn.info.server_version
+            if sv < MIN_PG_VERSION * 10000:
+                raise PoolError(
+                    f"PostgreSQL {sv // 10000}.{sv % 10000} is below the "
+                    f"minimum required {MIN_PG_VERSION}.0. Please upgrade "
+                    f"to PostgreSQL {MIN_PG_VERSION} or later."
+                )
+            # Gate on the level: conn.info + backend_pid are eager and this runs on
+            # every cursor creation, so pay nothing when DEBUG is off.
+            if _logger_conn.isEnabledFor(logging.DEBUG):
+                self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
+            # Tag the connection with an Odoo-owned back-reference to its pool.
+            # give_back() uses THIS marker (not psycopg_pool's private
+            # ``conn._pool``) to find the pool and to know a ``_pool_sem`` permit is
+            # held, making the accounting self-contained.  Set last, so only a
+            # fully-validated connection carries it; on a failure above the
+            # connection is putconn()ed with no permit attributed.
+            conn._odoo_pool = pool
+        except BaseException:
+            with contextlib.suppress(Exception):
+                pool.putconn(conn)
+            raise
 
     def give_back(
         self, connection: psycopg.Connection, keep_in_pool: bool = True
