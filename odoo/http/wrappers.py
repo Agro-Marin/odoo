@@ -12,6 +12,7 @@ from odoo.libs._vendor.useragents import UserAgent
 from odoo.libs.facade import Proxy, ProxyAttr, ProxyFunc
 
 from .constants import DEFAULT_MAX_CONTENT_LENGTH
+from .core import request
 
 _logger = logging.getLogger(__name__)
 
@@ -38,9 +39,15 @@ def _apply_cookie_defaults(
     if expires == -1:  # not provided → default 1 year
         expires = datetime.now() + timedelta(days=365)
 
-    from . import request  # lazy import — avoid circular dependency
-
-    if request and request.db and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
+    # Guard on ``env`` rather than ``db``: ``_is_allowed_cookie`` is an
+    # ``ir.http`` (ORM) call, so a live environment — not merely a selected
+    # database — is the real precondition. They diverge on the error path,
+    # where ``_serve_db``'s ``finally`` has already nulled ``request.env`` while
+    # ``request.db`` is still set; keying on ``db`` there dereferenced
+    # ``None["ir.http"]``. The only cookie set on that env-less path is the
+    # ``session_id`` cookie (``cookie_type="required"``), which is essential and
+    # always allowed, so skipping the consent check when env is gone is correct.
+    if request and request.env is not None and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
         max_age = 0
 
     if secure is None:
@@ -250,8 +257,6 @@ class _Response(werkzeug.wrappers.Response):
 
     def render(self) -> bytes:
         """Renders the Response's template, returns the result."""
-        from . import request  # lazy import
-
         self.qcontext["request"] = request
         return request.env["ir.ui.view"]._render_template(self.template, self.qcontext)
 

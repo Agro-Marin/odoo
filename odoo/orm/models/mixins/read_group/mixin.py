@@ -222,8 +222,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     }
                     for order_part in (order or "").split(","):
                         order_part = order_part.strip()
+                        # Match the *whole* spec, not a string prefix: a bare
+                        # ``startswith(spec)`` wrongly drops e.g. ``tag_id desc``
+                        # when another set groups by the prefix spec ``tag``.
+                        # Mirrors the careful matcher used by the read_group
+                        # orderby remap below (``== term`` or ``term + ' '``).
                         if not any(
-                            order_part.startswith(spec)
+                            order_part == spec or order_part.startswith(f"{spec} ")
                             for spec in all_groupby_specs
                             if spec not in all_sub_groupby
                         ):
@@ -292,8 +297,11 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             "GROUPING SETS (%s)", SQL(", ").join(unique(grouping_sets_sql))
         )
 
-        # This handles the case where `order` adds columns that must also be in `GROUP BY`.
-        # Rebuild the grouping sets to include these extra terms.
+        # Note: any extra ORDER BY columns that must also appear in GROUP BY
+        # were already folded into ``groupby_terms`` by ``_read_group_orderby``
+        # above, so ``grouping_sets_sql`` already includes them.  The default
+        # path needs none — it wraps such columns in ANY_VALUE() rather than
+        # adding them to GROUP BY.  (There is no separate "rebuild" step.)
 
         # row_values: [(GROUPING(...), a1, b1, aggregates...), (GROUPING(...), a2, b2, aggregates...), ...]
         row_values = self.env.execute_query(query.select(*select_args))
@@ -583,8 +591,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         # - Modify `groupby` default value 'month' into specific groupby specification
         # - Modify `fields` into aggregates specification of _read_group
         # - Modify the order to be compatible with the _read_group specification
-        groupby = [groupby] if isinstance(groupby, str) else groupby
-        lazy_groupby = groupby[:1] if lazy else groupby
 
         annotated_groupby = {}  # Key as the name in the result, value as the explicit groupby specification
         for group_spec in lazy_groupby:

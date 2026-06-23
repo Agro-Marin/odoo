@@ -1,12 +1,11 @@
 """Internal helpers for ``odoo.service.db``.
 
-Module-private (underscore prefix).  External code should keep importing
-these names from ``odoo.service.db`` — that module re-exports everything
-defined here for backward compatibility.
+Module-private (underscore prefix).  External code imports these names from
+``odoo.service.db``, which re-exports everything defined here, so the public
+import surface stays stable regardless of where the helper lives.
 
-Splitting these out of ``db.py`` reduces that module from ~970 lines to
-~860 and groups the small utility surface (validation pattern, master-
-password gate, identifier quoting, connection eviction) in one place.
+Groups the small utility surface split out of ``db.py`` — validation pattern,
+master-password gate, identifier quoting, connection eviction — in one place.
 """
 
 import functools

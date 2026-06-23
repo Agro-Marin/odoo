@@ -45,7 +45,7 @@ from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
 from odoo.tools import SQL, OrderedSet, misc, profiler
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_open, file_path
-from odoo.tools.sass_embedded import SassCompileError
+from odoo.tools.sass_embedded import SassCompileError, find_sass
 
 if TYPE_CHECKING:
     # Model-class imports must stay typing-only: base/models/__init__
@@ -102,6 +102,15 @@ def _check_rtlcss() -> bool:
         check.kill()
         check.communicate()
         _logger.warning("rtlcss --version probe timed out; disabling RTL support")
+        return False
+    # A binary that launches but exits non-zero on ``--version`` is broken (wrong
+    # shim, bad install); treat it as unavailable instead of advertising RTL and
+    # failing every later ``run_rtlcss`` call.
+    if check.returncode:
+        _logger.warning(
+            "rtlcss --version exited with %s; disabling RTL support",
+            check.returncode,
+        )
         return False
     return True
 
@@ -222,6 +231,58 @@ def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
             cmd_output = f"Process exited with return code {proc.returncode}\n"
         raise CompileError(cmd_output)
     return out
+
+
+# CSS string-literal / comment tokenizer — the two spans every whole-text CSS
+# rewrite (url(), @import, appearance) and the minifier must treat as opaque.
+# Alternation order matters: a ``"`` inside a comment is consumed by the comment
+# arm, a ``/*`` inside a string by the string arm (a left-to-right scan takes
+# whichever opens first). One definition, referenced by
+# ``StylesheetAsset._minify_css_body`` (masking) and
+# ``_rewrite_css_outside_strings`` (skip-in-place) so the two never drift.
+_CSS_STRING_OR_COMMENT = re.compile(
+    r"""/\*.*?\*/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'""",
+    re.DOTALL,
+)
+
+
+def _rewrite_css_outside_strings(
+    target: re.Pattern, repl: Callable[[re.Match], str], text: str
+) -> str:
+    """Apply ``repl`` to ``target`` matches that lie in CSS *code* only.
+
+    A single left-to-right scan consumes string-literal and comment spans first
+    (the same tokenizer strategy as :meth:`StylesheetAsset._minify_css_body`),
+    so a ``url()`` / ``@import`` / ``appearance:`` written *inside* a
+    ``content: "…"`` value or a comment is passed through untouched instead of
+    being rewritten — the string-unawareness the whole-text ``re.sub`` calls
+    used to have (characterized as "known limitations" before this).
+    ``target``'s own capture groups reach ``repl`` unchanged: the scanner adds
+    none of its own.
+
+    A real ``url("x")`` is still rewritten — its match *starts* at the ``url(``
+    token (code); only the inner ``"x"`` is a protected span, which the rewrite
+    never needs to enter — so preload byte-matching is unaffected.
+    """
+    # DOTALL is scoped to the string/comment arm via ``(?s:...)`` — only that
+    # arm needs it (block comments ``/\*.*?\*/`` and ``\\.`` line continuations
+    # span newlines). The previous ``target.flags | re.DOTALL`` forced DOTALL
+    # onto the WHOLE combined pattern, silently redefining any ``.`` a future
+    # ``target`` might carry; scoping confines it so the caller's pattern keeps
+    # exactly the flags it was compiled with. ``(?s:...)`` is non-capturing, so
+    # ``target``'s own group numbers are unchanged.
+    scanner = re.compile(
+        f"(?s:{_CSS_STRING_OR_COMMENT.pattern})|{target.pattern}",
+        target.flags,
+    )
+
+    def _dispatch(match: re.Match) -> str:
+        token = match.group(0)
+        if token[:2] == "/*" or token[:1] in ("'", '"'):
+            return token  # protected span — pass through verbatim
+        return repl(match)
+
+    return scanner.sub(_dispatch, text)
 
 
 class AssetAttachmentStore:
@@ -349,6 +410,31 @@ class AssetAttachmentStore:
             bundle_name, unique, self.assets_params, ignore_params
         )
 
+    def _attachment_values(
+        self, *, name: str, mimetype: str, raw: bytes, url: str
+    ) -> dict[str, Any]:
+        """Build the ``ir.attachment`` create payload for one bundle artifact.
+
+        The single write-side source for both :meth:`save_attachment` and the
+        cross-params fallback copy in :meth:`get_attachments`. The identity
+        columns set here — ``res_model='ir.ui.view'``, ``res_id`` (the
+        ``Many2oneReference`` integer coerces the ``False`` to ``0``),
+        ``public=True``, and ``create_uid=SUPERUSER_ID`` via the creating user
+        — are exactly the columns :meth:`get_attachments` / :meth:`_clean_attachments`
+        filter on, so the read and write halves cannot drift. ``name`` /
+        ``mimetype`` / ``raw`` / ``url`` are the per-artifact payload.
+        """
+        return {
+            "name": name,
+            "mimetype": mimetype,
+            "res_model": "ir.ui.view",
+            "res_id": False,
+            "type": "binary",
+            "public": True,
+            "raw": raw,
+            "url": url,
+        }
+
     def _unlink_attachments(self, attachments: IrAttachment) -> None:
         """Unlinks attachments without actually calling unlink, so that the ORM cache is not cleared.
 
@@ -397,10 +483,19 @@ class AssetAttachmentStore:
         """
         ira = self.env["ir.attachment"]
         to_clean_pattern = self.get_asset_url_pattern(extension=extension)
+        # Mirror the identity columns ``get_attachments`` reads on (create_uid /
+        # res_model / res_id, set by ``_attachment_values``): the delete must
+        # never reach a row the read would not surface — otherwise a public
+        # attachment that merely shares the URL pattern (a different creator or
+        # res_model) would be GC'd here despite being invisible to the serving
+        # path. With this the read and delete halves cover the exact same set.
         domain = [
             ("url", "=like", to_clean_pattern),
             ("url", "!=", keep_url),
             ("public", "=", True),
+            ("res_model", "=", "ir.ui.view"),
+            ("res_id", "=", 0),
+            ("create_uid", "=", SUPERUSER_ID),
         ]
 
         attachments = ira.sudo().search(domain)
@@ -455,8 +550,15 @@ class AssetAttachmentStore:
                 extension=extension,
                 ignore_params=True,
             )
-            self.env.cr.execute(SQL(query, SUPERUSER_ID, fallback_url_pattern))
-            similar_attachment_ids = [r[0] for r in self.env.cr.fetchall()]
+            # The cross-params fallback only finds anything when an
+            # ``_get_asset_bundle_url`` override (website) makes the
+            # ``ignore_params=True`` pattern wider than the primary one. In base
+            # the two patterns are byte-identical, so re-running the query is a
+            # guaranteed-empty second round-trip on every cache miss — skip it.
+            similar_attachment_ids = []
+            if fallback_url_pattern != url_pattern:
+                self.env.cr.execute(SQL(query, SUPERUSER_ID, fallback_url_pattern))
+                similar_attachment_ids = [r[0] for r in self.env.cr.fetchall()]
             if similar_attachment_ids:
                 similar = (
                     self.env["ir.attachment"].sudo().browse(similar_attachment_ids[0])
@@ -469,16 +571,12 @@ class AssetAttachmentStore:
                 # The pattern LIKE-escapes the bundle name (``\_``); the
                 # stored URL must be the real, unescaped one.
                 url = self.get_asset_url(unique=unique, extension=extension)
-                values = {
-                    "name": similar.name,
-                    "mimetype": similar.mimetype,
-                    "res_model": "ir.ui.view",
-                    "res_id": False,
-                    "type": "binary",
-                    "public": True,
-                    "raw": similar.raw,
-                    "url": url,
-                }
+                values = self._attachment_values(
+                    name=similar.name,
+                    mimetype=similar.mimetype,
+                    raw=similar.raw,
+                    url=url,
+                )
                 attachment = (
                     self.env["ir.attachment"].with_user(SUPERUSER_ID).create(values)
                 )
@@ -513,16 +611,9 @@ class AssetAttachmentStore:
             unique=unique,
             extension=extension,
         )
-        values = {
-            "name": fname,
-            "mimetype": mimetype,
-            "res_model": "ir.ui.view",
-            "res_id": False,
-            "type": "binary",
-            "public": True,
-            "raw": content.encode("utf-8"),
-            "url": url,
-        }
+        values = self._attachment_values(
+            name=fname, mimetype=mimetype, raw=content.encode("utf-8"), url=url
+        )
         attachment = ira.with_user(SUPERUSER_ID).create(values)
 
         _logger.info(
@@ -557,13 +648,15 @@ class CssPipeline:
 
     Unlike :class:`AssetAttachmentStore` (which deliberately holds no bundle
     reference), this pipeline IS bound to its bundle: :meth:`preprocess` reads
-    and *mutates* the bundle's live ``stylesheets`` list — it injects the
-    Sass-hoisted ``@at-rules`` fragment that ``css_with_sourcemap`` later reads
-    back — and harvests into the bundle's ``css_errors``. That state is owned by
-    the bundle and consumed by ``css()`` / ``css_with_sourcemap`` after the
-    pipeline runs, so it cannot be a decoupled snapshot. The bundle keeps one
-    pipeline (``AssetsBundle._css``), which makes the ``_at_rules_asset``
-    idempotency tracking coherent across re-runs.
+    the bundle's ``stylesheets`` and rebuilds the bundle's ``css_errors``. It
+    does NOT mutate the source ``stylesheets`` list: the Sass-hoisted
+    ``@at-rules`` fragment and the per-file compiled content are assembled into
+    the pipeline's own :attr:`_rendered_assets`, which ``css_with_sourcemap``
+    reads back. Keeping the source list immutable makes :meth:`preprocess` a
+    pure rebuild — no idempotency guard, and ``get_checksum`` sees the same
+    assets no matter when it runs. The bundle keeps one pipeline
+    (``AssetsBundle._css``) so that render list survives the ``preprocess`` →
+    ``css_with_sourcemap`` call sequence.
     """
 
     # @import sanitizer pattern. ``([^;{]*;?)`` (group 3) captures the post-quote
@@ -574,6 +667,29 @@ class CssPipeline:
     # with the statement instead of orphaning it. The ``{`` boundary stops a
     # missing-``;`` import from swallowing a following rule body.
     rx_preprocess_imports = re.compile(r"""(@import\s*['"]([^'"]+)['"]([^;{]*;?))""")
+    # SCSS-aware scanner driving the @import sanitizer (:meth:`compile_css`). An
+    # ``@import`` written inside a comment or string literal is NOT a directive
+    # and must be passed through verbatim: otherwise a commented-out
+    # ``// @import "x";`` both trips the local-import security check AND poisons
+    # the dedup set, silently dropping a real later import of the same partial.
+    # This is the SCSS analogue of :func:`_rewrite_css_outside_strings`, but it
+    # also consumes the Sass ``//`` line comment — a Sass-only construct that
+    # helper deliberately omits, because ``//`` is ordinary text in plain CSS
+    # (e.g. ``url(//cdn/...)``) and must not be read as a comment there. The
+    # shared ``_CSS_STRING_OR_COMMENT`` supplies the block-comment + string arms
+    # (one source), ``//[^\n]*`` adds the line comment, and
+    # ``rx_preprocess_imports`` supplies the directive grammar (also one source).
+    # Only the directive arm carries capture groups, so its ref / tail keep group
+    # numbers 2 / 3 in the combined pattern. A left-to-right scan consumes
+    # whichever span opens first, so a ``//`` inside a string is taken by the
+    # string arm and a ``"`` inside a ``//`` comment is taken by the line arm.
+    # DOTALL is scoped to the block-comment/string arm (``(?s:...)``): the line
+    # arm (``//[^\n]*``) and the directive arm carry no ``.``, and confining the
+    # flag stops it from silently redefining a ``.`` added to either arm later
+    # (mirrors the scoping in :func:`_rewrite_css_outside_strings`).
+    _rx_import_scanner = re.compile(
+        rf"//[^\n]*|(?s:{_CSS_STRING_OR_COMMENT.pattern})|{rx_preprocess_imports.pattern}",
+    )
     # The split marker is namespaced (``odoo-split:``) so it cannot alias a
     # legitimate CSS loud comment (``/*! <token> */``), which Sass and the
     # minifier deliberately preserve: a bare ``/*! <hex> */`` (e.g. a build-hash
@@ -593,6 +709,13 @@ class CssPipeline:
     def __init__(self, bundle: AssetsBundle) -> None:
         """Bind the pipeline to the bundle whose stylesheets it transforms."""
         self._bundle = bundle
+        # The ordered render list :meth:`preprocess` assembles — the optional
+        # Sass-hoisted @at-rules fragment (as a synthetic StylesheetAsset)
+        # followed by the bundle's stylesheets, each carrying its compiled
+        # content. ``css_with_sourcemap`` reads it back. Held here instead of
+        # injected into ``bundle.stylesheets`` so preprocess never mutates the
+        # bundle's source list.
+        self._rendered_assets: list[StylesheetAsset] = []
 
     def preprocess(self) -> str:
         """Compile SCSS to CSS, apply RTL and autoprefixing.
@@ -609,21 +732,31 @@ class CssPipeline:
         # preprocess is the single authority on ``css_errors``: it rebuilds the
         # list from scratch on every call — bundle-level compile/rtl failures
         # (appended below) plus each StylesheetAsset's own fetch errors
-        # (harvested at the end) — so a re-run can never double-report.
+        # (harvested below) — so a re-run can never double-report.
         bundle.css_errors.clear()
+        # Every call rebuilds the render list from scratch, mirroring the
+        # ``css_errors.clear()`` above. preprocess never mutates
+        # ``bundle.stylesheets``, so re-runs are idempotent by construction:
+        # there is no injected @at-rules asset to drop first, and (under RTL)
+        # no stale fragment can re-enter the compile input via the
+        # ``plain_css_assets`` filter — the old failure modes a guard once fixed.
+        self._rendered_assets = []
         if not bundle.stylesheets:
             return ""
 
-        # Re-runs must be idempotent. The @at-rules fragment injected below is
-        # added to ``bundle.stylesheets``; without this guard a second call
-        # stacks a second block (duplicating the @at-rules in the output) and —
-        # under RTL — the stale fragment re-enters the compile input via
-        # ``plain_css_assets``. Drop it before recomputing, mirroring the
-        # ``css_errors.clear()`` above: every call rebuilds from the source list.
-        if bundle._at_rules_asset is not None:
-            with suppress(ValueError):
-                bundle.stylesheets.remove(bundle._at_rules_asset)
-            bundle._at_rules_asset = None
+        # Reset per-asset state so the rebuild-from-source contract holds for
+        # the leaves too. Each StylesheetAsset records fetch/rewrite errors in
+        # its own ``errors`` list and caches fetched content in ``_content``;
+        # ``css_errors`` is cleared above but then *extended* from those lists,
+        # and ``get_source()`` re-reads uncached (it bypasses the ``content``
+        # property to recompile from the original source). Without clearing
+        # them here a second call double-reports every leaf fetch error (the
+        # ``css_errors.clear()`` above is not enough) and could reuse a stale
+        # fragment. Resetting ``_content`` keeps minify()/get_source() in step
+        # so a cleared error is re-recorded this run rather than silently lost.
+        for asset in bundle.stylesheets:
+            asset.errors.clear()
+            asset._content = None
 
         compiled = ""
         assets = [a for a in bundle.stylesheets if isinstance(a, PreprocessedCSS)]
@@ -631,13 +764,18 @@ class CssPipeline:
             # The whole concatenation is compiled through ONE compiler (Sass
             # needs the global ``@import`` scope), so ``assets[0].compile`` must
             # be every asset's — i.e. all preprocessed assets share one dialect.
-            # Only ScssStylesheetAsset exists today; this asserts the invariant
-            # so a future second PreprocessedCSS dialect trips here instead of
-            # being silently compiled through the first asset's compiler.
-            assert len({type(a) for a in assets}) == 1, (
-                f"bundle {bundle.name!r} mixes preprocessed-CSS dialects "
-                f"{sorted({type(a).__name__ for a in assets})}"
-            )
+            # Only ScssStylesheetAsset exists today; enforce the invariant so a
+            # future second PreprocessedCSS dialect trips here instead of being
+            # silently compiled through the first asset's compiler. A plain
+            # ``raise`` (not ``assert``) so it still fires under ``python -O``,
+            # where asserts are stripped — this guards output correctness, not a
+            # mere debug check.
+            dialects = {type(a) for a in assets}
+            if len(dialects) != 1:
+                raise RuntimeError(
+                    f"bundle {bundle.name!r} mixes preprocessed-CSS dialects "
+                    f"{sorted(t.__name__ for t in dialects)}"
+                )
             source = "\n".join(asset.get_source() for asset in assets)
             compiled = self.compile_css(assets[0].compile, source)
 
@@ -655,29 +793,44 @@ class CssPipeline:
             compiled = self.run_rtlcss(compiled)
 
         # A bundle-level failure (Sass/rtl compile error, or a forbidden
-        # @import) recorded an error *before* the per-file split. In that case
-        # ``compiled`` is empty, so the split below assigns no fragments and the
-        # per-asset minify falls back to each asset's *uncompiled* source.
-        # Distinguish it from a leaf asset's fetch error (harvested after the
-        # split, with the rest of the bundle validly compiled) so only the
-        # former short-circuits the return.
+        # @import) recorded an error *before* the per-file split, leaving
+        # ``compiled`` empty. ``css_errors`` can only hold such bundle-level
+        # entries at this point — leaf fetch errors live on each asset's own
+        # ``errors`` list and are harvested later — so a non-empty list here
+        # unambiguously means compilation failed and nothing usable was
+        # produced. Short-circuit the split + minify reassembly entirely.
         compile_failed = bool(bundle.css_errors)
+        if compile_failed:
+            # A bundle-level failure produced no usable ``compiled`` output, so
+            # the per-file split assigns no fragments. Short-circuit before the
+            # ``minify()`` reassembly: that pass would re-fetch — and so
+            # re-error — every leaf whose ``_content`` the empty ``compiled``
+            # left unset, double-reporting its fetch error within this single
+            # call, and its assembled (raw, uncompiled) result is discarded
+            # anyway. Harvest the leaf errors recorded during ``get_source()``
+            # and return "": "nothing usable, see css_errors".
+            for asset in bundle.stylesheets:
+                bundle.css_errors.extend(asset.errors)
+            return ""
 
         # Split compiled output back into per-file fragments using UUID markers
         fragments = self.rx_css_split.split(compiled)
         at_rules = fragments.pop(0)
+        # Sass moves @at-rules (e.g. @charset) to the top for CSS 2.1
+        # compatibility. They have no source asset, so wrap them in a synthetic
+        # StylesheetAsset and prepend it to the RENDER list — never to
+        # ``bundle.stylesheets``. Keeping the bundle's source list immutable is
+        # what makes preprocess a pure rebuild (idempotent without a guard). The
+        # bundle version is unaffected either way: ``get_checksum`` reads the
+        # ``__init__`` snapshot (``bundle._version_assets``), not this list.
+        rendered = list(bundle.stylesheets)
         if at_rules:
-            # Sass moves @at-rules to the top for CSS 2.1 compatibility.
-            # Inject the compiler-derived fragment into the live stylesheet list
-            # for content assembly, and remember it on ``bundle._at_rules_asset``
-            # so a re-run drops it (see the idempotency guard above) instead of
-            # stacking another. The bundle version is NOT affected:
-            # ``get_checksum`` reads the ``__init__`` snapshot
-            # (``bundle._version_assets``), which predates this insert — so the
-            # advertised and saved URLs stay identical no matter when
-            # ``get_version`` is called relative to ``preprocess``.
-            bundle._at_rules_asset = StylesheetAsset(bundle, inline=at_rules)
-            bundle.stylesheets.insert(0, bundle._at_rules_asset)
+            rendered.insert(0, StylesheetAsset(bundle, inline=at_rules))
+        self._rendered_assets = rendered
+
+        # Per-file fragments are matched back to their SOURCE assets only — the
+        # synthetic @at-rules asset carries its content inline, never via a
+        # split marker.
         assets_by_id = {a.id: a for a in bundle.stylesheets}
         # ``rx_css_split`` yields ``marker, content, marker, content, …``;
         # pair-iterate instead of ``pop(0)`` in a loop, which is O(N²) on a
@@ -692,31 +845,54 @@ class CssPipeline:
                 )
             asset._content = content
 
-        bundle_css = "\n".join(asset.minify() for asset in bundle.stylesheets)
+        bundle_css = "\n".join(asset.minify() for asset in self._rendered_assets)
         # Harvest each asset's own fetch/rewrite errors. The minify pass above
         # (and the get_source() reads earlier) is what triggers content
         # fetching, so every asset's ``errors`` list is fully populated by now.
         # The bundle owns ``css_errors`` and the pipeline collects from the
         # leaves here, rather than each StylesheetAsset reaching up to append.
+        # A bundle-level compile failure already returned "" above; reaching
+        # here means compilation succeeded, so a leaf-only fetch error still
+        # ships the partial bundle (the good assets compiled fine), and css()
+        # banners on the harvested error (pinned by
+        # test_bundle_harvests_asset_errors).
         for asset in bundle.stylesheets:
             bundle.css_errors.extend(asset.errors)
-        # On a bundle-level compile failure the assembled string is raw,
-        # uncompiled source (see ``compile_failed`` above) — never serve it;
-        # return "" so the contract is "nothing usable, see css_errors" rather
-        # than a wrong value the caller's css_errors check happens to mask. A
-        # leaf-only fetch error still returns the partial bundle: the good
-        # assets compiled fine and ship, and css() banners on the harvested
-        # error (pinned by test_bundle_harvests_asset_errors).
-        return "" if compile_failed else bundle_css
+        return bundle_css
 
     def compile_css(self, compiler: Callable[[str], str], source: str) -> str:
-        """Sanitize @import rules, remove duplicates, then compile."""
+        """Sanitize @import rules, remove duplicates, then compile.
+
+        Only @import statements in actual SCSS *code* are sanitized: ones
+        sitting inside a comment or string literal are passed through
+        verbatim (see :attr:`_rx_import_scanner`).
+        """
         bundle = self._bundle
         seen_imports: set[str] = set()
 
         def sanitize_import(matchobj: re.Match) -> str:
+            token = matchobj.group(0)
+            # Comment / string span: the ``@import`` inside it is not a
+            # directive — return it untouched. This is what stops a commented
+            # ``// @import "x";`` from raising a spurious security error and
+            # from poisoning ``seen_imports`` (which would silently drop a real
+            # later import of the same partial).
+            if token[:2] in ("/*", "//") or token[:1] in ("'", '"'):
+                return token
             ref = matchobj.group(2)
             line = f'@import "{ref}"{matchobj.group(3)}'
+            # Dedup FIRST, media-aware: ``line`` reconstructs the full statement
+            # (group 3 carries the trailing media query), so the key treats the
+            # same url with different media as distinct. Deduping ahead of the
+            # security check means a forbidden import repeated across several
+            # concatenated files is reported ONCE, not once per occurrence —
+            # ``css_errors`` is joined verbatim into the degraded-CSS banner, so
+            # N copies of the same line used to stack into N banner lines (and
+            # N identical server warnings). Re-importing a library partial is
+            # likewise the normal SCSS case and dropped silently.
+            if line in seen_imports:
+                return ""
+            seen_imports.add(line)
             # Security: reject genuine local/relative imports — a dotted
             # filename (``foo.scss``) or a path-like ref (``./``, ``/``,
             # ``~``). These must be pulled in through the assets bundle,
@@ -730,19 +906,9 @@ class CssPipeline:
                 _logger.warning(msg)
                 bundle.css_errors.append(msg)
                 return ""
-            # Dedup: re-importing the same library partial across several
-            # concatenated files is normal SCSS, not an error — drop the
-            # repeat silently instead of flagging it as forbidden (which
-            # would pollute css_errors and trigger the degraded-CSS banner).
-            # ``line`` reconstructs the full statement (group 3 carries the
-            # trailing media query), so the key is media-aware: same url with
-            # different media is NOT a duplicate.
-            if line in seen_imports:
-                return ""
-            seen_imports.add(line)
             return line
 
-        source = self.rx_preprocess_imports.sub(sanitize_import, source)
+        source = self._rx_import_scanner.sub(sanitize_import, source)
 
         try:
             return compiler(source).strip()
@@ -752,33 +918,42 @@ class CssPipeline:
             bundle.css_errors.append(error)
             return ""
 
-    @staticmethod
-    def _autoprefix_css(source: str) -> str:
+    # Vendor-prefix matcher for the ``appearance`` property. Handles both
+    # expanded ("  appearance: none;") and compressed ("{appearance:none}")
+    # Dart Sass output.  Two correctness details:
+    #   * the value group is ``[\w-]+`` (not ``\w+``) so a hyphenated value
+    #     like ``menulist-button`` is carried into the prefixed copies intact
+    #     instead of being truncated to ``menulist``;
+    #   * an optional ``!important`` is captured and replicated onto the
+    #     ``-webkit-``/``-moz-`` declarations — otherwise the prefixed copies
+    #     silently drop it and lose to a competing rule (notably the common
+    #     WebKit form-control reset ``appearance: none !important``).
+    # ``-webkit-appearance``/``-moz-appearance`` already present are left
+    # untouched: their ``appearance`` is preceded by ``-``, outside the
+    # ``[{; \t]`` lead-in class.
+    _RX_APPEARANCE = re.compile(r"([{; \t])appearance:\s*([\w-]+)(\s*!important)?(;?)")
+
+    @classmethod
+    def _autoprefix_css(cls, source: str) -> str:
         """Post-process compiled CSS to add required vendor prefixes.
 
         Intentionally minimal — only the ``appearance`` property is
-        handled; this is not a general-purpose autoprefixer.
+        handled; this is not a general-purpose autoprefixer. String-aware
+        (via :func:`_rewrite_css_outside_strings`): an ``appearance:`` written
+        inside a ``content: "…"`` string value is left untouched.
         """
-        compiled = source.strip()
 
-        # Add -webkit- and -moz- vendor prefixes for the `appearance` property.
-        # Handles both expanded ("  appearance: none;") and compressed
-        # ("{appearance:none}") Dart Sass output.  Two correctness details:
-        #   * the value group is ``[\w-]+`` (not ``\w+``) so a hyphenated value
-        #     like ``menulist-button`` is carried into the prefixed copies
-        #     intact instead of being truncated to ``menulist``;
-        #   * an optional ``!important`` is captured and replicated onto the
-        #     ``-webkit-``/``-moz-`` declarations — otherwise the prefixed
-        #     copies silently drop it and lose to a competing rule (notably the
-        #     common WebKit form-control reset ``appearance: none !important``).
-        # ``-webkit-appearance``/``-moz-appearance`` already present in the
-        # source are left untouched: their ``appearance`` is preceded by ``-``,
-        # which is outside the ``[{; \t]`` lead-in class.
-        return re.sub(
-            r"([{; \t])appearance:\s*([\w-]+)(\s*!important)?(;?)",
-            r"\1-webkit-appearance:\2\3;-moz-appearance:\2\3;appearance:\2\3\4",
-            compiled,
-        )
+        def _prefix(match: re.Match) -> str:
+            lead, value = match.group(1), match.group(2)
+            important = match.group(3) or ""
+            semicolon = match.group(4)
+            return (
+                f"{lead}-webkit-appearance:{value}{important};"
+                f"-moz-appearance:{value}{important};"
+                f"appearance:{value}{important}{semicolon}"
+            )
+
+        return _rewrite_css_outside_strings(cls._RX_APPEARANCE, _prefix, source.strip())
 
     def run_rtlcss(self, source: str) -> str:
         """Transform CSS for right-to-left languages using rtlcss."""
@@ -794,14 +969,21 @@ class CssPipeline:
             _logger.warning("%s", error)
             self._bundle.css_errors.append(error)
             return ""
-        if source and not out:
+        # Compare on the stripped forms — the value actually returned. The guard
+        # used to test the RAW ``out``, so an rtlcss result of pure whitespace
+        # (``"\n"``) read as truthy, skipped this branch, and shipped ``""``
+        # silently with no banner; stripping ``source`` too keeps a
+        # whitespace-only payload (legitimately empty output) from tripping a
+        # false positive.
+        out = out.strip()
+        if source.strip() and not out:
             # Zero exit but empty output for a non-empty payload — rtlcss
             # swallowed the stylesheet without reporting an error.
             error = "rtlcss: error processing payload\n"
             _logger.warning("%s", error)
             self._bundle.css_errors.append(error)
             return ""
-        return out.strip()
+        return out
 
     def _format_compiler_error(self, stderr: str) -> str:
         """Clean up and contextualize a CSS compiler error message.
@@ -867,6 +1049,307 @@ css_error_message {{
         return cls._CSS_ERROR_HEADER.join([carried_over, banner])
 
 
+class XmlTemplatePipeline:
+    """Render one bundle's OWL templates into the JS that registers them.
+
+    Split out of :class:`AssetsBundle` so all template handling lives behind one
+    boundary, mirroring :class:`CssPipeline` for stylesheets: parsing into
+    primary/extension blocks (:meth:`xml`), rendering the ``registerTemplate``
+    calls (:meth:`generate_xml_bundle`), and the two delivery wrappers — the
+    legacy classic-bundle IIFE (:meth:`legacy_template_iife`) and the ESM
+    ``<script type="module">`` form (:meth:`generate_esm_template_bundle`).
+    ``AssetsBundle`` keeps thin façades for its public/test surface and the
+    ``ir_qweb`` call sites.
+    """
+
+    # OWL template-registration API destructured from ``@web/core/templates`` by
+    # the generated template bundles. Three call sites consume this exact set —
+    # the legacy IIFE wrapper and both header forms of
+    # ``generate_esm_template_bundle`` — so a single source keeps them from
+    # drifting when a registrar is added or renamed.
+    _TEMPLATE_MODULE = "@web/core/templates"
+    _TEMPLATE_REGISTRARS = (
+        "checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension"
+    )
+
+    def __init__(self, bundle: AssetsBundle) -> None:
+        """Bind the pipeline to the bundle whose templates it renders."""
+        self._bundle = bundle
+
+    def xml(self) -> list[XMLBlock]:
+        """
+        Create a list of blocks. A block can have one of the two types "templates" or "extensions".
+        A template with no parent or template with t-inherit-mode="primary" goes in a block of type "templates".
+        A template with t-inherit-mode="extension" goes in a block of type "extensions".
+
+        Used parsed attributes:
+        * `t-name`: template name
+        * `t-inherit`: inherited template name.
+        * 't-inherit-mode':  'primary' or 'extension'.
+
+        :return a list of blocks
+        """
+        bundle = self._bundle
+        blocks = []
+        block = None
+        for asset in bundle.templates:
+            # ``template_elements`` parses each asset's XML once and caches it
+            # (see XMLAsset); a parse error surfaces as XMLAssetError at access
+            # time and is handled by generate_xml_bundle's try/except.
+            for template_tree in asset.template_elements:
+                template_name = template_tree.get("t-name")
+                inherit_from = template_tree.get("t-inherit")
+                inherit_mode = None
+                if inherit_from:
+                    inherit_mode = template_tree.get("t-inherit-mode", "primary")
+                    if inherit_mode not in {"primary", "extension"}:
+                        # ``asset.name`` covers inline assets (url is None),
+                        # where ``url.split`` would crash the error path.
+                        addon = asset.url.split("/")[1] if asset.url else asset.name
+                        raise asset._error(
+                            bundle.env._(
+                                'Invalid inherit mode. Module "%(module)s" and template name "%(template_name)s"',
+                                module=addon,
+                                template_name=template_name,
+                            )
+                        )
+                if inherit_mode == "extension":
+                    if block is None or block["type"] != "extensions":
+                        block = {
+                            "type": "extensions",
+                            "extensions": {},
+                        }
+                        blocks.append(block)
+                    block["extensions"].setdefault(inherit_from, [])
+                    block["extensions"][inherit_from].append((template_tree, asset.url))
+                elif template_name:
+                    if block is None or block["type"] != "templates":
+                        block = {"type": "templates", "templates": []}
+                        blocks.append(block)
+                    block["templates"].append((template_tree, asset.url, inherit_from))
+                else:
+                    raise asset._error(bundle.env._("Template name is missing."))
+        return blocks
+
+    def generate_xml_bundle(self) -> str:
+        """Render the JS that registers this bundle's XML templates at runtime."""
+        content = []
+        blocks = []
+        try:
+            blocks = self.xml()
+        except XMLAssetError as e:
+            content.append(f"throw new Error({json.dumps(str(e))});")
+
+        def get_template(element: etree._Element) -> str:
+            element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            string = etree.tostring(element, encoding="unicode")
+            return (
+                string.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+            )
+
+        names = OrderedSet()
+        primary_parents = OrderedSet()
+        extension_parents = OrderedSet()
+        for block in blocks:
+            if block["type"] == "templates":
+                for element, url, inherit_from in block["templates"]:
+                    if inherit_from:
+                        primary_parents.add(inherit_from)
+                    name = element.get("t-name")
+                    names.add(name)
+                    template = get_template(element)
+                    # The URL is a JS string argument, not template-literal
+                    # text: json.dumps quotes/escapes it so a url containing a
+                    # backtick or ``${`` cannot break out of (or interpolate
+                    # into) the surrounding literal. The template body stays a
+                    # backtick literal — get_template already escapes it.
+                    content.append(
+                        f"registerTemplate({json.dumps(name)}, {json.dumps(url)}, `{template}`);"
+                    )
+            else:
+                for inherit_from, elements in block["extensions"].items():
+                    extension_parents.add(inherit_from)
+                    for element, url in elements:
+                        template = get_template(element)
+                        content.append(
+                            f"registerTemplateExtension({json.dumps(inherit_from)}, {json.dumps(url)}, `{template}`);"
+                        )
+
+        missing_names_for_primary = primary_parents - names
+        if missing_names_for_primary:
+            content.append(
+                f"checkPrimaryTemplateParents({json.dumps(list(missing_names_for_primary))});"
+            )
+        missing_names_for_extension = extension_parents - names
+        if missing_names_for_extension:
+            missing_msg = "Missing (extension) parent templates: " + ", ".join(
+                missing_names_for_extension
+            )
+            content.append(f"console.error({json.dumps(missing_msg)});")
+
+        return "\n".join(content)
+
+    def generate_esm_template_bundle(self, use_import=True) -> str:
+        """Generate an ESM template bundle for ``<script type="module">``.
+
+        When *use_import* is True (debug mode), uses native ``import``
+        from ``@web/core/templates`` (resolved via import map).
+
+        When False (production esbuild), accesses the templates module
+        via ``odoo.loader.modules.get()`` — this avoids a second module
+        instance (esbuild internalizes @web/core/templates, so an
+        ``import`` would create a separate copy with its own registry).
+        The esbuild bundle must execute first (registerNativeModules).
+        """
+        bundle = self._bundle
+        if not bundle.templates:
+            return ""
+        templates = self.generate_xml_bundle()
+        if not templates:
+            return ""
+        if use_import:
+            header = (
+                f"import {{ {self._TEMPLATE_REGISTRARS} }} "
+                f'from "{self._TEMPLATE_MODULE}";\n'
+            )
+        else:
+            header = (
+                f"const {{ {self._TEMPLATE_REGISTRARS} }} = "
+                f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
+            )
+        return f"{header}/* {bundle.name} */\n{templates}\n"
+
+    def legacy_template_iife(self) -> str:
+        """Wrap the registered templates in the classic-bundle IIFE.
+
+        Non-ESM bundles ship their templates *inside* the concatenated
+        ``.min.js`` via this wrapper; ESM bundles use
+        :meth:`generate_esm_template_bundle` instead.
+        """
+        templates = self.generate_xml_bundle()
+        return textwrap.dedent(f"""
+
+            /*******************************************
+            *  Templates                               *
+            *******************************************/
+
+            (function() {{
+                "use strict";
+                const {{ {self._TEMPLATE_REGISTRARS} }} = odoo.loader.modules.get("{self._TEMPLATE_MODULE}");
+                /* {self._bundle.name} */
+                {templates}
+            }})();
+        """)
+
+
+class JsPipeline:
+    """Assemble one bundle's JavaScript content for the legacy concatenated bundle.
+
+    Split out of :class:`AssetsBundle` so JS *content generation* — the
+    module-syntax guard, the production concatenation, and the debug sourcemap
+    body — lives behind one boundary, mirroring :class:`CssPipeline`. Attachment
+    persistence (the ``js`` / ``js.map`` records) stays on :class:`AssetsBundle`
+    (:meth:`AssetsBundle.js` / :meth:`AssetsBundle.js_with_sourcemap`), which
+    orchestrates this pipeline together with :class:`AssetAttachmentStore` — the
+    same division of labour the CSS path uses.
+    """
+
+    def __init__(self, bundle: AssetsBundle) -> None:
+        """Bind the pipeline to the bundle whose JavaScript it assembles."""
+        self._bundle = bundle
+
+    def _module_syntax_error_stub(self, asset: JavascriptAsset) -> str | None:
+        """Return a ``console.error`` stub when module syntax can't be concatenated.
+
+        :param asset: legacy-routed JS asset about to be concatenated
+        :return: replacement JS for the asset, or ``None`` when it is safe
+        :rtype: str | None
+        """
+        # Since the legacy transpiler was removed, ES-module syntax inside the
+        # concatenated classic bundle is a browser-side SyntaxError that takes
+        # the WHOLE bundle down. Excluding the file keeps the rest functional
+        # and the misconfiguration loud on both server and client.  Detection
+        # is syntax-based on purpose: the ``is_odoo_module`` routing heuristic
+        # also claims plain non-module files under /static/src, which are
+        # perfectly valid in a classic script and must not be stubbed.
+        bundle = self._bundle
+        if bundle._is_esm_bundle:
+            return None
+        header = asset.parsed_header
+        if header and header["ignore"]:
+            # ``@odoo-module ignore`` is an explicit opt-out: the author
+            # asserts the file is classic-script safe.
+            return None
+        if not header and not has_module_syntax(asset.raw_content):
+            return None
+        msg = (
+            f"Module-syntax file {asset.url or asset.name!r} cannot be "
+            f"concatenated into non-ESM bundle {bundle.name!r}; declare the "
+            "bundle under the 'esm' key of its module's manifest to serve "
+            "it. File skipped."
+        )
+        log_event(
+            _bundle_log,
+            logging.ERROR,
+            "module_syntax_in_legacy_bundle",
+            bundle=bundle.name,
+            url=asset.url or "<inline>",
+        )
+        return f"console.error({json.dumps(msg)});"
+
+    def minified_bundle(self, template_bundle: str) -> str:
+        """Concatenated, minified JS for the production (``min.js``) bundle.
+
+        ``template_bundle`` is the legacy template IIFE appended verbatim (empty
+        for ESM bundles, which deliver templates separately).
+        """
+        content_bundle = ";\n".join(
+            self._module_syntax_error_stub(asset) or asset.minify()
+            for asset in self._bundle.javascripts
+        )
+        return content_bundle + template_bundle
+
+    def sourcemap_bundle(
+        self, generator: SourceMapGenerator, sourcemap_url: str, template_bundle: str
+    ) -> str:
+        """Build the un-minified debug JS body, populating *generator*.
+
+        Adds a per-file source mapping to *generator* and appends the
+        ``sourceMappingURL`` link. The caller owns the ``js`` / ``js.map``
+        attachment I/O (and sets ``generator.file`` once the js URL is known).
+        """
+        content_bundle_list = []
+        content_line_count = 0
+        # Lines emitted before the file body by ``with_header(minimal=False)``;
+        # the verbose header and this offset are kept in sync through the
+        # ``JavascriptAsset._HEADER_LINE_COUNT`` constant.
+        line_header = JavascriptAsset._HEADER_LINE_COUNT
+        for asset in self._bundle.javascripts:
+            stub = self._module_syntax_error_stub(asset)
+            if stub:
+                # Excluded from the sourcemap too — the stub replaces the
+                # file body, so mapped positions would be meaningless.
+                content_bundle_list.append(stub)
+                content_line_count += stub.count("\n") + 1
+                continue
+            generator.add_source(
+                asset.url,
+                asset.content,
+                content_line_count,
+                start_offset=line_header,
+            )
+
+            content_bundle_list.append(asset.with_header(asset.content, minimal=False))
+            content_line_count += asset.content.count("\n") + 1 + line_header
+
+        content_bundle = ";\n".join(content_bundle_list)
+        if template_bundle:
+            content_bundle += template_bundle
+
+        content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_url
+        return content_bundle
+
+
 class AssetsBundle:
     """Compile, version and persist the JS/CSS/XML assets of one named bundle."""
 
@@ -882,16 +1365,6 @@ class AssetsBundle:
     # invoked with ``syntax="scss"``, so a ``.sass`` file would die with a
     # misleading SCSS parse error — let the tripwire flag it instead.
     _BUNDLE_FILE_EXTENSIONS = frozenset({"scss", "css", "js", "xml"})
-
-    # OWL template-registration API destructured from ``@web/core/templates`` by
-    # the generated template bundles. Three call sites consume this exact set —
-    # the non-ESM IIFE wrapper in ``js()`` and both header forms of
-    # ``generate_esm_template_bundle`` — so a single source keeps them from
-    # drifting when a registrar is added or renamed.
-    _TEMPLATE_MODULE = "@web/core/templates"
-    _TEMPLATE_REGISTRARS = (
-        "checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension"
-    )
 
     # ─────────────────────────────────────────────────────────────────
     # ESM bundle classification
@@ -973,11 +1446,6 @@ class AssetsBundle:
         self._is_esm_bundle = name in esm_registry().bundles
         self.templates = []
         self.stylesheets = []
-        # Synthetic StylesheetAsset holding the Sass-hoisted @at-rules block,
-        # injected into ``stylesheets`` by ``preprocess_css`` for content
-        # assembly. Tracked here so a re-run drops the prior one instead of
-        # stacking a second (see the idempotency guard in ``preprocess_css``).
-        self._at_rules_asset = None
         self.css_errors = []
         # Snapshot of the input file specs; read by the content-invalidation
         # test suite to assert the file list changed across rebuilds.
@@ -1156,6 +1624,32 @@ class AssetsBundle:
 
         import_map = {}
         preload_urls = []
+
+        def _map(spec: str, url: str, kind: str) -> None:
+            # The browser import map holds ONE url per specifier, but two native
+            # modules can resolve to the same specifier: ``foo.js`` and
+            # ``foo/index.js`` both yield ``@addon/foo`` (url_to_module_path
+            # strips ``/index``), and the ``/index`` long form or a declared
+            # alias can clash with another module likewise. Keep the existing
+            # last-wins behaviour (changing it could move a live bundle's
+            # resolution), but make the dropped mapping loud — the same
+            # "no silent drops" tripwire the ``__init__`` file loop emits for
+            # skipped assets. Same-url re-adds (a module's own spec + long form)
+            # are not collisions and stay silent.
+            prior = import_map.get(spec)
+            if prior is not None and prior != url:
+                log_event(
+                    _bundle_log,
+                    logging.WARNING,
+                    "import_map_spec_collision",
+                    bundle=self.name,
+                    spec=spec,
+                    kind=kind,
+                    previous=prior,
+                    replaced_with=url,
+                )
+            import_map[spec] = url
+
         for asset in self.native_modules:
             spec = asset.module_path
             # Use bare URLs without ?v= cache-busting.  Native ESM modules
@@ -1166,7 +1660,7 @@ class AssetsBundle:
             # duplicate registry errors.  Cache invalidation for native
             # modules relies on the import map script tag changing (which
             # triggers a full page reload via bus.bus bundle_changed).
-            import_map[spec] = asset.url
+            _map(spec, asset.url, "module_path")
             preload_urls.append(asset.url)
             # For index.js files, url_to_module_path strips "/index" so
             # "@spreadsheet/global_filters/index" becomes
@@ -1174,14 +1668,13 @@ class AssetsBundle:
             # form too so `import from "@spreadsheet/global_filters/index"`
             # resolves to the same URL instead of a data: URI bridge.
             if asset.url.endswith("/index.js"):
-                long_spec = spec + "/index"
-                import_map[long_spec] = asset.url
+                _map(spec + "/index", asset.url, "index_long_form")
             # If the module declares an alias (e.g. @odoo/o-spreadsheet),
             # add an import map entry so `import ... from "alias"` resolves
             # to the same URL.
             header = asset.parsed_header
             if header and header["alias"]:
-                import_map[header["alias"]] = asset.url
+                _map(header["alias"], asset.url, "alias")
 
         # ``import_map`` keys ARE this bundle's native specifiers — every key
         # added above is the bundle's own module path, "/index" long form, or
@@ -1233,7 +1726,13 @@ class AssetsBundle:
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list, list]:
-        """Delegate to the esbuild layer; patch point for tests."""
+        """Delegate to the esbuild layer; the per-bundle addon-flags seam.
+
+        ``_make_esbuild_compiler`` hands this callable to ``EsbuildCompiler`` as
+        its ``addon_flags_provider``; a test (or override) can patch it here to
+        inject fabricated flags. That threading is pinned by
+        ``test_review_followup.TestEsbuildCompilerAddonFlagsSeam``.
+        """
         return EsbuildCompiler._get_esbuild_addon_flags(odoo_root)
 
     def _make_esbuild_compiler(self) -> EsbuildCompiler:
@@ -1377,43 +1876,25 @@ class AssetsBundle:
             )
         return asset.is_native or is_odoo_module(asset.url or "", asset.raw_content)
 
-    def _module_syntax_error_stub(self, asset: JavascriptAsset) -> str | None:
-        """Return a ``console.error`` stub when module syntax can't be concatenated.
+    @functools.cached_property
+    def _js(self) -> JsPipeline:
+        """JS content-assembly pipeline bound to this bundle, built once.
 
-        :param asset: legacy-routed JS asset about to be concatenated
-        :return: replacement JS for the asset, or ``None`` when it is safe
-        :rtype: str | None
+        Owns the legacy concatenation, the module-syntax guard and the debug
+        sourcemap body; ``js`` / ``js_with_sourcemap`` below keep the attachment
+        I/O. Mirrors :attr:`_css`.
         """
-        # Since the legacy transpiler was removed, ES-module syntax inside the
-        # concatenated classic bundle is a browser-side SyntaxError that takes
-        # the WHOLE bundle down. Excluding the file keeps the rest functional
-        # and the misconfiguration loud on both server and client.  Detection
-        # is syntax-based on purpose: the ``is_odoo_module`` routing heuristic
-        # also claims plain non-module files under /static/src, which are
-        # perfectly valid in a classic script and must not be stubbed.
-        if self._is_esm_bundle:
-            return None
-        header = asset.parsed_header
-        if header and header["ignore"]:
-            # ``@odoo-module ignore`` is an explicit opt-out: the author
-            # asserts the file is classic-script safe.
-            return None
-        if not header and not has_module_syntax(asset.raw_content):
-            return None
-        msg = (
-            f"Module-syntax file {asset.url or asset.name!r} cannot be "
-            f"concatenated into non-ESM bundle {self.name!r}; declare the "
-            "bundle under the 'esm' key of its module's manifest to serve "
-            "it. File skipped."
-        )
-        log_event(
-            _bundle_log,
-            logging.ERROR,
-            "module_syntax_in_legacy_bundle",
-            bundle=self.name,
-            url=asset.url or "<inline>",
-        )
-        return f"console.error({json.dumps(msg)});"
+        return JsPipeline(self)
+
+    @functools.cached_property
+    def _xmltemplates(self) -> XmlTemplatePipeline:
+        """OWL-template rendering pipeline bound to this bundle, built once.
+
+        Owns ``xml`` / ``generate_xml_bundle`` and the delivery wrappers; the
+        methods below stay as thin façades for the public/test surface and the
+        ``ir_qweb`` call sites. Mirrors :attr:`_css`.
+        """
+        return XmlTemplatePipeline(self)
 
     def js(self) -> IrAttachment:
         """Return (generating and persisting if needed) the bundle's JS attachment."""
@@ -1422,33 +1903,17 @@ class AssetsBundle:
         js_attachment = self.get_attachments(extension)
 
         if not js_attachment:
-            template_bundle = ""
-            if self._has_legacy_templates:
-                # Non-ESM bundles: wrap templates in a plain function call.
-                templates = self.generate_xml_bundle()
-                template_bundle = textwrap.dedent(f"""
-
-                    /*******************************************
-                    *  Templates                               *
-                    *******************************************/
-
-                    (function() {{
-                        "use strict";
-                        const {{ {self._TEMPLATE_REGISTRARS} }} = odoo.loader.modules.get("{self._TEMPLATE_MODULE}");
-                        /* {self.name} */
-                        {templates}
-                    }})();
-                """)
-            # ESM bundles (including dynamic): templates are delivered as
-            # a separate <script type="module"> — see
+            # Non-ESM bundles wrap their templates in the classic IIFE inside the
+            # concatenated bundle; ESM bundles (including dynamic) deliver them
+            # as a separate <script type="module"> — see
             # _get_native_module_nodes() and generate_esm_template_bundle().
-
+            template_bundle = (
+                self._xmltemplates.legacy_template_iife()
+                if self._has_legacy_templates
+                else ""
+            )
             if is_minified:
-                content_bundle = ";\n".join(
-                    self._module_syntax_error_stub(asset) or asset.minify()
-                    for asset in self.javascripts
-                )
-                content_bundle += template_bundle
+                content_bundle = self._js.minified_bundle(template_bundle)
                 js_attachment = self.save_attachment(extension, content_bundle)
             else:
                 js_attachment = self.js_with_sourcemap(template_bundle=template_bundle)
@@ -1467,35 +1932,9 @@ class AssetsBundle:
         generator = SourceMapGenerator(
             source_root=_sourcemap_source_root(self.get_asset_url("debug", "js")),
         )
-        content_bundle_list = []
-        content_line_count = 0
-        # Lines emitted before the file body by ``with_header(minimal=False)``;
-        # the verbose header and this offset are kept in sync through the
-        # ``JavascriptAsset._HEADER_LINE_COUNT`` constant.
-        line_header = JavascriptAsset._HEADER_LINE_COUNT
-        for asset in self.javascripts:
-            stub = self._module_syntax_error_stub(asset)
-            if stub:
-                # Excluded from the sourcemap too — the stub replaces the
-                # file body, so mapped positions would be meaningless.
-                content_bundle_list.append(stub)
-                content_line_count += stub.count("\n") + 1
-                continue
-            generator.add_source(
-                asset.url,
-                asset.content,
-                content_line_count,
-                start_offset=line_header,
-            )
-
-            content_bundle_list.append(asset.with_header(asset.content, minimal=False))
-            content_line_count += asset.content.count("\n") + 1 + line_header
-
-        content_bundle = ";\n".join(content_bundle_list)
-        if template_bundle:
-            content_bundle += template_bundle
-
-        content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_attachment.url
+        content_bundle = self._js.sourcemap_bundle(
+            generator, sourcemap_attachment.url, template_bundle or ""
+        )
         js_attachment = self.save_attachment("js", content_bundle)
 
         generator.file = js_attachment.url
@@ -1503,146 +1942,17 @@ class AssetsBundle:
 
         return js_attachment
 
-    def generate_esm_template_bundle(self, use_import=True) -> str:
-        """Generate an ESM template bundle for ``<script type="module">``.
-
-        When *use_import* is True (debug mode), uses native ``import``
-        from ``@web/core/templates`` (resolved via import map).
-
-        When False (production esbuild), accesses the templates module
-        via ``odoo.loader.modules.get()`` — this avoids a second module
-        instance (esbuild internalizes @web/core/templates, so an
-        ``import`` would create a separate copy with its own registry).
-        The esbuild bundle must execute first (registerNativeModules).
-        """
-        if not self.templates:
-            return ""
-        templates = self.generate_xml_bundle()
-        if not templates:
-            return ""
-        if use_import:
-            header = (
-                f"import {{ {self._TEMPLATE_REGISTRARS} }} "
-                f'from "{self._TEMPLATE_MODULE}";\n'
-            )
-        else:
-            header = (
-                f"const {{ {self._TEMPLATE_REGISTRARS} }} = "
-                f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
-            )
-        return f"{header}/* {self.name} */\n{templates}\n"
+    def xml(self) -> list[XMLBlock]:
+        """Delegates to :meth:`XmlTemplatePipeline.xml`."""
+        return self._xmltemplates.xml()
 
     def generate_xml_bundle(self) -> str:
-        """Render the JS that registers this bundle's XML templates at runtime."""
-        content = []
-        blocks = []
-        try:
-            blocks = self.xml()
-        except XMLAssetError as e:
-            content.append(f"throw new Error({json.dumps(str(e))});")
+        """Delegates to :meth:`XmlTemplatePipeline.generate_xml_bundle`."""
+        return self._xmltemplates.generate_xml_bundle()
 
-        def get_template(element: etree._Element) -> str:
-            element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-            string = etree.tostring(element, encoding="unicode")
-            return (
-                string.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
-            )
-
-        names = OrderedSet()
-        primary_parents = OrderedSet()
-        extension_parents = OrderedSet()
-        for block in blocks:
-            if block["type"] == "templates":
-                for element, url, inherit_from in block["templates"]:
-                    if inherit_from:
-                        primary_parents.add(inherit_from)
-                    name = element.get("t-name")
-                    names.add(name)
-                    template = get_template(element)
-                    # The URL is a JS string argument, not template-literal
-                    # text: json.dumps quotes/escapes it so a url containing a
-                    # backtick or ``${`` cannot break out of (or interpolate
-                    # into) the surrounding literal. The template body stays a
-                    # backtick literal — get_template already escapes it.
-                    content.append(
-                        f"registerTemplate({json.dumps(name)}, {json.dumps(url)}, `{template}`);"
-                    )
-            else:
-                for inherit_from, elements in block["extensions"].items():
-                    extension_parents.add(inherit_from)
-                    for element, url in elements:
-                        template = get_template(element)
-                        content.append(
-                            f"registerTemplateExtension({json.dumps(inherit_from)}, {json.dumps(url)}, `{template}`);"
-                        )
-
-        missing_names_for_primary = primary_parents - names
-        if missing_names_for_primary:
-            content.append(
-                f"checkPrimaryTemplateParents({json.dumps(list(missing_names_for_primary))});"
-            )
-        missing_names_for_extension = extension_parents - names
-        if missing_names_for_extension:
-            missing_msg = "Missing (extension) parent templates: " + ", ".join(
-                missing_names_for_extension
-            )
-            content.append(f"console.error({json.dumps(missing_msg)});")
-
-        return "\n".join(content)
-
-    def xml(self) -> list[XMLBlock]:
-        """
-        Create a list of blocks. A block can have one of the two types "templates" or "extensions".
-        A template with no parent or template with t-inherit-mode="primary" goes in a block of type "templates".
-        A template with t-inherit-mode="extension" goes in a block of type "extensions".
-
-        Used parsed attributes:
-        * `t-name`: template name
-        * `t-inherit`: inherited template name.
-        * 't-inherit-mode':  'primary' or 'extension'.
-
-        :return a list of blocks
-        """
-        blocks = []
-        block = None
-        for asset in self.templates:
-            # ``template_elements`` parses each asset's XML once and caches it
-            # (see XMLAsset); a parse error surfaces as XMLAssetError at access
-            # time and is handled by generate_xml_bundle's try/except.
-            for template_tree in asset.template_elements:
-                template_name = template_tree.get("t-name")
-                inherit_from = template_tree.get("t-inherit")
-                inherit_mode = None
-                if inherit_from:
-                    inherit_mode = template_tree.get("t-inherit-mode", "primary")
-                    if inherit_mode not in {"primary", "extension"}:
-                        # ``asset.name`` covers inline assets (url is None),
-                        # where ``url.split`` would crash the error path.
-                        addon = asset.url.split("/")[1] if asset.url else asset.name
-                        raise asset._error(
-                            self.env._(
-                                'Invalid inherit mode. Module "%(module)s" and template name "%(template_name)s"',
-                                module=addon,
-                                template_name=template_name,
-                            )
-                        )
-                if inherit_mode == "extension":
-                    if block is None or block["type"] != "extensions":
-                        block = {
-                            "type": "extensions",
-                            "extensions": {},
-                        }
-                        blocks.append(block)
-                    block["extensions"].setdefault(inherit_from, [])
-                    block["extensions"][inherit_from].append((template_tree, asset.url))
-                elif template_name:
-                    if block is None or block["type"] != "templates":
-                        block = {"type": "templates", "templates": []}
-                        blocks.append(block)
-                    block["templates"].append((template_tree, asset.url, inherit_from))
-                else:
-                    raise asset._error(self.env._("Template name is missing."))
-        return blocks
+    def generate_esm_template_bundle(self, use_import=True) -> str:
+        """Delegates to :meth:`XmlTemplatePipeline.generate_esm_template_bundle`."""
+        return self._xmltemplates.generate_esm_template_bundle(use_import)
 
     @classmethod
     def _render_css_error_banner(
@@ -1672,9 +1982,16 @@ class AssetsBundle:
             banner = self._render_css_error_banner(self.css_errors, previous_css)
             return self.save_attachment(extension, banner)
 
-        # Extract @import rules (they must appear at the top of the bundle)
-        import_rules = self.rx_css_import.findall(css)
-        css = self.rx_css_import.sub("", css)
+        # Extract @import rules (they must appear at the top of the bundle).
+        # String-aware: an ``@import`` written inside a ``content: "…"`` value
+        # is neither hoisted nor stripped (see _rewrite_css_outside_strings).
+        import_rules: list[str] = []
+
+        def _hoist_import(match: re.Match) -> str:
+            import_rules.append(match.group(0))
+            return ""
+
+        css = _rewrite_css_outside_strings(self.rx_css_import, _hoist_import, css)
 
         if is_minified:
             # Move all @import rules to the top
@@ -1698,13 +2015,21 @@ class AssetsBundle:
         # adds the @import rules at the beginning of the bundle
         content_bundle_list = [content_import_rules]
         content_line_count = content_import_rules.count("\n") + 1
-        for asset in self.stylesheets:
+        # Iterate the pipeline's assembled render list (the optional @at-rules
+        # fragment + the bundle's stylesheets with their compiled content),
+        # populated by the ``preprocess_css`` call ``css()`` made just above.
+        # Reading it here — rather than a mutated ``self.stylesheets`` — is what
+        # lets preprocess leave the source list untouched.
+        for asset in self._css._rendered_assets:
             if asset.content:
                 content = asset.with_header(asset.content)
                 if asset.url:
                     generator.add_source(asset.url, content, content_line_count)
-                # comments all @import rules that have been added at the beginning of the bundle
-                content = self.rx_css_import.sub(
+                # comments all @import rules that have been added at the
+                # beginning of the bundle (string-aware: an ``@import`` inside a
+                # ``content: "…"`` value is left intact, not commented out)
+                content = _rewrite_css_outside_strings(
+                    self.rx_css_import,
                     lambda matchobj: f"/* {matchobj.group(0)} */",
                     content,
                 )
@@ -1730,10 +2055,12 @@ class AssetsBundle:
     def _css(self) -> CssPipeline:
         """CSS preprocessor pipeline bound to this bundle, built once.
 
-        The pipeline reads and mutates this bundle's ``stylesheets`` /
-        ``css_errors`` directly (see :class:`CssPipeline`), so a single instance
-        per bundle keeps the ``_at_rules_asset`` idempotency tracking coherent
-        across re-runs.
+        The pipeline reads this bundle's ``stylesheets`` and rebuilds
+        ``css_errors`` (see :class:`CssPipeline`); it assembles the rendered
+        output into its own ``_rendered_assets`` rather than mutating the
+        bundle's source list, and ``css_with_sourcemap`` reads that back. A
+        single instance per bundle keeps the render list available across the
+        ``preprocess`` → ``css_with_sourcemap`` call sequence.
         """
         return CssPipeline(self)
 
@@ -2056,20 +2383,15 @@ class StylesheetAsset(WebAsset):
         r"""(?<!")url\s*\(\s*(?P<q>['"]|)(?!['"]|/|https?://|data:|\#\{str)(?P<body>[^'")\s]*)""",
         re.UNICODE,
     )
-    rx_sourceMap = re.compile(r"(/\*# sourceMappingURL=.*)", re.UNICODE)
     rx_charset = re.compile(r'(@charset "[^"]+";)', re.UNICODE)
-    # One combined tokenizer for the two CSS spans minification must NOT reach
-    # into: comments and string literals. Alternation order matters — a ``"``
-    # inside a comment must be consumed by the comment arm (so it is not read as
-    # a string), and a ``/*`` inside a string by the string arm. ``finditer``
-    # walks left to right, so whichever opens first at a position wins; the text
-    # between matches is ordinary CSS, safe to whitespace-collapse. This is why
-    # the old four-``re.sub`` pipeline corrupted ``content: "a  b"`` and
-    # ``content: "/* x */"`` — it had no notion of these spans.
-    _CSS_TOKEN_RE = re.compile(
-        r"""/\*.*?\*/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'""",
-        re.DOTALL,
-    )
+    # The two CSS spans minification must NOT reach into — comments and string
+    # literals — tokenized by the shared module-level ``_CSS_STRING_OR_COMMENT``
+    # (see its definition for the alternation-order rationale: whichever of a
+    # comment/string opens first at a position wins, so the text between matches
+    # is ordinary CSS, safe to whitespace-collapse). Reused here so the masking
+    # minifier and ``_rewrite_css_outside_strings`` cannot drift — the same
+    # tokenizer decides what both treat as opaque.
+    _CSS_TOKEN_RE = _CSS_STRING_OR_COMMENT
 
     def __init__(
         self, *args: Any, rtl: bool = False, autoprefix: bool = False, **kw: Any
@@ -2114,7 +2436,9 @@ class StylesheetAsset(WebAsset):
                 return f"@import {match.group(1)}{web_dir}/"
 
             if self.rx_import:
-                content = self.rx_import.sub(_rewrite_import, content)
+                content = _rewrite_css_outside_strings(
+                    self.rx_import, _rewrite_import, content
+                )
 
             def _rewrite_url(match: re.Match[str]) -> str:
                 # Prefix the bundled URL with ``web_dir`` and then
@@ -2126,14 +2450,13 @@ class StylesheetAsset(WebAsset):
                 # strips the trailing slash; the empty-body branch
                 # preserves the old "no body" no-op behaviour.
                 #
-                # NOTE: this runs string-unaware — a ``url(...)`` that is
-                # literal text inside a ``content: "…"`` value is also
-                # rewritten (characterized in
-                # ``test_review_followup.TestUrlRewriteStringBoundary``). A
-                # correct fix needs a combined url()/string/comment scanner
-                # that treats ``url(...)`` — quotes included — as one token;
-                # a naive string mask splits ``url("x")``'s own quotes and
-                # corrupts the common quoted form. Deferred.
+                # This rewrite is applied via ``_rewrite_css_outside_strings``,
+                # so a ``url(...)`` that is literal text inside a
+                # ``content: "…"`` value (or a comment) is skipped — the match
+                # starts inside a protected span. A real ``url("x")`` is still
+                # rewritten: its match starts at the ``url(`` token, in code,
+                # and only the inner ``"x"`` is protected, which this rewrite
+                # never enters.
                 q = match.group("q")
                 body = match.group("body")
                 if not body:
@@ -2141,7 +2464,7 @@ class StylesheetAsset(WebAsset):
                 normalised = posixpath.normpath(f"{web_dir}/{body}")
                 return f"url({q}{normalised}"
 
-            content = self.rx_url.sub(_rewrite_url, content)
+            content = _rewrite_css_outside_strings(self.rx_url, _rewrite_url, content)
 
             # remove charset declarations, we only support utf-8
             return self.rx_charset.sub("", content)
@@ -2174,15 +2497,19 @@ class StylesheetAsset(WebAsset):
         correct across interleaving: a ``"`` opened inside a comment is consumed
         by the comment arm, and a ``/*`` inside a string by the string arm.
 
+        A pre-existing ``/*# sourceMappingURL=… */`` link (re-minifying makes the
+        old mapping meaningless) needs no separate pass: it is an ordinary block
+        comment, so the mask step below drops it like any other — and, because
+        that step is string-aware, a ``sourceMappingURL`` written inside a
+        ``content: "…"`` value survives. The old leading whole-text
+        ``rx_sourceMap.sub`` was the one pass that reached into strings.
+
         Both JS minifiers preserve legal comments the same way (rjsmin
         ``keep_bang_comments``, esbuild ``--legal-comments=inline``).
 
         Header-less so it is unit-testable and comparable to the legacy pipeline
         without the per-file ``with_header`` prefix; :meth:`minify` adds the header.
         """
-        # Drop a pre-existing sourcemap link first (whole-text, mirroring the
-        # legacy pass): re-minifying makes the old mapping meaningless.
-        content = cls.rx_sourceMap.sub("", content)
         # NUL is invalid in CSS (the spec replaces U+0000 with U+FFFD). Strip it
         # so source text can never collide with the NUL-delimited mask
         # placeholders below: an un-masked ``\x00<digits>\x00`` in the input would
@@ -2207,6 +2534,20 @@ class StylesheetAsset(WebAsset):
         return re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], masked)
 
     def minify(self) -> str:
+        # In debug, ``css_with_sourcemap`` rebuilds the bundle from each asset's
+        # ``content`` and the minified join ``preprocess`` produces is consumed
+        # only for @import extraction (which unminified content serves equally
+        # well, @imports surviving the whitespace collapse either way), so the
+        # regex passes here are pure wasted work per render — skip them,
+        # mirroring ``ScssStylesheetAsset.minify``. The served debug CSS is
+        # unminified regardless, so output is byte-identical. Production
+        # (non-debug) still minifies: there the join IS the ``.min.css`` body.
+        # ``getattr`` default False = "minify": a real bundle always carries
+        # ``is_debug_assets``, so the default only applies to minimal bundle
+        # stubs (some preprocess unit tests), which expect the prior
+        # always-minify behaviour.
+        if getattr(self.bundle, "is_debug_assets", False):
+            return self.with_header(self.content)
         return self.with_header(self._minify_css_body(self.content))
 
 
@@ -2230,6 +2571,33 @@ class PreprocessedCSS(StylesheetAsset):
 
 class ScssStylesheetAsset(PreprocessedCSS):
     """Compile SCSS (.scss) using Dart Sass (embedded protocol or CLI)."""
+
+    # Process-wide one-shot guard for the embedded-Sass → CLI fallback warning
+    # (see :meth:`_warn_embedded_fallback`). A class attribute, not a module
+    # global, so flipping it needs no ``global`` statement.
+    _embedded_fallback_warned = False
+
+    @classmethod
+    def _warn_embedded_fallback(cls, exc: Exception) -> None:
+        """Surface the embedded-Sass → CLI degrade: WARNING once, then DEBUG.
+
+        A broken sass-embedded install otherwise logs the (much slower)
+        per-compile CLI fallback only at DEBUG, so the regression is invisible
+        at the default log level. Warn once per process; later fallbacks stay
+        at DEBUG so a persistent failure does not flood the log.
+        """
+        if cls._embedded_fallback_warned:
+            _logger.debug("Dart Sass embedded unavailable, using CLI", exc_info=exc)
+            return
+        ScssStylesheetAsset._embedded_fallback_warned = True
+        _logger.warning(
+            "Embedded Dart Sass unavailable (%s); falling back to the Dart Sass "
+            "CLI for every SCSS compile. The CLI path is markedly slower (a "
+            "per-bundle subprocess, up to %ss) — install/repair sass-embedded to "
+            "restore the fast path. This warning fires once per process.",
+            exc,
+            cls._COMPILE_TIMEOUT_S,
+        )
 
     @property
     def bootstrap_path(self) -> str:
@@ -2264,9 +2632,10 @@ class ScssStylesheetAsset(PreprocessedCSS):
 
         # Try 1: Embedded Sass Protocol (fast, custom importers)
         try:
+            # ``SassCompileError`` is the module-level import (top of file); only
+            # the embedded-protocol-specific symbols are imported lazily here.
             from odoo.tools.sass_embedded import (
                 OdooSassImporter,
-                SassCompileError,
                 get_sass_compiler,
             )
 
@@ -2282,11 +2651,13 @@ class ScssStylesheetAsset(PreprocessedCSS):
             )
         except SassCompileError:
             raise
-        except Exception:
-            _logger.debug(
-                "Dart Sass embedded unavailable, trying CLI",
-                exc_info=True,
-            )
+        except Exception as exc:
+            # A broken/unavailable embedded compiler (SassProtocolError, a dead
+            # subprocess, …) — NOT a real SCSS error, which is SassCompileError
+            # and re-raised above — degrades to the CLI. Surface it ONCE at
+            # WARNING so the much slower fallback is not invisible at the default
+            # log level (see :meth:`_warn_embedded_fallback`).
+            self._warn_embedded_fallback(exc)
             # Close the singleton to reap any zombie process.
             from odoo.tools.sass_embedded import close_sass_compiler
 
@@ -2299,10 +2670,7 @@ class ScssStylesheetAsset(PreprocessedCSS):
         """Build the Dart Sass CLI command."""
         import odoo.addons
 
-        try:
-            sass = misc.find_in_path("sass")
-        except OSError:
-            sass = "sass"
+        sass = find_sass() or "sass"
         load_paths = [self.bootstrap_path, *odoo.addons.__path__]
         cmd = [
             sass,

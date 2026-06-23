@@ -12,6 +12,7 @@ Phase 1 (this controller, Phase 1) + Phase 2 (queryable model + dashboard).
 """
 
 import logging
+import math
 
 from odoo.http import Controller, Response, request, route
 from odoo.libs.json import loads as json_loads
@@ -32,7 +33,12 @@ _MAX_ERROR_FILENAME_LEN = 500
 
 def _clamp_latency(value):
     """Return ``value`` if it looks like a valid latency in ms, else ``None``."""
-    if not isinstance(value, (int, float)):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    if not math.isfinite(value):
+        # NaN slips past the range check below (every comparison with NaN is
+        # False), and the model now rejects non-finite values at the DB level —
+        # drop them here so a bogus beacon is silently ignored, not a 500.
         return None
     if value < 0 or value > _MAX_LATENCY_MS:
         return None
@@ -41,7 +47,9 @@ def _clamp_latency(value):
 
 def _clamp_cls(value):
     """Return ``value`` if it looks like a valid CLS score, else ``None``."""
-    if not isinstance(value, (int, float)):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    if not math.isfinite(value):
         return None
     if value < 0 or value > _MAX_CLS:
         return None

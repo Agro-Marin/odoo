@@ -94,7 +94,14 @@ class ResUsers(models.Model):
                 user.id,
             )
             user.active = True
-        done = set(all_matching.mapped("email_normalized"))
+        # Dedup against both normalised emails AND logins: a user matched only by
+        # login above may have an empty or different ``email_normalized``, and
+        # since ``create`` below sets ``login=email_normalized`` we must also skip
+        # any input whose normalised form already exists as a login -- otherwise
+        # the create hits the unique constraint on ``login``.
+        done = set(all_matching.mapped("email_normalized")) | set(
+            all_matching.mapped("login")
+        )
 
         new_emails = [e for e, n in zip(emails, emails_normalized) if n not in done]
         for email in new_emails:

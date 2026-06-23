@@ -5,7 +5,7 @@ This module provides the IOMixin class containing all import/export-related
 methods. BaseModel inherits from this mixin.
 
 Methods:
-- __ensure_xml_id: Create missing external ids for export
+- _ensure_xml_ids: Create missing external ids for export
 - _export_rows: Export records to row format
 - export_data: Public export API
 - load: Import data matrix
@@ -62,7 +62,7 @@ class IOMixin:
     env: typing.Any
     pool: typing.Any
 
-    def __ensure_xml_id(self, skip: bool = False) -> Iterator[tuple[Self, str | None]]:
+    def _ensure_xml_ids(self, skip: bool = False) -> Iterator[tuple[Self, str | None]]:
         """Create missing external ids for records in ``self``, and return an
         iterator of pairs ``(record, xmlid)`` for the records in ``self``.
         """
@@ -331,7 +331,7 @@ class IOMixin:
                                 index = i
 
                             if name == "id":
-                                xml_ids = [xid for _, xid in value.__ensure_xml_id()]
+                                xml_ids = [xid for _, xid in value._ensure_xml_ids()]
                                 current[index] = ",".join(xml_ids)
                             else:
                                 current[index] = (
@@ -364,7 +364,7 @@ class IOMixin:
                         xidmap[cell].append((i, j))
             # for each model, xid-export everything and inject in matrix
             for model, ids in bymodels.items():
-                for record, xid in self.env[model].browse(ids).__ensure_xml_id():
+                for record, xid in self.env[model].browse(ids)._ensure_xml_ids():
                     for i, j in xidmap.pop((record._name, record.id)):
                         lines[i][j] = xid
             # raise (not assert) — under python -O leftover xids would silently
@@ -978,7 +978,10 @@ class IOMixin:
         # create records
         if to_create:
             records = self._load_records_create([data["values"] for data in to_create])
-            for data, record in zip(to_create, records, strict=False):
+            # strict=True: create() must return exactly one record per vals dict.
+            # A length mismatch silently dropped data["record"] on trailing rows
+            # (then KeyError'd at the final concat); fail loudly instead.
+            for data, record in zip(to_create, records, strict=True):
                 data["record"] = record
                 if data.get("xml_id"):
                     # add XML ids for parent records that have just been created

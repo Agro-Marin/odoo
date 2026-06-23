@@ -77,6 +77,13 @@ export const resultSetCacheInvalidatorService = {
     start(_env) {
         rpcBus.addEventListener(RpcEvent.RESPONSE, (event) => {
             const detail = /** @type {any} */ (event).detail;
+            // A failed unlink/archive removed nothing (the server rejected it):
+            // its RESPONSE carries ``error`` and ``result`` is absent. Emitting
+            // CLEAR-CACHES here would needlessly cold-reload the model's
+            // list/search-panel data exactly when the user is retrying.
+            if (detail?.error) {
+                return;
+            }
             const method = detail?.data?.params?.method;
             if (!RESULT_SET_REMOVING_METHODS.has(method)) {
                 return;

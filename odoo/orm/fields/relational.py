@@ -912,26 +912,28 @@ class _RelationalMulti(_Relational):
             # make result with new and existing records
             inv_names = {field.name for field in record.pool.field_inverses[self]}
             result = [Command.set([])]
-            for record in value:
-                origin = record._origin
+            # NB: loop variable is ``rec`` — do not shadow the ``record`` param,
+            # which is still the relevant env/pool holder.
+            for rec in value:
+                origin = rec._origin
                 if not origin:
-                    values = record._convert_to_write(
+                    values = rec._convert_to_write(
                         {
-                            name: record[name]
-                            for name in record._cache
+                            name: rec[name]
+                            for name in rec._cache
                             if name not in inv_names
                         }
                     )
                     result.append(Command.create(values))
                 else:
                     result[0][2].append(origin.id)
-                    if record != origin:
-                        values = record._convert_to_write(
+                    if rec != origin:
+                        values = rec._convert_to_write(
                             {
-                                name: record[name]
-                                for name in record._cache
+                                name: val
+                                for name in rec._cache
                                 if name not in inv_names
-                                and get_origin(record[name]) != origin[name]
+                                and get_origin(val := rec[name]) != origin[name]
                             }
                         )
                         if values:

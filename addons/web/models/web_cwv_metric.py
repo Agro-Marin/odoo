@@ -38,10 +38,12 @@ class WebCwvMetric(models.Model):
     url = fields.Char(
         string="URL",
         required=True,
+        size=2048,
         index="btree",
         readonly=True,
         help="Browser path + query at the time the beacon fired.  May be the "
-        "same path for many records.",
+        "same path for many records.  Capped at 2048 chars at the DB level so a "
+        "rogue writer cannot bloat the row.",
     )
     user_id = fields.Many2one(
         "res.users",
@@ -87,8 +89,35 @@ class WebCwvMetric(models.Model):
     )
     user_agent = fields.Char(
         string="User Agent",
+        size=512,
         readonly=True,
-        help="Truncated to 500 chars at the controller.",
+        help="Truncated to 500 chars at the controller; the 512-char DB cap is "
+        "a backstop for any other write path.",
+    )
+
+    # ------------------------------------------------------------------ #
+    # Integrity                                                          #
+    # ------------------------------------------------------------------ #
+    # DB-level guards so the table stays sane regardless of the write path.
+    # The controller is the only writer today and clamps values, but a single
+    # point of validation is fragile for an anonymous-writable, high-volume
+    # table.  The upper bounds also reject NaN/Infinity that a ``double
+    # precision`` column would otherwise accept: in PostgreSQL ``NaN`` and
+    # ``Infinity`` are greater than every finite number, so ``x <= cap`` is
+    # FALSE for them and the CHECK fails.  NULLs are allowed (e.g. ``inp`` is
+    # not captured yet), since a NULL comparison is never FALSE.
+    _check_latency_range = models.Constraint(
+        "CHECK("
+        " (lcp  IS NULL OR (lcp  >= 0 AND lcp  <= 3600000))"
+        " AND (fcp  IS NULL OR (fcp  >= 0 AND fcp  <= 3600000))"
+        " AND (ttfb IS NULL OR (ttfb >= 0 AND ttfb <= 3600000))"
+        " AND (inp  IS NULL OR (inp  >= 0 AND inp  <= 3600000))"
+        ")",
+        "Core Web Vitals latencies must be between 0 and 3600000 ms.",
+    )
+    _check_cls_range = models.Constraint(
+        "CHECK(cls IS NULL OR (cls >= 0 AND cls <= 1000))",
+        "Cumulative Layout Shift must be between 0 and 1000.",
     )
 
     # ------------------------------------------------------------------ #

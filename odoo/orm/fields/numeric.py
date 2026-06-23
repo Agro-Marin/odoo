@@ -290,7 +290,7 @@ class Monetary(Field[float]):
                 model._read_group_select(
                     f"{currency_field_name}:array_agg_distinct", query
                 )
-            except ValueError, AccessError:
+            except (ValueError, AccessError):
                 return None
 
         return super()._description_aggregator(env)

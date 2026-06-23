@@ -32,25 +32,19 @@ def exp_authenticate(
 ) -> int | bool:
     """Authenticate a user and return the uid, or False on failure.
 
-    Every failure path collapses into the same ``False`` return so that an
-    unauthenticated caller cannot enumerate which databases exist or which
-    of them are Odoo-initialized via the exception type.  The leaks the
-    earlier implementation produced and that this version closes:
+    Every failure path collapses into the same ``False`` so an unauthenticated
+    caller cannot use the exception type to enumerate which databases exist or
+    which are Odoo-initialized.  The cases each guard collapses:
 
     * **Missing DB** — ``Registry(db)`` raises ``PoolError`` (or
-      ``psycopg.OperationalError`` for code paths bypassing the pool).
-      Always returned False, but only after commit ``02a118d`` widened the
-      catch beyond the original psycopg-only form.
-    * **Existing-but-not-Odoo DB** — accessing ``env["res.users"]`` raises
-      ``KeyError`` because ``res.users`` isn't in the registry.  The earlier
-      catch missed it; the DB's existence leaked via an exception type
-      distinct from ``AccessDenied``.
-    * **Empty / non-string DB name** — ``odoo.db.db_connect`` asserts the
-      name is non-empty and raises ``AssertionError`` otherwise.  The
-      earlier catch propagated it.
-    * **Malformed ``user_agent_env``** — non-dict, non-None values
-      (lists-of-tuples from a misbehaving client, etc.) raised ``TypeError``
-      from ``{**user_agent_env, ...}``.  Same leak class.
+      ``psycopg.OperationalError`` on code paths that bypass the pool).
+    * **Existing-but-not-Odoo DB** — ``res.users`` is absent from the
+      registry, so ``env["res.users"]`` would raise ``KeyError`` and leak the
+      DB's existence via an exception type distinct from ``AccessDenied``.
+    * **Empty / non-string DB name** — ``odoo.db.db_connect`` asserts a
+      non-empty name and raises ``AssertionError`` otherwise.
+    * **Malformed ``user_agent_env``** — non-dict, non-None values raise
+      ``TypeError`` from ``{**user_agent_env, ...}``.
 
     The pool layer (``odoo.db.pool.borrow``) wraps every ``getconn`` failure
     in ``PoolError``: missing DB, dead PG, bad credentials, semaphore
@@ -71,7 +65,7 @@ def exp_authenticate(
         return False
     try:
         registry = Registry(db)
-    except psycopg.OperationalError, PoolError:
+    except (psycopg.OperationalError, PoolError):
         _logger.debug(
             "exp_authenticate: registry unavailable for %r", db, exc_info=True
         )

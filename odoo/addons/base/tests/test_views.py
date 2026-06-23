@@ -2522,19 +2522,26 @@ class TestViews(ViewCase):
             '''Field "not_a_field" does not exist in model "ir.ui.view"''',
         )
 
-    def test_invalid_parent_ref_in_root_view(self):
-        """A ``parent.``-prefixed reference in a root view (no parent) is flagged.
+    def test_parent_ref_in_root_view_is_tolerated(self):
+        """A ``parent.``-prefixed reference in a root view is NOT flagged (IUVN-L1).
 
-        Previously such a reference was silently dropped by ``must_have_fields``;
-        it must now be reported instead of escaping validation (IUVN-L1).
+        It cannot be resolved at standalone-validation time, but it is not
+        necessarily a typo: dual-use forms legitimately reference the embedding
+        parent (e.g. ``mail.activity.plan.template``'s form is validated
+        standalone yet is embedded as a one2many in ``mail.activity.plan``).
+        Routing such references to validation (commit that added the strict
+        ``else``) broke installation of ``mail`` and every dependent module, so
+        ``must_have_fields`` silently skips them, matching upstream. Catching
+        genuine ``parent.`` typos needs embedded-context validation, not a
+        blanket root-view error. See the IUVN-L1 note in
+        ``ir_ui_view_name_manager``.
         """
-        self.assertInvalid(
+        self.assertValid(
             """
                 <form string="View">
                     <field name="name" invisible="parent.does_not_exist"/>
                 </form>
             """,
-            "parent.does_not_exist",
         )
 
     def test_reset_arch(self):

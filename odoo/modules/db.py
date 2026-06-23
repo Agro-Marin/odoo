@@ -10,6 +10,8 @@ import odoo.modules
 import odoo.tools
 from odoo.orm.runtime import Registry
 
+from .registry import Registry
+
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor, Cursor
 
@@ -137,9 +139,11 @@ def initialize(cr: Cursor) -> None:
               AND mdep.state != 'to install'
         )""")
         to_auto_install = [x[0] for x in cr.fetchall()]
-        # however if the module has non-required deps we need to install
-        # those, so merge-in the modules which have a dependen*t* which is
-        # *either* to_install or in to_auto_install and merge it in?
+        # A module being installed ('to install', or just selected for
+        # auto-install above) may have *non-required* dependencies that would
+        # not be auto-installed on their own.  Pull those dependencies in too,
+        # so the full dependency closure of every to-be-installed module also
+        # ends up marked 'to install'.
         cr.execute(
             """
         SELECT d.name FROM ir_module_module_dependency d

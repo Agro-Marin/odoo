@@ -992,11 +992,41 @@ class Property(abc.Mapping):
         self._values = values
         self.record = record
         self.field = field
+        # lazy ``{name: definition}`` index, built once by ``_definitions`` —
+        # see there for why this matters.
+        self._definitions_by_name: dict[str, typing.Any] | None = None
+
+    def _definitions(self) -> dict[str, typing.Any]:
+        """Return the read-format definitions indexed by name, built once.
+
+        ``Properties.convert_to_read`` rebuilds the *entire* property list
+        (parsing types and resolving relational values) on every call.  The
+        previous implementation called it inside ``__getitem__`` and re-derived
+        the whole list per key, making ``__iter__`` / ``dict(record.prop)`` /
+        any ``Mapping`` traversal O(n²) with one full rebuild per property.
+        Memoising the converted list once and indexing it by name makes lookup
+        O(1).  The instance is an ephemeral, per-access view over an immutable
+        ``_values`` snapshot, so a single build is always consistent.
+        """
+        index = self._definitions_by_name
+        if index is None:
+            values = self.field.convert_to_read(
+                self._values,
+                self.record,
+                use_display_name=False,
+            )
+            index = self._definitions_by_name = {prop["name"]: prop for prop in values}
+        return index
 
     def __iter__(self) -> typing.Iterator[str]:
+        # Without a record, __getitem__ returns False for every key (never
+        # raising), so the legacy behaviour yields *all* keys.
+        if not self.record:
+            yield from self._values
+            return
+        definitions = self._definitions()
         for key in self._values:
-            with contextlib.suppress(KeyError):
-                self[key]
+            if key in definitions:
                 yield key
 
     def __len__(self) -> int:
@@ -1010,12 +1040,7 @@ class Property(abc.Mapping):
         if not self.record:
             return False
 
-        values = self.field.convert_to_read(
-            self._values,
-            self.record,
-            use_display_name=False,
-        )
-        prop = next((p for p in values if p["name"] == property_name), False)
+        prop = self._definitions().get(property_name)
         if not prop:
             raise KeyError(property_name)
 
@@ -1131,7 +1156,7 @@ class PropertiesDefinition(Field):
 
             self._validate_properties_definition(value, record.env)
 
-        return PsycopgJson(record._convert_to_cache_properties_definition(value))
+        return PsycopgJson(record._convert_to_column_properties_definition(value))
 
     @override
     def convert_to_cache(
@@ -1157,7 +1182,7 @@ class PropertiesDefinition(Field):
 
             self._validate_properties_definition(value, record.env)
 
-        return record._convert_to_column_properties_definition(value)
+        return record._convert_to_cache_properties_definition(value)
 
     @override
     def convert_to_record(

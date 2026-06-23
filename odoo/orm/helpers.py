@@ -127,6 +127,10 @@ def to_record_ids(arg) -> list[int]:
 
     if isinstance(arg, BaseModel):
         return arg.ids
+    elif isinstance(arg, bool):
+        # bool is a subclass of int; a bare bool carries no record id, and
+        # returning ``[True]`` would violate the ``list[int]`` contract.
+        return []
     elif isinstance(arg, int):
         return [arg] if arg else []
     else:

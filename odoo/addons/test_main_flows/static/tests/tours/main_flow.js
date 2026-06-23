@@ -1144,7 +1144,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "click",
         },
         ...stepUtils.statusbarButtonsSteps(
-            "Confirm Order",
+            "Confirm",
             _t("Confirm quotation"),
             ".o_statusbar_status .dropdown-toggle:contains('RFQ')",
         ),

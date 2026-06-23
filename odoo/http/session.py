@@ -1,12 +1,14 @@
 import base64
 import collections.abc
 import contextlib
+import itertools
 import os
 import re
 import time
 from collections.abc import Iterable, Iterator
 from hashlib import sha512
 from pathlib import Path
+from stat import S_ISREG
 from typing import Any
 
 from odoo.libs._vendor import sessions
@@ -19,6 +21,7 @@ from .constants import (
     STORED_SESSION_BYTES,
     get_default_session,
 )
+from .core import request
 
 # A generated session id is sha512().digest()[:-1] base64-urlsafe-encoded:
 # 63 bytes → 84 chars, no padding (63 is a multiple of 3). The static prefix
@@ -103,6 +106,17 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 # local modifications so they are not lost.
                 new_sid = recent_session["next_sid"]
                 if session.is_dirty:
+                    # This session was loaded from the pre-rotation file
+                    # DURING the grace window, so its own ``__data`` carries
+                    # the peer's rotation-management keys (``next_sid``,
+                    # ``deletion_time``). Drop them before flushing onto the
+                    # live ``new_sid`` file — otherwise we poison the current
+                    # session: a stale ``deletion_time`` makes ``check_session``
+                    # log the active user out ~SESSION_DELETION_TIMER later, and
+                    # a stale ``next_sid`` re-arms a spurious rotation.
+                    for key in ("next_sid", "deletion_time"):
+                        if key in session:
+                            del session[key]
                     peer_state = self.get(new_sid)
                     for key in ("session_token", "create_time", "gc_previous_sessions"):
                         if key in peer_state:
@@ -111,6 +125,13 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     self.save(session)
                 else:
                     session.sid = new_sid
+                # Match the postcondition of every other rotation path: a
+                # completed rotation clears ``should_rotate``. Today this branch
+                # is only reached with it already ``False`` (callers route a
+                # pending rotation through the hard path, ``soft=False``), so
+                # this is defensive — it keeps ``rotate()`` self-consistent if a
+                # future caller ever soft-rotates a should_rotate session.
+                session.should_rotate = False
                 return
             next_sid = static + self.generate_key()[STORED_SESSION_BYTES:]
         else:
@@ -159,9 +180,20 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         # other store and a plain encapsulation violation).
         threshold = time.time() - max_lifetime
         base_path = Path(self.path)
-        for path in base_path.glob("*/*"):
+        # Two layouts must both be reaped: the current scattered
+        # ``<base>/<sid[:2]>/<sid>`` files (``*/*``) AND the legacy flat
+        # ``<base>/<filename_template % sid>`` files the vendored store wrote
+        # before the scatter migration. ``get()`` only migrates a flat file on
+        # access, so a flat session that is never touched again would otherwise
+        # never expire — globbing ``*/*`` alone skipped it (it lives one level
+        # up), leaking stale session files forever on upgraded deployments.
+        flat_glob = self.filename_template % "*"
+        for path in itertools.chain(
+            base_path.glob("*/*"), base_path.glob(flat_glob)
+        ):
             with contextlib.suppress(OSError):
-                if path.stat().st_mtime < threshold:
+                st = path.stat()
+                if S_ISREG(st.st_mode) and st.st_mtime < threshold:
                     path.unlink()
 
     def generate_key(self, salt: bytes | None = None) -> str:
@@ -297,8 +329,14 @@ class Session(collections.abc.MutableMapping):
     The session tracks modifications through ``__setitem__`` only.
     Mutating a nested value in place (e.g. ``session.context['lang'] =
     'es_MX'``) does not mark the session dirty and the change will not
-    be persisted. After such mutations, call :meth:`touch` explicitly or
-    reassign the top-level key.
+    be persisted. After such mutations, call :meth:`touch` explicitly.
+
+    Reassigning the top-level key is NOT a reliable substitute: because
+    ``__setitem__`` flags dirty only when the new value differs from what is
+    stored, ``session['context'] = session.context`` after an in-place edit
+    compares the (already-mutated) stored mapping against an equal copy and
+    stays clean. Only assigning a value that genuinely differs from the stored
+    one — or calling :meth:`touch` — marks the session dirty.
     """
 
     __slots__ = (
@@ -312,8 +350,19 @@ class Session(collections.abc.MutableMapping):
 
     def __init__(self, data: dict[str, Any], sid: str, new: bool = False) -> None:
         self.can_save: bool = True
-        self.__data: dict[str, Any] = {}
-        self.update(data)
+        # ``data`` here is always trusted: either ``{}`` (a brand-new session)
+        # or a payload the store JUST parsed from a session file via
+        # ``_json_loads`` — so it is already JSON-native. Assign it directly
+        # instead of routing every key through ``__setitem__`` /
+        # ``_coerce_session_value``: that recursive validate-and-deep-copy
+        # exists to reject/normalise *application* writes, it can neither
+        # reject nor alter JSON-loaded data, and it ran on every authenticated
+        # request's session load (≈300 isinstance walks for a session at the
+        # ``_trace`` cap). ``dict(data)`` matches the shallow copy the vendored
+        # base performed; the store discards its local ``data`` reference, so
+        # the session owns these structures exclusively. Application writes
+        # still go through ``__setitem__`` and keep their validation + copy.
+        self.__data: dict[str, Any] = dict(data)
         self.is_dirty: bool = False
         self.is_new: bool = new
         self.should_rotate: bool = False
@@ -409,8 +458,16 @@ class Session(collections.abc.MutableMapping):
         self["context"] = context
 
     @property
-    def debug(self) -> str | None:
-        return self.get("debug")
+    def debug(self) -> str:
+        # Coerce to ``str`` on read so every consumer can treat it as one.
+        # The default is ``""`` (see ``get_default_session``) and ``_handle_debug``
+        # always stores a string, but a hand-edited or cross-version session file
+        # could carry ``"debug": null``; ``setdefault`` would not overwrite that
+        # ``None``, and ``"assets" in None`` (``Request._serve_static``) would then
+        # raise ``TypeError`` -> a 500 on a static asset. The JS side already
+        # guards with ``typeof o.debug === "string"``, so normalising to ``""``
+        # here matches the contract every reader assumes.
+        return self.get("debug") or ""
 
     @debug.setter
     def debug(self, debug: str | None) -> None:
@@ -441,13 +498,14 @@ class Session(collections.abc.MutableMapping):
            a database different than request.db. It is up to the caller
            to open a new cursor/registry/env on the given database.
         """
-        from . import request  # lazy import
-
         wsgienv = {
             "interactive": True,
             "base_location": request.httprequest.url_root.rstrip("/"),
-            "HTTP_HOST": request.httprequest.environ["HTTP_HOST"],
-            "REMOTE_ADDR": request.httprequest.environ["REMOTE_ADDR"],
+            # ``.get`` (not ``[...]``): a no-Host HTTP/1.0 or malformed request
+            # should not KeyError the login into a 500; an empty fallback is
+            # consistent with how the rest of the http layer reads these.
+            "HTTP_HOST": request.httprequest.environ.get("HTTP_HOST", ""),
+            "REMOTE_ADDR": request.httprequest.environ.get("REMOTE_ADDR", ""),
         }
         env = env(user=None, su=False)
         auth_info = env["res.users"].authenticate(credential, wsgienv)
@@ -491,8 +549,6 @@ class Session(collections.abc.MutableMapping):
         )
 
     def logout(self, keep_db: bool = False) -> None:
-        from . import request  # lazy import
-
         db = self.db if keep_db else get_default_session()["db"]  # None
         debug = self.debug
         self.clear()

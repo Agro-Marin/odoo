@@ -14,7 +14,7 @@ from ..._typing import (  # noqa: TC003 — runtime import required (PEP 649)
     IdType,
     ValuesType,
 )
-from ...helpers import OriginIds, _origin_ids
+from ...helpers import _origin_ids
 from ...primitives import NewId
 
 if typing.TYPE_CHECKING:

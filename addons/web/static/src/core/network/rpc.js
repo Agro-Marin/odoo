@@ -506,7 +506,6 @@ function _rpcOnce(url, params, settings) {
     // promise un-resolved, which fetch's AbortError doesn't model.
     const controller = new AbortController();
     let aborted = false;
-    let rejectOnAbort = true;
     // Optional opt-in timeout.  Combine the caller-controlled abort
     // signal with ``AbortSignal.timeout(ms)`` so either source can
     // cancel the fetch.  We distinguish in the catch handler by
@@ -635,7 +634,6 @@ function _rpcOnce(url, params, settings) {
      */
     /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) {
         aborted = true;
-        rejectOnAbort = rejectError;
         controller.abort();
         const error = new ConnectionAbortedError("fetch abort");
         rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
@@ -644,7 +642,6 @@ function _rpcOnce(url, params, settings) {
         }
         // rejectError=false: outer promise stays pending — caller asked
         // to silently cancel without surfacing an error to the UI.
-        void rejectOnAbort;
     };
     return /** @type {RpcPromise<any>} */ (promise);
 }

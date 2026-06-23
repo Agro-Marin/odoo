@@ -215,6 +215,7 @@ class WebJsonController(http.Controller):
                 aggregates=aggregates,
                 groupby=groupby,
                 limit=limit,
+                offset=offset,
             )
             # Remove internal routing domain; not for API consumers
             for value in res["groups"]:
@@ -226,6 +227,12 @@ class WebJsonController(http.Controller):
                 limit=limit,
                 offset=offset,
             )
+        # ``web_read_group`` / ``web_search_read`` are ``@versioned`` (Plan-C
+        # rpc-cache optimisation): they stamp an internal ``__version`` sha256
+        # for the web client's JS cache. That key is not part of the public
+        # /json contract — strip it for API consumers, same as ``__extra_domain``
+        # above.
+        res.pop("__version", None)
         return request.make_json_response(res)
 
     def _check_json_route_active(self):

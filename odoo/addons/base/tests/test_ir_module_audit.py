@@ -312,7 +312,7 @@ class TestModuleAuditRound2(TransactionCase):
         os-release file (platform.freedesktop_os_release raises OSError)."""
         manifest = MagicMock()
         manifest.check_manifest_dependencies.side_effect = MissingDependencyError(
-            "Unable to find {dependency!r}", "audit_r2_missing_binary"
+            "Unable to find 'audit_r2_missing_binary' in path", "audit_r2_missing_binary"
         )
         with (
             patch.object(Manifest, "for_addon", return_value=manifest),

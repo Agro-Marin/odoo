@@ -32,7 +32,7 @@ class _RequestResponseMixin:
     def make_response(
         self,
         data: str | bytes | None,
-        headers: list[tuple[str, str]] | None = None,
+        headers: list[tuple[str, str]] | werkzeug.datastructures.Headers | None = None,
         cookies: Mapping[str, str] | None = None,
         status: int = 200,
     ) -> Response:
@@ -85,7 +85,11 @@ class _RequestResponseMixin:
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json; charset=utf-8"
 
-        return self.make_response(data, headers.to_wsgi_list(), cookies, status)
+        # Pass the ``Headers`` object straight through (NOT ``to_wsgi_list()``):
+        # werkzeug's ``Response`` keeps a ``Headers`` instance as-is, so this is
+        # the single hottest response path and flattening to a list here only to
+        # have werkzeug rebuild a ``Headers`` from it is a wasted construction.
+        return self.make_response(data, headers, cookies, status)
 
     def not_found(self, description: str | None = None) -> NotFound:
         """Shortcut for a `HTTP 404
@@ -99,7 +103,16 @@ class _RequestResponseMixin:
             location = "/" + urlunsplit(
                 urlsplit(location)._replace(scheme="", netloc="")
             ).lstrip("/\\")
-        if self.db:
+        # Gate the ORM-backed redirect on ``env``, not ``db``: the two diverge on
+        # the error path. ``_serve_db``'s ``finally`` nulls ``request.env`` before
+        # ``Application.__call__`` invokes ``dispatcher.handle_error`` (e.g. the
+        # SessionExpired branch redirects to /web/login), where ``db`` is still
+        # set but ``env`` is gone. ``self.env["ir.http"]`` would then raise
+        # ``TypeError: 'NoneType' object is not subscriptable``. Fall back to the
+        # plain werkzeug redirect when there is no live env — it cannot apply
+        # website/portal URL rewriting, but a bare redirect is the correct
+        # degradation while the request is already unwinding an error.
+        if self.db and self.env is not None:
             return self.env["ir.http"]._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
 

@@ -81,18 +81,10 @@ class NavigationItem {
     }
 
     setActive(focus = true) {
-        const tag = this._tag();
         scrollTo(this.target);
         this._navigator._setActiveItem(this.index);
         this.target.classList.add(ACTIVE_ELEMENT_CLASS);
         this.target.ariaSelected = "true";
-        console.debug(
-            "[debug:nav] ITEM.setActive(focus=%s) idx=%s tag=%s classes=%s",
-            focus,
-            this.index,
-            tag,
-            this.target.className,
-        );
 
         if (focus && !this._options.virtualFocus) {
             throttledFocus.cancel();
@@ -101,31 +93,11 @@ class NavigationItem {
     }
 
     setInactive(blur = true) {
-        const before = this.target.className;
         this.target.classList.remove(ACTIVE_ELEMENT_CLASS);
         this.target.ariaSelected = "false";
-        console.debug(
-            "[debug:nav] ITEM.setInactive(blur=%s) idx=%s tag=%s before=%s after=%s",
-            blur,
-            this.index,
-            this._tag(),
-            before,
-            this.target.className,
-        );
         if (blur && !this._options.virtualFocus) {
             this.target.blur();
         }
-    }
-
-    /**@private*/
-    _tag() {
-        // Single short identifier that survives the items list being
-        // rebuilt — useful when class-based logs are too noisy.
-        return (
-            this.el?.dataset?.navTag ||
-            this.el?.className?.split(/\s+/)?.find((c) => /^item\d+|nav-/.test(c)) ||
-            "?"
-        );
     }
 
     /**
@@ -142,8 +114,6 @@ class NavigationItem {
     }
 }
 
-let _navigatorInstanceCounter = 0;
-
 export class Navigator {
     /**@type {Array<NavigationItem>}*/
     items = [];
@@ -156,8 +126,6 @@ export class Navigator {
      * @param {import("@web/services/hotkeys/hotkey_service").HotkeyService} hotkeyService
      */
     constructor(options, hotkeyService) {
-        this._id = ++_navigatorInstanceCounter;
-        console.debug("[debug:nav] Navigator#%s constructed", this._id);
         this._hotkeyService = hotkeyService;
         // OWL-reactive view of the navigator's active state. Components
         // can subscribe through `useNavigatorActive(navigator, el)` and
@@ -275,25 +243,15 @@ export class Navigator {
     }
 
     next() {
-        const fromIndex = this.activeItemIndex;
         const hasActive = this.hasActiveItem;
         if (!hasActive) {
             this.items[0]?.setActive();
         } else {
             this.items[(this.activeItemIndex + 1) % this.items.length]?.setActive();
         }
-        console.debug(
-            "[debug:nav] Navigator#%s next from=%s hasActive=%s items=%s newIndex=%s",
-            this._id,
-            fromIndex,
-            hasActive,
-            this.items.length,
-            this.activeItemIndex,
-        );
     }
 
     previous() {
-        const fromIndex = this.activeItemIndex;
         const hasActive = this.hasActiveItem;
         const index = this.activeItemIndex - 1;
         if (!hasActive || index < 0) {
@@ -301,13 +259,6 @@ export class Navigator {
         } else {
             this.items[index % this.items.length]?.setActive();
         }
-        console.debug(
-            "[debug:nav] previous from=%s hasActive=%s items=%s newIndex=%s",
-            fromIndex,
-            hasActive,
-            this.items.length,
-            this.activeItemIndex,
-        );
     }
 
     update() {
@@ -350,14 +301,6 @@ export class Navigator {
                     : -1;
             const focusedElementIndex = this.items.findIndex(
                 (item) => item.el === document.activeElement,
-            );
-            console.debug(
-                "[debug:nav] Navigator#%s update items=%s activeItemIndex=%s focusedIdx=%s currentIdx=%s",
-                this._id,
-                elements.length,
-                activeItemIndex,
-                focusedElementIndex,
-                this.activeItemIndex,
             );
             if (activeItemIndex > -1) {
                 this._updateActiveItemIndex(activeItemIndex);
@@ -446,7 +389,6 @@ export class Navigator {
     }
 
     _setActiveItem(index) {
-        const prevIndex = this.activeItemIndex;
         this.activeItem?.setInactive(false);
         this.activeItemIndex = index;
         if (index >= 0) {
@@ -455,13 +397,6 @@ export class Navigator {
         } else {
             this.activeItem = null;
         }
-        console.debug(
-            "[debug:nav] Navigator#%s _setActiveItem %s -> %s (items=%s)",
-            this._id,
-            prevIndex,
-            index,
-            this.items.length,
-        );
     }
 
     /**
@@ -486,13 +421,10 @@ export class Navigator {
         if (this.items[index]) {
             this.items[index].setActive();
         } else {
-            // Route through _setActiveItem so the transition is observable
-            // and consistent (setInactive on previous + same logging path
-            // as every other index change).  Prior implementations mutated
-            // ``activeItemIndex`` directly here, which made the keyboard
-            // navigation "stuck on item 1" bug invisible to instrumentation:
-            // ``next()`` would observe ``activeItemIndex === -1`` even
-            // though no logged path had reset it.
+            // Route through _setActiveItem so the transition is consistent
+            // (setInactive on the previous item + a single index-change path).
+            // Prior implementations mutated ``activeItemIndex`` directly here,
+            // causing a "stuck on item 1" keyboard-navigation bug.
             this._setActiveItem(-1);
         }
     }
@@ -505,12 +437,6 @@ export class Navigator {
         const isEl = target instanceof HTMLElement;
         const navOK = isEl && this._isNavigationAvailable(target);
         if (!isEl || !navOK) {
-            console.debug(
-                "[debug:nav] _checkFocus RESET activeItem (isEl=%s, navOK=%s, target=%s)",
-                isEl,
-                navOK,
-                isEl ? (target.className || target.tagName) : String(target),
-            );
             this._setActiveItem(-1);
         }
     }

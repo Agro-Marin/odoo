@@ -60,7 +60,7 @@ export const webVitalsService = {
         // TTFB from Navigation Timing — synchronous, available immediately.
         try {
             const nav = /** @type {any} */ (
-                performance.getEntriesByType("navigation")[0]
+                browser.performance.getEntriesByType("navigation")[0]
             );
             if (nav && nav.responseStart > 0 && nav.requestStart >= 0) {
                 metrics.ttfb = Math.max(0, nav.responseStart - nav.requestStart);
@@ -71,7 +71,7 @@ export const webVitalsService = {
 
         // FCP — single-shot: disconnect after first paint entry.
         try {
-            const fcpObserver = new PerformanceObserver((entries) => {
+            const fcpObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
                     if (entry.name === "first-contentful-paint") {
                         metrics.fcp = entry.startTime;
@@ -89,7 +89,7 @@ export const webVitalsService = {
         // larger elements paint later.  Per W3C, LCP is finalized at first user
         // input or page hide; we sample whichever value is current at flush time.
         try {
-            const lcpObserver = new PerformanceObserver((entries) => {
+            const lcpObserver = new browser.PerformanceObserver((entries) => {
                 const list = entries.getEntries();
                 const last = list[list.length - 1];
                 if (last) {
@@ -110,7 +110,7 @@ export const webVitalsService = {
         // For the canonical session-window calculation, vendor web-vitals.
         try {
             let clsValue = 0;
-            const clsObserver = new PerformanceObserver((entries) => {
+            const clsObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
                     const e = /** @type {any} */ (entry);
                     if (!e.hadRecentInput) {
@@ -137,7 +137,7 @@ export const webVitalsService = {
         try {
             /** @type {Map<number, number>} */
             const interactionMaxDuration = new Map();
-            const inpObserver = new PerformanceObserver((entries) => {
+            const inpObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
                     const e = /** @type {any} */ (entry);
                     if (!e.interactionId) {
@@ -209,7 +209,7 @@ export const webVitalsService = {
         // the user never returns.
         browser.addEventListener("pagehide", flush);
         browser.addEventListener("visibilitychange", () => {
-            if (browser.document.visibilityState === "hidden") {
+            if (document.visibilityState === "hidden") {
                 flush();
             }
         });

@@ -2,10 +2,39 @@ import collections.abc
 import functools
 from typing import TYPE_CHECKING, Any
 
-from .constants import GEOIP_EMPTY_CITY, GEOIP_EMPTY_COUNTRY, geoip2, maxminddb
+from .constants import (
+    _GEOIP_NULL,
+    GEOIP_EMPTY_CITY,
+    GEOIP_EMPTY_COUNTRY,
+    geoip2,
+    maxminddb,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+
+def _none_if_null(value: Any) -> Any:
+    """Normalise the geoip2-absent null sentinel to ``None`` for *leaf* values.
+
+    When geoip2 is not installed, ``GEOIP_EMPTY_COUNTRY`` / ``GEOIP_EMPTY_CITY``
+    are :data:`~odoo.http.constants._GEOIP_NULL`, and attribute chains through it
+    return the *same* sentinel rather than ``None``. That chaining is deliberate
+    so intermediate access (``geoip.country``, ``geoip.location``) stays safe to
+    dot through, but a scalar leaf (``country_code``, the ``city`` name, a
+    ``time_zone`` ...) is documented — and behaves, when geoip2 *is* installed —
+    as ``None`` when unresolved.
+
+    A leaked ``_GeoIPNull`` breaks that contract in three concrete ways: it is
+    ``is not None`` (so ``x is None`` guards miss it), it is not
+    JSON-serialisable, and psycopg cannot adapt it as a SQL parameter — the last
+    one turns ``website.visitor``'s ``country_code`` upsert into a hard error for
+    every anonymous visitor on a deployment without geoip2. Coerce the sentinel
+    to ``None`` at the leaf so the scalar/dict API keeps its contract regardless
+    of whether geoip2 is installed. A genuine ``0`` / ``0.0`` (e.g. a latitude on
+    the equator) is preserved — only the sentinel itself maps to ``None``.
+    """
+    return None if value is _GEOIP_NULL else value
 
 # Sentinel exception tuple used in the ``except`` clauses below. When
 # geoip2/maxminddb are not installed we cannot reference their exception
@@ -19,6 +48,16 @@ _GEOIP_DB_ERRORS: tuple[type[BaseException], ...] = (
 _GEOIP_NOT_FOUND: type[BaseException] = (
     geoip2.errors.AddressNotFoundError if geoip2 is not None else LookupError
 )
+# A malformed or missing IP makes geoip2/maxminddb raise ``ValueError`` (via
+# ``ipaddress.ip_address`` deep inside ``Reader.city``/``country``) or
+# ``TypeError`` (when ``self.ip`` is ``None``) — NOT an ``AddressNotFoundError``.
+# ``self.ip`` is ``request.httprequest.remote_addr``, which is attacker-influenced
+# under ``proxy_mode`` (a forged ``X-Forwarded-For`` hop) and may be absent. The
+# class contract (see :class:`GeoIP` docstring) is that a *bad address* yields an
+# empty record, so catch these and degrade to "no GeoIP context" instead of
+# letting an un-geolocalizable address 500 a website page load
+# (``website.ir_http`` reads ``request.geoip.location.time_zone`` unguarded).
+_GEOIP_BAD_ADDRESS: tuple[type[BaseException], ...] = (ValueError, TypeError)
 
 
 class GeoIP(collections.abc.Mapping):
@@ -48,50 +87,67 @@ class GeoIP(collections.abc.Mapping):
         'FR'
     """
 
-    def __init__(self, ip: str) -> None:
+    def __init__(self, ip: str, app: Any = None) -> None:
+        # ``app`` is the :class:`Application` whose cached GeoIP ``Reader``s
+        # this instance reads. :class:`~odoo.http.Request` injects its own
+        # ``app``; the lazy fallback keeps standalone constructors
+        # (``res.device``, tests) working without the module singleton on
+        # their call site.
+        if app is None:
+            from .application import root
+
+            app = root
+        self.app = app
         self.ip = ip
 
     @functools.cached_property
     def _city_record(self):
-        from .application import (
-            root,
-        )  # lazy import to avoid circular dependency
+        root = self.app
 
-        if geoip2 is None:
+        # ``root.geoip_city_db`` is ``None`` when geoip2 is absent or the
+        # database could not be opened (that failure is cached on ``root``).
+        city_db = root.geoip_city_db
+        if city_db is None:
             return GEOIP_EMPTY_CITY
         try:
-            return root.geoip_city_db.city(self.ip)
+            return city_db.city(self.ip)
         except _GEOIP_DB_ERRORS:
             return GEOIP_EMPTY_CITY
         except _GEOIP_NOT_FOUND:
             return GEOIP_EMPTY_CITY
+        except _GEOIP_BAD_ADDRESS:  # malformed / missing IP -> empty, per contract
+            return GEOIP_EMPTY_CITY
 
     @functools.cached_property
     def _country_record(self):
-        from .application import (
-            root,
-        )  # lazy import to avoid circular dependency
+        root = self.app
 
         if "_city_record" in vars(self):
             # the City class inherits from the Country class and the
             # city record is in cache already, save a geolocalization
             return self._city_record
-        if geoip2 is None:
-            return GEOIP_EMPTY_COUNTRY
+        # ``None`` when geoip2 is absent or the Country database could not be
+        # opened; fall back to the City database, which yields an empty record
+        # on its own failure — preserving the historical OSError→city fallback.
+        country_db = root.geoip_country_db
+        if country_db is None:
+            return self._city_record
         try:
-            return root.geoip_country_db.country(self.ip)
+            return country_db.country(self.ip)
         except _GEOIP_DB_ERRORS:
             return self._city_record
         except _GEOIP_NOT_FOUND:
             return GEOIP_EMPTY_COUNTRY
+        except _GEOIP_BAD_ADDRESS:  # malformed / missing IP -> empty, per contract
+            return GEOIP_EMPTY_COUNTRY
 
     @property
     def country_name(self) -> str | None:
-        return self.country.name or self.continent.name
+        return _none_if_null(self.country.name or self.continent.name)
 
     @property
     def country_code(self) -> str | None:
-        return self.country.iso_code or self.continent.code
+        return _none_if_null(self.country.iso_code or self.continent.code)
 
     def __getattr__(self, attr: str) -> Any:
         # Be smart and determine whether the attribute exists on the
@@ -113,15 +169,17 @@ class GeoIP(collections.abc.Mapping):
             case "country_code":
                 return self.country_code
             case "city":
-                return self.city.name
+                return _none_if_null(self.city.name)
             case "latitude":
-                return self.location.latitude
+                return _none_if_null(self.location.latitude)
             case "longitude":
-                return self.location.longitude
+                return _none_if_null(self.location.longitude)
             case "region":
-                return self.subdivisions[0].iso_code if self.subdivisions else None
+                return _none_if_null(
+                    self.subdivisions[0].iso_code if self.subdivisions else None
+                )
             case "time_zone":
-                return self.location.time_zone
+                return _none_if_null(self.location.time_zone)
             case _:
                 raise KeyError(item)
 

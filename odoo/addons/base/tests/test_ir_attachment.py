@@ -404,6 +404,61 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(len(ids), 2)
         self.assertEqual(ids[0], ids[1], "Same content should deduplicate")
 
+    def test_create_unique_dedups_against_unreadable_row(self):
+        """create_unique dedups against a row the caller cannot read (IRA-C2).
+
+        The dedup search runs sudo(), so identical content owned by someone
+        else / in another company is reused — the returned id may belong to a
+        row the caller cannot read (reading it stays ACL-gated downstream). A
+        non-sudo dedup would apply the caller's ACL, miss the row, and wrongly
+        create a duplicate.
+        """
+        company_b = self.env["res.company"].sudo().create({"name": "IRA-C2 B"})
+        user_b = (
+            self.env["res.users"]
+            .sudo()
+            .create(
+                {
+                    "name": "ira-c2",
+                    "login": "ira_c2_b",
+                    "company_id": company_b.id,
+                    "company_ids": [(6, 0, [company_b.id])],
+                    "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+                }
+            )
+        )
+        payload = b"ira-c2-shared-" + os.urandom(8)
+        # admin-owned orphan (res_id=False, not public): invisible to user_b via
+        # the creator rule in _search, yet content-addressed for dedup.
+        seeded = self.Attachment.sudo().create(
+            {
+                "name": "seed",
+                "mimetype": "text/plain",
+                "raw": payload,
+                "company_id": self.env.company.id,
+            }
+        )
+        self.env.flush_all()
+        self.assertFalse(
+            self.Attachment.with_user(user_b).search([("id", "=", seeded.id)]),
+            "precondition: the seeded row is unreadable by the dedup caller",
+        )
+        dedup_ids = self.Attachment.with_user(user_b).create_unique(
+            [
+                {
+                    "name": "dup",
+                    "mimetype": "text/plain",
+                    "raw": payload,
+                    "company_id": company_b.id,
+                }
+            ]
+        )
+        self.assertEqual(
+            dedup_ids,
+            [seeded.id],
+            "sudo dedup reuses the unreadable cross-company row instead of duplicating",
+        )
+
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_to_http_stream_missing_file(self):
         """_to_http_stream gracefully handles missing filestore file."""
@@ -650,17 +705,67 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(
             target.exists(), "no truncated file may remain at the real path"
         )
-        # No orphaned temp file may linger in the shard directory either.
+        # Staging now happens in the filestore tmp/ dir (so a crash-orphaned
+        # temp is reachable by _gc_stale_filestore_temps, unlike a shard-dir
+        # temp which no GC swept). The failure path must still unlink it, and
+        # the shard dir must never see a temp.
+        tmp_dir = Path(self.filestore, "tmp")
         self.assertEqual(
-            list(target.parent.glob(f"{checksum}.tmp-*")), [], "temp file cleaned up"
+            list(tmp_dir.glob("write-*")) if tmp_dir.is_dir() else [],
+            [],
+            "staging temp cleaned up on failure",
+        )
+        self.assertEqual(
+            list(target.parent.glob(f"{checksum}.tmp-*")),
+            [],
+            "no temp file may be staged in the shard dir",
         )
 
         # The same content can now be written and round-trips correctly.
         fname = self.env["ir.attachment"]._file_write(payload, checksum)
         self.assertEqual(self.env["ir.attachment"]._file_read(fname), payload)
 
+    def test_file_write_stages_temp_in_tmp_dir(self):
+        """_file_write stages its temp in the filestore tmp/ dir, not the shard.
+
+        A shard-dir temp left by a crash before the atomic replace was reachable
+        by no GC — the checklist walk never saw it and the tmp/ sweep only scans
+        tmp/. Staging in tmp/ puts a crash-orphaned temp where
+        _gc_stale_filestore_temps can collect it. Pin the staging location so a
+        revert to shard-dir staging is caught.
+        """
+        payload = b"tmp-staging-" + os.urandom(16)
+        checksum = hashlib.sha1(payload, usedforsecurity=False).hexdigest()
+        target = Path(self.filestore, checksum[:2], checksum)
+        self.addCleanup(target.unlink, missing_ok=True)
+        self.addCleanup(
+            Path(self.filestore, "checklist", checksum[:2], checksum).unlink,
+            missing_ok=True,
+        )
+        tmp_dir = Path(self.filestore, "tmp")
+
+        captured = {}
+        orig_replace = Path.replace
+
+        def capture(self, dst):
+            captured["src_parent"] = self.parent
+            return orig_replace(self, dst)
+
+        with patch.object(Path, "replace", capture):
+            self.env["ir.attachment"]._file_write(payload, checksum)
+        self.assertEqual(
+            captured.get("src_parent"),
+            tmp_dir,
+            "the staging temp must be created under the filestore tmp/ dir",
+        )
+        self.assertEqual(
+            list(target.parent.glob(f"{checksum}.tmp-*")),
+            [],
+            "no temp may be staged in the shard dir",
+        )
+
     def test_file_write_single_get_path(self):
-        """A filestore create resolves the path once, not twice (P2-1).
+        """A filestore create resolves the path once, not twice (IRA-P2-1).
 
         _get_datas_related_values no longer calls _get_path; only _file_write
         does. Guards against reintroducing the double mkdir + double full-file
@@ -1001,6 +1106,62 @@ class TestPermissions(TransactionCaseWithUserDemo):
         self.assertEqual(
             set(unbounded.ids), set(limited.ids), "unbounded must match limited"
         )
+
+    def test_search_keyset_pagination_crosses_batches(self):
+        """Multi-batch keyset/OFFSET pagination must equal a single fetch (IRA-B5).
+
+        ``test_search_unbounded_matches_limited`` uses fewer rows than
+        ``PREFETCH_MAX`` (1000), so the keyset seek predicate in
+        ``_fetch_accessible_ids`` — and the case where a forbidden row is the
+        batch anchor — are never exercised. Here ``PREFETCH_MAX`` is patched to
+        3 over interleaved accessible/inaccessible rows: lowering the batch size
+        must not change which rows ``_search`` returns, in ANY mode (limit=None
+        keyset, bounded keyset, offset slices, caller-supplied order), and must
+        never drop, duplicate, or leak an inaccessible row across a boundary.
+        """
+        # accessible to demo: public, or a demo-owned orphan (create_uid=demo,
+        # res_id=False). inaccessible: a superuser-owned orphan.
+        all_ids = []
+        for i in range(24):
+            kind = i % 3
+            if kind == 0:
+                a = self.Attachments.sudo().create({"name": f"p{i:02d}", "public": True})
+            elif kind == 1:
+                a = self.Attachments.create({"name": f"o{i:02d}"})  # demo orphan
+            else:
+                a = self.Attachments.with_user(SUPERUSER_ID).create({"name": f"a{i:02d}"})
+            all_ids.append(a.id)
+        domain = [("id", "in", all_ids)]
+        forbidden = set(all_ids[2::3])  # the superuser-owned orphans (kind == 2)
+
+        def run():
+            search = self.Attachments.search
+            return {
+                "limit=None": search(domain).ids,
+                "limit=5": search(domain, limit=5).ids,
+                "limit=7": search(domain, limit=7).ids,
+                "offset=3,limit=4": search(domain, offset=3, limit=4).ids,
+                "order=name": search(domain, order="name").ids,
+                "order=name,limit=6": search(domain, order="name", limit=6).ids,
+                "order=name,offset=5,limit=5": search(
+                    domain, order="name", offset=5, limit=5
+                ).ids,
+            }
+
+        truth = run()  # single fetch at PREFETCH_MAX=1000
+        with patch("odoo.addons.base.models.ir_attachment.PREFETCH_MAX", 3):
+            batched = run()  # forced into many small batches
+
+        for label, ids in batched.items():
+            self.assertEqual(
+                ids, truth[label], f"{label}: multi-batch result diverged from single fetch"
+            )
+            self.assertEqual(
+                len(ids), len(set(ids)), f"{label}: duplicate id across batch boundary"
+            )
+            self.assertFalse(
+                set(ids) & forbidden, f"{label}: leaked an inaccessible row"
+            )
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_res_field_write_access(self):

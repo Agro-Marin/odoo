@@ -66,6 +66,48 @@ PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = (
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
 
 
+def _integrity_error_to_validation(env: Environment, exc: IntegrityError) -> ValidationError:
+    """Map a psycopg ``IntegrityError`` to a user-facing ``ValidationError``.
+
+    Names the offending model by matching ``exc.diag.table_name`` against the
+    registry, then formats the message via that model's
+    ``_sql_error_to_message``.  Shared by the in-loop handler and the
+    commit-time handler so the two translations cannot drift (a deferred
+    constraint fires at COMMIT, outside the loop — see :func:`retrying`).
+    """
+    model = env["base"]
+    for rclass in env.registry.values():
+        if exc.diag.table_name == rclass._table:
+            model = env[rclass._name]
+            break
+    message = env._(
+        "The operation cannot be completed: %s",
+        model._sql_error_to_message(exc),
+    )
+    return ValidationError(message)
+
+
+def _rewind_request_for_retry(request: typing.Any, exc: BaseException) -> None:
+    """Prepare an in-flight HTTP request for a transaction retry.
+
+    A retry re-runs the handler from the top, so the session is re-fetched
+    (the rolled-back attempt may have invalidated it) and every uploaded file
+    is rewound to offset 0 — otherwise the replay reads a partially-consumed
+    stream.  A non-seekable upload cannot be replayed, so this raises.
+
+    Kept out of :func:`retrying`'s loop body so the SQL-retry primitive is not
+    cluttered with HTTP-request knowledge.
+    """
+    request.session = request._get_session_and_dbname()[0]
+    for filename, file in request.httprequest.files.items():
+        if hasattr(file, "seekable") and file.seekable():
+            file.seek(0)
+        else:
+            raise RuntimeError(
+                f"Cannot retry request on input file {filename!r} after serialization failure"
+            ) from exc
+
+
 def retrying[T](func: Callable[[], T], env: Environment) -> T:
     """Call ``func`` in a loop until the SQL transaction commits with no
     serialisation error. Rolls back the transaction in between calls.
@@ -106,7 +148,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     # underlying connection death — ``_closed`` is the wrapper
                     # flag only and would silently retry on a dead PG conn,
                     # burning the random-backoff budget for no benefit. See
-                    # ``cursor.py`` line 1150 for the property definition.
+                    # ``BaseCursor.closed`` for the property definition.
                     raise
                 with suppress(Exception):
                     env.cr.rollback()
@@ -121,30 +163,13 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                         env.registry.reset_changes()
                 request = http.request
                 if request:
-                    request.session = request._get_session_and_dbname()[0]
-                    # Rewind files in case of failure
-                    for filename, file in request.httprequest.files.items():
-                        if hasattr(file, "seekable") and file.seekable():
-                            file.seek(0)
-                        else:
-                            raise RuntimeError(
-                                f"Cannot retry request on input file {filename!r} after serialization failure"
-                            ) from exc
+                    _rewind_request_for_retry(request, exc)
                 if isinstance(exc, IntegrityError):
                     if env.cr.closed:
                         # Connection died between the integrity error and
                         # rollback — can't query constraint details.
                         raise
-                    model = env["base"]
-                    for rclass in env.registry.values():
-                        if exc.diag.table_name == rclass._table:
-                            model = env[rclass._name]
-                            break
-                    message = env._(
-                        "The operation cannot be completed: %s",
-                        model._sql_error_to_message(exc),
-                    )
-                    raise ValidationError(message) from exc
+                    raise _integrity_error_to_validation(env, exc) from exc
 
                 if isinstance(exc, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY):
                     error = errors.lookup(exc.sqlstate).__name__
@@ -186,8 +211,34 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 env.registry.reset_changes()
         raise
 
-    if not env.cr.closed:
-        env.cr.commit()  # effectively commits and execute post-commits
+    # The commit runs in its OWN guarded block, deliberately NOT inside the
+    # retry loop.  A failure here (a DEFERRED-constraint ``IntegrityError`` that
+    # fires at COMMIT, a failing post-commit hook, a dropped connection) must
+    # NOT re-run ``func``: the statements already committed — or post-commit
+    # hooks already ran — so a retry would double their side effects.  But it
+    # MUST still get the same rollback/reset cleanup as an in-loop failure
+    # (otherwise the process-global registry keeps stale invalidation flags
+    # that leak into the next request), and a commit-time ``IntegrityError``
+    # gets the same friendly ``ValidationError`` translation the loop applies.
+    try:
+        if not env.cr.closed:
+            env.cr.commit()  # effectively commits and execute post-commits
+    except Exception as exc:
+        if not env.cr.closed:
+            with suppress(Exception):
+                env.transaction.reset()
+            with suppress(Exception):
+                env.registry.reset_changes()
+            if isinstance(exc, IntegrityError):
+                # Best-effort: build the translation under ``suppress`` so a
+                # failure inside it (dead cursor, missing diag) falls through
+                # to the raw error instead of masking it with a second crash.
+                translated = None
+                with suppress(Exception):
+                    translated = _integrity_error_to_validation(env, exc)
+                if translated is not None:
+                    raise translated from exc
+        raise
     env.registry.signal_changes()
     return result
 
