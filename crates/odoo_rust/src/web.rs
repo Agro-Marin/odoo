@@ -156,3 +156,71 @@ fn write_escaped(buf: &mut String, s: &str) {
         buf.push_str(s);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Pure-Rust unit tests for the CSV-serialization helpers. The full
+    //! `csv_export` / `write_cell` paths take Python objects and are covered by
+    //! Python-level tests; here we pin the RFC 4180 QUOTE_ALL quoting and the
+    //! OWASP formula-injection guard, which are pure `&str` logic.
+    use super::{write_escaped, write_quoted, write_string_cell};
+
+    fn quoted(s: &str) -> String {
+        let mut buf = String::new();
+        write_quoted(&mut buf, s);
+        buf
+    }
+
+    fn string_cell(s: &str) -> String {
+        let mut buf = String::new();
+        write_string_cell(&mut buf, s);
+        buf
+    }
+
+    #[test]
+    fn escaped_plain_is_verbatim() {
+        let mut buf = String::new();
+        write_escaped(&mut buf, "hello");
+        assert_eq!(buf, "hello");
+    }
+
+    #[test]
+    fn escaped_doubles_embedded_quotes() {
+        let mut buf = String::new();
+        write_escaped(&mut buf, r#"a"b"c"#);
+        assert_eq!(buf, r#"a""b""c"#);
+    }
+
+    #[test]
+    fn quoted_wraps_and_escapes() {
+        assert_eq!(quoted("plain"), r#""plain""#);
+        assert_eq!(quoted(r#"a"b"#), r#""a""b""#);
+        assert_eq!(quoted(""), r#""""#);
+    }
+
+    #[test]
+    fn string_cell_plain_is_quoted_only() {
+        assert_eq!(string_cell("safe"), r#""safe""#);
+        // a formula char that is not the FIRST byte must not trigger the guard
+        assert_eq!(string_cell("a=b"), r#""a=b""#);
+    }
+
+    #[test]
+    fn string_cell_guards_every_leading_formula_char() {
+        for prefix in ["=", "-", "+", "@", "\t", "\r"] {
+            let out = string_cell(&format!("{prefix}cmd"));
+            assert_eq!(out, format!("\"'{prefix}cmd\""), "prefix {prefix:?}");
+        }
+    }
+
+    #[test]
+    fn string_cell_empty_is_not_guarded() {
+        assert_eq!(string_cell(""), r#""""#);
+    }
+
+    #[test]
+    fn string_cell_combines_guard_and_quote_escaping() {
+        // leading '=' triggers the guard AND the embedded quote is doubled
+        assert_eq!(string_cell(r#"=a"b"#), r#""'=a""b""#);
+    }
+}

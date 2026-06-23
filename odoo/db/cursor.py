@@ -10,6 +10,9 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, Self
 
 import psycopg
+
+# Rust-accelerated rows→dicts conversion (~2.5x faster than pure Python).
+from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import IsolationLevel
 from psycopg import sql as _sql
 
@@ -22,18 +25,10 @@ from .bulk import _BulkAccessMixin
 from .ddl import _SCHEMA_CHANGING_DDL, _ddl_keyword, _inline_ddl_params
 from .errors import _log_sql_error
 from .metrics import _MetricsMixin
+from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import schema_cache
 from .utils import categorize_query
-
-# Rust-accelerated rows→dicts conversion (~2.5x faster than pure Python).
-# Falls back to Python list comprehension when odoo_rust is not installed.
-try:
-    from odoo_rust import rows_to_dicts as _rows_to_dicts
-except ImportError:
-    _rows_to_dicts = None
-
-from .pool import ConnectionPool
 
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
@@ -364,14 +359,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     ) -> list[dict[str, Any]]:
         """Zip *rows* against the last query's column names into dicts.
 
-        Shared by :meth:`dictfetchmany`/:meth:`dictfetchall` so the Rust fast
-        path and its pure-Python fallback live in one place.  Callers must
+        Shared by :meth:`dictfetchmany`/:meth:`dictfetchall`.  Callers must
         short-circuit empty ``rows`` (an empty fetch may carry no description).
         """
-        if _rows_to_dicts is not None:
-            return _rows_to_dicts(self._col_names(), rows)
-        cols = self._col_names()
-        return [dict(zip(cols, row, strict=True)) for row in rows]
+        return _rows_to_dicts(self._col_names(), rows)
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
         # Match BaseCursor.dictfetchmany: size <= 0 yields no rows.  Without

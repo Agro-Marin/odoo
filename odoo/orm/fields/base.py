@@ -9,10 +9,20 @@ import re
 import time
 import typing
 import warnings
+from collections.abc import (
+    Callable,
+    Collection,
+    Iterable,
+    Iterator,
+    MutableMapping,
+)
 from collections.abc import Set as AbstractSet
 from datetime import date, datetime
 from operator import attrgetter
 
+from odoo_rust import (
+    to_prefetch_ids as _to_prefetch_ids_rust,  # type: ignore[import-untyped]
+)
 from psycopg.types.json import Json as PsycopgJson
 
 from odoo.exceptions import AccessError, MissingError
@@ -26,21 +36,6 @@ from odoo.tools import (
     reset_cached_properties,
     sql,
 )
-
-try:
-    from odoo_rust import (
-        to_prefetch_ids as _to_prefetch_ids_rust,  # type: ignore[import-untyped]
-    )
-except ImportError:
-    _to_prefetch_ids_rust = None
-from collections.abc import (
-    Callable,
-    Collection,
-    Iterable,
-    Iterator,
-    MutableMapping,
-)
-
 from odoo.tools.misc import PENDING, SENTINEL, ReadonlyDict, Sentinel, unique
 
 from ..domain import Domain
@@ -1990,18 +1985,14 @@ class Field[T]:
         prefetch_ids = record._prefetch_ids
         record_id = record.id
         # Rust fast path (~3-5x): real records with tuple prefetch IDs and dict
-        # cache. LangProxyDict and PrefetchX2many fall back to Python.
-        if (
-            _to_prefetch_ids_rust is not None
-            and isinstance(prefetch_ids, tuple)
-            and type(field_cache) is dict
-        ):
+        # cache. LangProxyDict and PrefetchX2many use the Python path below.
+        if isinstance(prefetch_ids, tuple) and type(field_cache) is dict:
             result = _to_prefetch_ids_rust(
                 record_id, prefetch_ids, field_cache, PREFETCH_MAX
             )
             if result is not None:
                 return record.browse(result)
-        # Python fallback: NewId records or non-tuple prefetch IDs
+        # Python path: NewId records or non-tuple prefetch IDs
         kind = bool(record_id)
         result = [record_id]
         # Skip IDs already cached (O(1) lookup); track added IDs to dedup

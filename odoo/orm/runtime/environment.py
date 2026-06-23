@@ -5,10 +5,12 @@ import logging
 import time
 import typing
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Collection, Iterator, Mapping, MutableMapping
 from contextlib import contextmanager
 from weakref import ref as weakref_ref
 
+# Rust-accelerated rows→dicts conversion (see cursor.py for details).
+from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import ProgrammingError
 
 from odoo.db import BaseCursor
@@ -27,13 +29,6 @@ from odoo.tools.translate import (
     get_translated_module,
     get_translation,
 )
-
-# Rust-accelerated rows→dicts conversion (see cursor.py for details).
-try:
-    from odoo_rust import rows_to_dicts as _rows_to_dicts
-except ImportError:
-    _rows_to_dicts = None
-from collections.abc import Collection, Iterator, MutableMapping
 
 from ..primitives import SUPERUSER_ID
 from .registry import Registry
@@ -710,12 +705,7 @@ class Environment(Mapping[str, "BaseModel"]):
                 "No cr.description, the executed query does not return a table."
             )
         cols = tuple(col.name for col in description)
-        if _rows_to_dicts is not None:
-            return _rows_to_dicts(cols, rows)
-        # cr.description and rows must agree by SQL contract — strict=True
-        # surfaces any psycopg-side anomaly instead of silently producing
-        # dicts with missing columns.
-        return [dict(zip(cols, row, strict=True)) for row in rows]
+        return _rows_to_dicts(cols, rows)
 
 
 # Re-export for backward compatibility (code using ``from .environment import Cache``)

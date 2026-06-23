@@ -7,6 +7,8 @@ level to avoid circular imports between the models and fields layers.
 import typing
 from operator import itemgetter
 
+from odoo_rust import origin_ids as _origin_ids_rust  # type: ignore[import-untyped]
+
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
@@ -29,17 +31,11 @@ def _origin_ids_python(ids: Iterable) -> list[int]:
     return [oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None))]
 
 
-try:
-    from odoo_rust import origin_ids as _origin_ids_rust  # type: ignore[import-untyped]
-
-    def _origin_ids(ids: Iterable) -> list[int]:
-        """Extract origin IDs — Rust fast path for tuples, Python fallback."""
-        if isinstance(ids, tuple):
-            return _origin_ids_rust(ids)
-        return _origin_ids_python(ids)
-
-except ImportError:
-    _origin_ids = _origin_ids_python
+def _origin_ids(ids: Iterable) -> list[int]:
+    """Extract origin IDs — Rust fast path for tuples, Python for other iterables."""
+    if isinstance(ids, tuple):
+        return _origin_ids_rust(ids)
+    return _origin_ids_python(ids)
 
 
 class OriginIds:
