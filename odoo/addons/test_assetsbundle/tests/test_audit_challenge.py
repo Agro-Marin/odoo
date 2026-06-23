@@ -59,8 +59,9 @@ class TestAuditReadonlyAsymmetry(TransactionCase):
 class TestAuditFallbackDeadInBase(TransactionCase):
     """The ``get_attachments`` copy-fallback cannot trigger without an
     ``_get_asset_bundle_url`` override (website): in base the
-    ``ignore_params=True`` pattern is byte-identical to the primary one,
-    so the fallback re-runs the exact query that just returned nothing."""
+    ``ignore_params=True`` pattern is byte-identical to the primary one. The
+    fallback query is now skipped when the two patterns match, so base no
+    longer pays a guaranteed-empty second round-trip on every cache miss."""
 
     def test_ignore_params_pattern_identical_in_base(self):
         bundle = AssetsBundle(
@@ -75,6 +76,29 @@ class TestAuditFallbackDeadInBase(TransactionCase):
             unique=unique, extension="min.js", ignore_params=True
         )
         self.assertEqual(primary, fallback)
+
+    def test_fallback_query_skipped_when_pattern_identical(self):
+        """On a base cache miss, ``get_attachments`` runs ONLY the primary
+        query — the cross-params fallback (identical pattern) is skipped."""
+        bundle = AssetsBundle(
+            "test_assetsbundle.audit_fb_skip",
+            [_file("/test_assetsbundle/static/src/js/audit_fb_skip.js", PLAIN_JS)],
+            env=self.env,
+            css=False,
+        )
+        store = bundle._store
+        # Warm up lazy init (registry/model load, checksum cache) so the counted
+        # call sees only get_attachments' own SELECT(s).
+        self.assertFalse(store.get_attachments("min.js"))
+        with patch.object(
+            store.env.cr, "execute", wraps=store.env.cr.execute
+        ) as spy:
+            self.assertFalse(store.get_attachments("min.js"))
+        self.assertEqual(
+            spy.call_count,
+            1,
+            "base must run only the primary query, not the redundant fallback",
+        )
 
 
 class TestAuditLikeUnderscoreWildcard(TransactionCase):
