@@ -99,6 +99,8 @@ class TestIraMigrateReuse(TransactionCaseWithUserDemo):
         att = self.Attachment.create(
             {"name": "passthrough.bin", "type": "binary", "db_datas": payload}
         )
+        # db_datas-only create is not treated as empty content: no sha1(b"")
+        # checksum stamped, db_datas preserved (IRA-R1).
         self.assertFalse(att.checksum, "passthrough leaves checksum unstamped")
         self.assertEqual(att.raw, payload, "content served from db_datas")
 

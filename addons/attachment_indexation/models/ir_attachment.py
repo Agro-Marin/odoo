@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import io
 import importlib.util
 import logging
@@ -263,6 +262,31 @@ class IrAttachment(models.Model):
         if checksum:
             index_content_cache[checksum] = res
         return res
+
+    # Mimetypes whose extractors (see FTYPES) parse the WHOLE file: zip-based
+    # office containers and PDF. The streaming create path must read these back
+    # in full instead of the text-only prefix the base hook returns, otherwise a
+    # streamed document larger than _INDEX_MAX_BYTES is parsed from a truncated
+    # prefix and silently loses its index. This matches the buffered create
+    # path, which already hands _index the full content.
+    _INDEXED_DOC_MIMETYPES = frozenset({
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.oasis.opendocument.text',
+        'application/vnd.oasis.opendocument.spreadsheet',
+        'application/vnd.oasis.opendocument.presentation',
+        'application/vnd.oasis.opendocument.graphics',
+    })
+
+    @api.model
+    def _index_read_size(self, mimetype):
+        # Read whole documents this backend parses; defer text/others to base
+        # (bounded text prefix / skip), so unindexable media still streams flat.
+        if mimetype in self._INDEXED_DOC_MIMETYPES:
+            return None
+        return super()._index_read_size(mimetype)
 
     def copy(self, default=None):
         for attachment in self:
