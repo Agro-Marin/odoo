@@ -2600,9 +2600,9 @@ class HttpCase(TransactionCase):
     @classmethod
     def http_port(cls) -> int | None:
         """Return the HTTP server port, or None if the server is not running."""
-        if odoo.service.server.server is None:
+        if odoo.service.lifecycle.server is None:
             return None
-        return odoo.service.server.server.httpd.server_port
+        return odoo.service.lifecycle.server.httpd.server_port
 
     def setUp(self) -> None:
         super().setUp()
