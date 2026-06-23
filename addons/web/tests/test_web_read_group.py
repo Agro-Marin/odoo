@@ -85,3 +85,74 @@ class TestWebReadGroup(TransactionCase):
                 groupby=["create_date:month"],
                 current_groups=[],
             )
+
+    def test_read_progress_bar_datetime_keys_match_client_non_utc(self):
+        """read_progress_bar keys must match the kanban client's group keys for
+        datetime grouping under a non-UTC timezone.
+
+        Regression: keying on raw ``_read_group`` buckets emits local-naive
+        datetime strings (e.g. ``'2026-06-01 00:00:00'``) while the kanban
+        client derives its lookup key from ``web_read_group`` /
+        ``formatted_read_group`` (UTC, e.g. ``'2026-06-01 06:00:00'``). The
+        two never matched for non-UTC users, so every progress bar rendered
+        zero. ``read_progress_bar`` must therefore go through
+        ``formatted_read_group`` (which produces the same keys the client uses).
+        """
+        model = self.env["res.partner"].with_context(tz="America/Mexico_City")
+        group_by = "create_date:month"
+        progress_bar = {"field": "is_company", "colors": {True: "green", False: "red"}}
+
+        pb = model.read_progress_bar(self.domain, group_by, progress_bar)
+
+        # The exact keys the kanban client looks up (each column's server value).
+        formatted = model.formatted_read_group(self.domain, [group_by], ["__count"])
+        client_keys = {
+            str(g[group_by][0] if isinstance(g[group_by], tuple) else g[group_by])
+            for g in formatted
+        }
+
+        self.assertTrue(pb, "expected at least one progress-bar group")
+        self.assertTrue(
+            set(pb.keys()) <= client_keys,
+            f"read_progress_bar keys {set(pb.keys())} must be a subset of the "
+            f"client's group keys {client_keys}; a mismatch zeroes every "
+            f"progress bar for non-UTC users",
+        )
+        # Every record must be attributed to a bar (2 companies + 1 person).
+        total = sum(sum(states.values()) for states in pb.values())
+        self.assertEqual(total, len(self.partners))
+
+    def test_get_read_group_order_aggregator_fallback_and_no_duplicate(self):
+        """``_get_read_group_order`` must fall back to a field's aggregator and
+        not emit duplicate ORDER BY terms.
+
+        Regression: dropping upstream's nested ``for/else`` (a) silently
+        discarded ordering by an aggregatable field absent from groupby and
+        aggregates, and (b) appended a second, conflicting term for a field
+        present in both a groupby and an aggregate.
+        """
+        Model = self.env["res.partner"]
+        agg_field = next(
+            (n for n, f in Model._fields.items() if getattr(f, "aggregator", None) and f.store),
+            None,
+        )
+        self.assertIsNotNone(agg_field, "expected a stored aggregatable field on res.partner")
+        aggregator = Model._fields[agg_field].aggregator
+
+        # (a) aggregator fallback: not in groupby/aggregates -> sort by aggregate.
+        order = Model._get_read_group_order(
+            {agg_field: "desc"}, groupby=["country_id"], aggregates=[]
+        )
+        self.assertIn(
+            f"{agg_field}:{aggregator} desc", order,
+            "ordering by an aggregatable field must fall back to its aggregator, not be dropped",
+        )
+
+        # (b) no duplicate: a field matching both a groupby and an aggregate
+        # must yield only the groupby term.
+        order2 = Model._get_read_group_order(
+            {"create_date": "desc"},
+            groupby=["create_date:month"],
+            aggregates=["create_date:max"],
+        )
+        self.assertEqual(order2, "create_date:month desc")

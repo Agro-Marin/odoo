@@ -155,3 +155,17 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 {"phone": "222"}, specification={"phone": {}},
                 last_write_date=stale.isoformat(),
             )
+
+    # -- singleton precondition (web_save is single-record; batch is web_save_multi)
+    def test_multirecord_web_save_is_rejected(self):
+        """web_save on a multi-record set must fail the singleton check up-front
+        rather than silently writing all records or crashing in the legacy
+        last_write_date branch on ``self.id``."""
+        recs = self.c1 + self.c2
+        with self.assertRaises(ValueError):
+            recs.web_save({"phone": "9"}, specification={"phone": {}})
+        with self.assertRaises(ValueError):
+            recs.web_save(
+                {"phone": "9"}, specification={"phone": {}},
+                last_write_date="2020-01-01T00:00:00.000Z",
+            )

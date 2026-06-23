@@ -282,6 +282,10 @@ class BaseDocumentLayout(models.TransientModel):
         """
         if not logo:
             return False, False
+        if not isinstance(logo, (str, bytes)):
+            # Defensive: a non-text logo (e.g. memoryview) would crash the
+            # padding/concat below, which runs *before* the try/except guard.
+            return False, False
         # Ensure correct base64 padding (must be multiple of 4)
         padding = -len(logo) % 4
         logo += b"=" * padding if isinstance(logo, bytes) else "=" * padding
