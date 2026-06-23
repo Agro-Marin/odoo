@@ -10,12 +10,13 @@ See https://github.com/sass/embedded-protocol for the protocol specification.
 import atexit
 import contextlib
 import logging
+import shutil
 import threading
 from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Self
 
-from odoo.tools import misc
+import odoo
 from odoo.tools.embedded_sass_pb2 import (
     COMPRESSED,
     EXPANDED,
@@ -87,6 +88,38 @@ class SassImporter:
 
 
 # ---------------------------------------------------------------------------
+# Binary discovery
+# ---------------------------------------------------------------------------
+
+
+def find_sass() -> str | None:
+    """Locate a Dart Sass binary: system ``PATH`` first, then the
+    npm-provisioned toolchain in the Odoo root's ``node_modules``.
+
+    Mirrors :func:`odoo.libs.esbuild._find_esbuild`: a documented ``npm
+    install`` provisions the compiler, so discovery must also look in
+    ``node_modules`` — not only ``PATH`` (the historical behaviour, which
+    silently disabled SCSS whenever Dart Sass was not installed system-wide).
+    Prefers an ``--embedded``-capable binary — system Dart Sass, then the
+    native binary shipped by the ``sass-embedded`` package — so the fast
+    embedded path is used; falls back to the pure-JS ``sass`` CLI in
+    ``node_modules/.bin`` (which the compiler layer drives via ``--stdin``).
+
+    :return: path to a ``sass`` binary, or ``None`` if none is found.
+    """
+    found = shutil.which("sass")
+    if found:
+        return found
+    node_modules = Path(odoo.__path__[0]).parent / "node_modules"
+    # Native embedded binary from the ``sass-embedded`` package (any platform).
+    native = next(node_modules.glob("sass-embedded-*/dart-sass/sass"), None)
+    if native is not None:
+        return str(native)
+    # Pure-JS ``sass`` CLI (no ``--embedded``; the embedded layer falls back).
+    return shutil.which("sass", path=str(node_modules / ".bin"))
+
+
+# ---------------------------------------------------------------------------
 # Embedded Sass Compiler
 # ---------------------------------------------------------------------------
 
@@ -131,10 +164,7 @@ class SassEmbeddedCompiler:
 
         sass_path = self._sass_path
         if sass_path is None:
-            try:
-                sass_path = misc.find_in_path("sass")
-            except OSError:
-                sass_path = "sass"
+            sass_path = find_sass() or "sass"
 
         try:
             self._process = Popen(
