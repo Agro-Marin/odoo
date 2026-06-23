@@ -49,6 +49,8 @@ from odoo.release import nt_service_name
 from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
+from ._env import env_float
+
 # Watcher backends — picked at the watcher-module level, surfaced here so
 # ``start()`` can dispatch on the actual loaded backend without re-doing
 # the OS-name probe.
@@ -122,7 +124,12 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
-            interval = float(os.environ.get("ODOO_PROFILE_PRELOAD_INTERVAL", "0.1"))
+            # Guarded parse: a malformed interval used to raise ``ValueError``
+            # straight out of the preload loop, aborting the run; now it warns
+            # and falls back to 0.1s.
+            interval = env_float(
+                "ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger
+            )
             collectors = [profiler.PeriodicCollector(interval=interval)]
             if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
                 collectors.append("sql")

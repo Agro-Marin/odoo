@@ -37,6 +37,8 @@ from werkzeug.urls import uri_to_iri
 
 from odoo.tools import config
 
+from ._env import env_int
+
 _logger = logging.getLogger("odoo.service.server")  # preserve operator log filters
 
 # ANSI status colors are useful when developing locally with a TTY-attached
@@ -198,9 +200,14 @@ class RequestHandler(CommonRequestHandler):
 class ThreadedWSGIServerReloadable(
     LoggingBaseWSGIServerMixIn, werkzeug.serving.ThreadedWSGIServer
 ):
-    """werkzeug Threaded WSGI Server patched to allow reusing a listen socket
-    given by the environment, this is used by autoreload to keep the listen
-    socket open when a reload happens.
+    """werkzeug Threaded WSGI Server patched to adopt a listen socket handed in
+    by the environment via systemd socket activation (``LISTEN_FDS`` — see
+    ``server_bind``).
+
+    This is NOT the autoreload path: threaded ``--dev=reload`` re-execs and
+    rebinds a fresh socket.  Only ``PreforkServer`` carries its listen socket
+    across a reload, via ``ODOO_HTTP_SOCKET_FD`` — a separate mechanism this
+    class never reads.
     """
 
     def __init__(self, host: str, port: int, app: Any) -> None:
@@ -212,14 +219,10 @@ class ThreadedWSGIServerReloadable(
         # controllers borrow two. ODOO_MAX_HTTP_THREADS overrides this default;
         # set it to "0" to opt out of the bound.
         auto_limit = max((config["db_maxconn"] - config["max_cron_threads"]) // 2, 1)
-        env_value = os.environ.get("ODOO_MAX_HTTP_THREADS")
-        if env_value is None:
-            self.max_http_threads = auto_limit
-        else:
-            try:
-                self.max_http_threads = int(env_value)
-            except ValueError:
-                self.max_http_threads = auto_limit
+        # Silent fallback (no logger): a malformed value drops to the computed
+        # default.  No ``minimum`` — "0" is a meaningful opt-out of the bound
+        # (the ``if self.max_http_threads:`` guard below skips the semaphore).
+        self.max_http_threads = env_int("ODOO_MAX_HTTP_THREADS", auto_limit)
         if self.max_http_threads:
             self.http_threads_sem = threading.Semaphore(self.max_http_threads)
             # Per-request release tracking so a duplicate ``shutdown_request``
