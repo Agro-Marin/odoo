@@ -34,7 +34,7 @@ def run_tests(
         _logger.error("run_tests should be used only in threaded mode")
         return None
 
-    from odoo.service.server import server
+    from odoo.service.lifecycle import server
 
     if not server.httpd:
         # some tests need the http daemon to be available...
