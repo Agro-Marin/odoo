@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 import threading
@@ -14,7 +15,7 @@ import odoo.service.model
 from odoo.tools import config
 
 from .constants import SESSION_LIFETIME
-from .core import borrow_request
+from .core import borrow_request, request
 
 _logger = logging.getLogger(__name__)
 
@@ -52,6 +53,44 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
     return db_filter(dbs, host)
 
 
+def _normalize_dbfilter_host(host: str) -> str:
+    """Reduce a raw ``Host`` header to the form the dbfilter regex matches.
+
+    ::
+
+        www.example.com:80   ->   example.com
+        -------                   -------
+        strip :port + www.        domain == first label
+
+    Normalising *before* the cache lookup (see :func:`db_filter`) is what makes
+    equivalent spellings — ``example.com``, ``www.example.com``,
+    ``example.com:443`` — collapse to a single :func:`_compiled_dbfilter` entry
+    instead of one per spelling. :func:`_compiled_dbfilter` also applies it
+    internally so direct callers stay correct; the operation is idempotent.
+    """
+    return host.partition(":")[0].removeprefix("www.")
+
+
+@functools.lru_cache(maxsize=512)
+def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
+    """Compile the dbfilter regex for one ``(pattern, host)`` pair.
+
+    :func:`db_filter` runs on (nearly) every request, sometimes more than once.
+    The regex depends only on the configured ``dbfilter`` pattern and the
+    request host, so memoise the compiled object instead of rebuilding it each
+    call. ``pattern`` is part of the key so a runtime config change is honoured;
+    the bounded ``maxsize`` caps memory across many virtual hosts.
+
+    ``host`` is normalised via :func:`_normalize_dbfilter_host` (callers on the
+    hot path normalise first so the cache key dedupes equivalent spellings).
+    """
+    host = _normalize_dbfilter_host(host)
+    domain = host.partition(".")[0]
+    return re.compile(
+        pattern.replace("%h", re.escape(host)).replace("%d", re.escape(domain))
+    )
+
+
 def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     """
     Return the subset of ``dbs`` that match the dbfilter or the dbname
@@ -76,27 +115,13 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     :returns: The original list filtered.
     :rtype: list[str]
     """
-    from . import (
-        request,
-    )
-
     if config["dbfilter"]:
-        #        host
-        #     -----------
-        # www.example.com:80
-        #     -------
-        #     domain
         if host is None:
             host = request.httprequest.environ.get("HTTP_HOST", "")
-        host = host.partition(":")[0]
-        host = host.removeprefix("www.")
-        domain = host.partition(".")[0]
-
-        dbfilter_re = re.compile(
-            config["dbfilter"]
-            .replace("%h", re.escape(host))
-            .replace("%d", re.escape(domain))
-        )
+        # Normalise before the cache lookup so equivalent Host spellings
+        # (``www.``/``:port``) share one compiled-regex entry.
+        host = _normalize_dbfilter_host(host)
+        dbfilter_re = _compiled_dbfilter(config["dbfilter"], host)
         return [db for db in dbs if dbfilter_re.match(db)]
 
     if config["db_name"]:
@@ -185,6 +210,33 @@ def is_cors_preflight(request: Any, endpoint: Any) -> bool:
     )
 
 
+_TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
+
+
+def _exception_debug(exception: BaseException) -> str:
+    """The ``debug`` field of a serialized exception, gated for client responses.
+
+    The full traceback exposes server filesystem paths and code structure. It is
+    included when there is no active request — a cron job or other server-side
+    caller whose serialized output is read by administrators (e.g.
+    ``ir.cron``'s failure log) — or when ``dev_mode`` is enabled. For an ordinary
+    production HTTP error response it is replaced with a short note so those
+    internals are not disclosed to untrusted clients. The field is always a
+    ``str`` (callers and tests rely on its presence; the JS error layer treats it
+    as opaque), and the full traceback is still written to the server log by
+    ``Application.__call__``.
+
+    Gating is on ``dev_mode`` ONLY — never a database lookup (e.g. checking
+    whether the user is an administrator). This runs on the error path, where the
+    cursor/registry may already be in a failed-transaction or disconnected state,
+    so a query here could raise and mask the original error.
+    """
+    # ``request`` (a LocalProxy) is falsy when no request is active.
+    if request and not config["dev_mode"]:
+        return _TRACEBACK_HIDDEN
+    return "".join(traceback.format_exception(exception))
+
+
 def serialize_exception(
     exception: BaseException,
     *,
@@ -200,5 +252,5 @@ def serialize_exception(
         "message": str(exception) if message is None else message,
         "arguments": exception.args if arguments is None else arguments,
         "context": getattr(exception, "context", {}),
-        "debug": "".join(traceback.format_exception(exception)),
+        "debug": _exception_debug(exception),
     }

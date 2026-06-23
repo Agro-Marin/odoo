@@ -16,6 +16,7 @@ from odoo.http import (
     SESSION_LIFETIME,
     SESSION_ROTATION_INTERVAL,
     STORED_SESSION_BYTES,
+    Session,
     _session_identifier_re,
     root,
 )
@@ -274,6 +275,43 @@ class TestHttpSession(TestHttpBase):
             self.assertEqual(check_session_attr(value), False)
         for value in not_recommended_values:
             self.assertEqual(check_session_attr(value), None)
+
+    def test_session07b_load_does_not_revalidate(self):
+        """Loading a session from its store file must NOT re-run the
+        per-value JSON validation/coercion that ``__setitem__`` applies.
+
+        That validation polices *application* writes; the load payload is
+        already JSON-native (the store just parsed it), so re-walking it is
+        pure overhead on every authenticated request. This pins the trusted
+        fast path: a refactor that reintroduces ``self.update(data)`` in
+        ``Session.__init__`` would coerce the tuple below to a list and fail
+        here. It also confirms writes are still validated/coerced/isolated.
+        """
+        sid = "a" * STORED_SESSION_BYTES * 2
+
+        # Load preserves content verbatim and starts clean (not dirty).
+        data = {"uid": 5, "context": {"lang": "en_US", "ids": [1, 2, 3]}}
+        session = Session(data, sid)
+        self.assertEqual(dict(session), data)
+        self.assertFalse(session.is_dirty)
+
+        # Load bypasses write-time coercion: a value that ``__setitem__``
+        # would normalise (tuple -> list) is stored verbatim on load.
+        loaded = Session({"foo": (1, 2, 3)}, sid)
+        self.assertEqual(loaded["foo"], (1, 2, 3))
+
+        # Application writes are STILL validated and coerced.
+        session["foo"] = (1, 2, 3)
+        self.assertEqual(session["foo"], [1, 2, 3])  # tuple coerced to list
+        self.assertTrue(session.is_dirty)
+        with self.assertRaises(TypeError):
+            session["bad"] = datetime.datetime.now()
+
+        # ... and still deep-copied (isolated from later source mutation).
+        source = {"k": [1]}
+        session["iso"] = source
+        source["k"].append(2)
+        self.assertEqual(session["iso"], {"k": [1]})
 
     @patch("odoo.http.root.session_store.vacuum")
     def test_session08_gc_ignored_no_db_name(self, mock):

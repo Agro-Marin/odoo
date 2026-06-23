@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from werkzeug.datastructures import ResponseCacheControl
@@ -37,8 +37,17 @@ class TestHttpBase(HttpCaseWithUserDemo):
     def setUp(self):
         super().setUp()
         odoo.http.root.session_store.store.clear()
+        # Per-test isolation for the monodb-detection memo (see the url_open
+        # helpers below); also dropped after the test so it can never leak a
+        # patched value into unrelated tests.
+        odoo.http.request_class.clear_monodb_cache()
+        self.addCleanup(odoo.http.request_class.clear_monodb_cache)
 
     def db_url_open(self, url, *args, allow_redirects=False, **kwargs):
+        # The monodb-detection list is memoised per (host, TTL bucket); drop it
+        # so this real-db_list request is not served a value cached by a prior
+        # patched (nodb/multidb) request in the same bucket.
+        odoo.http.request_class.clear_monodb_cache()
         return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def nodb_url_open(self, url, *args, allow_redirects=False, **kwargs):
@@ -53,6 +62,9 @@ class TestHttpBase(HttpCaseWithUserDemo):
                 db_list.return_value = []
             for db_filter in (db_filter1, db_filter2):
                 db_filter.return_value = []
+            # Clear AFTER patching so the request sees the patched db_list, not a
+            # value cached under a previous patch in the same TTL bucket.
+            odoo.http.request_class.clear_monodb_cache()
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def multidb_url_open(self, url, *args, allow_redirects=False, dblist=(), **kwargs):
@@ -79,6 +91,9 @@ class TestHttpBase(HttpCaseWithUserDemo):
                 ]
             Registry.return_value = self.registry
             ServeRegistry.return_value = self.registry
+            # Clear AFTER patching so the request sees the patched db_list, not a
+            # value cached under a previous patch in the same TTL bucket.
+            odoo.http.request_class.clear_monodb_cache()
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def parse_http_cache_control(self, cache_control):
