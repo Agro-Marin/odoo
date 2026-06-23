@@ -18,7 +18,7 @@ from datetime import datetime
 
 import pytest
 
-from odoo.orm.testing import model_test_env
+from odoo.orm.model_test_env import model_test_env
 
 # ── Sequence-specific fixtures ───────────────────────────────────
 
