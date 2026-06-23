@@ -41,6 +41,7 @@ from ._db_helpers import (
     database_identifier,
     validate_db_name,
 )
+from ._env import env_float, env_int
 
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -250,6 +251,23 @@ def _create_empty_database(name: str) -> None:
         raise DatabaseExists(f"database {name!r} already exists!")
 
 
+def _rollback_new_database(db_name: str, what: str) -> None:
+    """Drop a half-built database after a create/restore/duplicate failure.
+
+    Call from the ``except`` of the population step, then re-``raise``.  All
+    three paths create an empty (or template-copied) database and then populate
+    it; on any failure the half-built database must be dropped so its name is
+    reusable.  Uses the internal ``_drop_database`` (NOT ``exp_drop``, which
+    re-checks the ``list_db`` flag — a runtime toggle between the initial check
+    and this cleanup would orphan the database).  Drop failures are suppressed
+    so they cannot mask the original error.  ``what`` is an operator-facing tag
+    (``"CREATE DB"`` / ``"RESTORE DB"`` / ``"DUPLICATE DB"``).
+    """
+    _logger.info("%s: rolling back database %r after failure", what, db_name)
+    with suppress(Exception):
+        _drop_database(db_name)
+
+
 @check_db_management_enabled
 def exp_create_database(
     db_name: str,
@@ -277,17 +295,7 @@ def exp_create_database(
             db_name, demo, lang, user_password, login, country_code, phone
         )
     except Exception:
-        # Drop the empty database created above so the name is not blocked
-        # for future create attempts.  Uses the internal ``_drop_database``
-        # helper rather than ``exp_drop``, which would re-check ``list_db``
-        # — a runtime toggle between the initial check and cleanup would
-        # orphan an empty database.  Suppress drop failures so they don't
-        # mask the original initialization error.
-        _logger.info(
-            "CREATE DB: rolling back empty database %r after init failure", db_name
-        )
-        with suppress(Exception):
-            _drop_database(db_name)
+        _rollback_new_database(db_name, "CREATE DB")
         raise
     return True
 
@@ -346,9 +354,7 @@ def exp_duplicate_database(
         # Retry with the same exponential backoff as ``_drop_database``;
         # this race is exactly the one the drop path was hardened against
         # and duplicate was overlooked.
-        last_error: Exception | None = None
-        for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
-            _drop_conn(cr, db_original_name)
+        def _create_from_template() -> None:
             try:
                 cr.execute(
                     SQL(
@@ -358,35 +364,19 @@ def exp_duplicate_database(
                     )
                 )
             except psycopg.errors.DuplicateDatabase as exc:
-                # Translate to ``DatabaseExists`` so callers see the same
-                # exception type whether the name collision happens at
-                # ``_create_empty_database`` or here.  Without this branch the
-                # raw psycopg error leaked through, presenting a different
-                # surface than ``exp_create_database`` for the same failure
-                # ("name already taken").
+                # Same exception type whether the name collision happens at
+                # ``_create_empty_database`` or here.  (``ObjectInUse`` and any
+                # other error propagate to the retry helper / caller.)
                 raise DatabaseExists(
                     f"database {db_name!r} already exists!"
                 ) from exc
-            except psycopg.errors.ObjectInUse as e:
-                last_error = e
-                _logger.info(
-                    "DUPLICATE DB: %s -> %s attempt %d/%d, source still in use: %s",
-                    db_original_name,
-                    db_name,
-                    attempt,
-                    _DROP_DATABASE_MAX_RETRIES,
-                    e,
-                )
-                time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
-                continue
-            else:
-                break
-        else:
-            raise RuntimeError(
-                f"Couldn't duplicate database {db_original_name!r} -> "
-                f"{db_name!r} after {_DROP_DATABASE_MAX_RETRIES} attempts: "
-                f"{last_error}"
-            ) from last_error
+
+        _retry_terminate_then_ddl(
+            cr,
+            db_original_name,
+            f"DUPLICATE DB: {db_original_name} -> {db_name}",
+            _create_from_template,
+        )
 
     try:
         registry = odoo.modules.registry.Registry.new(db_name)
@@ -409,15 +399,7 @@ def exp_duplicate_database(
                 )
             shutil.copytree(from_fs, to_fs)
     except Exception:
-        # Drop the newly-created DB so the name is reusable, mirroring
-        # ``restore_db``'s rollback.  Suppress drop failures so they don't
-        # mask the original duplication error.
-        _logger.info(
-            "DUPLICATE DB: rolling back partially-duplicated database %r after failure",
-            db_name,
-        )
-        with suppress(Exception):
-            _drop_database(db_name)
+        _rollback_new_database(db_name, "DUPLICATE DB")
         raise
     return True
 
@@ -436,6 +418,86 @@ def exp_duplicate_database(
 # connection lands inside it.
 _DROP_DATABASE_MAX_RETRIES = 5
 _DROP_DATABASE_BACKOFF_BASE = 0.2  # seconds; doubles each attempt
+
+
+def _retry_terminate_then_ddl(
+    cr: BaseCursor,
+    terminate_target: str,
+    op_label: str,
+    run: Callable[[], None],
+) -> None:
+    """Run a database-level DDL op under the terminate-then-act retry loop
+    shared by DROP / DUPLICATE / RENAME.
+
+    ``CREATE … TEMPLATE``, ``DROP DATABASE`` and ``ALTER DATABASE … RENAME`` all
+    require zero sessions on the source/target.  ``_drop_conn`` evicts them
+    best-effort, but a fresh request can connect in the window between the
+    terminate and the DDL, so PostgreSQL raises ``ObjectInUse`` (sqlstate
+    55006).  Each attempt re-terminates and re-runs ``run`` with the shared
+    exponential backoff (0.2, 0.4, 0.8, 1.6, 3.2s).
+
+    ``run`` executes the DDL and returns on success.  It MUST let
+    ``ObjectInUse`` propagate (so this loop can retry) and may raise any other
+    exception — ``DatabaseExists`` for a name collision, ``RuntimeError`` for an
+    operation-specific failure — to abort immediately.  After
+    ``_DROP_DATABASE_MAX_RETRIES`` exhausted attempts the last ``ObjectInUse``
+    is re-raised wrapped in ``RuntimeError``.
+
+    This loop was previously copy-pasted three times (drop / duplicate /
+    rename); a fix to the backoff or the race window had to be made in three
+    places, and the paths drifted (rename was once one-shot where the other
+    two retried).
+    """
+    last_error: psycopg.errors.ObjectInUse | None = None
+    for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
+        _drop_conn(cr, terminate_target)
+        try:
+            run()
+        except psycopg.errors.ObjectInUse as e:
+            last_error = e
+            _logger.info(
+                "%s attempt %d/%d, still in use: %s",
+                op_label,
+                attempt,
+                _DROP_DATABASE_MAX_RETRIES,
+                e,
+            )
+            time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
+        else:
+            return
+    raise RuntimeError(
+        f"{op_label}: still in use after {_DROP_DATABASE_MAX_RETRIES} "
+        f"attempts: {last_error}"
+    ) from last_error
+
+
+def _pg_dump_total_timeout() -> float:
+    """Wall-clock ceiling (seconds) for any single ``pg_dump`` invocation.
+
+    Single source of truth shared by every dump path — the blocking
+    ``subprocess.run`` calls (zip format, and non-streaming custom format) and
+    the streaming ``Popen`` copy.  Previously only the streaming path was
+    bounded, so a hung ``pg_dump`` on the common web-backup path (zip,
+    ``stream=None``) could block a worker indefinitely (PG-side lock wait, a
+    remote PG that stops responding).  Default 1h is generous for legitimate
+    big-DB dumps but finite; override via ``ODOO_PG_DUMP_TOTAL_TIMEOUT``.
+    A malformed value falls back to the default rather than crashing the dump.
+    """
+    return env_float("ODOO_PG_DUMP_TOTAL_TIMEOUT", 3600.0, logger=_logger)
+
+
+def _pg_restore_total_timeout() -> float:
+    """Wall-clock ceiling (seconds) for the ``psql``/``pg_restore`` invocation.
+
+    Sibling of ``_pg_dump_total_timeout``.  The restore subprocess was the
+    asymmetric gap: the dump path bounds every ``pg_dump`` call, but a hung
+    ``psql -f`` (PG-side lock wait, disk-full stall, a dump that triggers a
+    slow trigger) would block the worker until the master watchdog SIGKILLs
+    it — a cruder backstop than the clean ``RuntimeError`` the dump path
+    raises.  Default 1h; override via ``ODOO_PG_RESTORE_TOTAL_TIMEOUT``.  A
+    malformed value falls back to the default rather than crashing the restore.
+    """
+    return env_float("ODOO_PG_RESTORE_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
 
 def _drop_database(db_name: str) -> bool:
@@ -489,37 +551,17 @@ def _drop_database(db_name: str) -> bool:
         # database-altering operations cannot be executed inside a transaction
         cr.connection.autocommit = True
 
-        last_error: Exception | None = None
-        for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
-            _drop_conn(cr, db_name)
+        def _drop() -> None:
             try:
                 cr.execute(SQL("DROP DATABASE %s", database_identifier(cr, db_name)))
-            except psycopg.errors.ObjectInUse as e:
-                last_error = e
-                _logger.info(
-                    "DROP DB: %s attempt %d/%d, still in use: %s",
-                    db_name,
-                    attempt,
-                    _DROP_DATABASE_MAX_RETRIES,
-                    e,
-                )
-                # Exponential backoff: 0.2, 0.4, 0.8, 1.6, 3.2s — a fresh
-                # connection holder needs a moment to respond to
-                # ``pg_terminate_backend`` and release its connection.
-                time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
-                continue
+            except psycopg.errors.ObjectInUse:
+                raise  # let _retry_terminate_then_ddl back off and retry
             except Exception as e:
                 _logger.info("DROP DB: %s failed:\n%s", db_name, e)
                 raise RuntimeError(f"Couldn't drop database {db_name}: {e}") from e
-            else:
-                _logger.info("DROP DB: %s", db_name)
-                break
-        else:
-            # All retries exhausted — surface the last ObjectInUse error.
-            raise RuntimeError(
-                f"Couldn't drop database {db_name} after "
-                f"{_DROP_DATABASE_MAX_RETRIES} attempts: {last_error}"
-            ) from last_error
+            _logger.info("DROP DB: %s", db_name)
+
+        _retry_terminate_then_ddl(cr, db_name, f"DROP DB: {db_name}", _drop)
 
     # Close pools again: between close_db() above and the actual DROP,
     # other threads (cron, HTTP) may have re-created a pool for this
@@ -553,8 +595,13 @@ def exp_dump(db_name: str, backup_format: str) -> str:
     streaming should use ``dump_db(..., stream=...)`` with a writable file
     or response object.  Measured peak: 2.68x input size (verified at N=30 MiB).
 
-    The web UI at ``/web/database/backup`` uses ``dump_db(..., stream=...)``
-    with ``direct_passthrough=True`` and never hits this path.
+    The web UI at ``/web/database/backup`` does NOT go through this function:
+    it calls ``dump_db(name, None, ...)`` (``stream=None``), which buffers the
+    dump to a ``TemporaryFile`` and hands that file object to werkzeug's
+    ``Response(..., direct_passthrough=True)`` — so the base64 round-trip here
+    is avoided, but the dump is still fully written to a temp file first.  The
+    only true-streaming caller is the ``odoo db dump`` CLI (``stream`` = a real
+    file / ``sys.stdout.buffer``).
     """
     # 3 MiB — a multiple of 3 so each chunk encodes independently (base64
     # consumes 3 input bytes per 4 output chars; non-3-aligned chunks would
@@ -594,6 +641,124 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
     }
 
 
+def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
+    """Run ``pg_dump`` to completion, raising ``RuntimeError`` on timeout/error.
+
+    Shared by the two blocking dump paths: the zip path (``stdout`` =
+    ``DEVNULL``; the dump is written via an inserted ``--file=``) and the
+    buffered custom-format path (``stdout`` = a ``TemporaryFile``).  Bounds the
+    run with ``_pg_dump_total_timeout`` so a hung pg_dump cannot block a worker
+    indefinitely — ``subprocess.run`` kills and reaps the child on timeout.
+    The timeout + returncode handling used to be copy-pasted in both paths.
+    """
+    timeout = _pg_dump_total_timeout()
+    try:
+        result = subprocess.run(
+            cmd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"pg_dump exceeded {timeout:.0f}s wall-clock timeout and was "
+            f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
+        ) from e
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"pg_dump failed (exit {result.returncode}): "
+            f"{result.stderr.decode(errors='replace').strip()}"
+        )
+
+
+def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None:
+    """Stream a custom-format ``pg_dump`` to ``stream`` while draining stderr.
+
+    stdout is copied to ``stream`` as it is produced; a sibling thread drains
+    stderr concurrently so neither pipe blocks when pg_dump emits more than the
+    OS pipe buffer (64 KiB default) of warnings — a model-rich DB clears that
+    cap routinely.  A wall-clock ``Timer`` SIGTERMs a stalled pg_dump, because
+    ``copyfileobj`` is otherwise unbounded if stdout EOF never arrives (PG-side
+    lock wait, a remote PG that stops responding).  After the copy, a bounded
+    post-EOF wait escalates SIGTERM → SIGKILL.  Raises ``RuntimeError`` on
+    stall or non-zero exit.
+    """
+    proc = subprocess.Popen(
+        cmd,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stderr_chunks: list[bytes] = []
+
+    def _drain_stderr() -> None:
+        while chunk := proc.stderr.read(4096):
+            stderr_chunks.append(chunk)
+
+    stderr_thread = threading.Thread(
+        target=_drain_stderr, name="odoo.service.db.pg_dump.stderr"
+    )
+    stderr_thread.start()
+
+    total_timeout = _pg_dump_total_timeout()
+    stall_killed = [False]
+
+    def _kill_on_stall() -> None:
+        stall_killed[0] = True
+        _logger.error(
+            "pg_dump exceeded total wall-clock timeout (%.0fs); sending SIGTERM",
+            total_timeout,
+        )
+        with suppress(ProcessLookupError):
+            proc.terminate()
+
+    stall_timer = threading.Timer(total_timeout, _kill_on_stall)
+    stall_timer.daemon = True
+    stall_timer.start()
+    try:
+        shutil.copyfileobj(proc.stdout, stream)
+    finally:
+        stall_timer.cancel()
+        proc.stdout.close()
+        stderr_thread.join()
+        # Bounded post-EOF wait + escalating signals.  Operator-friendly
+        # default 30s; override via env.  Parsed through ``env_float`` so a
+        # malformed value falls back to the default instead of raising
+        # ``ValueError`` from this ``finally`` — which would crash a successful
+        # dump and mask the real error of a failed one.
+        wait_timeout = env_float("ODOO_PG_DUMP_WAIT_TIMEOUT", 30.0, logger=_logger)
+        try:
+            proc.wait(timeout=wait_timeout)
+        except subprocess.TimeoutExpired:
+            _logger.error(
+                "pg_dump did not exit within %.0fs after stdout EOF; sending SIGTERM",
+                wait_timeout,
+            )
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _logger.error("pg_dump still alive; sending SIGKILL")
+                proc.kill()
+                proc.wait()
+    stderr_output = b"".join(stderr_chunks)
+    if stall_killed[0]:
+        # Typed error so callers can distinguish "stalled" from "non-zero exit".
+        raise RuntimeError(
+            f"pg_dump exceeded {total_timeout:.0f}s wall-clock timeout and was "
+            f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
+        )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"pg_dump failed (exit {proc.returncode}): "
+            f"{stderr_output.decode(errors='replace').strip()}"
+        )
+
+
 @check_db_management_enabled
 def dump_db(
     db_name: str,
@@ -620,6 +785,16 @@ def dump_db(
         (read-only mode, application pause) before invoking, or use
         physical-replica snapshots.
     """
+    # Enforce the same name shape/length guarantee as create/duplicate/rename/
+    # restore.  ``dump_db`` was the last name-accepting entry point that fed
+    # ``db_name`` straight into the ``pg_dump`` argv (and, for the zip format,
+    # into ``db_connect``) without validation.  Because the name is a *trailing*
+    # positional arg, an unvalidated value like ``--jobs=…`` or ``--version``
+    # is parsed by pg_dump as an option rather than a database (argument
+    # injection — no shell, so not RCE).  The custom-format path has no
+    # ``db_connect`` ahead of it to reject the name first, so the guard belongs
+    # here, before any argv is built.
+    validate_db_name(db_name)
 
     _logger.info(
         "DUMP DB: %s format %s %s",
@@ -642,163 +817,40 @@ def dump_db(
                 with db.cursor() as cr:
                     json.dump(dump_db_manifest(cr), fh, indent=4)
             cmd.insert(-1, "--file=" + str(Path(dump_dir, "dump.sql")))
-            result = subprocess.run(
-                cmd,
-                env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"pg_dump failed (exit {result.returncode}): "
-                    f"{result.stderr.decode(errors='replace').strip()}"
-                )
+            _run_pg_dump_blocking(cmd, env, stdout=subprocess.DEVNULL)
+            # ``dump.sql`` sorts last in the archive so a streaming consumer
+            # sees the manifest and filestore before the (large) SQL body.
+            dump_sql_last = lambda file_name: file_name != "dump.sql"  # noqa: E731
             if stream:
                 osutil.zip_dir(
-                    dump_dir,
-                    stream,
-                    include_dir=False,
-                    fnct_sort=lambda file_name: file_name != "dump.sql",
+                    dump_dir, stream, include_dir=False, fnct_sort=dump_sql_last
                 )
             else:
                 t = tempfile.TemporaryFile()  # noqa: SIM115 (returned to caller)
                 try:
                     osutil.zip_dir(
-                        dump_dir,
-                        t,
-                        include_dir=False,
-                        fnct_sort=lambda file_name: file_name != "dump.sql",
+                        dump_dir, t, include_dir=False, fnct_sort=dump_sql_last
                     )
                     t.seek(0)
                 except BaseException:
-                    # Close on any abnormal exit (zip_dir error, KeyboardInterrupt,
-                    # OSError mid-write).  Without this, t.fileno() leaks until GC
-                    # closes the underlying file — observable as a real /proc/<pid>/fd
-                    # increment in tests.
+                    # Close on any abnormal exit (zip_dir error, OSError
+                    # mid-write) so the OS fd is not leaked until GC.
                     t.close()
                     raise
                 return t
     else:
         cmd.insert(-1, "--format=c")
         if stream:
-            # Stream stdout directly to ``stream`` while a sibling thread
-            # drains stderr into memory.  The previous "drain stderr after
-            # stdout EOF" form deadlocked when pg_dump emitted more than
-            # the pipe buffer (Linux default 64 KiB) of warnings — circular-
-            # dependency notices on a model-rich DB or a long sequence of
-            # ``pg_terminate_backend`` messages cleared that cap routinely.
-            # The thread keeps reads pipelined so neither pipe blocks.
-            proc = subprocess.Popen(
-                cmd,
-                env=env,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            stderr_chunks: list[bytes] = []
-
-            def _drain_stderr() -> None:
-                while chunk := proc.stderr.read(4096):
-                    stderr_chunks.append(chunk)
-
-            stderr_thread = threading.Thread(
-                target=_drain_stderr, name="odoo.service.db.pg_dump.stderr"
-            )
-            stderr_thread.start()
-            # Wall-clock guard for the streaming copy.  ``shutil.copyfileobj``
-            # is unbounded: if pg_dump deadlocks mid-stream (PG-side lock
-            # wait, network I/O on a remote PG that stops responding), the
-            # post-EOF wait below never fires because stdout EOF never
-            # arrives.  A ``threading.Timer`` SIGTERMs the subprocess after
-            # ``ODOO_PG_DUMP_TOTAL_TIMEOUT`` seconds (default 1h, generous
-            # for legitimate big-DB dumps but finite); SIGTERM closes the
-            # pipe and unblocks ``copyfileobj`` with whatever bytes had
-            # already been written.  Operator override via the env var.
-            _PG_DUMP_TOTAL_TIMEOUT = float(
-                os.environ.get("ODOO_PG_DUMP_TOTAL_TIMEOUT", "3600")
-            )
-            stall_killed = [False]
-
-            def _kill_on_stall() -> None:
-                stall_killed[0] = True
-                _logger.error(
-                    "pg_dump exceeded total wall-clock timeout (%.0fs); sending SIGTERM",
-                    _PG_DUMP_TOTAL_TIMEOUT,
-                )
-                with suppress(ProcessLookupError):
-                    proc.terminate()
-
-            stall_timer = threading.Timer(_PG_DUMP_TOTAL_TIMEOUT, _kill_on_stall)
-            stall_timer.daemon = True
-            stall_timer.start()
-            try:
-                shutil.copyfileobj(proc.stdout, stream)
-            finally:
-                stall_timer.cancel()
-                proc.stdout.close()
-                stderr_thread.join()
-                # Bounded post-EOF wait + escalating signals.  Reaches this
-                # point either after a clean copy OR after ``stall_timer``
-                # SIGTERMed pg_dump (in which case ``proc.wait`` should
-                # already be near-immediate).  Operator-friendly default
-                # 30s; override via env if needed.
-                _PG_DUMP_WAIT_TIMEOUT = float(
-                    os.environ.get("ODOO_PG_DUMP_WAIT_TIMEOUT", "30")
-                )
-                try:
-                    proc.wait(timeout=_PG_DUMP_WAIT_TIMEOUT)
-                except subprocess.TimeoutExpired:
-                    _logger.error(
-                        "pg_dump did not exit within %.0fs after stdout EOF; "
-                        "sending SIGTERM",
-                        _PG_DUMP_WAIT_TIMEOUT,
-                    )
-                    proc.terminate()
-                    try:
-                        proc.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        _logger.error("pg_dump still alive; sending SIGKILL")
-                        proc.kill()
-                        proc.wait()
-            stderr_output = b"".join(stderr_chunks)
-            if stall_killed[0]:
-                # Surface the timeout as a typed error so callers (HTTP
-                # /web/database/backup, manual ``exp_dump``) can distinguish
-                # "stalled" from "pg_dump returned non-zero".
-                raise RuntimeError(
-                    f"pg_dump exceeded {_PG_DUMP_TOTAL_TIMEOUT:.0f}s wall-clock timeout "
-                    f"and was terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
-                )
-            if proc.returncode != 0:
-                raise RuntimeError(
-                    f"pg_dump failed (exit {proc.returncode}): "
-                    f"{stderr_output.decode(errors='replace').strip()}"
-                )
+            _run_pg_dump_streaming(cmd, env, stream)
         else:
             # Buffer to a TemporaryFile so the caller gets a seekable object
             # and errors are detected before returning.
             t = tempfile.TemporaryFile()  # noqa: SIM115 (returned to caller)
             try:
-                result = subprocess.run(
-                    cmd,
-                    env=env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=t,
-                    stderr=subprocess.PIPE,
-                    check=False,
-                )
-                if result.returncode != 0:
-                    raise RuntimeError(
-                        f"pg_dump failed (exit {result.returncode}): "
-                        f"{result.stderr.decode(errors='replace').strip()}"
-                    )
+                _run_pg_dump_blocking(cmd, env, stdout=t)
                 t.seek(0)
             except BaseException:
-                # Close on every abnormal exit (subprocess.run raising OSError /
-                # FileNotFoundError, our own RuntimeError on non-zero rc,
-                # KeyboardInterrupt mid-run).  Without this, t leaks an OS fd
-                # until GC closes it.
+                # Close on any abnormal exit so the OS fd is not leaked.
                 t.close()
                 raise
             return t
@@ -876,6 +928,10 @@ def restore_db(
     """
     if not isinstance(db, str):
         raise TypeError(f"db must be a str, got {type(db).__name__!r}")
+    # Enforce the same name shape/length guarantee as create/duplicate/rename
+    # (restore was historically the only name-accepting entry point that
+    # skipped this, letting PG silently truncate a 64+ char name to 63 bytes).
+    validate_db_name(db)
     if exp_db_exist(db):
         _logger.warning("RESTORE DB: %s already exists", db)
         raise RuntimeError(f"Database {db!r} already exists")
@@ -924,21 +980,40 @@ def restore_db(
                         filestore_path = str(Path(dump_dir, "filestore"))
 
                 pg_cmd = "psql"
-                pg_args = ["-q", "-f", str(Path(dump_dir, "dump.sql"))]
+                # ``-v ON_ERROR_STOP=1`` is REQUIRED: ``psql -f`` otherwise
+                # exits 0 even when individual SQL statements fail, so a
+                # truncated/version-mismatched/disk-full dump would restore a
+                # partially-populated database and the ``r.returncode != 0``
+                # guard below would never trip — a silent partial restore
+                # reported as success.  With the flag psql exits non-zero on
+                # the first ERROR, which propagates to the rollback path.
+                pg_args = ["-q", "-v", "ON_ERROR_STOP=1", "-f", str(Path(dump_dir, "dump.sql"))]
 
             else:
                 # <= 7.0 format (raw pg_dump output)
                 pg_cmd = "pg_restore"
                 pg_args = ["--no-owner", dump_file]
 
-            r = subprocess.run(
-                [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
-                env=exec_pg_environ(),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=False,
-            )
+            _timeout = _pg_restore_total_timeout()
+            try:
+                r = subprocess.run(
+                    [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
+                    env=exec_pg_environ(),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                    timeout=_timeout,
+                )
+            except subprocess.TimeoutExpired as e:
+                # ``subprocess.run`` has already killed and reaped the child.
+                # The ``except`` below drops the half-restored database so the
+                # name is released for another attempt.
+                raise RuntimeError(
+                    f"Restore of {db!r} exceeded {_timeout:.0f}s wall-clock "
+                    f"timeout and was terminated.  Set "
+                    f"ODOO_PG_RESTORE_TOTAL_TIMEOUT for slower restores."
+                ) from e
             if r.returncode != 0:
                 _logger.error("RESTORE DB %r failed:\n%s", db, r.stderr)
                 raise RuntimeError(
@@ -970,15 +1045,7 @@ def restore_db(
 
         _logger.info("RESTORE DB: %s", db)
     except Exception:
-        # Drop the empty database created above so the name is not blocked
-        # for future restore attempts. Uses the internal ``_drop_database``
-        # helper rather than ``exp_drop``, which would re-check ``list_db``
-        # — a runtime toggle between the initial check and cleanup would
-        # orphan an empty database. Also suppress drop failures so they
-        # don't mask the original restore error.
-        _logger.info("RESTORE DB: rolling back empty database %r after failure", db)
-        with suppress(Exception):
-            _drop_database(db)
+        _rollback_new_database(db, "RESTORE DB")
         raise
 
 
@@ -1035,9 +1102,7 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
         # Retry with the shared exponential backoff so RENAME degrades
         # gracefully under load instead of one-shot failing where the other
         # two operations recover.
-        last_error: Exception | None = None
-        for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
-            _drop_conn(cr, old_name)
+        def _rename() -> None:
             try:
                 cr.execute(
                     SQL(
@@ -1047,38 +1112,23 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
                     )
                 )
             except psycopg.errors.DuplicateDatabase as exc:
-                # Target name already exists.  Surface a clear ``DatabaseExists``
-                # so the caller sees the same exception type whether the
-                # collision happens at create / duplicate / rename time.
+                # Same exception type whether the collision happens at
+                # create / duplicate / rename time.
                 raise DatabaseExists(
                     f"database {new_name!r} already exists!"
                 ) from exc
-            except psycopg.errors.ObjectInUse as e:
-                last_error = e
-                _logger.info(
-                    "RENAME DB: %s -> %s attempt %d/%d, source still in use: %s",
-                    old_name,
-                    new_name,
-                    attempt,
-                    _DROP_DATABASE_MAX_RETRIES,
-                    e,
-                )
-                time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
-                continue
+            except psycopg.errors.ObjectInUse:
+                raise  # let _retry_terminate_then_ddl back off and retry
             except Exception as e:
                 _logger.info("RENAME DB: %s -> %s failed:\n%s", old_name, new_name, e)
                 raise RuntimeError(
                     f"Couldn't rename database {old_name!r} to {new_name!r}: {e}"
                 ) from e
-            else:
-                _logger.info("RENAME DB: %s -> %s", old_name, new_name)
-                break
-        else:
-            # All retries exhausted on ObjectInUse.
-            raise RuntimeError(
-                f"Couldn't rename database {old_name!r} to {new_name!r} after "
-                f"{_DROP_DATABASE_MAX_RETRIES} attempts: {last_error}"
-            ) from last_error
+            _logger.info("RENAME DB: %s -> %s", old_name, new_name)
+
+        _retry_terminate_then_ddl(
+            cr, old_name, f"RENAME DB: {old_name} -> {new_name}", _rename
+        )
 
         if Path(old_fs).exists():
             # Race-safe re-check: ``new_fs`` may have appeared between the
@@ -1153,10 +1203,10 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
         raise TypeError(
             f"new_password must be a str, got {type(new_password).__name__!r}"
         )
-    try:
-        min_length = max(int(os.environ.get("ODOO_ADMIN_PASSWORD_MIN_LENGTH", "8")), 8)
-    except ValueError:
-        min_length = 8  # malformed env var falls back to default, never weakens
+    # Silent (no ``logger``): this credential path deliberately keeps quiet.
+    # ``minimum=8`` is the hard floor — the env var can only RAISE it (stricter
+    # regimes), never weaken it; a malformed value falls back to 8.
+    min_length = env_int("ODOO_ADMIN_PASSWORD_MIN_LENGTH", 8, minimum=8)
     if len(new_password) < min_length:
         raise ValueError(
             f"Master admin password must be at least {min_length} characters long."
@@ -1389,6 +1439,13 @@ def dispatch(method: str, params: list[Any]) -> Any:
     Raises ``AttributeError`` for unknown methods — matching the exception type
     raised by ``odoo.service.common.dispatch`` and ``odoo.service.model.dispatch``
     so callers see uniform behavior across the three RPC services.
+
+    TRUST BOUNDARY: the master-password check lives HERE, at the RPC edge — not
+    on the ``exp_*`` handlers.  A direct in-process call (e.g. ``exp_drop`` from
+    CLI/migration code) is considered trusted and bypasses the password, but is
+    still gated by ``@check_db_management_enabled`` (the ``list_db`` flag) on
+    the handler itself.  Keep destructive handlers decorated so that gate holds
+    for internal callers too.
     """
     handler = _DISPATCH.get(method)
     if handler is None:
