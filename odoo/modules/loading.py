@@ -129,6 +129,46 @@ def force_demo(env: Environment) -> None:
     env["ir.module.module"].invalidate_model(["demo"])
 
 
+def _warn_models_without_access_rules(
+    env: Environment,
+    module_name: str,
+    model_names: Collection[str],
+    registry: Registry,
+) -> None:
+    """Log a hint listing concrete models in ``model_names`` that have no ACLs.
+
+    Abstract models are excluded (they have no table and need no access rules).
+    """
+    concrete_models = [model for model in model_names if not registry[model]._abstract]
+    if not concrete_models:
+        return
+    # NOT EXISTS instead of NOT IN: the latter returns no rows if the subquery
+    # ever produces a NULL (current schema disallows it, but a future ALTER
+    # TABLE could silently break this).
+    env.cr.execute(
+        """
+        SELECT m.model FROM ir_model m
+        WHERE NOT EXISTS (
+            SELECT 1 FROM ir_model_access a WHERE a.model_id = m.id
+        ) AND m.model = ANY(%s)
+    """,
+        [list(concrete_models)],
+    )
+    models = [model for [model] in env.cr.fetchall()]
+    if not models:
+        return
+    lines = [
+        f"The models {models} have no access rules in module {module_name}, consider adding some, like:",
+        "id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink",
+    ]
+    for model in models:
+        xmlid = model.replace(".", "_")
+        lines.append(
+            f"{module_name}.access_{xmlid},access_{xmlid},{module_name}.model_{xmlid},base.group_user,1,0,0,0"
+        )
+    _logger.warning("\n".join(lines))
+
+
 def load_module_graph(
     env: Environment,
     graph: ModuleGraph,
@@ -287,34 +327,7 @@ def load_module_graph(
                 # validate the views that have not been checked yet
                 env["ir.ui.view"]._validate_module_views(module_name)
 
-            concrete_models = [
-                model for model in model_names if not registry[model]._abstract
-            ]
-            if concrete_models:
-                # NOT EXISTS instead of NOT IN: the latter returns no rows if
-                # the subquery ever produces a NULL (current schema disallows
-                # it, but a future ALTER TABLE could silently break this).
-                env.cr.execute(
-                    """
-                    SELECT m.model FROM ir_model m
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM ir_model_access a WHERE a.model_id = m.id
-                    ) AND m.model = ANY(%s)
-                """,
-                    [list(concrete_models)],
-                )
-                models = [model for [model] in env.cr.fetchall()]
-                if models:
-                    lines = [
-                        f"The models {models} have no access rules in module {module_name}, consider adding some, like:",
-                        "id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink",
-                    ]
-                    for model in models:
-                        xmlid = model.replace(".", "_")
-                        lines.append(
-                            f"{module_name}.access_{xmlid},access_{xmlid},{module_name}.model_{xmlid},base.group_user,1,0,0,0"
-                        )
-                    _logger.warning("\n".join(lines))
+            _warn_models_without_access_rules(env, module_name, model_names, registry)
 
             registry.updated_modules.append(package.name)
 
@@ -622,7 +635,7 @@ def load_modules(
                 missing,
             )
 
-        # STEP 3.5: execute migration end-scripts
+        # STEP 4: execute migration end-scripts
         if update_module:
             migrations = MigrationManager(cr, graph)
             for package in graph:
@@ -661,10 +674,10 @@ def load_modules(
                     to_install,
                 )
 
-        # STEP 3.6: apply remaining constraints in case of an upgrade
+        # STEP 5: apply remaining constraints in case of an upgrade
         registry.finalize_constraints(cr)
 
-        # STEP 4: Finish and cleanup installations
+        # STEP 6: Finish and cleanup installations
         if registry.updated_modules:
             cr.execute("SELECT model from ir_model")
             for (model,) in cr.fetchall():
@@ -695,7 +708,7 @@ def load_modules(
 
             env.flush_all()
 
-        # STEP 5: Uninstall modules to remove
+        # STEP 7: Uninstall modules to remove
         if update_module:
             # Remove records referenced from ir_model_data for modules to be
             # removed (and removed the references from ir_model_data).
@@ -730,7 +743,7 @@ def load_modules(
                 )
                 return
 
-        # STEP 5.5: Verify extended fields on every model
+        # STEP 8: Verify extended fields on every model
         # This will fix the schema of all models in a situation such as:
         #   - module A is loaded and defines model M;
         #   - module B is installed/upgraded and extends model M;
@@ -754,7 +767,7 @@ def load_modules(
                 {"models_to_check": True, "update_custom_fields": True},
             )
 
-        # STEP 6: verify custom views on every model
+        # STEP 9: verify custom views on every model
         if update_module:
             View = env["ir.ui.view"]
             for model in registry:
@@ -768,7 +781,7 @@ def load_modules(
         else:
             _logger.error("At least one test failed when loading the modules.")
 
-        # STEP 9: call _register_hook on every model  (steps 7-8 were removed historically)
+        # STEP 10: call _register_hook on every model
         # This is done *exactly once* when the registry is being loaded. See the
         # management of those hooks in `Registry._setup_models__`: all the calls to
         # _setup_models__() done here do not mess up with hooks, as registry.ready
@@ -777,7 +790,7 @@ def load_modules(
             model._register_hook()
         env.flush_all()
 
-        # STEP 10: check that we can trust nullable columns
+        # STEP 11: check that we can trust nullable columns
         registry.check_null_constraints(cr)
 
         if update_module:
