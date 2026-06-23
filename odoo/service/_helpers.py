@@ -2,8 +2,8 @@
 
 Extracted to break the circular import between those two modules.  The
 prior shape was ``server.py → _worker.py → server.py`` (workers needed
-``memory_info`` / ``set_limit_memory_hard`` / ``empty_pipe`` /
-``cron_database_list`` / ``SLEEP_INTERVAL`` / ``CRON_NOTIFY_JITTER_MAX_S``,
+``memory_info`` / ``empty_pipe`` / ``cron_database_list`` /
+``SLEEP_INTERVAL`` / ``CRON_NOTIFY_JITTER_MAX_S``,
 but those helpers lived above the ``from ._worker import ...`` line in
 ``server.py`` and the partial-module-load was load-bearing).  Moving
 them here makes ``_worker.py``'s imports flow strictly downward
@@ -48,30 +48,16 @@ def memory_info(process: Any) -> int:
     the new allocator and GC reserve large virtual address ranges that
     never become resident.  RSS reflects actual physical memory
     pressure and is the right metric on every platform.
+
+    This soft limit only flags a worker for orderly recycling.  The hard
+    memory cap is enforced externally — the recommended backstop is a
+    cgroup v2 limit on the ``odoo.service`` systemd unit (``MemoryMax=`` +
+    ``MemorySwapMax=0``).  An in-process ``RLIMIT_AS`` cap is deliberately
+    not used: the allocator/gevent reserve multi-GB of virtual space that
+    never becomes resident, so the cap denied ``pthread_create`` on healthy
+    workers long before any real memory pressure.
     """
     return process.memory_info().rss
-
-
-def set_limit_memory_hard() -> None:
-    """Deprecated: no-op.
-
-    Earlier versions applied ``RLIMIT_AS`` (virtual address space) to the
-    current process. That is incompatible with modern Python on Linux: the
-    allocator and gevent fiber pools reserve multi-GB ranges of virtual space
-    that never become resident, so the worker reaches its ``RLIMIT_AS`` cap and
-    is denied ``pthread_create`` long before any real memory pressure exists.
-    Meanwhile the per-worker RSS soft-limit check measures real memory and
-    never triggers the orderly recycle path, leaving the worker zombie --
-    alive, accepting connections, rejecting every request with "can't start new
-    thread" (task 22165).
-
-    Memory control is now entirely RSS-based. The hard cap that previously came
-    from the kernel ``RLIMIT_AS`` should be enforced externally -- the
-    recommended backstop is a cgroup v2 limit on the ``odoo.service`` systemd
-    unit (``MemoryMax=`` + ``MemorySwapMax=0``), which kills the worst offender
-    cleanly if Odoo ever fails to recycle in time.
-    """
-    return
 
 
 def empty_pipe(fd: int) -> None:
@@ -100,5 +86,4 @@ __all__ = (
     "cron_database_list",
     "empty_pipe",
     "memory_info",
-    "set_limit_memory_hard",
 )

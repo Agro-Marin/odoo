@@ -83,11 +83,11 @@ def _trigger_restart() -> None:
     per-call lookup is fine — ``restart()`` is invoked rarely (one Python
     source edit per dev iteration).
     """
-    from .lifecycle import restart, server_phoenix
+    from . import lifecycle
 
-    if not server_phoenix:
+    if not lifecycle.server_phoenix:
         _logger.info("autoreload: python code updated, autoreload activated")
-        restart()
+        lifecycle.restart()
 
 
 class FSWatcherBase:
@@ -116,10 +116,15 @@ class FSWatcherBase:
                 )
             else:
                 # Lazy import keeps this module free of a lifecycle.py
-                # dependency at top-level (lifecycle imports _watcher).
-                from .lifecycle import server_phoenix
+                # dependency at top-level (lifecycle imports _watcher).  Read the
+                # flag via attribute access (``lifecycle.server_phoenix``), never
+                # ``from .lifecycle import server_phoenix`` — a value-import would
+                # freeze it at load time and miss later rebinds, breaking the
+                # invariant documented in ``lifecycle.py`` / ``server.py`` (and
+                # matching how ``_threaded`` / ``_prefork`` read it).
+                from . import lifecycle
 
-                if not server_phoenix:
+                if not lifecycle.server_phoenix:
                     _trigger_restart()
                     return True
         return None

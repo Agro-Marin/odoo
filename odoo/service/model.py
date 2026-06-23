@@ -228,14 +228,18 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
                 uid, passwd
             )
             res = execute_cr(cr, uid, model, model_method, args, kw)
-        registry.signal_changes()
+        # No ``registry.signal_changes()`` here: ``execute_cr`` runs the call
+        # through ``retrying``, which commits and signals on success — the
+        # invalidation flags are already cleared, so a second signal on the
+        # same registry is a no-op.  The failure path below still needs
+        # ``reset_changes`` (that path is where ``retrying`` re-raised).
     except Exception:
         # Suppress reset_changes failures so the original exception propagates
-        # cleanly: ``reset_changes`` opens a fresh cursor (registry.py:1296)
-        # which can raise PoolError on a dropped DB or saturated pool, and a
-        # bare call here would shadow the user-facing exception (the original
-        # would survive only as ``__context__``).  Mirrors the protection
-        # already in ``retrying`` (model.py inside ``except Exception:``).
+        # cleanly: ``reset_changes`` opens a fresh cursor (see
+        # ``Registry.reset_changes``) which can raise PoolError on a dropped DB
+        # or saturated pool, and a bare call here would shadow the user-facing
+        # exception (the original would survive only as ``__context__``).
+        # Mirrors the protection already in ``retrying``.
         with suppress(Exception):
             registry.reset_changes()
         raise
@@ -275,13 +279,44 @@ def execute_cr(
     thread = threading.current_thread()
     thread.rpc_model_method = f"{obj}.{method}"
     result = retrying(partial(call_kw, recs, method, args, kw), env)
-    # Force evaluation of lazy values before the cursor is closed, as it
-    # would error afterwards if the lazy isn't already evaluated (and cached).
-    for lazy_val in _traverse_containers(result, lazy):
-        lazy_val._value  # noqa: B018 — intentional attribute access to force evaluation
+    result = _force_lazy_values(result)
     if result is None:
         _logger.debug("The method %s of the object %s returned `None`.", method, obj)
     return result
+
+
+def _force_lazy_values(result: typing.Any) -> typing.Any:
+    """Force any ``lazy`` values in ``result`` before the cursor closes.
+
+    A lazy that outlives its cursor fails to materialise when the RPC
+    marshaller finally reads it, so every lazy is evaluated here while the
+    cursor is still open.
+
+    A one-shot iterator (generator, ``map`` / ``filter`` / ``zip``,
+    ``iter(...)``) is materialized to a ``list`` FIRST: traversing it to find
+    lazies would otherwise exhaust it, and ``execute_cr`` would hand the
+    marshaller an empty iterator.  Re-iterable containers (lists, dicts, sets,
+    ``dict_values`` views) are returned unchanged.  Recordsets never reach here
+    as iterators — ``call_kw`` already reduces them to ``.ids`` / ``.id``.
+    """
+    if isinstance(result, Iterator):
+        result = list(result)
+    for lazy_val in _traverse_containers(result, lazy):
+        lazy_val._value  # noqa: B018 — intentional attribute access to force evaluation
+    return result
+
+
+# Exact scalar leaf types: never a ``lazy`` and never a container.  A result
+# from a large ``search_read`` is overwhelmingly these — ints, floats, bools,
+# strings, ``None`` — and for each one the generic ABC checks below
+# (``Mapping`` / ``Sequence`` / ``Set`` / ``Iterable``) are the dominant cost:
+# ``isinstance`` against an ABC dispatches to ``__instancecheck__`` and is an
+# order of magnitude slower than a concrete-type test.  An exact-class
+# membership test in this frozenset short-circuits that chain and roughly
+# halves the per-call cost of forcing lazies on a lazy-free result (the common
+# case).  ``type(val) is ...`` semantics via ``__class__`` so an ``int``
+# *subclass* still falls through to the precise ABC walk below.
+_SCALAR_LEAF_TYPES = frozenset({int, float, bool, str, bytes, type(None)})
 
 
 def _traverse_containers(val: typing.Any, type_: type | tuple[type, ...]) -> Iterator:
@@ -301,9 +336,17 @@ def _traverse_containers(val: typing.Any, type_: type | tuple[type, ...]) -> Ite
     iterator: any later call site that wanted to re-iterate gets nothing.
     The RPC marshaller materializes the result anyway (it has to serialize
     it), so the consumption is never observed in practice.
+
+    The ``type_`` test stays FIRST so the generic contract holds (a ``str``
+    is yielded when ``type_`` is ``str``); the scalar-leaf short-circuit only
+    fires for atoms that did NOT match ``type_``, which is where the ABC-walk
+    cost would otherwise be paid for nothing.
     """
     if isinstance(val, type_):
         yield val
+    elif val.__class__ in _SCALAR_LEAF_TYPES:
+        # Exact scalar that isn't the target type: no children, skip ABC walk.
+        return
     elif isinstance(val, (str, bytes, BaseModel)):
         return
     elif isinstance(val, Mapping):

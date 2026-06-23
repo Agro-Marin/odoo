@@ -33,8 +33,10 @@ def check_session(
     # Make sure we don't use a deleted session that can be saved again
     if "deletion_time" in session and session["deletion_time"] <= time.time():
         return False
-    user = env["res.users"].browse(session.uid)
-    expected = user._compute_session_token(session.sid)
+    # Single source of truth for the token computation (shared with callers
+    # that store the token, e.g. web login / report rendering).  Returns
+    # ``False`` for a deleted/falsy uid.
+    expected = compute_session_token(session, env)
     # Both operands must be non-empty strings before reaching consteq:
     # consteq (and the underlying hmac.compare_digest) raises TypeError on
     # None/bool, which would convert a corrupted-session error into a 500.

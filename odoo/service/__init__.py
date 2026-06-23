@@ -6,7 +6,7 @@ the average user/developer. Study them only if you are about to
 implement an extension to the network protocols, or need to debug some
 low-level behavior of the wire.
 
-Module layout (post round-5+6 extractions):
+Module layout:
 
     common.py       RPC service: login / authenticate / version
     db.py           RPC service: database lifecycle / dump / restore
@@ -19,33 +19,24 @@ Module layout (post round-5+6 extractions):
     lifecycle.py    Process-lifecycle entry points (start / restart / preload)
     _watcher.py     Filesystem watcher backends (autoreload)
     _worker.py      Prefork worker classes
-    _helpers.py     Shared process-control helpers (memory_info, empty_pipe,
-                    cron_database_list, set_limit_memory_hard, SLEEP_INTERVAL,
-                    CRON_NOTIFY_JITTER_MAX_S)
-    _db_helpers.py  Shared db.py helpers (validate_db_name, check_super, ...)
+    _cron.py        Shared cron LISTEN/NOTIFY plumbing (server + worker)
+    _helpers.py     Shared process-control helpers
+    _db_helpers.py  Shared db.py helpers
+    _env.py         Guarded ODOO_* env-var parsing (env_float / env_int)
 
-Dependency graph is strictly downward:
-
-    server -> _worker, lifecycle, wsgi, _watcher, _helpers, db
-    _worker -> _helpers, wsgi
-    _helpers -> db
-    _watcher -> (nothing in service/)
-    lifecycle -> _watcher, db
-    db -> _db_helpers
-    transaction -> (lazy odoo.http only)
-    model -> transaction
-
-No cycles.  The previous server <-> _worker cycle was broken in round 6
-by extracting the shared helpers into ``_helpers.py``.
+The submodules below are imported explicitly so external callers can do
+``odoo.service.X`` after a single ``import odoo.service``.  Eager import is
+deliberate: a lazy ``__getattr__`` was tried and reverted (it saved only
+``psutil`` plus a few cheap pure-Python modules — werkzeug and the ORM are
+pulled by ``db`` itself regardless — while exposing a test-ordering fragility
+where the database-free suite relied on this eager ``wsgi`` import to load the
+stdlib ``http.server`` before odoo's bootstrap stubbed top-level ``http``).
+Import order is not load-bearing — each submodule's own imports drive the real
+load order.
 """
 
 # .apidoc title: RPC Services
 
-# The submodules below are imported explicitly so external callers can do
-# ``odoo.service.X`` after a single ``import odoo.service`` (Python only
-# adds submodules to the parent package's namespace once they have been
-# imported by someone).  The order is no longer load-bearing — every
-# module's own imports drive the actual load order.
 from . import common
 from . import db
 from . import lifecycle
