@@ -3158,6 +3158,26 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
 
 
 class PropertiesGroupByCase(TestPropertiesMixin):
+    def setUp(self):
+        super().setUp()
+        # ``web_read_group`` is ``@versioned`` (odoo.tools.cache_version): it
+        # injects a ``__version`` content-hash for the client rpc cache.  These
+        # tests assert the semantic payload only, so strip the stamp from every
+        # call — mirrors the ``result.pop("__version", None)`` convention used
+        # elsewhere (e.g. odoo/addons/test_http/tests/test_webjson.py).
+        model_cls = type(self.env["base"])
+        original = model_cls.web_read_group
+
+        def _strip_version(records, *args, **kwargs):
+            result = original(records, *args, **kwargs)
+            if isinstance(result, dict):
+                result.pop("__version", None)
+            return result
+
+        patcher = patch.object(model_cls, "web_read_group", _strip_version)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

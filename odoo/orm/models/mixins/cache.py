@@ -217,10 +217,12 @@ class CacheMixin:
             scheduler = RecomputeScheduler(engine, marked={})
             self._modified_trigger_loop(fnames, create, scheduler, engine=engine)
 
-        # Apply cache invalidation for non-stored computed fields
-        env = self.env
-        for field, ids in scheduler.to_invalidate:
-            field._invalidate_cache(env, ids)
+        # Non-stored field invalidation is applied *inline* during the trigger
+        # walk (see _modified_trigger_loop): on every iteration the scheduler's
+        # ``to_invalidate`` is drained and cleared so stored-computed fields
+        # recomputed mid-walk read fresh values.  It is therefore always empty
+        # by the time control returns here — a post-loop pass would be dead
+        # code (verified for both ``before`` paths and the no-trigger fast exit).
 
     def _modified_before(self, fnames: Collection[str]) -> None:
         """Capture dependencies BEFORE records in ``self`` are modified.
@@ -518,13 +520,24 @@ class CacheMixin:
         The result is cached on the class object and naturally invalidated
         when the class is rebuilt during module loading (``_setup_fields``
         creates new model classes).
+
+        The memo is read from and written to ``cls``'s *own* ``__dict__``,
+        never via normal attribute lookup.  Attribute lookup walks the MRO,
+        and a model that prototype-inherits another (``_inherit`` with a
+        different ``_name``) has the parent's runtime class among its bases.
+        A plain ``cls.<attr>`` read would therefore return the *parent's*
+        cached tuple whenever the parent populated its memo first — and,
+        because the read would succeed, the child would never record its
+        own.  That leak is sticky for the registry's lifetime and silently
+        drops the child's extra stored-computed fields from recompute
+        (``_recompute_model``/``_recompute_recordset`` iterate this tuple).
         """
-        try:
-            return cls.__stored_computed_fields
-        except AttributeError:
-            result = tuple(f for f in cls._fields.values() if f.is_stored_computed)
-            cls.__stored_computed_fields = result
-            return result
+        cache = cls.__dict__
+        if "_stored_computed_fields__" in cache:
+            return cache["_stored_computed_fields__"]
+        result = tuple(f for f in cls._fields.values() if f.is_stored_computed)
+        cls._stored_computed_fields__ = result
+        return result
 
     def _recompute_model(self, fnames: Collection[str] | None = None) -> None:
         """Process the pending computations of the fields of ``self``'s model.

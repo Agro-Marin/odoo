@@ -164,7 +164,12 @@ class Selection(Field[str | typing.Literal[False]]):
                 values_add = {
                     kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add
                 }
-                ondelete = field._args__.get("ondelete") or {}
+                # Copy: ``_args__`` only shallow-copies the construction kwargs
+                # (ReadonlyDict does ``dict(data)``), so the inner ondelete dict
+                # is the same object the user passed at field definition.  The
+                # ``setdefault`` below would otherwise mutate that shared dict
+                # and persist injected defaults across registry rebuilds.
+                ondelete = dict(field._args__.get("ondelete") or {})
                 new_values = [key for key in values_add if key not in values]
                 for key in new_values:
                     ondelete.setdefault(key, "set null")

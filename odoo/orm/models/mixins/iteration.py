@@ -353,12 +353,15 @@ class IterationMixin:
                 return False
             s_ids = self._ids
             o_ids = other._ids
-            # fast paths: identity, equal tuples, singletons
+            # fast paths: identity and equal id-tuples
             if s_ids is o_ids or s_ids == o_ids:
                 return True
-            # different lengths → cannot be equal (avoids O(n) set creation)
-            if len(s_ids) != len(o_ids):
-                return False
+            # Recordsets compare equal "up to reordering", i.e. as SETS of ids.
+            # ``_ids`` may legitimately contain duplicates (concat / ``+``
+            # preserve them), so a length check on the raw tuples is WRONG:
+            # ``rec + rec`` has two ids but must equal the singleton ``rec``.
+            # Compare de-duplicated id sets, consistent with ``__hash__``
+            # (which hashes ``frozenset(self._ids)``).
             return set(s_ids) == set(o_ids)
         except AttributeError:
             if other:
@@ -371,9 +374,10 @@ class IterationMixin:
     def __lt__(self, other: object) -> bool:
         try:
             if self._name == other._name:
-                # proper subset requires strictly fewer elements
-                if len(self._ids) >= len(other._ids):
-                    return False
+                # proper subset over de-duplicated ids.  A raw tuple-length
+                # guard is wrong when ``_ids`` contains duplicates (concat/+):
+                # ``(rec + rec) < (rec | other)`` must be True
+                # ({rec} ⊊ {rec, other}) even though both tuples have len 2.
                 return set(self._ids) < set(other._ids)
         except AttributeError:
             pass
@@ -395,9 +399,8 @@ class IterationMixin:
     def __gt__(self, other: object) -> bool:
         try:
             if self._name == other._name:
-                # proper superset requires strictly more elements
-                if len(self._ids) <= len(other._ids):
-                    return False
+                # proper superset over de-duplicated ids; raw tuple lengths
+                # are wrong when ``_ids`` contains duplicates (see __lt__).
                 return set(self._ids) > set(other._ids)
         except AttributeError:
             pass
@@ -434,14 +437,15 @@ class IterationMixin:
     def __getitem__(self, key: int | slice | str) -> Self | typing.Any:
         """If ``key`` is an integer or a slice, return the corresponding record
         selection as an instance (attached to ``self.env``).
-        Otherwise read the field ``key`` of the first record in ``self``.
+        Otherwise (a field name) return the value of field ``key``; ``self``
+        must be a single record (``ensure_one()`` is enforced for a field key).
 
         Examples::
 
             inst = model.search(dom)  # inst is a recordset
             r4 = inst[3]  # fourth record in inst
             rs = inst[10:20]  # subset of inst
-            nm = rs["name"]  # name of first record in inst
+            nm = rs[0]["name"]  # name of the first record in rs
         """
         if isinstance(key, str):
             # important: one must call the field's getter

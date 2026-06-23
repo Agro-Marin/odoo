@@ -57,7 +57,7 @@ class _ReadGroupFillMixin:
         the field being grouped by"""
         field_name = groupby.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
-        if not field or not field.group_expand:
+        if not field.group_expand:
             return read_group_result
 
         # field.group_expand is a callable or the name of a method, that returns
@@ -68,7 +68,14 @@ class _ReadGroupFillMixin:
         group_expand = field.group_expand
         if isinstance(group_expand, str):
             group_expand = getattr(self.env.registry[self._name], group_expand)
-        assert callable(group_expand)
+        # raise (not assert): under ``python -O`` a misconfigured non-callable
+        # group_expand must still fail clearly here, not with an opaque
+        # ``TypeError: 'X' object is not callable`` at the call sites below.
+        if not callable(group_expand):
+            raise TypeError(
+                f"group_expand of {field} must be callable or a method name, "
+                f"got {group_expand!r}"
+            )
 
         # determine all groups that should be returned
         values = [line[groupby] for line in read_group_result if line[groupby]]
@@ -250,8 +257,11 @@ class _ReadGroupFillMixin:
         # group entries, and merges them with existing data.
 
         # existing non null datetimes
-        existing = [d[first_group] for d in data if d[first_group]] or [None]
-        # assumption: existing data is sorted by field 'groupby_name'
+        # Sort defensively: the bounds below assume chronological order, but
+        # ``data`` follows the caller's ``orderby`` which may be descending
+        # (a desc order otherwise inverts existing_from/existing_to and the
+        # fill silently produces no gap groups).  Mirrors the web_read_group fix.
+        existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
         existing_from, existing_to = existing[0], existing[-1]
         if fill_from:
             fill_from = (

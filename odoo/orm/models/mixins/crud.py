@@ -48,37 +48,14 @@ COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
     "yes",
 )
 
-# Pre-computed bad_names sets for write() — avoids recreating per call.
-# _WRITE_BAD_NAMES_LOG: models with _log_access (the default)
-# _WRITE_BAD_NAMES:     models without _log_access
-_WRITE_BAD_NAMES_LOG = frozenset(
-    {
-        "id",
-        "parent_path",
-        "create_uid",
-        "create_date",
-        "write_uid",
-        "write_date",
-    }
-)
-_WRITE_BAD_NAMES = frozenset({"id", "parent_path"})
-
-# Pre-computed bad_names sets for create() — avoids recreating per call.
-# Mirrors _WRITE_BAD_NAMES but LOG_ACCESS_COLUMNS are included because
-# create() strips them (then re-adds with setdefault).
-# The precompute+readonly field names are model-specific and cached on
-# the model class at first create (see _prepare_create_values).
-_CREATE_BAD_NAMES_LOG = frozenset(
-    {
-        "id",
-        "parent_path",
-        "create_uid",
-        "create_date",
-        "write_uid",
-        "write_date",
-    }
-)
-_CREATE_BAD_NAMES = frozenset({"id", "parent_path"})
+# Pre-computed bad_names sets, shared by create() and write() — avoids
+# recreating per call.  Both operations strip the same names:
+#   _BAD_NAMES_LOG: models with _log_access (the default)
+#   _BAD_NAMES:     models without _log_access
+# create() additionally re-adds the log-access columns via setdefault after
+# stripping them.  Derived from LOG_ACCESS_COLUMNS so the two stay in sync.
+_BAD_NAMES = frozenset({"id", "parent_path"})
+_BAD_NAMES_LOG = _BAD_NAMES | frozenset(LOG_ACCESS_COLUMNS)
 
 if typing.TYPE_CHECKING:
     from ...fields.base import Field
@@ -321,7 +298,12 @@ class CrudMixin:
             defaults.update(values)
 
         else:
-            defaults = values
+            # Copy: the properties loop below and the caller
+            # (_prepare_create_values — magic-field injection, bad_names
+            # stripping) mutate the returned dict in place.  Aliasing the
+            # caller's ``values`` here would leak those mutations back into the
+            # caller's vals_list.  (The branch above already builds a fresh dict.)
+            defaults = dict(values)
 
         # delegate the default properties to the properties field
         for field in self._fields.values():
@@ -560,11 +542,11 @@ class CrudMixin:
         if self._log_access:
             # the superuser can set log_access fields while loading registry
             if not (self.env.uid == SUPERUSER_ID and not self.pool.ready):
-                bad_names = _CREATE_BAD_NAMES_LOG
+                bad_names = _BAD_NAMES_LOG
             else:
-                bad_names = _CREATE_BAD_NAMES
+                bad_names = _BAD_NAMES
         else:
-            bad_names = _CREATE_BAD_NAMES
+            bad_names = _BAD_NAMES
 
         # Also discard precomputed readonly fields (to force their computation).
         # Cache the set on the model class to avoid iterating all fields per call.
@@ -676,10 +658,10 @@ class CrudMixin:
             # --- Backend dispatch: DictBackend or PostgreSQL ---
             storage = self.env.transaction.storage
             if storage is not None:
-                # In-memory path: insert rows into DictBackend.
+                # In-memory path: insert rows into the storage backend.
                 # Converts values identically to the SQL paths, but stores
-                # in the dict-of-dicts structure instead of issuing SQL.
-                tbl = storage._tables.setdefault(self._table, {})
+                # via the backend's public row API instead of issuing SQL.
+                row_dicts: list[dict[str, typing.Any]] = []
                 for stored in stored_list:
                     new_id = storage.next_id(self._table)
                     row_dict: dict[str, typing.Any] = {"id": new_id}
@@ -689,8 +671,9 @@ class CrudMixin:
                                 stored[fname], self, stored
                             )
                         # Missing columns default to None (same as SQL NULL)
-                    tbl[new_id] = row_dict
+                    row_dicts.append(row_dict)
                     ids.append(new_id)
+                storage.put_rows(self._table, row_dicts)
                 continue
 
             use_copy = (
@@ -872,7 +855,7 @@ class CrudMixin:
         # using bin_size=False to put binary values in the right place
         records = self.browse(ids)
         inverses_update = defaultdict(list)  # {(field, value): ids}
-        common_set_vals = frozenset((*LOG_ACCESS_COLUMNS, "id", "parent_path"))
+        common_set_vals = _BAD_NAMES_LOG  # {id, parent_path} | LOG_ACCESS_COLUMNS
 
         # Pre-classify stored fields once (avoids re-checking per record).
         # Also pre-get field caches to avoid repeated _get_cache() calls.
@@ -1032,9 +1015,9 @@ class CrudMixin:
         # Select pre-computed frozenset of fields to strip from vals.
         # The superuser can set log_access fields while loading registry.
         if self._log_access and not (env.uid == SUPERUSER_ID and not self.pool.ready):
-            bad_names = _WRITE_BAD_NAMES_LOG
+            bad_names = _BAD_NAMES_LOG
         else:
-            bad_names = _WRITE_BAD_NAMES
+            bad_names = _BAD_NAMES
 
         # set magic fields
         vals = {key: val for key, val in vals.items() if key not in bad_names}
@@ -1318,18 +1301,15 @@ class CrudMixin:
         # --- Backend dispatch: DictBackend or PostgreSQL ---
         storage = self.env.transaction.storage
         if storage is not None:
-            # In-memory path: update rows in DictBackend directly.
+            # In-memory path: update rows via the storage backend.
             # Skips JSONB merge for translated/company-dependent fields —
             # stores as plain values (sufficient for business logic tests).
-            tbl = storage._tables.get(self._table, {})
-            for row in rows:
+            updates = [
                 # row is a plain tuple: (id, val1, val2, ...)
-                record_id = row[0]
-                values = dict(zip(fnames, row[1:], strict=True))
-                if record_id in tbl:
-                    tbl[record_id].update(values)
-                else:
-                    tbl[record_id] = {"id": record_id, **values}
+                (row[0], dict(zip(fnames, row[1:], strict=True)))
+                for row in rows
+            ]
+            storage.upsert_rows(self._table, updates)
             return
 
         columns = []
@@ -1533,12 +1513,10 @@ class CrudMixin:
         # --- Backend dispatch: DictBackend or PostgreSQL ---
         storage = self.env.transaction.storage
         if storage is not None:
-            # In-memory path: remove rows from DictBackend.
+            # In-memory path: remove rows via the storage backend.
             # Skip ir.model.data / ir.attachment / company-dependent cleanup —
             # those models may not exist in the test context.
-            tbl = storage._tables.get(self._table, {})
-            for id_ in sub_ids:
-                tbl.pop(id_, None)
+            storage.delete_rows(self._table, list(sub_ids))
             return Data.browse(), Attachment.browse()
 
         from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG

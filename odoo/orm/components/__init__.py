@@ -12,7 +12,6 @@ from .core import OrmCore
 from .model_graph import ModelGraph, TriggerTree
 from .recompute import RecomputeScheduler
 from .storage import DictBackend
-from .testing import FieldDef, InMemoryEnvironment, ModelDef
 from .unit_of_work import LoopResult, UnitOfWork
 
 __all__ = [
@@ -20,12 +19,8 @@ __all__ = [
     "ComputeEngine",
     "DictBackend",
     "FieldCache",
-    # Testing
-    "FieldDef",
-    "InMemoryEnvironment",
     # Flush scheduling
     "LoopResult",
-    "ModelDef",
     "ModelGraph",
     # Layer 1 facade
     "OrmCore",

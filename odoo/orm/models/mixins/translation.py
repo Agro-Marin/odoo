@@ -132,7 +132,7 @@ class TranslationMixin:
         if field.related and not field.store:
             related_path, field_name = field.related.rsplit(".", 1)
             return self.mapped(related_path)._update_field_translations(
-                field_name, translations, digest
+                field_name, translations, digest, source_lang=source_lang
             )
 
         if field.translate is True:

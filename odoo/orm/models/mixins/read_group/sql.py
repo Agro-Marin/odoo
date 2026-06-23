@@ -364,6 +364,14 @@ class _ReadGroupSQLMixin:
                         f"Invalid having clause {item!r}: supported comparators are {SUPPORTED}"
                     )
                 sql_left = self._read_group_select(left, query)
+                # For in/not in the right operand must be a tuple so SQL()
+                # expands it to ``(%s, %s, ...)``.  A list/set would bind as a
+                # single array parameter and produce invalid ``IN (ARRAY[...])``
+                # SQL — accept the natural domain shapes by normalizing here.
+                if operator in ("in", "not in") and isinstance(
+                    right, (list, set, frozenset)
+                ):
+                    right = tuple(right)
                 stack.append(SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], right))
             else:
                 raise ValueError(

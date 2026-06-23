@@ -9,6 +9,28 @@ class TestWebReadGroup(common.TransactionCase):
 
     maxDiff = None
 
+    def setUp(self):
+        super().setUp()
+        # ``web_read_group`` is ``@versioned`` (odoo.tools.cache_version): it
+        # injects a ``__version`` content-hash used by the client rpc cache.
+        # These tests assert the semantic payload only, so strip the stamp from
+        # every call — mirrors the ``result.pop("__version", None)`` convention
+        # used elsewhere (e.g. odoo/addons/test_http/tests/test_webjson.py).
+        # Patch on ``base`` (where web_read_group is defined) so every model
+        # used by these tests (aggregate, order, order.line) is covered.
+        model_cls = type(self.env["base"])
+        original = model_cls.web_read_group
+
+        def _strip_version(records, *args, **kwargs):
+            result = original(records, *args, **kwargs)
+            if isinstance(result, dict):
+                result.pop("__version", None)
+            return result
+
+        patcher = patch.object(model_cls, "web_read_group", _strip_version)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_limit_offset(self):
         Model = self.env["test_read_group.aggregate"]
         Model.create(

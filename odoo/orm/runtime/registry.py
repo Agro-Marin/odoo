@@ -94,7 +94,6 @@ class Registry(Mapping[str, type["BaseModel"]]):
     """
 
     _lock: threading.RLock | DummyRLock = threading.RLock()
-    _saved_lock: threading.RLock | DummyRLock | None = None
 
     @lazy_classproperty
     def registries(self) -> LRU[str, Registry]:
@@ -684,9 +683,16 @@ class Registry(Mapping[str, type["BaseModel"]]):
             # may be missing from these maps
             self.field_depends.pop(f, None)
 
-        # discard fields from field triggers (invalidate the cached property
-        # so it will be recomputed on next access)
-        self.__dict__.pop("_field_triggers", None)
+        # Invalidate every field-derived cached_property so each rebuilds on
+        # next access.  ``_field_triggers`` rebuilds by reading ``field_inverses``
+        # and ``field_computed`` (see its body), so leaving those cached would
+        # feed it stale data; ``field_fk_refs`` isn't touched by
+        # ``model_graph.discard_fields`` at all, so it would otherwise still
+        # reference the discarded fields.  This keeps ``_discard_fields``
+        # self-consistent regardless of whether the caller follows with
+        # ``_setup_models__`` (which also resets these).
+        for _prop in ("_field_triggers", "field_inverses", "field_computed", "field_fk_refs"):
+            self.__dict__.pop(_prop, None)
 
         # discard from model_graph's data structures (inverses, triggers,
         # computed, depends) and clear its trigger tree caches
@@ -1260,7 +1266,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                         )
                 if changes:
                     _logger.debug("Multiprocess signaling check: %s", changes)
-        except psycopg.OperationalError, db.PoolError:
+        except (psycopg.OperationalError, db.PoolError):
             if cr is None:
                 # We couldn't open a cursor — database likely unreachable
                 # (e.g. dropped). Remove stale registry to prevent repeated hangs.
@@ -1345,7 +1351,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     # it was resolved.
                     threading.current_thread().cursor_mode = "ro"
                     return cr
-                except psycopg.OperationalError, db.PoolError:
+                except (psycopg.OperationalError, db.PoolError):
                     self._db_readonly_failed_time = time.monotonic()
                     _logger.warning(
                         "Failed to open a readonly cursor, falling back to read-write cursor for %dmin %dsec",

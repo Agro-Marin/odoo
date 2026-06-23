@@ -46,7 +46,6 @@ class Transaction:
         "default_env",
         "envs",
         "registry",
-        "savepoint_depth",
         "storage",
         "unit_of_work",
     )
@@ -67,9 +66,6 @@ class Transaction:
         # the recovery callsite at Environment.__new__ calls it like
         # ``_last_env() if _last_env is not None else None``.
         self._last_env: "weakref_ref[Environment] | None" = None
-        # Number of active _FlushingSavepoints — used to guard against
-        # cr.commit() / cr.rollback() inside a savepoint.
-        self.savepoint_depth: int = 0
 
         # Standalone cache component — owns the data structures for
         # cached field values, dirty tracking, and x2many patches.
@@ -91,10 +87,12 @@ class Transaction:
             max_iterations=MAX_FIXPOINT_ITERATIONS,
         )
         # Wire topological recompute order from the registry's model graph.
-        # This allows the UnitOfWork to process pending fields in dependency
-        # order, reducing convergence iterations from O(depth) to O(1).
-        if hasattr(registry, "model_graph"):
-            self.unit_of_work.set_recompute_order(registry.model_graph.recompute_order)
+        # This lets the UnitOfWork process pending fields in dependency order,
+        # reducing convergence iterations from O(depth) to O(1).  A *callable*
+        # (not a one-time snapshot) is passed so the order tracks ``reset()``
+        # registry swaps and metadata rebuilds — both create new Field
+        # identities that a snapshot keyed by field identity would stop matching.
+        self.unit_of_work.set_recompute_order(self._live_recompute_order)
 
         # backward-compatible view of the cache
         self.cache = Cache(self)
@@ -156,10 +154,27 @@ class Transaction:
         if env := next(iter(self.envs), None):
             env.cr.cache.clear()
 
+    def _live_recompute_order(self) -> dict[typing.Any, int] | None:
+        """Return the *current* registry's topological recompute order, or None.
+
+        Bound into :class:`UnitOfWork` as a live source (see
+        :meth:`UnitOfWork.set_recompute_order`) so the flush loop always reads
+        the order of the currently-assigned ``self.registry``.  This survives a
+        :meth:`reset` registry swap and a ``ModelGraph.reset_field_metadata``
+        rebuild, both of which invalidate the field identities a one-time
+        snapshot was keyed on.
+        """
+        model_graph = getattr(self.registry, "model_graph", None)
+        return model_graph.recompute_order if model_graph is not None else None
+
     def reset(self) -> None:
         """Reset the transaction.  This clears the transaction, and reassigns
         the registry on all its environments.  This operation is strongly
         recommended after reloading the registry.
+
+        The :class:`UnitOfWork` recompute order needs no re-wiring here: it was
+        bound to :meth:`_live_recompute_order`, which reads ``self.registry``
+        lazily and therefore picks up the freshly-assigned registry below.
         """
         self.registry = Registry(self.registry.db_name)
         for env in self.envs:

@@ -3,7 +3,7 @@ import itertools
 import logging
 
 from odoo import api, fields, models
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.libs.numbers.float_utils import float_round
 from odoo.tools import SQL
@@ -1921,8 +1921,12 @@ class TestOrmModel_Selection_Required_For_Write_Override(models.Model):  # noqa:
 
     def write(self, vals):
         if "my_selection" in vals:
+            # A *recoverable* write refusal (business rule), so the selection
+            # ondelete cleanup falls back to a raw column update (SEL-C4).
+            # A bare ValueError/TypeError here would be treated as a
+            # programming error and propagate instead.
             msg = "No... no no no"
-            raise ValueError(msg)
+            raise UserError(msg)
         return super().write(vals)
 
 

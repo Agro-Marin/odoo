@@ -579,6 +579,15 @@ class SearchMixin:
         :param storage: DictBackend instance.
         :return: Query with ``_ids`` set to matching record IDs.
         """
+        # 0. Flush pending writes to storage first.  The PostgreSQL path gets
+        #    this implicitly via ``execute_query`` (which flushes before running
+        #    the SQL); the in-memory path must do it explicitly.  Otherwise we
+        #    would evaluate the domain against stale storage rows AND clobber
+        #    dirty cache values (step 2 below overwrites the cache from storage
+        #    unconditionally), so a search after an unflushed write would both
+        #    miss the new value and corrupt the cache.
+        self.env.flush_all()
+
         # 1. Get all record IDs from storage
         all_ids = storage.table_ids(self._table)
         if not all_ids:
@@ -587,7 +596,7 @@ class SearchMixin:
         # 2. Load storage values into cache — batch by field to avoid
         #    per-record browse() allocations and per-cell method overhead.
         all_records = self.browse(all_ids)
-        tbl = storage._tables.get(self._table, {})
+        rows = storage.get_rows(self._table, all_ids)
 
         # Pre-resolve storable fields and their cache dicts once.
         # For context-dependent fields (depends_context), _get_cache() needs
@@ -624,7 +633,7 @@ class SearchMixin:
         for fname, field, field_cache in storable:
             convert = field.convert_to_cache
             for record_id in all_ids:
-                row = tbl.get(record_id)
+                row = rows.get(record_id)
                 if row is not None and fname in row:
                     field_cache[record_id] = convert(row[fname], sentinel)
 
@@ -795,8 +804,7 @@ class SearchMixin:
         # DictBackend: check storage directly — no SQL needed
         storage = self.env.transaction.storage
         if storage is not None:
-            tbl = storage._tables.get(self._table, {})
-            valid_ids = {*[i for i in ids if i in tbl], *new_ids}
+            valid_ids = {*storage.contains_ids(self._table, ids), *new_ids}
             return self.browse(i for i in self._ids if i in valid_ids)
         query = Query(self.env, self._table, self._table_sql)
         query.add_where(

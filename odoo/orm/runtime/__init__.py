@@ -35,6 +35,12 @@ from .registry import (
 )
 from .transaction import MAX_FIXPOINT_ITERATIONS, Transaction
 
+# Importing this registers the ORM-aware flushing savepoint as
+# BaseCursor._flushing_savepoint_cls (see odoo.orm.runtime.savepoint), so
+# cr.savepoint(flush=True) restores ORM cache/env state on rollback once the
+# ORM is loaded.  Kept last so BaseCursor and Transaction are already imported.
+from . import savepoint as _savepoint
+
 __all__ = [
     "MAX_FIXPOINT_ITERATIONS",
     "_CACHES_BY_KEY",

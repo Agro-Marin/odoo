@@ -70,12 +70,29 @@ class UnitOfWork:
         self.cache = cache
         self.engine = engine
         self.max_iterations = max_iterations
-        self._recompute_order: dict[Any, int] | None = None
+        self._recompute_order: (
+            dict[Any, int] | Callable[[], dict[Any, int] | None] | None
+        ) = None
 
-    def set_recompute_order(self, order: dict[Any, int]) -> None:
+    def set_recompute_order(
+        self,
+        order: dict[Any, int] | Callable[[], dict[Any, int] | None] | None,
+    ) -> None:
         """Set the topological recompute order from ModelGraph.
 
-        :param order: ``{field: priority_int}`` — lower priority = compute first
+        :param order: either a ``{field: priority_int}`` mapping (lower
+            priority = compute first), or a **zero-argument callable** returning
+            such a mapping (or ``None``).
+
+            Prefer the callable form whenever the underlying order can change
+            during the transaction's lifetime — e.g. after a registry reload
+            (``Transaction.reset``) or a field-metadata rebuild
+            (``ModelGraph.reset_field_metadata``).  ``recompute_order`` is keyed
+            by *field identity*, so a snapshot taken once in ``__init__`` silently
+            stops matching the new ``Field`` objects after either event, and the
+            ordering optimization degrades to insertion order.  A callable is
+            re-resolved on every :meth:`run_recompute_loop`, so it always reads
+            the live order.  A plain mapping is captured as-is (legacy/test use).
         """
         self._recompute_order = order
 
@@ -110,15 +127,25 @@ class UnitOfWork:
     # Convergence detection
     # ------------------------------------------------------------------
 
-    def recompute_snapshot(self) -> frozenset[tuple[Any, int]]:
+    @staticmethod
+    def _field_label(field: Any) -> str:
+        """Human-readable ``model.field`` label for diagnostics/stall reports."""
+        return f"{getattr(field, 'model_name', '?')}.{getattr(field, 'name', field)}"
+
+    def recompute_snapshot(
+        self, fields: "list[Any] | None" = None
+    ) -> frozenset[tuple[Any, int]]:
         """Snapshot of ``(field, pending_count)`` for convergence detection.
 
         Only includes fields with at least one real (truthy) pending ID,
-        matching the ``pending_real_fields()`` filter.
+        matching the ``pending_real_fields()`` filter.  Pass *fields* (an
+        already-computed ``pending_real_fields()`` list) to reuse it and
+        avoid re-scanning the pending dict on the hot loop path.
         """
+        if fields is None:
+            fields = self.engine.pending_real_fields()
         return frozenset(
-            (field, len(self.engine.pending_ids(field)))
-            for field in self.engine.pending_real_fields()
+            (field, len(self.engine.pending_ids(field))) for field in fields
         )
 
     def check_convergence(
@@ -140,8 +167,7 @@ class UnitOfWork:
 
         # Stalled — same fields with same counts
         stalled = sorted(
-            f"{getattr(f, 'model_name', '?')}.{getattr(f, 'name', f)}({cnt})"
-            for f, cnt in curr_snapshot
+            f"{self._field_label(f)}({cnt})" for f, cnt in curr_snapshot
         )
         return False, stalled
 
@@ -156,8 +182,7 @@ class UnitOfWork:
             return True, []
 
         stalled = sorted(
-            f"{getattr(f, 'model_name', '?')}.{getattr(f, 'name', f)}"
-            for f in self.cache.iter_dirty_fields()
+            self._field_label(f) for f in self.cache.iter_dirty_fields()
         )
         return False, stalled
 
@@ -186,7 +211,13 @@ class UnitOfWork:
         """
         result = LoopResult()
         prev_snapshot = None
+        # Resolve the order source once per loop.  A callable source (wired by
+        # Transaction) reads the *live* registry order, so it survives a
+        # registry reload / metadata rebuild that invalidates field identities;
+        # a plain mapping is used as-is.
         order = self._recompute_order
+        if callable(order):
+            order = order()
 
         for iteration in range(self.max_iterations):
             fields = self.engine.pending_real_fields()
@@ -195,9 +226,7 @@ class UnitOfWork:
                 result.converged = True
                 break
 
-            curr_snapshot = frozenset(
-                (f, len(self.engine.pending_ids(f))) for f in fields
-            )
+            curr_snapshot = self.recompute_snapshot(fields)
             progressing, stalled = self.check_convergence(prev_snapshot, curr_snapshot)
             if progressing:
                 # Transient stall recovered — drop the previously-recorded
@@ -225,7 +254,7 @@ class UnitOfWork:
             result.converged = not bool(self.engine.pending_real_fields())
             if not result.converged:
                 result.stalled_fields = sorted(
-                    f"{getattr(f, 'model_name', '?')}.{getattr(f, 'name', f)}"
+                    self._field_label(f)
                     for f in self.engine.pending_real_fields()
                 )
 
@@ -287,7 +316,7 @@ class UnitOfWork:
             result.converged = not bool(self.dirty_models())
             if not result.converged:
                 result.stalled_fields = sorted(
-                    f"{getattr(f, 'model_name', '?')}.{getattr(f, 'name', f)}"
+                    self._field_label(f)
                     for f in self.cache.iter_dirty_fields()
                 )
 

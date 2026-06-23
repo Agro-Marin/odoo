@@ -74,6 +74,53 @@ class OptimizationLevel(enum.IntEnum):
 
 MAX_OPTIMIZE_ITERATIONS = 1000
 
+MAX_DOMAIN_NESTING = 100
+"""Maximum AST operator-nesting depth accepted when parsing a domain list.
+
+Domain traversal (``__iter__``, ``__eq__``, ``__hash__``, ``_optimize``,
+``_to_sql``) is recursive, so a pathologically deep — e.g. attacker-supplied —
+domain raises an opaque ``RecursionError`` mid-evaluation (verified: a depth of
+~1000 alternating ``&``/``|`` operators, a few KB of JSON, constructs fine but
+blows the stack on the first traversal).  We reject such domains at parse time
+with a clear ``ValueError`` instead.  Real domains nest a handful of levels;
+100 is far beyond any legitimate use yet safely below the interpreter recursion
+limit even accounting for the surrounding call stack.
+"""
+
+
+def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
+    """Yield the direct operator-child domains of *node* (none for leaves).
+
+    Only follows the n-ary/not operator structure — ``any``/``not any``
+    sub-domains are validated independently when they are themselves parsed
+    (each goes through :meth:`Domain.__new__`), so they are not re-walked here.
+    """
+    if isinstance(node, DomainNary):  # DomainAnd / DomainOr
+        yield from node.children
+    elif isinstance(node, DomainNot):
+        yield node.child
+
+
+def _check_domain_nesting(domain: Domain, max_depth: int) -> None:
+    """Raise ``ValueError`` if *domain* nests deeper than *max_depth*.
+
+    Iterative (explicit-stack) DFS with early exit: it never recurses itself and
+    stops as soon as the limit is exceeded, so it adds negligible cost to the
+    common shallow case while turning the deep-domain ``RecursionError`` into a
+    clean, catchable validation error.
+    """
+    stack: list[tuple[Domain, int]] = [(domain, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > max_depth:
+            raise ValueError(
+                f"Domain nesting too deep (>{max_depth} levels); refusing to "
+                f"build it to avoid a RecursionError during evaluation"
+            )
+        for child in _iter_subdomains(node):
+            stack.append((child, depth + 1))
+
+
 # Types for optimization functions
 ANY_TYPES = (typing.ForwardRef("Domain"), Query, SQL)
 
@@ -103,6 +150,12 @@ def _optimize_nary_sort_key(domain: Domain) -> tuple[str, str, str]:
     For debugging, it eases to find conditions on fields.
     The generated SQL will be ordered by field name so that database caching
     can be applied more frequently.
+
+    Load-bearing invariant: the nary merge passes (``_MERGE_OPTIMIZATIONS``)
+    only combine *adjacent* conditions, so this key MUST place every pair of
+    co-mergeable conditions next to each other regardless of input order.
+    Optimization confluence (order-invariance of the result) depends on it;
+    it is locked in by ``tests/models/test_domain_confluence.py``.
     """
     if isinstance(domain, DomainCondition):
         # group the same field and same operator together
@@ -236,10 +289,15 @@ class Domain:
                     raise ValueError(f"Domain() invalid item in domain: {item!r}")
             # keep the order and simplify already
             if len(stack) == 1:
-                return stack[0]
-            return Domain.AND(reversed(stack))
+                result = stack[0]
+            else:
+                result = Domain.AND(reversed(stack))
         except IndexError:
             raise ValueError(f"Domain() malformed domain {arg!r}") from None
+        # Reject pathologically deep ASTs before any recursive traversal can
+        # hit a RecursionError (applies to internal sub-domain parses too).
+        _check_domain_nesting(result, MAX_DOMAIN_NESTING)
+        return result
 
     @classproperty
     def TRUE(self) -> Domain:
@@ -451,6 +509,17 @@ class Domain:
 
         Reach a fixed-point by applying the optimizations for the next level
         on the node until we reach a stable node at the given level.
+
+        Termination argument (``MAX_OPTIMIZE_ITERATIONS`` is only a backstop):
+        the outer loop advances ``_opt_level`` monotonically — each level runs
+        until ``_optimize_step`` returns an equal node, at which point the level
+        is bumped — and within a level the registered passes are confluent and
+        non-size-increasing (see ``_optimize_nary_sort_key``).  The ``==`` below
+        (not ``is``) is required: a no-merge ``_optimize_step`` may still return
+        a *new* node with sorted children, which is value-equal but not
+        identical; ``is`` would never advance the level and would spin to the
+        backstop.  Each concrete ``__eq__`` already short-circuits on identity,
+        so the common no-op case stays O(1).
         """
         domain, previous, count = self, None, 0
         while domain._opt_level < level:

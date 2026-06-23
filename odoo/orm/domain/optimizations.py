@@ -260,9 +260,17 @@ def _optimize_in_set(condition, _model):
     return DomainCondition(condition.field_expr, condition.operator, OrderedSet(value))
 
 
-@operator_optimization(["in", "not in"])
+@operator_optimization(["in", "not in"], OptimizationLevel.FULL)
 def _optimize_in_required(condition, model):
-    """Remove checks against a null value for required fields."""
+    """Remove checks against a null value for required fields.
+
+    Registered at ``FULL`` (not ``BASIC``): this reads ``model._ids`` to skip
+    the rewrite when new records are present, so its result depends on the
+    record binding — which the ``BASIC`` contract (field-definitions only,
+    reusable across transactions / sent to the client) forbids.  Stripping a
+    ``False`` from the set for a required NOT NULL field is only valid for
+    persisted records; a new record may legitimately hold ``False`` in memory.
+    """
     value = condition.value
     field = condition._field(model)
     if (
