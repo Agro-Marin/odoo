@@ -84,7 +84,12 @@ class _StackMap:
         raise KeyError(key)
 
     def __len__(self) -> int:
-        return sum(1 for _ in self)
+        """Number of mappings on the stack (scope depth).
+
+        Note this is the stack depth, *not* the number of distinct keys
+        across scopes — use ``sum(1 for _ in self)`` if you want the latter.
+        """
+        return len(self._maps)
 
 
 class ComputeEngine:
@@ -234,5 +239,5 @@ class ComputeEngine:
     def __repr__(self) -> str:
         n_fields = len(self._pending)
         n_entries = sum(len(ids) for ids in self._pending.values())
-        n_scopes = len(self._protected._maps)
+        n_scopes = len(self._protected)
         return f"<ComputeEngine pending={n_fields}f/{n_entries}e scopes={n_scopes}>"

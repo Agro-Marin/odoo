@@ -278,8 +278,10 @@ class _ReadGroupFormatMixin:
 
         elif property_type == "many2one":
             comodel = definition.get("comodel")
-            prefetch_ids = tuple(row[fullname] for row in rows_dict if row[fullname])
-            all_groups = tuple(row[fullname] for row in rows_dict if row[fullname])
+            # same set of ids for prefetch and for the "not in" group domain
+            prefetch_ids = all_groups = tuple(
+                row[fullname] for row in rows_dict if row[fullname]
+            )
             for row in rows_dict:
                 if not row[fullname]:
                     # can not only do ('many2one', '=', False) because we might have
@@ -300,8 +302,10 @@ class _ReadGroupFormatMixin:
 
         elif property_type == "many2many":
             comodel = definition.get("comodel")
-            prefetch_ids = tuple(row[fullname] for row in rows_dict if row[fullname])
-            all_groups = tuple(row[fullname] for row in rows_dict if row[fullname])
+            # same set of ids for prefetch and for the "not in" group domain
+            prefetch_ids = all_groups = tuple(
+                row[fullname] for row in rows_dict if row[fullname]
+            )
             for row in rows_dict:
                 if not row[fullname]:
                     if all_groups:

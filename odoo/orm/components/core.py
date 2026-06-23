@@ -38,8 +38,11 @@ class OrmCore:
     (``_read_format``, ``mapped``, ``filtered``, ``sorted``, ``modified``,
     ``flush_model``, ``_make_scalar_get``) accesses via ``env._core``.
 
-    All methods delegate to the underlying components with zero overhead
-    beyond the attribute lookup on *this* object.
+    All methods delegate to the **public** APIs of the underlying
+    :class:`FieldCache` / :class:`ComputeEngine`, so component-level invariants
+    are never bypassed (the facade owns no data of its own).  Several of those
+    public methods (e.g. :meth:`ComputeEngine.has_pending_field`) are already
+    written for the hot path, so delegation is the intended use, not a tax.
 
     Usage::
 
@@ -78,22 +81,29 @@ class OrmCore:
 
         Replaces: ``env.transaction.cache_store.get_field_data(field)``
         """
-        return self.cache._data[field]
+        return self.cache.get_field_data(field)
 
     def field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
         """Return the cache dict for *field*, or ``None`` if nothing cached."""
-        return self.cache._data.get(field)
+        return self.cache.get_field_data_or_none(field)
 
     def get_value(self, field: Any, record_id: Any, default: Any = None) -> Any:
-        """Return a single cached value, or *default*."""
-        field_cache = self.cache._data.get(field)
+        """Return a single cached value, or *default*.
+
+        Note the deliberate contract difference from :meth:`FieldCache.get_value`,
+        which *raises* ``KeyError`` on a miss by default: this facade returns
+        *default* (``None``) instead — a convenience for hot-path callers that do
+        not distinguish "absent" from "cached ``None``".  Pass an explicit
+        *default* to control the miss behavior of either.
+        """
+        field_cache = self.cache.get_field_data_or_none(field)
         if field_cache is None:
             return default
         return field_cache.get(record_id, default)
 
     def set_value(self, field: Any, record_id: Any, value: Any) -> None:
         """Set a single cached value."""
-        self.cache._data[field][record_id] = value
+        self.cache.set_value(field, record_id, value)
 
     def insert_if_absent(self, field: Any, ids: Iterable, values: Iterable) -> None:
         """Set values only for IDs not already cached (``setdefault`` in bulk)."""
@@ -113,15 +123,15 @@ class OrmCore:
 
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*."""
-        self.cache._dirty[field].update(ids)
+        self.cache.mark_dirty(field, ids)
 
     def get_dirty(self, field: Any) -> set | None:
         """Return the dirty IDs for *field*, or ``None``."""
-        return self.cache._dirty.get(field)
+        return self.cache.get_dirty(field)
 
     def pop_dirty(self, field: Any) -> set | None:
         """Remove and return the dirty IDs for *field*."""
-        return self.cache._dirty.pop(field, None)
+        return self.cache.pop_dirty(field)
 
     def pop_dirty_for_model(self, model_name: str) -> dict[Any, set]:
         """Pop all dirty fields belonging to *model_name*."""
@@ -129,15 +139,15 @@ class OrmCore:
 
     def has_dirty_field(self, field: Any) -> bool:
         """Return whether *field* has any dirty entries."""
-        return bool(self.cache._dirty.get(field))
+        return self.cache.has_dirty_field(field)
 
     def is_any_dirty(self) -> bool:
         """Return whether any field has dirty entries."""
-        return bool(self.cache._dirty)
+        return self.cache.is_any_dirty()
 
     def iter_dirty_fields(self) -> Iterator[Any]:
         """Iterate over fields that have dirty entries."""
-        return iter(self.cache._dirty)
+        return self.cache.iter_dirty_fields()
 
     # ------------------------------------------------------------------
     # Cache: patches (x2many)
@@ -169,15 +179,15 @@ class OrmCore:
 
     def iter_fields(self) -> Iterator[Any]:
         """Iterate over fields with cached data."""
-        return iter(self.cache._data)
+        return self.cache.iter_fields()
 
     def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
         """Iterate over ``(field, cache_dict)`` pairs."""
-        return iter(self.cache._data.items())
+        return self.cache.iter_field_items()
 
     def has_field(self, field: Any) -> bool:
         """Return whether *field* has cached data."""
-        return field in self.cache._data
+        return self.cache.has_field(field)
 
     # ------------------------------------------------------------------
     # Compute: scheduling
@@ -193,32 +203,34 @@ class OrmCore:
 
     def is_pending(self, field: Any, record_id: Any) -> bool:
         """Check whether a specific *record_id* needs recomputation for *field*."""
-        return record_id in self.engine._pending.get(field, ())
+        return self.engine.is_pending(field, record_id)
 
     def has_pending(self, field: Any) -> bool:
         """Fast check: does *field* have pending recomputations?
 
         This is the hot-path guard in ``_make_scalar_get`` and
-        ``ensure_computed``.  A single ``__contains__`` on the pending dict.
+        ``ensure_computed`` — it delegates to
+        :meth:`ComputeEngine.has_pending_field`, which is itself a single
+        ``__contains__`` on the pending dict and documented as hot-path code.
         """
-        return field in self.engine._pending
+        return self.engine.has_pending_field(field)
 
     def has_any_pending(self) -> bool:
         """Return whether any field has pending recomputations."""
-        return bool(self.engine._pending)
+        return self.engine.has_pending()
 
     def pending_ids(self, field: Any) -> set | tuple:
         """Return the set of pending record IDs for *field*."""
-        return self.engine._pending.get(field, ())
+        return self.engine.pending_ids(field)
 
     def pending_fields(self) -> Collection[Any]:
         """Return a view of fields with pending recomputations."""
-        return self.engine._pending.keys()
+        return self.engine.pending_fields()
 
     @property
     def pending(self) -> defaultdict[Any, set]:
         """Raw pending dict — for RecomputeScheduler cycle detection."""
-        return self.engine._pending
+        return self.engine.pending
 
     def pending_real_fields(self) -> list[Any]:
         """Fields with at least one real (truthy) pending record ID."""
@@ -226,7 +238,7 @@ class OrmCore:
 
     def discard_field(self, field: Any) -> None:
         """Remove *field* from pending recomputations."""
-        self.engine._pending.pop(field, None)
+        self.engine.discard_field(field)
 
     # ------------------------------------------------------------------
     # Compute: protection

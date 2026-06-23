@@ -201,6 +201,18 @@ class Test_Read_GroupTag(models.Model):
     active = fields.Boolean(default=True)
 
 
+class Test_Read_GroupPrefixCollision(models.Model):
+    # Field names chosen so the m2m spec ``tag`` is a string PREFIX of the m2o
+    # spec ``tag_id`` — the trigger for the _read_grouping_sets order-filter
+    # bug (``order_part.startswith(spec)`` wrongly drops ``tag_id ...`` terms).
+    _name = "test_read_group.prefix_collision"
+    _description = "Prefix-colliding groupby specs (tag / tag_id)"
+
+    tag = fields.Many2many("test_read_group.tag", relation="trg_prefix_tag_rel")
+    tag_id = fields.Many2one("test_read_group.tag")
+    value = fields.Integer()
+
+
 class ResPartner(models.Model):
     _inherit = "res.partner"
 

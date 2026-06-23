@@ -4,7 +4,6 @@ import functools
 import logging
 import time
 import typing
-import warnings
 from collections import defaultdict
 from collections.abc import Mapping
 from contextlib import contextmanager
@@ -71,15 +70,6 @@ class Environment(Mapping[str, "BaseModel"]):
     context: frozendict
     su: bool
     transaction: Transaction
-
-    def reset(self) -> None:
-        """Reset the transaction, see :meth:`Transaction.reset`."""
-        warnings.warn(
-            "Since 19.0, use directly `transaction.reset()`",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.transaction.reset()
 
     def __new__(cls, cr: BaseCursor, uid: int, context: dict, su: bool = False):
         # raise (not assert) so the contract holds under python -O
@@ -697,7 +687,15 @@ class Environment(Mapping[str, "BaseModel"]):
         # raises ProgrammingError which we catch and return [].
         try:
             return self.cr.fetchall()
-        except ProgrammingError:
+        except ProgrammingError as exc:
+            # A statement that returns no result set (INSERT/UPDATE without
+            # RETURNING) raises a *client-side* ProgrammingError with no
+            # SQLSTATE.  A genuine server error (UndefinedColumn, SyntaxError,
+            # InsufficientPrivilege, ...) — which in pipeline mode is only
+            # surfaced here at fetch time — carries a SQLSTATE; re-raise those
+            # instead of masking a real failure as an empty result.
+            if exc.sqlstate is not None:
+                raise
             return []
 
     def execute_query_dict(self, query: SQL) -> list[dict]:

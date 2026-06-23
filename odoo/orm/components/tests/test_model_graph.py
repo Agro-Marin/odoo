@@ -215,21 +215,35 @@ class TestModelGraphConstruction(unittest.TestCase):
         g._computed[f2] = [f1, f2]
         self.assertEqual(g.field_computed[f1], [f1, f2])
 
-    def test_reset_field_metadata(self) -> None:
+    def test_reset_field_metadata_clears_in_place(self) -> None:
+        # reset_field_metadata clears the collections IN PLACE (preserving
+        # object identity) rather than rebinding fresh objects, so live
+        # references survive the rebuild — notably
+        # Environment._field_depends_context, which caches
+        # model_graph._depends_context on the hot Field._get_cache path.
         g = ModelGraph()
         f = _field("price")
         g._depends[f] = ("dep",)
         g._depends_context[f] = ("lang",)
         g._inverses[f] = ("inv",)
         g._computed[f] = ["f1"]
+        depends, depends_ctx = g._depends, g._depends_context
+        inverses, computed = g._inverses, g._computed
+
         g.reset_field_metadata()
+
+        # emptied
         self.assertEqual(len(g._depends), 0)
         self.assertEqual(len(g._depends_context), 0)
         self.assertEqual(len(g._inverses), 0)
         self.assertEqual(len(g._computed), 0)
-        # Collections should be fresh instances
+        # same objects (cleared in place, not rebound) — this is what keeps a
+        # cached env._field_depends_context reference valid across the reset.
+        self.assertIs(g._depends, depends)
+        self.assertIs(g._depends_context, depends_ctx)
+        self.assertIs(g._inverses, inverses)
+        self.assertIs(g._computed, computed)
         self.assertIsInstance(g._depends, _Collector)
-        self.assertIsInstance(g._inverses, _Collector)
 
     def test_no_triggers_is_falsy(self) -> None:
         g = ModelGraph()

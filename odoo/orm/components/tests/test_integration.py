@@ -259,11 +259,13 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
                     if field.model_name == model_name:
                         dirty_ids = self.cache.pop_dirty(field)
                         if dirty_ids:
-                            for id_ in dirty_ids:
-                                tbl = self.storage._tables.setdefault(model_name, {})
-                                tbl.setdefault(id_, {})[field.name] = (
-                                    self.cache.get_value(field, id_)
-                                )
+                            self.storage.upsert_rows(
+                                model_name,
+                                [
+                                    (id_, {field.name: self.cache.get_value(field, id_)})
+                                    for id_ in dirty_ids
+                                ],
+                            )
 
         result = self.uow.run_flush_loop(recompute_fn, flush_fn)
         self.assertTrue(result.converged)

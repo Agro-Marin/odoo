@@ -162,6 +162,11 @@ class ReadMixin:
             "datetime",
             "char",
             "text",  # non-translate only (translate needs dict lookup)
+            # integer is safe here ONLY because Integer/Id are int4-backed:
+            # every persistable value is <= MAXINT, so Integer.convert_to_read
+            # (which coerces value > MAXINT to float for XML-RPC) is an
+            # identity for all stored values.  An int8-backed integer field
+            # would need the slow path and MUST NOT be added to this set.
             "integer",
             "float",
             "monetary",

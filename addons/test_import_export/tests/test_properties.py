@@ -391,7 +391,7 @@ class TestPropertiesExportImport(HttpCase):
             {'bool_prop': False, 'tags_prop': ['bb'], 'm2m_prop': False},
         ])
 
-        records_created._BaseModel__ensure_xml_id()
+        records_created._ensure_xml_ids()
         external_ids = [meta['xmlid'] for meta in records_created.get_metadata()]
 
         # Test the update flow

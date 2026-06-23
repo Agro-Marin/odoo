@@ -67,6 +67,23 @@ def expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
             seen.add(id_)
 
 
+def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
+    """Build a recordset over *ids* sharing *records*' env and prefetch group.
+
+    Inlines ``object.__new__`` + slot assignment to skip the ``__init__``
+    dispatch — the same hot-path idiom used by ``BaseModel.browse`` and
+    ``Many2one.__get__``.  Unlike ``browse``, the original ``_prefetch_ids`` is
+    preserved (so later reads keep the broader prefetch group), which is why the
+    ``Field._assign_*`` paths cannot simply call ``browse``.  Centralised here so
+    adding a ``BaseModel`` slot only requires updating one assign-path site.
+    """
+    rs = object.__new__(records.__class__)
+    rs.env = records.env
+    rs._ids = tuple(ids)
+    rs._prefetch_ids = records._prefetch_ids
+    return rs
+
+
 IR_MODELS: tuple[str, ...] = (
     "ir.model",
     "ir.model.data",
@@ -743,10 +760,15 @@ class Field[T]:
         """Setup the attributes of a related field."""
         assert isinstance(self.related, str), self.related
 
+        # Parse the dotted path once at setup; the compute/inverse/search hot
+        # paths (traverse_related, _compute_related, _search_related) reuse this
+        # tuple instead of re-splitting the string on every invocation.
+        self._related_names = related_names = tuple(self.related.split("."))
+
         # determine the chain of fields, and make sure they are all set up
         field_seq = []
         model_name = self.model_name
-        for name in self.related.split("."):
+        for name in related_names:
             field = model.pool[model_name]._fields.get(name)
             if field is None:
                 raise KeyError(
@@ -784,8 +806,10 @@ class Field[T]:
         # copy attributes from field to self (string, help, etc.)
         for attr, prop in self.related_attrs:
             # check whether 'attr' is explicitly set on self (from its field
-            # definition), and ignore its class-level value (only a default)
-            if attr not in self.__dict__ and prop.startswith("_related_"):
+            # definition), and ignore its class-level value (only a default).
+            # ``prop`` is always a ``_related_*`` name by construction of
+            # ``related_attrs`` (see __init_subclass__), so no prefix check.
+            if attr not in self.__dict__:
                 setattr(self, attr, getattr(field, prop))
 
         for attr in field._extra_keys__:
@@ -800,7 +824,7 @@ class Field[T]:
             # add modules from delegate and target fields; the first one ensures
             # that inherited fields introduced via an abstract model (_inherits
             # being on the abstract model) are assigned an XML id
-            delegate_field = model._fields[self.related.split(".")[0]]
+            delegate_field = model._fields[related_names[0]]
             self._modules = tuple(
                 {*self._modules, *delegate_field._modules, *field._modules}
             )
@@ -808,7 +832,7 @@ class Field[T]:
     def traverse_related(self, record: BaseModel) -> tuple[BaseModel, Field]:
         """Traverse the fields of the related field `self` except for the last
         one, and return it as a pair `(last_record, last_field)`."""
-        for name in self.related.split(".")[:-1]:
+        for name in self._related_names[:-1]:
             # take the first record when traversing
             corecord = record[name]
             record = next(iter(corecord), corecord)
@@ -843,7 +867,7 @@ class Field[T]:
         # computation.
         #
         values = list(records)
-        for name in self.related.split(".")[:-1]:
+        for name in self._related_names[:-1]:
             try:
                 values = [next(iter(val := value[name]), val) for value in values]
             except AccessError as e:
@@ -907,7 +931,7 @@ class Field[T]:
         # parse the path
         field_seq = []
         model_name = self.model_name
-        for fname in self.related.split("."):
+        for fname in self._related_names:
             field = records.env[model_name]._fields[fname]
             field_seq.append(field)
             model_name = field.comodel_name
@@ -1055,8 +1079,8 @@ class Field[T]:
         for attr, prop in self.description_attrs:
             if attributes is not None and attr not in attributes:
                 continue
-            if not prop.startswith("_description_"):
-                continue
+            # ``prop`` is always a ``_description_*`` name by construction of
+            # ``description_attrs`` (see __init_subclass__); no prefix check.
             value = getattr(self, prop)
             if callable(value):
                 value = value(env)
@@ -1102,7 +1126,7 @@ class Field[T]:
                 model._table, self.name, SQL.EMPTY, SQL.EMPTY, query
             )
             return True
-        except ValueError, AccessError:
+        except (ValueError, AccessError):
             return False
 
     def _description_groupable(self, env: Environment) -> bool:
@@ -1120,7 +1144,7 @@ class Field[T]:
         try:
             model._read_group_groupby(model._table, groupby, query)
             return True
-        except ValueError, AccessError:
+        except (ValueError, AccessError):
             return False
 
     def _description_aggregator(self, env: Environment) -> str | None:
@@ -1135,7 +1159,7 @@ class Field[T]:
         try:
             model._read_group_select(f"{self.name}:{self.aggregator}", query)
             return self.aggregator
-        except ValueError, AccessError:
+        except (ValueError, AccessError):
             return None
 
     def _description_string(self, env: Environment) -> str:
@@ -1456,7 +1480,7 @@ class Field[T]:
             )
             and self.related_field.type not in ("one2many", "many2many")
         ):
-            join_field = model._fields[self.related.split(".")[0]]
+            join_field = model._fields[self._related_names[0]]
             if (
                 join_field.type == "many2one"
                 and join_field.store
@@ -1576,7 +1600,7 @@ class Field[T]:
     def update_db_related(self, model: BaseModel) -> None:
         """Compute a stored related field directly in SQL."""
         comodel = model.env[self.related_field.model_name]
-        join_field, comodel_field = self.related.split(".")
+        join_field, comodel_field = self._related_names
         model.env.cr.execute(
             SQL(
                 """ UPDATE %(model_table)s AS x
@@ -1942,7 +1966,7 @@ class Field[T]:
                     if rec_value is False or rec_value is None:
                         return can_be_null
                     return pyop(rec_value, value)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     # ignoring error, type mismatch
                     return False
 
@@ -2308,7 +2332,7 @@ class Field[T]:
                         )
                         self._update_cache(rec, value)
                 fallback_single = False
-            except AccessError, KeyError, MissingError:
+            except (AccessError, KeyError, MissingError):
                 if len(recs) == 1:
                     raise
                 fallback_single = True
@@ -2330,7 +2354,7 @@ class Field[T]:
                 try:
                     self.compute_value(recs)
                     fallback_single = False
-                except AccessError, MissingError:
+                except (AccessError, MissingError):
                     fallback_single = True
                 if fallback_single:
                     self.compute_value(record)
@@ -2457,10 +2481,7 @@ class Field[T]:
         This is used inside compute methods where the field is being set
         as part of its own computation.
         """
-        protected_records = records.__class__(
-            records.env, tuple(ids), records._prefetch_ids
-        )
-        self.mark_dirty(protected_records, value)
+        self.mark_dirty(_recordset_like(records, ids), value)
 
     def _assign_new(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
@@ -2476,7 +2497,7 @@ class Field[T]:
         For inherited fields, also propagates the value to the parent record
         if the parent is itself new.
         """
-        new_records = records.__class__(records.env, tuple(ids), records._prefetch_ids)
+        new_records = _recordset_like(records, ids)
         with records.env.protecting(
             records.pool.field_computed.get(self, [self]), new_records
         ):
@@ -2487,7 +2508,7 @@ class Field[T]:
 
         if self.inherited:
             # special case: also assign parent records if they are new
-            parents = new_records[self.related.split(".")[0]]
+            parents = new_records[self._related_names[0]]
             parents.filtered(lambda r: not r.id)[self.name] = value
 
     def _assign_real(
@@ -2500,7 +2521,7 @@ class Field[T]:
         which performs access checks, audit logging, constraint validation,
         and triggers recomputation.
         """
-        records = records.__class__(records.env, tuple(ids), records._prefetch_ids)
+        records = _recordset_like(records, ids)
         write_value = self.convert_to_write(value, records)
         records.write({self.name: write_value})
 
