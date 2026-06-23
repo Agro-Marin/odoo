@@ -18,14 +18,14 @@ import odoo
 from odoo import api, http, models, tools
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied
-from odoo.http import ROUTING_KEYS, SAFE_HTTP_METHODS, Response, request
+from odoo.http import SAFE_HTTP_METHODS, Response, request, rule_routing_kwargs
 from odoo.libs.constants import EXTENSION_TO_WEB_MIMETYPES
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
 from odoo.modules.registry import Registry
 from odoo.service import security
 from odoo.tools.json import json_default
-from odoo.tools.misc import get_lang, submap
+from odoo.tools.misc import get_lang
 from odoo.tools.translate import code_translations
 
 _logger = logging.getLogger(__name__)
@@ -447,10 +447,7 @@ class IrHttp(models.AbstractModel):
         for url, endpoint in self._generate_routing_rules(
             mods, converters=self._get_converters()
         ):
-            routing = submap(endpoint.routing, ROUTING_KEYS)
-            if routing["methods"] is not None and "OPTIONS" not in routing["methods"]:
-                routing["methods"] = [*routing["methods"], "OPTIONS"]
-            rule = FasterRule(url, endpoint=endpoint, **routing)
+            rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
             rule.merge_slashes = False
             routing_map.add(rule)
         return routing_map

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_category_form" model="ir.ui.view">
+        <field name="name">Contact Tags</field>
+        <field name="model">res.partner.category</field>
+        <field name="arch" type="xml">
+            <form string="Contact Tag">
+                <sheet>
+                    <group col="4">
+                        <field name="name" placeholder="e.g. &quot;Consulting Services&quot;" />
+                        <field name="color" widget="color_picker" />
+                        <field name="parent_id" />
+                        <field name="active" widget="boolean_toggle" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="res_partner_category_view_search" model="ir.ui.view">
+        <field name="name">res.partner.category.view.search</field>
+        <field name="model">res.partner.category</field>
+        <field name="arch" type="xml">
+            <search string="Search Partner Category">
+                <field name="name" string="Name" />
+                <field name="display_name" string="Category" />
+                <separator />
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]" />
+                <group>
+                    <filter string="Category" name="group_parent_id"
+                        context="{'group_by': 'parent_id'}" />
+                    <filter string="Color" name="group_color" context="{'group_by': 'color'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_partner_category_list" model="ir.ui.view">
+        <field name="name">Contact Tags</field>
+        <field name="model">res.partner.category</field>
+        <field name="priority" eval="6" />
+        <field name="arch" type="xml">
+            <list string="Contact Tags" editable="bottom" multi_edit="1" sample="1">
+                <field name="name" placeholder="e.g. &quot;Roadshow&quot;" />
+                <field name="parent_id" string="Category" domain="[('id', '!=', id)]" />
+                <field name="color" widget="color_picker" />
+            </list>
+        </field>
+    </record>
+
+    <record id="action_partner_category_form" model="ir.actions.act_window">
+        <field name="name">Contact Tags</field>
+        <field name="res_model">res.partner.category</field>
+        <field name="search_view_id" ref="res_partner_category_view_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a Contact Tag
+            </p>
+            <p>
+                Assign tags to your contacts to organize, filter and track them.
+            </p>
+        </field>
+    </record>
+
+</odoo>
