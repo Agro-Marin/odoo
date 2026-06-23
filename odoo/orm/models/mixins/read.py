@@ -6,20 +6,17 @@ import typing
 from collections import defaultdict, deque
 from typing import Self
 
+from odoo_rust import (
+    batch_cache_fill as _batch_cache_fill_rust,  # type: ignore[import-untyped]
+)
+
 from odoo.exceptions import MissingError
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
-
-try:
-    from odoo_rust import (
-        batch_cache_fill as _batch_cache_fill_rust,  # type: ignore[import-untyped]
-    )
-except ImportError:
-    _batch_cache_fill_rust = None
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 
 from ... import decorators as api
-from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
+from ..._typing import ValuesType
 from ...primitives import LOG_ACCESS_COLUMNS
 
 if typing.TYPE_CHECKING:
@@ -202,7 +199,7 @@ class ReadMixin:
             field_cache = field._get_cache(env)
             # None replacement: False / 0 / 0.0 depending on type.
             none_val = field.convert_to_record(None, None)
-            if _batch_cache_fill_rust is not None and type(field_cache) is dict:
+            if type(field_cache) is dict:
                 # Rust path: fill cached values in one C-level pass, return only
                 # miss indices.  Needs a plain dict (not a translated LangProxy).
                 miss_indices = _batch_cache_fill_rust(

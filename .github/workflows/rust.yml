@@ -1,0 +1,100 @@
+name: Rust Extension (odoo_rust)
+
+# odoo_rust is a HARD dependency of the core framework — there is no pure-Python
+# fallback. It is imported unconditionally by web export and the ORM hot paths
+# (db/cursor, orm/fields/base, orm/models/mixins/read, orm/runtime/environment,
+# orm/helpers, libs/json/fast_clone, libs/_field_access, libs/lint/scan). A crate
+# that fails to format, lint, test, build, or export its required symbols must
+# BLOCK the merge, not warn — so this gate is intentionally NOT continue-on-error.
+
+on:
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'crates/**'
+      - '.github/workflows/rust.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: fmt · clippy · test · build · symbol-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: crates/odoo_rust
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Python comes first: pyo3's build script needs an interpreter, and the
+      # non-extension-module `cargo test` build links libpython (setup-python
+      # ships a shared libpython). Pin to the fork's interpreter.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain (stable + rustfmt + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/odoo_rust
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Clippy (warnings are errors)
+        # Default features (extension-module off) — same config the test build
+        # uses; this crate has no cfg-gated code, so it lints identically.
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit tests
+        # No --features extension-module: that build links libpython for the
+        # test harness. maturin re-enables it for the wheel (next step).
+        run: cargo test
+
+      - name: Build + install the extension (maturin)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Symbol contract — the unconditional Python imports must resolve
+        working-directory: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+          import odoo_rust
+
+          # Every symbol the core framework imports without a fallback. Keep this
+          # list in sync with the `from odoo_rust import ...` sites in core.
+          required = [
+              "csv_export",            # addons/web/controllers/export.py
+              "fast_clone",            # odoo/libs/json/fast_clone.py
+              "rows_to_dicts",         # odoo/db/cursor.py, orm/runtime/environment.py
+              "origin_ids",            # odoo/orm/helpers.py
+              "to_prefetch_ids",       # odoo/orm/fields/base.py
+              "scan_byte_patterns",    # odoo/libs/lint/scan.py
+              "scan_regex_patterns",   # odoo/libs/lint/scan.py
+              "batch_cache_fill",      # odoo/libs/_field_access, orm/models/mixins/read.py
+              "batch_cache_filter",    # odoo/libs/_field_access
+              "batch_cache_get",       # odoo/libs/_field_access
+              "batch_cache_values",    # odoo/libs/_field_access
+              "batch_group_ids",       # odoo/libs/_field_access
+              "sort_ids_by_values",    # odoo/libs/_field_access
+          ]
+          missing = [s for s in required if not hasattr(odoo_rust, s)]
+          if missing:
+              raise SystemExit(f"odoo_rust is missing required exports: {missing}")
+          print(f"odoo_rust exports all {len(required)} required symbols")
+          PY

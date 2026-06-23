@@ -5,6 +5,7 @@ import typing
 from collections import defaultdict
 from typing import Any
 
+from odoo_rust import csv_export as _rust_csv_export
 from werkzeug.exceptions import InternalServerError
 
 from odoo import http
@@ -13,7 +14,6 @@ from odoo.http import Response, content_disposition, request
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
-from odoo_rust import csv_export as _rust_csv_export
 
 from .export_writers import (
     ExportXlsxWriter,

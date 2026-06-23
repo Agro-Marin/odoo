@@ -8,6 +8,27 @@ import enum
 import unittest
 from typing import TYPE_CHECKING
 
+# odoo_rust is a hard dependency — import at module scope so a missing or broken
+# extension fails this differential suite loudly instead of silently skipping.
+from odoo_rust import (  # type: ignore[import-untyped]
+    batch_cache_fill as _rust_batch_cache_fill,
+)
+from odoo_rust import (
+    batch_cache_filter as _rust_batch_cache_filter,
+)
+from odoo_rust import (
+    batch_cache_get as _rust_batch_cache_get,
+)
+from odoo_rust import (
+    batch_cache_values as _rust_batch_cache_values,
+)
+from odoo_rust import (
+    batch_group_ids as _rust_batch_group_ids,
+)
+from odoo_rust import (
+    sort_ids_by_values as _rust_sort_ids_by_values,
+)
+
 from odoo.libs._field_access._fallback import (
     batch_cache_fill,
     batch_cache_filter,
@@ -430,33 +451,23 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
 
 
 class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
-    """Test Rust extension — skipped if not installed.
+    """Test the Rust extension against the same cases as the Python oracle.
 
-    scalar_cache_get always uses the Python fallback (PyO3 boundary
-    overhead exceeds savings on the hit path), so only batch functions
-    are imported from Rust.
+    odoo_rust is a hard dependency (imported at module scope), so a missing or
+    broken extension fails this suite rather than skipping it.  scalar_cache_get
+    always uses the Python impl (PyO3 boundary overhead exceeds savings on the
+    hit path), so only the batch functions come from Rust.
     """
 
     @classmethod
     def setUpClass(cls) -> None:
-        try:
-            from odoo_rust import (
-                batch_cache_fill,
-                batch_cache_filter,
-                batch_cache_get,
-                batch_cache_values,
-                batch_group_ids,
-                sort_ids_by_values,
-            )
-        except ImportError:
-            raise unittest.SkipTest("odoo_rust Rust extension not installed") from None
-        cls.batch_cache_fill = staticmethod(batch_cache_fill)
-        cls.batch_cache_get = staticmethod(batch_cache_get)
-        cls.batch_cache_filter = staticmethod(batch_cache_filter)
-        cls.batch_cache_values = staticmethod(batch_cache_values)
+        cls.batch_cache_fill = staticmethod(_rust_batch_cache_fill)
+        cls.batch_cache_get = staticmethod(_rust_batch_cache_get)
+        cls.batch_cache_filter = staticmethod(_rust_batch_cache_filter)
+        cls.batch_cache_values = staticmethod(_rust_batch_cache_values)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
-        cls.sort_ids_by_values = staticmethod(sort_ids_by_values)
-        cls.batch_group_ids = staticmethod(batch_group_ids)
+        cls.sort_ids_by_values = staticmethod(_rust_sort_ids_by_values)
+        cls.batch_group_ids = staticmethod(_rust_batch_group_ids)
 
 
 if __name__ == "__main__":
