@@ -631,7 +631,7 @@ class TestSaleMrpKitBom(BaseCommon):
             'line_ids': [(0, 0, {
                 'name': kit_prod.name,
                 'product_id': kit_prod.id,
-                'product_uom_qty': 30,
+                'product_qty': 30,
             })],
         })
         # Validate the SO
@@ -643,7 +643,7 @@ class TestSaleMrpKitBom(BaseCommon):
         self.assertEqual(picking_pick.move_ids.product_qty, 30 * 5 / 6)
 
         # Update the kit quantity in the SO
-        so.line_ids[0].product_uom_qty = 60
+        so.line_ids[0].product_qty = 60
         # Check the component qty after the update should be 50
         self.assertEqual(picking_pick.move_ids.product_qty, 60 * 5 / 6)
 
@@ -725,7 +725,7 @@ class TestSaleMrpKitBom(BaseCommon):
         so.action_confirm()
 
         user_admin = self.env['res.users'].search([('login', '=', 'admin')])
-        sol.with_user(user_admin).write({'product_uom_qty': 5})
+        sol.with_user(user_admin).write({'product_qty': 5})
 
         self.assertEqual(sum(sol.move_ids.mapped('product_uom_qty')), 5)
 
@@ -787,7 +787,7 @@ class TestSaleMrpKitBom(BaseCommon):
                 Command.create({
                     'name': kit_product.name,
                     'product_id': kit_product.id,
-                    'product_uom_qty': 4,
+                    'product_qty': 4,
             })],
         })
         # confirm the SO and check the delivery
@@ -798,7 +798,7 @@ class TestSaleMrpKitBom(BaseCommon):
         ])
         with Form(so) as so_form:
             with so_form.line_ids.edit(0) as line_form:
-                line_form.product_uom_qty = 10
+                line_form.product_qty = 10
         # the moves assocaited to the mto component are expected to be separated as
         # the are linked to a different MO
         self.assertRecordValues(so.picking_ids.move_ids.sorted('product_uom_qty'), [
