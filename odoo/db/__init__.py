@@ -82,8 +82,17 @@ def _get_pool(readonly: bool) -> ConnectionPool:
                 # Lazy by default (0); raise db_minconn to keep connections warm.
                 # ``or 0`` coerces an explicit None/empty back to that default.
                 minconn = tools.config["db_minconn"] or 0
+                # Pool lifecycle tuning is configured here (one place) and passed
+                # in, rather than read from module constants/env inside the pool —
+                # see the db_* options in tools/config.py.
                 pool = ConnectionPool(
-                    int(maxconn), readonly=readonly, minconn=int(minconn)
+                    int(maxconn),
+                    readonly=readonly,
+                    minconn=int(minconn),
+                    borrow_timeout=tools.config["db_borrow_timeout"],
+                    max_lifetime=tools.config["db_conn_max_lifetime"],
+                    max_idle=tools.config["db_conn_max_idle"],
+                    reap_idle_ttl=tools.config["db_pool_reap_idle"],
                 )
                 if readonly:
                     _Pool_readonly = pool

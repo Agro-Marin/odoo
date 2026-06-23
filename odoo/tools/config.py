@@ -817,6 +817,57 @@ class configmanager:
             env_name="PGDATABASE_TEMPLATE",
             help="specify a custom database template to create a new database",
         )
+        # Connection-pool lifecycle tuning.  Defaults mirror the _DEFAULT_*
+        # constants in odoo/db/pool.py (which serve directly constructed pools);
+        # odoo/db/__init__.py reads these and passes them to ConnectionPool, so
+        # the whole pool subsystem has a single configuration surface.
+        group.add_option(
+            "--db_borrow_timeout",
+            dest="db_borrow_timeout",
+            type="float",
+            my_default=30.0,
+            help="wall-clock seconds one connection checkout (borrow) may wait "
+            "before failing, shared between the pool-semaphore wait and the "
+            "PostgreSQL connect. Raise on high-latency links or saturated pools "
+            "(default 30)",
+        )
+        group.add_option(
+            "--db_conn_max_lifetime",
+            dest="db_conn_max_lifetime",
+            type="int",
+            my_default=3600,
+            help="seconds before a pooled physical connection is recycled, "
+            "discarding its prepared-statement cache (default 3600 = 1h)",
+        )
+        group.add_option(
+            "--db_conn_max_idle",
+            dest="db_conn_max_idle",
+            type="int",
+            my_default=600,
+            help="seconds an unused pooled connection is kept open before being "
+            "closed (default 600 = 10min)",
+        )
+        group.add_option(
+            "--db_pool_reap_idle",
+            dest="db_pool_reap_idle",
+            type="float",
+            my_default=300.0,
+            env_name="ODOO_DB_POOL_REAP_IDLE",
+            help="seconds a per-database pool may sit idle (nothing checked out) "
+            "before it is reaped, freeing its worker threads on hosts that serve "
+            "many databases over time. 0 disables reaping (default 300)",
+        )
+        group.add_option(
+            "--db_discard_on_return",
+            dest="db_discard_on_return",
+            type="bool",
+            my_default=False,
+            env_name="ODOO_DB_DISCARD_ON_RETURN",
+            help="issue DISCARD ALL when a connection returns to the pool, fully "
+            "isolating session state (temp tables, GUCs, LISTEN, advisory locks) "
+            "between borrowers at the cost of the prepared-statement cache. Enable "
+            "on multi-tenant hosts needing hard isolation (default off)",
+        )
         parser.add_option_group(group)
 
         # i18n
