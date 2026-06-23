@@ -127,26 +127,39 @@ class _BulkAccessMixin:
         # Pipeline multi-batch non-fetch executions for single round-trip
         use_pipeline = len(argslist) > page_size and not fetch
         ctx = self._cnx.pipeline() if use_pipeline else _nullcontext()
-        with ctx:
-            for i in batches:
-                batch = argslist[i : i + page_size]
-                placeholders = []
-                params = []
-                for row in batch:
-                    if template:
-                        placeholders.append(template)
-                    elif isinstance(row, (list, tuple)):
-                        placeholders.append("(" + ", ".join(["%s"] * len(row)) + ")")
-                    else:
-                        placeholders.append("(%s)")
-                    if isinstance(row, (list, tuple)):
-                        params.extend(row)
-                    else:
-                        params.append(row)
-                full_query = f"{prefix}{', '.join(placeholders)}{suffix}"
-                self.execute(full_query, params)
-                if fetch:
-                    results.extend(self.fetchall())
+        try:
+            with ctx:
+                for i in batches:
+                    batch = argslist[i : i + page_size]
+                    placeholders = []
+                    params = []
+                    for row in batch:
+                        if template:
+                            placeholders.append(template)
+                        elif isinstance(row, (list, tuple)):
+                            placeholders.append(
+                                "(" + ", ".join(["%s"] * len(row)) + ")"
+                            )
+                        else:
+                            placeholders.append("(%s)")
+                        if isinstance(row, (list, tuple)):
+                            params.extend(row)
+                        else:
+                            params.append(row)
+                    full_query = f"{prefix}{', '.join(placeholders)}{suffix}"
+                    self.execute(full_query, params)
+                    if fetch:
+                        results.extend(self.fetchall())
+        except Exception as e:
+            # In pipeline mode a queued execute() does NOT raise; the failure
+            # surfaces here, at sync on context exit, so it bypassed execute()'s
+            # own _log_sql_error.  Log it once here (on the original query, since
+            # the failing batch can't be attributed) to match the non-pipelined
+            # path.  Non-pipelined failures already logged inside execute() and
+            # would double-log, so only the pipelined path logs here.
+            if use_pipeline:
+                _log_sql_error(e, query)
+            raise
         return results if fetch else None
 
     def copy_from(

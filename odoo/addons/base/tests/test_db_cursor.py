@@ -719,6 +719,30 @@ class TestCursorBulkMethods(BaseCase):
             cr.execute("SELECT count(*) FROM _test_evp")
             self.assertEqual(cr.fetchone()[0], 10)
 
+    def test_execute_values_pipeline_error_is_logged(self):
+        """A failure in a pipelined (multi-batch, non-fetch) execute_values
+        surfaces at pipeline sync on context exit — NOT from the queued
+        execute() call — so it bypassed execute()'s own _log_sql_error.  It must
+        still be logged on ``odoo.db.cursor`` like the non-pipelined path, not
+        swallowed.  Regression for the pipeline logging asymmetry.
+        """
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_evpl (n int)")
+            cr.commit()
+            # > default page_size (100) and not fetch -> the pipelined path.
+            rows = [(i,) for i in range(150)]
+            rows[75] = ("not-an-int",)  # aborts the INSERT at sync
+            with (
+                self.assertLogs("odoo.db.cursor", level="WARNING") as cm,
+                self.assertRaises(psycopg.Error),
+            ):
+                cr.execute_values("INSERT INTO _test_evpl (n) VALUES %s", rows)
+            cr.rollback()
+        self.assertTrue(
+            any("_test_evpl" in line for line in cm.output),
+            f"pipelined execute_values error was not logged: {cm.output}",
+        )
+
     def test_executemany_basic(self):
         """executemany inserts multiple rows via pipeline."""
         with registry().cursor() as cr:
@@ -1261,6 +1285,59 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(stats, {})
         pool.close_all()
 
+    def test_tuning_params_stored_and_derived(self):
+        """Pool lifecycle tuning is per-instance (production passes it from
+        tools.config); the give_back reap throttle derives from the TTL."""
+        pool = ConnectionPool(
+            maxconn=4,
+            borrow_timeout=12.5,
+            max_lifetime=1234,
+            max_idle=77,
+            reap_idle_ttl=88.0,
+        )
+        self.assertEqual(pool._borrow_timeout, 12.5)
+        self.assertEqual(pool._max_lifetime, 1234)
+        self.assertEqual(pool._max_idle, 77)
+        self.assertEqual(pool._reap_idle_ttl, 88.0)
+        # quarter of the TTL, floored at 1s
+        self.assertEqual(pool._reap_check_interval, 22.0)
+        pool.close_all()
+
+    def test_tuning_defaults_match_constants(self):
+        """Direct construction (no config) falls back to the _DEFAULT_* values."""
+        pool = ConnectionPool(maxconn=1)
+        self.assertEqual(pool._borrow_timeout, pool_module._DEFAULT_BORROW_TIMEOUT)
+        self.assertEqual(pool._max_lifetime, pool_module._DEFAULT_MAX_LIFETIME)
+        self.assertEqual(pool._max_idle, pool_module._DEFAULT_MAX_IDLE)
+        self.assertEqual(pool._reap_idle_ttl, pool_module._DEFAULT_REAP_IDLE_TTL)
+        pool.close_all()
+
+    def test_reap_check_interval_disabled_when_ttl_zero(self):
+        pool = ConnectionPool(maxconn=1, reap_idle_ttl=0.0)
+        self.assertEqual(pool._reap_check_interval, 0.0)
+        pool.close_all()
+
+    def test_checked_out_formula(self):
+        """_checked_out is the single source of truth for size - available,
+        tolerating missing stat keys (treated as 0)."""
+
+        class _StubPool:
+            def __init__(self, stats):
+                self._stats = stats
+
+            def get_stats(self):
+                return self._stats
+
+        self.assertEqual(
+            ConnectionPool._checked_out(_StubPool({"pool_size": 5, "pool_available": 2})),
+            3,
+        )
+        self.assertEqual(
+            ConnectionPool._checked_out(_StubPool({"pool_size": 4, "pool_available": 4})),
+            0,
+        )
+        self.assertEqual(ConnectionPool._checked_out(_StubPool({})), 0)
+
     def test_repr_does_not_deadlock_under_lock(self):
         """__repr__ is evaluated by logging from inside _debug(), which runs
         while self._lock is held (see _get_or_create_pool).  It must therefore
@@ -1466,64 +1543,60 @@ class TestIdlePoolReaper(BaseCase):
                 psy._odoo_last_borrow = 0.0
 
     def test_idle_pool_reaped_on_new_pool_creation(self):
-        with patch.object(pool_module, "_REAP_IDLE_TTL", 300.0):
-            pool = ConnectionPool(maxconn=4)
-            self.addCleanup(pool.close_all)
-            for app in ("reap_a", "reap_b", "reap_c"):
-                pool.give_back(pool.borrow(self._info(app)))
-            self.assertEqual(len(pool._pools), 3)
-            self._force_idle(pool, app="none")  # all three look idle
-            # Creating a new pool (cold path) triggers the reaper.
-            pool.give_back(pool.borrow(self._info("reap_d")))
-            self.assertEqual(
-                self._dbset(pool),
-                {"reap_d"},
-                "only the freshly created pool should survive",
-            )
+        pool = ConnectionPool(maxconn=4, reap_idle_ttl=300.0)
+        self.addCleanup(pool.close_all)
+        for app in ("reap_a", "reap_b", "reap_c"):
+            pool.give_back(pool.borrow(self._info(app)))
+        self.assertEqual(len(pool._pools), 3)
+        self._force_idle(pool, app="none")  # all three look idle
+        # Creating a new pool (cold path) triggers the reaper.
+        pool.give_back(pool.borrow(self._info("reap_d")))
+        self.assertEqual(
+            self._dbset(pool),
+            {"reap_d"},
+            "only the freshly created pool should survive",
+        )
 
     def test_checked_out_connection_is_not_reaped(self):
-        with patch.object(pool_module, "_REAP_IDLE_TTL", 300.0):
-            pool = ConnectionPool(maxconn=4)
-            self.addCleanup(pool.close_all)
-            held = pool.borrow(self._info("held"))  # kept checked out
-            self.addCleanup(lambda: pool.give_back(held))
-            pool.give_back(pool.borrow(self._info("idle")))
-            self._force_idle(pool, app="none")  # both look idle by the clock
-            pool.give_back(pool.borrow(self._info("trigger")))
-            survivors = self._dbset(pool)
-            self.assertIn("held", survivors, "pool with a held connection must stay")
-            self.assertNotIn("idle", survivors, "idle pool with nothing held is reaped")
+        pool = ConnectionPool(maxconn=4, reap_idle_ttl=300.0)
+        self.addCleanup(pool.close_all)
+        held = pool.borrow(self._info("held"))  # kept checked out
+        self.addCleanup(lambda: pool.give_back(held))
+        pool.give_back(pool.borrow(self._info("idle")))
+        self._force_idle(pool, app="none")  # both look idle by the clock
+        pool.give_back(pool.borrow(self._info("trigger")))
+        survivors = self._dbset(pool)
+        self.assertIn("held", survivors, "pool with a held connection must stay")
+        self.assertNotIn("idle", survivors, "idle pool with nothing held is reaped")
 
     def test_reaper_disabled_keeps_all_pools(self):
-        with patch.object(pool_module, "_REAP_IDLE_TTL", 0.0):
-            pool = ConnectionPool(maxconn=4)
-            self.addCleanup(pool.close_all)
-            for app in ("a", "b", "c"):
-                pool.give_back(pool.borrow(self._info(app)))
-            self._force_idle(pool, app="none")
-            pool.give_back(pool.borrow(self._info("d")))
-            self.assertEqual(len(pool._pools), 4, "reaper disabled -> nothing reaped")
+        pool = ConnectionPool(maxconn=4, reap_idle_ttl=0.0)
+        self.addCleanup(pool.close_all)
+        for app in ("a", "b", "c"):
+            pool.give_back(pool.borrow(self._info(app)))
+        self._force_idle(pool, app="none")
+        pool.give_back(pool.borrow(self._info("d")))
+        self.assertEqual(len(pool._pools), 4, "reaper disabled -> nothing reaped")
 
     def test_borrow_rebuilds_when_pool_closed_underneath_it(self):
         # Disable the reaper and close the pool by hand to simulate the race:
         # borrow() must discover PoolClosed, rebuild, and return a live conn.
-        with patch.object(pool_module, "_REAP_IDLE_TTL", 0.0):
-            pool = ConnectionPool(maxconn=4)
-            self.addCleanup(pool.close_all)
-            pool.give_back(pool.borrow(self._info("rebuild")))
-            (key,) = list(pool._pools)
-            victim = pool._pools[key]
-            victim.close()
-            conn = pool.borrow(self._info("rebuild"))  # must not raise
-            try:
-                self.assertFalse(conn.closed)
-                self.assertIsNot(
-                    pool._pools[key], victim, "a fresh pool replaced the closed one"
-                )
-                self.assertEqual(pool._pool_sem._value, 3, "exactly one permit held")
-            finally:
-                pool.give_back(conn)
-            self.assertEqual(pool._pool_sem._value, 4, "permit released, no leak")
+        pool = ConnectionPool(maxconn=4, reap_idle_ttl=0.0)
+        self.addCleanup(pool.close_all)
+        pool.give_back(pool.borrow(self._info("rebuild")))
+        (key,) = list(pool._pools)
+        victim = pool._pools[key]
+        victim.close()
+        conn = pool.borrow(self._info("rebuild"))  # must not raise
+        try:
+            self.assertFalse(conn.closed)
+            self.assertIsNot(
+                pool._pools[key], victim, "a fresh pool replaced the closed one"
+            )
+            self.assertEqual(pool._pool_sem._value, 3, "exactly one permit held")
+        finally:
+            pool.give_back(conn)
+        self.assertEqual(pool._pool_sem._value, 4, "permit released, no leak")
 
 
 class TestCursorDelReclaimsConnection(BaseCase):
@@ -2219,16 +2292,24 @@ class TestHealthCheckGracePeriod(BaseCase):
 
 
 class TestDiscardOnReturn(BaseCase):
-    """ODOO_DB_DISCARD_ON_RETURN opts into a hard session reset (DISCARD ALL)
-    on connection return, for multi-tenant hosts needing isolation between
-    borrows.  Off by default — the return path stays purely client-side and
-    keeps the auto-prepared-statement cache warm.
+    """The ``db_discard_on_return`` config option (env ODOO_DB_DISCARD_ON_RETURN)
+    opts into a hard session reset (DISCARD ALL) on connection return, for
+    multi-tenant hosts needing isolation between borrows.  Off by default — the
+    return path stays purely client-side and keeps the auto-prepared-statement
+    cache warm.  Read from config on each return (no import-time freeze).
     """
+
+    def _set_discard(self, value):
+        from odoo.tools import config
+
+        old = config["db_discard_on_return"]
+        config["db_discard_on_return"] = value
+        self.addCleanup(config.__setitem__, "db_discard_on_return", old)
 
     def test_default_no_discard(self):
         conn = MagicMock()
-        with patch("odoo.db.lifecycle._DISCARD_ON_RETURN", False):
-            _reset_connection(conn)
+        self._set_discard(False)
+        _reset_connection(conn)
         conn.execute.assert_not_called()
         # session settings still restored
         self.assertEqual(conn.prepare_threshold, 2)
@@ -2242,8 +2323,8 @@ class TestDiscardOnReturn(BaseCase):
         # cannot run inside a transaction block, so it must be issued in
         # autocommit mode.
         conn.execute.side_effect = lambda sql: seen.append((sql, conn.autocommit))
-        with patch("odoo.db.lifecycle._DISCARD_ON_RETURN", True):
-            _reset_connection(conn)
+        self._set_discard(True)
+        _reset_connection(conn)
         conn.execute.assert_called_once_with("DISCARD ALL")
         self.assertEqual(seen, [("DISCARD ALL", True)])
         # autocommit returned to False and prepare tuning re-applied afterwards
@@ -2846,9 +2927,14 @@ class TestVersionGateInBorrow(BaseCase):
         self.assertNotIn("raise PoolError", src)
 
     def test_borrow_checks_server_version(self):
-        src = inspect.getsource(ConnectionPool.borrow)
-        self.assertIn("server_version", src)
-        self.assertIn("MIN_PG_VERSION", src)
+        # The gate lives in _validate_borrowed_conn (the #2 borrow decomposition),
+        # which borrow() calls on every checkout — still on the borrow path, not
+        # in the configure callback.  Pin both: the gate's logic and its call.
+        gate_src = inspect.getsource(ConnectionPool._validate_borrowed_conn)
+        self.assertIn("server_version", gate_src)
+        self.assertIn("MIN_PG_VERSION", gate_src)
+        borrow_src = inspect.getsource(ConnectionPool.borrow)
+        self.assertIn("_validate_borrowed_conn", borrow_src)
 
 
 class TestPsycopgPoolPrivateApi(BaseCase):

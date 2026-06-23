@@ -19,11 +19,12 @@ cannot drift.  :mod:`odoo.db.pool` re-imports these names, so
 
 from __future__ import annotations
 
-import os
 from time import monotonic
 
 import psycopg
 from psycopg_pool import ConnectionPool as _PsycopgPool
+
+from odoo import tools
 
 from .utils import register_adapters
 
@@ -42,15 +43,14 @@ _HEALTHCHECK_GRACE_PERIOD = 1.0
 # creation (``configure``) and on return (``reset``).
 _IDLE_SINCE_ATTR = "_odoo_idle_since"
 
-# Opt-in hard session reset on return.  By default _reset_connection issues no
-# ``DISCARD``/``RESET ALL`` (purely client-side, preserves the prepared-statement
-# cache) — at the cost of leaking session state (committed temp tables, GUCs,
-# ``LISTEN``, advisory locks) to the next borrower.  Set
-# ``ODOO_DB_DISCARD_ON_RETURN=1`` for hard isolation (deallocates the cache).
-# Read once at import, so the hot return path pays one boolean test.
-_DISCARD_ON_RETURN: bool = os.environ.get(
-    "ODOO_DB_DISCARD_ON_RETURN", ""
-).strip().lower() in ("1", "true", "yes", "on")
+# Opt-in hard session reset on return, via the ``db_discard_on_return`` config
+# option (env ``ODOO_DB_DISCARD_ON_RETURN``).  By default _reset_connection issues
+# no ``DISCARD``/``RESET ALL`` (purely client-side, preserves the
+# prepared-statement cache) — at the cost of leaking session state (committed temp
+# tables, GUCs, ``LISTEN``, advisory locks) to the next borrower.  Enable it for
+# hard isolation (deallocates the cache).  Read from config on each return (a
+# cheap dict lookup) rather than frozen at import, so it stays operator-tunable
+# and test-overridable.
 
 
 def _configure_connection(conn: psycopg.Connection) -> None:
@@ -104,9 +104,9 @@ def _reset_connection(conn: psycopg.Connection) -> None:
         - **Server-side cursors, ``LISTEN`` channels, advisory locks** persist
           without ``CLOSE``/``UNLISTEN``/unlock.
 
-        Opt into ``ODOO_DB_DISCARD_ON_RETURN=1`` for hard isolation.
+        Opt into ``db_discard_on_return`` for hard isolation.
     """
-    if _DISCARD_ON_RETURN:
+    if tools.config["db_discard_on_return"]:
         # ``DISCARD ALL`` can't run in a transaction block; psycopg_pool already
         # rolled back, so switch to autocommit first.  This also deallocates the
         # prepared-statement cache (the documented cost), which the tuning below
