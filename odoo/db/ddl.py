@@ -27,8 +27,30 @@ from psycopg import sql as _sql
 #
 # Intentionally excluded: TRUNCATE, SET, VACUUM, ANALYZE, REINDEX,
 # CLUSTER, LOCK — these also reject server-side parameters, but Odoo
-# never parameterizes them.  If a future caller does, extend BOTH the
-# regex AND ``_DDL_PREFIXES`` (the 2-char prefix gate below).
+# never parameterizes them.  If a future caller does, add the keyword to
+# ``_DDL_KEYWORDS`` below — the detection regex (``_RE_DDL``) AND the 2-char
+# prefix gate (``_DDL_PREFIXES``) are BOTH *computed* from it at import, so
+# they cannot drift out of sync as long as the derivations below stay intact.
+# (Were they ever to drift, detection would silently fail: a query whose
+# keyword the regex matches but whose prefix the gate misses is treated as
+# non-DDL — params are not inlined and the auto-prepared statement cache is not
+# invalidated.  The derivation is exercised by ``TestDDLKeywordPrefixGate`` in
+# test_db_cursor.py, which checks every keyword's prefix is admitted by the
+# gate and that no sample query is classified differently by gate vs regex.)
+_DDL_KEYWORDS: tuple[str, ...] = (
+    "CREATE",
+    "ALTER",
+    "DROP",
+    "COMMENT",
+    "GRANT",
+    "REVOKE",
+    "DO",
+)
+# Comment introducers that may precede a DDL keyword: a line ``-- ...`` or a
+# block ``/* ... */``.  The regex skips them, so the prefix gate must admit
+# them too — the second half of the prefix set's single source of truth.
+_COMMENT_PREFIXES: frozenset[str] = frozenset(("--", "/*"))
+
 # Match the DDL keyword even when preceded by SQL comments (line ``-- ...``
 # or block ``/* ... */``).  Without the comment-skip prefix a statement like
 # ``-- migrate\nCREATE TABLE ...`` slips past detection: the auto-prepared
@@ -36,14 +58,65 @@ from psycopg import sql as _sql
 # ``cached plan must not change result type`` (verified reproducible).
 _RE_DDL = _re.compile(
     r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*"
-    r"(?:CREATE|ALTER|DROP|COMMENT|GRANT|REVOKE|DO)\b",
+    r"(" + "|".join(_DDL_KEYWORDS) + r")\b",  # group(1) = the matched keyword
     _re.IGNORECASE | _re.DOTALL,
 )
 # First two chars of the statement for fast prefix filtering — avoids the regex
-# on the 99% of queries that are SELECT/INSERT/UPDATE/DELETE.  ``--`` and ``/*``
-# are included so comment-prefixed DDL still reaches the regex; comment-prefixed
-# non-DDL is rare, so the extra regex runs are negligible.
-_DDL_PREFIXES = frozenset(("CR", "AL", "DR", "CO", "GR", "RE", "DO", "--", "/*"))
+# on the 99% of queries that are SELECT/INSERT/UPDATE/DELETE.  Derived from
+# ``_DDL_KEYWORDS`` (+ the comment introducers) so it can never drift from the
+# regex above; comment-prefixed non-DDL is rare, so the extra regex runs are
+# negligible.  SELECT/INSERT/UPDATE/DELETE share no 2-char prefix with any DDL
+# keyword, so the gate stays selective.
+_DDL_PREFIXES: frozenset[str] = (
+    frozenset(kw[:2] for kw in _DDL_KEYWORDS) | _COMMENT_PREFIXES
+)
+
+# DDL that changes a relation's shape or existence.  Only these invalidate
+# psycopg's auto-prepared-statement cache (a cached ``SELECT *`` plan whose
+# result type changed → "cached plan must not change result type") and the
+# process-global schema_cache (cached column types / id sequences for binary
+# ``copy_from``).  COMMENT / GRANT / REVOKE are DDL for *parameter inlining*
+# (they reject server-side ``$N`` params) but never change shape, so they skip
+# both invalidations.  ``DO`` can execute arbitrary DDL in its body, so it is
+# treated conservatively as schema-changing.  Membership is tested against the
+# UPPERCASE keyword returned by :func:`_ddl_keyword`.
+_SCHEMA_CHANGING_DDL: frozenset[str] = frozenset({"CREATE", "ALTER", "DROP", "DO"})
+
+
+def _ddl_keyword(qs: str) -> str | None:
+    """Return the leading DDL keyword (UPPERCASE), or ``None`` if *qs* is not DDL.
+
+    Reporting the keyword identity — not just a yes/no — lets
+    :meth:`Cursor.execute` distinguish DDL that needs client-side parameter
+    inlining (every keyword) from DDL that must additionally invalidate the
+    prepared-statement and schema caches (only :data:`_SCHEMA_CHANGING_DDL`).
+
+    The prefix check (a 2-char compare against a frozenset) avoids the regex on
+    the 99% of queries that are SELECT/INSERT/UPDATE/DELETE.
+
+    Read the first two non-whitespace chars to gate the (costlier) regex.
+    Slice-then-lstrip on a 64-char window keeps the hot path off a full-query
+    copy (Odoo's triple-quoted SQL nearly always has leading whitespace, and a
+    giant IN-list/VALUES query can be 100KB+).  The window exposes the keyword's
+    first 2 chars only while leading whitespace is <=62; at >=63 it yields <2
+    keyword chars, so fall back to a full lstrip in that rare case — otherwise
+    deeply-indented DDL slips past the gate and its params are never inlined ("no
+    parameter $1") and the auto-prepared cache is never invalidated ("cached plan
+    must not change result type" on a later SELECT).
+
+    Pure: depends only on *qs* and the module-level ``_DDL_PREFIXES`` / ``_RE_DDL``
+    derived from ``_DDL_KEYWORDS``.  Verified equivalent to a bare ``_RE_DDL``
+    match across the full indentation range by ``TestDDLDetectionLeadingWhitespace``
+    and a 200k-case fuzz; kept as a gate purely for the hot-path speedup.
+    """
+    head = qs[:64].lstrip()
+    if len(head) < 2 and len(qs) > 64:
+        head = qs.lstrip()
+    c = head[:2].upper()
+    if c not in _DDL_PREFIXES:
+        return None
+    m = _RE_DDL.match(qs)
+    return m.group(1).upper() if m is not None else None
 
 
 def _find_value_markers(query: str) -> list[int]:
@@ -97,6 +170,24 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
         # path below.  re.sub with a callable repl inserts the quoted literal
         # verbatim (no backreference processing), so values containing % or \
         # are safe.
+        # Validate referenced names up-front.  A marker whose key is absent
+        # would otherwise raise a bare ``KeyError`` from inside ``re.sub`` (no
+        # statement context, no marker name in the message); surface it as the
+        # same clear ``ValueError`` the positional path raises on a count
+        # mismatch.  Extra/unused keys are intentionally left lenient — both
+        # psycopg's native ``%(name)s`` binding and the legacy ``qs % params``
+        # formatting ignore them, so rejecting them would be a behaviour change.
+        referenced = {
+            m.group(1) for m in _DICT_MARKER_RE.finditer(qs) if m.group(1) is not None
+        }
+        missing = referenced - params.keys()
+        if missing:
+            raise ValueError(
+                "DDL parameter mismatch: marker(s) "
+                + ", ".join(f"%({n})s" for n in sorted(missing))
+                + f" have no matching key in params {sorted(params)}"
+            )
+
         def _sub_named(m: _re.Match) -> str:
             name = m.group(1)
             if name is None:  # matched the '%%' escape

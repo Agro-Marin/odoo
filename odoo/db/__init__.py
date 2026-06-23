@@ -48,7 +48,7 @@ __all__ = [
     "drain_all",
     "drain_db",
     # Global counter — resolved dynamically via module __getattr__ below
-    # so callers always see the current cursor.sql_counter value.
+    # so callers always see the current metrics.sql_counter value.
     "sql_counter",  # noqa: F822 — exposed via module __getattr__, not a name
 ]
 
@@ -80,8 +80,11 @@ def _get_pool(readonly: bool) -> ConnectionPool:
                     if hasattr(odoo, "evented") and odoo.evented
                     else 0
                 ) or tools.config["db_maxconn"]
-                # Lazy by default (0); raise db_minconn to keep connections warm.
-                minconn = tools.config.get("db_minconn", 0) or 0
+                # Lazy by default (0); raise db_minconn to keep connections
+                # warm.  db_minconn is a registered option (with default 0), so
+                # read it by subscript like db_maxconn above; ``or 0`` only
+                # coerces an explicit None/empty back to the lazy default.
+                minconn = tools.config["db_minconn"] or 0
                 pool = ConnectionPool(
                     int(maxconn), readonly=readonly, minconn=int(minconn)
                 )
@@ -186,12 +189,12 @@ def drain_all() -> None:
 
 # Dynamic attribute access for mutable globals like sql_counter.
 # This ensures db.sql_counter always returns the current value
-# from the cursor module, not a stale copy from import time.
+# from the metrics module, not a stale copy from import time.
 # Cost: ~100ns per access (string compare + cached module lookup).
 # Called ~1/request for metrics — negligible vs query time.
 def __getattr__(name: str) -> int:
     if name == "sql_counter":
-        from . import cursor
+        from . import metrics
 
-        return cursor.sql_counter
+        return metrics.sql_counter
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
