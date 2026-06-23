@@ -1628,7 +1628,7 @@ class TranslationRecordReader(TranslationReader):
         ):
             return
 
-        records._IOMixin__ensure_xml_id()
+        records._ensure_xml_ids()
 
         model_name = records._name
         query = """SELECT min(concat(module, '.', name)), res_id
