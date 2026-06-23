@@ -7,10 +7,11 @@ CORS_MAX_AGE = 60 * 60 * 24
 SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
 
 # The default csrf token lifetime (one year). When used as the
-# time-limit of :meth:`Request.csrf_token`, the embedded ``max_ts``
-# timestamp rolls over daily and effectively acts as a per-user salt,
-# defeating BREACH-style compression-ratio attacks that need a stable
-# token to recover bytes one at a time.
+# time-limit of :meth:`Request.csrf_token`, the embedded ``max_ts`` is
+# ``int(now + max_age)``, so it changes on every issuance (per-second
+# granularity) and effectively acts as a per-token salt, defeating
+# BREACH-style compression-ratio attacks that need a stable token to
+# recover bytes one at a time.
 CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 
 # The default lang to use when the browser doesn't specify it
@@ -67,9 +68,20 @@ NOT_FOUND_NODB = """\
 <!-- Alternatively, use the X-Odoo-Database header. -->
 """
 
+# Paths whose controllers call ``web.ensure_db()`` and therefore must, when the
+# database becomes unusable mid-request, drop the ``?db=`` query parameter and
+# retry without a database rather than surfacing the registry error. Matched by
+# exact path or the ``ENSURE_DB_PATH_PREFIX`` prefix. ``/test_http/ensure_db``
+# only resolves when the ``test_http`` addon is installed; it is inert otherwise.
+ENSURE_DB_PATH_PREFIX = "/odoo/"
+ENSURE_DB_PATHS = frozenset({"/odoo", "/web", "/web/login", "/test_http/ensure_db"})
+
 # The @route arguments to propagate from the decorated method to the
-# routing rule.
-ROUTING_KEYS = {
+# routing rule. ``frozenset`` (not a plain ``set``): this is a shared,
+# read-only module global consumed by ``submap(endpoint.routing, ROUTING_KEYS)``
+# in both ``application.py`` and ``ir_http``; freezing it makes accidental
+# mutation of the shared constant impossible rather than merely unlikely.
+ROUTING_KEYS = frozenset({
     "defaults",
     "subdomain",
     "build_only",
@@ -79,7 +91,7 @@ ROUTING_KEYS = {
     "host",
     "methods",
     "websocket",
-}
+})
 
 # The default duration of a user session cookie. Inactive sessions are reaped
 # server-side as well with a threshold that can be set via an optional
@@ -119,6 +131,22 @@ STATIC_CACHE = 60 * 60 * 24 * 7
 # The cache duration for content where the url uniquely identifies the
 # content (usually using a hash), one year.
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
+
+# Monodb detection — the database-less request fast path in
+# ``Request._get_session_and_dbname`` calls ``db_list(force=True)``, which issues
+# a ``pg_database`` catalog query whenever a ``dbfilter`` is configured (the
+# ``--database`` allowlist path skips PG). That query ran on EVERY db-less
+# request: anonymous traffic, bots, health checks. ``db_list_for_monodb``
+# memoises the per-host result for this many seconds, so a burst of such requests
+# shares a single query. Staleness is benign and self-healing: a freshly created
+# DB is detected after at most this delay (until then the request falls through
+# to the DB selector), and a dropped DB that is still cached routes to a
+# ``RegistryError`` that the WSGI entrypoint already recovers from. Local DB
+# create/drop runs in a separate code path with no cross-worker cache hook, so
+# this TTL — not invalidation — is the backstop. Only the HTTP monodb path is
+# cached; the shared ``list_dbs`` (DB-manager and cron existence checks that need
+# freshness) is deliberately left uncached.
+DB_MONODB_CACHE_TTL = 5.0
 
 
 # GeoIP / MaxMind — only available if geoip2 is installed.

@@ -113,7 +113,7 @@ class Dispatcher(ABC):
         Manipulate the HTTP response to inject various headers, also
         save the session when it is dirty.
         """
-        from .application import root  # lazy import
+        root = self.request.app
 
         self.request._save_session()
         self.request._inject_future_response(response)
@@ -202,7 +202,7 @@ class HttpDispatcher(Dispatcher):
         :param Exception exc: the exception that occurred.
         :returns: a WSGI application
         """
-        from .application import root  # lazy import
+        root = self.request.app
 
         if isinstance(exc, SessionExpiredException):
             session = self.request.session
@@ -266,9 +266,13 @@ class JsonRPCDispatcher(Dispatcher):
            ``params`` member of the JSON-RPC request payload MUST be a
            JSON Object and not a JSON Array.
 
-        In addition, it is possible to pass a context that replaces
-        the session context via a special ``context`` argument that is
-        removed prior to calling the endpoint.
+        Unlike older Odoo versions, there is NO framework-level ``context``
+        handling here: every key of ``params`` is forwarded to the endpoint
+        by name, so a ``context`` key is just an ordinary argument (dropped
+        with an "ignoring args" warning if the endpoint does not declare it).
+        RPC calls that need to influence the environment context pass it
+        through their own argument instead — e.g. ``call_kw`` reads it from
+        ``kwargs['context']`` and applies it at the ORM layer.
 
         Successful request::
 
@@ -298,7 +302,16 @@ class JsonRPCDispatcher(Dispatcher):
             werkzeug.exceptions.abort(Response("Invalid JSON-RPC data", status=400))
 
         self.request_id = self.jsonrequest.get("id")
-        self.request.params = self.jsonrequest.get("params", {}) | args
+        # We only support by-name params (a JSON Object). A present-but-non-object
+        # ``params`` (array/scalar/null) cannot be merged with the path-argument
+        # dict; reject it with a clear message instead of letting ``dict | list``
+        # raise an opaque TypeError that surfaces as a generic "Odoo Server Error".
+        # A missing ``params`` defaults to an empty object.
+        params = self.jsonrequest.get("params", {})
+        if not isinstance(params, dict):
+            e = f"JSON-RPC params must be an object (got {type(params).__name__!r})."
+            raise werkzeug.exceptions.BadRequest(e)
+        self.request.params = params | args
 
         result = self._call_endpoint(endpoint)
         return self._response(result)

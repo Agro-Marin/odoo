@@ -178,6 +178,7 @@ from .controller import Controller
 # Routing
 from .routing import (
     route,
+    rule_routing_kwargs,
     _generate_routing_rules,
     _check_and_complete_route_definition,
 )
@@ -227,7 +228,16 @@ from .application import (
     root,
 )
 
-# Registry (re-exported for tests that patch odoo.http.Registry)
+# Re-exported for backward compatibility. NOTE: this binding is NOT an effective
+# monkeypatch point for the request path. ``_serve.py`` (``Registry(self.db)`` in
+# ``_serve_db``) and ``request_class.py`` import ``Registry`` into their OWN
+# namespaces, so patching ``odoo.http.Registry`` leaves those call sites
+# untouched — a regression from the monolithic ``http.py``, where one namespace
+# made this patch point work. Patch ``odoo.http._serve.Registry`` and
+# ``odoo.http.request_class.Registry`` instead (see
+# ``test_http/tests/test_common.py::TestHttpBase.multidb_url_open``). The
+# (in)effectiveness of each target is locked by
+# ``test_http_audit.py::TestRegistryPatchPoint``.
 from odoo.modules.registry import Registry
 
 __all__ = [
@@ -301,5 +311,6 @@ __all__ = [
     "request",
     "root",
     "route",
+    "rule_routing_kwargs",
     "serialize_exception",
 ]

@@ -4,8 +4,9 @@ The :class:`HttpExtension` protocol declares the methods on
 ``env["ir.http"]`` that the http package calls. It serves three purposes:
 
 * Documents the contract in one place rather than scattered across call sites.
-* Enables IDE navigation and static type checking when used at call sites
-  via ``cast(HttpExtension, env["ir.http"])``.
+* Is available for IDE navigation / static type checking via
+  ``cast(HttpExtension, env["ir.http"])`` — note no call site does this today;
+  the http package still reaches ``ir.http`` through the untyped recordset.
 * Surfaces breakage when ``ir.http`` changes a hook signature.
 
 No static type checker is currently configured for this fork, so the third

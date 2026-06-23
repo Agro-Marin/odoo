@@ -3,6 +3,7 @@ import contextlib
 import mimetypes
 from io import BytesIO
 from pathlib import Path
+from stat import S_ISDIR, S_ISREG
 from typing import Any
 from zlib import adler32
 
@@ -11,6 +12,7 @@ from werkzeug.utils import send_file as _send_file
 from odoo.tools import config, file_path
 
 from .constants import STATIC_CACHE_LONG
+from .core import request
 
 
 class Stream:
@@ -76,13 +78,40 @@ class Stream:
             intermediate proxies, otherwise only let the browser caches
             it.
         """
+        # Validate that ``path`` resolves under a known ``addons_path``
+        # directory (raises ``FileNotFoundError`` — an ``OSError`` — when
+        # missing), then build from the now-trusted absolute path.
         path = file_path(path, filter_ext)
+        return cls._from_trusted_path(path, public=public)
+
+    @classmethod
+    def _from_trusted_path(cls, path: str, public: bool = False) -> Stream:
+        """Build a ``type='path'`` :class:`~Stream` from an absolute path the
+        caller has ALREADY validated as living under the addons tree (e.g. via
+        :func:`~odoo.tools.file_path` or :meth:`Application.get_static_file`).
+
+        Skips re-running that resolution — the single biggest per-request cost
+        of serving a static asset — but still stats the file for its
+        etag/mtime/size. ``stat()`` is called first so a file that vanished
+        after validation surfaces as an ``OSError`` (handled as a 404 by
+        :meth:`Request._serve_static`) rather than a misleading ``ValueError``.
+        """
         p = Path(path)
-        if not p.is_file():
-            e = f"Path {path!r} is not a regular file"
-            raise ValueError(e)
+        st = p.stat()  # FileNotFoundError (OSError) if the file vanished
+        if not S_ISREG(st.st_mode):
+            # A directory (or socket/fifo/device) is not streamable. Raise an
+            # OSError — never a bare ``ValueError`` — so callers that map OSError
+            # to a 404 (:meth:`Request._serve_static`) degrade gracefully. A
+            # ``ValueError`` escaped that ``except OSError`` handler and turned a
+            # probe of a directory URL (e.g. ``/web/static/src``) into a 500 with
+            # an ERROR-level traceback. This matches the method's own documented
+            # intent: error cases "surface as an OSError ... rather than a
+            # misleading ValueError".
+            msg = f"Path {path!r} is not a regular file"
+            if S_ISDIR(st.st_mode):
+                raise IsADirectoryError(msg)
+            raise OSError(msg)
         check = adler32(path.encode())
-        stat = p.stat()
         # Use ``st_mtime_ns`` (not ``int(st_mtime)``) so a same-second rewrite
         # of same-length content still busts the cache. ext4/xfs/apfs all
         # provide nanosecond mtime; the size+adler32(path) suffix preserves
@@ -92,17 +121,15 @@ class Stream:
             path=path,
             mimetype=mimetypes.guess_type(path)[0],
             download_name=p.name,
-            etag=f"{stat.st_mtime_ns}-{stat.st_size}-{check}",
-            last_modified=stat.st_mtime,
-            size=stat.st_size,
+            etag=f"{st.st_mtime_ns}-{st.st_size}-{check}",
+            last_modified=st.st_mtime,
+            size=st.st_size,
             public=public,
         )
 
     @classmethod
     def from_binary_field(cls, record: Any, field_name: str) -> Stream:
         """Create a :class:`~Stream`: from a binary field."""
-        from . import request  # lazy import
-
         data_b64 = record[field_name]
         data = base64.b64decode(data_b64) if data_b64 else b""
         return cls(
@@ -115,16 +142,29 @@ class Stream:
         )
 
     def read(self) -> bytes:
-        """Get the stream content as bytes."""
+        """Get the stream content as bytes.
+
+        Mirrors the validation of :meth:`get_response` so the ``-> bytes``
+        contract holds: a ``'data'`` stream with no ``data`` (or any stream
+        with its backing attribute unset) raises ``ValueError`` instead of
+        silently returning ``None`` to a caller that expects bytes.
+        """
         if self.type == "url":
             msg = "Cannot read an URL"
             raise ValueError(msg)
 
         if self.type == "data":
+            if self.data is None:
+                msg = "There is nothing to stream, missing 'data' attribute."
+                raise ValueError(msg)
             return self.data
 
-        with Path(self.path).open("rb") as file:
-            return file.read()
+        if self.type == "path":
+            with Path(self.path).open("rb") as file:
+                return file.read()
+
+        msg = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
+        raise ValueError(msg)
 
     def get_response(
         self,
@@ -151,8 +191,7 @@ class Stream:
             :func:`werkzeug.utils.send_file` instead of the stream
             sensitive values. Discouraged.
         """
-        from . import request  # lazy import
-        from .wrappers import Response
+        from .wrappers import Response  # lazy: avoids a stream<->wrappers import edge
 
         if self.type not in ("url", "data", "path"):
             e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
@@ -208,18 +247,24 @@ class Stream:
                 # NGINX wait for content that'll never arrive.
                 res.headers["Content-Length"] = "0"
 
-        res.headers["X-Content-Type-Options"] = "nosniff"
+        # ``res.headers`` and ``res.cache_control`` each rebuild a proxy facade
+        # on every access (same pattern noted in
+        # ``Request._inject_future_response``); hoist them so this tail mutates a
+        # single facade instead of allocating a fresh one per write.
+        headers = res.headers
+        headers["X-Content-Type-Options"] = "nosniff"
 
         if content_security_policy:  # see also Application.set_csp()
-            res.headers["Content-Security-Policy"] = content_security_policy
+            headers["Content-Security-Policy"] = content_security_policy
 
+        cache_control = res.cache_control
         if self.public:
-            if (res.cache_control.max_age or 0) > 0:
-                res.cache_control.public = True
+            if (cache_control.max_age or 0) > 0:
+                cache_control.public = True
         else:
-            res.cache_control.pop("public", "")
-            res.cache_control.private = True
+            cache_control.pop("public", "")
+            cache_control.private = True
         if immutable:
-            res.cache_control["immutable"] = None  # None sets the directive
+            cache_control["immutable"] = None  # None sets the directive
 
         return res
