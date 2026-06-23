@@ -214,6 +214,11 @@ def initialize_sys_path() -> None:
     sys.modules["odoo.addons.base.maintenance"] = maintenance_pkg
     sys.modules["odoo.addons.base.maintenance.migrations"] = odoo.upgrade
 
+    # The addons path may have just gained (or changed) entries, so drop any
+    # memoized manifests: a previously-negative lookup must not mask a module
+    # that is now reachable, and an edited manifest on disk must be re-read.
+    Manifest.clear_caches()
+
     # hook for upgrades and namespace freeze
     # Reviewed 2026-03: function attribute guard is a valid Python pattern —
     # compact, scoped to the function, and called once during single-threaded startup.
@@ -229,6 +234,17 @@ def initialize_sys_path() -> None:
 @typing.final
 class Manifest(Mapping[str, typing.Any]):
     """The manifest data of a module."""
+
+    # Keys whose values are computed from class attributes/properties rather
+    # than stored in the parsed manifest dict.  Kept in one place so __getitem__
+    # and __iter__ cannot drift out of sync.
+    _COMPUTED_KEYS = (
+        "description",
+        "icon",
+        "addons_path",
+        "version",
+        "static_path",
+    )
 
     def __init__(self, *, path: str, manifest_content: dict):
         assert Path(path).is_absolute(), "path of module must be absolute"
@@ -282,13 +298,7 @@ class Manifest(Mapping[str, typing.Any]):
         return None
 
     def __getitem__(self, key: str) -> typing.Any:
-        if key in (
-            "description",
-            "icon",
-            "addons_path",
-            "version",
-            "static_path",
-        ):
+        if key in self._COMPUTED_KEYS:
             return getattr(self, key)
         val = self.__manifest_cached[key]
         # Immutable types need no defensive copy
@@ -318,13 +328,7 @@ class Manifest(Mapping[str, typing.Any]):
     def __iter__(self) -> typing.Iterator[str]:
         manifest = self.__manifest_cached
         yield from manifest
-        for key in (
-            "description",
-            "icon",
-            "addons_path",
-            "version",
-            "static_path",
-        ):
+        for key in self._COMPUTED_KEYS:
             if key not in manifest:
                 yield key
 
@@ -346,7 +350,7 @@ class Manifest(Mapping[str, typing.Any]):
             try:
                 tools.find_in_path(binary)
             except OSError as e:
-                msg = "Unable to find {dependency!r} in path"
+                msg = f"Unable to find {binary!r} in path"
                 raise MissingDependencyError(msg, binary) from e
 
     def __bool__(self) -> bool:
@@ -359,15 +363,36 @@ class Manifest(Mapping[str, typing.Any]):
     def __repr__(self) -> str:
         return f"Manifest({self.name})"
 
-    # limit cache size because this may get called from any module with any input
+    # Cache only *found* manifests, keyed by module name.  Misses are NOT
+    # cached: a name that currently resolves to None must be re-scanned on the
+    # next lookup, otherwise a module appearing later on the addons path (or a
+    # manifest edited on disk) would stay masked by a stale negative result --
+    # while all_addon_manifests(), which rescans, would already see it.  The
+    # cache is dropped by clear_caches() whenever the addons path is
+    # (re)configured (see initialize_sys_path()).  Memory is bounded by the
+    # number of real modules on disk: misses never grow it, and callers
+    # validate the name with MODULE_NAME_RE before reaching here.
+    _manifest_cache: dict[str, Manifest] = {}
+
     @staticmethod
-    @functools.lru_cache(10_000)
     def _get_manifest_from_addons(module: str) -> Manifest | None:
         """Get the module's manifest from a name. Searching only in addons paths."""
+        if (cached := Manifest._manifest_cache.get(module)) is not None:
+            return cached
         for adp in odoo.addons.__path__:
             if manifest := Manifest._from_path(str(Path(adp, module))):
+                Manifest._manifest_cache[module] = manifest
                 return manifest
         return None
+
+    @staticmethod
+    def clear_caches() -> None:
+        """Drop memoized manifests.
+
+        Call this when the addons path changes or modules are added/updated on
+        disk so that :meth:`for_addon` reflects the new state.
+        """
+        Manifest._manifest_cache.clear()
 
     @staticmethod
     def for_addon(module_name: str, *, display_warning: bool = True) -> Manifest | None:
@@ -386,11 +411,11 @@ class Manifest(Mapping[str, typing.Any]):
         return None
 
     @staticmethod
-    def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
+    def _from_path(path: str) -> Manifest | None:
         """Given a path, read the manifest file."""
         for manifest_name in MANIFEST_NAMES:
             try:
-                with tools.file_open(str(Path(path, manifest_name)), env=env) as f:
+                with tools.file_open(str(Path(path, manifest_name))) as f:
                     manifest_content = ast.literal_eval(f.read())
             except OSError:
                 pass
@@ -484,15 +509,9 @@ def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
 def get_module_icon(module: str) -> str:
     """Get the path to the module's icon. Invalid module names are accepted."""
     manifest = Manifest.for_addon(module, display_warning=False)
-    # Reviewed 2026-03: __dict__ check is the documented way to test whether a
-    # cached_property has been evaluated (cached_property stores in __dict__).
-    if manifest and "icon" in manifest.__dict__:
-        # we have a value in the cached property
-        return manifest.icon
     fpath = ""
     if manifest:
-        fpath = manifest.raw_value("icon") or ""
-        fpath = fpath.lstrip("/")
+        fpath = (manifest.raw_value("icon") or "").lstrip("/")
     if not fpath:
         fpath = f"{module}/static/description/icon.png"
     try:
@@ -675,21 +694,21 @@ def get_modules() -> list[str]:
 
 def adapt_version(version: str) -> str:
     """Reformat the version of the module into a canonical format."""
-    version_str_parts = version.split(".")
-    if not (2 <= len(version_str_parts) <= 5):
+    parts = version.split(".")
+    if not (2 <= len(parts) <= 5):
         raise ValueError(
             f"Invalid version {version!r}, must have between 2 and 5 parts"
         )
-    serie = release.major_version
-    if version.startswith(serie) and not version_str_parts[0].isdigit():
-        # keep only digits for parsing
-        version_str_parts[0] = "".join(c for c in version_str_parts[0] if c.isdigit())
+    # Validate that every part is an integer (release.major_version is always
+    # numeric "<major>.0", so a part that fails here is genuinely malformed).
     try:
-        version_parts = [int(v) for v in version_str_parts]
+        for part in parts:
+            int(part)
     except ValueError as e:
         raise ValueError(f"Invalid version {version!r}") from e
-    if len(version_parts) <= 3 and not version.startswith(serie):
-        # prefix the version with serie
+    serie = release.major_version
+    if len(parts) <= 3 and not version.startswith(serie):
+        # prefix the bare module version with the server serie
         return f"{serie}.{version}"
     return version
 
@@ -709,9 +728,9 @@ def check_version(version: str, should_raise: bool = True) -> bool:
 
 
 class MissingDependencyError(Exception):
-    def __init__(self, msg_template: str, dependency: str) -> None:
+    def __init__(self, message: str, dependency: str) -> None:
         self.dependency = dependency
-        super().__init__(msg_template.format(dependency=dependency))
+        super().__init__(message)
 
 
 def check_python_external_dependency(pydep: str) -> None:
@@ -730,19 +749,22 @@ def check_python_external_dependency(pydep: str) -> None:
         version = importlib.metadata.version(requirement.name)
     except importlib.metadata.PackageNotFoundError as e:
         try:
-            # keep compatibility with module name but log a warning instead of info
-            importlib.import_module(pydep)
+            # Fall back to treating the requirement as an importable module name
+            # (legacy manifests sometimes list e.g. "PIL" instead of the PyPI
+            # distribution "Pillow").  Import the *name*, not the raw spec string
+            # -- importlib.import_module("PIL>=1.0") would always fail.
+            importlib.import_module(requirement.name)
             _logger.warning(
                 "python external dependency on '%s' does not appear to be a valid PyPI package. Using a PyPI package name is recommended.",
-                pydep,
+                requirement.name,
             )
             return
         except ImportError:
             pass
-        msg = f"External dependency {{dependency!r}} not installed: {e}"
+        msg = f"External dependency {pydep!r} not installed: {e}"
         raise MissingDependencyError(msg, pydep) from e
     if requirement.specifier and not requirement.specifier.contains(version):
-        msg = f"External dependency version mismatch: {{dependency}} (installed: {version})"
+        msg = f"External dependency version mismatch: {pydep} (installed: {version})"
         raise MissingDependencyError(msg, pydep)
 
 
