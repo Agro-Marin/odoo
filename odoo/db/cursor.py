@@ -1,13 +1,10 @@
-import itertools
 import logging
 import os
 import threading
 import warnings
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager, suppress
-from contextlib import nullcontext as _nullcontext
-from datetime import datetime, timedelta
-from decimal import Decimal as _Decimal
+from datetime import datetime
 from inspect import currentframe
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Self
@@ -17,11 +14,16 @@ from psycopg import IsolationLevel
 from psycopg import sql as _sql
 
 from odoo import tools
-from odoo.libs.func import frame_codeinfo, reset_cached_properties
+from odoo.libs.func import frame_codeinfo
 from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time
 
-from .ddl import _DDL_PREFIXES, _RE_DDL, _find_value_markers, _inline_ddl_params
+from .bulk import _BulkAccessMixin
+from .ddl import _SCHEMA_CHANGING_DDL, _ddl_keyword, _inline_ddl_params
+from .errors import _log_sql_error
+from .metrics import _MetricsMixin
+from .savepoint import Savepoint, _FlushingSavepoint
+from .schema_cache import schema_cache
 from .utils import categorize_query
 
 # Rust-accelerated rows→dicts conversion (~2.5x faster than pure Python).
@@ -43,206 +45,18 @@ else:
 
 _logger = logging.getLogger(__name__)
 
-# Global SQL query counter (used for debugging/profiling).
-# Intentionally a bare int — not atomic.  Under --workers=0 (threaded),
-# concurrent += can lose counts.  This is acceptable: the counter is
-# approximate by design and adding a lock would slow every query for
-# debug-only data.  In forked mode each worker has its own copy.
-sql_counter: int = 0
-
-# Cache: (dbname, table) → sequence name for the id column.
-# Populated lazily by Cursor.copy_from() when returning_ids=True.
-# NB: keys MUST include the database name — one process serves several
-# databases whose same-named tables may have diverging schemas (staggered
-# module versions), and a stale cross-DB entry poisons every subsequent
-# bulk create() on that table until restart.
-_id_sequence_cache: dict[tuple[str, str], str] = {}
-
-# Monotonic counter for savepoint names (thread-safe via CPython's GIL).
-_savepoint_counter = itertools.count()
-
-# Cache: (dbname, table, columns) → list of PostgreSQL type names.
-# Used by binary COPY to provide exact types via set_types().
-# Same dbname-keying requirement as _id_sequence_cache above.
-_column_type_cache: dict[tuple[str, str, tuple[str, ...]], list[str]] = {}
-
 
 def _clear_schema_caches(dbname: str | None = None) -> None:
     """Drop cached schema lookups (column types, id sequences).
 
+    Thin delegating wrapper kept as :mod:`odoo.db`'s documented cache-
+    invalidation hook (imported by ``odoo/db/__init__.py`` and called from
+    ``close_db`` / ``drain_*``).  The state and the race-free clear logic now
+    live in :class:`~odoo.db.schema_cache.SchemaCache`.
+
     :param dbname: only drop entries for this database; ``None`` drops all.
     """
-    for cache in (_column_type_cache, _id_sequence_cache):
-        if dbname is None:
-            cache.clear()
-        else:
-            # pop(), not del: two threads draining the same database (registry
-            # signalling + a concurrent drop) snapshot the same keys, and the
-            # loser of the race would KeyError on an already-removed key.
-            # list(cache) snapshots the keys BEFORE filtering: iterating the
-            # live dict while another thread (copy_from populating the cache)
-            # inserts raises "dictionary changed size during iteration".
-            for key in [k for k in list(cache) if k[0] == dbname]:
-                cache.pop(key, None)
-
-
-# Recoverable transaction errors: the request/retry machinery (http._serve's
-# read-only retry, the ORM's optimistic-concurrency retry loop) catches these
-# and retries, so they are an EXPECTED part of normal operation under
-# contention.  Logging them at ERROR ("bad query") floods the log with false
-# faults on every retry.  Demote to WARNING — observable, but not masquerading
-# as a defect.  Anything genuinely fatal still hits the ERROR branch.
-_RECOVERABLE_SQL_ERRORS: tuple[type[BaseException], ...] = (
-    psycopg.errors.ReadOnlySqlTransaction,  # 25006 — caller retries r/w
-    psycopg.errors.SerializationFailure,  # 40001 — MVCC, caller retries
-    psycopg.errors.DeadlockDetected,  # 40P01 — caller retries
-    psycopg.errors.LockNotAvailable,  # 55P03 — NOWAIT/timeout, caller handles
-)
-
-
-def _log_sql_error(exc: Exception, query: Any) -> None:
-    """Log a failed SQL statement at a level that matches its recoverability.
-
-    Recoverable errors (read-only retry, MVCC serialization, deadlock,
-    lock-not-available) are expected under contention and retried by the
-    caller, so they log at WARNING — observable without masquerading as a
-    fault.  Everything else is a genuine defect and logs at ERROR.
-
-    Shared by :meth:`Cursor.execute` and :meth:`Cursor.executemany`, whose
-    error handling was previously byte-for-byte identical.
-
-    :param exc: the exception raised by the psycopg call.
-    :param query: the executed query string (for the log message).
-    """
-    if isinstance(exc, _RECOVERABLE_SQL_ERRORS):
-        _logger.warning(
-            "recoverable SQL error (caller may retry): %s: %s",
-            type(exc).__name__,
-            query,
-        )
-    else:
-        _logger.error("bad query: %s\nERROR: %s", query, exc)
-
-
-class Savepoint:
-    """Reifies an active breakpoint, allows :meth:`BaseCursor.savepoint` users
-    to internally rollback the savepoint (as many times as they want) without
-    having to implement their own savepointing, or triggering exceptions.
-
-    Should normally be created using :meth:`BaseCursor.savepoint` rather than
-    directly.
-
-    The savepoint will be rolled back on unsuccessful context exits
-    (exceptions). It will be released ("committed") on successful context exit.
-    The savepoint object can be wrapped in ``contextlib.closing`` to
-    unconditionally roll it back.
-
-    The savepoint can also safely be explicitly closed during context body. This
-    will rollback by default.
-
-    :param BaseCursor cr: the cursor to execute the `SAVEPOINT` queries on
-    """
-
-    __slots__ = ("_cr", "closed", "name")
-
-    def __init__(self, cr: _CursorProtocol):
-        self.name = f"sp{next(_savepoint_counter)}"
-        self._cr = cr
-        self.closed: bool = False
-        # NB: f-string SQL is safe here — name is always "sp{int}" from our
-        # own counter, never user input.  psycopg.sql.Identifier would add
-        # overhead (quote + adapt) for zero security benefit.
-        cr.execute(f'SAVEPOINT "{self.name}"')
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: object,
-    ) -> None:
-        self.close(rollback=exc_type is not None)
-
-    def close(self, *, rollback: bool = True) -> None:
-        if not self.closed:
-            self._close(rollback)
-
-    def rollback(self) -> None:
-        self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
-
-    def _close(self, rollback: bool) -> None:
-        if rollback:
-            self.rollback()
-        self._cr.execute(f'RELEASE SAVEPOINT "{self.name}"')
-        self.closed = True
-
-
-class _FlushingSavepoint(Savepoint):
-    """Savepoint that flushes and saves ORM state for correct rollback.
-
-    On creation, flushes pending writes and snapshots the transaction's
-    ``default_env`` and ``registry_sequence``.  On rollback, restores both
-    so the ORM view of the world matches the database state after
-    ``ROLLBACK TO SAVEPOINT``.
-    """
-
-    __slots__ = ("_saved_default_env", "_saved_registry_seq")
-
-    def __init__(self, cr: BaseCursor) -> None:
-        cr.flush()
-        # Save ORM state that must survive rollback.
-        # Cache/compute state is ephemeral — clear() handles it.
-        # default_env and registry_sequence are the only durable state.
-        txn = cr.transaction
-        self._saved_default_env = txn.default_env if txn else None
-        self._saved_registry_seq = txn.registry.registry_sequence if txn else -1
-        # Increment depth only after the SAVEPOINT SQL succeeds — otherwise
-        # a failing connection leaves the counter +1 with nothing to roll
-        # back, wedging every subsequent commit/rollback on the `assert
-        # savepoint_depth == 0` check.
-        super().__init__(cr)
-        if txn is not None:
-            txn.savepoint_depth += 1
-
-    def rollback(self) -> None:
-        cr = self._cr
-        assert isinstance(cr, BaseCursor)
-        super().rollback()  # SQL ROLLBACK TO SAVEPOINT first
-        txn = cr.transaction
-        if txn is None:
-            return
-        # Restore default_env to pre-savepoint value
-        txn.default_env = self._saved_default_env
-        # If registry was reloaded inside the savepoint, full reset
-        if txn.registry.registry_sequence != self._saved_registry_seq:
-            txn.reset()
-        else:
-            txn.clear()
-            for env in txn.envs:
-                reset_cached_properties(env)
-
-    def _close(self, rollback: bool) -> None:
-        cr = self._cr
-        assert isinstance(cr, BaseCursor)
-        try:
-            try:
-                if not rollback:
-                    cr.flush()
-            except Exception:
-                rollback = True
-                raise
-            finally:
-                super()._close(rollback)
-        finally:
-            # Balance __init__'s +=1 unconditionally.  If this decrement
-            # is skipped after a RELEASE/ROLLBACK TO SAVEPOINT failure,
-            # savepoint_depth stays +1 and every subsequent commit or
-            # rollback asserts on ``savepoint_depth == 0``, wedging the
-            # cursor for its remaining lifetime.
-            if cr.transaction is not None:
-                cr.transaction.savepoint_depth -= 1
+    schema_cache.clear(dbname)
 
 
 # _CursorProtocol declares the available methods and type information,
@@ -251,10 +65,29 @@ class BaseCursor(_CursorProtocol):
     """Base class for cursors that manage pre/post commit hooks."""
 
     BATCH_SIZE = 1000  # max array size per = ANY() query — keeps planner efficient
+    _MAX_FLUSH_PASSES = 10  # flush()↔precommit ping-pong budget before giving up
+
+    # Class used by ``savepoint(flush=True)``.  Defaults to the db-layer
+    # :class:`_FlushingSavepoint` (flush + savepoint-depth only); the ORM layer
+    # overrides it with its cache/env-restoring subclass on import
+    # (``odoo.orm.runtime.savepoint``), keeping the db→ORM dependency
+    # one-directional.  Safe before the ORM loads: without the ORM no
+    # transaction is ever attached, so the base class's no-op restore is exactly
+    # correct.
+    _flushing_savepoint_cls: type[Savepoint] = _FlushingSavepoint
 
     transaction: Transaction | None
     cache: dict[Any, Any]
     dbname: str
+    # Number of SAVEPOINTs currently open on THIS cursor.  Maintained by
+    # ``Savepoint`` (every variant, flushing or not) and read by
+    # ``Cursor.commit``/``rollback`` to forbid committing/rolling back the whole
+    # transaction while a savepoint is live.  The SINGLE source of truth for the
+    # guard — it lives on the cursor (not the ORM ``transaction``) so it protects
+    # bare ``db_connect`` cursors (migrations, CLI, ``odoo.service.db``) and
+    # ``savepoint(flush=False)`` too, cases an ORM-transaction-scoped counter
+    # would miss.
+    _savepoint_depth: int
 
     def __init__(self) -> None:
         self.precommit = Callbacks()
@@ -262,30 +95,52 @@ class BaseCursor(_CursorProtocol):
         self.prerollback = Callbacks()
         self.postrollback = Callbacks()
         self._now: datetime | None = None
+        self._savepoint_depth = 0
         self.cache = {}
         # By default a cursor has no transaction object.  A transaction object
-        # for managing environments is instantiated by registry.cursor().  It
-        # is not done here in order to avoid cyclic module dependencies.
+        # for managing environments is attached lazily on first Environment
+        # construction (``Environment.__new__`` sets ``cr.transaction =
+        # Transaction(...)`` when it is still None) — NOT by ``registry.cursor()``,
+        # which only returns ``self._db.cursor()``.  It is not done here in order
+        # to avoid cyclic module dependencies.
         self.transaction = None
 
     def flush(self) -> None:
-        """Flush the current transaction, and run precommit hooks."""
-        # In case some pre-commit added another pre-commit or triggered changes
-        # in the ORM, we must flush and run it again.
-        for _ in range(10):  # limit number of iterations
+        """Flush the current transaction, and run precommit hooks.
+
+        Convergence contract: a precommit hook signals follow-up work by
+        dirtying the ORM — which the *next* pass's ``transaction.flush()``
+        re-queues — NOT by synchronously re-adding itself to ``self.precommit``.
+        ``_MAX_FLUSH_PASSES`` bounds only this cross-pass ping-pong.  A hook that
+        re-adds itself is drained inside a single ``Callbacks.run()`` below and
+        never reaches the budget, so an *unconditional* self-re-add loops forever
+        in ``run()`` instead of raising the non-convergence error.
+        """
+        # A precommit hook may add another precommit hook or dirty the ORM
+        # again, so flush + drain repeats until a pass produces no new work.
+        # Bound the passes so a hook that keeps re-triggering changes cannot
+        # loop forever.
+        for _ in range(self._MAX_FLUSH_PASSES):
             if self.transaction is not None:
                 self.transaction.flush()
             if not self.precommit:
-                break
+                return
             self.precommit.run()
-        else:
+        # One final flush after the last drain.  The loop's convergence check
+        # runs *before* each ``run()``, so without this trailing flush the last
+        # ``run()``'s effect is never re-examined and a chain that settles on
+        # the final pass would raise spuriously (the effective budget would be
+        # ``_MAX_FLUSH_PASSES - 1``, not ``_MAX_FLUSH_PASSES``).
+        if self.transaction is not None:
+            self.transaction.flush()
+        if self.precommit:
             # Raise, don't warn: callers (commit()) would otherwise COMMIT
             # and clear() the still-pending precommit hooks — silently
             # dropping whatever work they were supposed to do.
             raise RuntimeError(
-                "flush() did not converge after 10 iterations: precommit "
-                "hooks keep triggering new ORM changes; committing now "
-                "would silently drop pending hooks."
+                f"flush() did not converge after {self._MAX_FLUSH_PASSES} "
+                f"iterations: precommit hooks keep triggering new ORM changes; "
+                f"committing now would silently drop pending hooks."
             )
 
     def clear(self) -> None:
@@ -322,12 +177,13 @@ class BaseCursor(_CursorProtocol):
         """context manager entering in a new savepoint
 
         With ``flush`` (the default), will automatically run (or clear) the
-        relevant hooks.
+        relevant hooks.  The flushing variant is resolved via
+        ``_flushing_savepoint_cls`` so the ORM layer can inject its
+        cache/env-restoring subclass without the db layer importing it.
         """
         if flush:
-            return _FlushingSavepoint(self)
-        else:
-            return Savepoint(self)
+            return self._flushing_savepoint_cls(self)
+        return Savepoint(self)
 
     def __enter__(self) -> Self:
         """Using the cursor as a contextmanager automatically commits and
@@ -401,7 +257,7 @@ class BaseCursor(_CursorProtocol):
         return self._now
 
 
-class Cursor(BaseCursor):
+class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     """Represents an open transaction to the PostgreSQL DB backend,
     acting as a lightweight wrapper around psycopg's
     ``Cursor`` objects (native server-side binding).
@@ -459,7 +315,13 @@ class Cursor(BaseCursor):
     # (`self._closed` lookup re-entering __getattr__) on such instances.
     _closed: bool = True
 
-    def __init__(self, pool: ConnectionPool, dbname: str, dsn: dict):
+    def __init__(
+        self,
+        pool: ConnectionPool,
+        dbname: str,
+        dsn: dict,
+        key: frozenset | None = None,
+    ):
         super().__init__()
         self.sql_from_log = {}
         self.sql_into_log = {}
@@ -480,7 +342,7 @@ class Cursor(BaseCursor):
         # This avoids calling threading.current_thread() on every execute().
         self._thread = threading.current_thread()
 
-        self._cnx: psycopg.Connection = pool.borrow(dsn)
+        self._cnx: psycopg.Connection = pool.borrow(dsn, key=key)
         try:
             self._obj: psycopg.Cursor = self._cnx.cursor()
             if _logger.isEnabledFor(logging.DEBUG):
@@ -495,24 +357,40 @@ class Cursor(BaseCursor):
             # and flip read_only.  Reading it off _cnx post-close returns
             # stale or foreign state.
             self._readonly = bool(pool.readonly)
+
+            # FAKETIME test mode: pin search_path so it survives a later
+            # rollback.  Kept inside this try — and BEFORE the cursor is marked
+            # open — so a failure here is unwound by the except below (close
+            # _obj + give_back the connection) rather than leaking to __del__,
+            # which would emit a spurious "Cursor not closed explicitly"
+            # warning and defer the connection's return to GC.
+            if (
+                os.getenv("ODOO_FAKETIME_TEST_MODE")
+                and self.dbname in tools.config["db_name"]
+            ):
+                self.execute("SET search_path = public, pg_catalog;")
+                self.commit()  # persist search_path across later rollbacks
+
             self._closed = False  # only after all setup succeeds
         except Exception:
             # If _obj was created before the setter failed, close it before
             # returning the connection — psycopg_pool's reset() only rolls
             # back the transaction, it does not close open cursors.
-            obj = getattr(self, "_obj", None)
+            #
+            # Read _obj straight from __dict__, NOT via getattr(): when
+            # ``self._cnx.cursor()`` itself raises, _obj was never assigned, and
+            # ``getattr(self, "_obj", None)`` would route through the overridden
+            # __getattr__ — which sees ``_closed`` still True and raises
+            # ``InterfaceError("Cursor already closed")``.  That replacement
+            # exception would propagate out of this handler, masking the real
+            # error AND skipping the give_back() below — leaking the connection
+            # and its _pool_sem permit for the life of the process.
+            obj = self.__dict__.get("_obj")
             if obj is not None:
                 with suppress(Exception):
                     obj.close()
             pool.give_back(self._cnx)
             raise
-
-        if (
-            os.getenv("ODOO_FAKETIME_TEST_MODE")
-            and self.dbname in tools.config["db_name"]
-        ):
-            self.execute("SET search_path = public, pg_catalog;")
-            self.commit()  # ensure that the search_path remains after a rollback
 
     def fetchscalar(self) -> Any:
         row = self._obj.fetchone()
@@ -538,23 +416,41 @@ class Cursor(BaseCursor):
         """Extract column names from the last query's description as a tuple."""
         return tuple(col.name for col in self._obj.description)
 
-    def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
-        rows = self._obj.fetchmany(size)
-        if not rows:
-            return []
+    def _rows_to_dict_list(
+        self, rows: list[tuple[Any, ...]]
+    ) -> list[dict[str, Any]]:
+        """Zip *rows* against the last query's column names into dicts.
+
+        Single source for the rows→dicts conversion shared by
+        :meth:`dictfetchmany` and :meth:`dictfetchall`: the Rust fast path
+        (``_rows_to_dicts``) and its pure-Python fallback live here only, so a
+        future change to either touches one place.  Callers must short-circuit
+        empty ``rows`` themselves — an empty fetch may carry no description to
+        read column names from.
+        """
         if _rows_to_dicts is not None:
             return _rows_to_dicts(self._col_names(), rows)
         cols = self._col_names()
         return [dict(zip(cols, row, strict=True)) for row in rows]
 
+    def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
+        # Match BaseCursor.dictfetchmany's ``while size > 0`` contract: a
+        # negative size yields no rows.  Without this guard psycopg's
+        # fetchmany(-1) raises InterfaceError("rows must be included between
+        # 0 and N"), so the base class and its production override disagreed
+        # on the exact same invalid input (the base returned []).
+        if size <= 0:
+            return []
+        rows = self._obj.fetchmany(size)
+        if not rows:
+            return []
+        return self._rows_to_dict_list(rows)
+
     def dictfetchall(self) -> list[dict[str, Any]]:
         rows = self._obj.fetchall()
         if not rows:
             return []
-        if _rows_to_dicts is not None:
-            return _rows_to_dicts(self._col_names(), rows)
-        cols = self._col_names()
-        return [dict(zip(cols, row, strict=True)) for row in rows]
+        return self._rows_to_dict_list(rows)
 
     # -- Explicit forwarding for commonly-used psycopg Cursor methods -------
     # These were previously resolved via __getattr__ on every call.
@@ -589,6 +485,16 @@ class Cursor(BaseCursor):
         *,
         writer: Any = None,
     ) -> Any:  # psycopg.Copy — not imported to keep the module surface small
+        """Raw passthrough to psycopg's ``cursor.copy()`` COPY context manager.
+
+        Low-level escape hatch: unlike :meth:`copy_from`, this records **no**
+        metrics (``sql_counter`` / ``query_count`` / profiler hooks) and does
+        **no** error demotion (``_log_sql_error``) — the actual row writes happen
+        in the caller's ``with`` block, outside any timing this cursor could wrap.
+        Prefer :meth:`copy_from` for bulk inserts (binary mode, pre-generated
+        ids, recoverable-error handling, metrics); reach for this only when you
+        need direct control over the psycopg ``Copy`` object.
+        """
         return self._obj.copy(statement, params, writer=writer)
 
     def __del__(self) -> None:
@@ -605,72 +511,6 @@ class Cursor(BaseCursor):
                 msg += "Please enable sql debugging to trace the caller."
             _logger.warning(msg)
             self._close()
-
-    def _format(self, query: Any, params: Any = None) -> str:
-        """Format a query for debug logging (approximate, not for execution)."""
-        if isinstance(query, SQL):
-            query, params = query.code, query.params
-        if params is None:
-            return str(query)
-        try:
-            if isinstance(params, dict):
-                return str(query) % {k: repr(v) for k, v in params.items()}
-            return str(query) % tuple(repr(v) for v in params)
-        except Exception:
-            return f"{query} [{params!r}]"
-
-    def _record_metrics(
-        self,
-        delay: float,
-        count: int = 1,
-        *,
-        query: Any = None,
-        params: Any = None,
-        start: float = 0.0,
-    ) -> None:
-        """Update query counters, thread-local metrics, and run query hooks.
-
-        Centralises all post-execution bookkeeping so that execute(),
-        executemany() and copy_from() share one code path.
-
-        :param query: The executed query (passed to hooks, may be None)
-        :param params: The query parameters (passed to hooks, may be None)
-        :param start: Monotonic timestamp before execution (passed to hooks)
-        """
-        global sql_counter  # noqa: PLW0603 — intentionally process-global
-        self.sql_log_count += count
-        sql_counter += count
-        # NB: hasattr() calls below look like optimization candidates (try/except
-        # is faster on the happy path) but the difference is ~50ns/call — irrelevant
-        # vs. the ~1-5ms average query time.  Keep the explicit style for clarity.
-        t = self._thread
-        if hasattr(t, "query_count"):
-            t.query_count += count
-        if hasattr(t, "query_time"):
-            t.query_time += delay
-        for hook in getattr(t, "query_hooks", ()):
-            hook(self, query, params, start, delay)
-
-    def _record_sql_log(self, query_type: str, table: str | None, delay: float) -> None:
-        """Accumulate per-table from/into timing stats (DEBUG-only).
-
-        Shared by :meth:`execute` and :meth:`copy_from`, whose stats
-        bookkeeping was otherwise hand-inlined in two places.  Callers gate on
-        ``isEnabledFor(DEBUG)`` so the table extraction cost is only paid when
-        the stats will actually be printed.
-
-        :param query_type: ``'into'``, ``'from'`` or ``'other'``.
-        :param table: table name, or ``None`` for unclassified queries.
-        :param delay: query wall time in seconds.
-        """
-        if query_type == "into":
-            log_target = self.sql_into_log
-        elif query_type == "from":
-            log_target = self.sql_from_log
-        else:
-            return
-        stat_count, stat_time = log_target.get(table or "", (0, 0))
-        log_target[table or ""] = (stat_count + 1, stat_time + delay * 1e6)
 
     def execute(
         self,
@@ -704,20 +544,16 @@ class Cursor(BaseCursor):
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
-        # Detect DDL once up-front. The prefix check (2-char compare against
-        # a frozenset) avoids the regex on the 99% of queries that are
-        # SELECT/INSERT/UPDATE/DELETE.  The flag is consumed twice: before
-        # execute (DDL structural positions reject server-side parameters,
-        # so params must be inlined client-side) and after (CREATE/ALTER
-        # change schema, so psycopg3's auto-prepared statement cache must
-        # be invalidated).
+        # Detect DDL once up-front (see _ddl_keyword for the fast-path gate and
+        # the deep-indentation fallback).  The result drives two decisions:
+        # before execute, params must be inlined client-side for *every* DDL
+        # keyword (DDL structural positions reject server-side $N parameters);
+        # after, only *schema-changing* DDL (CREATE/ALTER/DROP/DO) invalidates
+        # the prepared-statement and schema caches — COMMENT/GRANT/REVOKE are
+        # DDL for param-inlining but never change a relation's shape.
         qs = query if isinstance(query, str) else str(query)
-        # Slice before lstrip: a bare ``qs.lstrip()`` copies the ENTIRE query
-        # to read 2 chars whenever it has leading whitespace (Odoo's triple-
-        # quoted SQL nearly always does).  64 chars is far more than any real
-        # leading-whitespace run, so the prefix gate is unchanged.
-        c = qs[:64].lstrip()[:2].upper()
-        is_ddl = c in _DDL_PREFIXES and _RE_DDL.match(qs) is not None
+        ddl_kw = _ddl_keyword(qs)  # uppercase keyword, or None when not DDL
+        is_ddl = ddl_kw is not None
 
         if params and is_ddl:
             # DDL rejects server-side $N parameters — inline them client-side
@@ -730,17 +566,28 @@ class Cursor(BaseCursor):
         # call never lands inside the measured query window.
         debug = _logger.isEnabledFor(logging.DEBUG)
         # start: wall-clock, forwarded to query hooks so SQL entries align with
-        # the profiler's wall-clock frame timeline.  t0: monotonic, used for the
-        # duration — ``real_time`` is ``time.time`` (wall-clock), so an NTP
-        # step-back mid-query would make ``delay`` negative and corrupt
-        # query_time / sql_*_log accumulators.
-        start = real_time()
+        # the profiler's wall-clock frame timeline.  Only the profiler installs
+        # query_hooks, so skip the clock read entirely when none are present —
+        # the dominant case on this hot path (mirrors the metrics_query gating in
+        # copy_from).  t0: monotonic, ALWAYS needed for the duration —
+        # ``real_time`` is ``time.time`` (wall-clock), so an NTP step-back
+        # mid-query would make ``delay`` negative and corrupt query_time /
+        # sql_*_log accumulators.
+        start = real_time() if getattr(self._thread, "query_hooks", None) else 0.0
         t0 = monotonic()
         try:
             self._obj.execute(query, params)
         except Exception as e:
             if log_exceptions:
                 _log_sql_error(e, query)
+            # This ``raise`` exits before the ``_record_metrics`` /
+            # ``_record_sql_log`` calls below, so a FAILED statement is
+            # deliberately not counted in ``sql_counter`` /
+            # ``thread.query_count`` / ``thread.query_time`` — those reflect
+            # successfully-executed statements only.  This keeps query-count
+            # assertions deterministic under the request/ORM retry loops: a
+            # retried serialization failure / deadlock would otherwise inflate
+            # the counters by a non-deterministic number of failed attempts.
             raise
         finally:
             delay = monotonic() - t0
@@ -751,101 +598,62 @@ class Cursor(BaseCursor):
                     self._format(query, params),
                 )
 
-        if is_ddl:
-            # psycopg3's PrepareManager natively handles DROP/ROLLBACK, but
-            # CREATE/ALTER also change schema — making cached plans for
-            # SELECT * queries stale ("cached plan must not change result type").
-            # Private API: psycopg 3.x has no public method to invalidate
-            # the auto-prepared statement cache.  _prepared.clear() queues a
-            # DEALLOCATE ALL on the next execute().  If a future psycopg
-            # removes the attribute, disable auto-prepare on this connection
-            # instead (covers the rest of its max_lifetime window).
-            try:
-                self._cnx._prepared.clear()
-            except AttributeError:
-                self._cnx.prepare_threshold = None
+        if ddl_kw in _SCHEMA_CHANGING_DDL:
+            # Only schema-changing DDL reaches here (CREATE/ALTER/DROP/DO);
+            # COMMENT/GRANT/REVOKE were inlined above but skip the invalidation,
+            # since they never change a relation's shape.
+            self._invalidate_caches_after_ddl()
 
         self._record_metrics(delay, query=query, params=params, start=start)
 
-        # advanced stats (see _record_sql_log; copy_from shares the same path)
+        # advanced stats (see _record_sql_log; copy_from shares the same path).
+        # Categorize on ``qs`` — the query's string form already built for DDL
+        # detection — rather than re-stringifying ``query`` (which may now be the
+        # param-inlined DDL text): same FROM/INTO table, one fewer str() per query.
         if debug:
-            query_type, table = categorize_query(str(query))
+            query_type, table = categorize_query(qs)
             self._record_sql_log(query_type, table, delay)
 
-    def execute_values(
-        self,
-        query: str | _sql.Composable,
-        argslist: list[Any],
-        template: str | None = None,
-        page_size: int = 100,
-        fetch: bool = False,
-    ) -> list[tuple[Any, ...]] | None:
-        """Execute a query with multiple parameter sets using VALUES clause.
+    def _invalidate_caches_after_ddl(self) -> None:
+        """Drop the caches a schema-changing DDL on this connection invalidates.
 
-        Builds a single query with multiple VALUES rows per batch, useful for
-        patterns like ``UPDATE ... FROM (VALUES %s) AS source(...)``.
+        Two independent caches go stale on CREATE/ALTER/DROP/DO, and neither
+        self-heals on the worker that ran the DDL:
 
-        For simple multi-row INSERTs, prefer :meth:`executemany` which
-        auto-pipelines for better performance.
+        1. **psycopg's auto-prepared-statement cache** on this connection.
+           psycopg3's PrepareManager natively handles DROP/ROLLBACK, but
+           CREATE/ALTER also change schema — making cached plans for ``SELECT *``
+           queries stale ("cached plan must not change result type").  Private
+           API: psycopg 3.x has no public method to invalidate it.
+           ``_prepared.clear()`` queues a ``DEALLOCATE ALL`` on the next
+           execute().  If a future psycopg removes the attribute, disable
+           auto-prepare on this connection instead (covers the rest of its
+           max_lifetime window).
+        2. **The process-global** ``schema_cache`` that ``copy_from`` populates:
+           ``ALTER COLUMN ... TYPE`` changes a cached column type, ``DROP``
+           removes a cached table/sequence.  These entries are cleared
+           cross-worker via registry signalling but never for the worker that
+           ran the DDL itself, so a binary ``copy_from`` issued between this DDL
+           and the next drain_*/close_db would feed psycopg's ``set_types()``
+           stale types and corrupt the COPY (reproduced: "'str' object cannot be
+           interpreted as an integer" after an int->text ALTER).  Dropping this
+           database's entries forces the next ``copy_from`` to re-look them up.
+
+        Cheap: DDL is rare outside installs/upgrades, and the schema_cache is
+        only ever populated by binary / returning_ids ``copy_from``.
         """
-        if isinstance(query, _sql.Composable):
-            query = query.as_string(self._obj)
-        # Reject non-positive page_size BEFORE touching argslist — page_size=0
-        # later crashes range() with a cryptic "arg 3 must not be zero", and
-        # page_size<0 produces an empty range() that silently drops every
-        # row the caller asked to insert (confirmed data-loss path).
-        if page_size <= 0:
-            raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
-        if not argslist:
-            return [] if fetch else None
-        # The query must have exactly one real `%s` marker — the position
-        # where the batched VALUES row-list gets expanded.  Any other `%s`
-        # would produce malformed SQL with a parameter-count mismatch at
-        # best.  Markers are located with an escape-aware scan: `%%`
-        # sequences (literal percent, e.g. LIKE 'a%%s') are NOT markers.
-        markers = _find_value_markers(query)
-        if len(markers) != 1:
-            raise ValueError(
-                f"execute_values requires exactly one '%s' marker in the "
-                f"query (for the VALUES list); got {len(markers)}."
-            )
-        marker_pos = markers[0]
-        results = []
-        batches = range(0, len(argslist), page_size)
-        # Pipeline multi-batch non-fetch executions for single round-trip
-        use_pipeline = len(argslist) > page_size and not fetch
-        ctx = self._cnx.pipeline() if use_pipeline else _nullcontext()
-        with ctx:
-            for i in batches:
-                batch = argslist[i : i + page_size]
-                placeholders = []
-                params = []
-                for row in batch:
-                    if template:
-                        placeholders.append(template)
-                    elif isinstance(row, (list, tuple)):
-                        placeholders.append("(" + ", ".join(["%s"] * len(row)) + ")")
-                    else:
-                        placeholders.append("(%s)")
-                    if isinstance(row, (list, tuple)):
-                        params.extend(row)
-                    else:
-                        params.append(row)
-                full_query = (
-                    f"{query[:marker_pos]}"
-                    f"{', '.join(placeholders)}"
-                    f"{query[marker_pos + 2 :]}"
-                )
-                self.execute(full_query, params)
-                if fetch:
-                    results.extend(self.fetchall())
-        return results if fetch else None
+        try:
+            self._cnx._prepared.clear()
+        except AttributeError:
+            self._cnx.prepare_threshold = None
+        schema_cache.clear(self.dbname)
 
     def executemany(
         self,
         query: str | SQL,
         params_seq: Iterable[tuple | list | dict],
         returning: bool = False,
+        log_exceptions: bool = True,
     ) -> None:
         """Execute a query with multiple parameter sets using pipeline mode.
 
@@ -857,6 +665,10 @@ class Cursor(BaseCursor):
         :param params_seq: Sequence of parameter tuples/lists
         :param returning: If True, collect RETURNING results per statement.
             Use ``fetchall()`` + ``nextset()`` loop to read all result sets.
+        :param log_exceptions: If False, suppress logging of failures (the
+            caller logs its own message).  Symmetric with :meth:`execute` —
+            without it a caller could quiet single-statement failures but not
+            their batched equivalent.
         """
         if isinstance(query, SQL):
             # executemany's params come from params_seq, not the SQL object.
@@ -879,12 +691,16 @@ class Cursor(BaseCursor):
         if not params_seq:
             return
 
-        start = real_time()  # wall-clock for hooks; t0 (monotonic) for duration
+        # ``start`` is consumed only by query_hooks (profiler); skip the
+        # wall-clock read when none are installed.  t0 (monotonic) is always
+        # needed for the duration.  See execute() for the NTP rationale.
+        start = real_time() if getattr(self._thread, "query_hooks", None) else 0.0
         t0 = monotonic()
         try:
             self._obj.executemany(query, params_seq, returning=returning)
         except Exception as e:
-            _log_sql_error(e, query)
+            if log_exceptions:
+                _log_sql_error(e, query)
             raise
         finally:
             delay = monotonic() - t0
@@ -911,285 +727,19 @@ class Cursor(BaseCursor):
                 cr.execute("INSERT INTO t1 ...")
                 cr.execute("INSERT INTO t2 ...")
                 # Both sent in one round-trip
+
+        .. note::
+            Per-query timing is unreliable inside a pipeline.  ``execute()``
+            returns as soon as a statement is *queued* — the server runs the
+            whole batch only when the context exits — so each query's recorded
+            ``delay`` (and the profiler ``query_hooks`` / ``sql_*_log`` entries
+            built from it) reflects enqueue time, ~0 ms, not execution time.
+            The batch's real cost lands at context exit, attributed to no single
+            query.  Counts (``sql_log_count``/``sql_counter``) stay accurate;
+            only the durations are skewed.
         """
         with self._cnx.pipeline():
             yield
-
-    def copy_from(
-        self,
-        table: str,
-        columns: list[str],
-        rows,
-        *,
-        returning_ids: bool = False,
-        binary: bool = False,
-        on_error: str | None = None,
-    ) -> list[int] | None:
-        """Bulk insert rows using PostgreSQL COPY protocol.
-
-        Streams rows via COPY FROM STDIN, bypassing SQL parsing and planning
-        overhead.  2-5x faster than multi-row INSERT for large batches.
-
-        All Python types (Json, datetime, None, etc.) are adapted automatically
-        by psycopg3's Transformer — the same adapter system used by execute().
-
-        :param table: Target table name
-        :param columns: List of column names
-        :param rows: Iterable of tuples/lists matching columns
-        :param returning_ids: If True, pre-generate IDs via the table's
-            serial sequence and return them.  ``'id'`` is prepended to
-            *columns* automatically.
-
-            .. warning::
-                When ``returning_ids=True``, *rows* is materialized into
-                a list to count it before calling ``nextval()``.  For
-                very large imports (millions of rows), this defeats
-                streaming and may exhaust memory.  For memory-bounded
-                imports that still need IDs, chunk the input externally
-                or use ``returning_ids=False`` plus batched
-                ``INSERT ... RETURNING id``.
-        :param binary: If True, use binary COPY format (faster but requires
-            exact type matching via ``set_types()``). Column types are looked
-            up from ``pg_attribute`` and cached per table.
-        :param on_error: Error handling for data type conversion errors
-            (PG17+, text/CSV mode only).  ``'ignore'`` skips malformed rows
-            instead of aborting the entire operation.  Useful for fault-
-            tolerant data imports.  Rejected with ``binary=True`` (the
-            option has no effect in binary mode) or ``returning_ids=True``
-            (the pre-allocated sequence IDs cannot be reconciled with
-            server-side row skipping — use batched INSERT … RETURNING).
-        :return: list of generated IDs when *returning_ids* is True, else None
-        """
-        if on_error is not None and on_error not in ("ignore", "stop"):
-            # Whitelist: on_error is interpolated into the COPY options
-            # clause below — never let an arbitrary string through.
-            raise ValueError(
-                f"copy_from: invalid on_error {on_error!r}; "
-                f"allowed values: 'ignore', 'stop'."
-            )
-        if on_error and binary:
-            raise ValueError(
-                "copy_from: on_error is not supported with binary=True; "
-                "binary COPY has no ON_ERROR clause."
-            )
-        if on_error == "ignore" and returning_ids:
-            raise ValueError(
-                "copy_from: on_error='ignore' is incompatible with "
-                "returning_ids=True — pre-allocated sequence IDs cannot be "
-                "reconciled with rows silently dropped by the server. "
-                "Use batched INSERT ... RETURNING id for fault-tolerant "
-                "inserts that need IDs."
-            )
-        if returning_ids:
-            rows = list(rows)
-            count = len(rows)
-            if count == 0:
-                return []
-            # Look up the sequence for the id column (cached).
-            # pg_get_serial_sequence only finds sequences *owned* by the
-            # column, but _inherits child tables share the parent's
-            # sequence.  We fall back to the pg_depend catalog which finds
-            # the sequence referenced by the column's DEFAULT expression.
-            seq_name = _id_sequence_cache.get((self.dbname, table))
-            if seq_name is None:
-                self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", table))
-                (seq_name,) = self.fetchone()
-                if seq_name is None:
-                    # Shared sequence (e.g. _inherits): find via pg_depend
-                    self.execute(
-                        SQL(
-                            """SELECT s.oid::regclass::text
-                        FROM pg_attrdef ad
-                        JOIN pg_class t ON t.oid = ad.adrelid
-                        JOIN pg_attribute a ON a.attrelid = t.oid
-                            AND a.attnum = ad.adnum
-                        JOIN pg_depend d ON d.objid = ad.oid
-                            AND d.classid = 'pg_attrdef'::regclass
-                            AND d.refclassid = 'pg_class'::regclass
-                        JOIN pg_class s ON s.oid = d.refobjid
-                            AND s.relkind = 'S'
-                        WHERE t.relname = %s AND a.attname = 'id'
-                        LIMIT 1""",
-                            table,
-                        )
-                    )
-                    row = self.fetchone()
-                    if not row or not row[0]:
-                        raise ValueError(f"No serial sequence found for {table}.id")
-                    seq_name = row[0]
-                _id_sequence_cache[self.dbname, table] = seq_name
-            # Pre-generate IDs from the sequence
-            self.execute(
-                SQL(
-                    "SELECT nextval(%s::regclass) FROM generate_series(1, %s)",
-                    seq_name,
-                    count,
-                )
-            )
-            ids = [row[0] for row in self.fetchall()]
-            columns = ["id", *columns]
-            # strict: nextval() generated exactly len(rows) ids — a mismatch
-            # is a logic error and must not silently truncate the batch.
-            rows = [((id_, *tuple(row))) for id_, row in zip(ids, rows, strict=True)]
-        else:
-            ids = None
-
-        cols_sql = _sql.SQL(", ").join(map(_sql.Identifier, columns))
-        # Build COPY options: FORMAT and ON_ERROR are independent.
-        # ON_ERROR ignore (PG17) skips rows with type conversion errors
-        # in text/CSV mode; it has no effect in binary mode.
-        copy_opts = []
-        if binary:
-            copy_opts.append("FORMAT BINARY")
-        if on_error and not binary:
-            copy_opts.append(f"ON_ERROR {on_error}")
-        if copy_opts:
-            opts_sql = _sql.SQL(" ({})".format(", ".join(copy_opts)))
-        else:
-            opts_sql = _sql.SQL("")
-        copy_stmt = _sql.SQL("COPY {} ({}) FROM STDIN{}").format(
-            _sql.Identifier(table),
-            cols_sql,
-            opts_sql,
-        )
-
-        # Look up column types BEFORE entering the COPY context.
-        # Inside `with self._obj.copy(...)`, the connection is in COPY
-        # mode and cannot execute other queries (would block forever).
-        col_types = self._get_column_types(table, columns) if binary else None
-
-        # psycopg3's NumericBinaryDumper rejects Python float for PG
-        # "numeric" columns — it requires Decimal.  Pre-compute which
-        # column indices need float→Decimal conversion (Monetary fields
-        # and Float-with-digits both map to "numeric").
-        if col_types:
-            _numeric_idxs = frozenset(
-                i for i, t in enumerate(col_types) if t == "numeric"
-            )
-        else:
-            _numeric_idxs = None
-
-        start = real_time()  # wall-clock for hooks; t0 (monotonic) for duration
-        t0 = monotonic()
-        row_count = 0
-        try:
-            with self._obj.copy(copy_stmt) as copy:
-                if col_types:
-                    copy.set_types(col_types)
-                for row in rows:
-                    if _numeric_idxs:
-                        # Convert ONLY the numeric columns: psycopg3's binary
-                        # NumericDumper rejects Python float for PG "numeric"
-                        # (it wants Decimal).  Rebuilding the whole tuple per
-                        # row — enumerate plus an ``i in frozenset`` test on
-                        # every column — is ~2x slower for wide tables (measured
-                        # ~0.8s per 1M rows on a 20-col row); mutate a list copy
-                        # at the known indices instead.  isinstance (not
-                        # ``type is float``) preserves the original semantics for
-                        # float subclasses.
-                        row = list(row)
-                        for i in _numeric_idxs:
-                            v = row[i]
-                            if isinstance(v, float):
-                                row[i] = _Decimal(str(v))
-                    copy.write_row(row)
-                    row_count += 1
-        except Exception as e:
-            _logger.error("bad COPY: %s\nERROR: %s", copy_stmt.as_string(self._obj), e)
-            raise
-        finally:
-            delay = monotonic() - t0
-            if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug(
-                    "[%.3f ms] COPY %s (%d rows)",
-                    1000 * delay,
-                    table,
-                    row_count,
-                )
-
-        # Render copy_stmt to text only when a profiler query hook will read it.
-        # copy_from is a hot path (imports, module installs); building the SQL
-        # string unconditionally wasted a full render on every bulk insert in
-        # the common no-hook case.  _record_metrics only forwards `query` to
-        # thread query_hooks, so None is harmless when none are installed.
-        metrics_query = (
-            copy_stmt.as_string(self._obj)
-            if getattr(self._thread, "query_hooks", None)
-            else None
-        )
-        self._record_metrics(delay, query=metrics_query, start=start)
-
-        if _logger.isEnabledFor(logging.DEBUG):
-            self._record_sql_log("into", table, delay)
-
-        return ids
-
-    def _get_column_types(self, table: str, columns: list[str]) -> list[str]:
-        """Look up PostgreSQL base type names for binary COPY.
-
-        Results are cached in ``_column_type_cache`` since schema doesn't
-        change during a session.
-        """
-        key = (self.dbname, table, tuple(columns))
-        types = _column_type_cache.get(key)
-        if types is None:
-            self.execute(
-                SQL(
-                    # Resolve the table via ::regclass so search_path is honored
-                    # (TEMP tables live in pg_temp_N, never current_schema).  This
-                    # matches the pg_get_serial_sequence(table, 'id') resolution
-                    # used for returning_ids — the two lookups must agree, or
-                    # binary COPY into a temp table raises "column not found".
-                    """SELECT a.attname, t.typname
-                    FROM pg_attribute a
-                    JOIN pg_type t ON a.atttypid = t.oid
-                    WHERE a.attrelid = %s::regclass
-                      AND a.attnum > 0 AND NOT a.attisdropped
-                      AND a.attname = ANY(%s)""",
-                    table,
-                    list(columns),
-                )
-            )
-            type_map = dict(self.fetchall())
-            missing = [col for col in columns if col not in type_map]
-            if missing:
-                raise ValueError(
-                    f"copy_from: column(s) {missing} not found in table "
-                    f"{table!r} (current_schema)"
-                )
-            types = [type_map[col] for col in columns]
-            _column_type_cache[key] = types
-        return types
-
-    def print_log(self) -> None:
-        if not _logger.isEnabledFor(logging.DEBUG):
-            return
-
-        def process(log_type: str) -> None:
-            sqllogs = {"from": self.sql_from_log, "into": self.sql_into_log}
-            sqllog = sqllogs[log_type]
-            total = 0.0
-            if sqllog:
-                _logger.debug("SQL LOG %s:", log_type)
-                for table, (stat_count, stat_time) in sorted(
-                    sqllog.items(), key=lambda k: k[1]
-                ):
-                    delay = timedelta(microseconds=stat_time)
-                    _logger.debug("table: %s: %s/%s", table, delay, stat_count)
-                    total += stat_time
-                sqllog.clear()
-            total_delay = timedelta(microseconds=total)
-            _logger.debug(
-                "SUM %s:%s/%d [%d]",
-                log_type,
-                total_delay,
-                self.sql_log_count,
-                sql_counter,
-            )
-
-        process("from")
-        process("into")
-        self.sql_log_count = 0
 
     def close(self) -> None:
         # Intentionally test self._closed, NOT self.closed.  The property
@@ -1200,9 +750,11 @@ class Cursor(BaseCursor):
             self._close()
 
     def _close(self) -> None:
-        if not self._obj:
-            return
-
+        # No ``if not self._obj`` guard here: a psycopg3 cursor has no
+        # __bool__/__len__ (it is always truthy), and _close() is only ever
+        # reached via close()/__del__, both gated on ``_closed`` — so _obj is
+        # always a live cursor on entry.  The old guard was dead (a psycopg2
+        # leftover where the attribute could be None).
         self.cache.clear()
 
         # advanced stats only at logging.DEBUG level
@@ -1245,8 +797,13 @@ class Cursor(BaseCursor):
     def commit(self) -> None:
         """Perform an SQL `COMMIT`"""
         # Explicit check (not assert): must survive ``python -O`` — a commit
-        # inside a savepoint corrupts the savepoint's rollback state.
-        if self.transaction is not None and self.transaction.savepoint_depth:
+        # inside a savepoint corrupts the savepoint's rollback state.  Guarded on
+        # the cursor-level depth (see ``_savepoint_depth``) so it fires for EVERY
+        # open savepoint, including bare (transaction-less) cursors and
+        # ``savepoint(flush=False)`` — cases an ORM-transaction-scoped counter
+        # would miss, letting the COMMIT destroy the savepoint and surface later
+        # as a confusing ``InvalidSavepointSpecification`` at savepoint close.
+        if self._savepoint_depth:
             raise RuntimeError(
                 "Cannot commit inside a savepoint! "
                 "This would corrupt the savepoint's rollback state."
@@ -1266,8 +823,10 @@ class Cursor(BaseCursor):
         so hooks can still read uncommitted transaction state (e.g. for cache
         invalidation decisions).  After ROLLBACK, that data is gone.
         """
-        # Explicit check (not assert): must survive ``python -O``.
-        if self.transaction is not None and self.transaction.savepoint_depth:
+        # Explicit check (not assert): must survive ``python -O``.  Cursor-level
+        # depth (see commit() and ``_savepoint_depth``) so the guard also covers
+        # bare cursors and ``savepoint(flush=False)``.
+        if self._savepoint_depth:
             raise RuntimeError(
                 "Cannot rollback inside a savepoint! "
                 "Use cr.savepoint() for nested transaction control."
@@ -1313,3 +872,23 @@ class Cursor(BaseCursor):
     @property
     def readonly(self) -> bool:
         return self._readonly
+
+
+if TYPE_CHECKING:
+    # Single-source-of-truth guard for the bulk-access coupling: assert that
+    # Cursor actually provides every member _BulkAccessMixin declares it needs
+    # (see _CursorInternals in bulk.py).  This is a pure static check — the
+    # function is never defined at runtime — so any drift between Cursor and
+    # that Protocol surfaces as a type error here instead of a latent
+    # AttributeError inside copy_from / execute_values.
+    from .bulk import _CursorInternals
+
+    def _assert_cursor_satisfies_bulk_host(_c: Cursor) -> _CursorInternals:
+        return _c
+
+    # Same guard for the metrics-mixin coupling: Cursor must provide every member
+    # _MetricsMixin's methods read off ``self`` (see _MetricsHost in metrics.py).
+    from .metrics import _MetricsHost
+
+    def _assert_cursor_satisfies_metrics_host(_c: Cursor) -> _MetricsHost:
+        return _c
