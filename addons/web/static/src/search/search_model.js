@@ -367,14 +367,21 @@ export class SearchModel extends EventBus {
     }
 
     get facets() {
-        const facets = [];
-        for (const facet of this._getFacets()) {
-            if (facet.type === "groupBy" && !this.searchMenuTypes.has(facet.type)) {
-                continue;
+        // Memoised like context/domain/groupBy/orderBy: _getFacets rebuilds every
+        // facet domain on each call and this is read on every render (and once
+        // per facet in clearFilters). Cleared in _reset(); no consumer mutates
+        // the returned array.
+        if (!this._facets) {
+            const facets = [];
+            for (const facet of this._getFacets()) {
+                if (facet.type === "groupBy" && !this.searchMenuTypes.has(facet.type)) {
+                    continue;
+                }
+                facets.push(facet);
             }
-            facets.push(facet);
+            this._facets = facets;
         }
-        return facets;
+        return this._facets;
     }
 
     /**
@@ -877,7 +884,15 @@ export class SearchModel extends EventBus {
      * @returns {Object[]}
      */
     _getGroups() {
-        return getQueryGroups(this.query, this.searchItems);
+        // Memoised within a query cycle: this is rebuilt up to 5x per _notify
+        // (_getContext/_getDomain/_getFacets/_getGroupBy/_getOrderBy) from the
+        // same query/searchItems state, and getQueryGroups is O(query x groups).
+        // Cleared in _reset() -- same lifetime as the other derived memos -- and
+        // every consumer treats the returned groups as read-only.
+        if (!this._groups) {
+            this._groups = getQueryGroups(this.query, this.searchItems);
+        }
+        return this._groups;
     }
 
     /**
@@ -1015,6 +1030,8 @@ export class SearchModel extends EventBus {
         this._domain = null;
         this._groupBy = null;
         this._orderBy = null;
+        this._groups = null;
+        this._facets = null;
     }
 
     /** Whether the query should wait for section data before proceeding. */

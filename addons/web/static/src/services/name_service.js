@@ -114,11 +114,22 @@ export const nameService = {
                                 records.map((rec) => [rec.id, rec.display_name]),
                             );
                             for (const resId of idsInBatch) {
-                                mapping[resId].resolve(
-                                    resId in displayNames
-                                        ? displayNames[resId]
-                                        : ERROR_INACCESSIBLE_OR_MISSING,
-                                );
+                                if (resId in displayNames) {
+                                    mapping[resId].resolve(displayNames[resId]);
+                                } else {
+                                    // Missing/inaccessible is NOT a durable
+                                    // result: resolve the pending callers but
+                                    // evict the entry so a later lookup re-fetches.
+                                    // The record may become readable after a
+                                    // company switch / ACL change that does not
+                                    // fire ACTION_MANAGER:UPDATE (e.g.
+                                    // recoverFromSaveError activates a company
+                                    // with reload:false); a cached sentinel would
+                                    // otherwise blank the name for the rest of the
+                                    // session.
+                                    mapping[resId].resolve(ERROR_INACCESSIBLE_OR_MISSING);
+                                    delete mapping[resId];
+                                }
                             }
                         })
                         .catch((error) => {

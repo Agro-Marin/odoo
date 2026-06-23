@@ -15,10 +15,10 @@ import { ModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { registerField } from "@web/fields/_registry";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
 import { formatDate, formatDateTime } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -698,8 +698,6 @@ export const dateRangeField = {
     },
 };
 
-registry
-    .category("fields")
-    .add("date", /** @type {any} */ (dateField))
-    .add("daterange", /** @type {any} */ (dateRangeField))
-    .add("datetime", /** @type {any} */ (dateTimeField));
+registerField("date", dateField);
+registerField("daterange", dateRangeField);
+registerField("datetime", dateTimeField);

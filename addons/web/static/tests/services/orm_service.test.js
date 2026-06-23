@@ -545,7 +545,7 @@ test("Cache: can cache and update a orm call", async () => {
     ]);
 });
 
-test("retry and dedup are rejected on mutating methods", async () => {
+test("retry, dedup and cache are rejected on mutating methods", async () => {
     const { services } = await makeMockEnv();
     const orm = services.orm;
     expect(() => orm.retry(1).write("res.partner", [3], { name: "x" })).toThrow(
@@ -557,8 +557,18 @@ test("retry and dedup are rejected on mutating methods", async () => {
     expect(() => orm.retry(1).call("res.partner", "web_resequence", [[3]])).toThrow(
         /mutating method "web_resequence"/,
     );
+    // Caching a write would serve a stale result for a later identical write.
+    expect(() => orm.cache({ type: "ram" }).write("res.partner", [3], { name: "x" })).toThrow(
+        /cannot be applied to mutating method "write"/,
+    );
+    expect(() => orm.cache().create("res.partner", [{ name: "x" }])).toThrow(
+        /mutating method "create"/,
+    );
     // Composing with other modifiers must not bypass the guard.
     expect(() => orm.silent.retry(1).webSave("res.partner", [3], {})).toThrow(
         /mutating method "web_save"/,
+    );
+    expect(() => orm.silent.cache({ type: "disk" }).webSaveMulti("res.partner", [3], [{}])).toThrow(
+        /mutating method "web_save_multi"/,
     );
 });
