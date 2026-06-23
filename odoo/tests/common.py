@@ -129,9 +129,9 @@ TEST_CURSOR_COOKIE_NAME = "test_request_key"
 
 IGNORED_MSGS = re.compile(
     r"""
-    (?: failed\ to\ fetch  # base error
-      | connectionlosterror:  # conversion by offlineFailToFetchErrorHandler
-    )
+    failed\ to\ fetch  # base error
+  | connectionlosterror:  # conversion by offlineFailToFetchErrorHandler
+  | assetsloadingerror:  # lazy loaded bundle
 """,
     flags=re.VERBOSE | re.IGNORECASE,
 ).search
@@ -1070,7 +1070,7 @@ class BaseCase(case.TestCase):
 
     def assertCanOpenTestCursor(self) -> None:
         """Assert that we can currently open a test cursor."""
-        if odoo.modules.module.current_test != self:
+        if odoo.modules.module.current_test is not self:
             message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {odoo.modules.module.current_test.canonical_tag}"
             _logger.runbot(message)
             raise BadRequest(message)
@@ -1660,15 +1660,26 @@ class ChromeBrowser:
             self.ws.close()
 
         self._logger.info("Terminating chrome headless with pid %s", self.chrome.pid)
-        self.chrome.terminate()
+        # terminating the main process doesn't reap its children; collect the
+        # whole tree first, then SIGKILL whatever survives. NoSuchProcess: stop()
+        # may run after Chrome already exited.
         try:
-            self.chrome.wait(5)
-        except subprocess.TimeoutExpired:
+            main = psutil.Process(self.chrome.pid)
+            procs = [main, *main.children(recursive=True)]
+        except psutil.NoSuchProcess:
+            procs = []
+        self.chrome.terminate()
+        _, alive = psutil.wait_procs(procs, 5)
+        if alive:
             self._logger.warning(
-                "Killing chrome headless with pid %s: still alive",
+                "Killing chrome descendants-or-self of %s: %d remaining%s",
                 self.chrome.pid,
+                len(alive),
+                "".join(f"\n- {p.name()} ({p.status()})" for p in alive),
             )
-            self.chrome.kill()
+            for p in alive:
+                p.kill()
+            psutil.wait_procs(alive, 1)
 
         self._logger.info('Removing chrome user profile "%s"', self.user_data_dir)
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
@@ -1690,7 +1701,14 @@ class ChromeBrowser:
         log_path = pathlib.Path(self.user_data_dir, "err.log")
         with log_path.open("wb") as log_file:
             # pylint: disable=subprocess-popen-preexec-fn
-            proc = subprocess.Popen(cmd, stderr=log_file, preexec_fn=_preexec)
+            # TMPDIR -> profile dir so Chrome's `org.chromium.*` scratch dirs get
+            # removed with the profile instead of littering the system temp dir.
+            proc = subprocess.Popen(
+                cmd,
+                stderr=log_file,
+                preexec_fn=_preexec,  # noqa: PLW1509
+                env={**os.environ, "TMPDIR": self.user_data_dir},
+            )
 
         port_file = pathlib.Path(self.user_data_dir, "DevToolsActivePort")
         for _ in range(CHECK_BROWSER_ITERATIONS):
@@ -1895,8 +1913,15 @@ class ChromeBrowser:
                 if not self._result.done():
                     del self.ws
                     self._result.set_exception(e)
-                    for f in self._responses.values():
-                        f.cancel()
+                    # drain destructively: cancelling a future can mutate
+                    # `_responses` mid-iteration
+                    while True:
+                        try:
+                            _, f = self._responses.popitem()
+                        except KeyError:
+                            break
+                        else:
+                            f.cancel()
                 return
             except Exception as e:
                 if isinstance(e, ConnectionResetError) and self._result.done():
@@ -2197,14 +2222,22 @@ which leads to stray network requests and inconsistencies."""
             if taken > timeout:
                 break
 
-            result = self._websocket_request(
-                "Runtime.evaluate",
-                params={
-                    "expression": "try { %s } catch {}" % ready_code,
-                    "awaitPromise": True,
-                },
-                timeout=timeout - taken,
-            )["result"]
+            try:
+                result = self._websocket_request(
+                    "Runtime.evaluate",
+                    params={
+                        "expression": "try { %s } catch {}" % ready_code,
+                        "awaitPromise": True,
+                    },
+                    timeout=timeout - taken,
+                )["result"]
+            except CancelledError:
+                # surface the real cause stored on `_result` (e.g. WS closed)
+                # instead of a bare CancelledError; otherwise retry until timeout
+                exc = self._result.done() and self._result.exception()
+                if exc:
+                    raise exc from None
+                result = "cancelled"
 
             if result == {"type": "boolean", "value": True}:
                 time_to_ready = time.time() - start_time
@@ -2214,6 +2247,9 @@ which leads to stray network requests and inconsistencies."""
                     )
                 return True
 
+        exc = self._result.done() and self._result.exception()
+        if exc:
+            raise exc from None
         self.take_screenshot(prefix="sc_failed_ready_")
         self._logger.info("Ready code last try result: %s", result)
         return False
@@ -2486,6 +2522,9 @@ class Screencaster:
 
 @lru_cache(1)
 def _find_executable():
+    browser_bin_path = os.environ.get("ODOO_BROWSER_BIN")  # used for testing specific Chrome builds
+    if browser_bin_path and pathlib.Path(browser_bin_path).exists():
+        return browser_bin_path
     system = platform.system()
     if system == "Linux":
         for bin_ in [
