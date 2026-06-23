@@ -18,7 +18,7 @@ Usage::
 
 import pytest
 
-from odoo.orm.testing import model_test_env
+from odoo.orm.model_test_env import model_test_env
 
 # ---------------------------------------------------------------------------
 # Core fixture: fresh in-memory Environment per test
