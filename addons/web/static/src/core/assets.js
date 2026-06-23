@@ -127,17 +127,24 @@ const onLoadAndError = (el, onLoad, onError) => {
         onError(error);
     };
 
+    // Cleans up the load/error listeners if the page is unloaded before the
+    // asset settles. It MUST itself be removed once the asset loads/errors,
+    // otherwise every loadJS/loadCSS over a session leaves a permanent
+    // `pagehide` listener (and retained closures) on `window` -- an unbounded
+    // leak for long-lived sessions that lazy-load many bundles.
+    const onPageHide = () => {
+        removeListeners();
+    };
+
     const removeListeners = () => {
         el.removeEventListener("load", onLoadListener);
         el.removeEventListener("error", onErrorListener);
+        window.removeEventListener("pagehide", onPageHide);
     };
 
     el.addEventListener("load", onLoadListener);
     el.addEventListener("error", onErrorListener);
-
-    window.addEventListener("pagehide", () => {
-        removeListeners();
-    }, { once: true });
+    window.addEventListener("pagehide", onPageHide);
 };
 
 /**

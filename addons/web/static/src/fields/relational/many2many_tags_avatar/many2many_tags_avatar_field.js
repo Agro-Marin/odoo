@@ -5,7 +5,6 @@
 
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { registerField } from "@web/fields/_registry";
 import { imageUrl } from "@web/core/utils/urls";
 import {
@@ -58,9 +57,7 @@ export const listMany2ManyTagsAvatarField = {
     component: ListMany2ManyTagsAvatarField,
 };
 
-registry
-    .category("fields")
-    .add("list.many2many_tags_avatar", listMany2ManyTagsAvatarField);
+registerField({ name: "many2many_tags_avatar", view: "list" }, listMany2ManyTagsAvatarField);
 
 export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
     static template = "web.Many2ManyTagsAvatarFieldPopover";
@@ -103,9 +100,7 @@ export const many2ManyTagsAvatarFieldPopover = {
     ...many2ManyTagsAvatarField,
     component: Many2ManyTagsAvatarFieldPopover,
 };
-registry
-    .category("fields")
-    .add("many2many_tags_avatar_popover", many2ManyTagsAvatarFieldPopover);
+registerField("many2many_tags_avatar_popover", many2ManyTagsAvatarFieldPopover);
 
 export class KanbanMany2ManyTagsAvatarFieldTagsList extends TagsList {
     static template = "web.KanbanMany2ManyTagsAvatarFieldTagsList";
@@ -180,6 +175,4 @@ export const kanbanMany2ManyTagsAvatarField = {
     },
 };
 
-registry
-    .category("fields")
-    .add("kanban.many2many_tags_avatar", kanbanMany2ManyTagsAvatarField);
+registerField({ name: "many2many_tags_avatar", view: "kanban" }, kanbanMany2ManyTagsAvatarField);

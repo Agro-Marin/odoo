@@ -149,10 +149,13 @@ export function computeGroupDomain(filter, searchViewFields) {
  * @returns {Domain}
  */
 export function computeFieldDomain(field, autocompleteValues) {
+    // Parse filterDomain once, not once per autocomplete value: only the
+    // toList(context) call below varies per value, and Domain.toList is pure.
+    const filterDomain = field.filterDomain ? new Domain(field.filterDomain) : null;
     const domains = autocompleteValues.map(({ label, value, operator }) => {
         let domain;
-        if (field.filterDomain) {
-            domain = new Domain(field.filterDomain).toList({
+        if (filterDomain) {
+            domain = filterDomain.toList({
                 self: label.trim(),
                 raw_value: value,
             });

@@ -4,8 +4,8 @@
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_privilege_field - Boolean/selection field for privilege toggles within the dynamically generated access rights form */
 
 import { Component } from "@odoo/owl";
-import { registry } from "@web/core/registry";
 import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
+import { registerField } from "@web/fields/_registry";
 import { SelectionField } from "@web/fields/selection/selection/selection_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -184,6 +184,4 @@ const resUserGroupIdsPrivilegeField = {
     component: ResUserGroupIdsPrivilegeField,
 };
 
-registry
-    .category("fields")
-    .add("res_user_group_ids_privilege", resUserGroupIdsPrivilegeField);
+registerField("res_user_group_ids_privilege", resUserGroupIdsPrivilegeField);

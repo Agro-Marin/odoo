@@ -226,15 +226,22 @@ export class ListRenderer extends Component {
             getProps: () => this.props,
             getOptionalActiveFields: () => this.optionalActiveFields,
         });
+        // User-Timing instrumentation is dev-only: in production these marks
+        // would run on every render and accumulate unbounded entries in the
+        // performance buffer (which nothing ever clears).
+        const mark = odoo.debug ? (name) => performance.mark(name) : () => {};
+        const measure = odoo.debug
+            ? (name, start) => performance.measure(name, start)
+            : () => {};
         onWillRender(() => {
             this.editedRecord = this.props.list.editedRecord;
             this._readonlyCache = new Map();
 
-            performance.mark("list:processAllColumns:start");
+            mark("list:processAllColumns:start");
             this.allColumns = /** @type {Column[]} */ (
                 processAllColumns(this.props.archInfo.columns, this.props.list)
             );
-            performance.measure(
+            measure(
                 "list:processAllColumns",
                 "list:processAllColumns:start",
             );
@@ -246,9 +253,9 @@ export class ListRenderer extends Component {
             this.opt.refreshDebugOpenView();
             this.debugOpenView = this.opt.debugOpenView;
 
-            performance.mark("list:getActiveColumns:start");
+            mark("list:getActiveColumns:start");
             this.columns = this.getActiveColumns();
-            performance.measure("list:getActiveColumns", "list:getActiveColumns:start");
+            measure("list:getActiveColumns", "list:getActiveColumns:start");
 
             this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
 
@@ -260,16 +267,16 @@ export class ListRenderer extends Component {
                 hasActionsColumn: this.hasActionsColumn,
                 showAddLine: Boolean(this.props.editable && this.canCreate),
             });
-            performance.mark("list:gridState.rebuild:start");
+            mark("list:gridState.rebuild:start");
             this.gridState.rebuild();
-            performance.measure(
+            measure(
                 "list:gridState.rebuild",
                 "list:gridState.rebuild:start",
             );
 
-            performance.mark("list:virt.refresh:start");
+            mark("list:virt.refresh:start");
             this.virt.refresh();
-            performance.measure("list:virt.refresh", "list:virt.refresh:start");
+            measure("list:virt.refresh", "list:virt.refresh:start");
         });
         this.state = useState({ showGroupInput: false });
         let dataRowId;

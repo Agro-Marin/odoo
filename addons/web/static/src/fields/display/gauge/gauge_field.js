@@ -31,14 +31,25 @@ export class GaugeField extends Component {
             await loadBundle("web.chartjs_lib");
         });
 
-        useEffect(() => {
-            this.renderChart();
-            return () => {
-                if (this.chart) {
-                    this.chart.destroy();
-                }
-            };
-        });
+        useEffect(
+            () => {
+                this.renderChart();
+                return () => {
+                    if (this.chart) {
+                        this.chart.destroy();
+                    }
+                };
+            },
+            // Rebuild the (heavyweight) Chart.js instance only when an input
+            // that actually changes the gauge changes — not on every render.
+            () => {
+                const value = this.props.record.data[this.props.name];
+                const maxValue = this.props.maxValueField
+                    ? this.props.record.data[this.props.maxValueField]
+                    : this.props.maxValue;
+                return [value, maxValue, this.title];
+            },
+        );
     }
 
     /** @returns {string} Chart title from props or the field's string label. */
