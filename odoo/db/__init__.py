@@ -47,9 +47,8 @@ __all__ = [
     "db_connect",
     "drain_all",
     "drain_db",
-    # Global counter — resolved dynamically via module __getattr__ below
-    # so callers always see the current metrics.sql_counter value.
-    "sql_counter",  # noqa: F822 — exposed via module __getattr__, not a name
+    # Resolved dynamically via module __getattr__ below (live metrics value).
+    "sql_counter",  # noqa: F822 — exposed via __getattr__, not a real name
 ]
 
 _logger = logging.getLogger(__name__)
@@ -80,10 +79,8 @@ def _get_pool(readonly: bool) -> ConnectionPool:
                     if hasattr(odoo, "evented") and odoo.evented
                     else 0
                 ) or tools.config["db_maxconn"]
-                # Lazy by default (0); raise db_minconn to keep connections
-                # warm.  db_minconn is a registered option (with default 0), so
-                # read it by subscript like db_maxconn above; ``or 0`` only
-                # coerces an explicit None/empty back to the lazy default.
+                # Lazy by default (0); raise db_minconn to keep connections warm.
+                # ``or 0`` coerces an explicit None/empty back to that default.
                 minconn = tools.config["db_minconn"] or 0
                 pool = ConnectionPool(
                     int(maxconn), readonly=readonly, minconn=int(minconn)
@@ -142,16 +139,12 @@ def close_all() -> None:
         _Pool_readonly.close_all()
 
 
-# Close pools before interpreter finalization.  The server's own shutdown
-# paths call close_all() explicitly; this atexit handler covers the rest —
-# CLI commands, scripts, and error exits — that would otherwise leave pools
-# open.  Under Python 3.14 an open psycopg_pool's __del__ runs during
-# finalization and raises ``PythonFinalizationError: cannot join thread at
-# interpreter shutdown`` (worker threads can no longer be joined that late);
-# atexit runs BEFORE finalization, so close()'s thread joins still succeed.
-# Idempotent: re-running on an already-closed/empty pool set is a no-op.
-# Note: forked workers exit via os._exit(), which bypasses atexit by design —
-# they rely on the OS to reclaim their connections.
+# Close pools at exit for the paths the server's explicit close_all() misses
+# (CLI commands, scripts, error exits).  atexit runs BEFORE interpreter
+# finalization, where an open psycopg_pool's __del__ would raise
+# PythonFinalizationError ("cannot join thread at interpreter shutdown").
+# Idempotent on empty/closed pools.  Forked workers exit via os._exit() and
+# bypass atexit by design (the OS reclaims their connections).
 atexit.register(close_all)
 
 
@@ -187,11 +180,8 @@ def drain_all() -> None:
         _Pool_readonly.drain()
 
 
-# Dynamic attribute access for mutable globals like sql_counter.
-# This ensures db.sql_counter always returns the current value
-# from the metrics module, not a stale copy from import time.
-# Cost: ~100ns per access (string compare + cached module lookup).
-# Called ~1/request for metrics — negligible vs query time.
+# Resolve mutable globals (sql_counter) dynamically so callers see the live
+# value from the metrics module, not a copy frozen at import time.
 def __getattr__(name: str) -> int:
     if name == "sql_counter":
         from . import metrics

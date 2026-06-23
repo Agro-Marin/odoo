@@ -54,35 +54,24 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
 
 
 def _normalize_dbfilter_host(host: str) -> str:
-    """Reduce a raw ``Host`` header to the form the dbfilter regex matches.
+    """Reduce a raw ``Host`` header to the form the dbfilter regex matches
+    (strip ``:port`` and a leading ``www.``).
 
-    ::
-
-        www.example.com:80   ->   example.com
-        -------                   -------
-        strip :port + www.        domain == first label
-
-    Normalising *before* the cache lookup (see :func:`db_filter`) is what makes
-    equivalent spellings — ``example.com``, ``www.example.com``,
-    ``example.com:443`` — collapse to a single :func:`_compiled_dbfilter` entry
-    instead of one per spelling. :func:`_compiled_dbfilter` also applies it
-    internally so direct callers stay correct; the operation is idempotent.
+    Normalising before the cache lookup collapses equivalent spellings
+    (``example.com``, ``www.example.com``, ``example.com:443``) onto a single
+    :func:`_compiled_dbfilter` entry. The operation is idempotent.
     """
     return host.partition(":")[0].removeprefix("www.")
 
 
 @functools.lru_cache(maxsize=512)
 def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
-    """Compile the dbfilter regex for one ``(pattern, host)`` pair.
+    """Compile and cache the dbfilter regex for one ``(pattern, host)`` pair.
 
-    :func:`db_filter` runs on (nearly) every request, sometimes more than once.
-    The regex depends only on the configured ``dbfilter`` pattern and the
-    request host, so memoise the compiled object instead of rebuilding it each
-    call. ``pattern`` is part of the key so a runtime config change is honoured;
-    the bounded ``maxsize`` caps memory across many virtual hosts.
-
-    ``host`` is normalised via :func:`_normalize_dbfilter_host` (callers on the
-    hot path normalise first so the cache key dedupes equivalent spellings).
+    :func:`db_filter` runs on nearly every request; the compiled regex depends
+    only on the ``dbfilter`` pattern and host, so memoise it. ``pattern`` is in
+    the key so config changes are honoured; ``maxsize`` bounds memory. ``host`` is
+    normalised via :func:`_normalize_dbfilter_host`.
     """
     host = _normalize_dbfilter_host(host)
     domain = host.partition(".")[0]
@@ -193,9 +182,8 @@ def get_session_max_inactivity(env: Any) -> int:
         )
         return SESSION_LIFETIME
     except psycopg.Error:
-        # The database connection may have been terminated (e.g. the
-        # database was just dropped).  Fall back to the default lifetime
-        # instead of crashing the request.
+        # Connection may be dead (e.g. database just dropped); fall back to the
+        # default lifetime instead of crashing the request.
         _logger.debug(
             "Could not read session max inactivity from DB, using default.",
             exc_info=True,
@@ -216,20 +204,15 @@ _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
 def _exception_debug(exception: BaseException) -> str:
     """The ``debug`` field of a serialized exception, gated for client responses.
 
-    The full traceback exposes server filesystem paths and code structure. It is
-    included when there is no active request — a cron job or other server-side
-    caller whose serialized output is read by administrators (e.g.
-    ``ir.cron``'s failure log) — or when ``dev_mode`` is enabled. For an ordinary
-    production HTTP error response it is replaced with a short note so those
-    internals are not disclosed to untrusted clients. The field is always a
-    ``str`` (callers and tests rely on its presence; the JS error layer treats it
-    as opaque), and the full traceback is still written to the server log by
-    ``Application.__call__``.
+    The full traceback (server paths, code structure) is included only with no
+    active request (cron/server-side callers whose output admins read) or under
+    ``dev_mode``; otherwise it is replaced with a short note so internals are not
+    disclosed to untrusted clients. Always a ``str``, and the full traceback still
+    reaches the server log via ``Application.__call__``.
 
-    Gating is on ``dev_mode`` ONLY — never a database lookup (e.g. checking
-    whether the user is an administrator). This runs on the error path, where the
-    cursor/registry may already be in a failed-transaction or disconnected state,
-    so a query here could raise and mask the original error.
+    Gate on ``dev_mode`` ONLY, never a DB lookup: this runs on the error path
+    where the cursor may already be broken, so a query could mask the original
+    error.
     """
     # ``request`` (a LocalProxy) is falsy when no request is active.
     if request and not config["dev_mode"]:

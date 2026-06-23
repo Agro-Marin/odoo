@@ -35,12 +35,11 @@ _logger = logging.getLogger(__name__)
 
 
 class _RequestServeMixin:
-    """Routing methods for :class:`~odoo.http.Request`.
+    """Routing methods mixed into :class:`~odoo.http.Request` (see module docstring).
 
-    Mixed into Request via inheritance. The mixin has no state of its own;
-    it reads/writes attributes that Request initializes:
-    ``httprequest``, ``session``, ``db``, ``env``, ``registry``,
-    ``dispatcher``, ``params``, ``future_response``.
+    No state of its own; reads/writes attributes Request initializes
+    (``httprequest``, ``session``, ``db``, ``env``, ``registry``, ``dispatcher``,
+    ``params``, ``future_response``).
     """
 
     def _set_request_dispatcher(self, rule: Any) -> None:
@@ -69,13 +68,11 @@ class _RequestServeMixin:
     def _serve_static(self, filepath: str | None = None) -> Response:
         """Serve a static file from the file system.
 
-        ``filepath`` is the absolute, already-validated path that
-        :meth:`Application.get_static_file` resolved at the WSGI entrypoint's
-        static gate. When supplied (the hot path) it is trusted and streamed
-        directly, avoiding a second redundant resolution — manifest lookup +
-        ``safe_join`` + ``file_path`` validation — on every static hit. When
-        omitted (a direct call), the path is resolved from the request as
-        before.
+        ``filepath`` is the absolute, pre-validated path resolved by
+        :meth:`Application.get_static_file` at the WSGI static gate. When supplied
+        (the hot path) it is trusted and streamed directly, skipping a redundant
+        manifest lookup + ``safe_join`` + ``file_path`` resolution; when omitted
+        (a direct call) the path is resolved from the request.
         """
         root = self.app
 
@@ -88,8 +85,7 @@ class _RequestServeMixin:
                 filepath = werkzeug.security.safe_join(directory, path)
                 if filepath is None:
                     # ``safe_join`` returns None for traversal/absolute paths;
-                    # treat as a missing file rather than letting the None flow
-                    # into ``file_path`` and raise a non-OSError (500).
+                    # treat as missing (404) rather than 500.
                     raise NotFound(f'File "{path}" not found in module {module}.\n')
                 stream = Stream.from_path(filepath, public=True)
             else:
@@ -107,13 +103,10 @@ class _RequestServeMixin:
     def _serve_aborted(self, exc: HTTPException) -> Response:
         """Recover the Response carried by a code-less ``HTTPException``.
 
-        ``werkzeug.exceptions.abort(Response(...))`` raises an ``HTTPException``
-        whose ``code is None`` but which carries a ready-made Response (the CORS
-        204 preflight in ``Dispatcher.pre_dispatch``, the ``Invalid JSON`` 400
-        in the JSON dispatchers, ...). Run ``post_dispatch`` so the CORS / CSP /
-        session-save headers land on it, then return it. Shared by
-        :meth:`_serve_nodb` and :meth:`_serve_db`, whose ``except HTTPException``
-        arms used to carry this identical recovery (and comment) verbatim.
+        ``abort(Response(...))`` raises an ``HTTPException`` with ``code is None``
+        carrying a ready-made Response (CORS 204 preflight, ``Invalid JSON`` 400,
+        ...). Run ``post_dispatch`` so CORS / CSP / session-save headers land on
+        it, then return it. Shared by :meth:`_serve_nodb` and :meth:`_serve_db`.
         """
         response = exc.get_response()
         HttpDispatcher(self).post_dispatch(response)
@@ -153,34 +146,20 @@ class _RequestServeMixin:
     def _acquire_registry_cursor(self) -> Any:
         """Open the database registry and return its initial read-only cursor.
 
-        Sets :attr:`registry` as a side effect and returns the open RO cursor.
-        **Ownership transfers to the caller only on a clean return** — the
-        ``finally`` in :meth:`_serve_db` then closes it. On failure this method
-        closes the cursor it opened (the inlined predecessor relied on
-        ``_serve_db``'s outer ``finally`` for that, which no longer sees the
-        cursor when acquisition raises) and raises :class:`RegistryError`, which
-        :meth:`Application.__call__` recovers from by serving db-less rather than
-        surfacing a 500. A naive ``return cr`` extraction would leak the
-        connection on this path; ``TestAcquireRegistryCursor`` (DB-free) locks
-        the close-on-failure contract for every caught mode.
+        Sets :attr:`registry` and returns the open RO cursor. **Ownership
+        transfers to the caller only on a clean return** — :meth:`_serve_db`'s
+        ``finally`` then closes it. On failure this method closes the cursor
+        itself and raises :class:`RegistryError`, which :meth:`Application.__call__`
+        recovers from by serving db-less. A naive ``return cr`` would leak the
+        connection here; ``TestAcquireRegistryCursor`` locks the close-on-failure
+        contract, and the ``database_breaking`` suite in ``test_registry.py``
+        guards the recovery (OperationalError → db gone; ProgrammingError → broken
+        schema).
 
-        The three caught arms convert a broken/absent database into that
-        ``RegistryError``. The recovery contract is also guarded by the
-        ``database_breaking`` suite in ``test_http/tests/test_registry.py``:
-
-          * OperationalError — cannot connect / db gone (test_missing_db);
-          * ProgrammingError — db present but schema broken: missing
-            table/column/sequence (test_corrupt_ir_module_module_table,
-            test_corrupt_signaling).
-
-        AttributeError is a deliberately broad, *legacy* defensive arm (predates
-        the http.py split; no dedicated test pins its exact trigger). It guards
-        against observing a registry whose attributes are not yet populated —
-        e.g. a re-entrant access during ``Registry.new``, which inserts the
-        instance into ``Registry.registries`` before ``setup_signaling`` runs. It
-        can also mask a genuine AttributeError bug in this cold
-        registry-acquisition path, so before narrowing it re-run that suite to
-        confirm recovery still holds.
+        AttributeError is a broad, *legacy* arm (no dedicated test): it guards a
+        registry observed mid-``Registry.new`` (inserted into ``registries``
+        before ``setup_signaling`` runs), but can also mask a real bug in this
+        path — re-run that suite before narrowing it.
         """
         cr = None
         try:
@@ -208,9 +187,8 @@ class _RequestServeMixin:
                     exc_info=True,
                 )
             finally:
-                # The cursor we opened is ours until the clean ``return`` above;
-                # close it here so a failure between cursor-open and that return
-                # cannot leak the connection.
+                # Ours until the clean ``return`` above; close it so a failure
+                # between cursor-open and that return cannot leak the connection.
                 if cr is not None:
                     cr.close()
             raise RegistryError(f"Cannot get registry {self.db}") from e
@@ -251,30 +229,23 @@ class _RequestServeMixin:
                 try:
                     return retrying(serve_func, env=self.env)
                 except psycopg.errors.ReadOnlySqlTransaction as exc:
-                    # Although the controller is marked read-only, it
-                    # attempted a write operation. We do NOT raise — control
-                    # falls through (no ``return``, no ``raise``) to the
-                    # ``if cr.readonly: cr.close(); cr = ...cursor()`` block
-                    # below, which swaps in a read/write cursor and retries.
-                    # If a future maintainer adds an ``else``/``return`` here,
-                    # the RW retry path is silently disabled.
+                    # A read-only-marked controller attempted a write. Do NOT
+                    # raise: fall through to the ``if cr.readonly:`` swap below,
+                    # which retries on a read/write cursor. Adding an
+                    # ``else``/``return`` here would silently disable that retry.
                     _logger.warning(
                         "%s, retrying with a read/write cursor",
                         exc.args[0].rstrip(),
                         exc_info=True,
                     )
                     threading.current_thread().cursor_mode = "ro->rw"
-                    # The read-only attempt already ran the endpoint, consuming
-                    # any uploaded file streams (leaving them at EOF). Rewind
-                    # them so the read/write retry below re-reads the body from
-                    # the start instead of seeing an empty upload — mirroring
-                    # what ``retrying`` does on a serialization retry.
+                    # The RO attempt already consumed uploaded file streams (now
+                    # at EOF); rewind them so the RW retry re-reads the body
+                    # instead of an empty upload (as ``retrying`` does).
                     self._rewind_input_files(exc)
                 except Exception as exc:
-                    # ``_update_served_exception`` attaches ``error_response``
-                    # to ``exc`` as a side effect; the bare ``raise`` re-raises
-                    # it preserving the original traceback (no self-referential
-                    # ``__cause__``).
+                    # ``_update_served_exception`` attaches ``error_response`` to
+                    # ``exc``; the bare ``raise`` preserves the original traceback.
                     self._update_served_exception(exc)
                     raise
             else:
@@ -286,10 +257,9 @@ class _RequestServeMixin:
                 cr.close()
                 cr = self.env.registry.cursor()
             else:
-                # the cursor is already a RW cursor, start a new transaction
-                # that will avoid repeatable read serialization errors because
-                # check signaling is not done in `retrying` and that function
-                # would just succeed the second time
+                # already a RW cursor; start a new transaction to avoid
+                # repeatable-read serialization errors (``retrying`` skips
+                # check_signaling and would just succeed the second time).
                 cr.rollback()
             assert not cr.readonly
             self.env = self.env(cr=cr)
@@ -311,12 +281,11 @@ class _RequestServeMixin:
     def _rewind_input_files(self, cause: Exception | None = None) -> None:
         """Seek every uploaded file back to the start before re-dispatching.
 
-        Once the request body has been read, its ``files`` streams sit at EOF;
-        a retry that re-reads them would get empty content and silently drop the
-        upload. Rewind the seekable ones and refuse — loudly — to retry on a
-        non-seekable stream, the same contract
-        :func:`odoo.service.transaction.retrying` enforces on a serialization
-        retry. ``cause`` is chained onto the raised error for context.
+        After the body is read, ``files`` streams sit at EOF; a retry would re-read
+        empty content and drop the upload. Rewind seekable streams and refuse
+        loudly on a non-seekable one — the same contract
+        :func:`~odoo.service.transaction.retrying` enforces. ``cause`` is chained
+        onto the raised error.
         """
         for filename, file in self.httprequest.files.items():
             if hasattr(file, "seekable") and file.seekable():
@@ -331,19 +300,15 @@ class _RequestServeMixin:
     def _update_served_exception(self, exc: Exception) -> None:
         """Attach an ``error_response`` to ``exc`` in place (side effect only).
 
-        Callers re-raise ``exc`` themselves with a bare ``raise`` to preserve
-        the original traceback, so this returns nothing. Two cases leave the
-        exception untouched (no ``error_response`` attached) and let it bubble:
+        Callers re-raise with a bare ``raise`` to preserve the traceback, so this
+        returns nothing. Two cases are left untouched to bubble up:
 
-        * the abort+Response path (``HTTPException`` with ``code is None``),
-          recovered by :meth:`_serve_db`;
-        * ``--dev werkzeug`` for non-JSON routes — skip the styled
+        * the abort+Response path (``HTTPException``, ``code is None``), recovered
+          by :meth:`_serve_db`;
+        * ``--dev werkzeug`` on non-JSON routes — skip the styled
           ``ir.http._handle_error`` page so :meth:`Application.__call__` logs the
-          full traceback and builds a plain response via
-          ``dispatcher.handle_error``. (This fork serves via
-          ``werkzeug.serving.make_server`` and does not wrap the app in
-          ``werkzeug.debug.DebuggedApplication``, so no interactive debugger is
-          reached; ``__call__`` is the actual handler of last resort.)
+          traceback and builds a plain response (this fork has no interactive
+          debugger, so ``__call__`` is the handler of last resort).
         """
         if isinstance(exc, HTTPException) and exc.code is None:
             return  # bubble up to _serve_db

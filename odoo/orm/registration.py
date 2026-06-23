@@ -27,114 +27,26 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.registry")
 
-# THE MODEL DEFINITIONS, MODEL CLASSES, AND MODEL INSTANCES
+# MODEL DEFINITIONS vs MODEL CLASSES
 #
-# The framework deals with two kinds of classes for models: the "model
-# definitions" and the "model classes".
+# "Model definitions" are the (mostly static) classes written in module source;
+# custom models are the exception, built dynamically. "Model classes" are what
+# the registry holds and what recordsets are instances of; each is built
+# dynamically when the registry loads, inheriting from all of the model's
+# definitions (in reverse order, to match override order) plus, for inherited
+# models, the parent model classes — so extensions to a parent are visible on
+# the child. It also carries metadata inferred from its parents.
 #
-# The "model definitions" are the classes defined in modules source code: they
-# define models and extend them.  Those classes are essentially "static", for
-# whatever that means in Python.  The only exception is custom models: their
-# model definition is created dynamically.
+# E.g. with definitions A1/A2/A3 of model 'a' and B1/B2 of model 'b'
+# (_inherit=['a','b']), parents of 'a' are (A2, A1) and of 'b' are (B2, a, B1),
+# giving MRO 'a' = [a, A2, A1, Model] and 'b' = [b, B2, a, A2, A1, B1, Model].
 #
-# The "model classes" are the ones you find in the registry.  The recordsets of
-# a model actually are instances of its model class.  The "model class" of a
-# model is created dynamically when the registry is built.  It inherits (in the
-# Python sense) from all the model definitions of the model, and possibly other
-# model classes (when the model inherits from another model).  It also carries
-# model metadata inferred from its parent classes.
-#
-#
-# THE MODEL CLASSES
-#
-# In the simplest case, a model class inherits from all the classes that define
-# the model in a flat hierarchy.  Consider the definitions of model 'a' below.
-# The model class of 'a' inherits from the model definitions A1, A2, A3, in
-# reverse order, to match the expected overriding order.  The model class
-# carries inferred metadata that is shared between all the recordsets of that
-# model for a given registry.
-#
-#       class A(Model):  # A1                 Model
-#           _name = 'a'                       / | \
-#                                            A3 A2 A1   <- model definitions
-#       class A(Model):  # A2                 \ | /
-#           _inherit = 'a'                      a       <- model class: registry['a']
-#                                               |
-#       class A(Model):  # A3                records    <- model instances, like env['a']
-#           _inherit = 'a'
-#
-# Note that when the model inherits from another model, we actually make the
-# model classes inherit from each other, so that extensions to an inherited
-# model are visible in the model class of the child model, like in the
-# following example.
-#
-#       class A(Model):  # A1
-#           _name = 'a'                       Model
-#                                            / / \ \
-#       class B(Model):  # B1               / /   \ \
-#           _name = 'b'                    / A2   A1 \
-#                                         B2  \   /  B1
-#       class B(Model):  # B2              \   \ /   /
-#           _inherit = ['a', 'b']           \   a   /
-#                                            \  |  /
-#       class A(Model):  # A2                 \ | /
-#           _inherit = 'a'                      b
-#
-# To be more explicit, the parent classes of model 'a' are (A2, A1), and the
-# ones of model 'b' are (B2, a, B1).  Consequently, the MRO of model 'a' is
-# [a, A2, A1, Model] while the MRO of 'b' is [b, B2, a, A2, A1, B1, Model].
-#
-#
-# THE FIELDS OF A MODEL
-#
-# The fields of a model are given by the model's definitions, inherited models
-# ('_inherit' and '_inherits') and other parties, like custom fields. Note that
-# a field can be partially overridden when it appears on several definitions of
-# its model.  In that case, the field's final definition depends on the
-# presence or absence of each model definition, which itself depends on the
-# modules loaded in the registry.
-#
-# By design, the model class has access to all the fields on its model
-# definitions.  When possible, the field is used directly from its model
-# definition.  There are a number of cases where the field cannot be used
-# directly:
-#  - the field is related (and bits may not be shared);
-#  - the field is overridden on model definitions;
-#  - the field is defined on another model (and accessible by mixin).
-#
-# The last case prevents sharing the field across registries, because the field
-# object is specific to a model, and is used as a key in several key
-# dictionaries, like the record cache and pending computations.
-#
-# Setting up a field on its model definition helps saving memory and time.
-# Indeed, when sharing is possible, the field's setup is almost entirely done
-# where the field was defined.  It is thus done when the model definition was
-# created, and it may be reused across registries.
-#
-# In the example below, the field 'foo' appears once on its model definition.
-# Assuming that it is not related, that field can be set up directly on its
-# model definition.  If the model appears in several registries, the
-# field 'foo' is effectively shared across registries.
-#
-#       class A1(Model):                      Model
-#           _name = 'a'                        / \
-#           foo = ...                         /   \
-#           bar = ...                       A2     A1
-#                                            bar    foo, bar
-#       class A2(Model):                      \   /
-#           _inherit = 'a'                     \ /
-#           bar = ...                           a
-#                                                bar
-#
-# On the other hand, the field 'bar' is overridden in its model definitions.  In
-# that case, the framework recreates the field on the model class, which is
-# never shared across registries.  The field's setup will be based on its
-# definitions, and will thus not be shared across registries.
-#
-# The so-called magic fields ('id', 'display_name', ...) used to be added on
-# model classes.  But doing so prevents them from being shared.  So instead,
-# we add them on definition classes that define a model without extending it.
-# This increases the number of fields that are shared across registries.
+# FIELDS: a field can be shared across registries (saving memory/time) only when
+# set up directly on its model definition. It cannot be shared when it is
+# related, overridden across definitions, or inherited from another model —
+# because the field object is a key in per-registry dicts (cache, pending
+# computations). Magic fields ('id', 'display_name', ...) are added on
+# definition classes (not model classes) so they too can be shared.
 
 
 def is_model_definition(cls: type) -> bool:
@@ -148,9 +60,8 @@ def is_model_class(cls: type) -> bool:
 
 
 def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[BaseModel]:
-    """Add a model definition to the given registry, and return its
-    corresponding model class.  This function creates or extends a model class
-    for the given model definition.
+    """Add a model definition to the registry, creating or extending its model
+    class, and return that model class.
     """
     # raise (not assert) so the contract holds under python -O
     if not is_model_definition(model_def):
@@ -319,9 +230,8 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
 def setup_model_classes(env: Environment):
     registry = env.registry
 
-    # we must setup ir.model before adding manual fields because _add_manual_models may
-    # depend on behavior that is implemented through overrides, such as is_mail_thread which
-    # is implemented through an override to env['ir.model']._instantiate_attrs
+    # setup ir.model before adding manual fields: _add_manual_models may rely
+    # on overrides (e.g. is_mail_thread via env['ir.model']._instantiate_attrs)
     _prepare_setup(registry["ir.model"])
 
     # add manual models
@@ -384,9 +294,8 @@ def _setup(model_cls: type[BaseModel], env: Environment):
     if model_cls._setup_done__:
         return
 
-    # Detect cyclic _inherits before Phase 3's recursion stack-overflows.
-    # ``_setup_done__`` is only set in Phase 4 (line below), so a cycle in
-    # ``_inherits`` would re-enter the same model with done=False forever.
+    # Detect cyclic _inherits before Phase 3 recurses to stack overflow:
+    # _setup_done__ is set only in Phase 4, so a cycle would re-enter forever.
     if getattr(model_cls, "_setup_in_progress__", False):
         raise TypeError(
             f"Circular _inherits chain involving model {model_cls._name!r}"
@@ -399,12 +308,11 @@ def _setup(model_cls: type[BaseModel], env: Environment):
 
 
 def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
-    """The 7 setup phases of :func:`_setup`, factored out so the top-level
-    function can wrap them in a cycle-detection guard without indenting
-    the whole body.
+    """The 7 setup phases of :func:`_setup`, split out so the caller can wrap
+    them in a cycle-detection guard.
     """
-    # Cache the model definition classes (non-registry classes from MRO).
-    # Used by fields.resolve_mro() and field collection below.
+    # Cache the model definition classes (non-registry classes from MRO),
+    # used by fields.resolve_mro() and field collection below.
     model_cls._model_classes__ = tuple(
         c for c in model_cls.mro() if getattr(c, "pool", None) is None
     )
@@ -438,8 +346,8 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
 def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
     """Collect field definitions from the MRO and install them on the model.
 
-    Handles database-state patching for translate and company_dependent fields
-    to prevent data loss during module upgrades.
+    Patches translate / company_dependent state from the database to prevent
+    data loss during module upgrades.
     """
     # Clear existing fields to avoid clashes with inheritance between models
     for name in model_cls._fields:
@@ -470,10 +378,10 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
-    """Patch a field to preserve translate=True when the database column is translated.
+    """Preserve translate=True when the DB column is already translated.
 
-    This prevents data loss when a module upgrade removes translate from a field
-    definition but the database column already contains translated data.
+    Prevents data loss when an upgrade drops translate from a field definition
+    but the column still holds translated data.
     """
     key = f"{model_cls._name}.{name}"
     if key not in model_cls.pool._database_translated_fields:
@@ -499,10 +407,10 @@ def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list)
 def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
-    """Patch a field to preserve company_dependent=True when the database column is jsonb.
+    """Preserve company_dependent=True when the DB column is already jsonb.
 
-    This prevents data loss when a module upgrade removes company_dependent
-    from a field definition but the database column is already jsonb.
+    Prevents data loss when an upgrade drops company_dependent from a field
+    definition but the column is already jsonb.
     """
     key = f"{model_cls._name}.{name}"
     if key not in model_cls.pool._database_company_dependent_fields:
@@ -608,10 +516,8 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
     if model_cls._abstract or not model_cls._inherits:
         return
 
-    # determine which fields can be inherited
-    # When two _inherits parents declare the same field name, the last one
-    # in dict-iteration order silently wins (documented but error-prone).
-    # We log a warning so accidental collisions show up in the logs.
+    # When two _inherits parents share a field name, the last in iteration
+    # order wins; warn so accidental collisions surface in the logs.
     to_inherit: dict[str, tuple[str, Field]] = {}
     for parent_model_name, parent_fname in model_cls._inherits.items():
         for name, field in model_cls.pool[parent_model_name]._fields.items():
@@ -660,21 +566,16 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
             field.setup(model)
         except Exception:
             if field.base_field.manual:
-                # Log at WARNING — manual fields are user-created (Studio).
-                # Silently dropping them at DEBUG means a user can lose a
-                # custom field with zero feedback in standard log levels.
-                # WARNING is the right level because the field is user-data
-                # but the system is recovering by skipping it.
+                # WARNING (not DEBUG): manual fields are user-created (Studio);
+                # the system recovers by skipping, but the user must see it.
                 _logger.warning(
                     "Skipping manual field %s.%s during setup; the field will not be available",
                     model_cls._name,
                     name,
                     exc_info=True,
                 )
-                # Something goes wrong when setup a manual field.
-                # This can happen with related fields using another manual many2one field
-                # that hasn't been loaded because the comodel does not exist yet.
-                # This can also be a manual function field depending on not loaded fields yet.
+                # Setup can fail for a manual related/function field whose
+                # dependency (e.g. comodel) is not loaded yet.
                 bad_fields.append(name)
                 continue
             raise
@@ -696,7 +597,7 @@ def _add_manual_models(env: Environment):
                 if hasattr(parent_cls, "pool"):
                     parent_cls._inherit_children.discard(name)
 
-    # we cannot use self._fields to determine translated fields, as it has not been set up yet
+    # can't use self._fields for translated fields: not set up yet
     env.cr.execute(
         "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'"
     )
@@ -742,9 +643,9 @@ def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def add_field(model_cls: type[BaseModel], name: str, field: Field):
-    """Add the given ``field`` under the given ``name`` on the model class of the given ``model``."""
-    # Assert the name is an existing field in the model, or any model in the _inherits
-    # or a custom field (starting by `x_`)
+    """Add ``field`` under ``name`` on ``model_cls``."""
+    # name must be an existing field on the model or an _inherits parent, or a
+    # custom field (starting with `x_`)
     is_class_field = any(
         isinstance(getattr(model, name, None), fields.Field)
         for model in [model_cls]
@@ -777,7 +678,7 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
 
 
 def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
-    """Remove the field with the given ``name`` from the model class of ``model``."""
+    """Remove the field named ``name`` from ``model_cls``."""
     field = model_cls._fields__.pop(name, None)
     discardattr(model_cls, name)
     if model_cls._rec_name == name:

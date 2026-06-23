@@ -54,21 +54,18 @@ EXCLUDED_SUFFIXES = frozenset(
 # bypass TLS).
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
 
-# (connect, read) timeouts. requests has NO default timeout: without one a
-# stuck server hangs the command forever. Connect fails fast; the upload
-# read is unbounded because the server installs the module synchronously
-# and large modules legitimately take minutes (same rationale as `db load`).
+# (connect, read) timeouts. requests has no default, so a stuck server would
+# hang forever. Connect fails fast; the upload read is unbounded because the
+# server installs synchronously and large modules take minutes.
 _LOGIN_TIMEOUT = (10, 30)
 _UPLOAD_TIMEOUT = (10, None)
 
 
 def _should_skip(filepath: Path, module_dir: Path) -> bool:
     """Return True if ``filepath`` should be excluded from the deploy zip."""
-    # Only the *parent* components are tested against EXCLUDED_DIR_NAMES, never
-    # the file's own basename: a legitimate module file named e.g. ``build`` or
-    # ``dist`` (no extension) must ship. The directory check is belt-and-braces
-    # — ``zip_module``'s walk already prunes excluded dirs in place — so it
-    # fires only if this helper is ever called outside that walk.
+    # Test only the *parent* components against EXCLUDED_DIR_NAMES, never the
+    # basename: a module file named `build`/`dist` must still ship. Belt-and-
+    # braces — zip_module's walk already prunes excluded dirs in place.
     rel_parts = filepath.relative_to(module_dir).parts
     if any(p in EXCLUDED_DIR_NAMES for p in rel_parts[:-1]):
         return True
@@ -110,10 +107,8 @@ class Deploy(Command):
         force: bool = False,
     ) -> str:
         print("Uploading module file...")
-        # urlencode the db name: a db containing '&' or '#' would otherwise
-        # inject extra query parameters into the login request. ``db`` may be
-        # "" when the server uses a db-filter and --db is omitted; quote(None)
-        # would raise TypeError, so coerce to "".
+        # urlencode the db name: '&'/'#' would inject extra query params. db may
+        # be "" (server uses a db-filter, --db omitted); quote(None) would raise.
         encoded_db = urllib.parse.quote(db or "", safe="")
         self.session.get(
             f"{url}/web/login?db={encoded_db}",
@@ -155,12 +150,10 @@ class Deploy(Command):
         os.close(fd)
         try:
             print("Zipping module directory...")
-            # ZIP_DEFLATED: the default (ZIP_STORED) uploads source files
-            # uncompressed — several-fold larger for no benefit.
+            # ZIP_DEFLATED: the default ZIP_STORED uploads uncompressed, much larger.
             with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED) as zfile:
-                # walk() so excluded trees (node_modules, .git, …) are pruned
-                # in place and never traversed — rglob would enumerate every
-                # file inside them only to discard each one.
+                # walk() so excluded trees are pruned in place and never
+                # traversed; rglob would enumerate every file only to discard it.
                 for dirpath, dirnames, filenames in module_dir.walk():
                     kept_dirs = []
                     for dirname in dirnames:
@@ -179,9 +172,8 @@ class Deploy(Command):
                     for filename in filenames:
                         filepath = dirpath / filename
                         if filepath.is_symlink():
-                            # zfile.write would embed the *target's content* —
-                            # a link pointing outside the module (secrets,
-                            # build artifacts) must not leak into the upload.
+                            # zfile.write embeds the target's content; a link
+                            # outside the module must not leak into the upload.
                             print(
                                 f"WARNING: skipping symlink {filepath}",
                                 file=sys.stderr,
@@ -224,8 +216,8 @@ class Deploy(Command):
             default="admin",
             help="Password (default=admin)",
         )
-        # NOTE: SSL verification is disabled by default — intentional for dev deployment
-        # tooling (default URL is http://localhost:8069). Use --verify-ssl for HTTPS targets.
+        # SSL verification is off by default — this is dev tooling (default URL
+        # is http://localhost:8069). Use --verify-ssl for HTTPS targets.
         parser.add_argument(
             "--verify-ssl", action="store_true", help="Verify SSL certificate"
         )
@@ -235,28 +227,22 @@ class Deploy(Command):
             help='Force init even if module is already installed. (will update `noupdate="1"` records)',
         )
 
-        # No explicit empty-args guard: argparse will fail with a clear
-        # "the following arguments are required: path" message, matching
-        # the convention used across the rest of the cli package.
+        # No empty-args guard: argparse already errors with "the following
+        # arguments are required: path".
         args = parser.parse_args(args=cmdargs)
 
         try:
             if not args.url.lower().startswith(("http://", "https://")):
-                # Localhost defaults match the argparse default (http); remote
-                # targets default to https. Resolve the host via urlsplit
-                # against a synthesised authority so we match on the host
-                # exactly — not on substring ('localhost.evil.com' must not
-                # resolve to http), and so IPv6 loopback '[::1]' is covered.
+                # Local hosts default to http, remote to https. Parse via a
+                # synthesised authority to match the host exactly (not by
+                # substring) and to cover IPv6 loopback '[::1]'.
                 parsed = urllib.parse.urlsplit(f"//{args.url}", scheme="")
                 hostname = (parsed.hostname or "").lower()
                 scheme = "http" if hostname in _LOCAL_HOSTS else "https"
                 args.url = f"{scheme}://{args.url}"
 
-            # Warn/disable AFTER URL resolution so the decision reflects the
-            # actual scheme. An earlier version warned only in the scheme-
-            # inference branch, which meant a user passing 'https://host'
-            # directly silently got SSL verification turned off with no
-            # warning at all.
+            # Decide AFTER URL resolution so it reflects the actual scheme:
+            # a user passing 'https://host' directly must still get the warning.
             if not args.verify_ssl:
                 self.session.verify = False
                 if args.url.lower().startswith("https://"):
@@ -276,8 +262,7 @@ class Deploy(Command):
             )
             print(result)
         except Exception as e:
-            # Keep the full traceback recoverable at DEBUG: a programming error
-            # (KeyError, AttributeError) would otherwise surface only as a bare
-            # "ERROR: <msg>" with no stack — matching obfuscate.py's pattern.
+            # Keep the full traceback at DEBUG: a programming error would
+            # otherwise surface only as a bare "ERROR: <msg>" with no stack.
             _logger.debug("deploy failed", exc_info=True)
             sys.exit(f"ERROR: {e}")

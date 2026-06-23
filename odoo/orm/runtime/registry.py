@@ -57,8 +57,7 @@ _REGISTRY_CACHES = {
     "groups": 64,  # see res.groups
 }
 
-# cache invalidation dependencies, as follows:
-# { 'cache_key': ('cache_container_1', 'cache_container_3', ...) }
+# cache invalidation dependencies: {cache_key: (cache_container, ...)}
 _CACHES_BY_KEY = {
     "default": ("default", "templates.cached_values"),
     "assets": ("assets", "templates.cached_values"),
@@ -86,11 +85,9 @@ def _unaccent(
 
 
 class Registry(Mapping[str, type["BaseModel"]]):
-    """Model registry for a particular database.
+    """Model registry for a database: a mapping of model names to model classes.
 
-    The registry is essentially a mapping between model names and model classes.
-    There is one registry instance per database.
-
+    One registry instance per database.
     """
 
     _lock: threading.RLock | DummyRLock = threading.RLock()
@@ -171,22 +168,20 @@ class Registry(Mapping[str, type["BaseModel"]]):
         registry.new = registry.init = registry.registries = None  # type: ignore
         first_registry = not cls.registries
 
-        # Initializing a registry will call general code which will in
-        # turn call Registry() to obtain the registry being initialized.
-        # Make it available in the registries dictionary then remove it
-        # if an exception is raised.
+        # init calls general code that calls Registry() back to get the registry
+        # being built, so publish it in the registries dict now; remove it on
+        # exception.
         cls.delete(db_name)
         cls.registries[db_name] = registry  # pylint: disable=unsupported-assignment-operation
         try:
             registry.setup_signaling()
             with registry.cursor() as cr:
-                # This transaction defines a critical section for multi-worker concurrency control.
-                # When the transaction commits, the first worker proceeds to upgrade modules. Other workers
-                # encounter a serialization error and retry, finding no upgrade marker in the database.
-                # This significantly reduces the likelihood of concurrent module upgrades across workers.
-                # NOTE: This block is intentionally outside the try-except below to prevent workers that fail
-                # due to serialization errors from calling `reset_modules_state` while the first worker is
-                # actively upgrading modules.
+                # critical section for multi-worker concurrency: on commit the
+                # first worker proceeds to upgrade; others hit a serialization
+                # error and retry, then find no upgrade marker. cuts concurrent
+                # upgrades. kept outside the try-except below so a worker that
+                # fails on the serialization error doesn't call
+                # reset_modules_state while the first worker is upgrading.
                 from odoo.modules import db
 
                 if db.is_initialized(cr):
@@ -230,9 +225,8 @@ class Registry(Mapping[str, type["BaseModel"]]):
 
         del registry._reinit_modules
 
-        # load_modules() above can replace the registry by calling
-        # indirectly new() again (when modules have to be uninstalled).
-        # Yeah, crazy.
+        # load_modules() above may replace the registry by calling new() again
+        # (when modules must be uninstalled), so re-read it.
         registry = cls.registries[db_name]  # pylint: disable=unsubscriptable-object
 
         registry._init = False
@@ -262,7 +256,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         self._sql_constraints = set()  # type: ignore
         self._database_translated_fields: dict[
             str, str
-        ] = {}  # names and translate function names of translated fields in database {"{model}.{field_name}": "translate_func"}
+        ] = {}  # {"model.field": "translate_func"} for translated db fields
         self._database_company_dependent_fields: set[str] = (
             set()
         )  # names of company dependent fields in database
@@ -300,7 +294,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
             config["db_replica_host"]
             or config["test_enable"]
             or "replica" in config["dev_mode"]
-        ):  # by default, only use readonly pool if we have a db_replica_host defined.
+        ):  # readonly pool only when a db_replica_host is defined
             self._db_readonly = db.db_connect(db_name, readonly=True)
 
         # field_depends and field_depends_context are @property delegations
@@ -311,9 +305,8 @@ class Registry(Mapping[str, type["BaseModel"]]):
             tuple[str, str, str], OrderedSet[tuple[str, str]]
         ] = defaultdict(OrderedSet)
 
-        # field setup dependents: this enables to invalidate the setup of
-        # related fields when some of their dependencies are invalidated
-        # (for incremental model setup)
+        # invalidate the setup of related fields when a dependency is
+        # invalidated (incremental model setup)
         self.field_setup_dependents: Collector[Field, Field] = Collector()
 
         # company dependent
@@ -324,16 +317,14 @@ class Registry(Mapping[str, type["BaseModel"]]):
         # constraint checks
         self.not_null_fields: set[Field] = set()
 
-        # Standalone dependency graph component — single source of truth for
-        # field metadata (inverses, depends, depends_context, computed, triggers).
-        # Registry builds data into it during setup, then delegates reads to it.
+        # single source of truth for field metadata (inverses, depends,
+        # depends_context, computed, triggers); Registry writes during setup,
+        # then delegates reads here.
         self.model_graph = ModelGraph()
 
-        # Inter-process signaling:
-        # The `orm_signaling_registry` sequence indicates the whole registry
-        # must be reloaded.
-        # The `orm_signaling_... sequence` indicates the corresponding cache must be
-        # invalidated (i.e. cleared).
+        # inter-process signaling: the `orm_signaling_registry` sequence signals
+        # a full registry reload; each `orm_signaling_<cache>` sequence signals
+        # that the corresponding cache must be invalidated (cleared).
         self.registry_sequence: int = -1
         self.cache_sequences: dict[str, int] = {}
 
@@ -362,10 +353,8 @@ class Registry(Mapping[str, type["BaseModel"]]):
         """Delete all the registries."""
         cls.registries.clear()
 
-    #
-    # Mapping abstract methods implementation
-    # => mixin provides methods keys, items, values, get, __eq__, and __ne__
-    #
+    # Mapping abstract methods; the mixin provides keys, items, values, get,
+    # __eq__, __ne__.
     def __len__(self) -> int:
         """Return the size of the registry."""
         return len(self.models)
@@ -458,8 +447,8 @@ class Registry(Mapping[str, type["BaseModel"]]):
         env = Environment(cr, SUPERUSER_ID, {})
         env.invalidate_all()
 
-        # Uninstall registry hooks. Because of the condition, this only happens
-        # on a fully loaded registry, and not on a registry being loaded.
+        # uninstall registry hooks (only on a fully loaded registry, not one
+        # still loading)
         if self.ready:
             for model in env.values():
                 model._unregister_hook()
@@ -553,11 +542,11 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 self.field_depends[field] = tuple(depends)
                 self.field_depends_context[field] = tuple(depends_context)
 
-        # clean the lazy_property again in case they are cached by another ongoing registry readonly request
+        # clean again in case cached by another ongoing readonly request
         reset_cached_properties(self)
 
-        # Reinstall registry hooks. Because of the condition, this only happens
-        # on a fully loaded registry, and not on a registry being loaded.
+        # reinstall registry hooks (only on a fully loaded registry, not one
+        # still loading)
         if self.ready:
             for model in env.values():
                 model._register_hook()
@@ -657,12 +646,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
         self, fields: list[Field], select: Callable[[Field], bool] = bool
     ) -> TriggerTree:
         """Return the trigger tree to traverse when ``fields`` have been modified.
-        The function ``select`` is called on every field to determine which fields
-        should be kept in the tree nodes.  This enables to discard some unnecessary
-        fields from the tree nodes.
 
-        Delegates to ``model_graph`` which owns the trigger tree computation.
-        Accessing ``_field_triggers`` ensures the graph is populated.
+        ``select`` is called on each field to choose which fields to keep in the
+        tree nodes. Delegates to ``model_graph``.
         """
         self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.get_trigger_tree(fields, select)
@@ -683,14 +669,11 @@ class Registry(Mapping[str, type["BaseModel"]]):
             # may be missing from these maps
             self.field_depends.pop(f, None)
 
-        # Invalidate every field-derived cached_property so each rebuilds on
-        # next access.  ``_field_triggers`` rebuilds by reading ``field_inverses``
-        # and ``field_computed`` (see its body), so leaving those cached would
-        # feed it stale data; ``field_fk_refs`` isn't touched by
-        # ``model_graph.discard_fields`` at all, so it would otherwise still
-        # reference the discarded fields.  This keeps ``_discard_fields``
-        # self-consistent regardless of whether the caller follows with
-        # ``_setup_models__`` (which also resets these).
+        # Invalidate every field-derived cached_property so each rebuilds on next
+        # access. ``_field_triggers`` reads ``field_inverses``/``field_computed``,
+        # so stale caches there would feed it bad data; ``field_fk_refs`` isn't
+        # touched by ``model_graph.discard_fields`` and would otherwise keep the
+        # discarded fields.
         for _prop in ("_field_triggers", "field_inverses", "field_computed", "field_fk_refs"):
             self.__dict__.pop(_prop, None)
 
@@ -699,26 +682,21 @@ class Registry(Mapping[str, type["BaseModel"]]):
         self.model_graph.discard_fields(fields)
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
-        """Return the trigger tree of a field by computing it from the transitive
-        closure of field triggers.
+        """Return a field's trigger tree (transitive closure of field triggers).
 
-        Delegates to ``model_graph`` which handles the transitive closure,
-        path simplification (m2o→o2m cancellation), and caching.
+        Delegates to ``model_graph``, which handles the closure, path
+        simplification (m2o→o2m cancellation), and caching.
         """
         self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.get_field_trigger_tree(field)
 
     @functools.cached_property
     def _field_triggers(self) -> dict:
-        """Return the field triggers, i.e., the inverse of field dependencies,
-        as a dictionary like ``{field: {path: fields}}``, where ``field`` is a
-        dependency, ``path`` is a sequence of fields to inverse and ``fields``
-        is a collection of fields that depend on ``field``.
+        """Return the field triggers (the inverse of field dependencies) as
+        ``{field: {path: fields}}``: ``field`` is a dependency, ``path`` is the
+        sequence of fields to inverse, and ``fields`` depend on ``field``.
 
-        Builds trigger data incrementally into ``model_graph`` via its
-        :meth:`~ModelGraph.add_trigger` API.  Other metadata (inverses,
-        depends, computed) is built directly into model_graph by their
-        respective cached_properties and setup_models().
+        Built incrementally into ``model_graph`` via its ``add_trigger`` API.
         """
         # Reset and rebuild triggers incrementally into model_graph
         self.model_graph.reset_triggers()
@@ -766,12 +744,10 @@ class Registry(Mapping[str, type["BaseModel"]]):
         """Call the given function, and delay it if it fails during an upgrade."""
         try:
             if key not in self._constraint_queue:
-                # Module A may try to apply a constraint and fail but another module B inheriting
-                # from Module A may try to reapply the same constraint and succeed, however the
-                # constraint would already be in the _constraint_queue and would be executed again
-                # at the end of the registry cycle, this would fail (already-existing constraint)
-                # and generate an error, therefore a constraint should only be applied if it's
-                # not already marked as "to be applied".
+                # skip if already queued: module A may fail to apply a constraint
+                # and module B (inheriting A) reapply it successfully; running
+                # the queued one again at end of cycle would fail on the
+                # already-existing constraint.
                 with cr.savepoint(flush=False):
                     func(cr)
         except Exception as e:
@@ -1086,10 +1062,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 self.__caches[cache].clear()
             self.cache_invalidated.add(cache_name)
 
-        # log information about invalidation_cause
         if _logger.isEnabledFor(logging.DEBUG):
-            # could be interresting to log in info but this will need to minimize invalidation first,
-            # mainly in some setupclass and crons
+            # debug, not info: would need to minimize invalidation first
+            # (mainly in some setUpClass and crons)
             caller_info = format_frame(inspect.currentframe().f_back)  # type: ignore
             _logger.debug(
                 "Invalidating %s model caches from %s",
@@ -1149,18 +1124,15 @@ class Registry(Mapping[str, type["BaseModel"]]):
     def setup_signaling(self) -> None:
         """Setup the inter-process signaling on this registry."""
         with self.cursor() as cr:
-            # The `orm_signaling_registry` sequence indicates when the registry
-            # must be reloaded.
-            # The `orm_signaling_...` sequences indicates when caches must
-            # be invalidated (i.e. cleared).
+            # `orm_signaling_registry` signals registry reload; each
+            # `orm_signaling_<cache>` signals cache invalidation.
             signaling_tables = tuple(
                 f"orm_signaling_{cache_name}"
                 for cache_name in ["registry", *_CACHES_BY_KEY]
             )
             existing_sig_tables = tuple(sql.existing_tables(cr, signaling_tables))
-            # signaling was previously using sequence but this doesn't work with replication
+            # insert-only tables, not sequences: sequences don't replicate
             # https://www.postgresql.org/docs/current/logical-replication-restrictions.html
-            # this is the reason why insert only tables are used.
             for table_name in signaling_tables:
                 if table_name not in existing_sig_tables:
                     cr.execute(
@@ -1224,16 +1196,12 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     _logger.info(
                         "Reloading the model registry after database signaling."
                     )
-                    # Another worker changed the schema.  This worker's idle
-                    # pooled connections hold auto-prepared statements from
-                    # before the change (first re-execute of a statement
-                    # whose result type changed fails with "cached plan
-                    # must not change result type"), and the schema caches
-                    # used by binary COPY may be stale (those do NOT
-                    # self-heal).  drain_all() in load_modules() only runs
-                    # in the worker that performed the upgrade — drain here
-                    # so this worker starts the new registry on fresh
-                    # connections.
+                    # another worker changed the schema. this worker's idle
+                    # pooled connections hold stale auto-prepared statements
+                    # (re-execute fails "cached plan must not change result
+                    # type") and stale binary-COPY schema caches (which do NOT
+                    # self-heal). drain_all() in load_modules() ran only in the
+                    # upgrading worker, so drain here to get fresh connections.
                     from odoo.db import drain_db
 
                     drain_db(self.db_name)
@@ -1286,10 +1254,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
             _logger.info("Registry changed, signaling through the database")
             with self.cursor() as cr:
                 cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
-                # If another process concurrently updates the registry,
-                # self.registry_sequence will actually be out-of-date,
-                # and the next call to check_signaling() will detect that and trigger a registry reload.
-                # otherwise, self.registry_sequence should be equal to cr.fetchone()[0]
+                # if another process updated the registry concurrently this
+                # becomes out-of-date, and the next check_signaling() detects it
+                # and triggers a reload; otherwise it equals cr.fetchone()[0].
                 self.registry_sequence += 1
 
         # no need to notify cache invalidation in case of registry invalidation,
@@ -1307,10 +1274,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
                             SQL.identifier(f"orm_signaling_{cache_name}"),
                         )
                     )
-                    # If another process concurrently updates the cache,
-                    # self.cache_sequences[cache_name] will actually be out-of-date,
-                    # and the next call to check_signaling() will detect that and trigger cache invalidation.
-                    # otherwise, self.cache_sequences[cache_name] should be equal to cr.fetchone()[0]
+                    # if another process updated the cache concurrently this
+                    # becomes out-of-date, and the next check_signaling() detects
+                    # it and invalidates; otherwise it equals cr.fetchone()[0].
                     self.cache_sequences[cache_name] += 1
 
         self.registry_invalidated = False
@@ -1345,10 +1311,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 try:
                     cr = self._db_readonly.cursor()
                     self._db_readonly_failed_time = None
-                    # Replica succeeded — clear any "ro->rw" cursor_mode left
-                    # from a previous fallback in the same thread.  Otherwise
-                    # the thread still reports the fallback state long after
-                    # it was resolved.
+                    # replica succeeded — clear any "ro->rw" cursor_mode left by
+                    # an earlier fallback in this thread, else it keeps reporting
+                    # the resolved fallback state.
                     threading.current_thread().cursor_mode = "ro"
                     return cr
                 except (psycopg.OperationalError, db.PoolError):

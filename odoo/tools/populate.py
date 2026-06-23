@@ -1,36 +1,15 @@
-"""
-Database Population via Duplication
+"""Database population by duplicating existing records.
 
-This tool provides utilities to duplicate records across models in Odoo, while maintaining referential integrity,
-handling field variations, and optimizing insertion performance. The duplication is controlled by a `factors` argument
-that specifies how many times each record should be duplicated. The duplication process takes into account fields
-that require unique constraints, distributed values (e.g., date fields), and relational fields (e.g., Many2one, Many2many).
+Duplicates records across models `factors` times via direct SQL, preserving
+referential integrity. Notable behaviours:
 
-Key Features:
--------------
-1. **Field Variations**: Handles variations for certain fields to ensure uniqueness or to distribute values, such as:
-   - Char/Text fields: Appends a postfix or variation to existing data.
-   - Date/Datetime fields: Distributes dates within a specified range.
-
-2. **Efficient Duplication**: Optimizes the duplication process by:
-   - Dropping and restoring indexes to speed up bulk inserts.
-   - Disabling foreign key constraint checks during duplication to avoid integrity errors.
-   - Dynamically adjusting sequences to maintain consistency in auto-increment fields like `id`.
-
-3. **Field-Specific Logic**:
-   - Unique fields are identified and modified to avoid constraint violations.
-   - Many2one fields are remapped to newly duplicated records.
-   - One2many and Many2many relationships are handled by duplicating both sides of the relationship.
-
-4. **Foreign Key and Index Management**:
-   - Indexes are temporarily dropped during record creation and restored afterward to improve performance.
-   - Foreign key checks are disabled temporarily to prevent constraint violations during record insertion.
-
-5. **Dependency Management**: Ensures proper population order of models with dependencies (e.g., `_inherits` fields)
-   by resolving dependencies before duplicating records.
-
-6. **Dynamic SQL Generation**: Uses SQL queries to manipulate and duplicate data directly at the database level,
-   ensuring performance and flexibility in handling large datasets.
+- Field variation to avoid unique-constraint clashes and distribute values:
+  char/text get a postfix, date/datetime are spread over a range.
+- Many2one are remapped to the new copies; one2many/many2many are populated by
+  duplicating both sides of the relation.
+- Bulk-insert speedups: indexes are dropped then restored, FK checks are
+  disabled (session_replication_role), and id sequences are realigned.
+- Models with dependencies (e.g. `_inherits`) are populated in dependency order.
 """
 
 import logging
@@ -61,10 +40,10 @@ MAX_DATETIME = datetime.now()
 def get_field_variation_date(
     model: Model, field: Field, factor: int, series_alias: str
 ) -> SQL:
-    """
-    Distribute the duplication series evenly between [field-total_days, field].
-    We use a hard limit of (MAX_DATETIME - MIN_DATETIME) years in the past to avoid
-    setting duplicated records too far back in the past.
+    """Distribute the duplication series evenly over [field - total_days, field].
+
+    total_days is capped at MAX_DATETIME - MIN_DATETIME (~4 years) so duplicates
+    are not pushed too far into the past.
     """
     total_days = min((MAX_DATETIME - MIN_DATETIME).days, factor)
     cast_type = SQL(field._column_type[1])
@@ -90,10 +69,7 @@ def get_field_variation_date(
 
 
 def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> SQL:
-    """
-    Append the `postfix` string to a char|text field.
-    If no postfix is provided, returns no variation
-    """
+    """Append `postfix` to a char/text field, or return it unchanged if postfix is None."""
     if postfix is None:
         return SQL.identifier(field.name)
     if not isinstance(postfix, SQL):
@@ -109,8 +85,7 @@ def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> 
             postfix=postfix,
         )
     else:
-        # no postfix for fields that are an '' (no point to)
-        # or '/' (default/draft name for many model's records)
+        # skip postfix for '' (pointless) and '/' (default/draft name on many models)
         return SQL(
             """
             CASE
@@ -132,10 +107,7 @@ class PopulateContext:
 
     @contextmanager
     def ignore_indexes(self, model: Model) -> Generator[None]:
-        """
-        Temporarily drop indexes on table to speed up insertion.
-        PKey and Unique indexes are kept for constraints
-        """
+        """Temporarily drop indexes to speed up insertion; keep PKey/Unique for constraints."""
         indexes = model.env.execute_query_dict(
             SQL(
                 """
@@ -186,20 +158,17 @@ class PopulateContext:
 
 
 def field_needs_variation(model: Model, field: Field) -> bool:
-    """
-    Return True/False depending on if the field needs to be varied.
-    Might be necessary in the case of:
-    - unique constraints
-    - varying dates for better distribution
-    - field will be part of _rec_name_search, therefor variety is needed for effective searches
-    - field has a trigram index on it
+    """Return whether the field must be varied across copies.
+
+    Needed for: unique constraints; date/datetime distribution; fields in
+    _rec_names_search (variety makes searches meaningful); trigram-indexed fields.
     """
 
     def is_unique(model_, field_):
-        """
-        An unique constraint is enforced by Postgres as an unique index,
-        whether it's defined as a constraint on the table, or as an manual unique index.
-        Both type of constraint are present in the index catalog
+        """Detect a unique constraint via pg_index.
+
+        Postgres enforces unique constraints as unique indexes, whether declared
+        as a table constraint or a manual unique index, so both appear here.
         """
         query = SQL(
             """
@@ -233,9 +202,7 @@ def field_needs_variation(model: Model, field: Field) -> bool:
 def get_field_variation(
     model: Model, field: Field, factor: int, series_alias: str
 ) -> SQL:
-    """
-    Returns a variation of the source field,
-    to avoid unique constraint, or better distribute data.
+    """Return a varied source expression for the field (avoids unique clashes / spreads data).
 
     :return: a SQL(identifier|expression|subquery)
     """

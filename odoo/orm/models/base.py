@@ -1,9 +1,7 @@
-"""
-BaseModel implementation - the core ORM class.
+"""BaseModel — the core ORM class, plus the Model subclass.
 
-This module contains the main BaseModel class and the Model subclass.
-All operational logic is in mixins (crud, query, read, lifecycle, etc.).
-This file focuses on model identity, field/method discovery, and coordination.
+Operational logic lives in the mixins; this file holds model identity,
+field/method discovery, and coordination.
 """
 
 import collections
@@ -22,11 +20,7 @@ from ..fields.base import Field, determine
 from ..fields.misc import Id
 from ..fields.textual import Char
 from ..parsing import parse_field_expr
-
-# Import from sibling modules in this package
 from .metaclass import MetaModel
-
-# Import ALL mixins from mixins/ subpackage (consolidated location)
 from .mixins import (
     AccessMixin,
     CacheMixin,
@@ -109,10 +103,9 @@ class BaseModel(
     pool: Registry
     """The registry instance, set as a class attribute during model setup.
 
-    ``self.pool`` and ``self.env.registry`` are the same object at runtime.
-    Convention: use ``self.pool`` for registry *metadata* access (field_computed,
-    field_inverses, field_triggers, etc.) and ``self.env.registry`` or
-    ``self.env[model_name]`` for model class lookups.
+    Same object as ``self.env.registry``. Convention: use ``self.pool`` for
+    registry *metadata* (field_computed, field_inverses, ...) and
+    ``self.env.registry`` / ``self.env[model_name]`` for model class lookups.
     """
 
     _fields__: dict[str, Field]
@@ -186,9 +179,8 @@ class BaseModel(
     _rec_name: str | None = None
     """Field to use for labeling records. Default: ``name`` if the model has it.
 
-    Set during model setup in ``registration.py``.  Changing the default to
-    ``''`` was considered but rejected: it would break ``_compute_display_name``
-    for the majority of models that rely on the implicit ``name`` fallback.
+    Set during model setup in ``registration.py``. The default stays ``name``
+    (not ``''``): ``_compute_display_name`` relies on the implicit fallback.
     """
     _rec_names_search: list[str] | None = None  #: fields to consider in ``name_search``
     _order: str = "id"  #: default order field for searching results
@@ -210,9 +202,8 @@ class BaseModel(
     _translate: bool = True
     """Whether to export translations for this model.
 
-    Legacy attribute from the old API.  Kept for backward compatibility
-    as some models (e.g. ir.model.constraint) set ``_translate = False``
-    to suppress translation export.  Low cost, no urgency to remove.
+    Legacy attribute; some models (e.g. ir.model.constraint) set it to
+    ``False`` to suppress translation export.
     """
     _check_company_auto: bool = False
     """On write and create, call ``_check_company`` to ensure companies

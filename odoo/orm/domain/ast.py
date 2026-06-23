@@ -1,18 +1,10 @@
-"""Domain AST (Abstract Syntax Tree) classes.
+"""Domain AST classes.
 
-This module contains the Domain class hierarchy:
-- Domain: Base class and factory for domain expressions
-- DomainBool: Constant domains (TRUE, FALSE)
-- DomainNot: Negation domain
-- DomainNary: Base for n-ary operators
-- DomainAnd: Conjunction (AND)
-- DomainOr: Disjunction (OR)
-- DomainCustom: Custom SQL domain
-- DomainCondition: Field condition (field, operator, value)
-
-Also contains:
-- OptimizationLevel: Enum for optimization stages
-- Optimization registries used by the optimization functions
+The ``Domain`` hierarchy: ``Domain`` (base + factory), ``DomainBool``
+(TRUE/FALSE), ``DomainNot`` (negation), ``DomainNary`` / ``DomainAnd`` /
+``DomainOr``, ``DomainCustom`` (custom SQL), ``DomainCondition`` (a
+``(field, operator, value)`` leaf). Also defines ``OptimizationLevel`` and the
+optimization registries populated by ``optimizations.py``.
 """
 
 import collections
@@ -64,9 +56,8 @@ class OptimizationLevel(enum.IntEnum):
     @functools.cached_property
     def next_level(self) -> OptimizationLevel:
         """Return the next optimization level."""
-        # raise (not assert) — under python -O ``OptimizationLevel(int(FULL)+1)``
-        # would raise the less-helpful ``ValueError: N is not a valid
-        # OptimizationLevel`` instead of this clear contract message.
+        # raise (not assert): a clearer message than the ValueError that
+        # ``OptimizationLevel(int(FULL)+1)`` would raise under python -O.
         if self is OptimizationLevel.FULL:
             raise ValueError("FULL level is the last one")
         return OptimizationLevel(int(self) + 1)
@@ -77,23 +68,19 @@ MAX_OPTIMIZE_ITERATIONS = 1000
 MAX_DOMAIN_NESTING = 100
 """Maximum AST operator-nesting depth accepted when parsing a domain list.
 
-Domain traversal (``__iter__``, ``__eq__``, ``__hash__``, ``_optimize``,
-``_to_sql``) is recursive, so a pathologically deep — e.g. attacker-supplied —
-domain raises an opaque ``RecursionError`` mid-evaluation (verified: a depth of
-~1000 alternating ``&``/``|`` operators, a few KB of JSON, constructs fine but
-blows the stack on the first traversal).  We reject such domains at parse time
-with a clear ``ValueError`` instead.  Real domains nest a handful of levels;
-100 is far beyond any legitimate use yet safely below the interpreter recursion
-limit even accounting for the surrounding call stack.
+Domain traversal is recursive, so a pathologically deep (e.g. attacker-supplied)
+domain blows the stack with an opaque ``RecursionError`` mid-evaluation; we
+reject it at parse time with a clear ``ValueError`` instead. Real domains nest a
+handful of levels, so 100 is well beyond legitimate use yet safely below the
+interpreter recursion limit.
 """
 
 
 def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
     """Yield the direct operator-child domains of *node* (none for leaves).
 
-    Only follows the n-ary/not operator structure — ``any``/``not any``
-    sub-domains are validated independently when they are themselves parsed
-    (each goes through :meth:`Domain.__new__`), so they are not re-walked here.
+    Only the n-ary/not structure; ``any``/``not any`` sub-domains are validated
+    on their own :meth:`Domain.__new__` parse, so not re-walked here.
     """
     if isinstance(node, DomainNary):  # DomainAnd / DomainOr
         yield from node.children
@@ -104,10 +91,8 @@ def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
 def _check_domain_nesting(domain: Domain, max_depth: int) -> None:
     """Raise ``ValueError`` if *domain* nests deeper than *max_depth*.
 
-    Iterative (explicit-stack) DFS with early exit: it never recurses itself and
-    stops as soon as the limit is exceeded, so it adds negligible cost to the
-    common shallow case while turning the deep-domain ``RecursionError`` into a
-    clean, catchable validation error.
+    Explicit-stack DFS with early exit (never recurses itself), turning a
+    deep-domain ``RecursionError`` into a catchable validation error.
     """
     stack: list[tuple[Domain, int]] = [(domain, 1)]
     while stack:
@@ -140,22 +125,15 @@ _MERGE_OPTIMIZATIONS: list = []
 
 
 def _optimize_nary_sort_key(domain: Domain) -> tuple[str, str, str]:
-    """Sorting key for nary domains so that similar operators are grouped together.
+    """Sort key grouping nary children by (field, operator type, operator).
 
-    1. Field name (non-simple conditions are sorted at the end)
-    2. Operator type (equality, inequality, existence, string comparison, other)
-    3. Operator
+    Equivalent conditions sort together, yielding canonical domains and SQL
+    ordered by field name (better DB caching).
 
-    Sorting allows to have the same optimized domain for equivalent conditions.
-    For debugging, it eases to find conditions on fields.
-    The generated SQL will be ordered by field name so that database caching
-    can be applied more frequently.
-
-    Load-bearing invariant: the nary merge passes (``_MERGE_OPTIMIZATIONS``)
-    only combine *adjacent* conditions, so this key MUST place every pair of
-    co-mergeable conditions next to each other regardless of input order.
-    Optimization confluence (order-invariance of the result) depends on it;
-    it is locked in by ``tests/models/test_domain_confluence.py``.
+    Load-bearing invariant: nary merge passes (``_MERGE_OPTIMIZATIONS``) only
+    combine *adjacent* conditions, so this key MUST place every co-mergeable
+    pair next to each other regardless of input order. Optimization confluence
+    depends on it; locked in by ``tests/models/test_domain_confluence.py``.
     """
     if isinstance(domain, DomainCondition):
         # group the same field and same operator together
@@ -179,37 +157,29 @@ def _optimize_nary_sort_key(domain: Domain) -> tuple[str, str, str]:
         return "~", "~", domain.__class__.__name__
 
 
-# --------------------------------------------------
 # Domain definition and manipulation
-# --------------------------------------------------
 
 
 class Domain:
     """Representation of a domain as an AST."""
 
-    # Domain is an abstract class (ABC), but not marked as such
-    # because we overwrite __new__ so typechecking for abstractmethod is incorrect.
-    # We do this so that we can use the Domain as both a factory for multiple
-    # types of domains, while still having `isinstance` working for it.
+    # Abstract base, but not marked ABC: __new__ is overridden so Domain doubles
+    # as a factory for the concrete subtypes while keeping `isinstance` working.
     __slots__ = ("_opt_level",)
     _opt_level: OptimizationLevel
 
     def __new__(cls, *args: object, internal: bool = False) -> Domain:
         """Build a domain AST.
 
-        ```
-        Domain([("a", "=", 5), ("b", "=", 8)])
-        Domain("a", "=", 5) & Domain("b", "=", 8)
-        Domain.AND([Domain("a", "=", 5), *other_domains, Domain.TRUE])
-        ```
+        A single argument is a ``Domain``, a list representation, or a bool.
+        Three arguments form one condition: field (str), operator (str), value::
 
-        If we have one argument, it is a `Domain`, or a list representation, or a bool.
-        In case we have multiple ones, there must be 3 of them:
-        a field (str), the operator (str) and a value for the condition.
+            Domain([("a", "=", 5), ("b", "=", 8)])
+            Domain("a", "=", 5) & Domain("b", "=", 8)
 
-        By default, the special operators ``'any!'`` and ``'not any!'`` are
-        allowed in domain conditions (``Domain('a', 'any!', dom)``) but not in
-        domain lists (``Domain([('a', 'any!', dom)])``).
+        The ``'any!'`` / ``'not any!'`` operators are allowed in conditions
+        (``Domain('a', 'any!', dom)``) but not in domain lists unless
+        ``internal=True``.
         """
         if len(args) > 1:
             if isinstance(args[0], str):
@@ -224,9 +194,8 @@ class Domain:
         arg = args[0]
         if isinstance(arg, Domain):
             return arg
-        # Accept both ``[]`` and ``()`` as TRUE.  Previously ``arg == []`` only
-        # matched lists, leaving ``Domain(())`` to fall through and crash with
-        # "malformed domain" on the empty-stack pop.
+        # Accept both ``[]`` and ``()`` as TRUE (``Domain(())`` must not fall
+        # through to the malformed-domain path).
         if arg is True or arg in ([], ()):
             return _TRUE_DOMAIN
         if arg is False:
@@ -234,18 +203,15 @@ class Domain:
         if arg is NotImplemented:
             raise NotImplementedError
 
-        # parse as a list
-        # perf: do this inside __new__ to avoid calling function that return
-        # a Domain which would call implicitly __init__
+        # parse as a list, inside __new__ to avoid implicit __init__ calls
         if not isinstance(arg, (list, tuple)):
             raise TypeError(f"Domain() invalid argument type for domain: {arg!r}")
-        # Fast path: single-condition domain [('field', 'op', value)]
-        # This is the most common pattern and avoids the stack/reverse overhead.
+        # Fast path for the common single-condition domain, skipping the stack.
         if len(arg) == 1:
             item = arg[0]
             if isinstance(item, (tuple, list)) and len(item) == 3:
                 if internal:
-                    # Parse subdomain values for any/any!/not any/not any! operators
+                    # parse subdomain values for any/any!/not any/not any!
                     if item[1] in SUBDOMAIN_OPERATORS and isinstance(
                         item[2], (list, tuple)
                     ):
@@ -264,7 +230,6 @@ class Domain:
             for item in reversed(arg):
                 if isinstance(item, (tuple, list)) and len(item) == 3:
                     if internal:
-                        # process subdomains when processing internal operators
                         if item[1] in SUBDOMAIN_OPERATORS and isinstance(
                             item[2], (list, tuple)
                         ):
@@ -274,7 +239,6 @@ class Domain:
                                 Domain(item[2], internal=True),
                             )
                     elif item[1] in INTERNAL_CONDITION_OPERATORS:
-                        # internal operators are not accepted
                         raise ValueError(f"Domain() invalid item in domain: {item!r}")
                     stack.append(Domain(*item))
                 elif item == DomainAnd.OPERATOR:
@@ -287,7 +251,6 @@ class Domain:
                     stack.append(item)
                 else:
                     raise ValueError(f"Domain() invalid item in domain: {item!r}")
-            # keep the order and simplify already
             if len(stack) == 1:
                 result = stack[0]
             else:
@@ -342,25 +305,22 @@ class Domain:
         raise TypeError(msg)
 
     def __and__(self, other: object) -> Domain | type[NotImplemented]:
-        """Domain & Domain"""
         if isinstance(other, Domain):
-            # Fast path: absorbing element / identity shortcuts
+            # absorbing element / identity shortcut
             if isinstance(other, DomainBool):
                 return self if other.value else other
             return DomainAnd.apply([self, other])
         return NotImplemented
 
     def __or__(self, other: object) -> Domain | type[NotImplemented]:
-        """Domain | Domain"""
         if isinstance(other, Domain):
-            # Fast path: absorbing element / identity shortcuts
+            # absorbing element / identity shortcut
             if isinstance(other, DomainBool):
                 return other if other.value else self
             return DomainOr.apply([self, other])
         return NotImplemented
 
     def __invert__(self) -> Domain:
-        """~Domain"""
         return DomainNot(self)
 
     def _negate(self, model: BaseModel) -> Domain:
@@ -368,15 +328,11 @@ class Domain:
         return ~self
 
     def __add__(self, other: object) -> Domain | list[object]:
-        """Domain + [...]
+        """Deprecated list concatenation; use ``&`` (AND) or ``|`` (OR).
 
-        For backward-compatibility of domain composition.
-        Concatenate as lists.
-        If we have two domains, equivalent to '&'.
+        Domain + Domain is ``&``; Domain + list concatenates as raw (possibly
+        unnormalized) lists. Kept for backward compatibility.
         """
-        # DEPRECATED: Use Domain & Domain for conjunction, not Domain + Domain.
-        # Combining Domain with a raw list is fragile because the list may
-        # not be normalized.  Kept for backward compatibility.
         if isinstance(other, Domain):
             warnings.warn(
                 "Domain + Domain is deprecated, use Domain & Domain (AND) "
@@ -396,32 +352,20 @@ class Domain:
         return list(self) + other
 
     def __radd__(self, other: list[object]) -> list[object]:
-        """Commutative definition of *+*"""
-        # DEPRECATED: Use Domain & Domain for conjunction, not list + Domain.
+        """Deprecated ``list + Domain``; returns a (possibly unnormalized) list."""
         warnings.warn(
             "list + Domain is deprecated, convert the list to a Domain first",
             DeprecationWarning,
             stacklevel=2,
         )
-        # we are pre-pending, return a list
-        # because the result may not be normalized
         return other + list(self)
 
     def __bool__(self) -> bool:
-        """Indicate that the domain is not true.
+        """Whether the domain is not TRUE (so the TRUE domain is falsy).
 
-        For backward-compatibility, only the domain [] was False. Which means
-        that the TRUE domain is falsy and others are truthy.
+        Deprecated; prefer ``is_true()`` / ``is_false()``. The deprecation
+        warning is deferred until core callers stop using ``if domain:``.
         """
-        # DEPRECATED: Use is_true() / is_false() instead of bool().
-        # The semantics are confusing: TRUE domain is falsy, others are truthy.
-        # Not enabling the warning yet — too many callers in core still use
-        # ``if domain:`` patterns.  Enable once callers are migrated.
-        # warnings.warn(
-        #     "bool(Domain) is deprecated, use domain.is_true() or domain.is_false()",
-        #     DeprecationWarning,
-        #     stacklevel=2,
-        # )
         return not self.is_true()
 
     def __eq__(self, other: object) -> bool:
@@ -431,95 +375,72 @@ class Domain:
         raise NotImplementedError
 
     def __iter__(self) -> typing.Iterator[object]:
-        """For-backward compatibility, return the polish-notation domain list"""
+        """Yield the polish-notation domain list (backward compatibility)."""
         yield from ()
         raise NotImplementedError
 
     def __reversed__(self) -> typing.Iterator[object]:
-        """For-backward compatibility, reversed iter"""
         return reversed(list(self))
 
     def __repr__(self) -> str:
-        # return representation of the object as the old-style list
         return repr(list(self))
 
     def is_true(self) -> bool:
-        """Return whether self is TRUE"""
         return False
 
     def is_false(self) -> bool:
-        """Return whether self is FALSE"""
         return False
 
     def iter_conditions(self) -> typing.Iterator[DomainCondition]:
-        """Yield simple conditions of the domain"""
+        """Yield the simple conditions of the domain."""
         yield from ()
 
     def map_conditions(self, function: Callable[[DomainCondition], Domain]) -> Domain:
-        """Map a function to each condition and return the combined result"""
+        """Map *function* over each condition and return the combined result."""
         return self
 
     def validate(self, model: BaseModel) -> None:
-        """Validates that the current domain is correct or raises an exception"""
-        # just execute the optimization code that goes through all the fields
+        """Validate the domain, raising on error."""
+        # full optimization walks every field, validating along the way
         self._optimize(model, OptimizationLevel.FULL)
 
     def _as_predicate(self, records: M) -> Callable[[M], bool]:
-        """Return a predicate function from the domain (bound to records).
-        The predicate function return whether its argument (a single record)
-        satisfies the domain.
+        """Return a predicate testing whether a single record satisfies self.
 
-        This is used to implement ``Model.filtered_domain``.
+        Used to implement ``Model.filtered_domain``.
         """
         raise NotImplementedError
 
     def optimize(self, model: BaseModel) -> Domain:
-        """Perform optimizations of the node given a model.
+        """Rewrite the domain into a canonical, logically equivalent form.
 
-        It is a pre-processing step to rewrite the domain into a logically
-        equivalent domain that is a more canonical representation of the
-        predicate. Multiple conditions can be merged together.
-
-        It applies basic optimizations only. Those are transaction-independent;
-        they only depend on the model's fields definitions. No model-specific
-        override is used, and the resulting domain may be reused in another
-        transaction without semantic impact.
-        The model's fields are used to validate conditions and apply
-        type-dependent optimizations. This optimization level may be useful to
-        simplify a domain that is sent to the client-side, thereby reducing its
-        payload/complexity.
+        Basic level only: transaction-independent, depending solely on the
+        model's field definitions (no model-specific overrides), so the result
+        is reusable across transactions and suitable for the client side.
         """
         return self._optimize(model, OptimizationLevel.BASIC)
 
     def optimize_full(self, model: BaseModel) -> Domain:
-        """Perform optimizations of the node given a model.
+        """Rewrite the domain applying basic and advanced optimizations.
 
-        Basic and advanced optimizations are applied.
-        Advanced optimizations may rely on model specific overrides
-        (search methods of fields, etc.) and the semantic equivalence is only
-        guaranteed at the given point in a transaction. We resolve inherited
-        and non-stored fields (using their search method) to transform the
-        conditions.
+        Advanced optimizations may use model-specific overrides (field search
+        methods) and resolve inherited/non-stored fields, so equivalence holds
+        only at this point in the transaction.
         """
         return self._optimize(model, OptimizationLevel.FULL)
 
     @typing.final
     def _optimize(self, model: BaseModel, level: OptimizationLevel) -> Domain:
-        """Perform optimizations of the node given a model.
+        """Optimize to a fixed point, advancing one level at a time up to *level*.
 
-        Reach a fixed-point by applying the optimizations for the next level
-        on the node until we reach a stable node at the given level.
-
-        Termination argument (``MAX_OPTIMIZE_ITERATIONS`` is only a backstop):
-        the outer loop advances ``_opt_level`` monotonically — each level runs
-        until ``_optimize_step`` returns an equal node, at which point the level
-        is bumped — and within a level the registered passes are confluent and
-        non-size-increasing (see ``_optimize_nary_sort_key``).  The ``==`` below
-        (not ``is``) is required: a no-merge ``_optimize_step`` may still return
-        a *new* node with sorted children, which is value-equal but not
-        identical; ``is`` would never advance the level and would spin to the
-        backstop.  Each concrete ``__eq__`` already short-circuits on identity,
-        so the common no-op case stays O(1).
+        Termination (``MAX_OPTIMIZE_ITERATIONS`` is only a backstop):
+        ``_opt_level`` advances monotonically and within each level the
+        registered passes are confluent and non-size-increasing (see
+        ``_optimize_nary_sort_key``). The ``==`` below (not ``is``) is required:
+        a no-merge ``_optimize_step`` may still return a new, value-equal node
+        with sorted children; ``is`` would never advance the level and spin to
+        the backstop. Each ``__eq__`` short-circuits on identity, so the common
+        no-op case stays O(1).
         """
         domain, previous, count = self, None, 0
         while domain._opt_level < level:
@@ -528,17 +449,17 @@ class Domain:
                 raise RecursionError(msg)
             next_level = domain._opt_level.next_level
             previous, domain = domain, domain._optimize_step(model, next_level)
-            # set the optimization level if necessary (unlike DomainBool, for instance)
+            # bump the level when stable (DomainBool etc. start already at FULL)
             if domain == previous and domain._opt_level < next_level:
                 object.__setattr__(domain, "_opt_level", next_level)
         return domain
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
-        """Implementation of domain for one level of optimizations."""
+        """Run one level of optimizations (overridden per subclass)."""
         return self
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:
-        """Build the SQL to inject into the query.  The domain should be optimized first."""
+        """Build the SQL to inject into the query; optimize the domain first."""
         raise NotImplementedError
 
 
@@ -557,7 +478,6 @@ class DomainBool(Domain):
     _SQL_FALSE = SQL("FALSE")
 
     def __new__(cls, value: bool):
-        """Create a constant domain."""
         self = object.__new__(cls)
         object.__setattr__(self, "value", value)
         object.__setattr__(self, "_opt_level", OptimizationLevel.FULL)
@@ -598,7 +518,7 @@ class DomainBool(Domain):
         return self._SQL_TRUE if self.value else self._SQL_FALSE
 
 
-# singletons, available though Domain.TRUE and Domain.FALSE
+# singletons, available through Domain.TRUE and Domain.FALSE
 _TRUE_DOMAIN = DomainBool(True)
 _FALSE_DOMAIN = DomainBool(False)
 
@@ -663,9 +583,8 @@ class DomainNary(Domain):
 
     def __new__(cls, children: tuple[Domain, ...]):
         """Create the n-ary domain with at least 2 conditions."""
-        # raise (not assert) so contract holds under python -O.  Building a
-        # nary with < 2 children produces a malformed AST that crashes only
-        # later, in obscure traversal code.
+        # raise (not assert): under python -O a < 2-child nary is a malformed
+        # AST that would otherwise crash later in obscure traversal code.
         if len(children) < 2:
             raise ValueError(
                 f"DomainNary requires at least 2 children, got {len(children)}"
@@ -685,9 +604,9 @@ class DomainNary(Domain):
 
     @classmethod
     def _flatten(cls, children: Iterable[Domain]) -> list[Domain]:
-        """Return an equivalent list of domains with respect to the boolean
-        operation of the class (AND/OR).  Boolean subdomains are simplified,
-        and subdomains of the same class are flattened into the list.
+        """Flatten children for this class's boolean op (AND/OR).
+
+        Boolean subdomains are simplified and same-class subdomains are inlined.
         The returned list is never empty.
         """
         result: list[Domain] = []
@@ -735,24 +654,21 @@ class DomainNary(Domain):
         return self.apply(child.map_conditions(function) for child in self.children)
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
-        # optimize children
         children = self._flatten(
             child._optimize(model, level) for child in self.children
         )
         size = len(children)
         if size > 1:
-            # sort children in order to ease their grouping by field and operator
+            # sort to group children by field and operator
             children.sort(key=_optimize_nary_sort_key)
-            # run optimizations until some merge happens
             cls = type(self)
             for merge in _MERGE_OPTIMIZATIONS:
                 children = merge(cls, children, model)
                 if len(children) < size:
                     break
             else:
-                # if no change, skip creation of a new object — the length
-                # equality is checked in the same expression, so strict=True
-                # is structurally guaranteed and protects future refactors.
+                # no merge: reuse self if children are identical. The length
+                # check guarantees strict=True (and guards future refactors).
                 if len(self.children) == len(children) and all(
                     map(operator.is_, self.children, children, strict=True)
                 ):
@@ -781,7 +697,7 @@ class DomainAnd(DomainNary):
         return DomainOr
 
     def __and__(self, other: object) -> Domain | type[NotImplemented]:
-        # simple optimization to append children
+        # append children directly when both sides are AND
         if isinstance(other, DomainAnd):
             return DomainAnd(self.children + other.children)
         return super().__and__(other)
@@ -808,7 +724,7 @@ class DomainOr(DomainNary):
         return DomainAnd
 
     def __or__(self, other: object) -> Domain | type[NotImplemented]:
-        # simple optimization to append children
+        # append children directly when both sides are OR
         if isinstance(other, DomainOr):
             return DomainOr(self.children + other.children)
         return super().__or__(other)
@@ -835,12 +751,11 @@ class DomainCustom(Domain):
         sql: Callable[[BaseModel, str, Query], SQL],
         filtered: Callable[[BaseModel], bool] | None = None,
     ):
-        """Create a new domain.
+        """Create a custom domain.
 
-        :param to_sql: callable(model, alias, query) that implements ``_to_sql``
-                       which is used to generate the query for searching
-        :param predicate: callable(record) that checks whether a record is kept
-                          when filtering (``Model.filtered``)
+        :param sql: ``callable(model, alias, query)`` implementing ``_to_sql``.
+        :param filtered: ``callable(record)`` deciding whether a record is kept
+            for ``Model.filtered``.
         """
         self = object.__new__(cls)
         object.__setattr__(self, "_sql", sql)
@@ -889,12 +804,7 @@ class DomainCondition(Domain):
     value: typing.Any
 
     def __new__(cls, field_expr: str, operator: str, value: object) -> DomainCondition:
-        """Init a new simple condition (internal init)
-
-        :param field_expr: Field name or field path
-        :param operator: A valid operator
-        :param value: A value for the comparison
-        """
+        """Build a simple condition (field name/path, operator, value)."""
         self = object.__new__(cls)
         object.__setattr__(self, "field_expr", field_expr)
         object.__setattr__(self, "operator", operator)
@@ -917,11 +827,9 @@ class DomainCondition(Domain):
             return DomainCondition(self.field_expr, op, self.value).checked()
         if op not in CONDITION_OPERATORS:
             self._raise("Invalid operator")
-        # check already the consistency for domain manipulation
-        # these are common mistakes and optimizations, do them here to avoid recreating the domain
-        # - NewId is not a value
-        # - records are not accepted, use values
-        # - Query and Domain values should be using a relational operator
+        # Normalize common value mistakes here to avoid recreating the domain:
+        # NewId is not a value, records become their ids, and Query/Domain
+        # values need a relational operator.
         from ..models import BaseModel
 
         value = self.value
@@ -959,8 +867,7 @@ class DomainCondition(Domain):
         return self
 
     def __invert__(self) -> Domain:
-        # do it only for simple fields (not expressions)
-        # inequalities are handled in _negate()
+        # only simple fields, not expressions; inequalities go through _negate()
         if "." not in self.field_expr and (
             neg_op := INVERSE_OPERATOR.get(self.operator)
         ):
@@ -968,12 +875,11 @@ class DomainCondition(Domain):
         return super().__invert__()
 
     def _negate(self, model: BaseModel) -> Domain:
-        # inverse of the operators is handled by construction
-        # except for inequalities for which we must know the field's type
+        # operator inversion is handled by construction, except for inequalities
+        # which need the field's type
         if neg_op := INVERSE_INEQUALITY.get(self.operator):
-            # Inverse and add a self "or field is null"
-            # when the field does not have a falsy value.
-            # Having a falsy value is handled correctly in the SQL generation.
+            # inverse, and OR in "field is null" when the field has no falsy
+            # value (a falsy value is handled correctly by SQL generation)
             condition = DomainCondition(self.field_expr, neg_op, self.value)
             if self._field(model).falsy_value is None:
                 is_null = DomainCondition(self.field_expr, "in", OrderedSet([False]))
@@ -984,7 +890,7 @@ class DomainCondition(Domain):
 
     def __iter__(self) -> typing.Iterator[tuple[str, str, object]]:
         field_expr, op, value = self.field_expr, self.operator, self.value
-        # if the value is a domain or set, change it into a list
+        # normalize domain/set values to a list
         if isinstance(value, (*COLLECTION_TYPES, Domain)):
             value = list(value)
         yield (field_expr, op, value)
@@ -994,8 +900,8 @@ class DomainCondition(Domain):
             isinstance(other, DomainCondition)
             and self.field_expr == other.field_expr
             and self.operator == other.operator
-            # we want stricter equality than this: `OrderedSet([x]) == {x}`
-            # to ensure that optimizations always return OrderedSet values
+            # stricter than ==: reject `OrderedSet([x]) == {x}` so optimizations
+            # always converge on OrderedSet values
             and self.value.__class__ is other.value.__class__
             and self.value == other.value
         )
@@ -1012,50 +918,43 @@ class DomainCondition(Domain):
         return result
 
     def _raise(self, message: str, *args, error=ValueError) -> typing.NoReturn:
-        """Raise an error message for this condition"""
         message += " in condition (%r, %r, %r)"
         raise error(message % (*args, self.field_expr, self.operator, self.value))
 
     def _field(self, model: BaseModel) -> Field:
-        """Cached Field instance for the expression."""
+        """Return the cached Field for the expression."""
         field = self._field_instance  # type: ignore[arg-type]
         if field is None or field.model_name != model._name:
             field, _ = self.__get_field(model)
         return field
 
     def __get_field(self, model: BaseModel) -> tuple[Field, str]:
-        """Get the field or raise an exception"""
+        """Resolve the field (raising if invalid) and cache it."""
         field_name, property_name = parse_field_expr(self.field_expr)
         try:
             field = model._fields[field_name]
         except KeyError:
             self._raise("Invalid field %s.%s", model._name, field_name)
-        # cache field value, with this hack to bypass immutability
+        # cache on the instance, bypassing immutability
         object.__setattr__(self, "_field_instance", field)
         return field, property_name or ""
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
         """Optimization step.
 
-        Apply some generic optimizations and then dispatch optimizations
-        according to the operator and the type of the field.
-        Optimize recursively until a fixed point is found.
-
-        - Validate the field.
-        - Decompose *paths* into domains using 'any'.
-        - If the field is *not stored*, run the search function of the field.
-        - Run optimizations.
-        - Check the output.
+        Validate the field, decompose paths into ``any`` sub-domains, run the
+        field's search method for non-stored fields, then dispatch the
+        registered optimizations for the operator and field type.
         """
-        # raise (not assert) so the contract holds under python -O — skipping
-        # an optimization level silently yields an under-optimized domain.
+        # raise (not assert): under python -O, skipping a level would silently
+        # yield an under-optimized domain.
         if level is not self._opt_level.next_level:
             raise RuntimeError(
                 f"Trying to skip optimization level after {self._opt_level}"
             )
 
         if level == OptimizationLevel.BASIC:
-            # optimize path
+            # decompose a path into an 'any' sub-domain
             field, property_name = self.__get_field(model)
             if property_name and field.relational:
                 sub_domain = DomainCondition(property_name, self.operator, self.value)
@@ -1064,9 +963,8 @@ class DomainCondition(Domain):
             field = self._field(model)
 
         if level == OptimizationLevel.FULL:
-            # resolve inherited fields
-            # inherits implies both Field.delegate=True and Field.bypass_search_access=True
-            # so no additional permissions will be added by the 'any' operator below
+            # resolve inherited fields. inherits implies delegate=True and
+            # bypass_search_access=True, so the 'any' below adds no permissions.
             if field.inherited:
                 assert field.related
                 parent_fname = field.related.split(".")[0]
@@ -1075,16 +973,15 @@ class DomainCondition(Domain):
                 )
                 return DomainCondition(parent_fname, "any", parent_domain)
 
-            # handle searchable fields
             if field.search and field.name == self.field_expr:
                 domain = self._optimize_field_search_method(model)
-                # The domain is optimized so that value data types are comparable.
-                # Only simple optimization to avoid endless recursion.
+                # only basic optimization, to make value types comparable
+                # without recursing endlessly
                 domain = domain.optimize(model)
                 if domain != self:
                     return domain
 
-        # apply optimizations of the level for operator and type
+        # dispatch optimizations for the operator, then the field type
         optimizations = _OPTIMIZATIONS_FOR[level]
         for opt in optimizations.get(self.operator, ()):
             domain = opt(self, model)
@@ -1095,7 +992,6 @@ class DomainCondition(Domain):
             if domain != self:
                 return domain
 
-        # final checks
         if (
             self.operator not in STANDARD_CONDITION_OPERATORS
             and level == OptimizationLevel.FULL
@@ -1107,7 +1003,6 @@ class DomainCondition(Domain):
     def _optimize_field_search_method(self, model: BaseModel) -> Domain:
         field = self._field(model)
         op, value = self.operator, self.value
-        # use the `Field.search` function
         original_exception = None
         try:
             computed_domain = field.determine_domain(model, op, value)
@@ -1117,15 +1012,14 @@ class DomainCondition(Domain):
         else:
             if computed_domain is not NotImplemented:
                 return Domain(computed_domain, internal=True)
-        # try with the positive operator
+        # retry with the positive operator
         if original_exception is None and (inversed_op := INVERSE_OPERATOR.get(op)):
             computed_domain = field.determine_domain(model, inversed_op, value)
             if computed_domain is not NotImplemented:
                 return ~Domain(computed_domain, internal=True)
-        # compatibility for any!
+        # any!/not any! fallback: not strictly equivalent, the search runs sudo
         try:
             if op in ("any!", "not any!"):
-                # Not strictly equivalent! If a search is executed, it will be done using sudo.
                 computed_domain = DomainCondition(
                     self.field_expr, op.rstrip("!"), value
                 )
@@ -1137,7 +1031,7 @@ class DomainCondition(Domain):
         except (NotImplementedError, UserError) as e:
             if original_exception is None:
                 original_exception = e
-        # backward compatibility to implement only '=' or '!='
+        # fall back to fields implementing only '=' / '!='
         try:
             if op == "in":
                 return Domain.OR(
@@ -1152,7 +1046,6 @@ class DomainCondition(Domain):
         except (NotImplementedError, UserError) as e:
             if original_exception is None:
                 original_exception = e
-        # raise the error
         if original_exception:
             raise original_exception
         raise UserError(
@@ -1177,15 +1070,14 @@ class DomainCondition(Domain):
 
         op = self.operator
         if op in ("child_of", "parent_of"):
-            # Hierarchy operators need full optimization (parent_path expansion)
-            # before they can become a predicate.  A specialized in-memory
-            # implementation could avoid the SQL round-trip, but hierarchy
-            # traversal is rare in predicate contexts — not worth optimizing.
+            # hierarchy operators need full optimization (parent_path expansion)
+            # before becoming a predicate; rare here, so the SQL round-trip is
+            # not worth specializing in memory
             return self._optimize(records, OptimizationLevel.FULL)._as_predicate(
                 records
             )
 
-        # raise (not assert) so the contract holds under python -O.
+        # raise (not assert): hold the contract under python -O
         if op not in STANDARD_CONDITION_OPERATORS:
             raise RuntimeError(
                 f"Expecting a sub-set of operators, got {op!r}"
@@ -1194,7 +1086,7 @@ class DomainCondition(Domain):
         positive_operator = NEGATIVE_CONDITION_OPERATORS.get(op, op)
 
         if isinstance(value, SQL):
-            # transform into an Query value
+            # turn the SQL value into a Query via a sub-search
             if positive_operator == op:
                 condition = self
                 op = "any!"
@@ -1209,7 +1101,7 @@ class DomainCondition(Domain):
             assert isinstance(value, Query)
 
         if isinstance(value, Query):
-            # rebuild a domain with an 'in' values
+            # rebuild the condition as an 'in' against the resolved ids
             if positive_operator not in ("in", "any", "any!"):
                 self._raise(
                     "Cannot filter using Query without the 'any' or 'in' operator"
@@ -1233,9 +1125,8 @@ class DomainCondition(Domain):
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:
         field_expr, op, value = self.field_expr, self.operator, self.value
-        # raise (not assert) so contract violations surface under python -O.
-        # An unoptimized condition or non-standard operator would otherwise
-        # silently produce malformed or wrong SQL.
+        # raise (not assert): under python -O an unoptimized or non-standard
+        # condition would otherwise produce malformed/wrong SQL silently
         if op not in STANDARD_CONDITION_OPERATORS:
             raise RuntimeError(
                 f"Invalid operator {op!r} for SQL in domain term {(field_expr, op, value)!r}"

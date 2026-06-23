@@ -1,22 +1,4 @@
-"""
-Search and query mixin for BaseModel.
-
-This module provides the SearchMixin class containing all search and query-related
-methods. BaseModel inherits from this mixin.
-
-Methods:
-- search_count: Return the number of records matching a domain
-- search: Search for records matching a domain
-- search_fetch: Search and fetch fields in one query
-- _search_display_name: Search on display_name field
-- name_search: Search records by display name pattern
-- _check_qorder: Validate order specification
-- _order_to_sql: Convert order string to SQL
-- _order_field_to_sql: Convert a single order field to SQL
-- _search: Private search implementation
-- _as_query: Convert recordset to a Query object
-- search_read: Search and read records in one operation
-"""
+"""Search and query mixin for BaseModel."""
 
 import contextlib
 import logging
@@ -55,11 +37,7 @@ _SQL_NULLS = {"NULLS FIRST": _SQL_NULLS_FIRST, "NULLS LAST": _SQL_NULLS_LAST}
 
 
 class SearchMixin:
-    """Mixin providing search and query functionality.
-
-    This mixin is inherited by BaseModel and provides methods for searching
-    records, building queries, and handling order specifications.
-    """
+    """Mixin providing search and query functionality for BaseModel."""
 
     __slots__ = ()
 
@@ -221,13 +199,11 @@ class SearchMixin:
 
     @api.model
     def _search_display_name(self, operator: str, value: typing.Any) -> DomainType:
-        """
-        Returns a domain that matches records whose display name matches the
-        given ``name`` pattern when compared with the given ``operator``.
-        This method is used to implement the search on the ``display_name``
-        field, and can be overridden to change the search criteria.
-        The default implementation searches the fields defined in `_rec_names_search`
-        or `_rec_name`.
+        """Return a domain matching records whose display name matches ``value``
+        under ``operator``.
+
+        Implements the search on the ``display_name`` field; may be overridden.
+        Default implementation searches ``_rec_names_search`` or ``_rec_name``.
         """
         search_fnames = self._rec_names_search or (
             [self._rec_name] if self._rec_name else []
@@ -248,16 +224,14 @@ class SearchMixin:
         aggregator = Domain.AND if operator in Domain.NEGATIVE_OPERATORS else Domain.OR
         domains = []
         for field_name in search_fnames:
-            # field_name may be a sequence of field names (partner_id.name)
-            # retrieve the last field in the sequence
+            # field_name may be a dotted path (e.g. partner_id.name); walk it to
+            # the last field
             model = self
             segments = field_name.split(".")
             for i, fname in enumerate(segments):
                 if model is None:
-                    # An earlier segment was non-relational, so we cannot
-                    # traverse further.  Raising here gives a clear error
-                    # at configuration time instead of crashing inside
-                    # ``model._fields[fname]`` with ``AttributeError``.
+                    # An earlier segment was non-relational: raise a clear
+                    # config-time error instead of a later AttributeError.
                     raise ValueError(
                         f"Invalid _rec_names_search entry {field_name!r} on "
                         f"{self._name!r}: segment {segments[i - 1]!r} is "
@@ -265,8 +239,7 @@ class SearchMixin:
                     )
                 field = model._fields[fname]
                 model = self.env.get(field.comodel_name) if field.relational else None
-            # depending on the operator, we may need to cast the value to the type of the field
-            # ignore if we cannot convert
+            # cast the value to the field type if needed; ignore if not castable
             if field.relational:
                 # relational fields will search on the display_name
                 domains.append([(field_name + ".display_name", operator, value)])
@@ -466,22 +439,19 @@ class SearchMixin:
         active_test: bool = True,
         bypass_access: bool = False,
     ) -> Query:
-        """
-        Private implementation of search() method.
+        """Private implementation of :meth:`search`.
 
-        No default order is applied when the method is invoked without parameter ``order``.
+        No default order is applied when called without ``order``.
 
-        :return: a :class:`Query` object that represents the matching records
+        :return: a :class:`Query` representing the matching records
 
-        This method may be overridden to modify the domain being searched, or to
-        do some post-filtering of the resulting query object. Be careful with
-        the latter option, though, as it might hurt performance. Indeed, by
-        default the returned query object is not actually executed, and it can
-        be injected as a value in a domain in order to generate sub-queries.
+        May be overridden to modify the domain or post-filter the query. Beware:
+        the returned query is not executed by default (it can be injected into a
+        domain to generate sub-queries), so post-filtering may hurt performance.
 
-        The `active_test` flag specifies whether to filter only active records.
-        The `bypass_access` controls whether or not permissions should be
-        checked on the model and record rules should be applied.
+        :param active_test: whether to filter only active records
+        :param bypass_access: whether to skip model permission and record-rule
+            checks
         """
         _debug = _orm_read.isEnabledFor(logging.DEBUG)
         if _debug:
@@ -494,7 +464,7 @@ class SearchMixin:
             _t_acl = time.perf_counter()
 
         domain = Domain(domain)
-        # inactive records unless they were explicitly asked for
+        # exclude inactive records unless the domain mentions the active field
         if (
             self._active_name
             and active_test
@@ -511,7 +481,7 @@ class SearchMixin:
         if domain.is_false():
             return self.browse()._as_query()
 
-        # --- Backend dispatch: DictBackend or PostgreSQL ---
+        # Backend dispatch: DictBackend or PostgreSQL
         storage = self.env.transaction.storage
         if storage is not None:
             return self._search_storage(domain, offset, limit, order, storage)
@@ -566,43 +536,30 @@ class SearchMixin:
         order: str | None,
         storage: typing.Any,
     ) -> Query:
-        """Evaluate domain against DictBackend using Python predicates.
+        """Evaluate ``domain`` against DictBackend using Python predicates.
 
         Fetches all record IDs from storage, loads values into cache, then
-        uses ``filtered_domain()`` (which calls ``domain._as_predicate()``)
-        to evaluate the domain in pure Python.
+        evaluates the domain in pure Python via ``filtered_domain()``.
 
-        :param domain: Optimized Domain object.
-        :param offset: Number of records to skip.
-        :param limit: Maximum number of records to return.
-        :param order: Order string (e.g. 'name asc, id desc').
-        :param storage: DictBackend instance.
-        :return: Query with ``_ids`` set to matching record IDs.
+        :return: a :class:`Query` with ``_ids`` set to matching record IDs
         """
-        # 0. Flush pending writes to storage first.  The PostgreSQL path gets
-        #    this implicitly via ``execute_query`` (which flushes before running
-        #    the SQL); the in-memory path must do it explicitly.  Otherwise we
-        #    would evaluate the domain against stale storage rows AND clobber
-        #    dirty cache values (step 2 below overwrites the cache from storage
-        #    unconditionally), so a search after an unflushed write would both
-        #    miss the new value and corrupt the cache.
+        # Flush pending writes first.  The PostgreSQL path flushes implicitly in
+        # execute_query; the in-memory path must do it explicitly, else step 2
+        # would overwrite dirty cache values from stale storage rows.
         self.env.flush_all()
 
-        # 1. Get all record IDs from storage
         all_ids = storage.table_ids(self._table)
         if not all_ids:
             return self.browse()._as_query(ordered=False)
 
-        # 2. Load storage values into cache — batch by field to avoid
-        #    per-record browse() allocations and per-cell method overhead.
+        # Load storage values into cache, batched by field to avoid per-record
+        # browse() allocations and per-cell method overhead.
         all_records = self.browse(all_ids)
         rows = storage.get_rows(self._table, all_ids)
 
-        # Pre-resolve storable fields and their cache dicts once.
-        # For context-dependent fields (depends_context), _get_cache() needs
-        # env.company which may not be available in DictBackend tests that
-        # don't seed res.users.  Use env._core.field_data() directly for
-        # non-context fields, and try/except for the rest.
+        # Pre-resolve storable fields and their cache dicts once.  For
+        # context-dependent fields, _get_cache() needs env.company, which may be
+        # absent in DictBackend tests; use field_data() directly otherwise.
         env = self.env
         fields_meta = self._fields
         _fdc = env._field_depends_context
@@ -614,11 +571,9 @@ class SearchMixin:
                 if field not in _fdc:
                     storable.append((fname, field, env._core.field_data(field)))
                 else:
-                    # cache_key may fail to resolve in test contexts where
-                    # the env is not fully seeded (e.g. ``env.company`` not
-                    # available in DictBackend tests).  Narrow the catch so
-                    # genuine bugs in ``_get_cache`` or user-defined
-                    # ``cache_key`` overrides surface instead of being silenced.
+                    # cache_key may fail to resolve when the env is not fully
+                    # seeded (DictBackend tests).  Narrow the catch so genuine
+                    # _get_cache / cache_key bugs surface instead of silenced.
                     try:
                         storable.append((fname, field, field._get_cache(env)))
                     except (KeyError, AttributeError, TypeError) as e:
@@ -627,9 +582,7 @@ class SearchMixin:
                             self._name, fname, e,
                         )
 
-        # Batch-load: iterate fields in outer loop, records in inner loop.
-        # This writes directly to the cache dict without per-record browse()
-        # or per-cell _update_cache() overhead.
+        # Batch-load directly into cache dicts (fields outer, records inner).
         for fname, field, field_cache in storable:
             convert = field.convert_to_cache
             for record_id in all_ids:
@@ -637,24 +590,20 @@ class SearchMixin:
                 if row is not None and fname in row:
                     field_cache[record_id] = convert(row[fname], sentinel)
 
-        # 3. Evaluate domain using existing Python predicates
         if not domain.is_true():
             matching = all_records.filtered_domain(domain)
         else:
             matching = all_records
 
-        # 4. Apply ordering (Python-side via sorted())
         if order:
             matching = matching.sorted(key=order)
 
-        # 5. Apply offset/limit
         ids = matching._ids
         if offset:
             ids = ids[offset:]
         if limit is not None and limit is not False:
             ids = ids[:limit]
 
-        # 6. Return Query with known IDs (no SQL needed)
         query = Query(self.env, self._table, self._table_sql)
         query._ids = tuple(ids)
         return query
@@ -687,20 +636,13 @@ class SearchMixin:
     ) -> list[ValuesType]:
         """Perform a :meth:`search_fetch` followed by a :meth:`_read_format`.
 
-        :param domain: Search domain, see ``args`` parameter in :meth:`search`.
-            Defaults to an empty domain that will match all records.
-        :param fields: List of fields to read, see ``fields`` parameter in :meth:`read`.
-            Defaults to all fields.
-        :param offset: Number of records to skip, see ``offset`` parameter in :meth:`search`.
-            Defaults to 0.
-        :param limit: Maximum number of records to return, see ``limit`` parameter in :meth:`search`.
-            Defaults to no limit.
-        :param order: Columns to sort result, see ``order`` parameter in :meth:`search`.
-            Defaults to no sort.
-        :param read_kwargs: All read keywords arguments used to call
-            ``read(..., **read_kwargs)`` method e.g. you can use
-            ``search_read(..., load='')`` in order to avoid computing display_name
-        :return: List of dictionaries containing the asked fields.
+        See :meth:`search` and :meth:`read` for the ``domain``, ``fields``,
+        ``offset``, ``limit`` and ``order`` parameters; all default to no
+        restriction.
+
+        :param read_kwargs: forwarded to ``read(..., **read_kwargs)``, e.g.
+            ``load=''`` to avoid computing display_name
+        :return: list of dictionaries containing the requested fields
         """
         if not fields:
             fields = list(self.fields_get(attributes=()))
@@ -708,10 +650,8 @@ class SearchMixin:
             domain or [], fields, offset=offset, limit=limit, order=order
         )
 
-        # Method _read_format() ignores 'active_test', but it would forward it
-        # to any downstream search call(e.g. for x2m or computed fields), and
-        # this is not the desired behavior. The flag was presumably only meant
-        # for the main search().
+        # 'active_test' was meant for the main search() only; drop it so
+        # _read_format() won't forward it to downstream searches (x2m, computed).
         if "active_test" in self.env.context:
             context = dict(self.env.context)
             del context["active_test"]
@@ -719,9 +659,7 @@ class SearchMixin:
 
         return records._read_format(fnames=fields, **read_kwargs)
 
-    # -------------------------------------------------------------------------
     # SQL traversal utilities
-    # -------------------------------------------------------------------------
 
     def _traverse_related_sql(
         self, alias: str, field: Field, query: Query
@@ -732,8 +670,8 @@ class SearchMixin:
             field in the sequence, ``model`` is that field's model, and
             ``alias`` is the model's table alias
         """
-        # raise (not assert) — under python -O a non-related field would reach
-        # ``related.split(".")`` below and crash with an opaque AttributeError.
+        # raise (not assert): holds under python -O; a non-related field would
+        # otherwise crash at related.split(".") with an opaque AttributeError.
         if not (field.related and not field.store):
             raise ValueError(
                 f"_traverse_related_sql expects a non-stored related field, got {field!r}"
@@ -784,9 +722,7 @@ class SearchMixin:
             sql = field.property_to_sql(sql, property_name, self, alias, query)
         return sql
 
-    # -------------------------------------------------------------------------
     # Existence checking and row locking
-    # -------------------------------------------------------------------------
 
     @api.private
     def exists(self) -> Self:
@@ -882,5 +818,5 @@ class SearchMixin:
         return self.browse(i for i in self._ids if i in valid_ids)
 
 
-# Import _ for translations - done after class definition to avoid issues
+# Imported after the class definition to avoid a circular import.
 from odoo.tools.translate import _  # noqa: E402

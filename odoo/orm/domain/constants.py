@@ -1,11 +1,4 @@
-"""Domain operator constants and mappings.
-
-This module contains all the operator constants used in domain expressions:
-- STANDARD_CONDITION_OPERATORS: Standard operators supported at all levels
-- CONDITION_OPERATORS: All available operators (modifiable for optimizations)
-- NEGATIVE_CONDITION_OPERATORS: Operators with negative semantics
-- Internal operator mappings for negation and inversion
-"""
+"""Domain operator constants and mappings."""
 
 from typing import Final
 
@@ -31,8 +24,7 @@ STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
         "not =ilike",
     ]
 )
-"""List of standard operators for conditions.
-This should be supported in the framework at all levels.
+"""Standard operators for conditions, supported at all framework levels.
 
 - `any` works for relational fields and `id` to check if a record matches
   the condition
@@ -62,11 +54,10 @@ This should be supported in the framework at all levels.
 CONDITION_OPERATORS: set[str] = set(
     STANDARD_CONDITION_OPERATORS
 )  # modifiable (for optimizations only)
-"""
-List of available operators for conditions.
-The non-standard operators can be reduced to standard operators by using the
-optimization function. See the respective optimization functions for the
-details.
+"""All available condition operators.
+
+Non-standard operators are reduced to standard ones by the optimization
+functions (see each for details).
 """
 
 INTERNAL_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(("any!", "not any!"))
@@ -76,9 +67,8 @@ SUBDOMAIN_OPERATORS: Final[frozenset[str]] = frozenset(
 )
 """Operators whose value must be parsed as a Domain when ``internal=True``.
 
-Referenced by ``Domain.__new__`` in both the single-condition fast path
-and the stack-based parser.  Keeping this as a named constant prevents
-the two code paths from diverging."""
+Named so ``Domain.__new__``'s fast path and stack parser cannot diverge.
+"""
 
 NEGATIVE_CONDITION_OPERATORS: Final[dict[str, str]] = {
     "not any": "any",
@@ -91,7 +81,7 @@ NEGATIVE_CONDITION_OPERATORS: Final[dict[str, str]] = {
     "!=": "=",
     "<>": "=",
 }
-"""A subset of operators with a 'negative' semantic, mapping to the 'positive' operator."""
+"""Negative-semantic operators mapped to their positive operator."""
 
 # negations for operators (used in DomainNot)
 INVERSE_OPERATOR: Final[dict[str, str]] = {
@@ -115,7 +105,6 @@ INVERSE_OPERATOR: Final[dict[str, str]] = {
     "=ilike": "not =ilike",
     "=": "!=",
 }
-"""Dict to find the inverses of the operators."""
 
 INVERSE_INEQUALITY: Final[dict[str, str]] = {
     "<": ">=",
@@ -123,8 +112,7 @@ INVERSE_INEQUALITY: Final[dict[str, str]] = {
     ">=": "<",
     "<=": ">",
 }
-"""Dict to find the inverse of inequality operators.
-Handled differently because of null values."""
+"""Inverse of inequality operators; separate because of null-value handling."""
 
 TRUE_LEAF: Final[tuple[int, str, int]] = (1, "=", 1)
 FALSE_LEAF: Final[tuple[int, str, int]] = (0, "=", 1)

@@ -1,22 +1,4 @@
-"""
-Access control mixin for BaseModel.
-
-This module provides the AccessMixin class containing all access control methods.
-BaseModel inherits from this mixin.
-
-Methods:
-- _has_field_access: Check if user has access to a field
-- _check_field_access: Verify user access to a field, raising error if denied
-- check_field_access_rights: Check field access rights (deprecated)
-- check_access: Verify user can perform operation on records
-- has_access: Check if user can perform operation (returns bool)
-- _filtered_access: Filter records user has access to
-- _check_access: Internal access check implementation
-- check_access_rights: Check access rights via ir.model.access (deprecated)
-- check_access_rule: Check access rules via ir.rule (deprecated)
-- _filter_access_rules: Filter by access rules (deprecated)
-- _filter_access_rules_python: Filter by access rules (deprecated)
-"""
+"""Access control mixin for BaseModel: field- and record-level access checks."""
 
 import functools
 import logging
@@ -43,12 +25,7 @@ _logger = logging.getLogger("odoo.models")
 
 
 class AccessMixin:
-    """Mixin providing access control functionality.
-
-    This mixin is inherited by BaseModel and provides methods for checking
-    user access rights on fields and records, implementing both field-level
-    and record-level access control.
-    """
+    """Mixin providing field- and record-level access control."""
 
     __slots__ = ()
 
@@ -58,15 +35,14 @@ class AccessMixin:
     _ids: tuple
     env: typing.Any
 
-    #
     # Field-level access control
-    #
 
     def _has_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> bool:
-        """Determine whether the user access rights on the given field for the given operation.
-        You may override this method to customize the access to fields.
+        """Return whether the user may access ``field`` for ``operation``.
+
+        Override to customize field access.
 
         :param field: the field to check
         :param operation: one of ``read``, ``write``
@@ -164,16 +140,14 @@ class AccessMixin:
             ]
 
         for field_name in field_names:
-            # Unknown (or virtual) fields are considered accessible because they will not be read and nothing will be written to them.
+            # Unknown (virtual) fields are accessible: nothing is read or written.
             field = self._fields.get(field_name)
             if field is None:
                 continue
             self._check_field_access(field, operation)
         return field_names
 
-    #
     # Record-level access control
-    #
 
     def check_access(self, operation: str) -> None:
         """Verify that the current user is allowed to perform ``operation`` on
@@ -219,34 +193,20 @@ class AccessMixin:
         ``(records, function)`` where ``records`` are the forbidden records, and
         ``function`` can be used to create some corresponding exception.
 
-        Two checks are performed in sequence:
+        Two checks run in sequence:
 
         1. **Model-level ACL** (``ir.model.access``): always runs, even on an
-           empty recordset.  Verifies the user's group grants the operation.
-        2. **Record-level rules** (``ir.rule``): runs only against real
-           record ids; ``NewId`` records bypass rule evaluation.  Domain
-           predicates are evaluated against the actual database records via
-           :meth:`filtered_domain`.
+           empty recordset — so ``self.browse().check_access(op)`` verifies
+           permission before records exist (e.g. at the start of ``create()``).
+        2. **Record-level rules** (``ir.rule``): runs only against real record
+           ids, via :meth:`filtered_domain`. ``NewId`` records always pass:
+           they have no database row for the rule's domain to filter against,
+           and evaluating it against the cache (often field defaults) is not a
+           meaningful permission decision. Data access on a NewId still goes
+           through ``Field.__get__`` / ``_fetch_field``, which checks the origin.
 
-        Calling on an empty recordset (``self.browse()``) therefore only checks
-        model-level ACLs — useful to verify permission before records exist
-        (e.g. at the start of ``create()``).
-
-        **Mixed recordsets** (``NewId`` + real ids): the rule check is
-        applied only to the real subset; ``NewId`` records always pass.
-        ``ir.rule`` is fundamentally a database-level filter — there is no
-        database row for a ``NewId`` to filter against.  Evaluating the
-        rule's domain predicate against an in-memory NewId would consult
-        whatever the cache happens to hold (often field defaults), which
-        is not a meaningful basis for a permission decision.  Any actual
-        data access on the NewId still goes through ``Field.__get__`` /
-        ``_fetch_field``, which performs its own access checks against
-        the origin id.
-
-        This method provides the base implementation of
-        methods :meth:`check_access`, :meth:`has_access`
-        and :meth:`_filtered_access`. The method may be overridden in order to
-        restrict the access to ``self``.
+        Base implementation of :meth:`check_access`, :meth:`has_access` and
+        :meth:`_filtered_access`; override to restrict access to ``self``.
         """
         Access = self.env["ir.model.access"]
         if not Access.check(self._name, operation, raise_exception=False):
@@ -254,11 +214,8 @@ class AccessMixin:
                 Access._make_access_error, self._name, operation
             )
 
-        # Restrict the rule check to records with a real (truthy) id.  See
-        # the docstring's "Mixed recordsets" section for the rationale —
-        # NewIds have no database row, so a domain-predicate evaluation
-        # against the cache could spuriously flag a draft as forbidden
-        # based on uninitialised field values.
+        # Rule check applies only to real (truthy) ids; NewIds have no row to
+        # filter against (see docstring).
         real_self = self.browse(id_ for id_ in self._ids if id_)
         if real_self:
             Rule = self.env["ir.rule"]
@@ -310,9 +267,7 @@ class AccessMixin:
         """
         self.check_access(operation)
 
-    # -------------------------------------------------------------------------
     # Company consistency checks
-    # -------------------------------------------------------------------------
 
     def _check_company_domain(self, companies) -> Domain:
         """Domain to be used for company consistency between records regarding this model.
@@ -362,8 +317,8 @@ class AccessMixin:
         # (depends only on the environment, not the record), so resolve once.
         property_company = self.env.company
         for record in self:
-            # The first part of the check verifies that all records linked via relation fields are compatible
-            # with the company of the origin document, i.e. `self.account_id.company_id == self.company_id`
+            # Part 1: records linked via relation fields must match the origin
+            # document's company, i.e. self.account_id.company_id == self.company_id
             if regular_fields:
                 if self._name == "res.company":
                     companies = record
@@ -389,10 +344,9 @@ class AccessMixin:
                             active_test=False
                         ).filtered_domain(domain):
                             inconsistencies.append((record, name, corecords))
-            # The second part of the check (for property / company-dependent fields) verifies that the records
-            # linked via those relation fields are compatible with the company that owns the property value, i.e.
-            # the company for which the value is being assigned, i.e:
-            #      `self.property_account_payable_id.company_id == self.env.company
+            # Part 2: for property / company-dependent fields, linked records
+            # must match the company owning the property value (self.env.company),
+            # i.e. self.property_account_payable_id.company_id == self.env.company
             for name in property_fields:
                 corecords = record.sudo()[name]
                 if corecords:

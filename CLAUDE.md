@@ -34,15 +34,29 @@ and test tags. **When working on any module, check for `machine_doc_v*/` first a
 read it before doing anything else.** This eliminates redundant codebase
 exploration and provides immediate context.
 
-## Rules Reference
+## Coding Guidelines
 
-- **Canonical coding guidelines**: `doc/coding_guidelines.rst` (repo root) — the
-  single authoritative source for AgroMarin, superseding any other
-  `coding_guidelines` file inside a code repo. It is canonical for **all**
-  AgroMarin repos in the workspace (`core`, `enterprise`, `agromarin`,
-  `design-themes`, `knowledge`), which defer to it. AgroMarin-specific rules are
-  tagged **[AM]**; everything else follows upstream Odoo / OCA conventions.
+**Before writing or modifying any code in this repo, read and follow
+`doc/coding_guidelines.rst` (repo root).** It is the **single authoritative
+source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions,
+and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
+OCA. It supersedes any other `coding_guidelines` file inside a code repo and is
+canonical for **all** AgroMarin repos in the workspace (`core`, `enterprise`,
+`agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule carries
+an enforcement marker — 🔧 (linted by `ruff`) or 👁 (review-only).
+
+The guide is comprehensive — consult the relevant section for the work at hand:
+
+1. Module Structure · 2. Python · 3. XML · 4. JavaScript (OWL) · 5. CSS/SCSS
+· 6. Tests · 7. Git (commits, branch naming, task IDs, PRs) · 8. Translations
+· 9. Code Review Checklist · 10. Security · 11. Performance · 12. Migration
+Scripts (+ Appendices A–D: fork field renames, references, deprecated patterns,
+document history)
+
+Related:
+
 - `ruff.toml` (repo root) — linter and formatter config, aligned with the
-  canonical guidelines (§2.6 and §2.9).
-- Changes to the canonical guidelines are made by editing
-  `doc/coding_guidelines.rst` directly
+  guidelines (§2.6 and §2.9). New/changed Python must pass `ruff check`
+  (see the linter-enforced items in §9 and §2.9.7).
+- Changes to the guidelines are made by editing `doc/coding_guidelines.rst`
+  directly

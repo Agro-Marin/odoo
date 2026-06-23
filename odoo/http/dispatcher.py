@@ -87,10 +87,9 @@ class Dispatcher(ABC):
                 "Access-Control-Allow-Headers",
                 "Origin, X-Requested-With, Content-Type, Accept, Authorization",
             )
-            # ``abort`` raises an HTTPException carrying our 204 Response;
-            # _serve.py catches it (HTTPException w/ ``code is None`` branch),
-            # runs ``post_dispatch`` so CORS+CSP+session headers land on the
-            # 204, and returns it to the WSGI server. No endpoint runs.
+            # ``abort`` raises an HTTPException carrying our 204; _serve.py
+            # catches it (``code is None`` branch), runs ``post_dispatch`` to add
+            # CORS/CSP/session headers, and returns it. No endpoint runs.
             werkzeug.exceptions.abort(Response(status=204))
 
         if "max_content_length" in routing:
@@ -122,11 +121,10 @@ class Dispatcher(ABC):
     def _call_endpoint(self, endpoint: Callable) -> Any:
         """Invoke ``endpoint`` with the request's deserialized params.
 
-        With a database, the call is routed through ``ir.http._dispatch``
-        (which layers captcha/recaptcha checks and module overrides on top);
-        without one (``auth='none'`` / no-db serving) the endpoint is called
-        directly. Shared by every dispatcher so the db/no-db branch lives in a
-        single place instead of being copied into each ``dispatch``.
+        With a database, route through ``ir.http._dispatch`` (which layers
+        captcha/recaptcha and module overrides); without one (``auth='none'``)
+        call the endpoint directly. Shared so the db/no-db branch lives in one
+        place rather than each ``dispatch``.
         """
         if self.request.db:
             return self.request.registry["ir.http"]._dispatch(endpoint)
@@ -181,11 +179,9 @@ class HttpDispatcher(Dispatcher):
                     )
                 else:
                     _logger.warning(MISSING_CSRF_WARNING, self.request.httprequest.path)
-                # Phrasing matters: an expired session is the dominant
-                # cause of CSRF rejection in practice (tab left open past
-                # session lifetime).  ``website.form`` controller emits
-                # the same wording on its own raise — kept identical so
-                # log scrapers and user-facing screens stay consistent.
+                # Phrasing matches ``website.form``'s own raise (kept identical
+                # for log scrapers / screens): an expired session is the dominant
+                # cause of CSRF rejection in practice.
                 msg = "Session expired (invalid CSRF token)"
                 raise werkzeug.exceptions.BadRequest(msg)
 
@@ -227,10 +223,8 @@ class HttpDispatcher(Dispatcher):
 
         if isinstance(exc, UserError):
             description = exc.args[0] if exc.args else str(exc) or None
-            # ``UserError`` and its subclasses always define ``http_status``;
-            # read it directly, consistent with ``Json2Dispatcher.handle_error``
-            # (the previous ``getattr(..., None)`` implied an absence that
-            # cannot occur for this branch).
+            # ``UserError`` and subclasses always define ``http_status``; read it
+            # directly (consistent with ``Json2Dispatcher.handle_error``).
             status = exc.http_status
             exc_cls = werkzeug_default_exceptions.get(status)
             if exc_cls is not None:
@@ -266,13 +260,10 @@ class JsonRPCDispatcher(Dispatcher):
            ``params`` member of the JSON-RPC request payload MUST be a
            JSON Object and not a JSON Array.
 
-        Unlike older Odoo versions, there is NO framework-level ``context``
-        handling here: every key of ``params`` is forwarded to the endpoint
-        by name, so a ``context`` key is just an ordinary argument (dropped
-        with an "ignoring args" warning if the endpoint does not declare it).
-        RPC calls that need to influence the environment context pass it
-        through their own argument instead — e.g. ``call_kw`` reads it from
-        ``kwargs['context']`` and applies it at the ORM layer.
+        There is NO framework-level ``context`` handling: every ``params`` key is
+        forwarded by name, so ``context`` is just an ordinary argument. Callers
+        that need it (e.g. ``call_kw``) read it from their own kwargs and apply it
+        at the ORM layer.
 
         Successful request::
 
@@ -294,19 +285,17 @@ class JsonRPCDispatcher(Dispatcher):
             # envelope cannot be built — abort+Response bypasses handle_error.
             werkzeug.exceptions.abort(Response("Invalid JSON data", status=400))
 
-        # JSON-RPC requires a top-level object. Check it explicitly rather than
-        # letting ``dict.get`` raise AttributeError on a list/scalar/null body
-        # (which conflated unrelated AttributeErrors with a malformed payload).
+        # JSON-RPC requires a top-level object; check explicitly rather than
+        # letting ``dict.get`` raise AttributeError on a list/scalar/null body.
         if not isinstance(self.jsonrequest, dict):
             # must use abort+Response to bypass handle_error
             werkzeug.exceptions.abort(Response("Invalid JSON-RPC data", status=400))
 
         self.request_id = self.jsonrequest.get("id")
-        # We only support by-name params (a JSON Object). A present-but-non-object
-        # ``params`` (array/scalar/null) cannot be merged with the path-argument
-        # dict; reject it with a clear message instead of letting ``dict | list``
-        # raise an opaque TypeError that surfaces as a generic "Odoo Server Error".
-        # A missing ``params`` defaults to an empty object.
+        # Only by-name params (a JSON Object) are supported. A present-but-non
+        # -object ``params`` cannot merge with the path-arg dict; reject it
+        # clearly instead of an opaque ``dict | list`` TypeError. Missing
+        # ``params`` defaults to ``{}``.
         params = self.jsonrequest.get("params", {})
         if not isinstance(params, dict):
             e = f"JSON-RPC params must be an object (got {type(params).__name__!r})."
@@ -348,13 +337,10 @@ class JsonRPCDispatcher(Dispatcher):
             response["error"] = error
         else:
             response["result"] = result
-            # Plan-C envelope versioning: methods decorated with
-            # ``@versioned_envelope`` (``odoo.tools.cache_version``) stash a
-            # content hash on ``request._response_version``.  Lift it to a
-            # sibling of ``result`` so the JS rpc layer can transfer it back
-            # onto the result object — sidesteps the "lists can't carry a
-            # __version key in-payload" limitation of the dict-only
-            # ``@versioned`` decorator.
+            # Envelope versioning: ``@versioned_envelope`` stashes a content hash
+            # on ``request._response_version``. Lift it beside ``result`` so the JS
+            # rpc layer can reattach it — works for list results, which can't carry
+            # an in-payload ``__version`` key.
             version = getattr(self.request, "_response_version", None)
             if version is not None:
                 response["version"] = version
@@ -386,17 +372,10 @@ class Json2Dispatcher(Dispatcher):
                 e = f"could not parse the body as json: {exc.args[0]}"
                 raise werkzeug.exceptions.BadRequest(e) from exc
             if self.jsonrequest is not None and not isinstance(self.jsonrequest, dict):
-                # Top-level JSON arrays/scalars cannot be merged with the
-                # path-argument dict, and there is no sensible default
-                # mapping. Previously the TypeError was swallowed and the
-                # body was silently discarded — clients got "missing
-                # argument" errors instead of a clear 400.
-                #
-                # ``null`` is intentionally exempt: it is the JSON spelling
-                # of "no body content", semantically equivalent to an
-                # empty request, and is handled by the ``self.jsonrequest is None``
-                # branch below (path args alone, endpoint surfaces its own
-                # ``missing argument`` error if applicable).
+                # Top-level arrays/scalars cannot merge with the path-arg dict and
+                # have no sensible default; reject with a clear 400 instead of
+                # silently discarding the body. ``null`` is exempt: it means "no
+                # body", handled by the ``is None`` branch below (path args alone).
                 e = (
                     "JSON request body must be an object (got "
                     f"{type(self.jsonrequest).__name__!r})."
@@ -436,12 +415,8 @@ class Json2Dispatcher(Dispatcher):
         return self.request.make_json_response(body, headers=headers, status=status)
 
 
-# Late import to break the Dispatcher <-> Request cycle.  ``Request`` is used
-# only in annotations and method bodies of the classes above, so it does not
-# need to be resolvable at class-definition time.  By the time this import
-# runs, the ABC and its subclasses are already in this module's namespace,
-# so request_class.py's top-of-file import of ``HttpDispatcher`` /
-# ``JsonRPCDispatcher`` (which it does from its own bottom-of-file import)
-# resolves against our partially-initialised module successfully.
-# See odoo.addons.test_lint.tests.test_pep649.KNOWN_FAILURES for context.
+# Late import to break the Dispatcher <-> Request cycle. ``Request`` is used only
+# in annotations and method bodies above, so it need not resolve at class
+# -definition time. Do NOT move under TYPE_CHECKING: test_pep649 pins these
+# annotations as runtime-resolvable. See test_pep649.KNOWN_FAILURES for context.
 from .request_class import Request  # noqa: E402  — see note above

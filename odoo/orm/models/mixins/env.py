@@ -1,8 +1,5 @@
-"""
-Environment manipulation mixin for BaseModel.
-
-This module contains methods for creating recordsets in different environments:
-with_env, sudo, with_user, with_company, with_context, with_prefetch.
+"""Environment manipulation mixin: with_env, sudo, with_user, with_company,
+with_context, with_prefetch, and new-record helpers.
 """
 
 import typing
@@ -24,17 +21,7 @@ if typing.TYPE_CHECKING:
 
 
 class EnvironmentMixin:
-    """Mixin providing environment manipulation methods for recordsets.
-
-    This mixin contains methods for:
-    - Creating recordsets in different environments (with_env)
-    - Superuser mode (sudo)
-    - User switching (with_user)
-    - Company switching (with_company)
-    - Context manipulation (with_context)
-    - Prefetch configuration (with_prefetch)
-    - Record conversion and utility methods
-    """
+    """Mixin providing environment manipulation methods for recordsets."""
 
     __slots__ = ()
 
@@ -242,10 +229,7 @@ class EnvironmentMixin:
                     result[name] = value
         return result
 
-    #
-    # New records - represent records that do not exist in the database yet;
-    # they are used to perform onchanges.
-    #
+    # New records: not yet in the database, used to perform onchanges.
 
     @api.model
     @api.private
@@ -270,10 +254,9 @@ class EnvironmentMixin:
             values = {}
         if origin is not None:
             origin = origin.id
-        # Falsy refs (notably the literal ``0`` placeholder produced by
-        # ``Command.create``) carry no identification value and would collide
-        # under the hash-consistent NewId equality.  Normalize to ``None`` so
-        # such records remain distinct via identity.
+        # Falsy refs (e.g. the literal 0 from Command.create) carry no identity
+        # and would collide under NewId equality; normalize to None so such
+        # records stay distinct.
         if not ref:
             ref = None
         record = self.browse((NewId(origin, ref),))

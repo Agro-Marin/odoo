@@ -1,7 +1,8 @@
 """Server facade: re-exports the server classes and their collaborators.
 
-The server flavors were split out of this (formerly ~1,300-line) file into
-focused siblings, each independently navigable:
+The server flavors live in focused sibling modules; this module is the public
+import surface (``odoo.addons``, ``cli/`` and ``bus/`` import these names from
+``odoo.service.server``, so they are re-exported here):
 
     _base_server.py   CommonServer + the process-global on-stop registry
     _threaded.py      ThreadedServer (dev/threaded) + EventServer (gevent)
@@ -11,19 +12,12 @@ focused siblings, each independently navigable:
     lifecycle.py      start / restart / _reexec / preload entry points
     _watcher.py       autoreload filesystem watcher
 
-This module stays the public import surface: ``odoo.addons``, ``cli/``, and
-``bus/`` import these names from ``odoo.service.server`` (verified workspace
--wide — e.g. ``CommonServer`` from ``bus`` and ``sass_embedded``, ``restart``
-from ``iot_drivers``, ``start`` from ``cli/shell``), so they are re-exported
-here rather than relocating every call site.
-
-``server`` and ``server_phoenix`` are NOT exported here — they live in
-``odoo.service.lifecycle`` (the single source of truth) and are NOT mirrored
-onto this module: there is deliberately no ``__getattr__`` forwarder (a single
-``server.server_phoenix = X`` assignment would shadow such a forwarder
-permanently and silently desync reads).  Every reader references
-``lifecycle.server`` / ``lifecycle.server_phoenix`` directly; ``from
-odoo.service.server import server_phoenix`` raises ``ImportError`` on purpose.
+``server`` and ``server_phoenix`` are deliberately NOT re-exported: they live
+in ``odoo.service.lifecycle`` (the single source of truth) and every reader
+references them as ``lifecycle.server`` / ``lifecycle.server_phoenix``.  A
+forwarder here would be silently shadowed by a ``server.server_phoenix = X``
+assignment, so ``from odoo.service.server import server_phoenix`` raises
+``ImportError`` on purpose.
 """
 
 import logging
@@ -38,12 +32,8 @@ from ._base_server import (
 from ._prefork import PreforkServer
 from ._threaded import EventServer, ThreadedServer
 
-# ``FSWatcherBase`` is re-exported as a public attribute of this module
-# because ``tests/service/test_server.py`` (and any future callers extending
-# the watcher) reach it via ``odoo.service.server.FSWatcherBase``.  The
-# leading-underscore ``odoo.service._watcher`` is the canonical home but
-# signals "private"; this re-export gives external callers a stable,
-# non-underscored import path.
+# ``FSWatcherBase`` lives in the private ``_watcher`` module; re-export it here
+# so tests and external callers have a stable, non-underscored import path.
 from ._watcher import (
     FSWatcherBase,  # noqa: F401 — public re-export (tests reach srv.FSWatcherBase)
 )
@@ -102,7 +92,7 @@ __all__ = (  # noqa: RUF022 — grouped by origin (server/worker/wsgi/lifecycle)
     "restart",
     "start",
 )
-# NOTE: the ``_helpers`` names (memory_info / empty_pipe / cron_database_list /
-# SLEEP_INTERVAL / CRON_NOTIFY_JITTER_MAX_S) are intentionally NOT re-exported.
-# They are private dependencies of the server modules; import them from
-# ``odoo.service._helpers`` directly.  The former re-export had zero callers.
+# The ``_helpers`` names (memory_info / empty_pipe / cron_database_list /
+# SLEEP_INTERVAL / CRON_NOTIFY_JITTER_MAX_S) are private dependencies of the
+# server modules and are intentionally NOT re-exported; import them from
+# ``odoo.service._helpers`` directly.

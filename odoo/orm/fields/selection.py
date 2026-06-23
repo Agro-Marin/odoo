@@ -97,9 +97,9 @@ class Selection(Field[str | typing.Literal[False]]):
         self, model_class: type[BaseModel], name: str
     ) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
-        # arguments 'selection' and 'selection_add' are processed below
+        # 'selection' and 'selection_add' are processed in _setup_attrs__
         attrs.pop("selection_add", None)
-        # Selection fields have an optional default implementation of a group_expand function
+        # provide the default group_expand implementation when requested
         if attrs.get("group_expand") is True:
             attrs["group_expand"] = self._default_group_expand
         return attrs
@@ -149,9 +149,8 @@ class Selection(Field[str | typing.Literal[False]]):
                         self,
                     )
                 selection_add = field._args__["selection_add"]
-                # raise (not assert) so misconfiguration of selection_add
-                # surfaces under python -O instead of producing a broken
-                # Selection field at registry build time.
+                # raise (not assert) so the error survives python -O instead of
+                # building a broken Selection field
                 if not isinstance(selection_add, list):
                     raise TypeError(
                         f"{self}: selection_add={selection_add!r} must be a list"
@@ -164,11 +163,9 @@ class Selection(Field[str | typing.Literal[False]]):
                 values_add = {
                     kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add
                 }
-                # Copy: ``_args__`` only shallow-copies the construction kwargs
-                # (ReadonlyDict does ``dict(data)``), so the inner ondelete dict
-                # is the same object the user passed at field definition.  The
-                # ``setdefault`` below would otherwise mutate that shared dict
-                # and persist injected defaults across registry rebuilds.
+                # Copy: ``_args__`` only shallow-copies kwargs, so the inner
+                # ondelete dict is the user's object. The setdefault below would
+                # otherwise mutate it and leak defaults across registry rebuilds.
                 ondelete = dict(field._args__.get("ondelete") or {})
                 new_values = [key for key in values_add if key not in values]
                 for key in new_values:

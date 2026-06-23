@@ -58,17 +58,13 @@ class Db(Command):
     ) -> None:
         """Register connection/config flags on ``p``.
 
-        These flags live on BOTH the parent parser and every subparser so the
-        user can write either ``db -c cfg init mydb`` or the more natural
-        ``db init mydb -c cfg`` (matches ``module install`` UX).
+        Live on BOTH the parent parser and every subparser, so the user can
+        write ``db -c cfg init mydb`` or ``db init mydb -c cfg``.
 
-        :param bool on_subparser: when True, register with
-            ``default=argparse.SUPPRESS``. argparse parses a subcommand into a
-            fresh namespace and copies every attribute back onto the parent
-            namespace; with an ordinary ``None`` default that copy clobbers a
-            value the user supplied *before* the subcommand (``db -c cfg drop
-            mydb`` would lose ``-c``). SUPPRESS leaves the attribute unset when
-            the flag is absent, so the parent-parsed value survives.
+        :param on_subparser: register with ``default=SUPPRESS``. argparse copies
+            every subparser attribute back onto the parent namespace; a plain
+            ``None`` default would clobber a value passed *before* the subcommand
+            (``db -c cfg drop mydb`` loses ``-c``). SUPPRESS leaves it unset.
         """
         for flags in cls._CONNECTION_FLAGS:
             if on_subparser:
@@ -78,11 +74,10 @@ class Db(Command):
 
     @classmethod
     def _connection_dest_flags(cls) -> dict[str, str]:
-        """Map argparse dest names to their long CLI flag.
+        """Map each argparse dest name to its long CLI flag.
 
-        Derived from ``_CONNECTION_FLAGS`` so the config-args reconstruction
-        in ``run`` cannot drift from the declared flags: a flag added there
-        is automatically forwarded, whatever its spelling.
+        Derived from ``_CONNECTION_FLAGS`` so ``run``'s config-args
+        reconstruction can't drift from the declared flags.
         """
         dest_flags = {}
         for flags in cls._CONNECTION_FLAGS:
@@ -277,17 +272,15 @@ class Db(Command):
         drop.set_defaults(func=self.drop)
         drop.add_argument("database", help="database to delete")
 
-        # Also accept connection flags AFTER the subcommand name (matches
-        # `module install -c cfg <mod>` UX). default=SUPPRESS so an absent
-        # flag here does not overwrite a value passed before the subcommand.
+        # Accept connection flags after the subcommand too; SUPPRESS keeps an
+        # absent one from overwriting a value passed before it.
         for sub in (init, load, dump, duplicate, rename, drop):
             self._add_connection_flags(sub, on_subparser=True)
 
         args = parser.parse_args(cmdargs)
 
-        # Rebuild config CLI flags from the parsed namespace, using the
-        # dest->flag map derived from _CONNECTION_FLAGS (single source of
-        # truth; subcommand-specific keys are simply not in the map).
+        # Rebuild config flags from the namespace via the dest->flag map;
+        # subcommand-specific keys aren't in the map, so they're skipped.
         dest_flags = self._connection_dest_flags()
         config_args: list[str] = []
         for key, value in vars(args).items():
@@ -318,25 +311,20 @@ class Db(Command):
 
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
-        # Fail fast on an occupied target, but DO NOT drop it yet: the dump
-        # must first be fetched and recognised as a zip. Dropping up front
-        # destroyed the existing database even when the download 404'd or
-        # the file turned out not to be a dump at all.
+        # Fail fast on an occupied target, but don't drop it yet: dropping up
+        # front destroyed the database even when the fetch 404'd or the file
+        # turned out not to be a dump. Drop only after the input is validated.
         self._check_target_free(db_name, force=args.force)
 
         url = urllib.parse.urlparse(args.dump_file)
-        # ExitStack ties the spooled temp file's lifetime to the function:
-        # restore_db must read from it after the requests.get with-block
-        # closes, so a plain `with tempfile.SpooledTemporaryFile(...) as f:`
-        # at the inner scope would not work.
+        # ExitStack keeps the spooled temp file open until the function exits:
+        # restore_db reads it after the requests.get block closes.
         with ExitStack() as stack:
             if url.scheme:
                 eprint(f"Fetching {args.dump_file}...", end="")
-                # Split connect/read timeouts: short connect (10s) catches
-                # bad URLs, unlimited read accommodates multi-GB production
-                # dumps. Stream to a spooled file so the whole response
-                # never lives in RAM; close the response so connections
-                # return to the pool.
+                # Short connect timeout catches bad URLs; unlimited read for
+                # multi-GB dumps. Stream to a spooled file to keep the whole
+                # response out of RAM.
                 r = stack.enter_context(
                     requests.get(args.dump_file, timeout=(10, None), stream=True)
                 )
@@ -371,10 +359,8 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
-        # Fail fast with a clean message rather than letting dump_db's pooled
-        # connection raise a raw traceback on a missing database. (Before the
-        # pool's permanent-error fast-fail, this existence check itself blocked
-        # ~30s; it is now a single catalog round-trip.)
+        # Fail fast with a clean message instead of dump_db's raw traceback on
+        # a missing database; this is a single catalog round-trip.
         self._check_source_exists(args.database)
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
@@ -407,9 +393,8 @@ class Db(Command):
         """Abort unless ``target`` may be (re)created.
 
         Pure check, no side effect: with ``force`` an occupied target is
-        accepted, but dropping it is the caller's move — deferred until its
-        inputs (dump file, source database, …) are validated, so a doomed
-        run never destroys the existing database first.
+        accepted but not dropped — the caller drops it only after validating
+        its inputs, so a doomed run never destroys the database first.
         """
         if not force and exp_db_exist(target):
             sys.exit(

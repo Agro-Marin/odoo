@@ -1,18 +1,12 @@
 """Shared cron LISTEN/NOTIFY mechanics for the two cron drivers.
 
-``ThreadedServer.cron_thread`` (dev/threaded mode — one continuous loop per
-thread, recycled on an age limit) and ``WorkerCron`` (prefork — one database
-per process cycle, fed by a queue) have deliberately *different* scheduling
-shapes and must stay separate.  But they share the wire-level cron mechanics:
+``ThreadedServer.cron_thread`` (threaded mode) and ``WorkerCron`` (prefork)
+keep deliberately different scheduling shapes but share the wire-level cron
+mechanics, kept here as one source of truth:
 
 * arm ``LISTEN cron_trigger`` unless the cluster is a read replica,
 * drain the pending ``cron_trigger`` NOTIFYs without blocking,
 * order notified databases ahead of the rest for the next pass.
-
-Those three pieces were copy-pasted in both drivers and drifted (the NOTIFY
-channel filter, the post-wake jitter constant).  Centralizing them here gives
-one source of truth and makes each piece independently unit-testable, without
-forcing the two scheduling loops into a single shape.
 
 Depends only on ``odoo.tools`` — no cycle with ``server`` / ``_worker``.
 """
@@ -84,8 +78,7 @@ def order_notified_first(
 
     Databases that were notified but are not served by this instance are
     dropped (a stray NOTIFY cannot inject work for an unknown DB); databases
-    served but not notified follow in their original order.  This is the exact
-    ordering both drivers built inline before.
+    served but not notified follow in their original order.
     """
     all_list = list(all_dbs)
     all_set = set(all_list)

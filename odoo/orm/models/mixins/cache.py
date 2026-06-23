@@ -1,8 +1,6 @@
-"""
-Cache and recomputation management mixin for BaseModel.
+"""Cache and recomputation management mixin for BaseModel.
 
-This module contains methods for managing the record cache, invalidation,
-flushing, and triggering field recomputation.
+Manages the record cache, invalidation, flushing, and field recomputation.
 """
 
 import itertools
@@ -79,20 +77,9 @@ class RecordCache(Mapping):
 
 
 class CacheMixin:
-    """Mixin providing cache and recomputation management for recordsets.
-
-    This mixin contains methods for:
-    - Accessing the cache (_cache property)
-    - Invalidating cache (invalidate_model, invalidate_recordset)
-    - Flushing changes (flush_model, flush_recordset, _flush)
-    - Managing field recomputation (modified, _recompute_*)
-    """
+    """Mixin providing cache and recomputation management for recordsets."""
 
     __slots__ = ()
-
-    #
-    # Cache and recomputation management
-    #
 
     @property
     def _cache(self) -> RecordCache:
@@ -161,10 +148,8 @@ class CacheMixin:
         field_inverses = self.pool.field_inverses
         for field in fields:
             field._invalidate_cache(env, ids)
-            # Flush and invalidate inverse fields (e.g., One2many inverses of
-            # a Many2one).  This ensures consistency: when a M2O field is
-            # invalidated, the corresponding O2M on the target model must
-            # also be invalidated to avoid stale reverse lookups.
+            # Also flush+invalidate inverse fields (e.g. the O2M inverse of a
+            # M2O) to avoid stale reverse lookups.
             if inverses := field_inverses.get(field):
                 for invf in inverses:
                     env[invf.model_name].flush_model([invf.name])
@@ -195,59 +180,39 @@ class CacheMixin:
         engine = core.engine
 
         if before:
-            # Pre-modification: determine what currently depends on self
-            # using the OLD dependency graph.  Collect into a temporary dict,
-            # then batch-mark for recomputation at the end.
-            # ``marked=engine.pending`` enables cycle detection against
-            # fields already scheduled from previous modifications.
+            # Pre-modification: collect what depends on self via the OLD graph,
+            # then batch-schedule.  ``marked=engine.pending`` enables cycle
+            # detection against fields already scheduled.
             scheduler = RecomputeScheduler(engine, marked=engine.pending)
             self._modified_trigger_loop(fnames, False, scheduler)
 
-            # Apply: schedule recomputation via the engine
             for field, ids in scheduler.to_recompute.items():
                 records = self.env[field.model_name].browse(ids)
                 self.env.add_to_compute(field, records)
         else:
-            # Post-modification: schedule recomputations inline (immediately
-            # into engine.pending) so that the lazy trigger tree iterator
-            # sees newly pending fields when resolving inverse edges.  This
-            # is critical for cascading recomputations: the iterator may
-            # read a stored-computed field via Field.__get__, which triggers
-            # ensure_computed() only if the field is in engine.pending.
+            # Post-modification: schedule inline into engine.pending so the lazy
+            # trigger-tree iterator sees newly pending fields when resolving
+            # inverse edges.  Needed for cascades: the iterator reads stored-
+            # computed fields via __get__, which only computes if field is
+            # pending.
             scheduler = RecomputeScheduler(engine, marked={})
             self._modified_trigger_loop(fnames, create, scheduler, engine=engine)
 
-        # Non-stored field invalidation is applied *inline* during the trigger
-        # walk (see _modified_trigger_loop): on every iteration the scheduler's
-        # ``to_invalidate`` is drained and cleared so stored-computed fields
-        # recomputed mid-walk read fresh values.  It is therefore always empty
-        # by the time control returns here — a post-loop pass would be dead
-        # code (verified for both ``before`` paths and the no-trigger fast exit).
+        # Non-stored invalidation is drained inline during the trigger walk
+        # (see _modified_trigger_loop), so to_invalidate is always empty here —
+        # a post-loop pass would be dead code.
 
     def _modified_before(self, fnames: Collection[str]) -> None:
         """Capture dependencies BEFORE records in ``self`` are modified.
 
-        Convenience method that calls ``self.modified(fnames, before=True)``.
-        This ensures that any overrides of :meth:`modified` in subclasses
-        (e.g. custom cache invalidation) are always respected.
+        Calls ``self.modified(fnames, before=True)`` (via the method, so
+        subclass overrides are respected), using the OLD dependency graph.
 
-        Called before :meth:`write` modifies relational fields and before
-        :meth:`unlink` deletes records.  Uses the CURRENT (old) dependency
-        graph to determine what needs recomputation, then batch-marks it.
-
-        **Scope asymmetry by design:**
-
-        - ``write()`` passes only **relational** fields to this method.
-          For scalar fields, the before/after dependency graph is identical
-          (changing a scalar doesn't change *who* depends on it), so only the
-          post-modification ``modified()`` is needed.  Relational fields change
-          the dependency *path* (e.g. moving a line from SO1 to SO2), requiring
-          both before and after passes.
-
-        - ``unlink()`` passes **ALL** fields, because deletion breaks every
-          dependency path.  After deletion the records are gone, so there is no
-          post-modification ``modified()`` — the before pass must capture
-          everything.
+        Scope asymmetry by design: ``write()`` passes only relational fields
+        (a scalar change doesn't move who depends on it, so the post pass
+        suffices; relational changes move the dependency path and need both).
+        ``unlink()`` passes ALL fields, since deletion breaks every path and
+        there is no post-modification pass afterwards.
 
         :param fnames: iterable of field names about to be modified
         """
@@ -261,20 +226,16 @@ class CacheMixin:
         *,
         engine: typing.Any = None,
     ) -> None:
-        """Shared trigger-tree traversal for :meth:`modified` and :meth:`_modified_before`.
+        """Shared trigger-tree traversal for :meth:`modified` /
+        :meth:`_modified_before`.
 
-        Walks the trigger tree for the given field names.  For each affected
-        (field, records) pair produced by the trigger tree, delegates the
-        scheduling decision (protection subtraction, cycle detection, routing
-        to recompute vs invalidate) to the :class:`RecomputeScheduler`
-        component.
+        Walks the trigger tree for ``fnames``, delegating each scheduling
+        decision (protection, cycle detection, recompute vs invalidate) to the
+        :class:`RecomputeScheduler`.
 
-        The triggers of a field F is a tree that contains the fields that
-        depend on F, together with the fields to inverse to find out which
-        records to recompute.
-
-        For instance, assume that G depends on F, H depends on X.F, I depends
-        on W.X.F, and J depends on Y.F. The triggers of F will be the tree::
+        A field F's trigger tree holds the fields that depend on F plus the
+        inverse fields used to find which records to recompute.  E.g. if G
+        depends on F, H on X.F, I on W.X.F, and J on Y.F::
 
                                       [G]
                                     X/   \\Y
@@ -282,26 +243,15 @@ class CacheMixin:
                                 W/
                               [I]
 
-        This tree provides perfect support for the trigger mechanism:
-        when F is modified on records,
-
-        - mark G to recompute on records,
-        - mark H to recompute on inverse(X, records),
-        - mark I to recompute on inverse(W, inverse(X, records)),
-        - mark J to recompute on inverse(Y, records).
+        When F is modified, mark G on records, H on inverse(X, records), I on
+        inverse(W, inverse(X, records)), and J on inverse(Y, records).
 
         :param fnames: field names that were (or will be) modified
         :param create: whether in record-creation context
-        :param scheduler: standalone scheduler that accumulates scheduling
-            decisions (recompute vs invalidate) without ORM coupling
-        :param engine: if provided, stored-computed entries are immediately
-            scheduled into ``engine.pending`` as they are processed.  This
-            is required for ``before=False`` mode: the trigger tree iterator
-            lazily reads fields via ``Field.__get__`` during inverse edge
-            resolution, which triggers ``ensure_computed()`` only if the
-            field is visible in ``engine.pending``.  Without inline
-            scheduling, cascading recomputations through stored-computed
-            intermediate fields would be missed.
+        :param scheduler: accumulates recompute/invalidate decisions
+        :param engine: if given, stored-computed entries are scheduled into
+            ``engine.pending`` immediately (required for ``before=False``, so the
+            lazy iterator's __get__ reads trigger ensure_computed on them)
         """
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         _agg = _orm_profiling_enabled
@@ -314,9 +264,7 @@ class CacheMixin:
             _mark_count = 0
             _invalidate_count = 0
 
-        # Fast path: skip trigger traversal when none of the modified fields
-        # have dependents.  This avoids building field lists, calling
-        # get_trigger_tree, and merging empty trees for leaf fields.
+        # Fast path: skip traversal when no modified field has dependents.
         _field_triggers = self.pool._field_triggers
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
@@ -339,19 +287,17 @@ class CacheMixin:
         if _debug:
             _t_tree = time.perf_counter()
 
-        # Process trigger entries lazily.  The scheduler handles protection
-        # subtraction, cycle detection, and routing (to_recompute vs
-        # to_invalidate).  This loop only handles trigger traversal (DB-
-        # coupled inverse resolution) and recursive expansion.
+        # Process trigger entries lazily.  This loop only does trigger traversal
+        # (DB-coupled inverse resolution) and recursive expansion; the scheduler
+        # handles protection, cycle detection, and routing.
         env = self.env
         for field, records, create in itertools.chain.from_iterable(todo):
-            # For recursive non-stored fields, provide cached IDs so the
-            # scheduler can filter to IDs that actually have data to invalidate.
+            # Recursive non-stored fields: pass cached IDs so the scheduler can
+            # filter to IDs that actually have data to invalidate.
             cached_ids = None
             if field.recursive and not field.is_stored_computed:
                 cached_ids = field._get_all_cache_ids(env).keys()
 
-            # Delegate scheduling decision to the component
             recursive_ids = scheduler.process_entry(
                 field,
                 set(records._ids),
@@ -359,32 +305,27 @@ class CacheMixin:
                 cached_ids=cached_ids,
             )
 
-            # Inline scheduling: make stored-computed entries immediately
-            # visible in engine.pending for the trigger tree iterator.
+            # Inline scheduling: make stored-computed entries visible in
+            # engine.pending for the trigger-tree iterator.
             if engine is not None:
                 new_ids = scheduler.to_recompute.get(field)
                 if new_ids:
                     engine.schedule(field, new_ids)
 
-            # Inline invalidation: apply non-stored field invalidation
-            # immediately so that any stored-computed recomputation triggered
-            # during trigger tree traversal (via __get__ → ensure_computed)
-            # sees fresh values for non-stored dependencies.
-            # Without this, a stored field scheduled above may recompute
-            # reading a stale non-stored related/computed field that hasn't
-            # been invalidated yet (e.g. product_tmpl_id still cached with
-            # the old product's template after product_id changed).
+            # Inline invalidation: invalidate non-stored fields now so a stored-
+            # computed recompute triggered mid-traversal (via __get__) reads
+            # fresh dependencies, not a stale cached related/computed value
+            # (e.g. product_tmpl_id still pointing at the old product).
             if scheduler.to_invalidate:
                 for inv_field, inv_ids in scheduler.to_invalidate:
                     inv_field._invalidate_cache(env, inv_ids)
                 scheduler.to_invalidate.clear()
 
             if recursive_ids:
-                # Recursively trigger recomputation of field's dependents
+                # Recurse into the field's dependents.
                 todo.append(records.browse(recursive_ids)._modified([field], create))
 
             if _debug:
-                # Count entries for diagnostics (scheduler already accumulated)
                 n = len(recursive_ids) if recursive_ids else len(records)
                 if field.is_stored_computed:
                     _mark_count += n

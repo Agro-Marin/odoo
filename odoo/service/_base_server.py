@@ -22,28 +22,18 @@ from odoo.tools import config
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# ``signal.SIGHUP`` is POSIX-only. On Windows it does not exist on the
-# ``signal`` module. Rather than monkey-patching ``signal.SIGHUP = -1``
-# into the stdlib module (which pollutes every importer of ``signal`` in
-# the process), use a local sentinel and compare via ``hasattr`` at each
-# call site where a signal could reach the handler on both platforms.
+# ``signal.SIGHUP`` is POSIX-only; gate SIGHUP handling on this rather than
+# monkey-patching a sentinel into the stdlib ``signal`` module.
 _SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 
-# Preserve the operator-facing logger name across the module split: records
-# stay under ``odoo.service.server`` regardless of which file defines the class.
+# All server classes log under ``odoo.service.server`` so operator log filters
+# keep working regardless of which module defines the class.
 _logger = logging.getLogger("odoo.service.server")
 
 
-# Module-level registry of on-stop callbacks. Stop hooks are process-global —
-# they fire once per process lifetime regardless of which server class is
-# running. A class-level list on CommonServer would also be "shared across
-# all subclasses" (the same object), but that's incidental to class
-# inheritance; the real intent is "one list per process". Keeping it at the
-# module level makes that explicit and removes the surprise that different
-# server instances share state via their class. The previous
-# ``CommonServer._on_stop_funcs`` alias was removed: a reassignment of the
-# class attribute would silently desync from this module-level list while
-# ``CommonServer.on_stop`` continued appending to the original.
+# Process-global on-stop callbacks: they fire once per process, independent of
+# which server class runs, so they live at module scope rather than on the class
+# (where a subclass reassignment could silently desync from this list).
 _ON_STOP_FUNCS: list[Callable] = []
 
 
@@ -92,11 +82,9 @@ class CommonServer:
                 self.logger.debug("on_close call %s", func)
                 func()
             except Exception:
-                # ``getattr(..., "__name__", ...)``: a hook may legally be a
-                # ``functools.partial`` (no ``__name__``).  A bare
-                # ``func.__name__`` here would raise ``AttributeError`` *inside*
-                # the error handler, masking the real cleanup failure and
-                # aborting the remaining on-stop hooks.
+                # A hook may be a ``functools.partial`` (no ``__name__``); fall
+                # back to ``repr`` so this handler can't raise and abort the
+                # remaining hooks.
                 name = getattr(func, "__name__", repr(func))
                 self.logger.warning("Exception in %s", name, exc_info=True)
 

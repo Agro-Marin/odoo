@@ -6,12 +6,8 @@ CORS_MAX_AGE = 60 * 60 * 24
 # The HTTP methods that do not require a CSRF validation.
 SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
 
-# The default csrf token lifetime (one year). When used as the
-# time-limit of :meth:`Request.csrf_token`, the embedded ``max_ts`` is
-# ``int(now + max_age)``, so it changes on every issuance (per-second
-# granularity) and effectively acts as a per-token salt, defeating
-# BREACH-style compression-ratio attacks that need a stable token to
-# recover bytes one at a time.
+# Default CSRF token lifetime (one year). The embedded ``max_ts`` changes on
+# every issuance, acting as a per-token salt against BREACH-style attacks.
 CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 
 # The default lang to use when the browser doesn't specify it
@@ -68,30 +64,28 @@ NOT_FOUND_NODB = """\
 <!-- Alternatively, use the X-Odoo-Database header. -->
 """
 
-# Paths whose controllers call ``web.ensure_db()`` and therefore must, when the
-# database becomes unusable mid-request, drop the ``?db=`` query parameter and
-# retry without a database rather than surfacing the registry error. Matched by
-# exact path or the ``ENSURE_DB_PATH_PREFIX`` prefix. ``/test_http/ensure_db``
-# only resolves when the ``test_http`` addon is installed; it is inert otherwise.
+# Paths whose controllers call ``web.ensure_db()``: when the database becomes
+# unusable mid-request, drop the ``?db=`` parameter and retry db-less instead of
+# surfacing the registry error. Matched by exact path or ENSURE_DB_PATH_PREFIX.
 ENSURE_DB_PATH_PREFIX = "/odoo/"
 ENSURE_DB_PATHS = frozenset({"/odoo", "/web", "/web/login", "/test_http/ensure_db"})
 
-# The @route arguments to propagate from the decorated method to the
-# routing rule. ``frozenset`` (not a plain ``set``): this is a shared,
-# read-only module global consumed by ``submap(endpoint.routing, ROUTING_KEYS)``
-# in both ``application.py`` and ``ir_http``; freezing it makes accidental
-# mutation of the shared constant impossible rather than merely unlikely.
-ROUTING_KEYS = frozenset({
-    "defaults",
-    "subdomain",
-    "build_only",
-    "strict_slashes",
-    "redirect_to",
-    "alias",
-    "host",
-    "methods",
-    "websocket",
-})
+# The @route arguments to propagate to the werkzeug routing rule. ``frozenset``
+# because it is a shared read-only global (consumed by ``submap`` in
+# application.py and ir_http); freezing prevents accidental mutation.
+ROUTING_KEYS = frozenset(
+    {
+        "defaults",
+        "subdomain",
+        "build_only",
+        "strict_slashes",
+        "redirect_to",
+        "alias",
+        "host",
+        "methods",
+        "websocket",
+    }
+)
 
 # The default duration of a user session cookie. Inactive sessions are reaped
 # server-side as well with a threshold that can be set via an optional
@@ -107,22 +101,19 @@ SESSION_ROTATION_INTERVAL = 60 * 60 * 3
 # made at the same time and all use the same old cookie.
 SESSION_DELETION_TIMER = 120
 
-# URL paths for which automatic session rotation is disabled.
-# Websocket polling hits these endpoints many times per minute; rotating the
-# session there wastes a disk write on every call and reopens the soft-rotate
-# race window — rotation should fire on a real user action instead.
+# Paths where automatic session rotation is disabled. Websocket polling hits
+# these many times per minute; rotating there wastes a disk write per call and
+# reopens the soft-rotate race — rotation should fire on a real user action.
 SESSION_ROTATION_EXCLUDED_PATHS = (
     "/websocket/on_closed",
     "/websocket/peek_notifications",
     "/websocket/update_bus_presence",
 )
 
-# The amount of bytes (characters) of the session id that remain stable
-# across a "soft" rotation. These first ``STORED_SESSION_BYTES`` characters
-# are used to compute the CSRF token (so it survives soft rotation) and
-# to correlate device-log rows. 42 base64-urlsafe characters yield about
-# 252 bits of entropy; see :meth:`FilesystemSessionStore.generate_key`
-# for the full collision analysis.
+# Session id characters that stay stable across a "soft" rotation. This prefix
+# computes the CSRF token (so it survives soft rotation) and correlates
+# device-log rows. 42 base64-urlsafe chars ≈ 252 bits of entropy; see
+# :meth:`FilesystemSessionStore.generate_key` for the collision analysis.
 STORED_SESSION_BYTES = 42
 
 # The cache duration for static content from the filesystem, one week.
@@ -132,30 +123,21 @@ STATIC_CACHE = 60 * 60 * 24 * 7
 # content (usually using a hash), one year.
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
 
-# Monodb detection — the database-less request fast path in
-# ``Request._get_session_and_dbname`` calls ``db_list(force=True)``, which issues
-# a ``pg_database`` catalog query whenever a ``dbfilter`` is configured (the
-# ``--database`` allowlist path skips PG). That query ran on EVERY db-less
-# request: anonymous traffic, bots, health checks. ``db_list_for_monodb``
-# memoises the per-host result for this many seconds, so a burst of such requests
-# shares a single query. Staleness is benign and self-healing: a freshly created
-# DB is detected after at most this delay (until then the request falls through
-# to the DB selector), and a dropped DB that is still cached routes to a
-# ``RegistryError`` that the WSGI entrypoint already recovers from. Local DB
-# create/drop runs in a separate code path with no cross-worker cache hook, so
-# this TTL — not invalidation — is the backstop. Only the HTTP monodb path is
-# cached; the shared ``list_dbs`` (DB-manager and cron existence checks that need
-# freshness) is deliberately left uncached.
+# TTL (seconds) for the per-host monodb database list cached in
+# ``request_class._monodb_dblist``. Without it, ``db_list(force=True)`` runs a
+# ``pg_database`` query on every db-less request (anonymous traffic, bots, health
+# checks). Staleness is benign and self-healing: a new DB is detected within this
+# delay, a dropped-but-cached DB routes to a RegistryError the entrypoint already
+# recovers from. Only this HTTP path is cached; shared ``list_dbs`` is not.
 DB_MONODB_CACHE_TTL = 5.0
 
 
-# GeoIP / MaxMind — only available if geoip2 is installed.
-# maxminddb is a transitive dependency of geoip2; we import them together
-# so either both modules are available or both are ``None``. Callers MUST
-# still guard code paths that reference ``maxminddb.InvalidDatabaseError``
-# or ``geoip2.errors.AddressNotFoundError`` with an ``if geoip2 is not None``
-# check — otherwise an ``AttributeError`` is raised when Python evaluates
-# the except-clause type expressions against ``None``.
+# GeoIP / MaxMind — only available if geoip2 is installed (maxminddb is a
+# transitive dependency, imported together so both are present or both ``None``).
+# Code referencing ``maxminddb.InvalidDatabaseError`` /
+# ``geoip2.errors.AddressNotFoundError`` in an ``except`` must guard with
+# ``if geoip2 is not None`` — else the clause evaluates against ``None`` and
+# raises AttributeError.
 
 
 class _GeoIPNull:
@@ -165,6 +147,7 @@ class _GeoIPNull:
     ``g.location.latitude``) returns this same instance instead of raising,
     while ``bool(g)`` and ``g == None`` are False/True respectively.
     """
+
     __slots__ = ()
 
     def __getattr__(self, _name):

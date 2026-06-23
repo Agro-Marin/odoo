@@ -1,17 +1,12 @@
 """Savepoint reification for :class:`~odoo.db.cursor.BaseCursor`.
 
-Split out of :mod:`odoo.db.cursor` so the savepoint machinery lives in a small,
-independently navigable unit.  Both classes are re-exported from
-:mod:`odoo.db.cursor` for backwards compatibility.
+Split out of :mod:`odoo.db.cursor`; both classes are re-exported from there for
+backwards compatibility.
 
 ``Savepoint`` is purely SQL (``SAVEPOINT`` / ``ROLLBACK TO`` / ``RELEASE``) and
-has no ORM knowledge.  ``_FlushingSavepoint`` adds the precommit ``flush()`` —
-the same minimal transaction surface :class:`BaseCursor` already touches in
-``flush()`` / ``commit()`` / ``rollback()``.  It deliberately knows **nothing**
-about ORM cache/environment
-state: the deep reaches that restore it on rollback (``default_env``,
-``registry.registry_sequence``, ``envs``, ``clear()`` / ``reset()`` and
-``reset_cached_properties``) live in the ORM layer's
+has no ORM knowledge.  ``_FlushingSavepoint`` adds the precommit ``flush()`` but
+deliberately knows nothing about ORM cache/environment state: restoring that on
+rollback lives in the ORM's
 :class:`odoo.orm.runtime.savepoint._OrmFlushingSavepoint`, which subclasses this
 via the ``_save_orm_state`` / ``_restore_orm_state`` hooks and registers itself
 as ``BaseCursor._flushing_savepoint_cls`` on import.  This keeps the db→ORM
@@ -55,25 +50,14 @@ class Savepoint:
         self.name = f"sp{next(_savepoint_counter)}"
         self._cr = cr
         self.closed: bool = False
-        # NB: f-string SQL is safe here — name is always "sp{int}" from our
-        # own counter, never user input.  psycopg.sql.Identifier would add
-        # overhead (quote + adapt) for zero security benefit.
+        # f-string SQL is safe: name is always "sp{int}" from our counter, never
+        # user input.  Identifier would add quote/adapt overhead for no benefit.
         cr.execute(f'SAVEPOINT "{self.name}"')
-        # Bump the cursor-level open-savepoint depth that
-        # ``Cursor.commit``/``rollback`` guard on (see
-        # ``BaseCursor._savepoint_depth``).  Tracked here, in the base class, so
-        # EVERY savepoint counts — flushing or not, ORM-attached or bare.
-        # Incremented only AFTER the SAVEPOINT SQL succeeds: a failed SAVEPOINT
-        # must leave the depth at 0 (the object is never handed back, so _close
-        # never runs to balance it).
-        #
-        # The ``hasattr`` guard covers ``TestCursor._check_savepoint``, which
-        # reuses this class with a RAW psycopg cursor (``self._cursor._obj``) for
-        # its internal transaction-simulating savepoint — deliberately, to keep
-        # that SQL out of the query counts / profiler.  A raw psycopg cursor has
-        # no ``_savepoint_depth`` and is never routed through Odoo's
-        # commit/rollback guard, so the bookkeeping is both impossible and
-        # unnecessary for it.  ``_close`` applies the symmetric guard.
+        # Bump the cursor-level open-savepoint depth the commit/rollback guard
+        # reads (see ``BaseCursor._savepoint_depth``).  After the SQL succeeds, so
+        # a failed SAVEPOINT leaves the depth at 0.  The ``hasattr`` guard covers
+        # ``TestCursor._check_savepoint``, which reuses this class with a raw
+        # psycopg cursor (no ``_savepoint_depth``); ``_close`` mirrors it.
         if hasattr(cr, "_savepoint_depth"):
             cr._savepoint_depth += 1
 
@@ -102,13 +86,10 @@ class Savepoint:
             self._cr.execute(f'RELEASE SAVEPOINT "{self.name}"')
             self.closed = True
         finally:
-            # Balance __init__'s +1.  A ROLLBACK TO / RELEASE failure must still
-            # drop the cursor depth — otherwise the leaked count wedges every
-            # later commit/rollback on the guard.  _close runs at most once
-            # (gated by close()'s ``not self.closed``), and only on a savepoint
-            # whose SAVEPOINT SQL succeeded, so this never under-counts below 0.
-            # The ``hasattr`` guard is symmetric with __init__'s — see there for
-            # the raw-psycopg-cursor (TestCursor) case it covers.
+            # Balance __init__'s +1, even on a ROLLBACK TO / RELEASE failure —
+            # else the leaked count wedges every later commit/rollback.  _close
+            # runs at most once and only after a successful SAVEPOINT, so this
+            # never goes below 0.  ``hasattr`` guard mirrors __init__'s.
             if hasattr(self._cr, "_savepoint_depth"):
                 self._cr._savepoint_depth -= 1
 
@@ -116,18 +97,11 @@ class Savepoint:
 class _FlushingSavepoint(Savepoint):
     """Savepoint that flushes precommit work.
 
-    On creation, runs ``cr.flush()`` so queued precommit work lands *inside* the
-    savepoint; on successful close it flushes again.  The open-savepoint depth
-    the commit/rollback guard reads is the *cursor*-level
-    :attr:`BaseCursor._savepoint_depth` that the base :class:`Savepoint` bumps
-    for every savepoint (ORM-attached or bare) — see there — so the guard does
-    not depend on a transaction being attached.
-
-    ORM cache/environment restoration on rollback is **not** done here: when a
-    transaction is attached (only the ORM attaches one), it is layered on by
-    :class:`odoo.orm.runtime.savepoint._OrmFlushingSavepoint` through the
-    :meth:`_save_orm_state` / :meth:`_restore_orm_state` hooks, which are no-ops
-    at this (db) layer.
+    On creation runs ``cr.flush()`` so queued precommit work lands *inside* the
+    savepoint; on successful close it flushes again.  ORM cache/environment
+    restoration on rollback is layered on by the ORM's
+    :class:`~odoo.orm.runtime.savepoint._OrmFlushingSavepoint` via the
+    :meth:`_save_orm_state` / :meth:`_restore_orm_state` hooks (no-ops here).
     """
 
     __slots__ = ()
@@ -155,9 +129,6 @@ class _FlushingSavepoint(Savepoint):
         """
 
     def rollback(self) -> None:
-        # self._cr is always a BaseCursor here (savepoint() passes the cursor
-        # itself); typed as such on Savepoint.__init__, so cr.transaction below
-        # resolves without a runtime isinstance narrowing assert.
         cr = self._cr
         super().rollback()  # SQL ROLLBACK TO SAVEPOINT first
         if cr.transaction is not None:
@@ -173,6 +144,5 @@ class _FlushingSavepoint(Savepoint):
             raise
         finally:
             # Base ``Savepoint._close`` issues ROLLBACK TO / RELEASE and balances
-            # the cursor-level ``_savepoint_depth`` unconditionally (even on a
-            # RELEASE failure) — see there.
+            # ``_savepoint_depth`` (see there).
             super()._close(rollback)

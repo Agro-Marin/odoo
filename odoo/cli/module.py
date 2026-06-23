@@ -167,13 +167,10 @@ class Module(DatabaseCommand):
             else:
                 valid_module_names = self._get_module_names(parsed_args.modules)
                 upgradable_modules = self._get_modules(env, valid_module_names)
-                # button_upgrade raises UserError for any module that is not
-                # installed, aborting the whole batch — including the valid
-                # ones. One typo'd or never-installed name must not poison
-                # the rest; skip with a warning instead. (Also keeps the
-                # --outdated comparison meaningful: db_version is False for
-                # uninstalled modules, which would always classify as
-                # outdated.)
+                # button_upgrade raises UserError for any not-installed module,
+                # aborting the whole batch. Skip those with a warning so one bad
+                # name doesn't poison the rest. (Also keeps --outdated meaningful:
+                # uninstalled modules have db_version False, always "outdated".)
                 if not_installed := upgradable_modules.filtered(
                     lambda m: m.state not in ("installed", "to upgrade")
                 ):

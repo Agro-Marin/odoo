@@ -1,17 +1,12 @@
 """Per-cursor SQL metrics and debug-stats accounting for :class:`~odoo.db.cursor.Cursor`.
 
-Split out of :mod:`odoo.db.cursor` — like :mod:`odoo.db.bulk` — so the core
-transaction surface stays focused on transaction control.  ``_MetricsMixin`` is
-mixed into :class:`Cursor` (``class Cursor(_BulkAccessMixin, _MetricsMixin,
-BaseCursor)``) and operates on the host cursor's own ``_thread`` /
-``sql_from_log`` / ``sql_into_log`` / ``sql_log_count`` members (declared below
-for type checkers under ``TYPE_CHECKING``).  It declares no ``__init__``: the
-host's ``__init__`` seeds the log dicts, exactly as the bulk mixin relies on
-host-provided ``_obj`` / ``_cnx``.
+Split out of :mod:`odoo.db.cursor` so the transaction surface stays focused.
+``_MetricsMixin`` is mixed into :class:`Cursor` and operates on the host's own
+``_thread`` / ``sql_*_log`` / ``sql_log_count`` members (declared below under
+``TYPE_CHECKING``); it has no ``__init__``, relying on the host to seed them.
 
-The process-global :data:`sql_counter` lives here (it was previously a bare
-cursor-module global) and is exposed to callers as ``odoo.db.sql_counter`` via
-``odoo/db/__init__.py``'s module ``__getattr__``, which reads it from this module.
+The process-global :data:`sql_counter` lives here and is exposed as
+``odoo.db.sql_counter`` via ``odoo/db/__init__.py``'s module ``__getattr__``.
 """
 
 from __future__ import annotations
@@ -26,11 +21,9 @@ from .errors import CURSOR_LOGGER_NAME
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
 
-# Global SQL query counter (used for debugging/profiling).
-# Intentionally a bare int — not atomic.  Under --workers=0 (threaded),
-# concurrent += can lose counts.  This is acceptable: the counter is
-# approximate by design and adding a lock would slow every query for
-# debug-only data.  In forked mode each worker has its own copy.
+# Global SQL query counter (debug/profiling).  Intentionally a bare, non-atomic
+# int: concurrent += can lose counts under --workers=0, but it's approximate by
+# design and a lock would slow every query.  Forked workers each keep their own.
 sql_counter: int = 0
 
 
@@ -41,11 +34,9 @@ if TYPE_CHECKING:
     class _MetricsHost(Protocol):
         """The host-cursor surface that :class:`_MetricsMixin` relies on.
 
-        Mirrors :class:`odoo.db.bulk._CursorInternals`: each stateful mixin
-        method annotates ``self`` with this Protocol so the bodies type-check
-        against exactly the members the host (:class:`~odoo.db.cursor.Cursor`)
-        provides, keeping the coupling in one place instead of re-declaring
-        Cursor's members on the mixin.
+        Mirrors :class:`odoo.db.bulk._CursorInternals`: each method annotates
+        ``self`` with this Protocol so its body type-checks against exactly the
+        members the host provides.
         """
 
         _thread: threading.Thread
@@ -57,11 +48,9 @@ if TYPE_CHECKING:
 class _MetricsMixin:
     """Query-counter, thread-metric and debug-stats bookkeeping for :class:`Cursor`.
 
-    Stateless (no ``__init__``): the methods operate on the log dicts and
-    ``sql_log_count`` the host seeds in its own ``__init__``, and on the
-    process-global :data:`sql_counter` defined in this module.  The stateful
-    methods annotate ``self`` with :class:`_MetricsHost` (a ``TYPE_CHECKING``-only
-    Protocol), the canonical mixin pattern also used by :mod:`odoo.db.bulk`.
+    Stateless (no ``__init__``): operates on the log dicts the host seeds and the
+    process-global :data:`sql_counter`.  Stateful methods annotate ``self`` with
+    :class:`_MetricsHost`, as in :mod:`odoo.db.bulk`.
     """
 
     def _format(self, query: Any, params: Any = None) -> str:
@@ -98,9 +87,8 @@ class _MetricsMixin:
         global sql_counter  # noqa: PLW0603 — intentionally process-global
         self.sql_log_count += count
         sql_counter += count
-        # NB: hasattr() calls below look like optimization candidates (try/except
-        # is faster on the happy path) but the difference is ~50ns/call — irrelevant
-        # vs. the ~1-5ms average query time.  Keep the explicit style for clarity.
+        # hasattr() below isn't worth replacing with try/except (~50ns vs the
+        # 1-5ms query time); keep the explicit style.
         t = self._thread
         if hasattr(t, "query_count"):
             t.query_count += count
@@ -143,9 +131,7 @@ class _MetricsMixin:
             if sqllog:
                 _logger.debug("SQL LOG %s:", log_type)
                 # Sort by accumulated time, slowest first — the costliest tables
-                # are what this debug log exists to surface.  (Previously keyed on
-                # the whole ``(count, time)`` tuple, which ordered by count first
-                # and buried a single expensive query on a rarely-hit table.)
+                # are what this debug log exists to surface.
                 for table, (stat_count, stat_time) in sorted(
                     sqllog.items(), key=lambda kv: kv[1][1], reverse=True
                 ):

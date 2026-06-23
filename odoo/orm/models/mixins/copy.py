@@ -1,9 +1,4 @@
-"""
-Copy (duplication) mixin for BaseModel.
-
-Extracted from crud.py — contains the copy, copy_data, and copy_translations
-methods that handle record duplication with proper field and translation handling.
-"""
+"""Record duplication mixin for BaseModel: copy, copy_data, copy_translations."""
 
 import typing
 from collections import defaultdict
@@ -17,22 +12,15 @@ if typing.TYPE_CHECKING:
 
 
 class CopyMixin:
-    """Mixin providing record duplication operations.
-
-    Methods:
-    - copy_data(): Copy record field values, respecting copy=True flags
-    - copy_translations(): Recursively copy field translations
-    - copy(): Main entry point — duplicate records with optional defaults
-    """
+    """Mixin providing record duplication operations."""
 
     __slots__ = ()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        """
-        Copy given record's data with all its fields values
+        """Copy each record's field values.
 
-        :param default: field values to override in the original values of the copied record
-        :return: list of dictionaries containing all the field values
+        :param default: field values to override in the copied records
+        :return: list of dicts of field values
         """
         vals_list = []
         default = dict(default or {})
@@ -153,11 +141,8 @@ class CopyMixin:
                         if k in valid_langs
                     }
                     # Source term to diff against: prefer the record's own
-                    # language, then en_US.  Guard the en_US fallback — it may
-                    # be absent from the stored translations (data with no
-                    # en_US row, or en_US filtered out by valid_langs), in
-                    # which case there is no base term, so skip this field
-                    # rather than raising KeyError.
+                    # language, then en_US. If neither is present there is no
+                    # base term, so skip the field rather than raise KeyError.
                     source_term = old_translations.pop(lang, None)
                     if source_term is None:
                         source_term = old_translations.get("en_US")
@@ -181,18 +166,15 @@ class CopyMixin:
     def copy(self, default: ValuesType | None = None) -> Self:
         """Duplicate record ``self`` updating it with default values.
 
-        :param default: dictionary of field values to override in the
-               original values of the copied record, e.g: ``{'field_name': overridden_value, ...}``
+        :param default: field values to override in the copied records,
+               e.g. ``{'field_name': overridden_value, ...}``
         :returns: new records
-
         """
         vals_list = self.with_context(active_test=False).copy_data(default)
-        # ``copy_data`` returns ``None`` for records already in the recursion
-        # guard's seen-map.  At the outer level this only fires for
-        # recordsets containing duplicate ids or callers that pre-populated
-        # ``__copy_data_seen`` in context.  Drop the ``None`` entries together
-        # with their originals so ``create`` never sees ``None`` and the
-        # strict-zip with ``new_records`` below still aligns.
+        # copy_data returns None for records already in the recursion guard's
+        # seen-map (duplicate ids, or pre-populated __copy_data_seen). Drop
+        # those with their originals so create() never sees None and the
+        # strict-zips below stay aligned.
         pairs = [
             (rec, vals)
             for rec, vals in zip(self, vals_list, strict=True)

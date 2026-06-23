@@ -15,10 +15,8 @@ from odoo.libs.json import dumps as json_dumps
 if TYPE_CHECKING:
     from odoo.fields import Field
 else:
-    # ``Field`` lives in odoo.fields, which imports from odoo.tools.
-    # Runtime-importing it here would cycle.  Fall back to ``Any`` so
-    # introspection tools can resolve the annotation; type checkers still
-    # see the real class via the branch above.
+    # Runtime-importing Field would cycle (odoo.fields imports odoo.tools), so
+    # fall back to Any; type checkers see the real class via the branch above.
     Field = typing.Any
 
 
@@ -162,9 +160,8 @@ class SQL:
                 params_list.extend(arg.__params)
                 to_flush_list.extend(arg.__to_flush)
             elif isinstance(arg, tuple):
-                # Expand tuples to (%s, %s, ...) with individual values.
-                # This supports VALUES (%s) row syntax and other multi-value
-                # positions.  Use a list for a single array parameter instead.
+                # Expand a tuple to (%s, %s, ...) for VALUES rows and other
+                # multi-value positions. Use a list for a single array param.
                 code_list.append("(%s)" % ", ".join(["%s"] * len(arg)))
                 params_list.extend(arg)
             else:
@@ -256,7 +253,7 @@ class SQL:
             result[index * 2] = arg
         return SQL("%s" * len(result), *result)
 
-    # Module-level empty singleton, set after class definition
+    # Empty singleton, assigned after the class definition
     EMPTY: SQL
 
     @classmethod
@@ -278,7 +275,7 @@ class SQL:
         return cls(f'"{name}"."{subname}"', to_flush=to_flush)
 
 
-# Immutable singleton for empty SQL — avoids repeated allocations
+# Shared empty-SQL singleton, avoids repeated allocations
 SQL.EMPTY = SQL()
 
 

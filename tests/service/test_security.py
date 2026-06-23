@@ -81,9 +81,7 @@ class TestCheckSession:
         with patch("odoo.service.security.consteq", return_value=True):
             result = sec.check_session(session, env)
         assert result is True
-        # device log must not be touched when request=None
-        env.__getitem__.return_value.browse.return_value  # ensure no _update_device calls
-        # The env["res.device.log"] key should never have been accessed
+        # The device log (res.device.log) must not be accessed when request=None.
         accessed_keys = [c.args[0] for c in env.__getitem__.call_args_list]
         assert "res.device.log" not in accessed_keys
 

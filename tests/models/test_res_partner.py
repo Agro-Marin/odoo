@@ -289,5 +289,4 @@ class TestMany2oneTraversal:
         parent._compute_commercial_partner()
         child = make_partner("Child", parent_id=parent.id)
         child._compute_commercial_partner()
-        # Child's commercial partner is the nearest company ancestor
         assert child.commercial_partner_id == parent

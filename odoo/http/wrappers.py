@@ -24,30 +24,27 @@ def _apply_cookie_defaults(
     secure: bool | None,
     samesite: str | None,
 ) -> tuple[datetime | int | None, int | None, bool, str | None]:
-    """Apply shared cookie defaults: expiry fallback, consent filtering,
-    and security attributes.
+    """Apply shared ``set_cookie`` defaults: expiry fallback, consent filtering
+    and security attributes. Shared by :class:`_Response` and
+    :class:`FutureResponse`.
 
-    Both :class:`_Response` and :class:`FutureResponse` need identical
-    pre-processing of ``set_cookie`` parameters.  Extracted here to
-    avoid duplicating the logic.
-
-    ``secure`` defaults to ``request.httprequest.is_secure`` (True on
-    TLS, False on HTTP) and ``samesite`` defaults to ``"Lax"`` — matching
-    the modern browser defaults explicitly so no cookie leaves the
-    server without the Secure / SameSite protections when they apply.
+    ``secure`` defaults to ``request.httprequest.is_secure`` and ``samesite`` to
+    ``"Lax"``, so no cookie leaves the server without Secure / SameSite when they
+    apply.
     """
     if expires == -1:  # not provided → default 1 year
         expires = datetime.now() + timedelta(days=365)
 
-    # Guard on ``env`` rather than ``db``: ``_is_allowed_cookie`` is an
-    # ``ir.http`` (ORM) call, so a live environment — not merely a selected
-    # database — is the real precondition. They diverge on the error path,
-    # where ``_serve_db``'s ``finally`` has already nulled ``request.env`` while
-    # ``request.db`` is still set; keying on ``db`` there dereferenced
-    # ``None["ir.http"]``. The only cookie set on that env-less path is the
-    # ``session_id`` cookie (``cookie_type="required"``), which is essential and
-    # always allowed, so skipping the consent check when env is gone is correct.
-    if request and request.env is not None and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
+    # Guard on ``env`` not ``db``: ``_is_allowed_cookie`` is an ``ir.http`` (ORM)
+    # call needing a live env. They diverge on the error path, where
+    # ``_serve_db``'s ``finally`` nulled ``env`` but ``db`` is still set. The only
+    # cookie set env-less is ``session_id`` (``cookie_type="required"``), always
+    # allowed, so skipping the consent check there is correct.
+    if (
+        request
+        and request.env is not None
+        and not request.env["ir.http"]._is_allowed_cookie(cookie_type)
+    ):
         max_age = 0
 
     if secure is None:
@@ -78,10 +75,9 @@ class HTTPRequest:
         )
         httprequest.parameter_storage_class = werkzeug.datastructures.ImmutableMultiDict
         httprequest.max_content_length = DEFAULT_MAX_CONTENT_LENGTH
-        # Werkzeug 3.1 changed defaults from unlimited to 500 KB / 1000 parts.
-        # Odoo needs 10 MB for base64 form fields, HTML content, and import data.
-        # Odoo forms with One2many lines can exceed 1000 parts (e.g., 200 invoice
-        # lines x 5+ fields each). Set to 10000 to match the memory size headroom.
+        # Werkzeug 3.1 capped these at 500 KB / 1000 parts; Odoo needs more for
+        # base64 fields, HTML and import data, and One2many forms can exceed 1000
+        # parts (e.g. 200 invoice lines x 5+ fields each).
         httprequest.max_form_memory_size = 10 * 1024 * 1024
         httprequest.max_form_parts = 10_000
 
@@ -295,7 +291,11 @@ class _Response(werkzeug.wrappers.Response):
         only when you really need an insecure cookie.
         """
         expires, max_age, secure, samesite = _apply_cookie_defaults(
-            expires, max_age, cookie_type, secure, samesite,
+            expires,
+            max_age,
+            cookie_type,
+            secure,
+            samesite,
         )
         super().set_cookie(
             key,
@@ -444,12 +444,10 @@ class Response(Proxy):
         super().__init__(response)
 
 
-# Monkey-patches into werkzeug.exceptions: ``HTTPException.get_response``
-# is wrapped so it returns our :class:`Response`, and ``abort`` is wrapped
-# so it accepts our :class:`Response` instances. Both originals are
-# stashed on the ``werkzeug.exceptions`` module — one consistent storage
-# location — so module reloads (test isolation, importlib.reload) don't
-# re-wrap an already-patched version and produce infinite recursion.
+# Monkey-patch werkzeug.exceptions so ``HTTPException.get_response`` returns our
+# :class:`Response` and ``abort`` accepts our :class:`Response`. The originals are
+# stashed on the module so a reload (test isolation, importlib.reload) doesn't
+# re-wrap an already-patched version into infinite recursion.
 if not hasattr(werkzeug.exceptions, "_odoo_original_get_response"):
     werkzeug.exceptions._odoo_original_get_response = HTTPException.get_response
 if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
@@ -503,7 +501,11 @@ class FutureResponse:
         cookie_type: str = "required",
     ) -> None:
         expires, max_age, secure, samesite = _apply_cookie_defaults(
-            expires, max_age, cookie_type, secure, samesite,
+            expires,
+            max_age,
+            cookie_type,
+            secure,
+            samesite,
         )
         werkzeug.Response.set_cookie(
             self,

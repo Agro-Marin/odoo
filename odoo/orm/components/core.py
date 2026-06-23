@@ -1,24 +1,13 @@
 """Layer 1 facade — unified cache + compute operations.
 
-:class:`OrmCore` composes :class:`FieldCache` and :class:`ComputeEngine`
-behind a single flat API, eliminating the multi-attribute traversal chains
-that internal ORM consumers currently navigate::
+:class:`OrmCore` composes :class:`FieldCache` and :class:`ComputeEngine` behind
+a single flat API (``env._core``), so internal consumers reach cache and compute
+through one object instead of multi-attribute traversal chains.
 
-    # Before (3 attr lookups + method):
-    env.transaction.compute_engine.has_pending_field(field)
-    env.transaction.cache_store.get_field_data(field)
-
-    # After (1 attr lookup + method):
-    env._core.has_pending(field)
-    env._core.field_data(field)
-
-This is the **Layer 1** of the three-layer ORM architecture:
-
-- Layer 1 (Core): cache, compute, triggers — pure data, no I/O
-- Layer 2 (Persistence): SQL, cursors, fetch, write — DB ops
-- Layer 3 (API): ACL, descriptors, translations — user-facing
-
-OrmCore has **zero Odoo imports** and is fully testable with pure Python.
+Layer 1 of the three-layer ORM: Core (cache/compute/triggers — pure data, no
+I/O); Layer 2 Persistence (SQL/cursors/fetch/write); Layer 3 API (ACL,
+descriptors, translations). OrmCore has zero Odoo imports and is testable with
+pure Python.
 """
 
 from typing import TYPE_CHECKING, Any
@@ -34,28 +23,9 @@ if TYPE_CHECKING:
 class OrmCore:
     """Unified Layer 1 facade over FieldCache + ComputeEngine.
 
-    Designed as a single-object entry point that internal ORM code
-    (``_read_format``, ``mapped``, ``filtered``, ``sorted``, ``modified``,
-    ``flush_model``, ``_make_scalar_get``) accesses via ``env._core``.
-
-    All methods delegate to the **public** APIs of the underlying
-    :class:`FieldCache` / :class:`ComputeEngine`, so component-level invariants
-    are never bypassed (the facade owns no data of its own).  Several of those
-    public methods (e.g. :meth:`ComputeEngine.has_pending_field`) are already
-    written for the hot path, so delegation is the intended use, not a tax.
-
-    Usage::
-
-        core = OrmCore()
-        core.set_value(field, record_id, value)
-        core.mark_dirty(field, [record_id])
-        core.schedule(field, [record_id])
-
-        # Hot-path cache resolve: pending check + dict get
-        value = core.resolve(field, record_id)
-
-        # Batch cache access: return the raw dict
-        field_cache = core.field_data(field)
+    Single entry point used by internal ORM code via ``env._core``. Every method
+    delegates to the public API of the underlying FieldCache / ComputeEngine, so
+    component invariants are never bypassed; the facade owns no data of its own.
     """
 
     __slots__ = ("cache", "engine")
@@ -68,18 +38,13 @@ class OrmCore:
         self.cache = cache if cache is not None else FieldCache()
         self.engine = engine if engine is not None else ComputeEngine()
 
-    # ------------------------------------------------------------------
     # Cache: data access
-    # ------------------------------------------------------------------
 
     def field_data(self, field: Any) -> dict[Any, Any]:
         """Return the live cache dict for *field* (``{id: value}``).
 
-        This is the primary batch-access API.  Internal consumers that
-        iterate over records (``_read_format``, ``mapped``, ``sorted``)
-        call this once, then loop with ``dict.get``.
-
-        Replaces: ``env.transaction.cache_store.get_field_data(field)``
+        Primary batch-access API: consumers that iterate records call this once,
+        then loop with ``dict.get``.
         """
         return self.cache.get_field_data(field)
 
@@ -90,11 +55,9 @@ class OrmCore:
     def get_value(self, field: Any, record_id: Any, default: Any = None) -> Any:
         """Return a single cached value, or *default*.
 
-        Note the deliberate contract difference from :meth:`FieldCache.get_value`,
-        which *raises* ``KeyError`` on a miss by default: this facade returns
-        *default* (``None``) instead — a convenience for hot-path callers that do
-        not distinguish "absent" from "cached ``None``".  Pass an explicit
-        *default* to control the miss behavior of either.
+        Unlike :meth:`FieldCache.get_value` (which raises ``KeyError`` on a
+        miss), this returns *default* — for hot-path callers that do not
+        distinguish "absent" from "cached ``None``".
         """
         field_cache = self.cache.get_field_data_or_none(field)
         if field_cache is None:
@@ -117,9 +80,7 @@ class OrmCore:
         """Remove and return a cached value."""
         return self.cache.pop_value(field, record_id, default)
 
-    # ------------------------------------------------------------------
     # Cache: dirty tracking
-    # ------------------------------------------------------------------
 
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*."""
@@ -149,9 +110,7 @@ class OrmCore:
         """Iterate over fields that have dirty entries."""
         return self.cache.iter_dirty_fields()
 
-    # ------------------------------------------------------------------
     # Cache: patches (x2many)
-    # ------------------------------------------------------------------
 
     def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
         """Record a deferred x2many addition."""
@@ -161,9 +120,7 @@ class OrmCore:
         """Return the patches dict for *field*, or ``None``."""
         return self.cache.get_patches(field)
 
-    # ------------------------------------------------------------------
     # Cache: invalidation
-    # ------------------------------------------------------------------
 
     def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
         """Invalidate cached values for *field*."""
@@ -173,9 +130,7 @@ class OrmCore:
         """Clear all cached data (but not dirty or patches)."""
         self.cache.invalidate_all()
 
-    # ------------------------------------------------------------------
     # Cache: iteration
-    # ------------------------------------------------------------------
 
     def iter_fields(self) -> Iterator[Any]:
         """Iterate over fields with cached data."""
@@ -189,9 +144,7 @@ class OrmCore:
         """Return whether *field* has cached data."""
         return self.cache.has_field(field)
 
-    # ------------------------------------------------------------------
     # Compute: scheduling
-    # ------------------------------------------------------------------
 
     def schedule(self, field: Any, ids: Iterable) -> None:
         """Mark *field* for recomputation on *ids*."""
@@ -206,13 +159,7 @@ class OrmCore:
         return self.engine.is_pending(field, record_id)
 
     def has_pending(self, field: Any) -> bool:
-        """Fast check: does *field* have pending recomputations?
-
-        This is the hot-path guard in ``_make_scalar_get`` and
-        ``ensure_computed`` — it delegates to
-        :meth:`ComputeEngine.has_pending_field`, which is itself a single
-        ``__contains__`` on the pending dict and documented as hot-path code.
-        """
+        """Return whether *field* has pending recomputations (hot-path guard)."""
         return self.engine.has_pending_field(field)
 
     def has_any_pending(self) -> bool:
@@ -240,9 +187,7 @@ class OrmCore:
         """Remove *field* from pending recomputations."""
         self.engine.discard_field(field)
 
-    # ------------------------------------------------------------------
     # Compute: protection
-    # ------------------------------------------------------------------
 
     def is_protected(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* is protected for *field*."""
@@ -264,9 +209,7 @@ class OrmCore:
         """Protect *ids* for *field* in the current scope."""
         self.engine.protect(field, ids)
 
-    # ------------------------------------------------------------------
     # Lifecycle
-    # ------------------------------------------------------------------
 
     def clear(self) -> None:
         """Clear all cached data, dirty flags, patches, and pending computations."""

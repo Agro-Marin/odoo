@@ -1,9 +1,7 @@
-"""
-Post-processing and formatting methods for read_group results.
+"""Post-processing and formatting for read_group results.
 
-Contains the _ReadGroupFormatMixin with methods that convert raw PostgreSQL
-values to the format returned by _read_group() and format deprecated
-read_group() result dictionaries.
+Converts raw PostgreSQL values into the format returned by ``_read_group()``
+and formats the deprecated ``read_group()`` result dicts.
 """
 
 import datetime
@@ -36,15 +34,11 @@ if typing.TYPE_CHECKING:
 
 
 class _ReadGroupFormatMixin:
-    """Post-processing and formatting methods for read_group results.
-
-    Converts raw PostgreSQL values to the format returned by _read_group()
-    and formats deprecated read_group() result dictionaries.
-    """
+    """Post-processing and formatting for read_group results."""
 
     __slots__ = ()
 
-    # Type hints for attributes provided by BaseModel (runtime)
+    # Attributes provided by BaseModel at runtime
     _fields: dict
     _name: str
     env: typing.Any
@@ -53,12 +47,10 @@ class _ReadGroupFormatMixin:
     def _read_group_postprocess_groupby(
         self, groupby_spec: str, raw_values: list
     ) -> list:
-        """Convert the given values of ``groupby_spec``
-        from PostgreSQL to the format returned by method ``_read_group()``.
+        """Convert raw ``groupby_spec`` values into the ``_read_group()`` format.
 
-        The formatting rules can be summarized as:
-        - groupby values of relational fields are converted to recordsets with a correct prefetch set;
-        - NULL values are converted to empty values corresponding to the given aggregate.
+        Relational groupby values become recordsets (with a correct prefetch
+        set); NULL becomes the spec's empty value.
         """
         empty_value = self._read_group_empty_value(groupby_spec)
 
@@ -91,12 +83,10 @@ class _ReadGroupFormatMixin:
     def _read_group_postprocess_aggregate(
         self, aggregate_spec: str, raw_values: list
     ) -> Generator:
-        """Convert the given values of ``aggregate_spec``
-        from PostgreSQL to the format returned by method ``_read_group()``.
+        """Convert raw ``aggregate_spec`` values into the ``_read_group()`` format.
 
-        The formatting rules can be summarized as:
-        - 'recordset' aggregates are turned into recordsets with a correct prefetch set;
-        - NULL values are converted to empty values corresponding to the given aggregate.
+        ``'recordset'`` aggregates become recordsets (with a correct prefetch
+        set); NULL becomes the spec's empty value.
         """
         empty_value = self._read_group_empty_value(aggregate_spec)
 
@@ -137,12 +127,9 @@ class _ReadGroupFormatMixin:
     def _read_group_format_result(
         self, rows_dict: list[dict], lazy_groupby: list[str]
     ) -> None:
-        """
-        Helper method to format the data contained in the dictionary data by
-        adding the domain corresponding to its values, the groupbys in the
-        context and by properly formatting the date/datetime values.
-        """
-        # Import here to avoid circular import at module level
+        """Add per-group ``__domain``/``__context`` and format date/datetime
+        values in *rows_dict*."""
+        # imported here to avoid a circular import
         from .mixin import ReadGroupMixin
 
         for group in lazy_groupby:
@@ -205,8 +192,8 @@ class _ReadGroupFormatMixin:
                                 format=READ_GROUP_DISPLAY_FORMAT[granularity],
                                 locale=locale,
                             )
-                        # special case weeks because babel is broken *and*
-                        # ubuntu reverted a change so it's also inconsistent
+                        # weeks: babel is broken and ubuntu reverted a change,
+                        # so format the label by hand
                         if granularity == "week":
                             year, week = date_utils.weeknumber(
                                 babel.Locale.parse(locale),
@@ -236,8 +223,7 @@ class _ReadGroupFormatMixin:
                             (f"{field_name}.{granularity}", "=", value)
                         ]
                     elif not value:
-                        # Set the __range of the group containing records with an unset
-                        # date/datetime field value to False.
+                        # group of records with an unset date: __range is False
                         row.setdefault("__range", {})[group] = False
 
                 row["__domain"] &= Domain(additional_domain)
@@ -245,13 +231,12 @@ class _ReadGroupFormatMixin:
             row["__domain"] = list(row["__domain"])
 
     def _read_group_format_result_properties(self, rows_dict, group):
-        """Modify the final read group properties result.
+        """Format the properties groups in the read_group result.
 
-        Replace the relational properties ids by a tuple with their display names,
-        replace the "raw" tags and selection values by a list containing their labels.
-        Adapt the domains for the Falsy group (we can't just keep (selection, =, False)
-        e.g. because some values in database might correspond to  option that have
-        been remove on the parent).
+        Replace relational property ids with ``(id, display_name)`` tuples, and
+        raw tags/selection values with their labels. The falsy group cannot use
+        a plain ``(spec, =, False)`` domain because the database may hold values
+        for options removed from the parent.
         """
         if "." not in group:
             msg = "You must choose the property you want to group by."
@@ -266,8 +251,8 @@ class _ReadGroupFormatMixin:
             options = tuple(option[0] for option in options)
             for row in rows_dict:
                 if not row[fullname]:
-                    # can not do ('selection', '=', False) because we might have
-                    # option in database that does not exist anymore
+                    # not a plain ('=', False): the db may hold options that no
+                    # longer exist
                     additional_domain = Domain(fullname, "=", False) | Domain(
                         fullname, "not in", options
                     )
@@ -278,14 +263,14 @@ class _ReadGroupFormatMixin:
 
         elif property_type == "many2one":
             comodel = definition.get("comodel")
-            # same set of ids for prefetch and for the "not in" group domain
+            # same ids for prefetch and for the "not in" group domain
             prefetch_ids = all_groups = tuple(
                 row[fullname] for row in rows_dict if row[fullname]
             )
             for row in rows_dict:
                 if not row[fullname]:
-                    # can not only do ('many2one', '=', False) because we might have
-                    # record in database that does not exist anymore
+                    # not a plain ('=', False): the db may hold records that no
+                    # longer exist
                     additional_domain = Domain(fullname, "=", False) | Domain(
                         fullname, "not in", all_groups
                     )
@@ -302,7 +287,7 @@ class _ReadGroupFormatMixin:
 
         elif property_type == "many2many":
             comodel = definition.get("comodel")
-            # same set of ids for prefetch and for the "not in" group domain
+            # same ids for prefetch and for the "not in" group domain
             prefetch_ids = all_groups = tuple(
                 row[fullname] for row in rows_dict if row[fullname]
             )
@@ -338,7 +323,7 @@ class _ReadGroupFormatMixin:
                         additional_domain = Domain.TRUE
                 else:
                     additional_domain = Domain(fullname, "in", row[fullname])
-                    # replace tag raw value with list of raw value, label and color
+                    # replace raw tag value with [raw value, label, color]
                     row[fullname] = tags.get(row[fullname])
 
                 row["__domain"] &= additional_domain
@@ -351,13 +336,13 @@ class _ReadGroupFormatMixin:
                     row["__range"] = {}
                     continue
 
-                # Date / Datetime are not JSONifiable, so they are stored as raw text
+                # date/datetime aren't JSONifiable, so stored as raw text
                 db_format = (
                     "%Y-%m-%d" if property_type == "date" else "%Y-%m-%d %H:%M:%S"
                 )
 
                 if func == "week":
-                    # the value is the first day of the week (based on local)
+                    # value is the first day of the week (locale-dependent)
                     start = row[group].strftime(db_format)
                     end = (row[group] + datetime.timedelta(days=7)).strftime(db_format)
                 else:

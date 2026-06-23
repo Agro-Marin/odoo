@@ -1,9 +1,4 @@
-"""
-Fill and expansion methods for read_group results.
-
-Contains the _ReadGroupFillMixin with methods that fill empty groups,
-expand group results, and fill temporal gaps in date-based groupings.
-"""
+"""Fill/expansion for read_group: empty groups, expansion, temporal gaps."""
 
 import collections
 import datetime
@@ -23,16 +18,11 @@ from ....fields.temporal import Date, Datetime
 
 
 class _ReadGroupFillMixin:
-    """Fill and expansion methods for read_group results.
-
-    Provides methods to fill empty groups for all possible values,
-    expand groups to include all target records, and fill temporal
-    gaps in date-based groupings.
-    """
+    """Fill empty groups, expand groups, and fill temporal gaps."""
 
     __slots__ = ()
 
-    # Type hints for attributes provided by BaseModel (runtime)
+    # Attributes provided by BaseModel at runtime
     _fields: dict
     _name: str
     env: typing.Any
@@ -53,24 +43,20 @@ class _ReadGroupFillMixin:
         read_group_result: list[dict],
         read_group_order: str | None = None,
     ) -> list[dict]:
-        """Helper method for filling in empty groups for all possible values of
-        the field being grouped by"""
+        """Fill in empty groups for all possible values of the grouped field."""
         field_name = groupby.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
         if not field.group_expand:
             return read_group_result
 
-        # field.group_expand is a callable or the name of a method, that returns
-        # the groups that we want to display for this field, in the form of a
-        # recordset or a list of values (depending on the type of the field).
-        # This is useful to implement kanban views for instance, where some
-        # columns should be displayed even if they don't contain any record.
+        # field.group_expand is a callable (or method name) returning the groups
+        # to display, as a recordset or list of values. Used e.g. by kanban
+        # views to show columns even when they hold no record.
         group_expand = field.group_expand
         if isinstance(group_expand, str):
             group_expand = getattr(self.env.registry[self._name], group_expand)
-        # raise (not assert): under ``python -O`` a misconfigured non-callable
-        # group_expand must still fail clearly here, not with an opaque
-        # ``TypeError: 'X' object is not callable`` at the call sites below.
+        # raise (not assert) so this holds under python -O: a non-callable
+        # group_expand must fail clearly here, not opaquely at the call sites.
         if not callable(group_expand):
             raise TypeError(
                 f"group_expand of {field} must be callable or a method name, "
@@ -99,10 +85,8 @@ class _ReadGroupFillMixin:
             def value2key(value):
                 return value
 
-        # Merge the current results (list of dicts) with all groups. Determine
-        # the global order of results groups, which is supposed to be in the
-        # same order as read_group_result (in the case of a many2one field).
-
+        # Merge current results with all groups, preserving read_group_result
+        # order (for a many2one field).
         read_group_result_as_dict = {}
         for line in read_group_result:
             read_group_result_as_dict[value2key(line[groupby])] = line
@@ -146,14 +130,11 @@ class _ReadGroupFillMixin:
         fill_to: str | bool = False,
         min_groups: int | bool = False,
     ) -> list[dict]:
-        """Helper method for filling date/datetime 'holes' in a result set.
+        """Fill date/datetime 'holes' in a result set.
 
-        We are in a use case where data are grouped by a date field (typically
-        months but it could be any other interval) and displayed in a chart.
-
-        Assume we group records by month, and we only have data for June,
-        September and December. By default, plotting the result gives something
-        like::
+        For data grouped by a date field (e.g. months) and shown in a chart.
+        With data only for June, September and December, plotting by default
+        gives::
 
                                                 ___
                                       ___      |   |
@@ -161,9 +142,8 @@ class _ReadGroupFillMixin:
                                      |___||___||___|
                                       Jun  Sep  Dec
 
-        The problem is that December data immediately follow September data,
-        which is misleading for the user. Adding explicit zeroes for missing
-        data gives something like::
+        December immediately following September is misleading; adding explicit
+        zeroes for the missing months gives::
 
                                                            ___
                              ___                          |   |
@@ -171,21 +151,15 @@ class _ReadGroupFillMixin:
                             |___| ___  ___ |___| ___  ___ |___|
                              Jun  Jul  Aug  Sep  Oct  Nov  Dec
 
-        To customize this output, the context key "fill_temporal" can be used
-        under its dictionary format, which has 3 attributes : fill_from,
-        fill_to, min_groups (see params of this function)
+        The context key "fill_temporal" customizes this via a dict with
+        ``fill_from``, ``fill_to``, ``min_groups`` (see params below).
 
-        Fill between bounds:
-        Using either `fill_from` and/or `fill_to` attributes, we can further
-        specify that at least a certain date range should be returned as
-        contiguous groups. Any group outside those bounds will not be removed,
-        but the filling will only occur between the specified bounds. When not
-        specified, existing groups will be used as bounds, if applicable.
-        By specifying such bounds, we can get empty groups before/after any
-        group with data.
-
-        If we want to fill groups only between August (fill_from)
-        and October (fill_to)::
+        Fill between bounds: ``fill_from`` and/or ``fill_to`` force at least
+        that date range to be returned as contiguous groups. Groups outside the
+        bounds are kept, but filling happens only between them; absent bounds
+        fall back to existing groups. This yields empty groups before/after any
+        group with data. Filling only between August (fill_from) and October
+        (fill_to)::
 
                                                      ___
                                  ___                |   |
@@ -193,25 +167,19 @@ class _ReadGroupFillMixin:
                                 |___| ___ |___| ___ |___|
                                  Jun  Aug  Sep  Oct  Dec
 
-        We still get June and December. To filter them out, we should match
-        `fill_from` and `fill_to` with the domain e.g. ``['&',
-        ('date_field', '>=', 'YYYY-08-01'), ('date_field', '<', 'YYYY-11-01')]``::
+        June and December remain. To drop them, match ``fill_from``/``fill_to``
+        with the domain, e.g. ``['&', ('date_field', '>=', 'YYYY-08-01'),
+        ('date_field', '<', 'YYYY-11-01')]``::
 
                                          ___
                                     ___ |___| ___
                                     Aug  Sep  Oct
 
-        Minimal filling amount:
-        Using `min_groups`, we can specify that we want at least that amount of
-        contiguous groups. This amount is guaranteed to be provided from
-        `fill_from` if specified, or from the lowest existing group otherwise.
-        This amount is not restricted by `fill_to`. If there is an existing
-        group before `fill_from`, `fill_from` is still used as the starting
-        group for min_groups, because the filling does not apply on that
-        existing group. If neither `fill_from` nor `fill_to` is specified, and
-        there is no existing group, no group will be returned.
-
-        If we set min_groups = 4::
+        Minimal filling amount: ``min_groups`` requests at least that many
+        contiguous groups, counted from ``fill_from`` if set else the lowest
+        existing group, and not capped by ``fill_to``. An existing group before
+        ``fill_from`` does not shift the start. With neither bound and no
+        existing group, nothing is returned. With min_groups = 4::
 
                                          ___
                                     ___ |___| ___ ___
@@ -220,19 +188,14 @@ class _ReadGroupFillMixin:
         :param list data: the data containing groups
         :param list groupby: list of fields being grouped on
         :param list annoted_aggregates: dict of "<key_name>:<aggregate specification>"
-        :param str fill_from: (inclusive) string representation of a
-            date/datetime, start bound of the fill_temporal range
-            formats: date -> %Y-%m-%d, datetime -> %Y-%m-%d %H:%M:%S
-        :param str fill_to: (inclusive) string representation of a
-            date/datetime, end bound of the fill_temporal range
-            formats: date -> %Y-%m-%d, datetime -> %Y-%m-%d %H:%M:%S
-        :param int min_groups: minimal amount of required groups for the
-            fill_temporal range (should be >= 1)
+        :param str fill_from: (inclusive) start bound, as a date/datetime string
+            (``%Y-%m-%d`` or ``%Y-%m-%d %H:%M:%S``)
+        :param str fill_to: (inclusive) end bound, same formats as ``fill_from``
+        :param int min_groups: minimal number of groups for the range (>= 1)
         :rtype: list[dict]
         :return: list
         """
-        # min_groups is actively used by web clients (fill_temporal context key)
-        # and tested in test_web_fill_temporal — cannot be removed.
+        # min_groups is used by web clients (fill_temporal context key); keep.
         first_group = groupby[0]
         field_name = first_group.split(":")[0].split(".")[0]
         field = self._fields[field_name]
@@ -244,8 +207,8 @@ class _ReadGroupFillMixin:
         granularity = first_group.split(":")[1] if ":" in first_group else "month"
         days_offset = 0
         if granularity == "week":
-            # _read_group_process_groupby week groups are dependent on the
-            # locale, so filled groups should be too to avoid overlaps.
+            # Week groups are locale-dependent, so filled groups must be too,
+            # to avoid overlaps.
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
         interval = READ_GROUP_TIME_GRANULARITY[granularity]
@@ -253,14 +216,10 @@ class _ReadGroupFillMixin:
         if field.type == "datetime" and self.env.context.get("tz") in all_timezones():
             tz = get_timezone(self.env.context["tz"])
 
-        # The fill logic below computes the date range, generates missing
-        # group entries, and merges them with existing data.
-
-        # existing non null datetimes
-        # Sort defensively: the bounds below assume chronological order, but
-        # ``data`` follows the caller's ``orderby`` which may be descending
-        # (a desc order otherwise inverts existing_from/existing_to and the
-        # fill silently produces no gap groups).  Mirrors the web_read_group fix.
+        # Existing non-null datetimes. Sort defensively: the bounds below assume
+        # chronological order, but ``data`` follows the caller's ``orderby``,
+        # which may be descending (inverting existing_from/existing_to so the
+        # fill silently produces no gap groups).
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
         existing_from, existing_to = existing[0], existing[-1]
         if fill_from:

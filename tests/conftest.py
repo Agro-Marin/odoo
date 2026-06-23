@@ -1,16 +1,10 @@
 """Session-scoped fixtures for the database-free model unit tests.
 
-Provides the ``base_registry`` fixture that ``tests/models/conftest.py``'s
-``env`` fixture depends on. It was referenced but never defined, so the entire
-``tests/models/`` pytest suite errored at collection with
-``fixture 'base_registry' not found``.
-
-``ModelRegistry._build`` auto-discovers *all* model definitions from the same
-module as any provided class, so seeding it with a single ``base`` model pulls
-in the whole base addon (res.partner, res.currency, ir.sequence, …) — exactly
-the models the unit tests exercise. The registry is built once per session and
-shared; each test still gets a fresh in-memory cursor + storage via
-``model_test_env(registry=base_registry)``.
+Provides ``base_registry``, which ``tests/models/conftest.py``'s ``env``
+fixture builds on. ``ModelRegistry`` auto-discovers every model in the same
+module as any seed class, so one ``base`` model pulls in the whole base addon
+(res.partner, res.currency, …). Built once per session; each test still gets a
+fresh in-memory cursor + storage via ``model_test_env``.
 """
 
 import pytest

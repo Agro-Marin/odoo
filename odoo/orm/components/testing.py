@@ -1,91 +1,26 @@
 """Database-free ORM test environment.
 
-Provides :class:`InMemoryEnvironment`, a lightweight ORM substitute that
-uses :class:`DictBackend` instead of PostgreSQL and plain Python callables
-instead of ``@api.depends`` compute methods.
+:class:`InMemoryEnvironment` is a lightweight ORM substitute using
+:class:`DictBackend` instead of PostgreSQL and plain Python callables instead of
+``@api.depends`` computes. It exercises ORM algorithms (compute chains, cache,
+PENDING handling, flush convergence, relational traversal) at component speed
+(~3ms) rather than integration speed (~30s).
 
-This enables testing ORM algorithms (compute chains, cache behavior,
-PENDING handling, flush convergence, relational traversal) at component
-speed (~3ms) instead of integration speed (~30s).
+Example::
 
-Scalar fields::
-
-    env = InMemoryEnvironment(
-        {
-            "sale.order": ModelDef(
-                "sale.order",
-                {
-                    "name": FieldDef("name", "char"),
-                    "amount": FieldDef("amount", "float"),
-                    "tax": FieldDef(
-                        "tax", "float", compute=compute_tax, depends=("amount",)
-                    ),
-                },
-            ),
-        }
-    )
-    id_ = env.create("sale.order", {"name": "SO001", "amount": 100.0})
+    env = InMemoryEnvironment({
+        "order": ModelDef("order", {
+            "amount": FieldDef("amount", "float"),
+            "tax": FieldDef("tax", "float", compute=compute_tax,
+                            depends=("amount",)),
+        }),
+    })
+    oid = env.create("order", {"amount": 100.0})
     env.flush()
-    assert env.read("sale.order", id_, "tax") == 10.0
+    assert env.read("order", oid, "tax") == 10.0
 
-Relational fields::
-
-    env = InMemoryEnvironment(
-        {
-            "res.partner": ModelDef(
-                "res.partner",
-                {
-                    "name": FieldDef("name", "char"),
-                    "order_ids": FieldDef(
-                        "order_ids",
-                        "one2many",
-                        comodel="sale.order",
-                        inverse_field="partner_id",
-                    ),
-                },
-            ),
-            "sale.order": ModelDef(
-                "sale.order",
-                {
-                    "name": FieldDef("name", "char"),
-                    "partner_id": FieldDef(
-                        "partner_id", "many2one", comodel="res.partner"
-                    ),
-                },
-            ),
-        }
-    )
-    pid = env.create("res.partner", {"name": "Alice"})
-    oid = env.create("sale.order", {"name": "SO001", "partner_id": pid})
-    assert env.read("sale.order", oid, "partner_id") == pid
-    assert env.read("res.partner", pid, "order_ids") == (oid,)
-
-    # Dot-notation traversal
-    assert env.read("sale.order", oid, "partner_id.name") == "Alice"
-
-Pure compute functions (Phase 2)::
-
-    def compute_tax(amount: float) -> float:
-        return amount * 0.1
-
-
-    env = InMemoryEnvironment(
-        {
-            "order": ModelDef(
-                "order",
-                {
-                    "amount": FieldDef("amount", "float"),
-                    "tax": FieldDef(
-                        "tax",
-                        "float",
-                        compute=compute_tax,
-                        depends=("amount",),
-                        pure=True,
-                    ),
-                },
-            ),
-        }
-    )
+Relational fields (many2one/one2many/many2many) and dot-notation traversal
+(``"partner_id.name"``) are supported; see the test suite for full examples.
 """
 
 import enum as _enum
@@ -199,19 +134,10 @@ class ModelDef:
 class InMemoryEnvironment:
     """Database-free ORM test environment.
 
-    Supports:
-    - Field access with compute-before-read guarantee
-    - Computed fields (via plain Python callables or pure functions)
-    - Many2one, One2many, Many2many relational fields
-    - Dot-notation field traversal (e.g. ``"partner_id.name"``)
-    - Cross-model dependency triggers via dotted depends
-    - Cache-miss fetch from DictBackend storage
-    - Dirty tracking and flush (to DictBackend)
-    - Convergence loop with stall detection
-
-    Does NOT support:
-    - SQL domains, ACL, translations, IR models
-    - Multi-user / multi-company contexts
+    Supports computed fields, relational fields (m2o/o2m/m2m), dot-notation
+    traversal, cross-model dependency triggers, cache-miss fetch from
+    DictBackend, dirty tracking, and the flush convergence loop. Does NOT cover
+    SQL domains, ACL, translations, IR models, or multi-user/company contexts.
     """
 
     def __init__(self, models: dict[str, ModelDef]) -> None:
@@ -281,9 +207,7 @@ class InMemoryEnvironment:
             raise KeyError(f"Unknown field: {model!r}.{field_name!r}")
         return fdef
 
-    # ------------------------------------------------------------------
     # CRUD operations
-    # ------------------------------------------------------------------
 
     def create(self, model: str, values: dict) -> int:
         """Create a record, returning its auto-incremented ID.
@@ -334,15 +258,11 @@ class InMemoryEnvironment:
     def read(self, model: str, record_id: int, field_name: str) -> Any:
         """Read a field value, triggering compute if needed.
 
-        Supports:
-        - Scalar fields: returns the cached/computed value
-        - Many2one: returns the related record's ID (int or None)
-        - One2many: returns a tuple of IDs from the inverse Many2one
-        - Many2many: returns a tuple of IDs
-        - Dot-notation: ``"partner_id.name"`` resolves through Many2one
-
-        Non-stored computed fields are always computed on read (never cached),
-        matching the real ORM's ``Field.__get__`` behavior for ``store=False``.
+        Scalars return the cached/computed value; Many2one returns the related
+        id (or None); One2many/Many2many return tuples of ids; dot-notation
+        (``"partner_id.name"``) resolves through Many2one. Non-stored computed
+        fields are always computed on read (never cached), matching the real
+        ORM's ``Field.__get__`` for ``store=False``.
         """
         # Dot-notation: resolve through relational chain
         if "." in field_name:
@@ -434,12 +354,7 @@ class InMemoryEnvironment:
         return tuple(sorted(result_ids))
 
     def _fetch_from_storage(self, fdef: FieldDef, record_id: int) -> None:
-        """On cache miss, try to fetch from DictBackend storage.
-
-        This simulates the real ORM's ``_fetch_field`` behavior: when a
-        cache miss occurs for a stored field, read from the database
-        (here: DictBackend) and populate the cache.
-        """
+        """Populate the cache from DictBackend on a cache miss (ORM _fetch_field)."""
         row = self.storage.get_row(fdef.model_name, record_id)
         if row is not None and fdef.name in row:
             self.cache.set_value(fdef, record_id, row[fdef.name])
@@ -542,16 +457,10 @@ class InMemoryEnvironment:
                     # The dep_field depends on "m2o.remote_field" — schedule it
                     self.engine.schedule(dep_field, [record_id])
 
-    # ------------------------------------------------------------------
     # Compute execution
-    # ------------------------------------------------------------------
 
     def _call_compute(self, fdef: FieldDef, record_id: int) -> Any:
-        """Call a compute function, handling both traditional and pure signatures.
-
-        Traditional: ``fn(env, model, record_id) -> value``
-        Pure:        ``fn(**{dep_name: dep_value}) -> value``
-        """
+        """Call a compute: ``fn(env, model, id)`` or, when ``pure``, ``fn(**deps)``."""
         if fdef.pure and fdef.compute is not None:
             return self._call_pure_compute(fdef, record_id)
         if fdef.compute is not None:
@@ -559,13 +468,7 @@ class InMemoryEnvironment:
         return None
 
     def _call_pure_compute(self, fdef: FieldDef, record_id: int) -> Any:
-        """Call a pure compute function with dependency values as keyword args.
-
-        The function signature determines which values to pass::
-
-            def compute_total(amount: float, qty: float) -> float:
-                return amount * qty
-        """
+        """Call a pure compute function with dependency values as keyword args."""
         kwargs = {}
         for dep_name in fdef.depends:
             if "." in dep_name:
@@ -600,9 +503,7 @@ class InMemoryEnvironment:
             if affected:
                 self.engine.schedule(dep_field, affected)
 
-    # ------------------------------------------------------------------
     # Flush
-    # ------------------------------------------------------------------
 
     def flush(self) -> None:
         """Flush all dirty fields to DictBackend.
@@ -652,9 +553,7 @@ class InMemoryEnvironment:
 
         self.uow.run_flush_loop(recompute_fn, flush_fn)
 
-    # ------------------------------------------------------------------
     # Storage access
-    # ------------------------------------------------------------------
 
     def storage_get(self, model: str, record_id: int, field_name: str) -> Any:
         """Read a value directly from storage (post-flush)."""

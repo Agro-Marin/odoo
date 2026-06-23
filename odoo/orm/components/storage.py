@@ -1,20 +1,7 @@
 """In-memory storage backend for the ORM.
 
-This module provides:
-
-* :class:`DictBackend` — an in-memory backend for pure-Python unit tests.
-
-Usage::
-
-    # In tests — no database required
-    backend = DictBackend()
-    ids = backend.insert_rows(
-        "res_partner", ["name", "email"], [("Alice", "a@x.com"), ("Bob", "b@x.com")]
-    )
-    rows = backend.fetch_rows("res_partner", ids, ["name"])
-
-    # Search by column value (simulates WHERE clause)
-    partner_ids = backend.search_rows("sale_order", "partner_id", 1)
+:class:`DictBackend` is an in-memory row store for pure-Python unit tests, used
+in place of PostgreSQL when ``Transaction.storage`` is set.
 """
 
 import typing
@@ -41,22 +28,14 @@ _OPERATORS: dict[str, Callable] = {
 class DictBackend:
     """In-memory storage backend for unit tests.
 
-    Stores data as nested dicts: ``{table: {id: {column: value}}}``.
-    Auto-increments IDs per table.
+    Stores data as nested dicts ``{table: {id: {column: value}}}``, with
+    per-table auto-incrementing IDs. Supports simple column-level searches
+    (:meth:`search_rows`) for relational resolution (e.g. One2many reverse
+    lookups), but NOT SQL queries, domains, or joins.
 
-    Supports simple column-level searches via :meth:`search_rows` for
-    relational field resolution (e.g. One2many reverse lookups).  Does
-    NOT support SQL queries, domains, or joins.
-
-    This class is the **storage-backend contract** the ORM dispatches against
-    when ``Transaction.storage`` is set (in-memory test mode) instead of the
-    default SQL-via-cursor path.  The ORM's CRUD/search/read mixins go through
-    the *public* row API only — :meth:`put_rows`, :meth:`upsert_rows`,
-    :meth:`delete_rows`, :meth:`fetch_rows`, :meth:`get_row`, :meth:`get_rows`,
-    :meth:`contains_ids`, :meth:`table_ids`, :meth:`search_rows`,
-    :meth:`next_id`.  The ``_tables`` / ``_sequences`` attributes are private:
-    no consumer outside this class may touch them, so the storage shape can
-    change without breaking call sites.
+    The ORM dispatches against this storage-backend contract through the public
+    row API only; ``_tables`` / ``_sequences`` are private, so the storage shape
+    can change without breaking call sites.
     """
 
     __slots__ = ("_sequences", "_tables")
@@ -79,8 +58,8 @@ class DictBackend:
     ) -> list[int]:
         tbl = self._tables.setdefault(table, {})
         new_ids: list[int] = []
-        # strict=True so a column/row width mismatch in tests fails loudly
-        # rather than silently dropping columns from the inserted row.
+        # strict=True so a column/row width mismatch fails loudly rather than
+        # silently dropping columns.
         for row in rows:
             self._sequences[table] += 1
             id_ = self._sequences[table]
@@ -91,11 +70,9 @@ class DictBackend:
     def put_rows(self, table: str, rows: "list[dict[str, Any]]") -> None:
         """Store pre-built row dicts, each of which must contain an ``id`` key.
 
-        Overwrites any existing row with the same id and advances the table's
-        id sequence past the highest id stored, so a later :meth:`next_id`
-        cannot collide with an explicitly-assigned id.  This is the insert
-        primitive used by ``_create`` (which assigns ids via :meth:`next_id`)
-        and by test fixture seeding (which assigns fixed ids).
+        Overwrites any existing row with the same id and advances the table's id
+        sequence past the highest id stored, so a later :meth:`next_id` cannot
+        collide with an explicitly-assigned id.
         """
         tbl = self._tables.setdefault(table, {})
         seq = self._sequences[table]
@@ -122,10 +99,9 @@ class DictBackend:
     ) -> None:
         """Update existing rows, or insert new ones keyed by the given id.
 
-        Like :meth:`update_rows`, but a missing id inserts a new row
-        ``{"id": id, **values}`` rather than being skipped.  Mirrors the
-        ORM ``UPDATE ... FROM VALUES`` write path, where the targeted ids are
-        always expected to exist (and are created in-memory if they do not).
+        Like :meth:`update_rows`, but a missing id inserts ``{"id": id,
+        **values}`` rather than being skipped. Mirrors the ORM ``UPDATE ...
+        FROM VALUES`` write path.
         """
         tbl = self._tables.setdefault(table, {})
         for id_, values in updates:
@@ -151,8 +127,7 @@ class DictBackend:
     ) -> "dict[int, dict[str, Any]]":
         """Return ``{id: row_dict}`` for the given *ids* that exist.
 
-        Batch form of :meth:`get_row` for the search/read paths that load
-        many records' columns into cache in one pass.
+        Batch form of :meth:`get_row` for the search/read paths.
         """
         tbl = self._tables.get(table, {})
         result: dict[int, dict[str, Any]] = {}
@@ -184,9 +159,8 @@ class DictBackend:
     ) -> list[int]:
         """Return IDs where ``column <operator> value``.
 
-        Used by InMemoryEnvironment for One2many resolution: given a
-        Many2one field ``partner_id = 5`` on ``sale.order``, find all
-        order IDs where ``partner_id = 5``.
+        Used by InMemoryEnvironment for One2many resolution (find records whose
+        Many2one points at a given target).
 
         >>> backend = DictBackend()
         >>> ids = backend.insert_rows("order", ["partner_id"], [(1,), (2,), (1,)])
@@ -202,8 +176,8 @@ class DictBackend:
     def next_id(self, table: str) -> int:
         """Return the next auto-incremented ID for *table* without inserting.
 
-        This is used by the ORM's ``_create()`` to generate record IDs
-        before populating the row data.
+        Used by the ORM's ``_create()`` to generate record IDs before
+        populating row data.
         """
         self._sequences[table] += 1
         return self._sequences[table]

@@ -1,18 +1,8 @@
-"""Process-control and cron helpers shared by ``server.py`` and ``_worker.py``.
+"""Process-control and cron helpers shared by the server and worker modules.
 
-Extracted to break the circular import between those two modules.  The
-prior shape was ``server.py → _worker.py → server.py`` (workers needed
-``memory_info`` / ``empty_pipe`` / ``cron_database_list`` /
-``SLEEP_INTERVAL`` / ``CRON_NOTIFY_JITTER_MAX_S``,
-but those helpers lived above the ``from ._worker import ...`` line in
-``server.py`` and the partial-module-load was load-bearing).  Moving
-them here makes ``_worker.py``'s imports flow strictly downward
-(``_worker → _helpers → db``) instead of looping back through
-``server``.
-
-Module is ``_helpers`` (leading underscore) to signal "internal" — every
-external caller continues to import these names from
-``odoo.service.server`` via the re-export shim there.
+A leaf module (``_worker → _helpers → db``) so those modules can share these
+names without an import cycle.  Private: import directly from
+``odoo.service._helpers``.
 """
 
 from __future__ import annotations
@@ -31,42 +21,34 @@ from .db import list_dbs
 SLEEP_INTERVAL = 60  # 1 min
 
 # Maximum random sleep injected after a cron worker wakes from a
-# ``cron_trigger`` NOTIFY.  Spreads concurrent workers reacting to the
-# same notify so they don't all hit PG in the same millisecond
-# (thundering herd).  The two cron paths
-# (``ThreadedServer.cron_thread`` for dev/threaded mode and
-# ``WorkerCron.sleep`` for prefork production) used to disagree on the
-# value (0.04 s vs 0.1 s) — independently audited and independently
-# patched.  Unified here so a future tweak lands in both paths at once.
+# ``cron_trigger`` NOTIFY, so concurrent workers don't all hit PG in the same
+# millisecond (thundering herd).  Shared by both cron paths
+# (``ThreadedServer.cron_thread`` and ``WorkerCron.sleep``) to keep them in sync.
 CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 
 def memory_info(process: Any) -> int:
     """Return the resident memory (RSS) of the process in bytes.
 
-    VMS (virtual memory size) is unreliable on modern Python (3.13+):
-    the new allocator and GC reserve large virtual address ranges that
-    never become resident.  RSS reflects actual physical memory
-    pressure and is the right metric on every platform.
+    RSS, not VMS: on Python 3.13+ the allocator and GC reserve large virtual
+    ranges that never become resident, so VMS over-reports.  RSS reflects
+    actual physical pressure on every platform.
 
-    This soft limit only flags a worker for orderly recycling.  The hard
-    memory cap is enforced externally — the recommended backstop is a
-    cgroup v2 limit on the ``odoo.service`` systemd unit (``MemoryMax=`` +
-    ``MemorySwapMax=0``).  An in-process ``RLIMIT_AS`` cap is deliberately
-    not used: the allocator/gevent reserve multi-GB of virtual space that
-    never becomes resident, so the cap denied ``pthread_create`` on healthy
-    workers long before any real memory pressure.
+    This is only a soft limit that flags a worker for orderly recycling.  The
+    hard cap belongs to a cgroup v2 limit on the systemd unit (``MemoryMax=`` +
+    ``MemorySwapMax=0``); an in-process ``RLIMIT_AS`` is avoided because the
+    allocator/gevent reserve multi-GB of never-resident virtual space, so the
+    cap would deny ``pthread_create`` on healthy workers.
     """
     return process.memory_info().rss
 
 
 def empty_pipe(fd: int) -> None:
-    """Drain all data from a non-blocking pipe file descriptor.
+    """Drain all pending data from a non-blocking pipe file descriptor.
 
-    Reads in 4 KiB blocks rather than one byte at a time: a wakeup
-    pipe with N bytes pending used to require N syscalls to drain.
-    Realistic N is small (<= 5, the signal-queue cap) but the block
-    read costs nothing extra and future-proofs against a busier pipe.
+    Reads in 4 KiB blocks so an N-byte backlog drains in one syscall instead of
+    N (realistic N is small — the signal-queue cap is 5 — but blocks cost
+    nothing extra).
     """
     try:
         while os.read(fd, 4096):

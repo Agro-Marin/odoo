@@ -1,6 +1,4 @@
-"""
-MetaModel - the metaclass for all Odoo models.
-"""
+"""MetaModel - the metaclass for all Odoo models."""
 
 import inspect
 import logging
@@ -18,9 +16,8 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 
-# BaseModel.__init__ takes (self, env, ids, prefetch_ids).  inspect.signature
-# returns the bound parameters minus self for unbound methods, so we expect
-# 4 here (self is included in attrs["__init__"] when read from the class dict).
+# BaseModel.__init__ is (self, env, ids, prefetch_ids); read from the class
+# dict, self is included, so the expected parameter count is 4.
 _BASE_MODEL_INIT_PARAM_COUNT = 4
 
 
@@ -51,11 +48,11 @@ class MetaModel(type):
         bases: tuple[type, ...],
         attrs: dict[str, typing.Any],
     ) -> MetaModel:
-        # this prevents assignment of non-fields on recordsets
+        # prevent assignment of non-fields on recordsets
         attrs.setdefault("__slots__", ())
-        # this collects the fields defined on the class (via Field.__set_name__())
+        # populated via Field.__set_name__()
         attrs.setdefault("_field_definitions", [])
-        # this collects the table object definitions on the class (via TableObject.__set_name__())
+        # populated via TableObject.__set_name__()
         attrs.setdefault("_table_object_definitions", [])
 
         if attrs.get("_register", True):
@@ -74,7 +71,7 @@ class MetaModel(type):
                 attrs["_inherit"] = [_inherit]
 
             if not attrs.get("_name"):
-                # add '.' before every uppercase letter preceded by any non-underscore char
+                # add '.' before each uppercase letter preceded by a non-underscore char
                 attrs["_name"] = re.sub(r"(?<=[^_])([A-Z])", r".\1", name).lower()
                 _logger.warning(
                     "Class %s has no _name, please make it explicit: _name = %r",
@@ -117,11 +114,8 @@ class MetaModel(type):
         if cls._module:
             cls._module_to_models__[cls._module].append(cls)
 
-        # ``cls._inherit`` defaults to ``()`` on BaseModel, but a developer
-        # explicitly setting ``_inherit = None`` would crash here with an
-        # opaque ``TypeError: argument of type 'NoneType'`` at the membership
-        # test below.  Coerce to () so the legitimate "no inheritance" intent
-        # behaves the same as the default.
+        # Coerce explicit ``_inherit = None`` to (): the membership test below
+        # would otherwise raise an opaque TypeError on NoneType.
         if cls._inherit is None:
             cls._inherit = ()
         if not cls._abstract and cls._name not in cls._inherit:

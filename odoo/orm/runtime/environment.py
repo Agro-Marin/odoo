@@ -77,9 +77,8 @@ class Environment(Mapping[str, "BaseModel"]):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
             )
-        # ``bool`` is a subclass of ``int`` in Python, so ``True == 1``
-        # would silently elevate ``Environment(cr, True, {})`` to SUPERUSER
-        # at the next line.  Reject bool explicitly to avoid that surprise.
+        # bool is an int subclass, so True == 1 == SUPERUSER_ID; reject it
+        # explicitly to avoid silently elevating to superuser below.
         if isinstance(uid, bool):
             raise TypeError(
                 f"Environment(uid=...) expected int, got bool ({uid!r})"
@@ -137,9 +136,7 @@ class Environment(Mapping[str, "BaseModel"]):
             )
         return super().__setattr__(name, value)
 
-    #
     # Mapping methods
-    #
 
     def __contains__(self, model_name) -> bool:
         """Test whether the given model exists."""
@@ -147,9 +144,8 @@ class Environment(Mapping[str, "BaseModel"]):
 
     def __getitem__(self, model_name: str) -> BaseModel:
         """Return an empty recordset from the given model."""
-        # Inline object.__new__ + slot assignment avoids the __init__
-        # function dispatch overhead (~50-80ns per call).  Equivalent to
-        # ``self.registry[model_name](self, (), ())``.
+        # Inline object.__new__ + slot assignment skips __init__ dispatch
+        # (~50-80ns/call); equivalent to registry[model_name](self, (), ()).
         rs = object.__new__(self.registry[model_name])
         rs.env = self
         rs._ids = ()
@@ -625,11 +621,12 @@ class Environment(Mapping[str, "BaseModel"]):
                 try:
                     hash(val)
                 except TypeError:
+                    # from None: no need to chain the TypeError raised above
                     raise TypeError(
                         "Can only create cache keys from hashable values, "
                         f"got non-hashable value {val!r} at context key {key!r} "
                         f"(dependency of field {field})"
-                    ) from None  # we don't need to chain the exception created 2 lines above
+                    ) from None
                 else:
                     return val
 
