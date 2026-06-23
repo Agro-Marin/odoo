@@ -128,7 +128,7 @@ registry.category("web_tour.tours").add("purchase_tour", {
             trigger: ".o_purchase_order",
             run: "click",
         },
-        ...stepUtils.statusbarButtonsSteps("Confirm Order", _t("Confirm your purchase.")),
+        ...stepUtils.statusbarButtonsSteps("Confirm", _t("Confirm your purchase.")),
         ...new PurchaseAdditionalTourSteps()._get_purchase_stock_steps(),
     ],
 });

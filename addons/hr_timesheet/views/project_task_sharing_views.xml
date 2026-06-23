@@ -31,7 +31,7 @@
             <xpath expr="//div[@name='repeat_intervals']" position="after">
                 <field name="encode_uom_in_days" invisible="1"/>
                 <field name="subtask_count" invisible="1"/>
-                <label for="allocated_hours" invisible="not allow_timesheets"/>
+                <label for="planned_hours" invisible="not allow_timesheets"/>
                 <div id="planned_hours_container" class="text-nowrap" invisible="not allow_timesheets">
                     <field name="planned_hours" class="oe_inline" widget="float_time" readonly="1"/>
                     <span invisible="subtask_count == 0">
@@ -85,16 +85,16 @@
                                   invisible="subtask_effective_hours == 0.0" />
                             <span class="o_td_label float-start">
                                 <label class="fw-bold" for="remaining_hours" string="Time Remaining"
-                                       invisible="allocated_hours == 0.0 or encode_uom_in_days or remaining_hours &lt; 0"/>
+                                       invisible="planned_hours == 0.0 or encode_uom_in_days or remaining_hours &lt; 0"/>
                                 <label class="fw-bold" for="remaining_hours" string="Days Remaining"
-                                       invisible="allocated_hours == 0.0 or not encode_uom_in_days or remaining_hours &lt; 0"/>
+                                       invisible="planned_hours == 0.0 or not encode_uom_in_days or remaining_hours &lt; 0"/>
                                 <label class="fw-bold text-danger" for="remaining_hours" string="Time Remaining"
-                                       invisible="allocated_hours == 0.0 or encode_uom_in_days or remaining_hours &gt;= 0"/>
+                                       invisible="planned_hours == 0.0 or encode_uom_in_days or remaining_hours &gt;= 0"/>
                                 <label class="fw-bold text-danger" for="remaining_hours" string="Days Remaining"
-                                       invisible="allocated_hours == 0.0 or not encode_uom_in_days or remaining_hours &gt;= 0"/>
+                                       invisible="planned_hours == 0.0 or not encode_uom_in_days or remaining_hours &gt;= 0"/>
                             </span>
                             <field name="remaining_hours" widget="timesheet_uom" class="oe_subtotal_footer_separator"
-                                  invisible="allocated_hours == 0.0" nolabel="1"/>
+                                  invisible="planned_hours == 0.0" nolabel="1"/>
                         </group>
                     </group>
                 </page>
