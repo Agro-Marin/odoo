@@ -96,9 +96,10 @@ class NameManager:
                 self.used_fields[name][access_groups] = (use, node)
             elif self.parent:
                 self.parent.must_have_fields(node, {name[7:]}, node_info, use)
-            # A `parent.`-prefixed reference in a ROOT view (no parent) cannot be
-            # resolved at standalone-validation time, but it is NOT necessarily a
-            # typo. Dual-use forms legitimately reference the embedding parent:
+            # A `parent.`-prefixed reference in a ROOT view (no parent) is
+            # tolerated (IUVN-L1): it cannot be resolved at standalone-validation
+            # time, but it is NOT necessarily a typo. Dual-use forms legitimately
+            # reference the embedding parent:
             # e.g. mail.activity.plan.template's form is validated standalone yet
             # is embedded as a one2many in mail.activity.plan, where its
             # activity_type_id python domain ('res_model', '=', parent.res_model)
