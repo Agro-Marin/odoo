@@ -263,7 +263,8 @@ class TestMemoryStorageCRUD(TransactionCase):
             self.assertEqual(att.raw, payload)
 
     def test_unreadable_content_copy_preserves_metadata(self):
-        """The A1 scenario, simulable without monkeypatching privates (E1)."""
+        """Copy preserves metadata even when backend content is unreadable
+        (IRA-B4) — the A1 scenario, simulable without monkeypatching privates (E1)."""
         payload = b"e1-payload"
         with activate_memory_storage(self.env):
             att = self.env["ir.attachment"].create({"name": "e1.bin", "raw": payload})

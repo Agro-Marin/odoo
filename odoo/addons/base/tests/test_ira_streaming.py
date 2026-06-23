@@ -185,3 +185,64 @@ class TestIraStreaming(TransactionCase):
             self.assertEqual(att.file_size, len(data))
         finally:
             icp.set_param("ir_attachment.location", "file")
+
+    # -- index read-size seam (review #1/#2) ------------------------------
+    def test_index_read_size_base_hook(self):
+        """Base hook: bounded prefix for text, nothing for everything else.
+
+        Calls the base implementation directly (via the imported class) so an
+        installed override that reads documents in full (attachment_indexation)
+        cannot change what this base-level invariant asserts.
+        """
+        Att = self.Attachment
+        base_size = IrAttachment._index_read_size
+        self.assertEqual(base_size(Att, "text/plain"), Att._INDEX_MAX_BYTES)
+        self.assertEqual(base_size(Att, "text/csv"), Att._INDEX_MAX_BYTES)
+        self.assertEqual(base_size(Att, "application/pdf"), 0)
+        self.assertEqual(base_size(Att, "application/octet-stream"), 0)
+        self.assertEqual(base_size(Att, ""), 0)
+        self.assertEqual(base_size(Att, False), 0)
+
+    def test_streamed_binary_skips_index_readback(self):
+        """A non-text streamed upload must not read its content back for _index.
+
+        Base indexes only text/*, so feeding _index a prefix of a binary was a
+        wasted round-trip to storage. The seam returns 0 for non-text, so the
+        read is skipped and _index is never called. Patches the live model
+        class so the assertion holds whether or not an override is installed.
+        """
+        Att = self.Attachment
+        model_cls = type(Att)
+        data = os.urandom(200000)
+        index_calls = []
+        real_index = model_cls._index
+
+        def index_spy(model, bin_data, file_type, checksum=None):
+            index_calls.append(file_type)
+            return real_index(model, bin_data, file_type, checksum=checksum)
+
+        with patch.object(model_cls, "_index", index_spy):
+            att = self._upload(data, "f.bin", "application/octet-stream")
+        self.assertFalse(att.index_content, "binary must have no index_content")
+        self.assertEqual(index_calls, [], "binary upload must not invoke _index")
+
+    def test_streamed_text_reads_prefix_and_indexes(self):
+        """Text still routes through _index, fed a bounded prefix, with checksum."""
+        Att = self.Attachment
+        model_cls = type(Att)
+        text = b"alpha beta gamma delta " * 100
+        calls = []
+        real_index = model_cls._index
+
+        def index_spy(model, bin_data, file_type, checksum=None):
+            calls.append((file_type, len(bin_data), checksum))
+            return real_index(model, bin_data, file_type, checksum=checksum)
+
+        with patch.object(model_cls, "_index", index_spy):
+            att = self._upload(text, "t.txt", "text/plain")
+        self.assertIn("alpha", att.index_content or "")
+        self.assertEqual(len(calls), 1, "text streamed upload indexes exactly once")
+        self.assertEqual(calls[0][0], "text/plain")
+        self.assertEqual(calls[0][1], len(text), "small text fits within the prefix")
+        # checksum is forwarded so document backends can share their index cache
+        self.assertEqual(calls[0][2], att.checksum)

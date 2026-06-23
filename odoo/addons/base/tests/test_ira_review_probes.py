@@ -26,12 +26,14 @@ import hashlib
 import inspect
 import io
 import os
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 from PIL import Image
 
-from odoo.exceptions import AccessError
+from odoo import Command
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.tools import Query, mute_logger
 
@@ -415,7 +417,7 @@ class TestIrAttachmentReviewFixes(TransactionCaseWithUserDemo):
         self.assertFalse(copy.checksum)
 
     def test_create_content_key_presence_precedence(self):
-        """create() matches write(): an explicit empty raw beats datas (A3).
+        """create() matches write(): an explicit empty raw beats datas (IRA-A3).
 
         Precedence is by key presence, not truthiness — and an explicitly
         empty content key still gets the IRA-P0-7 empty-content checksum.
@@ -646,3 +648,152 @@ class TestIrAttachmentReviewFixes(TransactionCaseWithUserDemo):
         # ...while these stayed in the core file and must also still register
         self.assertIn("_audit_url_attachments", autovacuums)
         self.assertIn("_gc_file_store", autovacuums)
+
+    def test_gc_stale_filestore_temps_registered_and_sweeps(self):
+        """Orphaned upload temps in the filestore tmp/ dir are actually swept.
+
+        _file_write_stream stages uploads in tmp/ before the atomic move (and
+        _file_write stages buffered content there too); a worker killed mid-
+        write leaves the temp behind, and the content GC never sees it (it only
+        walks the checklist). _gc_stale_filestore_temps sweeps tmp/, but only if
+        it is registered as an @api.autovacuum — an unregistered method leaks
+        unbounded (the bug this pins: it was defined but never wired in, so the
+        autovacuum cron never called it). Lock in BOTH the registration and the
+        age-gated behaviour.
+        """
+        Att = self.Attachment
+        autovacuums = {n for n, _f in inspect.getmembers(type(Att), is_autovacuum)}
+        self.assertIn(
+            "_gc_stale_filestore_temps",
+            autovacuums,
+            "the tmp/ sweeper must be wired into the autovacuum cron",
+        )
+
+        tmp_dir = Path(Att._full_path("tmp"))
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        stale = tmp_dir / "stream-staleprobe-deadbeef"
+        fresh = tmp_dir / "stream-freshprobe-cafebabe"
+        stale.write_bytes(b"orphaned upload")
+        fresh.write_bytes(b"in-flight upload")
+        self.addCleanup(stale.unlink, missing_ok=True)
+        self.addCleanup(fresh.unlink, missing_ok=True)
+        old = time.time() - 2 * Att._FILESTORE_TMP_MAX_AGE
+        os.utime(stale, (old, old))
+
+        Att._gc_stale_filestore_temps()
+        self.assertFalse(
+            stale.exists(), "a temp older than the threshold must be swept"
+        )
+        self.assertTrue(
+            fresh.exists(),
+            "an in-flight temp (recent mtime) must never be collected",
+        )
+
+    def test_create_unique_dedup_does_not_overfetch(self):
+        """The dedup probe fetches ONE representative per content key.
+
+        A content hash linked to many rows (the same file referenced from many
+        records) must not make create_unique materialize every such row just to
+        keep one. The probe now aggregates with _read_group(id:max), so the
+        grouping query returns a single row per (checksum, file_size, mimetype)
+        regardless of how many attachments share the checksum.
+        """
+        Att = self.Attachment
+        content = b"cu-overfetch-" + os.urandom(16)
+        existing = [
+            Att.create(
+                {"name": f"d{i}", "raw": content, "mimetype": "text/plain"}
+            ).id
+            for i in range(4)
+        ]
+
+        seen = {"rows": None}
+        orig = type(Att)._read_group
+
+        def spy(model, domain, groupby=(), aggregates=(), **kw):
+            rows = orig(model, domain, groupby=groupby, aggregates=aggregates, **kw)
+            if list(groupby) == ["checksum", "file_size", "mimetype"]:
+                seen["rows"] = len(rows)
+            return rows
+
+        with patch.object(type(Att), "_read_group", spy):
+            [rid] = Att.create_unique([{"raw": content, "mimetype": "text/plain"}])
+
+        self.assertIn(rid, existing, "dedup must return an existing row's id")
+        self.assertEqual(
+            seen["rows"],
+            1,
+            "four rows share the checksum but the probe must fetch one group",
+        )
+
+    def test_malformed_base64_datas_raises_usererror(self):
+        """Bad base64 'datas' must surface as a UserError, not a 500.
+
+        b64decode raises binascii.Error (a ValueError subclass) on bad
+        padding/length and a plain ValueError on non-ASCII input. create(),
+        write() (via _normalize_content_vals) and create_unique() must all
+        wrap both as a clean UserError rather than letting them escape.
+        """
+        Att = self.Attachment
+        bad_padding = "SGVsbG8"  # 7 chars -> Incorrect padding
+        non_ascii = "résumé"    # non-ASCII -> plain ValueError
+
+        for payload in (bad_padding, non_ascii):
+            with self.assertRaises(UserError):
+                Att.create({"name": "x", "datas": payload, "mimetype": "text/plain"})
+
+        att = Att.create({"name": "ok", "raw": b"seed", "mimetype": "text/plain"})
+        for payload in (bad_padding, non_ascii):
+            with self.assertRaises(UserError):
+                att.write({"datas": payload})
+
+        for payload in (bad_padding, non_ascii):
+            with self.assertRaises(UserError):
+                Att.create_unique([{"datas": payload, "mimetype": "text/plain"}])
+
+        # a valid base64 'datas' still works through every path
+        good = base64.b64encode(b"hello world").decode()
+        ok = Att.create({"name": "g", "datas": good, "mimetype": "text/plain"})
+        self.assertEqual(ok.raw, b"hello world")
+
+    def test_self_user_bypass_survives_multirecord_batch(self):
+        """A non-system user's OWN res.users record stays accessible even when
+        the batch also contains another user's record.
+
+        _inaccessible_comodel_records bypasses the "cannot write on oneself"
+        rule for the current user's own record (e.g. a signature image).
+        Previously that bypass only fired when the self record was alone in the
+        batch; a batch mixing self with another user lost it and wrongly denied
+        the self record. The fix excludes the self record per-record (IRA #4).
+        """
+        Users = self.env["res.users"]
+        grp = self.env.ref("base.group_user").id
+        u_self = Users.create(
+            {"name": "p self", "login": "p_self_4", "group_ids": [Command.set([grp])]}
+        )
+        u_other = Users.create(
+            {"name": "p other", "login": "p_other_4", "group_ids": [Command.set([grp])]}
+        )
+        # act AS the non-system user (with_user => su=False, uid == u_self)
+        att = self.Attachment.with_user(u_self)
+        self.assertFalse(att.env.su)
+        self.assertFalse(att.env.user._is_system())
+
+        def inaccessible(model_and_ids):
+            return set(att._inaccessible_comodel_records(model_and_ids, "write"))
+
+        # a normal user genuinely cannot write its own user record...
+        self.assertFalse(
+            self.env["res.users"]
+            .with_user(u_self)
+            .browse(u_self.id)
+            ._filtered_access("write"),
+            "precondition: the self-bypass must be load-bearing",
+        )
+        # ...so the bypass must keep the self record accessible, alone:
+        self.assertEqual(inaccessible({"res.users": {u_self.id}}), set())
+        # ...and when batched with another user (only the other is forbidden):
+        self.assertEqual(
+            inaccessible({"res.users": {u_self.id, u_other.id}}),
+            {("res.users", u_other.id)},
+        )
