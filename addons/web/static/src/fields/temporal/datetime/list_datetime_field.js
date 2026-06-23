@@ -4,8 +4,8 @@
 /** @module @web/fields/temporal/datetime/list_datetime_field - List-view variant of datetime/date fields with auto-resizing input */
 
 import { useRef } from "@odoo/owl";
-import { registry } from "@web/core/registry";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
+import { registerField } from "@web/fields/_registry";
 
 import {
     dateField,
@@ -34,8 +34,6 @@ export const listDateTimeField = {
     component: ListDateTimeField,
 };
 
-registry
-    .category("fields")
-    .add("list.date", /** @type {any} */ (listDateField))
-    .add("list.daterange", /** @type {any} */ (listDateRangeField))
-    .add("list.datetime", /** @type {any} */ (listDateTimeField));
+registerField({ name: "date", view: "list" }, listDateField);
+registerField({ name: "daterange", view: "list" }, listDateRangeField);
+registerField({ name: "datetime", view: "list" }, listDateTimeField);

@@ -4,7 +4,7 @@
 /** @module @web/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter - Badge selection field filtered by an allowed-values field */
 
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import {
     BadgeSelectionField,
     badgeSelectionField,
@@ -37,6 +37,4 @@ export const badgeSelectionFieldWithFilter = {
     },
 };
 
-registry
-    .category("fields")
-    .add("selection_badge_with_filter", badgeSelectionFieldWithFilter);
+registerField("selection_badge_with_filter", badgeSelectionFieldWithFilter);

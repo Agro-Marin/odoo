@@ -103,14 +103,6 @@ export class PdfViewerField extends Component {
 export const pdfViewerField = {
     component: PdfViewerField,
     displayName: _t("PDF Viewer"),
-    supportedOptions: [
-        {
-            label: _t("Preview image"),
-            name: "preview_image",
-            type: "field",
-            availableTypes: ["binary"],
-        },
-    ],
     supportedTypes: ["binary"],
 };
 

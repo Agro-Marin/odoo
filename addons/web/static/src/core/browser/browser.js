@@ -46,6 +46,8 @@ export const browser = {
     setInterval: window.setInterval.bind(window),
     clearInterval: window.clearInterval.bind(window),
     performance: window.performance,
+    // NB: a constructor — must NOT be ``.bind()``-ed (that would break ``new``).
+    PerformanceObserver: window.PerformanceObserver,
     requestAnimationFrame: window.requestAnimationFrame.bind(window),
     cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
     console: window.console,

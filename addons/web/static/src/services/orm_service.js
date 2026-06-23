@@ -65,11 +65,13 @@ export const UPDATE_METHODS = [
 ];
 
 /**
- * Methods that mutate server state. ``retry``/``dedup`` are hard-rejected for
- * these: a retried partial mutation could be re-applied server-side, and
- * deduplication would conflate two distinct caller invocations that happen to
- * share a payload. Superset of {@link UPDATE_METHODS} (which is scoped to
- * cache-invalidation consumers and intentionally left untouched).
+ * Methods that mutate server state. ``retry``/``dedup``/``cache`` are
+ * hard-rejected for these: a retried partial mutation could be re-applied
+ * server-side, deduplication would conflate two distinct caller invocations
+ * that happen to share a payload, and caching would store the write's result
+ * and serve a later identical write from cache without hitting the server.
+ * Superset of {@link UPDATE_METHODS} (which is scoped to cache-invalidation
+ * consumers and intentionally left untouched).
  */
 const NON_IDEMPOTENT_METHODS = [
     ...UPDATE_METHODS,
@@ -174,6 +176,13 @@ export class ORM {
                 throw new Error(
                     `orm.dedup cannot be applied to mutating method "${method}": ` +
                         `identical payloads are still distinct invocations for writes`,
+                );
+            }
+            if (this._cache) {
+                throw new Error(
+                    `orm.cache() cannot be applied to mutating method "${method}": ` +
+                        `the write's result would be stored and a later identical ` +
+                        `write served from cache without ever reaching the server`,
                 );
             }
         }

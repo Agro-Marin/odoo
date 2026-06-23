@@ -93,6 +93,7 @@ export function execute(op, source, target) {
         searchItems,
         searchPanelInfo,
         sections,
+        orderByCount,
     } = source;
 
     target.nextGroupId = nextGroupId;
@@ -101,6 +102,10 @@ export function execute(op, source, target) {
 
     target.query = query;
     target.searchItems = searchItems;
+    // primitive ("Asc" | "Desc" | false) — drives the groupBy facet sort icon
+    // and the injected {name:"__count"} orderBy; must survive export/import so a
+    // "sort by count" choice persists across breadcrumb restore / back-forward.
+    target.orderByCount = orderByCount;
 
     target.searchPanelInfo = searchPanelInfo;
 

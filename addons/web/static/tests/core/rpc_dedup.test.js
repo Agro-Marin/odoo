@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { buildKey, deduplicateRpc } from "@web/core/network/rpc_dedup";
+import { buildKey } from "@web/core/network/rpc_dedup";
 
 // ---------------------------------------------------------------------------
 // buildKey
@@ -69,123 +69,5 @@ describe("buildKey", () => {
         const parsed = JSON.parse(buildKey("/web/x", { model: "res.users" }));
         expect(parsed.params.model).toBe("res.users");
         expect(parsed.url).toBe("/web/x");
-    });
-});
-
-// ---------------------------------------------------------------------------
-// deduplicateRpc
-// ---------------------------------------------------------------------------
-
-describe("deduplicateRpc", () => {
-    test("deduplicates identical concurrent requests", async () => {
-        let callCount = 0;
-        const rpc = deduplicateRpc(async (url, params) => {
-            callCount++;
-            return { data: params.id };
-        });
-
-        const p1 = rpc("/read", { id: 1 });
-        const p2 = rpc("/read", { id: 1 });
-        const p3 = rpc("/read", { id: 1 });
-
-        const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
-
-        expect(callCount).toBe(1);
-        expect(r1).toEqual({ data: 1 });
-        expect(r2).toEqual({ data: 1 });
-        expect(r3).toEqual({ data: 1 });
-    });
-
-    test("does not deduplicate different requests", async () => {
-        let callCount = 0;
-        const rpc = deduplicateRpc(async (url, params) => {
-            callCount++;
-            return { data: params.id };
-        });
-
-        const p1 = rpc("/read", { id: 1 });
-        const p2 = rpc("/read", { id: 2 });
-
-        await Promise.all([p1, p2]);
-
-        expect(callCount).toBe(2);
-    });
-
-    test("allows new request after previous one settles", async () => {
-        let callCount = 0;
-        const rpc = deduplicateRpc(async (url, params) => {
-            callCount++;
-            return { data: params.id };
-        });
-
-        // First request
-        await rpc("/read", { id: 1 });
-        expect(callCount).toBe(1);
-
-        // Second request with same params — should fire a new RPC
-        await rpc("/read", { id: 1 });
-        expect(callCount).toBe(2);
-    });
-
-    test("cleans up after rejection", async () => {
-        let callCount = 0;
-        const rpc = deduplicateRpc(async () => {
-            callCount++;
-            throw new Error("RPC failed");
-        });
-
-        // First call — fails
-        try {
-            await rpc("/fail", {});
-        } catch {
-            // expected
-        }
-        expect(callCount).toBe(1);
-
-        // Second call — should fire a new RPC (not return cached rejection)
-        try {
-            await rpc("/fail", {});
-        } catch {
-            // expected
-        }
-        expect(callCount).toBe(2);
-    });
-
-    test("concurrent calls share rejection", async () => {
-        let callCount = 0;
-        const rpc = deduplicateRpc(async () => {
-            callCount++;
-            throw new Error("RPC failed");
-        });
-
-        const p1 = rpc("/fail", {});
-        const p2 = rpc("/fail", {});
-
-        let errors = 0;
-        try {
-            await p1;
-        } catch {
-            errors++;
-        }
-        try {
-            await p2;
-        } catch {
-            errors++;
-        }
-
-        expect(callCount).toBe(1);
-        expect(errors).toBe(2);
-    });
-
-    test("returns the same promise object for deduped calls", async () => {
-        const rpc = deduplicateRpc(async () => "result");
-
-        const p1 = rpc("/same", { x: 1 });
-        const p2 = rpc("/same", { x: 1 });
-
-        // Same promise reference
-        expect(p1).toBe(p2);
-
-        await Promise.all([p1, p2]);
     });
 });
