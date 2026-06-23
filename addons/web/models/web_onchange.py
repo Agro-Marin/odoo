@@ -5,6 +5,7 @@ Provides ``onchange`` (the webclient's onchange RPC entry point) and
 """
 
 import itertools
+import logging
 from typing import Any
 
 from odoo import models
@@ -13,6 +14,8 @@ from odoo.fields import Command
 from odoo.tools import OrderedSet, unique
 
 from .record_snapshot import RecordSnapshot
+
+_logger = logging.getLogger(__name__)
 
 
 class Base(models.AbstractModel):
@@ -65,8 +68,20 @@ class Base(models.AbstractModel):
             # TODO update res.users
             self.check_access("write" if self else "create")
 
-        if any(fname not in self._fields for fname in field_names):
-            return {}
+        unknown_names = [fname for fname in field_names if fname not in self._fields]
+        if unknown_names:
+            # A stale/cached view may still reference a field removed by a module
+            # upgrade. Drop the unknown name(s) and recompute the rest rather than
+            # discarding the whole onchange (which would silently stop recomputing
+            # every *valid* changed field too, with no diagnostic).
+            _logger.warning(
+                "onchange on %s: ignoring unknown changed field(s) %s",
+                self._name,
+                unknown_names,
+            )
+            field_names = [fname for fname in field_names if fname in self._fields]
+            if not field_names:
+                return {}
 
         if first_call:
             field_names = [fname for fname in values if fname != "id"]

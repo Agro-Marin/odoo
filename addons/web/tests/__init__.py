@@ -12,9 +12,11 @@ from . import test_health
 from . import test_image
 from . import test_ir_model
 from . import test_ir_qweb
+from . import test_ir_ui_view
 from . import test_js
 from . import test_load_menus
 from . import test_login
+from . import test_onchange
 from . import test_partner
 from . import test_perf_load_menu
 from . import test_pivot_export
@@ -31,7 +33,9 @@ from . import test_typed_services_consistency
 from . import test_web_redirect
 from . import test_web_benchmark
 from . import test_web_bundle_size
+from . import test_web_cwv_metric
 from . import test_web_perf_regression
+from . import test_web_read
 from . import test_web_read_group
 from . import test_web_save
 from . import test_web_search_read

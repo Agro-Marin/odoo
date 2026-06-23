@@ -159,6 +159,32 @@ class TestWebCreateUsers(TransactionCase):
         # Second call: user is now active — must be silently skipped.
         self.env["res.users"].web_create_users([email])  # must not raise IntegrityError
 
+    def test_web_create_users_dedups_login_with_empty_email_normalized(self):
+        """A user matched only by login (empty ``email_normalized``) must dedup.
+
+        Before fix: ``done`` was built from ``email_normalized`` only, so a user
+        whose login equals the input email but whose ``email_normalized`` is
+        empty slipped through; ``create(login=email_normalized)`` then hit the
+        UNIQUE constraint on ``login``.
+        """
+        if "email_normalized" not in self.env["res.users"]._fields:
+            self.skipTest("email_normalized not available (mail not installed)")
+        login = "login_only_collide@example.com"
+        existing = self.env["res.users"].create({"name": "LoginOnly", "login": login})
+        self.assertFalse(
+            existing.email_normalized,
+            "precondition: the user has an empty email_normalized",
+        )
+        # The input normalises to exactly the existing login => must be skipped,
+        # not re-created (which would raise on the UNIQUE login constraint).
+        self.env["res.users"].web_create_users([login])  # must not raise
+        matches = (
+            self.env["res.users"]
+            .with_context(active_test=False)
+            .search([("login", "=", login)])
+        )
+        self.assertEqual(len(matches), 1, "must not create a duplicate user")
+
     def test_web_create_users_reactivates_deactivated(self):
         """``web_create_users`` must reactivate a previously deactivated user."""
         if "email_normalized" not in self.env["res.users"]._fields:

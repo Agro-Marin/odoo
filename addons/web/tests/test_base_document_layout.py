@@ -305,3 +305,20 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         )
         self.assertNotIn("%(state_id)s", result, "Mid-format placeholder must be stripped")
         self.assertIn("12345", result % {k: (v or "") for k, v in company_data.items()})
+
+    def test_extract_colors_tolerates_non_text_logo(self):
+        """A non str/bytes logo (e.g. memoryview) must degrade to (False, False)
+        rather than crashing in the base64 padding that runs before the try."""
+        layout = self.env["base.document.layout"]
+        self.assertEqual(
+            layout.extract_image_primary_secondary_colors(memoryview(b"abc")),
+            (False, False),
+        )
+        # garbage/empty inputs were already handled by the inner try/except
+        self.assertEqual(
+            layout.extract_image_primary_secondary_colors(b"@@@not-an-image@@@"),
+            (False, False),
+        )
+        self.assertEqual(
+            layout.extract_image_primary_secondary_colors(False), (False, False)
+        )

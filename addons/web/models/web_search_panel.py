@@ -331,6 +331,30 @@ class Base(models.AbstractModel):
                     set_count=True,
                 )
 
+            # Counters that need a per-group domain (``group_by`` + ``group_domain``)
+            # can't use the single ``count_image`` above. Rather than one
+            # ``search_count`` per comodel record (an N+1 over up to ``limit``
+            # records), compute one grouped count image per *distinct group*:
+            # records sharing a group share the same extra domain, so a single
+            # grouped read yields every count for that group. Worst case (every
+            # record in its own group) matches the old query count; the common
+            # case (few groups) collapses N queries into a handful.
+            group_count_images = {}
+            if enable_counters and count_image is None:
+                for record in comodel_records:
+                    group_key = json_dumps(group_id_name(record[group_by])[0])
+                    if group_key not in group_count_images:
+                        count_domain = AND(
+                            [
+                                model_domain,
+                                extra_domain,
+                                group_domain.get(group_key, []),
+                            ]
+                        )
+                        group_count_images[group_key] = self._search_panel_domain_image(
+                            field_name, count_domain, set_count=True
+                        )
+
             field_range = []
             for record in comodel_records:
                 record_id = record["id"]
@@ -344,27 +368,13 @@ class Base(models.AbstractModel):
                     values["group_name"] = group_name
 
                 if enable_counters:
-                    if count_image is not None:
-                        image_element = count_image.get(record_id)
-                        values["__count"] = (
-                            image_element["__count"] if image_element else 0
-                        )
-                    else:
-                        # Fallback: per-record count with group-specific domain
-                        search_domain = AND(
-                            [
-                                model_domain,
-                                [(field_name, "in", record_id)],
-                            ]
-                        )
-                        local_extra_domain = AND(
-                            [
-                                extra_domain,
-                                group_domain.get(json_dumps(group_id), []),
-                            ]
-                        )
-                        search_count_domain = AND([search_domain, local_extra_domain])
-                        values["__count"] = self.search_count(search_count_domain)
+                    image = (
+                        count_image
+                        if count_image is not None
+                        else group_count_images[json_dumps(group_id)]
+                    )
+                    image_element = image.get(record_id)
+                    values["__count"] = image_element["__count"] if image_element else 0
                 field_range.append(values)
 
             return {
