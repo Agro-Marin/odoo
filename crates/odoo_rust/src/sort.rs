@@ -162,11 +162,7 @@ pub fn sort_ids_by_values<'py>(
                 }
             };
 
-            if reverse {
-                ord.reverse()
-            } else {
-                ord
-            }
+            if reverse { ord.reverse() } else { ord }
         });
     }
 

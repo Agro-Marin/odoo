@@ -72,18 +72,17 @@ pub fn to_prefetch_ids<'py>(
             break;
         }
         let id_obj = prefetch_ids.get_item(i)?;
-        if let Ok(id_val) = id_obj.extract::<i64>() {
-            if id_val > 0 {
-                // O(1) dict lookup — mirrors Python's `id_ not in field_cache`
-                let in_cache =
-                    unsafe { ffi::PyDict_Contains(cache_ptr, id_obj.as_ptr()) };
-                if in_cache < 0 {
-                    return Err(PyErr::fetch(py));
-                }
-                // seen.insert() returns true if newly inserted (not a duplicate)
-                if in_cache == 0 && seen.insert(id_val) {
-                    result.push(id_obj);
-                }
+        if let Ok(id_val) = id_obj.extract::<i64>()
+            && id_val > 0
+        {
+            // O(1) dict lookup — mirrors Python's `id_ not in field_cache`
+            let in_cache = unsafe { ffi::PyDict_Contains(cache_ptr, id_obj.as_ptr()) };
+            if in_cache < 0 {
+                return Err(PyErr::fetch(py));
+            }
+            // seen.insert() returns true if newly inserted (not a duplicate)
+            if in_cache == 0 && seen.insert(id_val) {
+                result.push(id_obj);
             }
         }
         // Non-int IDs (NewId): bool(NewId) == False → skip (kind == True path only)

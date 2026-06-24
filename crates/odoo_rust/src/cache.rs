@@ -328,7 +328,11 @@ pub fn batch_cache_fill<'py>(
 
             // Cache hit — write into the result dict.
             // PyDict_SetItem INCREFs both key and value; no manual INCREF needed.
-            let write_val = if value == none_ptr { none_val_ptr } else { value };
+            let write_val = if value == none_ptr {
+                none_val_ptr
+            } else {
+                value
+            };
             if ffi::PyDict_SetItem(vals_ptr, name_ptr, write_val) < 0 {
                 return Err(PyErr::fetch(py));
             }

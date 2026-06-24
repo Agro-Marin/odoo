@@ -39,10 +39,7 @@ pub fn fast_clone<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 /// SAFETY: `obj` must be a valid Python object with the GIL held.
 /// Returns a new (owned) reference.  On error, all partially-constructed
 /// containers are cleaned up before returning.
-unsafe fn clone_inner(
-    py: Python<'_>,
-    obj: *mut ffi::PyObject,
-) -> PyResult<*mut ffi::PyObject> {
+unsafe fn clone_inner(py: Python<'_>, obj: *mut ffi::PyObject) -> PyResult<*mut ffi::PyObject> {
     unsafe {
         // Dict — most common container in Odoo JSON blobs.
         // CheckExact skips subclass traversal; JSON dicts are always plain dict.
