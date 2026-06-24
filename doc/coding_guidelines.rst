@@ -2264,8 +2264,11 @@ Format: ``<odoo_version>-t<task_id>-<github_username>``
 All code changes in ``$ACTIVE_REPOS`` (except the ``knowledge/`` repo, which works
 directly on ``main``\ ) go through a pull request.
 
-**Title**\ : ``< 70 characters``. No tag prefix — the PR title describes the
-change, the commits inside carry the ``[TAG]`` prefix.
+**Title**\ : ``[TAG] module: short description`` (OCA-style, matching the commit
+convention). Keep it ``< 70 characters`` where possible. For a single-commit PR
+the title mirrors the commit subject; for a change spanning several modules, use
+the dominant functional scope (e.g. ``views``) rather than an unreadable module
+list.
 
 **Body template**\ :
 
