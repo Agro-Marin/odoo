@@ -91,7 +91,7 @@
             <header>
                 <button string="Create Employee" name="create_employee_from_applicant" type="object" data-hotkey="q" groups="hr.group_hr_user"
                         class="o_create_employee" invisible="employee_id or not active or not date_closed"/>
-                <button string="Refuse" name="archive_applicant" type="object" invisible="not active or is_pool_applicant" data-hotkey="d"/>
+                <button string="Refuse" name="archive_applicant" type="object" invisible="not active or is_pool_applicant" data-hotkey="p"/>
                 <button string="Restore" name="action_unarchive" type="object" invisible="active" data-hotkey="x"/>
                 <field name="stage_id" widget="rotting_statusbar_duration" options="{'clickable': '1'}" invisible="(not active and not employee_id) or is_pool_applicant"/>
                 <button string="Create Applications" name="action_job_add_applicants" type="object" invisible="not is_pool_applicant"/>

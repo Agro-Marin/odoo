@@ -10,7 +10,7 @@
                         string="Use as Challan"
                         type="object"
                         invisible="state != 'pending' or not picking_id"
-                        data-hotkey="d"/>
+                        data-hotkey="n"/>
             </xpath>
             <xpath expr="//button[@name='action_print']" position="attributes">
                 <attribute name="invisible">state not in ['generated', 'challan']</attribute>
