@@ -7,7 +7,7 @@
                 t-if="!env.isSmall"
                 role="button"
                 title="Toggle chatter"
-                data-hotkey="d"
+                data-hotkey="p"
                 t-attf-class="btn btn-light btn-chatter todo_toggle_chatter #{state.displayChatter ? 'active' : '' }"
                 t-on-click="toggleChatter"
             >

@@ -28,7 +28,7 @@
                             class="oe_highlight"
                             type="object"
                             invisible="state != 'generated'"
-                            data-hotkey="f"/>
+                            data-hotkey="p"/>
                     <button name="action_export_content_json"
                             string="Download Content JSON"
                             type="object"
