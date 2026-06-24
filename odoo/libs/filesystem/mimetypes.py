@@ -241,7 +241,13 @@ def _odoo_guess_mimetype(
     return default
 
 
-import magic  # noqa: E402  # imported after fallback definitions; see use in guess_mimetype
+try:
+    import magic  # noqa: E402  # imported after fallback definitions; see use in guess_mimetype
+except ImportError:
+    # python-magic / libmagic is an optional dependency: when it is missing,
+    # fall back to the signature-based guesser (_odoo_guess_mimetype) so that
+    # attachment handling keeps working instead of failing at import time.
+    magic = None
 
 
 def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> str:
@@ -254,7 +260,11 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> s
     elif not isinstance(bin_data, bytes):
         msg = "`bin_data` must be bytes or bytearray"
         raise TypeError(msg)
-    mimetype = magic.from_buffer(bin_data[:MIMETYPE_HEAD_SIZE], mime=True)
+    if magic is not None:
+        mimetype = magic.from_buffer(bin_data[:MIMETYPE_HEAD_SIZE], mime=True)
+    else:
+        # libmagic unavailable: use the signature-based guesser directly.
+        mimetype = _odoo_guess_mimetype(bin_data)
     if mimetype == "application/octet-stream":
         # libmagic returned its "unknown" answer. Some libmagic builds/versions
         # miss formats odoo cares about (notably small zip archives, which this
