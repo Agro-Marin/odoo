@@ -156,14 +156,19 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 last_write_date=stale.isoformat(),
             )
 
-    # -- singleton precondition (web_save is single-record; batch is web_save_multi)
-    def test_multirecord_web_save_is_rejected(self):
-        """web_save on a multi-record set must fail the singleton check up-front
-        rather than silently writing all records or crashing in the legacy
-        last_write_date branch on ``self.id``."""
+    # -- multi-record web_save (list view mass-edit) -------------------------
+    def test_multirecord_web_save_writes_all(self):
+        """web_save on a multi-record set writes every record: the list view
+        mass-edit calls web_save with several ids and no concurrency args."""
         recs = self.c1 + self.c2
-        with self.assertRaises(ValueError):
-            recs.web_save({"phone": "9"}, specification={"phone": {}})
+        result = recs.web_save({"phone": "9"}, specification={"phone": {}})
+        self.assertEqual([r["phone"] for r in result], ["9", "9"])
+        self.assertEqual(recs.mapped("phone"), ["9", "9"])
+
+    def test_multirecord_web_save_rejects_last_write_date(self):
+        """The legacy last_write_date path reads ``self.id`` and is single-record
+        only: a multi-record caller using it must fail the singleton check."""
+        recs = self.c1 + self.c2
         with self.assertRaises(ValueError):
             recs.web_save(
                 {"phone": "9"}, specification={"phone": {}},

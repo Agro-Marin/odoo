@@ -158,15 +158,15 @@ class Base(models.AbstractModel):
         writes.
         """
         if self:
-            # web_save operates on a single existing record (the batch path is
-            # web_save_multi). Enforce the singleton up-front so BOTH concurrency
-            # branches share the precondition and a multi-record caller gets a
-            # clean error instead of a bare ``self.id`` failure deep in the
-            # legacy ``last_write_date`` branch.
-            self.ensure_one()
+            # web_save supports a multi-record set: the list view mass-edit calls
+            # it with several ids (dynamic_list._multiSave -> webSave, non-x2many
+            # branch). Only the concurrency-checked paths below require a singleton.
             if known_values is not None:
                 self._check_concurrent_field_changes(vals, known_values)
             elif last_write_date and 'write_date' in self._fields:
+                # Row-level write_date check reads ``self.id`` directly: this is a
+                # single-record (urgent sendBeacon) path, so enforce the singleton.
+                self.ensure_one()
                 # Read directly from DB to avoid ORM cache (which may be stale
                 # if another user's write happened in a different transaction).
                 self.env.cr.execute(
