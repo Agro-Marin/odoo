@@ -18,6 +18,10 @@ use std::sync::{Arc, Mutex};
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
+/// One scan hit. Factored into an alias to satisfy `clippy::type_complexity`
+/// on the shared results accumulator.
+type ScanMatch = (String, usize, usize, String);
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /// Normalize extensions: strip leading dot if present.
@@ -54,10 +58,10 @@ fn filter_entry(
     let path = entry.path();
 
     if entry.file_type().is_some_and(|ft| ft.is_dir()) {
-        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            if exclude.iter().any(|ex| ex.as_str() == name) {
-                return Some(ignore::WalkState::Skip);
-            }
+        if let Some(name) = path.file_name().and_then(|n| n.to_str())
+            && exclude.iter().any(|ex| ex.as_str() == name)
+        {
+            return Some(ignore::WalkState::Skip);
         }
         return Some(ignore::WalkState::Continue);
     }
@@ -198,7 +202,7 @@ pub fn scan_regex_patterns(
 
     let ext_set = normalize_extensions(&extensions);
     let exclude: Arc<[String]> = exclude_dirs.into();
-    let results: Arc<Mutex<Vec<(String, usize, usize, String)>>> = Arc::default();
+    let results: Arc<Mutex<Vec<ScanMatch>>> = Arc::default();
 
     py.detach(|| {
         make_walker(&roots).build_parallel().run(|| {

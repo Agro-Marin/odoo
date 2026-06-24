@@ -25,10 +25,7 @@ use pyo3::types::{PyList, PyTuple};
 ///
 /// Returns a list of origin IDs (never None — always succeeds).
 #[pyfunction]
-pub fn origin_ids<'py>(
-    py: Python<'py>,
-    ids: &Bound<'py, PyTuple>,
-) -> PyResult<Py<PyList>> {
+pub fn origin_ids<'py>(py: Python<'py>, ids: &Bound<'py, PyTuple>) -> PyResult<Py<PyList>> {
     let n = ids.len();
     let mut result: Vec<Bound<'py, PyAny>> = Vec::with_capacity(n);
     let origin_attr = pyo3::intern!(py, "origin");
