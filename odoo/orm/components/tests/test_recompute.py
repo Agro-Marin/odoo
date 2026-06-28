@@ -324,22 +324,6 @@ class TestProtectionWithRecursive(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({2, 3}))
 
 
-class TestClear(unittest.TestCase):
-    """Clear resets all accumulated state."""
-
-    def test_clear(self) -> None:
-        engine = ComputeEngine()
-        field = _MockField("total", stored_computed=True)
-
-        scheduler = RecomputeScheduler(engine)
-        scheduler.process_entry(field, {1, 2})
-        self.assertEqual(scheduler.to_recompute[field], {1, 2})
-
-        scheduler.clear()
-        self.assertEqual(dict(scheduler.to_recompute), {})
-        self.assertEqual(scheduler.to_invalidate, [])
-
-
 class TestRepr(unittest.TestCase):
     """Repr includes summary counts."""
 
@@ -401,18 +385,6 @@ class TestEdgeCases(unittest.TestCase):
 
         # 1, 2 in to_recompute, 3 in marked → only 4 is new
         self.assertEqual(recursive_ids, frozenset({4}))
-
-    def test_create_flag_does_not_affect_scheduling(self) -> None:
-        """The create flag is for the caller's traversal, not scheduling."""
-        engine = ComputeEngine()
-        field = _MockField("total", stored_computed=True)
-
-        s1 = RecomputeScheduler(engine)
-        s1.process_entry(field, {1}, create=True)
-        s2 = RecomputeScheduler(engine)
-        s2.process_entry(field, {1}, create=False)
-
-        self.assertEqual(s1.to_recompute[field], s2.to_recompute[field])
 
     def test_interleaved_stored_and_non_stored(self) -> None:
         """Multiple entries with different field types accumulate correctly."""

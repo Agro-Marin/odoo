@@ -1,4 +1,5 @@
 from odoo import Command, fields
+from odoo.exceptions import AccessError
 from odoo.tests import common, new_test_user
 
 
@@ -946,6 +947,52 @@ class TestPrivateReadGroup(common.TransactionCase):
 
         result2 = model._read_group(domain2, aggregates=["__count"])
         self.assertEqual(result2, [(2,)])
+
+    def test_groupby_many2many_field_access(self):
+        """Grouping by a ``groups``-restricted stored many2many must enforce
+        field-level read access, like every other groupby branch.
+
+        Regression: the many2many branch of ``_read_group_groupby`` built the
+        relation join directly and returned ``field.column2`` without going
+        through ``_field_to_sql`` / ``_check_field_access``. A user lacking the
+        field's group could therefore group by it and read its distinct values
+        and per-value record counts.
+        """
+        Task = self.env["test_read_group.task"]
+        Task.create({"name": "Super Mario Bros."})
+        Model = self.env["ir.model"]
+        Access = self.env["ir.model.access"]
+        group_user = self.env.ref("base.group_user")
+        # Grant the base user model read on both models, so the test isolates
+        # *field* access from *model* access.
+        Access.create([
+            {
+                "name": "test task read",
+                "model_id": Model._get("test_read_group.task").id,
+                "group_id": group_user.id,
+                "perm_read": True, "perm_write": False,
+                "perm_create": False, "perm_unlink": False,
+            },
+            {
+                "name": "test user read",
+                "model_id": Model._get("test_read_group.user").id,
+                "group_id": group_user.id, "perm_read": True,
+            },
+        ])
+        task_as_user = Task.with_user(self.base_user)
+
+        # Control: with model access, the base user may group by the m2m.
+        task_as_user._read_group([], groupby=["user_ids"], aggregates=["__count"])
+
+        # Restrict the stored m2m to a group the base user does not have.
+        self.patch(type(Task).user_ids, "groups", "base.group_system")
+
+        # The base user must now be denied (the bypass is closed)...
+        with self.assertRaises(AccessError):
+            task_as_user._read_group([], groupby=["user_ids"], aggregates=["__count"])
+
+        # ...while a privileged user is unaffected (no over-restriction).
+        Task._read_group([], groupby=["user_ids"], aggregates=["__count"])
 
     def test_groupby_many2many(self):
         User = self.env["test_read_group.user"]

@@ -23,7 +23,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 
-EMPTY_DICT = frozendict()  # type: ignore
+EMPTY_DICT = frozendict()  # type: ignore[var-annotated]
 
 
 class Cache:
@@ -93,22 +93,15 @@ class Cache:
         """Return whether ``record`` has a value for ``field``."""
         return record.id in self._get_field_cache(record, field)
 
-    def contains_field(self, field: Field) -> bool:
-        """Return whether ``field`` has a value for at least one record."""
-        cache = self.transaction.core.field_data_or_none(field)
-        if not cache:
-            return False
-        # 'cache' keys are tuples if 'field' is context-dependent, record ids otherwise
-        if field in self.transaction.registry.field_depends_context:
-            return any(value for value in cache.values())
-        return True
-
     def get(self, record: BaseModel, field: Field, default=SENTINEL):
         """Return the value of ``field`` for ``record``."""
         try:
             field_cache = self._get_field_cache(record, field)
             return field_cache[record._ids[0]]
-        except KeyError:
+        except (KeyError, IndexError):
+            # IndexError: empty recordset (record._ids == ()); treat as a miss
+            # rather than leaking an opaque IndexError past the default/CacheMiss
+            # contract.
             if default is SENTINEL:
                 raise CacheMiss(record, field) from None
             return default
@@ -153,11 +146,24 @@ class Cache:
         values: Iterable,
         dirty: bool = False,
     ) -> None:
-        """Variant of :meth:`update` without the translated-field logic."""
-        if field.translate:
-            records = records.with_context(prefetch_langs=True)
-        for record, value in zip(records, values, strict=False):
-            field._update_cache(record, value, dirty=dirty)
+        """Set already-cache-formatted ``values`` for ``records`` directly.
+
+        Like :meth:`update`, but writes the values straight into the field
+        cache without the per-record clean/dirty guard or any conversion: the
+        caller supplies values already in cache format and parallel to
+        ``records._ids``.  Used for fast cache population (copying values
+        between records) and for seeding a to-be-flushed value.
+
+        :param dirty: mark ``field`` dirty on the records (stored column fields
+            only, mirroring :meth:`Field._update_cache`); the values must then
+            be in the field's null-context form.
+        """
+        field_cache = self._set_field_cache(records, field)
+        field_cache.update(zip(records._ids, values, strict=False))
+        if field.is_column and dirty:
+            self.transaction.core.mark_dirty(
+                field, [id_ for id_ in records._ids if id_]
+            )
 
     def remove(self, record: BaseModel, field: Field) -> None:
         """Remove the value of ``field`` for ``record``.
@@ -199,7 +205,7 @@ class Cache:
         """
         ids: Iterable
         if all_contexts and field in model.pool.field_depends_context:
-            field_cache = self.transaction.core.field_data_or_none(field) or EMPTY_DICT
+            field_cache = self.transaction.core.get_field_data_or_none(field) or EMPTY_DICT
             ids = OrderedSet(
                 id_ for sub_cache in field_cache.values() for id_ in sub_cache
             )

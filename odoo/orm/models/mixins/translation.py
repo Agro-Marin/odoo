@@ -14,16 +14,13 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable, Collection
 
 
-class TranslationMixin:
+from ._model_stubs import _ModelStubs
+
+
+class TranslationMixin(_ModelStubs):
     """Mixin providing field translation functionality."""
 
     __slots__ = ()
-
-    # Attributes provided by BaseModel at runtime
-    _fields: dict
-    _table: str
-    env: typing.Any
-    id: int
 
     def update_field_translations(
         self,
@@ -88,6 +85,9 @@ class TranslationMixin:
 
         self.check_access("write")
         field = self._fields[field_name]
+        # work on a copy: the translate=True branch pops 'en_US' below, which
+        # would otherwise mutate the caller's dict.
+        translations = dict(translations)
         self._check_field_access(field, "write")
 
         valid_langs = {code for code, _ in self.env["res.lang"].get_installed()} | {

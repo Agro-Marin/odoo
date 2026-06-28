@@ -17,9 +17,6 @@ if typing.TYPE_CHECKING:
 
     from ..models import BaseModel
 
-# integer needs to be imported before Id because of `type` attribute clash
-from . import numeric  # noqa: F401
-
 
 class Boolean(Field[bool]):
     """Encapsulates a :class:`bool`."""
@@ -28,7 +25,9 @@ class Boolean(Field[bool]):
     _column_type = ("bool", "bool")
     falsy_value = False
 
-    __get__ = _make_scalar_get(lambda v: False if v is None else v)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits Field[bool].__get__.
+        __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @override
     def convert_to_column(
@@ -128,14 +127,21 @@ class Json(Field):
     def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
         if not value:
             return ""
-        return _fast_dumps(value)
+        # pass default=orjson_default like convert_to_cache, so a value
+        # carrying a non-native type (date, Decimal) serialises instead of
+        # raising on the export path.
+        return _fast_dumps(value, default=orjson_default)
 
 
 class Id(Field[IdType | typing.Literal[False]]):
     """Special case for field 'id'."""
 
     # Note: This field type is not necessarily an integer!
-    type = "integer"  # note this conflicts with Integer
+    # ``type`` is "integer" so the client/views see the id column as integer,
+    # but Integer owns the "integer" ttype in _by_type__: Id is the magic id
+    # column, never instantiated from a DB ttype, so it opts out of registration.
+    type = "integer"
+    _register_type = False
     column_type = ("int4", "int4")
 
     string = "ID"
@@ -146,10 +152,19 @@ class Id(Field[IdType | typing.Literal[False]]):
     def update_db(self, model: BaseModel, columns: dict[str, typing.Any]) -> None:
         pass  # this column is created with the table
 
+    @typing.overload
+    def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
+    @typing.overload
+    def __get__(
+        self, record: BaseModel, owner: typing.Any = None
+    ) -> IdType | typing.Literal[False]: ...
+    @typing.overload
+    def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
+
     @override
     def __get__(
-        self, record: BaseModel | None, owner: type | None = None
-    ) -> typing.Any:
+        self, record: typing.Any, owner: typing.Any = None
+    ) -> IdType | typing.Literal[False] | typing.Self:
         if record is None:
             return self
 

@@ -70,13 +70,29 @@ class TestComputeScheduling(unittest.TestCase):
         # has at least one real (1), so included
         self.assertEqual(real, ["total"])
 
-    def test_prune_empty(self) -> None:
-        self.engine.schedule("total", [1])
-        self.engine._pending["total"].clear()
-        # entry still exists but is empty
-        self.assertIn("total", self.engine._pending)
-        self.engine.prune_empty()
-        self.assertNotIn("total", self.engine._pending)
+    def test_schedule_empty_creates_no_phantom(self) -> None:
+        """schedule() with empty ids must not vivify an entry.
+
+        Regression: ``self._pending[field].update(ids)`` auto-created an empty
+        set under *field*, making ``has_pending``/``has_pending_field`` report a
+        field with nothing to recompute (and costing an extra recompute pass).
+        """
+        self.engine.schedule("total", [])
+        self.assertFalse(self.engine.has_pending())
+        self.assertFalse(self.engine.has_pending_field("total"))
+        # an empty generator (all-NewId filtered out) is the real-world trigger
+        self.engine.schedule("tax", (i for i in [] if i))
+        self.assertNotIn("tax", self.engine._pending)
+        self.assertEqual(self.engine.pending_real_fields(), [])
+
+    def test_schedule_preserves_factory_ordering(self) -> None:
+        """The non-empty path must keep the configured set factory (ordering)."""
+        from odoo.tools import OrderedSet
+
+        engine = ComputeEngine(pending_factory=OrderedSet)
+        engine.schedule("total", [3, 1, 2])
+        self.assertIsInstance(engine._pending["total"], OrderedSet)
+        self.assertEqual(list(engine._pending["total"]), [3, 1, 2])
 
     def test_has_pending_field(self) -> None:
         self.assertFalse(self.engine.has_pending_field("total"))

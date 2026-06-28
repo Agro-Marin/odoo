@@ -1,5 +1,6 @@
+import warnings
 from datetime import date, datetime
-from itertools import combinations
+from itertools import combinations, permutations
 
 from freezegun import freeze_time
 
@@ -62,6 +63,36 @@ class TestDomain(TransactionExpressionCase):
 
             self.assertEqual(eq_1 + eq_2, all_bool, "True + False != all")
             self.assertEqual(neq_1 + neq_2, all_bool, "not True + not False != all")
+
+    def test_domain_hashable(self):
+        """Domains must be hashable, including the normalized shape.
+
+        Optimization canonicalizes ``in``/``=`` values to (unhashable)
+        ``OrderedSet``; ``DomainCondition.__hash__`` must not raise on that shape
+        and must satisfy ``a == b ⟹ hash(a) == hash(b)``.  Regression for the
+        previous ``hash(self.value)`` which raised ``TypeError`` on every
+        optimized ``in`` condition.
+        """
+        Model = self.env["test_orm.empty_int"]
+
+        # optimize() turns `in`/`=` values into OrderedSet (formerly unhashable)
+        d1 = Domain("number", "in", [1, 2, 3]).optimize(Model)
+        d2 = Domain("number", "in", [3, 2, 1]).optimize(Model)  # different order
+        self.assertEqual(d1, d2)
+        self.assertEqual(hash(d1), hash(d2))  # invariant a == b ⟹ hash == hash
+        self.assertEqual(len({d1, d2}), 1)  # usable as set/dict keys
+
+        # a nary domain with set-valued leaves is hashable end-to-end
+        nary = Domain.OR(
+            [Domain("number", "in", [1, 2]), Domain("number", "=", 5)]
+        ).optimize(Model)
+        self.assertIsInstance(hash(nary), int)  # must not raise
+
+        # scalar conditions still differentiate by value (hash quality preserved)
+        self.assertNotEqual(
+            hash(Domain("number", "=", 1).optimize(Model)),
+            hash(Domain("number", "=", 2).optimize(Model)),
+        )
 
     def test_empty_int(self):
         EmptyInt = self.env["test_orm.empty_int"]
@@ -647,6 +678,55 @@ class TestDomainOptimize(TransactionCase):
             Domain.TRUE,
         )
 
+    def test_condition_optimize_deprecated_operators(self):
+        """`<>` and `==` are deprecated aliases that normalize to `!=` / `=`."""
+        model = self.env["test_orm.mixed"]
+        # the deprecation warning itself is asserted in the _warn test below;
+        # here we only check the rewrite, so silence the expected warning.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.assertEqual(
+                Domain("count", "<>", 5).optimize(model),
+                Domain("count", "!=", 5).optimize(model),
+            )
+            self.assertEqual(
+                Domain("count", "==", 5).optimize(model),
+                Domain("count", "=", 5).optimize(model),
+            )
+
+    def test_condition_optimize_deprecated_operators_warn(self):
+        model = self.env["test_orm.mixed"]
+        with self.assertWarns(DeprecationWarning):
+            Domain("count", "<>", 5).optimize(model)
+        with self.assertWarns(DeprecationWarning):
+            Domain("count", "==", 5).optimize(model)
+
+    def test_condition_optimize_equality_collection(self):
+        """`=`/`!=` against a collection normalize to `in`/`not in`."""
+        model = self.env["test_orm.mixed"]
+        self.assertEqual(
+            Domain("count", "=", [1, 2]).optimize(model),
+            Domain("count", "in", [1, 2]).optimize(model),
+        )
+        self.assertEqual(
+            Domain("count", "!=", [1, 2]).optimize(model),
+            Domain("count", "not in", [1, 2]).optimize(model),
+        )
+
+    def test_condition_optimize_equality_empty_collection(self):
+        """The view idiom ``('field', '!=', [])`` means "field is set" and
+        ``('field', '=', [])`` means "field is unset" — both normalize to a
+        comparison against ``False`` (``not in {False}`` / ``in {False}``)."""
+        model = self.env["test_orm.mixed"]
+        self.assertEqual(
+            Domain("count", "!=", []).optimize(model),
+            Domain("count", "!=", False).optimize(model),
+        )
+        self.assertEqual(
+            Domain("count", "=", []).optimize(model),
+            Domain("count", "=", False).optimize(model),
+        )
+
     def test_condition_optimize_any(self):
         model = self.env["test_orm.mixed"]
 
@@ -873,15 +953,19 @@ class TestDomainOptimize(TransactionCase):
             Domain("moment", "not in", ["2024-01-05", datetime(2023, 1, 1)]).optimize(
                 model
             ),
+            # The two AND-ed subtrees are emitted in canonical (content-sorted)
+            # order, not in the caller's value order, so the optimized form is
+            # independent of how the ``not in`` collection was written: the 2023
+            # subtree sorts before the 2024 one.
             (
-                Domain("moment", "in", OrderedSet([False]))
-                | Domain("moment", "<", datetime(2024, 1, 5))
-                | Domain("moment", ">=", datetime(2024, 1, 5, second=1))
-            )
-            & (
                 Domain("moment", "in", OrderedSet([False]))
                 | Domain("moment", "<", datetime(2023, 1, 1))
                 | Domain("moment", ">=", datetime(2023, 1, 1, second=1))
+            )
+            & (
+                Domain("moment", "in", OrderedSet([False]))
+                | Domain("moment", "<", datetime(2024, 1, 5))
+                | Domain("moment", ">=", datetime(2024, 1, 5, second=1))
             ),
         )
 
@@ -1338,6 +1422,23 @@ class TestDomainEdgeCases(TransactionCase):
         """
         self.assertIs(Domain(()), Domain.TRUE)
 
+    def test_custom_domain_in_nary_is_representable(self):
+        """``repr()``/``list()`` of an n-ary domain containing a
+        ``Domain.custom(...)`` must not raise.
+
+        Regression: ``DomainCustom.__iter__`` used to ``raise
+        NotImplementedError``, so ``DomainNary.__iter__`` (which does
+        ``yield from child``) crashed whenever a custom-SQL domain was logged or
+        interpolated into an error message — and ``cond & Domain.custom(...)``
+        is built in purchase/mrp/sale_renting.
+        """
+        custom = Domain.custom(to_sql=lambda model, alias, query: SQL("TRUE"))
+        combined = Domain("id", ">", 0) & custom
+        self.assertEqual([type(c).__name__ for c in combined.children][1], "DomainCustom")
+        # both previously raised NotImplementedError
+        self.assertIsInstance(list(combined), list)
+        self.assertIn("custom", repr(combined))
+
     def test_value_to_datetime_empty_collection(self):
         """``_value_to_datetime`` must return ``(empty, True)`` on empty input,
         not raise ``ValueError`` from unpacking ``zip(*())``.
@@ -1353,3 +1454,116 @@ class TestDomainEdgeCases(TransactionCase):
         value, is_date = _value_to_datetime((), env=self.env, iso_only=False)
         self.assertEqual(list(value), [])
         self.assertTrue(is_date)
+
+    def test_deep_any_chain_rejected_at_parse(self):
+        """A deep ``any`` chain must raise ``ValueError`` at parse time, not a
+        ``RecursionError`` later in ``_optimize``/``_to_sql``.
+
+        Regression: the nesting guard only walked the built ``&``/``|``/``!``
+        AST, and the single-condition fast path skipped it entirely, so a
+        self-referential ``parent_id any (parent_id any (...))`` chain (which a
+        client can build over a single field) nested past
+        ``MAX_DOMAIN_NESTING`` and blew the stack when evaluated.
+        """
+        from odoo.orm.domain.ast import MAX_DOMAIN_NESTING
+
+        def nested_any(n, op="any"):
+            inner = [("a", "=", 1)]
+            for _ in range(n):
+                inner = [("parent_id", op, inner)]
+            return inner
+
+        # shallow chains (legitimate use) still build
+        Domain(nested_any(5))
+        Domain([("partner_id", "any", [("active", "=", True)])])
+        # deep chains are rejected up front, via every construction path
+        with self.assertRaises(ValueError):
+            Domain(nested_any(MAX_DOMAIN_NESTING + 5))
+        with self.assertRaises(ValueError):
+            Domain(nested_any(500, op="not any"))
+        with self.assertRaises(ValueError):
+            Domain("parent_id", "any", nested_any(500))
+        with self.assertRaises(ValueError):
+            Domain(nested_any(500), internal=True)
+        # a huge non-subdomain ('in') value must not be mistaken for nesting
+        Domain([("id", "in", list(range(10000)))])
+
+
+class TestDomainConfluence(TransactionCase):
+    """Lock in the two invariants ``Domain._optimize`` relies on for correctness.
+
+    ``odoo/orm/domain/ast.py`` documents (in ``_optimize`` and
+    ``_optimize_nary_sort_key``) that the optimizer's fixed-point loop is sound
+    because the passes are *confluent* and *idempotent*:
+
+    * **idempotence** — optimizing an already-optimized domain is a no-op
+      (``optimize(optimize(d)) == optimize(d)``); without this the fixed-point
+      loop could oscillate; and
+    * **confluence** — domains that differ only in the *order* of their
+      conjuncts/disjuncts must optimize to the *same* canonical form. Value-merge
+      passes rely on ``_optimize_nary_sort_key`` co-locating mergeable pairs, and
+      duplicate-removal is order-independent (a first-occurrence set de-dup), so
+      a permutation of the leaves can never produce a different query. A sort-key
+      regression, or a return to adjacent-only de-dup, would silently produce
+      different (and potentially wrong) queries depending on how the caller
+      happened to order the leaves.
+
+    These properties were previously only asserted by a non-existent
+    ``tests/models/test_domain_confluence.py`` referenced in ``ast.py``; this
+    class is the real backing test.
+    """
+
+    # Mix of mergeable same-field conditions (count: a range + an exclusion)
+    # and unrelated fields, so the sort key has real reordering work to do.
+    def _leaves(self):
+        return [
+            Domain("count", ">", 5),
+            Domain("count", "<", 100),
+            Domain("count", "!=", 7),
+            Domain("foo", "=", "abc"),
+            Domain("currency_id", "in", [1, 2]),
+        ]
+
+    def test_optimize_is_idempotent(self):
+        model = self.env["test_orm.mixed"]
+        for combine in (Domain.AND, Domain.OR):
+            once = combine(self._leaves()).optimize(model)
+            twice = once.optimize(model)
+            self.assertEqual(
+                once, twice, f"{combine.__name__} optimize must be idempotent"
+            )
+
+    def test_optimize_confluent_under_permutation(self):
+        model = self.env["test_orm.mixed"]
+        leaves = self._leaves()
+        for combine in (Domain.AND, Domain.OR):
+            canonical = combine(leaves).optimize(model)
+            for perm in permutations(leaves):
+                self.assertEqual(
+                    combine(list(perm)).optimize(model),
+                    canonical,
+                    f"{combine.__name__} optimization must be order-independent",
+                )
+
+    def test_optimize_dedups_nonadjacent_duplicates(self):
+        """Duplicate conditions are removed regardless of position.
+
+        Regression for the adjacent-only de-dup: an operator without a
+        value-merge pass (``like``) duplicated across a same-sort-key sibling
+        survived in some permutations but not others, so the same logical domain
+        optimized to two different SQL strings (different query-cache keys). The
+        multiset ``{x, x, y}`` must collapse to ``{x, y}`` for *every* ordering.
+        """
+        model = self.env["test_orm.mixed"]
+        dx = Domain("foo", "like", "x%")
+        dy = Domain("foo", "like", "y%")
+        leaves = [dx, dy, dx]
+        canonical = Domain.OR(leaves).optimize(model)
+        # the duplicate is actually gone: {x, x, y} -> {x, y}
+        self.assertEqual(len(list(canonical.children)), 2)
+        for perm in permutations(leaves):
+            self.assertEqual(
+                Domain.OR(list(perm)).optimize(model),
+                canonical,
+                "duplicate conditions must be removed order-independently",
+            )

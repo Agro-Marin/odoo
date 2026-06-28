@@ -6,6 +6,7 @@ from typing import override
 from odoo.tools import OrderedSet, unique
 from odoo.tools.sql import pg_varchar
 
+from .._recordset import is_recordset
 from .base import Field
 from .numeric import Integer
 from .selection import Selection
@@ -25,9 +26,10 @@ class Reference(Selection):
 
     _column_type = ("varchar", pg_varchar())
 
-    # Bypass Selection.__get__: convert_to_record splits "model,id" and browses,
-    # whereas the Selection shortcut would return the raw string.
-    __get__ = Field.__get__
+    if not typing.TYPE_CHECKING:
+        # Bypass Selection.__get__: convert_to_record splits "model,id" and
+        # browses, whereas the Selection shortcut would return the raw string.
+        __get__ = Field.__get__
 
     @override
     def convert_to_column(
@@ -44,7 +46,7 @@ class Reference(Selection):
         self, value: typing.Any, record: BaseModel, validate: bool = True
     ) -> str | None:
         # cache format: str ("model,id") or None
-        if hasattr(value, "_name") and hasattr(value, "_ids"):  # BaseModel instance
+        if is_recordset(value):
             if not validate or (
                 value._name in self.get_values(record.env) and len(value) <= 1
             ):
@@ -61,6 +63,11 @@ class Reference(Selection):
                 if res_id_int is not None and (
                     not validate or res_model in self.get_values(record.env)
                 ):
+                    if not validate:
+                        # validate=False (bulk/import paths) trusts the input:
+                        # skip the per-record existence query that would
+                        # otherwise hit the database for every write.
+                        return value
                     if record.env[res_model].browse(res_id_int).exists():
                         return value
                     else:
@@ -121,7 +128,7 @@ class Many2oneReference(Integer):
         self, value: typing.Any, record: BaseModel, validate: bool = True
     ) -> typing.Any:
         # cache format: id or None
-        if hasattr(value, "_ids"):  # BaseModel instance
+        if is_recordset(value):  # use the canonical recordset TypeGuard
             value = value._ids[0] if value._ids else None
         return super().convert_to_cache(value, record, validate)
 

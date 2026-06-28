@@ -6,14 +6,14 @@
 - :class:`Cache`: backward-compat wrapper over the transaction cache.
 """
 
-from .cache_compat import Cache, Starred
+from ..components.model_graph import TriggerTree
+from .cache_compat import Cache
 from .environment import Environment
 from .registry import (
     _CACHES_BY_KEY,
     _REGISTRY_CACHES,
     DummyRLock,
     Registry,
-    TriggerTree,
 )
 from .transaction import MAX_FIXPOINT_ITERATIONS, Transaction
 
@@ -32,7 +32,6 @@ __all__ = [
     "Environment",
     # Registry
     "Registry",
-    "Starred",
     "Transaction",
     "TriggerTree",
 ]

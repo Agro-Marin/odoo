@@ -39,6 +39,11 @@ class UnitOfWork:
         engine: ComputeEngine,
         max_iterations: int = 10,
     ) -> None:
+        """Bind to *cache* and *engine* with a convergence iteration cap.
+
+        :param max_iterations: maximum passes a loop runs before reporting
+            non-convergence.
+        """
         self.cache = cache
         self.engine = engine
         self.max_iterations = max_iterations
@@ -64,22 +69,15 @@ class UnitOfWork:
 
     # Inspection
 
-    def dirty_fields(self) -> list[Any]:
-        """Return fields with dirty entries."""
-        return list(self.cache.iter_dirty_fields())
-
     def dirty_models(self) -> list[str]:
         """Return unique model names with dirty fields, in first-seen order."""
+        # ``model_name`` is guaranteed by the FieldLike protocol (read directly,
+        # like the sibling FieldCache.pop_dirty_for_model) — no getattr guard.
         seen: dict[str, None] = {}
         for fld in self.cache.iter_dirty_fields():
-            model_name = getattr(fld, "model_name", None)
-            if model_name is not None and model_name not in seen:
-                seen[model_name] = None
+            if fld.model_name not in seen:
+                seen[fld.model_name] = None
         return list(seen)
-
-    def has_pending_work(self) -> bool:
-        """Whether there are pending recomputations or dirty fields."""
-        return self.engine.has_pending() or self.cache.is_any_dirty()
 
     # Convergence detection
 
@@ -89,7 +87,7 @@ class UnitOfWork:
         return f"{getattr(field, 'model_name', '?')}.{getattr(field, 'name', field)}"
 
     def recompute_snapshot(
-        self, fields: "list[Any] | None" = None
+        self, fields: list[Any] | None = None
     ) -> frozenset[tuple[Any, int]]:
         """Snapshot of ``(field, pending_count)`` for convergence detection.
 
@@ -171,6 +169,9 @@ class UnitOfWork:
             if not fields:
                 result.iterations = iteration
                 result.converged = True
+                # Converged: discard any stall recorded on a prior iteration so
+                # the result is not internally inconsistent (converged + stalled).
+                result.stalled_fields = []
                 break
 
             curr_snapshot = self.recompute_snapshot(fields)
@@ -202,8 +203,6 @@ class UnitOfWork:
                     for f in self.engine.pending_real_fields()
                 )
 
-        # Prune empty pending entries to avoid accumulation
-        self.engine.prune_empty()
         return result
 
     def run_flush_loop(
@@ -240,6 +239,9 @@ class UnitOfWork:
             if not model_names:
                 result.iterations = iteration
                 result.converged = True
+                # Converged: discard any stall recorded on a prior iteration so
+                # the result is not internally inconsistent (converged + stalled).
+                result.stalled_fields = []
                 break
 
             curr_dirty_count = self.cache.dirty_entry_count()
@@ -248,6 +250,11 @@ class UnitOfWork:
                     prev_dirty_count, curr_dirty_count
                 )
                 result.stalled_fields = stalled
+            else:
+                # Progress made: clear any transient stall so a loop that
+                # converges does not return stale stalled_fields (symmetric
+                # with run_recompute_loop's progress branch).
+                result.stalled_fields = []
 
             prev_dirty_count = curr_dirty_count
 
@@ -265,6 +272,7 @@ class UnitOfWork:
         return result
 
     def __repr__(self) -> str:
+        """Return a debug summary with dirty and pending entry counts."""
         n_dirty = self.cache.dirty_entry_count()
         n_pending = sum(
             len(self.engine.pending_ids(f)) for f in self.engine.pending_fields()

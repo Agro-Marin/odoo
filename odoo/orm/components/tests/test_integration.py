@@ -7,7 +7,9 @@ without any Odoo imports.
 
 import unittest
 from collections import namedtuple
+from typing import NamedTuple
 
+from odoo.orm.components._protocols import SchedulableField
 from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.recompute import RecomputeScheduler
@@ -309,15 +311,24 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         self.assertEqual(self.cache.get_value(f_c, 1), 106)  # (3*2) + 100
 
 
+class _MockSchedulableField(NamedTuple):
+    """A field-like that statically satisfies :class:`SchedulableField`.
+
+    A module-level ``NamedTuple`` (not a ``self``-attribute ``namedtuple``) so
+    mypy can resolve its type and verify it against the protocol.
+    """
+
+    model_name: str
+    name: str
+    recursive: bool
+    is_stored_computed: bool
+
+
 class TestRecomputeSchedulerIntegration(unittest.TestCase):
     """Test RecomputeScheduler with ComputeEngine for protection and cycle detection."""
 
     def setUp(self) -> None:
         self.engine = ComputeEngine()
-        self.MockField = namedtuple(
-            "MockField",
-            ["model_name", "name", "recursive", "is_stored_computed"],
-        )
         self.RecomputeScheduler = RecomputeScheduler
 
     def _field(
@@ -326,8 +337,8 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         name: str,
         recursive: bool = False,
         stored_computed: bool = True,
-    ) -> object:
-        return self.MockField(model, name, recursive, stored_computed)
+    ) -> SchedulableField:
+        return _MockSchedulableField(model, name, recursive, stored_computed)
 
     def test_protection_subtracted_from_schedule(self) -> None:
         """Protected IDs are excluded from the recompute schedule."""
@@ -336,7 +347,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         self.engine.protect(f, frozenset([2, 3]))
 
         scheduler = self.RecomputeScheduler(self.engine, marked={})
-        scheduler.process_entry(f, {1, 2, 3, 4}, create=False)
+        scheduler.process_entry(f, {1, 2, 3, 4})
 
         # Records 2 and 3 are protected — only 1 and 4 scheduled
         self.assertEqual(scheduler.to_recompute[f], {1, 4})
@@ -347,7 +358,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         f = self._field("m", "display_name", stored_computed=False)
 
         scheduler = self.RecomputeScheduler(self.engine, marked={})
-        scheduler.process_entry(f, {1, 2, 3}, create=False)
+        scheduler.process_entry(f, {1, 2, 3})
 
         self.assertEqual(len(scheduler.to_recompute), 0)
         self.assertEqual(len(scheduler.to_invalidate), 1)
@@ -362,7 +373,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         scheduler = self.RecomputeScheduler(self.engine, marked=self.engine.pending)
 
         # Process entry with IDs including already-pending ID 1
-        recursive_ids = scheduler.process_entry(f, {1, 2, 3}, create=False)
+        recursive_ids = scheduler.process_entry(f, {1, 2, 3})
 
         # ID 1 excluded (already marked), IDs 2 and 3 scheduled
         self.assertEqual(scheduler.to_recompute[f], {2, 3})

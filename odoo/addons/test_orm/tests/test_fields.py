@@ -80,7 +80,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         # field assignment on multiple records should assign value to all records
         records = self.env["test_orm.message"].search([])
         records.body = "Updated"
-        self.assertTrue(all((record.body == "Updated" for record in records)))
+        self.assertTrue(all(record.body == "Updated" for record in records))
 
         # field assigmenent does not cache the wrong value when write overridden
         record.priority = 4
@@ -698,6 +698,31 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         o2m_field = model._fields["model_computed_ids"]
         self.assertEqual(o2m_field.get_comodel_domain(model), Domain.TRUE)
 
+    def test_12_relational_domain_any_recurses_in_depends(self):
+        """A field ``domain`` written with ``any`` records its nested
+        dependencies, like the equivalent dotted form.
+
+        Regression: ``get_depends`` walked ``domain.iter_conditions()``, which
+        does not descend into ``any`` sub-domains, so
+        ``('parent', 'any', [('name', '=', x)])`` registered only ``parent`` and
+        silently missed ``parent.name`` — whereas the dotted form
+        ``('parent.name', '=', x)`` recorded the full path. Dependency tracking
+        must not depend on which form the domain is written in.
+        """
+        model = self.env["test_orm.discussion"]
+        field = model._fields["categories"]
+
+        self.patch(field, "domain", [("parent", "any", [("name", "=", "x")])])
+        any_depends = set(field.get_depends(model)[0])
+
+        self.patch(field, "domain", [("parent.name", "=", "x")])
+        dotted_depends = set(field.get_depends(model)[0])
+
+        # The ``any`` form records the nested leaf dependency...
+        self.assertIn("categories.parent.name", any_depends)
+        # ...and is a superset of the equivalent dotted form's dependencies.
+        self.assertLessEqual(dotted_depends, any_depends)
+
     def test_13_inverse(self):
         """test inverse computation of fields"""
         Category = self.env["test_orm.category"]
@@ -1076,6 +1101,28 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env.invalidate_all()
         self.assertEqual(record.created_id.value, 3)
 
+    def test_18_cache_update_raw(self):
+        """env.cache.update_raw writes raw cache values (and dirties on demand).
+
+        Regression: the method was called by several addons (e.g.
+        hr.employee._copy_cache_from) but missing from the env.cache facade,
+        raising AttributeError on real read/access paths.
+        """
+        partner = self.env["res.partner"].create({"name": "original"})
+        field = partner._fields["name"]
+        self.env.flush_all()
+
+        # 1. raw populate: value lands in cache unconverted, readable via get()
+        self.env.invalidate_all()
+        self.env.cache.update_raw(partner, field, ["from_cache"])
+        self.assertEqual(self.env.cache.get(partner, field), "from_cache")
+
+        # 2. dirty=True: the seeded value is flushed to the database
+        self.env.cache.update_raw(partner, field, ["to_be_flushed"], dirty=True)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(partner.name, "to_be_flushed")
+
     def test_18_flush_precommit(self):
         """check that cr.flush() runs precommits as many times as needed."""
         cr = self.env.cr
@@ -1444,6 +1491,17 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         # ... but no record from a model that starts with 'ir.'
         with self.assertRaises(ValueError):
             record.reference = self.env["ir.model"].search([], limit=1)
+
+    def test_24_reference_validate_false_skips_db(self):
+        """convert_to_cache(validate=False) trusts the input and must not issue
+        the per-record existence query (used by bulk/import paths)."""
+        record = self.env["test_orm.mixed"].create({})
+        field = record._fields["reference"]
+        # syntactically valid reference to a target that cannot exist
+        value = f"res.partner,{2**31}"
+        with self.assertQueryCount(0):
+            cached = field.convert_to_cache(value, record, validate=False)
+        self.assertEqual(cached, value)  # trusted as-is, no exists() lookup
 
     def test_25_related(self):
         """test related fields."""
@@ -5256,6 +5314,72 @@ class TestSelectionUpdates(TransactionCase):
             )
         with self.assertQueryCount(2):
             record.related_selection = "bar"
+
+
+@tagged("selection_manual_related_update")
+class TestSelectionManualRelatedUpdate(TransactionCase):
+    """
+    Regression test: adding a value to a manual selection field must update
+    the registry for models that have a manual related field pointing to it.
+    """
+
+    MODEL_BASE = "test_orm.model_selection_base"
+    MODEL_RELATED = "test_orm.model_selection_related"
+
+    def test_manual_related_selection_reflects_new_value(self):
+        self.env.flush_all()
+        base_model_id = self.env["ir.model"]._get_id(self.MODEL_BASE)
+        related_model_id = self.env["ir.model"]._get_id(self.MODEL_RELATED)
+
+        # Create a manual selection field with two initial options
+        x_sel = self.env["ir.model.fields"].create({
+            "name": "x_sel",
+            "field_description": "Manual Selection",
+            "model_id": base_model_id,
+            "ttype": "selection",
+            "selection_ids": [
+                Command.create({"value": "a", "name": "A", "sequence": 0}),
+                Command.create({"value": "b", "name": "B", "sequence": 1}),
+            ],
+        })
+
+        # Create a manual related field on MODEL_RELATED pointing to the new field
+        self.env["ir.model.fields"].create({
+            "name": "x_related_sel",
+            "field_description": "Related Manual Selection",
+            "model_id": related_model_id,
+            "ttype": "selection",
+            "related": "selection_id.x_sel",
+        })
+
+        # Sanity check: the related field initially knows only 'a' and 'b'
+        related_field = self.env[self.MODEL_RELATED]._fields["x_related_sel"]
+        initial_values = [v for v, _ in related_field._description_selection(self.env)]
+        self.assertIn("a", initial_values)
+        self.assertIn("b", initial_values)
+        self.assertNotIn("c", initial_values)
+
+        # Add a third option to the manual selection field
+        self.env["ir.model.fields.selection"].create({
+            "field_id": x_sel.id,
+            "value": "c",
+            "name": "C",
+            "sequence": 2,
+        })
+
+        # The manual related field must reflect the new option
+        related_field = self.env[self.MODEL_RELATED]._fields["x_related_sel"]
+        updated_values = [v for v, _ in related_field._description_selection(self.env)]
+        self.assertIn(
+            "c",
+            updated_values,
+            "Manual related selection field must reflect new values added to its target field",
+        )
+
+        # Also verify that reading a record with the new value via the related field works
+        base_record = self.env[self.MODEL_BASE].create({"x_sel": "c"})
+        related_record = self.env[self.MODEL_RELATED].create({"selection_id": base_record.id})
+        self.assertEqual(related_record.x_related_sel, "c")
 
 
 @tagged("selection_ondelete_base")

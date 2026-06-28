@@ -71,7 +71,9 @@ class Selection(Field[str | typing.Literal[False]]):
         None  # {value: policy} (what to do when value is deleted)
     )
 
-    __get__ = _make_scalar_get(lambda v: False if v is None else v)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits Field[str | False].__get__.
+        __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     def __init__(
         self,

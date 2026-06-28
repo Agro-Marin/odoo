@@ -24,6 +24,29 @@ class Many2manyCase(TransactionCase):
         )
         self.redbeard = self.env["test_orm.pirate"].create({"name": "Red Beard"})
 
+    def test_set_removes_archived_links(self):
+        """SET on a stored m2m must remove archived (inactive-comodel) links too.
+
+        Regression: write_real built old_relation from ``record[field]``, which
+        under the default ``active_test`` hides archived links, so they escaped
+        the SET/CLEAR delta and survived in the relation table.
+        """
+        Category = self.env["res.partner.category"]
+        a, b, c = Category.create([{"name": "A"}, {"name": "B"}, {"name": "C"}])
+        partner = self.env["res.partner"].create(
+            {"name": "P", "category_id": [Command.set((a + b).ids)]}
+        )
+        b.active = False  # archive one of the two linked categories
+
+        # SET to [c] must remove BOTH a and the archived b, leaving only c.
+        partner.write({"category_id": [Command.set(c.ids)]})
+
+        self.assertEqual(
+            partner.with_context(active_test=False).category_id,
+            c,
+            "archived link must be removed by SET, not survive the delta",
+        )
+
     def test_not_in_relation(self):
         pirates = self.env["test_orm.pirate"].search(
             [("ship_ids", "not in", self.ship.ids)]

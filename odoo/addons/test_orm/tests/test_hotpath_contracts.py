@@ -65,6 +65,39 @@ class TestFieldGetContracts(TransactionCase):
         self.assertEqual(str(record.date), "2025-01-15")
         self.assertEqual(record.lang, "en_US")
 
+    def test_scalar_cache_hit_equals_cache_miss(self):
+        """Fast path (cache hit) must agree with the slow path (cache miss).
+
+        The per-type fast-path closure built by ``_make_scalar_get`` (e.g.
+        ``lambda v: v or 0``) and the type's ``convert_to_record`` are
+        hand-maintained in separate files with nothing enforcing they agree. A
+        cache-hit read uses the closure; a cache-miss read goes through
+        ``Field.__get__`` → ``convert_to_record``. This pins them together so a
+        change to one cannot silently diverge from the other.
+        """
+        record = self.Mixed.create(
+            {
+                "foo": "hello",
+                "truth": True,
+                "count": 42,
+                "number": 3.14,
+                "date": "2025-01-15",
+                "moment": "2025-01-15 10:30:00",
+                "lang": "en_US",
+            }
+        )
+        self.env.flush_all()
+        for fname in ("foo", "truth", "count", "number", "date", "moment", "lang"):
+            record.invalidate_recordset([fname])
+            miss_value = record[fname]  # cache miss → convert_to_record
+            hit_value = record[fname]  # cache hit → _make_scalar_get closure
+            self.assertEqual(
+                hit_value,
+                miss_value,
+                f"{fname}: cache-hit {hit_value!r} != cache-miss {miss_value!r} "
+                "(_make_scalar_get closure diverged from convert_to_record)",
+            )
+
     def test_scalar_none_to_falsy(self):
         """None cache values convert to type-appropriate falsy defaults."""
         record = self.Mixed.create({})

@@ -217,3 +217,9 @@ class TestCheckMethodName(TransactionCase):
 
     def test_public_with_numbers(self):
         check_method_name("action_confirm_2")
+
+    def test_private_with_embedded_newline_blocked(self):
+        """A private name with an embedded newline must still be rejected
+        (a regex anchored with ``$``/``.`` would let it slip through)."""
+        with self.assertRaises(AccessError):
+            check_method_name("_secret\nx")

@@ -25,7 +25,9 @@ class Integer(Field[int]):
 
     aggregator = "sum"
 
-    __get__ = _make_scalar_get(lambda v: v or 0)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits Field[int].__get__.
+        __get__ = _make_scalar_get(lambda v: v or 0)
 
     def _get_attrs(
         self, model_class: type[BaseModel], name: str
@@ -69,9 +71,10 @@ class Integer(Field[int]):
     def convert_to_read(
         self, value, record: BaseModel, use_display_name: bool = True
     ) -> typing.Any:
-        # Integer values greater than 2^31-1 are not supported in pure XMLRPC,
-        # so we have to pass them as floats :-(
-        if value and value > MAXINT:
+        # Integer values outside the signed 32-bit range [-2^31, 2^31-1] are not
+        # supported in pure XMLRPC (i4), so we have to pass them as floats :-(
+        # Guard both ends: a value below -2^31 also overflows i4 marshalling.
+        if value and not (-MAXINT - 1 <= value <= MAXINT):
             return float(value)
         return value
 
@@ -141,7 +144,9 @@ class Float(Field[float]):
     falsy_value = 0.0
     aggregator = "sum"
 
-    __get__ = _make_scalar_get(lambda v: v or 0.0)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits Field[float].__get__.
+        __get__ = _make_scalar_get(lambda v: v or 0.0)
 
     def __init__(
         self,
@@ -234,7 +239,7 @@ class Float(Field[float]):
 
     @override
     def convert_to_export(self, value, record: BaseModel) -> typing.Any:
-        if value or value == 0.0:
+        if value or value == 0.0:  # noqa: RUF069  # exact-zero check distinguishes 0.0 from empty
             return value
         return ""
 
@@ -258,7 +263,9 @@ class Monetary(Field[float]):
     _column_type = ("numeric", "numeric")
     falsy_value = 0.0
 
-    __get__ = _make_scalar_get(lambda v: v or 0.0)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits Field[float].__get__.
+        __get__ = _make_scalar_get(lambda v: v or 0.0)
 
     currency_field: Field | None = None
     aggregator = "sum"
@@ -300,6 +307,24 @@ class Monetary(Field[float]):
             else None
         )
 
+    def _currency_record(self, record: BaseModel):
+        """Return ``record[:1]``'s currency for this monetary field (or empty).
+
+        ``prefetch_fields=False`` is load-bearing and must never be dropped: the
+        monetary ``value`` being converted may already sit in cache, and
+        prefetching sibling fields here could overwrite it with the stale DB
+        value before it is flushed. ``sudo()`` because the currency may be
+        ACL-restricted. Centralised so this invariant cannot drift between the
+        column-conversion methods. (``convert_to_cache`` keeps its own variant:
+        it must scan *all* records for a single currency, not just ``[:1]``.)
+        """
+        currency_field_name = self.get_currency_field(record)
+        if not currency_field_name:
+            return None
+        return (
+            record[:1].sudo().with_context(prefetch_fields=False)[currency_field_name]
+        )
+
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
         assert self.get_currency_field(model) in model._fields, (
@@ -329,15 +354,9 @@ class Monetary(Field[float]):
             return value
         # Apply currency rounding only on actual records (not the model class).
         if record.ids:
-            currency_field_name = self.get_currency_field(record)
-            if currency_field_name:
-                currency = (
-                    record[:1]
-                    .sudo()
-                    .with_context(prefetch_fields=False)[currency_field_name]
-                )
-                if currency:
-                    return currency.with_env(record.env).round(value)
+            currency = self._currency_record(record)
+            if currency:
+                return currency.with_env(record.env).round(value)
         return value
 
     def convert_to_column_insert(
@@ -363,15 +382,10 @@ class Monetary(Field[float]):
             currency = dummy[currency_field_name]
         else:
             # Note: this is wrong if 'record' is several records with different
-            # currencies, which is functional nonsense and should not happen
-            # BEWARE: do not prefetch other fields, because 'value' may be in
-            # cache, and would be overridden by the value read from database!
-            currency = (
-                record[:1]
-                .sudo()
-                .with_context(prefetch_fields=False)[currency_field_name]
-            )
-            currency = currency.with_env(record.env)
+            # currencies, which is functional nonsense and should not happen.
+            # _currency_record encapsulates the no-prefetch invariant (BEWARE:
+            # prefetching here could overwrite the in-cache 'value').
+            currency = self._currency_record(record).with_env(record.env)
 
         value = float(value or 0.0)
         if currency:
@@ -417,7 +431,7 @@ class Monetary(Field[float]):
 
     @override
     def convert_to_export(self, value, record: BaseModel) -> typing.Any:
-        if value or value == 0.0:
+        if value or value == 0.0:  # noqa: RUF069  # exact-zero check distinguishes 0.0 from empty
             return value
         return ""
 

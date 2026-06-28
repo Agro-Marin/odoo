@@ -16,10 +16,24 @@ class TestSelectRange(odoo.tests.TransactionCase):
             "test_search_panel.category_target_model_no_parent_name"
         ]
 
+    def _select_range(self, *args, **kwargs):
+        """Call ``search_panel_select_range`` and drop the volatile ``__version``.
+
+        The method is ``@versioned`` (odoo/tools/cache_version.py): it stamps a
+        sha256 content-hash on its dict result for the client rpc cache. That
+        hash is non-deterministic across data and irrelevant to these payload
+        assertions, so strip it here and compare the rest by value. The stamp's
+        own contract is pinned by ``web/tests/test_search_panel_version.py``.
+        """
+        result = self.SourceModel.search_panel_select_range(*args, **kwargs)
+        if isinstance(result, dict):
+            result.pop("__version", None)
+        return result
+
     # Many2one
 
     def test_many2one_empty(self):
-        result = self.SourceModel.search_panel_select_range("folder_id")
+        result = self._select_range("folder_id")
         self.assertEqual(
             result,
             {
@@ -80,7 +94,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         r1_id, _, r3_id, _ = records.ids
 
         # counters, expand, and hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             expand=True,
@@ -116,7 +130,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, expand, hierarchization, and search domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             expand=True,
@@ -153,7 +167,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, expand, hierarchization, and reached limit
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             expand=True,
@@ -165,7 +179,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, expand, hierarchization, and unreached limit
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             expand=True,
@@ -205,7 +219,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, expand, and no hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             expand=True,
@@ -239,7 +253,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], False)
 
         # no counters, expand, and hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             expand=True,
         )
@@ -270,7 +284,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters, expand, hierarchization, and search domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             expand=True,
             search_domain=[["id", "in", [r1_id, r3_id]]],  # no impact expected
@@ -302,7 +316,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters, expand, and no hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             expand=True,
             hierarchize=False,
@@ -330,7 +344,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, no expand, and hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
         )
@@ -366,7 +380,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], "parent_name_id")
 
         # counters, no expand, and no hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             hierarchize=False,
@@ -394,7 +408,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], False)
 
         # counters, no expand, no hierarchization, and category_domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             hierarchize=False,
@@ -423,7 +437,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], False)
 
         # counters, no expand, no hierarchization, and limit
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             hierarchize=False,
@@ -435,7 +449,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters, no expand, and hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             hierarchize=True,
         )
@@ -467,7 +481,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], "parent_name_id")
 
         # no counters, no expand, and hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             search_domain=[(0, "=", 1)],
         )
@@ -480,7 +494,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters, no expand, and no hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             hierarchize=False,
         )
@@ -504,7 +518,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], False)
 
         # no counters, no expand, no hierarchization, and category_domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             hierarchize=False,
             category_domain=[["id", "in", [r1_id, r3_id]]],  # no impact expected
@@ -529,7 +543,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], False)
 
         # no counters, no expand, no hierarchization, and comodel_domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             hierarchize=False,
             comodel_domain=[["id", "in", [f1_id, f4_id]]],
@@ -657,7 +671,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         """
 
         # counters, expand, and hierarchization
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             enable_counters=True,
             expand=True,
@@ -752,7 +766,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
             ]
         )
 
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "folder_id",
             comodel_domain=[("id", "not in", [f8_id, f11_id])],  # impact expected
         )
@@ -790,7 +804,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
     # Many2one no parent name
 
     def test_many2one_empty_no_parent_name(self):
-        result = self.SourceModel.search_panel_select_range("categ_id")
+        result = self._select_range("categ_id")
         self.assertEqual(
             result,
             {
@@ -833,7 +847,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         r1_id, _, r3_id, _ = records.ids
 
         # counters and expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "categ_id",
             enable_counters=True,
             expand=True,
@@ -860,7 +874,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, expand, and search domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "categ_id",
             enable_counters=True,
             expand=True,
@@ -888,7 +902,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters and expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "categ_id",
             expand=True,
         )
@@ -911,7 +925,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters, expand, and search domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "categ_id",
             expand=True,
             search_domain=[["id", "in", [r1_id, r3_id]]],  # no impact expected
@@ -935,7 +949,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters and no expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "categ_id",
             enable_counters=True,
         )
@@ -957,7 +971,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         self.assertEqual(result["parent_field"], False)
 
         # no counters and no expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "categ_id",
         )
         self.assertEqual(
@@ -978,7 +992,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
     # Selection case
 
     def test_selection_empty(self):
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
             expand=True,
         )
@@ -1016,7 +1030,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         r1_id, _ = records.ids
 
         # counters and expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
             enable_counters=True,
             expand=True,
@@ -1038,7 +1052,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters, expand, and search domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
             enable_counters=True,
             expand=True,
@@ -1061,7 +1075,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters and expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
             expand=True,
         )
@@ -1080,7 +1094,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters, expand, and search domain
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
             expand=True,
             search_domain=[["id", "=", r1_id]],  # no impact expected
@@ -1100,7 +1114,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # counters and no expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
             enable_counters=True,
         )
@@ -1116,7 +1130,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
         )
 
         # no counters and no expand
-        result = self.SourceModel.search_panel_select_range(
+        result = self._select_range(
             "state",
         )
         self.assertEqual(

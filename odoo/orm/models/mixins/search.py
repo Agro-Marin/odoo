@@ -2,13 +2,12 @@
 
 import contextlib
 import logging
-import time
 import typing
 from typing import Self
 
 from odoo.exceptions import LockError, UserError
 from odoo.tools import SQL, Query, partition
-from odoo.tools.orm_profiler import _orm_profiling_enabled
+from odoo.tools.orm_profiler import _OrmProfile
 
 from ... import decorators as api
 from ..._typing import (
@@ -18,6 +17,7 @@ from ..._typing import (
 from ...domain import Domain
 from ...parsing import parse_field_expr, regex_order
 from ...primitives import COLLECTION_TYPES, NewId
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -36,21 +36,10 @@ _SQL_DIR = {"ASC": _SQL_ASC, "DESC": _SQL_DESC}
 _SQL_NULLS = {"NULLS FIRST": _SQL_NULLS_FIRST, "NULLS LAST": _SQL_NULLS_LAST}
 
 
-class SearchMixin:
+class SearchMixin(_ModelStubs):
     """Mixin providing search and query functionality for BaseModel."""
 
     __slots__ = ()
-
-    # Type hints for attributes provided by BaseModel (runtime)
-    _fields: dict
-    _table: str
-    _name: str
-    _order: str
-    _active_name: str | None
-    _rec_name: str | None
-    _rec_names_search: list[str] | None
-    _ids: tuple
-    env: typing.Any
 
     @api.model
     @api.readonly
@@ -65,27 +54,23 @@ class SearchMixin:
         This is a high-level method, which should not be overridden. Its actual
         implementation is done by method :meth:`_search`.
         """
-        _debug = _orm_read.isEnabledFor(logging.DEBUG)
-        _agg = _orm_profiling_enabled
-        if _debug or _agg:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_read)
 
         query = self._search(domain, limit=limit)
         count = len(query)
 
-        if _debug or _agg:
-            _t_end = time.perf_counter()
-        if _debug:
+        prof.stop()
+        if prof.debug:
             _orm_read.debug(
                 "[%.3f ms] search_count %s: domain=%s, limit=%s -> %d",
-                (_t_end - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
                 str(domain)[:200],
                 limit,
                 count,
             )
-        if _agg and (p := self.env.transaction._orm_profiler):
-            p.record_search(self._name, count, _t_end - _t0)
+        if prof.agg and (p := self.env.transaction._orm_profiler):
+            p.record_search(self._name, count, prof.elapsed)
 
         return count
 
@@ -141,59 +126,54 @@ class SearchMixin:
         :returns: at most ``limit`` records matching the search criteria
         :raise AccessError: if user is not allowed to access requested information
         """
-        _debug = _orm_read.isEnabledFor(logging.DEBUG)
-        _agg = _orm_profiling_enabled
-        if _debug or _agg:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_read)
 
         # first determine a query that satisfies the domain and access rules
         query = self._search(
             domain, offset=offset, limit=limit, order=order or self._order
         )
-        if _debug:
-            _t_search = time.perf_counter()
+        prof.mark("search")
 
         if query.is_empty():
             # optimization: don't execute the query at all
             if not self.env.su:  # check access to fields
                 self._determine_fields_to_fetch(field_names)
-            if _debug:
+            prof.stop()
+            if prof.debug:
                 _orm_read.debug(
                     "[%.3f ms] search_fetch %s: domain=%s -> 0 records (empty query)"
                     " | search=%.1f",
-                    (time.perf_counter() - _t0) * 1000,
+                    prof.elapsed * 1000,
                     self._name,
                     str(domain)[:200],
-                    (_t_search - _t0) * 1000,
+                    prof.ms("start", "search"),
                 )
-            if _agg and (p := self.env.transaction._orm_profiler):
-                p.record_search(self._name, 0, time.perf_counter() - _t0)
+            if prof.agg and (p := self.env.transaction._orm_profiler):
+                p.record_search(self._name, 0, prof.elapsed)
             return self.browse()
 
         fields_to_fetch = self._determine_fields_to_fetch(field_names)
-        if _debug:
-            _t_fields = time.perf_counter()
+        prof.mark("fields")
 
         result = self._fetch_query(query, fields_to_fetch)
 
-        if _debug or _agg:
-            _t_end = time.perf_counter()
-        if _debug:
+        prof.stop()
+        if prof.debug:
             _orm_read.debug(
                 "[%.3f ms] search_fetch %s: domain=%s, offset=%d, limit=%s -> %d records"
                 " | search=%.1f fields=%.1f fetch=%.1f",
-                (_t_end - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
                 str(domain)[:200],
                 offset,
                 limit,
                 len(result),
-                (_t_search - _t0) * 1000,
-                (_t_fields - _t_search) * 1000,
-                (_t_end - _t_fields) * 1000,
+                prof.ms("start", "search"),
+                prof.ms("search", "fields"),
+                prof.ms("fields", "end"),
             )
-        if _agg and (p := self.env.transaction._orm_profiler):
-            p.record_search(self._name, len(result), _t_end - _t0)
+        if prof.agg and (p := self.env.transaction._orm_profiler):
+            p.record_search(self._name, len(result), prof.elapsed)
 
         return result
 
@@ -453,15 +433,12 @@ class SearchMixin:
         :param bypass_access: whether to skip model permission and record-rule
             checks
         """
-        _debug = _orm_read.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_read)
 
         check_access = not (self.env.su or bypass_access)
         if check_access:
             self.browse().check_access("read")
-        if _debug:
-            _t_acl = time.perf_counter()
+        prof.mark("acl")
 
         domain = Domain(domain)
         # exclude inactive records unless the domain mentions the active field
@@ -481,16 +458,14 @@ class SearchMixin:
         if domain.is_false():
             return self.browse()._as_query()
 
-        # Backend dispatch: DictBackend or PostgreSQL
-        storage = self.env.transaction.storage
-        if storage is not None:
-            return self._search_storage(domain, offset, limit, order, storage)
+        # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
+        if (backend := self.env.backend) is not None:
+            return backend.search(self, domain, offset, limit, order)
 
         query = Query(self.env, self._table, self._table_sql)
         if not domain.is_true():
             query.add_where(domain._to_sql(self, self._table, query))
-        if _debug:
-            _t_domain = time.perf_counter()
+        prof.mark("domain")
 
         # security access domain
         if check_access:
@@ -501,8 +476,7 @@ class SearchMixin:
                 return self.browse()._as_query()
             if not sec_domain.is_true():
                 query.add_where(sec_domain._to_sql(self_sudo, self._table, query))
-        if _debug:
-            _t_rules = time.perf_counter()
+        prof.mark("rules")
 
         # add order and limits
         if order:
@@ -515,97 +489,17 @@ class SearchMixin:
         if offset is not None:
             query.offset = offset
 
-        if _debug:
-            _t_end = time.perf_counter()
+        prof.stop()
+        if prof.debug:
             _orm_read.debug(
                 "[%.3f ms] _search %s | acl=%.1f domain=%.1f rules=%.1f query=%.1f",
-                (_t_end - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
-                (_t_acl - _t0) * 1000,
-                (_t_domain - _t_acl) * 1000,
-                (_t_rules - _t_domain) * 1000,
-                (_t_end - _t_rules) * 1000,
+                prof.ms("start", "acl"),
+                prof.ms("acl", "domain"),
+                prof.ms("domain", "rules"),
+                prof.ms("rules", "end"),
             )
-        return query
-
-    def _search_storage(
-        self,
-        domain: Domain,
-        offset: int,
-        limit: int | None,
-        order: str | None,
-        storage: typing.Any,
-    ) -> Query:
-        """Evaluate ``domain`` against DictBackend using Python predicates.
-
-        Fetches all record IDs from storage, loads values into cache, then
-        evaluates the domain in pure Python via ``filtered_domain()``.
-
-        :return: a :class:`Query` with ``_ids`` set to matching record IDs
-        """
-        # Flush pending writes first.  The PostgreSQL path flushes implicitly in
-        # execute_query; the in-memory path must do it explicitly, else step 2
-        # would overwrite dirty cache values from stale storage rows.
-        self.env.flush_all()
-
-        all_ids = storage.table_ids(self._table)
-        if not all_ids:
-            return self.browse()._as_query(ordered=False)
-
-        # Load storage values into cache, batched by field to avoid per-record
-        # browse() allocations and per-cell method overhead.
-        all_records = self.browse(all_ids)
-        rows = storage.get_rows(self._table, all_ids)
-
-        # Pre-resolve storable fields and their cache dicts once.  For
-        # context-dependent fields, _get_cache() needs env.company, which may be
-        # absent in DictBackend tests; use field_data() directly otherwise.
-        env = self.env
-        fields_meta = self._fields
-        _fdc = env._field_depends_context
-        storable: list[tuple] = []  # (fname, field, field_cache)
-        # Use a single sentinel browse record for convert_to_cache calls.
-        sentinel = self.browse(all_ids[0]) if all_ids else self.browse()
-        for fname, field in fields_meta.items():
-            if fname != "id" and field.store and field.column_type:
-                if field not in _fdc:
-                    storable.append((fname, field, env._core.field_data(field)))
-                else:
-                    # cache_key may fail to resolve when the env is not fully
-                    # seeded (DictBackend tests).  Narrow the catch so genuine
-                    # _get_cache / cache_key bugs surface instead of silenced.
-                    try:
-                        storable.append((fname, field, field._get_cache(env)))
-                    except (KeyError, AttributeError, TypeError) as e:
-                        _logger.debug(
-                            "DictBackend cache load skipped %s.%s: %s",
-                            self._name, fname, e,
-                        )
-
-        # Batch-load directly into cache dicts (fields outer, records inner).
-        for fname, field, field_cache in storable:
-            convert = field.convert_to_cache
-            for record_id in all_ids:
-                row = rows.get(record_id)
-                if row is not None and fname in row:
-                    field_cache[record_id] = convert(row[fname], sentinel)
-
-        if not domain.is_true():
-            matching = all_records.filtered_domain(domain)
-        else:
-            matching = all_records
-
-        if order:
-            matching = matching.sorted(key=order)
-
-        ids = matching._ids
-        if offset:
-            ids = ids[offset:]
-        if limit is not None and limit is not False:
-            ids = ids[:limit]
-
-        query = Query(self.env, self._table, self._table_sql)
-        query._ids = tuple(ids)
         return query
 
     def _as_query(self, ordered: bool = True) -> Query:
@@ -614,11 +508,9 @@ class SearchMixin:
 
         :param ordered: whether the recordset order must be enforced by the query
         """
-        # DictBackend: set _ids directly — skip SQL unnest
-        if self.env.transaction.storage is not None:
-            query = Query(self.env, self._table, self._table_sql)
-            query._ids = tuple(self._ids)
-            return query
+        # In-memory backend sets _ids directly — skip SQL unnest.
+        if (backend := self.env.backend) is not None:
+            return backend.as_query(self, ordered)
         query = Query(self.env, self._table, self._table_sql)
         query.set_result_ids(self._ids, ordered)
         return query
@@ -737,10 +629,9 @@ class SearchMixin:
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if not ids:
             return self
-        # DictBackend: check storage directly — no SQL needed
-        storage = self.env.transaction.storage
-        if storage is not None:
-            valid_ids = {*storage.contains_ids(self._table, ids), *new_ids}
+        # In-memory backend checks storage directly — no SQL needed.
+        if (backend := self.env.backend) is not None:
+            valid_ids = {*backend.existing_ids(self, ids), *new_ids}
             return self.browse(i for i in self._ids if i in valid_ids)
         query = Query(self.env, self._table, self._table_sql)
         query.add_where(

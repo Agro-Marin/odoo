@@ -365,7 +365,7 @@ class BaseCase(case.TestCase):
     )
     warm = True  # False during warm-up phase (see :func:`warmup`)
 
-    _tests_run_count = int(os.environ.get("ODOO_TEST_FAILURE_RETRIES", 0)) + 1
+    _tests_run_count = int(os.environ.get("ODOO_TEST_FAILURE_RETRIES", "0")) + 1
 
     _registry_patched = False
     _registry_readonly_enabled = True
@@ -473,11 +473,11 @@ class BaseCase(case.TestCase):
             # classmethod isn't re-bound on attribute access, so it would never
             # receive the Session as `s`. A lambda binds and forwards it correctly.
             # pylint: disable=unnecessary-lambda
-            # ruff: noqa: B023 — classmethod passthrough needs the lambda
+
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                lambda s, r, **kw: cls._request_handler(s, r, **kw),
+                lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  # lambda binds the patched Session as `s`
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
@@ -1143,6 +1143,9 @@ class Like:
         self.regex = ".*".join(
             [re.escape(part.strip()) for part in self.pattern.split("...")]
         )
+
+    # A Like instance is equal to many strings, so it has no usable hash key.
+    __hash__ = None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, str):

@@ -22,8 +22,22 @@ regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*$")
 # Match private methods, to prevent their remote invocation
 regex_private = re.compile(r"^(_.*|init)$")
 
+# Manual (custom / Studio) fields and models are created at runtime rather than
+# declared in Python, and are conventionally prefixed with ``x_`` so the ORM can
+# tell them apart from code-defined ones.
+MANUAL_NAME_PREFIX = "x_"
+
 
 # Validation functions
+
+
+def is_manual_name(name: str) -> bool:
+    """Return whether *name* denotes a manual (custom / Studio) field or model.
+
+    Single source of truth for the ``x_`` convention, shared by model setup
+    (``orm.registration``) and the ``ir.model`` / ``ir.model.fields`` API.
+    """
+    return name.startswith(MANUAL_NAME_PREFIX)
 
 
 def check_object_name(name: str) -> bool:
@@ -55,7 +69,11 @@ def check_method_name(name: str) -> None:
 
     :raises AccessError: if *name* matches the private-method pattern.
     """
-    if regex_private.match(name):
+    # Use startswith/equality rather than ``regex_private.match``: ``.`` does not
+    # match a newline and ``$`` matches before a trailing one, so a regex would
+    # let a name like ``"_secret\nx"`` slip through (defense in depth -- such a
+    # name cannot resolve to a real method, but the check must reject it).
+    if name == "init" or name.startswith("_"):
         raise AccessError(
             f"Private methods (such as {name!r}) cannot be called remotely."
         )

@@ -15,9 +15,10 @@ from ...._typing import (
 )
 from ....constants import READ_GROUP_TIME_GRANULARITY
 from ....fields.temporal import Date, Datetime
+from .._model_stubs import _ModelStubs
 
 
-class _ReadGroupFillMixin:
+class _ReadGroupFillMixin(_ModelStubs):
     """Fill empty groups, expand groups, and fill temporal gaps."""
 
     __slots__ = ()
@@ -39,7 +40,7 @@ class _ReadGroupFillMixin:
         self,
         domain: DomainType,
         groupby: str,
-        annoted_aggregates: dict,
+        annotated_aggregates: dict,
         read_group_result: list[dict],
         read_group_order: str | None = None,
     ) -> list[dict]:
@@ -93,7 +94,7 @@ class _ReadGroupFillMixin:
 
         empty_item = {
             name: self._read_group_empty_value(spec)
-            for name, spec in annoted_aggregates.items()
+            for name, spec in annotated_aggregates.items()
         }
 
         result = {}
@@ -125,7 +126,7 @@ class _ReadGroupFillMixin:
         self,
         data: list[dict],
         groupby: list[str],
-        annoted_aggregates: dict,
+        annotated_aggregates: dict,
         fill_from: str | bool = False,
         fill_to: str | bool = False,
         min_groups: int | bool = False,
@@ -187,7 +188,7 @@ class _ReadGroupFillMixin:
 
         :param list data: the data containing groups
         :param list groupby: list of fields being grouped on
-        :param list annoted_aggregates: dict of "<key_name>:<aggregate specification>"
+        :param dict annotated_aggregates: dict of "<key_name>:<aggregate specification>"
         :param str fill_from: (inclusive) start bound, as a date/datetime string
             (``%Y-%m-%d`` or ``%Y-%m-%d %H:%M:%S``)
         :param str fill_to: (inclusive) end bound, same formats as ``fill_from``
@@ -271,7 +272,7 @@ class _ReadGroupFillMixin:
 
         empty_item = {
             name: self._read_group_empty_value(spec)
-            for name, spec in annoted_aggregates.items()
+            for name, spec in annotated_aggregates.items()
         }
         for group in groupby[1:]:
             empty_item[group] = self._read_group_empty_value(group)

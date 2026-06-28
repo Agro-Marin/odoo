@@ -155,19 +155,27 @@ class Index(TableObject):
         super().__init__()
         self._index_definition = definition
 
-    def get_definition(self, registry: Registry) -> str:
+    def _definition_clause(self, registry: Registry) -> str:
+        """Evaluate the (possibly callable) index definition to its SQL clause."""
         if callable(self._index_definition):
-            definition = self._index_definition(registry)
-        else:
-            definition = self._index_definition
-        if not definition:
+            return self._index_definition(registry)
+        return self._index_definition
+
+    def _format_definition(self, clause: str) -> str:
+        if not clause:
             return ""
-        return f"{'UNIQUE ' if self.unique else ''}INDEX {definition}"
+        return f"{'UNIQUE ' if self.unique else ''}INDEX {clause}"
+
+    def get_definition(self, registry: Registry) -> str:
+        return self._format_definition(self._definition_clause(registry))
 
     def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
         conname = self.full_name(model)
-        definition = self.get_definition(model.pool)
+        # Evaluate the definition once: a callable definition must not be invoked
+        # twice (the comment and the index clause would diverge if it is impure).
+        definition_clause = self._definition_clause(model.pool)
+        definition = self._format_definition(definition_clause)
         db_definition, db_comment = sql.index_definition(cr, conname)
         if db_comment == definition or (not db_comment and db_definition):
             # keep when the definition matches the comment in the database, or when
@@ -178,10 +186,6 @@ class Index(TableObject):
             # index exists but its definition may have changed
             sql.drop_index(cr, conname, model._table)
 
-        if callable(self._index_definition):
-            definition_clause = self._index_definition(model.pool)
-        else:
-            definition_clause = self._index_definition
         if not definition_clause:
             # Don't create index with an empty definition
             return

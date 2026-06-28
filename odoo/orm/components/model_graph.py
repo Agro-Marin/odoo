@@ -17,6 +17,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
 
+    from ._protocols import FieldLike
+
+
 # _Collector — lightweight key→tuple mapping
 
 
@@ -81,13 +84,20 @@ class TriggerTree(dict):
     root: Collection
 
     def __init__(self, root: Collection = (), *args: Any, **kwargs: Any) -> None:
+        """Initialize the node with *root* fields and optional subtree entries.
+
+        :param root: fields to recompute when the trigger fires at this node.
+            Remaining arguments seed the ``{edge_field: subtree}`` dict.
+        """
         super().__init__(*args, **kwargs)
         self.root = root
 
     def __bool__(self) -> bool:
+        """Return whether the node has any root fields or subtrees."""
         return bool(self.root or len(self))
 
     def __repr__(self) -> str:
+        """Return a representation showing the root fields and subtree entries."""
         return f"TriggerTree(root={self.root!r}, {super().__repr__()})"
 
     def increase(self, key: Any) -> TriggerTree:
@@ -189,6 +199,7 @@ class ModelGraph:
     )
 
     def __init__(self) -> None:
+        """Initialize all dependency maps and lazy caches empty."""
         # Raw trigger data: {dep_field: {path_tuple: list_of_target_fields}}
         self._triggers: defaultdict[Any, defaultdict[tuple, list]] = defaultdict(
             lambda: defaultdict(list)
@@ -314,30 +325,49 @@ class ModelGraph:
         if field not in triggers:
             return TriggerTree()
 
-        def transitive_triggers(
-            field: Any, prefix: tuple = (), seen: tuple = ()
-        ) -> Iterator[tuple[tuple, list]]:
+        # Walk the transitive closure once in pre-order, accumulating the
+        # de-duplicated target list per full path. ``seen`` holds the current
+        # path's fields to break cycles; it is a set with add/discard rather than
+        # a per-level ``tuple`` copy (``seen + (field,)``), so a chain of depth d
+        # costs O(d) membership tests instead of O(d**2). Targets for a path are
+        # merged before recursing into them, matching the previous traversal's
+        # emission order exactly (relevant when ``_concat_paths`` cancellation
+        # routes a descendant back onto an ancestor's path).
+        collected: dict[tuple, tuple[list, set]] = {}
+        seen: set = set()
+
+        def collect(field: Any, prefix: tuple) -> None:
             if field in seen or field not in triggers:
                 return
+            seen.add(field)
             for path, targets in triggers[field].items():
-                full_path = _concat_paths(prefix, path, self._inverses)
-                yield full_path, targets
+                full_path = _concat_paths(prefix, path)
+                entry = collected.get(full_path)
+                if entry is None:
+                    entry = ([], set())
+                    collected[full_path] = entry
+                root_list, root_set = entry
                 for target in targets:
-                    yield from transitive_triggers(target, full_path, seen + (field,))
+                    if target not in root_set:
+                        root_set.add(target)
+                        root_list.append(target)
+                for target in targets:
+                    collect(target, full_path)
+            seen.discard(field)
 
+        collect(field, ())
+
+        # Materialize the tree from the per-path lists. Building each node's root
+        # once (the dedup happened above, incrementally) avoids the previous
+        # O(n**2) merge that rebuilt ``set(node.root)`` on every emission — quadratic
+        # when many targets land on one node (e.g. a chain of same-model computed
+        # fields all accumulating at the root).
         tree = TriggerTree()
-        for path, targets in transitive_triggers(field):
+        for full_path, (root_list, _root_set) in collected.items():
             current = tree
-            for label in path:
+            for label in full_path:
                 current = current.increase(label)
-            if current.root:
-                # Merge targets, preserving order and deduplicating
-                existing = set(current.root)
-                current.root = list(current.root) + [
-                    t for t in targets if t not in existing
-                ]
-            else:
-                current.root = list(targets)
+            current.root = root_list
 
         self._trigger_trees[field] = tree
         return tree
@@ -355,12 +385,20 @@ class ModelGraph:
         True if *field* has triggers AND (field is relational, or has
         inverses, or any of its dependents are relational / have inverses).
         """
+        if field not in self._triggers:
+            # No dependents → cannot modify relations. Returned *uncached* so
+            # the cache only ever holds fields in ``_triggers`` (a finite,
+            # precomputable set); this is what lets :meth:`freeze` make the
+            # cache complete and the graph truly read-only at runtime. The
+            # membership test is O(1), so not caching the False costs nothing.
+            return False
+
         try:
             return self._modifying_relations[field]
         except KeyError:
             pass
 
-        result = field in self._triggers and bool(
+        result = bool(
             _is_relational(field)
             or self._inverses.get(field, ())
             or any(
@@ -414,14 +452,19 @@ class ModelGraph:
         for dep_field, paths in self._triggers.items():
             for targets in paths.values():
                 for target in targets:
-                    if getattr(target, "store", False) and getattr(
-                        target, "compute", None
-                    ):
+                    # ``store``/``compute`` are guaranteed by the ``FieldLike``
+                    # protocol, so read them directly: a defensive ``getattr``
+                    # would silently mask a missing attribute as "not
+                    # stored-computed" and drop the field from the ordering —
+                    # the exact failure mode the protocol exists to prevent.
+                    if target.store and target.compute:
                         all_targets.add(target)
-                        if dep_field in all_targets or (
-                            getattr(dep_field, "store", False)
-                            and getattr(dep_field, "compute", None)
-                        ):
+                        # A dep_field that is itself stored-computed is also a
+                        # node in the ordering.  (The former `dep_field in
+                        # all_targets or ...` disjunct was dead: `all_targets`
+                        # only ever holds stored-computed fields, so membership
+                        # already implied the store/compute test below.)
+                        if dep_field.store and dep_field.compute:
                             all_targets.add(dep_field)
 
         # Initialize
@@ -467,6 +510,51 @@ class ModelGraph:
 
         return order
 
+    # Freeze — eager cache population for read-only / free-threaded querying
+
+    def freeze(self) -> None:
+        """Eagerly populate the lazy caches, making the graph truly read-only.
+
+        The class contract is that the graph is *static after construction*
+        (see the module docstring), but the trigger-tree, modifying-relations
+        and recompute-order caches are nonetheless filled lazily on first
+        query — so the first read of each *mutates* the process-shared graph.
+        This is not a corruption hazard: on free-threaded CPython (PEP 703)
+        the built-in dict operations involved are individually thread-safe, so
+        concurrent first-reads produce correct results. The cost is *redundant
+        computation* — N threads racing a cold cache each rebuild the same
+        trigger tree before the last write wins (measured ~4x for 40 fields
+        across 24 threads on 3.14t), plus repeated write-last-wins churn on the
+        shared dicts.
+
+        Calling ``freeze()`` once, right after the registry finishes building
+        the trigger graph (see ``Registry._field_triggers``), precomputes every
+        cache entry that runtime queries can produce, so subsequent reads are
+        pure lookups with no rebuild and no mutation. That removes the
+        redundant concurrent work, makes the documented "static after
+        construction" contract literally true, and keeps the read path
+        write-free should a future field type introduce non-atomic
+        mutation-on-read. Concretely, reads become:
+
+        * ``get_field_trigger_tree`` / ``get_dependent_fields`` only write for
+          fields in ``_triggers`` (others return a fresh empty tree, uncached);
+        * ``is_modifying_relations`` only caches fields in ``_triggers`` (others
+          short-circuit to ``False`` uncached);
+        * ``get_trigger_tree`` never writes — it merges already-cached subtrees
+          into a new local tree;
+        * ``recompute_order`` is a single precomputed dict.
+
+        Idempotent. Must be re-run after any cache invalidation
+        (``clear_caches`` / ``reset_triggers`` / ``discard_fields``); the
+        registry does this by re-running it whenever it rebuilds the graph.
+        """
+        for field in self._triggers:
+            # Order matters: prime the trigger tree first so the
+            # ``is_modifying_relations`` traversal of dependents hits the cache.
+            self.get_field_trigger_tree(field)
+            self.is_modifying_relations(field)
+        self.recompute_order  # noqa: B018 — force the single shared order dict
+
     # Direct access — backward-compatible properties
 
     @property
@@ -493,7 +581,7 @@ class ModelGraph:
 # Internal helpers
 
 
-def _concat_paths(seq1: tuple, seq2: tuple, inverses: dict) -> tuple:
+def _concat_paths(seq1: tuple, seq2: tuple) -> tuple:
     """Concatenate two path segments, cancelling m2o→o2m round-trips.
 
     When a many2one field at the end of *seq1* is immediately followed by
@@ -509,20 +597,25 @@ def _concat_paths(seq1: tuple, seq2: tuple, inverses: dict) -> tuple:
             and _field_attr(f1, "model_name") == _field_attr(f2, "comodel_name")
             and _field_attr(f1, "comodel_name") == _field_attr(f2, "model_name")
         ):
-            return _concat_paths(seq1[:-1], seq2[1:], inverses)
+            return _concat_paths(seq1[:-1], seq2[1:])
     return seq1 + seq2
 
 
-def _field_type(field: Any) -> str:
-    """Get the type of a field, supporting both real Field objects and mock objects."""
-    return getattr(field, "type", "")
+def _field_type(field: FieldLike) -> str:
+    """Return the field's type discriminator (e.g. ``"many2one"``)."""
+    return field.type
 
 
 def _field_attr(field: Any, attr: str) -> Any:
-    """Get an attribute from a field, returning None if not present."""
+    """Get an arbitrary field attribute by name, or ``None`` if absent.
+
+    Stays ``Any``/``getattr`` on purpose: it reads attributes *outside* the
+    :class:`FieldLike` contract (``name``, ``inverse_name``, ``comodel_name``)
+    during inverse-pair detection.
+    """
     return getattr(field, attr, None)
 
 
-def _is_relational(field: Any) -> bool:
-    """Check if a field is relational."""
-    return getattr(field, "relational", False)
+def _is_relational(field: FieldLike) -> bool:
+    """Whether the field is relational (has a comodel)."""
+    return field.relational

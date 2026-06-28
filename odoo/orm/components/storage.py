@@ -41,10 +41,16 @@ class DictBackend:
     __slots__ = ("_sequences", "_tables")
 
     def __init__(self) -> None:
+        """Initialize empty tables and per-table id sequences."""
         self._tables: dict[str, dict[int, dict[str, Any]]] = {}
         self._sequences: dict[str, int] = defaultdict(int)
 
     def fetch_rows(self, table: str, ids: list[int], columns: list[str]) -> list[tuple]:
+        """Return a value tuple of *columns* for each of *ids* present in *table*.
+
+        IDs with no row are skipped; each tuple holds the values of *columns*
+        in order.
+        """
         tbl = self._tables.get(table, {})
         result = []
         for id_ in ids:
@@ -56,6 +62,10 @@ class DictBackend:
     def insert_rows(
         self, table: str, columns: list[str], rows: list[tuple]
     ) -> list[int]:
+        """Insert *rows* with auto-incremented IDs, returning the new IDs.
+
+        Each row is a value tuple aligned to *columns* (widths must match).
+        """
         tbl = self._tables.setdefault(table, {})
         new_ids: list[int] = []
         # strict=True so a column/row width mismatch fails loudly rather than
@@ -67,7 +77,7 @@ class DictBackend:
             new_ids.append(id_)
         return new_ids
 
-    def put_rows(self, table: str, rows: "list[dict[str, Any]]") -> None:
+    def put_rows(self, table: str, rows: list[dict[str, Any]]) -> None:
         """Store pre-built row dicts, each of which must contain an ``id`` key.
 
         Overwrites any existing row with the same id and advances the table's id
@@ -79,13 +89,13 @@ class DictBackend:
         for row in rows:
             id_ = row["id"]
             tbl[id_] = row
-            if id_ > seq:
-                seq = id_
+            seq = max(seq, id_)
         self._sequences[table] = seq
 
     def update_rows(
         self, table: str, updates: list[tuple[int, dict[str, Any]]]
     ) -> None:
+        """Apply ``(id, values)`` updates to existing rows; skip unknown IDs."""
         tbl = self._tables.get(table)
         if tbl is None:
             return
@@ -95,7 +105,7 @@ class DictBackend:
                 row.update(values)
 
     def upsert_rows(
-        self, table: str, updates: "list[tuple[int, dict[str, Any]]]"
+        self, table: str, updates: list[tuple[int, dict[str, Any]]]
     ) -> None:
         """Update existing rows, or insert new ones keyed by the given id.
 
@@ -112,6 +122,7 @@ class DictBackend:
                 tbl[id_] = {"id": id_, **values}
 
     def delete_rows(self, table: str, ids: list[int]) -> None:
+        """Delete the given *ids* from *table*, ignoring IDs that are absent."""
         tbl = self._tables.get(table)
         if tbl is None:
             return
@@ -123,8 +134,8 @@ class DictBackend:
         return self._tables.get(table, {}).get(id_)
 
     def get_rows(
-        self, table: str, ids: "list[int]"
-    ) -> "dict[int, dict[str, Any]]":
+        self, table: str, ids: list[int]
+    ) -> dict[int, dict[str, Any]]:
         """Return ``{id: row_dict}`` for the given *ids* that exist.
 
         Batch form of :meth:`get_row` for the search/read paths.
@@ -137,7 +148,7 @@ class DictBackend:
                 result[id_] = row
         return result
 
-    def contains_ids(self, table: str, ids: "list[int]") -> "set[int]":
+    def contains_ids(self, table: str, ids: list[int]) -> set[int]:
         """Return the subset of *ids* present in *table* (for ``exists``)."""
         tbl = self._tables.get(table, {})
         return {id_ for id_ in ids if id_ in tbl}
@@ -159,8 +170,8 @@ class DictBackend:
     ) -> list[int]:
         """Return IDs where ``column <operator> value``.
 
-        Used by InMemoryEnvironment for One2many resolution (find records whose
-        Many2one points at a given target).
+        A simple column-level relational lookup (e.g. find records whose
+        Many2one points at a given target); no SQL, domains, or joins.
 
         >>> backend = DictBackend()
         >>> ids = backend.insert_rows("order", ["partner_id"], [(1,), (2,), (1,)])
@@ -183,6 +194,7 @@ class DictBackend:
         return self._sequences[table]
 
     def __repr__(self) -> str:
+        """Return a debug summary with table and total row counts."""
         n_tables = len(self._tables)
         n_rows = sum(len(t) for t in self._tables.values())
         return f"<DictBackend tables={n_tables} rows={n_rows}>"

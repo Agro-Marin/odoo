@@ -1,13 +1,10 @@
 """Models registries."""
 
-import functools
 import inspect
 import logging
-import os
 import threading
 import time
 import typing
-import warnings
 from collections import defaultdict, deque
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from contextlib import ExitStack, closing, nullcontext
@@ -25,15 +22,16 @@ from odoo.tools import (
     SQL,
     OrderedSet,
     config,
-    lazy_classproperty,
     remove_accents,
     sql,
 )
 from odoo.tools.misc import Collector, format_frame
 
 from .. import registration
-from ..components.model_graph import ModelGraph, TriggerTree
+from ..components.model_graph import ModelGraph
 from ..primitives import SUPERUSER_ID
+from ._registry_fields import _RegistryFieldsMixin
+from ._registry_schema import _RegistrySchemaMixin
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor, Connection, Cursor
@@ -74,6 +72,38 @@ _CACHES_BY_KEY = {
 _REPLICA_RETRY_TIME = 20 * 60  # 20 minutes
 
 
+class _RegistryCaches:
+    """Owns a registry's ormcache LRU stores and their bulk-clear logic.
+
+    A :class:`Registry` holds one of these as ``registry._caches`` (composition,
+    not inheritance). It encapsulates the ``{cache_name: LRU}`` storage and the
+    composite-key clearing (``clear_group`` / ``clear_all``); the thread-local
+    dirty flags, inter-process sequences and signaling stay on ``Registry``.
+
+    The ormcache decorator (:mod:`odoo.tools.cache`) reads the backing LRU for a
+    cache name; ``Registry`` exposes it through the legacy name-mangled
+    ``_Registry__caches`` property (a thin bridge over ``self.lrus``).
+    """
+
+    __slots__ = ("lrus",)
+
+    def __init__(self) -> None:
+        self.lrus: dict[str, LRU] = {
+            cache_name: LRU(cache_size)
+            for cache_name, cache_size in _REGISTRY_CACHES.items()
+        }
+
+    def clear_group(self, cache_name: str) -> None:
+        """Clear every LRU backing the composite cache key ``cache_name``."""
+        for cache in _CACHES_BY_KEY[cache_name]:
+            self.lrus[cache].clear()
+
+    def clear_all(self) -> None:
+        """Clear every LRU store (used on registry reload / model setup)."""
+        for lru in self.lrus.values():
+            lru.clear()
+
+
 def _unaccent(
     x: SQL | str | psycopg_sql.Composable,
 ) -> SQL | str | psycopg_sql.Composed:
@@ -84,7 +114,11 @@ def _unaccent(
     return f"unaccent({x})"
 
 
-class Registry(Mapping[str, type["BaseModel"]]):
+class Registry(
+    _RegistryFieldsMixin,
+    _RegistrySchemaMixin,
+    Mapping[str, type["BaseModel"]],
+):
     """Model registry for a database: a mapping of model names to model classes.
 
     One registry instance per database.
@@ -92,26 +126,8 @@ class Registry(Mapping[str, type["BaseModel"]]):
 
     _lock: threading.RLock | DummyRLock = threading.RLock()
 
-    @lazy_classproperty
-    def registries(self) -> LRU[str, Registry]:
-        """A mapping from database names to registries."""
-        size = config.get("registry_lru_size", None)
-        if not size:
-            # Size the LRU depending of the memory limits
-            if os.name != "posix":
-                # cannot specify the memory limit soft on windows...
-                size = 42
-            else:
-                # A registry takes 10MB of memory on average, so we reserve
-                # 10Mb (registry) + 5Mb (working memory) per registry
-                avgsz = 15 * 1024 * 1024
-                limit_memory_soft = (
-                    config["limit_memory_soft"]
-                    if config["limit_memory_soft"] > 0
-                    else (2048 * 1024 * 1024)
-                )
-                size = (limit_memory_soft // avgsz) or 1
-        return LRU(size)
+    registries = LRU[str, "Registry"](42)  # random default value
+    """A mapping from database names to registries."""
 
     def __new__(cls, db_name: str):
         """Return the registry for the given database name."""
@@ -165,7 +181,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         t0 = time.time()
         registry: Registry = object.__new__(cls)
         registry.init(db_name)
-        registry.new = registry.init = registry.registries = None  # type: ignore
+        registry.new = registry.init = registry.registries = None  # type: ignore[assignment, method-assign]
         first_registry = not cls.registries
 
         # init calls general code that calls Registry() back to get the registry
@@ -233,6 +249,19 @@ class Registry(Mapping[str, type["BaseModel"]]):
         registry.ready = True
         registry.registry_invalidated = bool(update_module)
 
+        # Build the field-dependency caches now, single-threaded under the setup
+        # lock (`new` is @locked), instead of lazily on first request. These are
+        # functools.cached_property builds whose compute mutates the shared
+        # model_graph (reset_triggers → add_trigger loop → freeze); since
+        # cached_property has had no internal lock since Py 3.12, leaving them
+        # lazy lets the first concurrent request threads double-compute and race
+        # the shared graph — timing-dependent under the GIL, but a reliable
+        # "RuntimeError: dictionary changed size during iteration" on a
+        # free-threaded build. Accessing `_field_triggers` also forces
+        # field_inverses/field_computed and ModelGraph.freeze(). Mirrors what
+        # ModelTestEnv already does in its own setup.
+        registry._field_triggers  # noqa: B018 — eager build for thread-safety
+
         # After module upgrades, idle pooled connections may hold
         # stale prepared statement caches referencing old schema.
         # drain() replaces them with freshly configured connections.
@@ -253,7 +282,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         self.models: dict[
             str, type[BaseModel]
         ] = {}  # model name/model instance mapping
-        self._sql_constraints = set()  # type: ignore
+        self._sql_constraints = set()  # type: ignore[var-annotated]
         self._database_translated_fields: dict[
             str, str
         ] = {}  # {"model.field": "translate_func"} for translated db fields
@@ -270,10 +299,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         self._constraint_queue: dict[
             typing.Any, Callable[[BaseCursor], None]
         ] = {}  # queue of functions to call on finalization of constraints
-        self.__caches: dict[str, LRU] = {
-            cache_name: LRU(cache_size)
-            for cache_name, cache_size in _REGISTRY_CACHES.items()
-        }
+        self._caches = _RegistryCaches()
 
         # update context during loading modules
         self._force_upgrade_scripts: set[str] = (
@@ -337,7 +363,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
             self.has_unaccent = modules_db.has_unaccent(cr)
             self.has_trigram = modules_db.has_trigram(cr)
 
-        self.unaccent = _unaccent if self.has_unaccent else lambda x: x  # type: ignore
+        self.unaccent = _unaccent if self.has_unaccent else lambda x: x  # type: ignore[return-value]
         self.unaccent_python = remove_accents if self.has_unaccent else lambda x: x
 
     @classmethod
@@ -353,8 +379,17 @@ class Registry(Mapping[str, type["BaseModel"]]):
         """Delete all the registries."""
         cls.registries.clear()
 
-    # Mapping abstract methods; the mixin provides keys, items, values, get,
-    # __eq__, __ne__.
+    # A registry is a per-database singleton, so equality is identity. Override
+    # the content-based ``Mapping.__eq__``/``__ne__`` (which would materialise
+    # ``dict(self)`` over every model -- O(N) -- and leave the registry
+    # unhashable because ``Mapping.__hash__ is None``). Identity semantics make
+    # ``registry is/is not other`` and ``!=`` cheap and keep the object usable as
+    # a dict/set key. (Cf. ``Environment``, which does the same.)
+    __eq__ = object.__eq__
+    __ne__ = object.__ne__
+    __hash__ = object.__hash__
+
+    # Mapping abstract methods; the mixin provides keys, items, values, get.
     def __len__(self) -> int:
         """Return the size of the registry."""
         return len(self.models)
@@ -415,8 +450,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         from .. import models
 
         # clear cache to ensure consistency, but do not signal it
-        for cache in self.__caches.values():
-            cache.clear()
+        self._caches.clear_all()
 
         reset_cached_properties(self)
         self.model_graph.clear_caches()
@@ -454,8 +488,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 model._unregister_hook()
 
         # clear cache to ensure consistency, but do not signal it
-        for cache in self.__caches.values():
-            cache.clear()
+        self._caches.clear_all()
 
         reset_cached_properties(self)
         self.model_graph.clear_caches()
@@ -521,6 +554,14 @@ class Registry(Mapping[str, type["BaseModel"]]):
 
                     models_field_depends_done.discard(model_cls)
 
+                elif model_cls._setup_done__ and field.related and field.manual:
+                    # manually-added related field (e.g. added via Studio) that has
+                    # no _base_fields__ so it cannot be partially reset; mark the
+                    # whole model for full re-setup so that setup_model_classes()
+                    # recreates the field pointing to the updated target field
+                    model_cls._setup_done__ = False
+                    models_field_depends_done.discard(model_cls)
+
                 # partial invalidation of field_depends[_context]
                 self.field_depends.pop(field, None)
                 self.field_depends_context.pop(field, None)
@@ -552,222 +593,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 model._register_hook()
             env.flush_all()
 
-    @property
-    def field_depends(self) -> typing.Any:
-        """Field dependencies — delegates to model_graph (single source of truth)."""
-        return self.model_graph._depends
-
-    @property
-    def field_depends_context(self) -> typing.Any:
-        """Context dependencies — delegates to model_graph (single source of truth)."""
-        return self.model_graph._depends_context
-
-    @functools.cached_property
-    def field_inverses(self) -> Collector[Field, Field]:
-        result = Collector()
-        for model_cls in self.models.values():
-            for field in model_cls._fields.values():
-                if field.relational:
-                    field.setup_inverses(self, result)
-        self.model_graph._inverses = result
-        return result
-
-    @functools.cached_property
-    def field_computed(self) -> dict[Field, list[Field]]:
-        """Return a dict mapping each field to the fields computed by the same method."""
-        computed: dict[Field, list[Field]] = {}
-        for model_name, Model in self.models.items():
-            groups: defaultdict[Field, list[Field]] = defaultdict(list)
-            for field in Model._fields.values():
-                if field.compute:
-                    computed[field] = group = groups[field.compute]
-                    group.append(field)
-            for fields in groups.values():
-                if len(fields) < 2:
-                    continue
-                if len({field.compute_sudo for field in fields}) > 1:
-                    fnames = ", ".join(field.name for field in fields)
-                    warnings.warn(
-                        f"{model_name}: inconsistent 'compute_sudo' for computed fields {fnames}. "
-                        f"Either set 'compute_sudo' to the same value on all those fields, or "
-                        f"use distinct compute methods for sudoed and non-sudoed fields.",
-                        stacklevel=1,
-                    )
-                if len({field.precompute for field in fields}) > 1:
-                    fnames = ", ".join(field.name for field in fields)
-                    warnings.warn(
-                        f"{model_name}: inconsistent 'precompute' for computed fields {fnames}. "
-                        f"Either set all fields as precompute=True (if possible), or "
-                        f"use distinct compute methods for precomputed and non-precomputed fields.",
-                        stacklevel=1,
-                    )
-                if len({field.store for field in fields}) > 1:
-                    fnames1 = ", ".join(
-                        field.name for field in fields if not field.store
-                    )
-                    fnames2 = ", ".join(field.name for field in fields if field.store)
-                    warnings.warn(
-                        f"{model_name}: inconsistent 'store' for computed fields, "
-                        f"accessing {fnames1} may recompute and update {fnames2}. "
-                        f"Use distinct compute methods for stored and non-stored fields.",
-                        stacklevel=1,
-                    )
-        self.model_graph._computed = computed
-        return computed
-
-    @functools.cached_property
-    def field_fk_refs(self) -> dict[str, list[tuple]]:
-        """Return a mapping from model_name to the Many2one fields on other
-        models that reference it via a real foreign key, together with their
-        ``ondelete`` policy.
-
-        ``{target_model: [(m2o_field, ondelete), ...]}``
-
-        Company-dependent fields are excluded (JSONB, no PG FK constraint).
-        Used by :meth:`~odoo.orm.models.mixins.crud.CrudMixin.unlink` for
-        targeted cache invalidation after DELETE.
-        """
-        refs: dict[str, list[tuple]] = defaultdict(list)
-        for Model in self.models.values():
-            if Model._abstract:
-                continue
-            for field in Model._fields.values():
-                if (
-                    field.type == "many2one"
-                    and field.is_column
-                    and not field.company_dependent
-                ):
-                    refs[field.comodel_name].append(
-                        (field, field.ondelete or "set null")
-                    )
-        return dict(refs)
-
-    def get_trigger_tree(
-        self, fields: list[Field], select: Callable[[Field], bool] = bool
-    ) -> TriggerTree:
-        """Return the trigger tree to traverse when ``fields`` have been modified.
-
-        ``select`` is called on each field to choose which fields to keep in the
-        tree nodes. Delegates to ``model_graph``.
-        """
-        self._field_triggers  # noqa: B018 — ensure trigger data is computed
-        return self.model_graph.get_trigger_tree(fields, select)
-
-    def get_dependent_fields(self, field: Field) -> Iterator[Field]:
-        """Return an iterable on the fields that depend on ``field``.
-
-        Delegates to ``model_graph``.
-        """
-        self._field_triggers  # noqa: B018 — ensure trigger data is computed
-        return self.model_graph.get_dependent_fields(field)
-
-    def _discard_fields(self, fields: list[Field]) -> None:
-        """Discard the given fields from the registry's internal data structures."""
-        for f in fields:
-            # tests usually don't reload the registry, so when they create
-            # custom fields those may not have the entire dependency setup, and
-            # may be missing from these maps
-            self.field_depends.pop(f, None)
-
-        # Invalidate every field-derived cached_property so each rebuilds on next
-        # access. ``_field_triggers`` reads ``field_inverses``/``field_computed``,
-        # so stale caches there would feed it bad data; ``field_fk_refs`` isn't
-        # touched by ``model_graph.discard_fields`` and would otherwise keep the
-        # discarded fields.
-        for _prop in ("_field_triggers", "field_inverses", "field_computed", "field_fk_refs"):
-            self.__dict__.pop(_prop, None)
-
-        # discard from model_graph's data structures (inverses, triggers,
-        # computed, depends) and clear its trigger tree caches
-        self.model_graph.discard_fields(fields)
-
-    def get_field_trigger_tree(self, field: Field) -> TriggerTree:
-        """Return a field's trigger tree (transitive closure of field triggers).
-
-        Delegates to ``model_graph``, which handles the closure, path
-        simplification (m2o→o2m cancellation), and caching.
-        """
-        self._field_triggers  # noqa: B018 — ensure trigger data is computed
-        return self.model_graph.get_field_trigger_tree(field)
-
-    @functools.cached_property
-    def _field_triggers(self) -> dict:
-        """Return the field triggers (the inverse of field dependencies) as
-        ``{field: {path: fields}}``: ``field`` is a dependency, ``path`` is the
-        sequence of fields to inverse, and ``fields`` depend on ``field``.
-
-        Built incrementally into ``model_graph`` via its ``add_trigger`` API.
-        """
-        # Reset and rebuild triggers incrementally into model_graph
-        self.model_graph.reset_triggers()
-
-        for Model in self.models.values():
-            if Model._abstract:
-                continue
-            for field in Model._fields.values():
-                try:
-                    dependencies = list(field.resolve_depends(self))
-                except Exception:
-                    # dependencies of custom fields may not exist; ignore that case
-                    if not field.base_field.manual:
-                        raise
-                else:
-                    for dependency in dependencies:
-                        *path, dep_field = dependency
-                        self.model_graph.add_trigger(
-                            dep_field, tuple(reversed(path)), [field]
-                        )
-
-        # Ensure lazy properties (field_inverses, field_computed) are built
-        # and stored into model_graph (via their cached_property side effects).
-        self.field_inverses  # noqa: B018 — trigger lazy build
-        self.field_computed  # noqa: B018 — trigger lazy build
-
-        return self.model_graph._triggers
-
-    def is_modifying_relations(self, field: Field) -> bool:
-        """Return whether ``field`` has dependent fields on some records, and
-        that modifying ``field`` might change the dependent records.
-
-        Delegates to ``model_graph``.
-        """
-        self._field_triggers  # noqa: B018 — ensure trigger data is computed
-        return self.model_graph.is_modifying_relations(field)
-
     def post_init(self, func: Callable, *args, **kwargs) -> None:
         """Register a function to call at the end of :meth:`~.init_models`."""
         self._post_init_queue.append(partial(func, *args, **kwargs))
-
-    def post_constraint(
-        self, cr: BaseCursor, func: Callable[[BaseCursor], None], key
-    ) -> None:
-        """Call the given function, and delay it if it fails during an upgrade."""
-        try:
-            if key not in self._constraint_queue:
-                # skip if already queued: module A may fail to apply a constraint
-                # and module B (inheriting A) reapply it successfully; running
-                # the queued one again at end of cycle would fail on the
-                # already-existing constraint.
-                with cr.savepoint(flush=False):
-                    func(cr)
-        except Exception as e:
-            if self._is_install:
-                _schema.error(*e.args)
-            else:
-                _schema.info(*e.args)
-                self._constraint_queue[key] = func
-
-    def finalize_constraints(self, cr: Cursor) -> None:
-        """Call the delayed functions from above."""
-        for func in self._constraint_queue.values():
-            try:
-                with cr.savepoint(flush=False):
-                    func(cr)
-            except Exception as e:
-                # warn only, this is not a deployment showstopper, and
-                # can sometimes be a transient error
-                _schema.warning(*e.args)
-        self._constraint_queue.clear()
 
     def init_models(
         self,
@@ -837,213 +665,26 @@ class Registry(Mapping[str, type["BaseModel"]]):
             del self._foreign_keys
             del self._is_install
 
-    def check_null_constraints(self, cr: Cursor) -> None:
-        """Check that all not-null constraints are set."""
-        cr.execute("""
-            SELECT c.relname, a.attname
-            FROM pg_attribute a
-            JOIN pg_class c ON a.attrelid = c.oid
-            JOIN pg_namespace n ON c.relnamespace = n.oid
-            WHERE n.nspname = current_schema
-            AND a.attnotnull = true
-            AND a.attnum > 0
-            AND a.attname != 'id';
-        """)
-        not_null_columns = set(cr.fetchall())
+    def _clear_cache_group(self, cache_name: str) -> None:
+        """Clear every ormcache grouped under the composite ``cache_name``.
 
-        self.not_null_fields.clear()
-        for Model in self.models.values():
-            if Model._auto and not Model._abstract:
-                for field_name, field in Model._fields.items():
-                    if field_name == "id":
-                        self.not_null_fields.add(field)
-                        continue
-                    if field.column_type and field.store and field.required:
-                        if (Model._table, field_name) in not_null_columns:
-                            self.not_null_fields.add(field)
-                        else:
-                            _schema.warning("Missing not-null constraint on %s", field)
-
-    def check_indexes(self, cr: Cursor, model_names: Iterable[str]) -> None:
-        """Create or drop column indexes for the given models."""
-
-        expected = [
-            (sql.make_index_name(Model._table, field.name), Model._table, field)
-            for model_name in model_names
-            for Model in [self.models[model_name]]
-            if Model._auto and not Model._abstract
-            for field in Model._fields.values()
-            if field.column_type and field.store
-        ]
-        if not expected:
-            return
-
-        # retrieve existing indexes with their corresponding table
-        cr.execute(
-            "SELECT indexname, tablename FROM pg_indexes WHERE indexname = ANY(%s)",
-            [[row[0] for row in expected]],
-        )
-        existing = dict(cr.fetchall())
-
-        for indexname, tablename, field in expected:
-            index = field.index
-            assert index in (
-                "btree",
-                "btree_not_null",
-                "trigram",
-                True,
-                False,
-                None,
-            )
-            if index and indexname not in existing:
-                if index == "trigram" and not self.has_trigram:
-                    # Ignore if trigram index is not supported
-                    continue
-                if field.translate and index != "trigram":
-                    _schema.warning(
-                        f"Index attribute on {field!r} ignored, only trigram index is supported for translated fields"
-                    )
-                    continue
-
-                column_expression = f'"{field.name}"'
-                if index == "trigram":
-                    if field.translate:
-                        column_expression = f"""(jsonb_path_query_array({column_expression}, '$.*')::text)"""
-                    # add `unaccent` to the trigram index only because the
-                    # trigram indexes are mainly used for (=)ilike search and
-                    # unaccent is added only in these cases when searching
-                    from odoo.modules.db import FunctionStatus
-
-                    if self.has_unaccent == FunctionStatus.INDEXABLE:
-                        column_expression = self.unaccent(column_expression)
-                    elif self.has_unaccent:
-                        warnings.warn(
-                            "PostgreSQL function 'unaccent' is present but not immutable, "
-                            "therefore trigram indexes may not be effective.",
-                            stacklevel=1,
-                        )
-                    expression = f"{column_expression} gin_trgm_ops"
-                    method = "gin"
-                    where = ""
-                elif index == "btree_not_null" and field.company_dependent:
-                    # company dependent condition will use extra
-                    # `AND col IS NOT NULL` to use the index.
-                    expression = f"({column_expression} IS NOT NULL)"
-                    method = "btree"
-                    where = f"{column_expression} IS NOT NULL"
-                else:  # index in ['btree', 'btree_not_null', True]
-                    expression = f"{column_expression}"
-                    method = "btree"
-                    where = (
-                        f"{column_expression} IS NOT NULL"
-                        if index == "btree_not_null"
-                        else ""
-                    )
-                try:
-                    with cr.savepoint(flush=False):
-                        sql.create_index(
-                            cr,
-                            indexname,
-                            tablename,
-                            [expression],
-                            method,
-                            where,
-                        )
-                except psycopg.OperationalError:
-                    _schema.error("Unable to add index %r for %s", indexname, self)
-
-            elif not index and tablename == existing.get(indexname):
-                _schema.info(
-                    "Keep unexpected index %s on table %s", indexname, tablename
-                )
-
-    def add_foreign_key(
-        self,
-        table1: str,
-        column1: str,
-        table2: str,
-        column2: str,
-        ondelete: str,
-        model: BaseModel,
-        module: str,
-        force: bool = True,
-    ) -> None:
-        """Specify an expected foreign key."""
-        key = (table1, column1)
-        val = (table2, column2, ondelete, model, module)
-        if force:
-            self._foreign_keys[key] = val
-        else:
-            self._foreign_keys.setdefault(key, val)
-
-    def check_foreign_keys(self, cr: Cursor) -> None:
-        """Create or update the expected foreign keys."""
-        if not self._foreign_keys:
-            return
-
-        # determine existing foreign keys on the tables
-        tablenames = {table for table, column in self._foreign_keys}
-        existing = {
-            (table1, column1): (name, table2, column2, deltype)
-            for name, table1, column1, table2, column2, deltype in sql.get_fk_constraints_batch(
-                cr, tablenames
-            )
-        }
-
-        # create or update foreign keys
-        for key, val in self._foreign_keys.items():
-            table1, column1 = key
-            table2, column2, ondelete, model, module = val
-            deltype = sql._CONFDELTYPES[ondelete.upper()]
-            spec = existing.get(key)
-            if spec is None:
-                sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
-                conname = sql.get_foreign_keys(
-                    cr, table1, column1, table2, column2, ondelete
-                )[0]
-                model.env["ir.model.constraint"]._reflect_constraint(
-                    model, conname, "f", None, module
-                )
-            elif (spec[1], spec[2], spec[3]) != (table2, column2, deltype):
-                sql.drop_constraint(cr, table1, spec[0])
-                sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
-                conname = sql.get_foreign_keys(
-                    cr, table1, column1, table2, column2, ondelete
-                )[0]
-                model.env["ir.model.constraint"]._reflect_constraint(
-                    model, conname, "f", None, module
-                )
-
-    def check_tables_exist(self, cr: Cursor) -> None:
+        The single place that maps a composite key to its underlying caches and
+        clears them; callers layer their own invalidation bookkeeping on top.
+        ``check_signaling`` does not use this — it must skip caches it already
+        cleared this pass (see there).
         """
-        Verify that all tables are present and try to initialize those that are missing.
+        self._caches.clear_group(cache_name)
+
+    @property
+    def __caches(self) -> dict[str, LRU]:
+        """Legacy bridge: the raw ``{cache_name: LRU}`` mapping.
+
+        Exposed as the name-mangled ``registry._Registry__caches`` that the
+        ormcache decorator (:mod:`odoo.tools.cache`) and a few tests read
+        directly. The storage itself lives on :class:`_RegistryCaches`
+        (``self._caches``); prefer ``registry._caches.lrus`` in new code.
         """
-        from .environment import Environment
-
-        env = Environment(cr, SUPERUSER_ID, {})
-        table2model = {
-            model._table: name
-            for name, model in env.registry.items()
-            if not model._abstract and not model._table_query
-        }
-        missing_tables = set(table2model).difference(
-            sql.existing_tables(cr, table2model)
-        )
-
-        if missing_tables:
-            missing = {table2model[table] for table in missing_tables}
-            _logger.info("Models have no table: %s.", ", ".join(missing))
-            # recreate missing tables
-            for name in missing:
-                _logger.info("Recreate table of model %s.", name)
-                env[name].init()
-            env.flush_all()
-            # check again, and log errors if tables are still missing
-            missing_tables = set(table2model).difference(
-                sql.existing_tables(cr, table2model)
-            )
-            for table in missing_tables:
-                _logger.error("Model %s has no table.", table2model[table])
+        return self._caches.lrus
 
     def clear_cache(self, *cache_names: str) -> None:
         """Clear the caches associated to methods decorated with
@@ -1058,14 +699,13 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     f"clear_cache: invalid cache name {cache_name!r} (no dots allowed)"
                 )
         for cache_name in cache_names:
-            for cache in _CACHES_BY_KEY[cache_name]:
-                self.__caches[cache].clear()
+            self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
 
         if _logger.isEnabledFor(logging.DEBUG):
             # debug, not info: would need to minimize invalidation first
             # (mainly in some setUpClass and crons)
-            caller_info = format_frame(inspect.currentframe().f_back)  # type: ignore
+            caller_info = format_frame(inspect.currentframe().f_back)  # type: ignore[arg-type, union-attr]
             _logger.debug(
                 "Invalidating %s model caches from %s",
                 ",".join(cache_names),
@@ -1076,32 +716,13 @@ class Registry(Mapping[str, type["BaseModel"]]):
         """Clear the caches associated to methods decorated with
         ``tools.ormcache``.
         """
-        for cache_name, caches in _CACHES_BY_KEY.items():
-            for cache in caches:
-                self.__caches[cache].clear()
+        for cache_name in _CACHES_BY_KEY:
+            self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
 
-        caller_info = format_frame(inspect.currentframe().f_back)  # type: ignore
+        caller_info = format_frame(inspect.currentframe().f_back)  # type: ignore[arg-type, union-attr]
         log = _logger.info if self.loaded else _logger.debug
         log("Invalidating all model caches from %s", caller_info)
-
-    def is_an_ordinary_table(self, model: BaseModel) -> bool:
-        """Return whether the given model has an ordinary table."""
-        if self._ordinary_tables is None:
-            cr = model.env.cr
-            query = """
-                SELECT c.relname
-                  FROM pg_class c
-                  JOIN pg_namespace n ON (n.oid = c.relnamespace)
-                 WHERE c.relname = ANY(%s)
-                   AND c.relkind = 'r'
-                   AND n.nspname = current_schema
-            """
-            tables = [m._table for m in self.models.values()]
-            cr.execute(query, [tables])
-            self._ordinary_tables = {row[0] for row in cr.fetchall()}
-
-        return model._table in self._ordinary_tables
 
     @property
     def registry_invalidated(self) -> bool:
@@ -1204,11 +825,18 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     # upgrading worker, so drain here to get fresh connections.
                     from odoo.db import drain_db
 
+                    old_sequence = self.registry_sequence
                     drain_db(self.db_name)
                     self = Registry.new(self.db_name)
-                    self.registry_sequence = db_registry_sequence
+                    # Registry.new() -> setup_signaling() already set
+                    # registry_sequence from a fresh DB read, which is at least
+                    # as new as the db_registry_sequence read at the top of this
+                    # method. Do NOT overwrite it with that staler value: under a
+                    # concurrent schema bump landing during the rebuild it would
+                    # regress the sequence and force a redundant reload next
+                    # request.
                     if _logger.isEnabledFor(logging.DEBUG):
-                        changes += f"[Registry - {self.registry_sequence} -> {db_registry_sequence}]"
+                        changes += f"[Registry - {old_sequence} -> {self.registry_sequence}]"
                 # Check if the model caches must be invalidated.
                 else:
                     invalidated = []
@@ -1223,7 +851,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                             ]:  # don't call clear_cache to avoid signal loop
                                 if cache not in invalidated:
                                     invalidated.append(cache)
-                                    self.__caches[cache].clear()
+                                    self._caches.lrus[cache].clear()
                             self.cache_sequences[cache_name] = expected_sequence
                             if _logger.isEnabledFor(logging.DEBUG):
                                 changes += f"[Cache {cache_name} - {cache_sequence} -> {expected_sequence}]"
@@ -1290,8 +918,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 self.registry_invalidated = False
         if self.cache_invalidated:
             for cache_name in self.cache_invalidated:
-                for cache in _CACHES_BY_KEY[cache_name]:
-                    self.__caches[cache].clear()
+                self._clear_cache_group(cache_name)
             self.cache_invalidated.clear()
 
     def cursor(self, /, readonly: bool = False) -> BaseCursor:

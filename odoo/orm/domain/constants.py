@@ -83,27 +83,18 @@ NEGATIVE_CONDITION_OPERATORS: Final[dict[str, str]] = {
 }
 """Negative-semantic operators mapped to their positive operator."""
 
-# negations for operators (used in DomainNot)
+# negations for operators (used in DomainNot), derived from
+# NEGATIVE_CONDITION_OPERATORS so the two cannot drift: every negative→positive
+# pair plus its reverse. The legacy "<>" alias is skipped when building the
+# reverse so "=" canonicalises to "!=" (not "<>"); "<>"→"=" is kept from the
+# forward map. See test_domain_constants for the locked-in expected mapping.
 INVERSE_OPERATOR: Final[dict[str, str]] = {
-    # from NEGATIVE_CONDITION_OPERATORS
-    "not any": "any",
-    "not any!": "any!",
-    "not in": "in",
-    "not like": "like",
-    "not ilike": "ilike",
-    "not =like": "=like",
-    "not =ilike": "=ilike",
-    "!=": "=",
-    "<>": "=",
-    # positive to negative
-    "any": "not any",
-    "any!": "not any!",
-    "in": "not in",
-    "like": "not like",
-    "ilike": "not ilike",
-    "=like": "not =like",
-    "=ilike": "not =ilike",
-    "=": "!=",
+    **NEGATIVE_CONDITION_OPERATORS,
+    **{
+        positive: negative
+        for negative, positive in NEGATIVE_CONDITION_OPERATORS.items()
+        if negative != "<>"
+    },
 }
 
 INVERSE_INEQUALITY: Final[dict[str, str]] = {

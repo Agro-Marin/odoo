@@ -5,7 +5,6 @@ x2many patches. No dependency on Environment, BaseModel, or cursors — testable
 with pure Python. Keyed by field objects (any hashable) and record IDs.
 """
 
-import collections
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
@@ -31,7 +30,16 @@ class FieldCache:
     __slots__ = ("_data", "_dirty", "_patches")
 
     def __init__(self, dirty_factory: type | None = None) -> None:
+        """Initialize empty data, dirty, and patch maps.
+
+        :param dirty_factory: set-like factory for the dirty-id sets (e.g.
+            ``OrderedSet`` for deterministic flush order); defaults to ``set``.
+        """
         self._data: defaultdict[Any, dict[Any, Any]] = defaultdict(dict)
+        # Invariant: ``_dirty`` never holds an empty set. ``mark_dirty`` skips
+        # empty ids and the pop/invalidate paths remove drained entries, so
+        # ``iter_dirty_fields``/``dirty_models`` never report a field with
+        # nothing to flush.
         self._dirty: defaultdict[Any, set] = defaultdict(dirty_factory or set)
         self._patches: defaultdict[Any, defaultdict[Any, list]] = defaultdict(
             lambda: defaultdict(list)
@@ -59,59 +67,41 @@ class FieldCache:
 
         Raises ``KeyError`` if *default* is not provided and the value is missing.
         """
-        try:
-            return self._data[field][record_id]
-        except KeyError:
-            if default is _MISSING:
-                raise
-            return default
+        # Read via .get() rather than indexing the defaultdict: ``self._data[
+        # field]`` would vivify an empty {} for a never-cached field on every
+        # miss, leaking entries that later inflate iter_field_items/invalidate.
+        field_cache = self._data.get(field)
+        if field_cache is not None:
+            try:
+                return field_cache[record_id]
+            except KeyError:
+                pass
+        if default is _MISSING:
+            raise KeyError(record_id)
+        return default
 
     def has_value(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* has a cached value for *field*."""
         field_cache = self._data.get(field)
         return field_cache is not None and record_id in field_cache
 
-    def insert_if_absent(self, field: Any, ids: Iterable, values: Iterable) -> None:
-        """Set values only for IDs not already cached (bulk ``setdefault``).
-
-        Preserves pending updates by not overwriting existing entries. The
-        ``deque(maxlen=0)`` drains the ``map`` iterator in C (~15% faster than a
-        Python loop). ``strict=True`` raises on length-mismatched iterables
-        rather than truncating to the shorter side.
-        """
-        field_cache = self._data[field]
-        collections.deque(
-            map(field_cache.setdefault, ids, values, strict=True), maxlen=0
-        )
-
-    def update_batch(self, field: Any, ids: tuple, value: Any) -> None:
-        """Set the same *value* for all *ids*.
-
-        Optimized for the common singleton case (``len(ids) == 1``).
-        """
-        field_cache = self._data[field]
-        if len(ids) <= 1:
-            if ids:
-                field_cache[ids[0]] = value
-        else:
-            field_cache.update(dict.fromkeys(ids, value))
-
-    def pop_value(self, field: Any, record_id: Any, default: Any = _MISSING) -> Any:
-        """Remove and return a cached value."""
-        field_cache = self._data.get(field)
-        if field_cache is None:
-            if default is _MISSING:
-                raise KeyError((field, record_id))
-            return default
-        if default is _MISSING:
-            return field_cache.pop(record_id)
-        return field_cache.pop(record_id, default)
-
     # Dirty tracking
 
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
-        """Mark *ids* as dirty for *field*."""
-        self._dirty[field].update(ids)
+        """Mark *ids* as dirty for *field*.
+
+        Empty *ids* is a no-op and never creates an entry (see the ``_dirty``
+        invariant). Callers routinely pass a generator that filters out NewIds
+        (e.g. ``(id_ for id_ in ids if id_)``), which is empty for all-new
+        records — that must not register a phantom dirty field.
+        """
+        existing = self._dirty.get(field)
+        if existing is None:
+            ids = list(ids)
+            if not ids:
+                return
+            existing = self._dirty[field]  # vivify via the configured factory
+        existing.update(ids)
 
     def get_dirty(self, field: Any) -> set | None:
         """Return the set of dirty IDs for *field*, or ``None``."""
@@ -130,9 +120,9 @@ class FieldCache:
         result: dict[Any, set] = {}
         for field in list(self._dirty):
             if field.model_name == model_name:
-                ids = self._dirty.pop(field)
-                if ids:
-                    result[field] = ids
+                # _dirty never holds an empty set (see invariant), so popped
+                # ids are always non-empty.
+                result[field] = self._dirty.pop(field)
         return result
 
     def is_any_dirty(self) -> bool:
@@ -223,19 +213,12 @@ class FieldCache:
 
     # Iteration & introspection
 
-    def iter_fields(self) -> Iterator[Any]:
-        """Iterate over fields that have cached data."""
-        return iter(self._data)
-
     def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
         """Iterate over (field, field_cache_dict) pairs."""
         return iter(self._data.items())
 
-    def has_field(self, field: Any) -> bool:
-        """Return whether *field* has any cached data."""
-        return field in self._data
-
     def __repr__(self) -> str:
+        """Return a debug summary with field and dirty-entry counts."""
         n_fields = len(self._data)
         n_dirty = sum(len(ids) for ids in self._dirty.values())
         return f"<FieldCache fields={n_fields} dirty_entries={n_dirty}>"

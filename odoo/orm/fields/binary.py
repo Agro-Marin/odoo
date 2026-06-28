@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
 _BINARY = memoryview
 
 
-class Binary(Field):
+class Binary(Field[bytes | typing.Literal[False]]):
     """Encapsulates a binary content (e.g. a file).
 
     :param bool attachment: whether the field should be stored as `ir_attachment`
@@ -154,11 +154,10 @@ class Binary(Field):
                     if not self.is_column:
                         with contextlib.suppress(TypeError, binascii.Error):
                             value = base64.b64decode(value)
-                    try:
-                        if isinstance(value, (bytes, _BINARY)):
-                            value = human_size(len(value))
-                    except TypeError:
-                        pass
+                    # isinstance guarantees a len()-able bytes/memoryview, and
+                    # human_size(int) cannot raise — no TypeError guard needed.
+                    if isinstance(value, (bytes, _BINARY)):
+                        value = human_size(len(value))
                     cache_value = self.convert_to_cache(value, record)
                     # the dirty flag is independent from this assignment
                     field_cache_size[record.id] = cache_value

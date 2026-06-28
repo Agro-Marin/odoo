@@ -40,6 +40,7 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, Field
     from ..components.core import OrmCore
     from ..primitives import IdType
+    from .backend import InMemoryBackend
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -139,7 +140,8 @@ class Environment(Mapping[str, "BaseModel"]):
 
     def __getitem__(self, model_name: str) -> BaseModel:
         """Return an empty recordset from the given model."""
-        # Inline object.__new__ + slot assignment skips __init__ dispatch
+        # HOT path: inline mirror of `BaseModel._spawn` (keep slot assignments
+        # in sync).  object.__new__ + slot assignment skips __init__ dispatch
         # (~50-80ns/call); equivalent to registry[model_name](self, (), ()).
         rs = object.__new__(self.registry[model_name])
         rs.env = self
@@ -182,7 +184,7 @@ class Environment(Mapping[str, "BaseModel"]):
         :returns: environment with specified args (new or existing one)
         """
         cr = self.cr if cr is None else cr
-        uid = self.uid if user is None else int(user)  # type: ignore
+        uid = self.uid if user is None else int(user)  # type: ignore[arg-type]
         if context is None:
             context = (
                 clean_context(self.context) if su and not self.su else self.context
@@ -214,19 +216,19 @@ class Environment(Mapping[str, "BaseModel"]):
 
         if res_model and res_id:
             record = self[res_model].browse(res_id)
-            # Use per-transaction cache to skip repeated exists() queries
-            # for the same (model, id). Cleared by invalidate_all/invalidate_field_data.
+            # Per-transaction cache to skip repeated exists() queries for the
+            # same (model, id). Cleared by invalidate_all/invalidate_field_data.
+            #
+            # Positive results only: a "missing" result is deliberately NOT
+            # cached, because the record may be created later in the same
+            # transaction (e.g. dangling ir.model.data row recreated during a
+            # data load). Caching the miss would make ref() keep reporting it
+            # absent; exists() is a single cheap query to re-check.
             ref_cache = self.transaction._ref_cache
             cache_key = (res_model, res_id)
-            if cache_key in ref_cache:
-                if ref_cache[cache_key]:
-                    return record
-                # record was previously checked and did not exist
-            elif record.exists():
+            if ref_cache.get(cache_key) or record.exists():
                 ref_cache[cache_key] = True
                 return record
-            else:
-                ref_cache[cache_key] = False
             if raise_if_not_found:
                 raise ValueError(
                     f"No record found for unique ID {xml_id}. It may have been deleted."
@@ -254,30 +256,50 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @functools.cached_property
     def cache(self):
-        """Return the legacy cache wrapper of the transaction.
+        """The recordset-level cache API of the transaction (``env.cache``).
 
-        .. deprecated:: 19.0
-            Use ``env._core`` for cache operations instead.  The only
-            remaining use case for ``env.cache`` is the ``check()``
-            method which validates cache-vs-database consistency in tests.
+        A thin, context-aware wrapper over the field-level cache helpers, working
+        in terms of *records* and *fields* (``contains`` / ``get_values`` /
+        ``update_raw`` / ``set`` / …) and resolving the per-context cache shape,
+        so callers holding a recordset never manipulate ``{id: value}`` dicts
+        directly. Used for low-level cache access by addon and framework code,
+        plus ``check()`` (cache-vs-database validation in tests).
+
+        This is a *different abstraction level* from ``env._core`` — the
+        framework's id-level handle (ADR-0010) — not a deprecated alias for it:
+        recordset-holding code uses ``env.cache``; ``(field, id)`` framework code
+        uses ``env._core``. A mechanical ``env._core`` rewrite of these call
+        sites would mishandle context-dependent fields (whose raw cache is
+        ``{cache_key: {id: value}}``) and couple callers to private field
+        helpers, so they stay on this wrapper.
         """
         return self.transaction.cache
 
     @functools.cached_property
     def _core(self) -> OrmCore:
-        """Layer 1 facade — flat API over cache + compute.
+        """The id-level cache/compute facade — the single internal handle.
 
-        Internal ORM consumers use this instead of navigating the
-        ``transaction.cache_store`` / ``transaction.compute_engine``
-        attribute chains::
-
-            # Before (3 attr lookups + method):
-            env.transaction.compute_engine.has_pending_field(field)
-
-            # After (1 attr lookup + method):
-            env._core.has_pending(field)
+        ``env._core`` is the sanctioned way for framework ORM code to reach the
+        transaction's :class:`FieldCache` and :class:`ComputeEngine`. It is an
+        *intentionally curated* surface (ADR-0010): field-value reads,
+        dirty/patch tracking, recompute scheduling and field protection live
+        here. Cache *mutation* and *lifecycle* (clear / invalidate) deliberately
+        do not — those belong to :class:`Transaction`, which owns the private
+        ``_cache_store`` / ``_compute_engine``; recordset-level access belongs to
+        the legacy ``env.cache`` wrapper.
         """
         return self.transaction.core
+
+    @property
+    def backend(self) -> InMemoryBackend | None:
+        """The active persistence backend, or ``None`` for the PostgreSQL path.
+
+        Framework CRUD code dispatches row I/O through ``env.backend`` when it is
+        not ``None`` (the DB-free in-memory tier), and emits SQL inline
+        otherwise.  ``None`` is the production fast path — see
+        :mod:`odoo.orm.runtime.backend`.
+        """
+        return self.transaction.backend
 
     @functools.cached_property
     def user(self) -> BaseModel:
@@ -342,13 +364,13 @@ class Environment(Mapping[str, "BaseModel"]):
             the targeted company.
         """
         company_ids = self.context.get("allowed_company_ids", [])
-        user_company_ids = self.user._get_company_ids()
         if company_ids:
-            if not self.su:
-                if set(company_ids) - set(user_company_ids):
-                    raise AccessError(
-                        self._("Access to unauthorized or invalid companies.")
-                    )
+            # Only non-su access needs the user's companies (for the membership
+            # check); computing them eagerly would waste the lookup in sudo mode.
+            if not self.su and set(company_ids) - set(self.user._get_company_ids()):
+                raise AccessError(
+                    self._("Access to unauthorized or invalid companies.")
+                )
             return self["res.company"].browse(company_ids)
         # By setting the default companies to all user companies instead of the main one
         # we save a lot of potential trouble in all "out of context" calls, such as
@@ -360,7 +382,7 @@ class Environment(Mapping[str, "BaseModel"]):
         #   - when printing a report for several records from several companies
         #   - when accessing to a record from the notification email template
         #   - when loading an binary image on a template
-        return self["res.company"].browse(user_company_ids)
+        return self["res.company"].browse(self.user._get_company_ids())
 
     @functools.cached_property
     def tz(self) -> tzinfo:
@@ -625,7 +647,7 @@ class Environment(Mapping[str, "BaseModel"]):
                 else:
                     return val
 
-        return tuple(get(key) for key in self.registry.field_depends_context[field])
+        return tuple(get(key) for key in self._field_depends_context[field])
 
     @functools.cached_property
     def _field_cache_memo(
@@ -706,7 +728,3 @@ class Environment(Mapping[str, "BaseModel"]):
             )
         cols = tuple(col.name for col in description)
         return _rows_to_dicts(cols, rows)
-
-
-# Re-export for backward compatibility (code using ``from .environment import Cache``)
-from .cache_compat import Cache, Starred  # noqa: F401, E402

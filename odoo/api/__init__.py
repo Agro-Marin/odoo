@@ -23,3 +23,29 @@ from odoo.orm.decorators import (
     readonly,
 )
 from odoo.orm.runtime import Environment
+
+# The curated public surface. Addon and application code imports the API from
+# here (and from odoo.fields / odoo.models), never from odoo.orm.* directly, so
+# the ORM's internal layout can evolve freely. Enforced by the `facade-boundary`
+# contract in tooling/architecture/layer_check.py (ADR-0008).
+__all__ = [
+    "SUPERUSER_ID",
+    "ContextType",
+    "DomainType",
+    "Environment",
+    "IdType",
+    "NewId",
+    "Self",
+    "ValuesType",
+    "autovacuum",
+    "constrains",
+    "depends",
+    "depends_context",
+    "deprecated",
+    "model",
+    "model_create_multi",
+    "onchange",
+    "ondelete",
+    "private",
+    "readonly",
+]

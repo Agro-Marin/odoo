@@ -56,10 +56,19 @@ class BaseString(Field[str | typing.Literal[False]]):
             kwargs["translate"] = bool(kwargs["translate"])
         super().__init__(string=string, **kwargs)
 
+    @typing.overload
+    def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
+    @typing.overload
+    def __get__(
+        self, record: BaseModel, owner: typing.Any = None
+    ) -> str | typing.Literal[False]: ...
+    @typing.overload
+    def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
+
     @override
     def __get__(
-        self, record: BaseModel | None, owner: type[BaseModel] | None = None
-    ) -> typing.Any:
+        self, record: typing.Any, owner: typing.Any = None
+    ) -> typing.Any:  # overloads above type the public surface; impl stays Any
         if record is None:
             return self
         env = record.env
@@ -73,7 +82,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         if callable(self.translate):
             return super().__get__(record, owner)
         # translate=True uses per-lang flat dicts, so the scalar fast path works.
-        if self.is_stored_computed and env._core.has_pending(self):
+        if self.is_stored_computed and env._core.has_pending_field(self):
             self.recompute(record)
         record_id = ids[0]
         value = _scalar_cache_get(env.__dict__, self, record_id, PENDING, SENTINEL)
@@ -85,7 +94,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         ):
-            field_data = env._core.field_data(self)
+            field_data = env._core.get_field_data(self)
             fb_cache = field_data.get(("en_US",))
             if fb_cache is not None:
                 fb_val = fb_cache.get(record_id, SENTINEL)
@@ -374,7 +383,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             # Model translation: per-lang flat dicts
             if env.context.get("prefetch_langs"):
                 # SQL fetched full JSONB → distribute across per-lang sub-dicts
-                field_data = env._core.field_data(self)
+                field_data = env._core.get_field_data(self)
                 installed = [lang for lang, _ in env["res.lang"].get_installed()]
                 langs = OrderedSet[str](installed + ["en_US"])
                 for id_, val in zip(records._ids, values, strict=False):
@@ -399,7 +408,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             return
 
         # callable translate: LangProxyDict / multi-lang dicts
-        field_cache = env._core.field_data(self)
+        field_cache = env._core.get_field_data(self)
         if env.context.get("prefetch_langs"):
             installed = [lang for lang, _ in env["res.lang"].get_installed()]
             langs = OrderedSet[str](installed + ["en_US"])
@@ -447,7 +456,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         ):
             # model translation prefetch_langs: cache_value is {lang: scalar};
             # distribute across per-lang sub-dicts
-            field_data = records.env._core.field_data(self)
+            field_data = records.env._core.get_field_data(self)
             ids = records._ids
             for lang, scalar in cache_value.items():
                 if lang.startswith("_"):
@@ -469,7 +478,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             if not self.compute and not any(
                 id_ or getattr(id_, "origin", None) for id_ in records._ids
             ):
-                en_cache = records.env._core.field_data(self).setdefault(("en_US",), {})
+                en_cache = records.env._core.get_field_data(self).setdefault(("en_US",), {})
                 for id_ in records._ids:
                     en_cache.setdefault(id_, cache_value)
             return
@@ -500,65 +509,94 @@ class BaseString(Field[str | typing.Literal[False]]):
         records = self._filter_not_equal(records, cache_value)
         if not records:
             return
-        field_cache = self._get_cache(records.env)
         dirty_ids = records.env._core.get_dirty(self) or ()
+        # flush any pending None to SQL NULL before the new value overwrites it
+        self._flush_pending_none(records, dirty_ids)
 
-        # flush dirty None values
-        dirty_records = records.filtered(lambda rec: rec.id in dirty_ids)
-        if dirty_records:
-            if self.translate is True:
-                # None may sit in another language's sub-dict (e.g. en_US
-                # cleared, now writing fr_FR), so check them all.
-                field_data = records.env._core.field_data(self)
-                has_dirty_none = any(
-                    sub.get(rid, SENTINEL) is None
-                    for sub in field_data.values()
-                    for rid in dirty_records._ids
-                )
-            else:
-                has_dirty_none = any(
-                    field_cache.get(record_id, SENTINEL) is None
-                    for record_id in dirty_records._ids
-                )
-            if has_dirty_none:
-                dirty_records.flush_recordset([self.name])
-                if self.translate is True:
-                    # After flushing None → SQL NULL, invalidate all per-lang
-                    # sub-dicts so stale None doesn't block reads in other langs.
-                    self._invalidate_cache(records.env, dirty_records._ids)
-
-        dirty = self.store and any(records._ids)
         lang = self.translation_lang(records.env)
+        if not (self.store and any(records._ids)):
+            self._mark_dirty_unstored(records, cache_value, lang)
+        elif not callable(self.translate):
+            # whole-value model translation (translate=True)
+            self._mark_dirty_model_translation(records, cache_value, lang, dirty_ids)
+        else:
+            # per-term model translation (callable translate)
+            self._mark_dirty_model_term_translation(records, cache_value, lang)
 
-        # not dirty fields
-        if not dirty:
-            if self.compute and self.inverse:
-                # invalidate the values in other languages to force their recomputation
-                if self.translate is True:
-                    self._invalidate_cache(records.env, records._ids)
-                self._update_cache(
-                    records.with_context(prefetch_langs=True),
-                    {lang: cache_value},
-                    dirty=False,
-                )
-            else:
-                self._update_cache(records, cache_value, dirty=False)
+    def _flush_pending_none(self, records: BaseModel, dirty_ids: typing.Any) -> None:
+        """Flush records whose pending value is None before the new value
+        overwrites the cache, so the None reaches the DB as SQL NULL.
+        """
+        dirty_records = records.filtered(lambda rec: rec.id in dirty_ids)
+        if not dirty_records:
             return
+        if self.translate is True:
+            # None may sit in another language's sub-dict (e.g. en_US cleared,
+            # now writing fr_FR), so check them all.
+            field_data = records.env._core.get_field_data(self)
+            has_dirty_none = any(
+                sub.get(rid, SENTINEL) is None
+                for sub in field_data.values()
+                for rid in dirty_records._ids
+            )
+        else:
+            field_cache = self._get_cache(records.env)
+            has_dirty_none = any(
+                field_cache.get(record_id, SENTINEL) is None
+                for record_id in dirty_records._ids
+            )
+        if has_dirty_none:
+            dirty_records.flush_recordset([self.name])
+            if self.translate is True:
+                # After flushing None → SQL NULL, invalidate all per-lang
+                # sub-dicts so stale None doesn't block reads in other langs.
+                self._invalidate_cache(records.env, dirty_records._ids)
 
-        # model translation
-        if not callable(self.translate):
-            # invalidate clean fields because they may contain a fallback value
-            clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
-            clean_records.invalidate_recordset([self.name])
-            self._update_cache(records, cache_value, dirty=True)
-            if lang != "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
-                # if 'en_US' is inactive, always write it so value_en stays meaningful
-                self._update_cache(
-                    records.with_context(lang="en_US"), cache_value, dirty=True
-                )
-            return
+    def _mark_dirty_unstored(
+        self, records: BaseModel, cache_value: typing.Any, lang: str
+    ) -> None:
+        """Non-stored (or all-new-record) path: update the cache only, no SQL."""
+        if self.compute and self.inverse:
+            # invalidate the values in other languages to force their recomputation
+            if self.translate is True:
+                self._invalidate_cache(records.env, records._ids)
+            self._update_cache(
+                records.with_context(prefetch_langs=True),
+                {lang: cache_value},
+                dirty=False,
+            )
+        else:
+            self._update_cache(records, cache_value, dirty=False)
 
-        # model term translation
+    def _mark_dirty_model_translation(
+        self,
+        records: BaseModel,
+        cache_value: typing.Any,
+        lang: str,
+        dirty_ids: typing.Any,
+    ) -> None:
+        """Whole-value (translate=True) model translation: write the current
+        language's value and refresh fallback caches."""
+        # invalidate clean fields because they may contain a fallback value
+        clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
+        clean_records.invalidate_recordset([self.name])
+        self._update_cache(records, cache_value, dirty=True)
+        if lang != "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
+            # if 'en_US' is inactive, always write it so value_en stays meaningful
+            self._update_cache(
+                records.with_context(lang="en_US"), cache_value, dirty=True
+            )
+
+    def _mark_dirty_model_term_translation(
+        self, records: BaseModel, cache_value: typing.Any, lang: str
+    ) -> None:
+        """Reconcile each record's stored per-term translations with the terms of
+        the new value and cache the merged result (callable ``translate``).
+
+        Terms that survive keep their existing translations; terms that changed
+        are fuzzy-matched to their closest surviving term (see
+        :meth:`_reconcile_obsolete_terms`) so their translations carry over.
+        """
         new_translations_list = []
         new_terms = set(self.get_trans_terms(cache_value))
         delay_translations = records.env.context.get("delay_translations")
@@ -583,55 +621,9 @@ class BaseString(Field[str | typing.Literal[False]]):
             translation_dictionary = self.get_translation_dictionary(
                 from_lang_value, old_translations
             )
-            text2terms = defaultdict(list)
-            for term in new_terms:
-                if term_text := self.get_text_content(term):
-                    text2terms[term_text].append(term)
-
-            is_text = (
-                self.translate.is_text
-                if hasattr(self.translate, "is_text")
-                else lambda term: True
+            self._reconcile_obsolete_terms(
+                translation_dictionary, new_terms, lang, records.env
             )
-            term_adapter = (
-                self.translate.term_adapter
-                if hasattr(self.translate, "term_adapter")
-                else None
-            )
-            for old_term in list(translation_dictionary.keys()):
-                if old_term not in new_terms:
-                    old_term_text = self.get_text_content(old_term)
-                    matches = get_close_matches(old_term_text, text2terms, 1, 0.9)
-                    if matches:
-                        closest_term = get_close_matches(
-                            old_term, text2terms[matches[0]], 1, 0
-                        )[0]
-                        if closest_term in translation_dictionary:
-                            continue
-                        old_is_text = is_text(old_term)
-                        closest_is_text = is_text(closest_term)
-                        if old_is_text or not closest_is_text:
-                            if (
-                                not closest_is_text
-                                and records.env.context.get("install_mode")
-                                and lang == "en_US"
-                                and term_adapter
-                            ):
-                                adapter = term_adapter(closest_term)
-                                if (
-                                    adapter(old_term) is None
-                                ):  # old and closest_term differ in structure
-                                    continue
-                                translation_dictionary[closest_term] = {
-                                    k: adapter(v)
-                                    for k, v in translation_dictionary.pop(
-                                        old_term
-                                    ).items()
-                                }
-                            else:
-                                translation_dictionary[closest_term] = (
-                                    translation_dictionary.pop(old_term)
-                                )
             # pylint: disable=not-callable
             new_translations = {
                 l: self.translate(
@@ -660,6 +652,67 @@ class BaseString(Field[str | typing.Literal[False]]):
             strict=True,
         ):
             self._update_cache(record, new_translation, dirty=True)
+
+    def _reconcile_obsolete_terms(
+        self,
+        translation_dictionary: dict,
+        new_terms: set,
+        lang: str,
+        env: Environment,
+    ) -> None:
+        """Re-key the translations of terms that disappeared from the new value to
+        their closest surviving term, so edited/moved terms keep their
+        translations. Mutates *translation_dictionary* in place.
+        """
+        text2terms = defaultdict(list)
+        for term in new_terms:
+            if term_text := self.get_text_content(term):
+                text2terms[term_text].append(term)
+
+        is_text = (
+            self.translate.is_text
+            if hasattr(self.translate, "is_text")
+            else lambda term: True
+        )
+        term_adapter = (
+            self.translate.term_adapter
+            if hasattr(self.translate, "term_adapter")
+            else None
+        )
+        for old_term in list(translation_dictionary.keys()):
+            if old_term not in new_terms:
+                old_term_text = self.get_text_content(old_term)
+                matches = get_close_matches(old_term_text, text2terms, 1, 0.9)
+                if matches:
+                    closest_term = get_close_matches(
+                        old_term, text2terms[matches[0]], 1, 0
+                    )[0]
+                    if closest_term in translation_dictionary:
+                        continue
+                    old_is_text = is_text(old_term)
+                    closest_is_text = is_text(closest_term)
+                    if old_is_text or not closest_is_text:
+                        if (
+                            not closest_is_text
+                            and env.context.get("install_mode")
+                            and lang == "en_US"
+                            and term_adapter
+                        ):
+                            adapter = term_adapter(closest_term)
+                            if (
+                                adapter(old_term) is None
+                            ):  # old and closest_term differ in structure
+                                continue
+                            translation_dictionary[closest_term] = {
+                                k: adapter(v)
+                                for k, v in translation_dictionary.pop(
+                                    old_term
+                                ).items()
+                            }
+                        else:
+                            translation_dictionary[closest_term] = (
+                                translation_dictionary.pop(old_term)
+                            )
 
     @override
     def to_sql(self, model: BaseModel, alias: str) -> SQL:
@@ -857,9 +910,11 @@ class Html(BaseString):
     type = "html"
     _column_type = ("text", "text")
 
-    # Bypass BaseString.__get__: convert_to_record wraps values in Markup(),
-    # whereas the BaseString shortcut would return raw strings.
-    __get__ = Field.__get__
+    if not typing.TYPE_CHECKING:
+        # Bypass BaseString.__get__: convert_to_record wraps values in Markup(),
+        # whereas the BaseString shortcut would return raw strings. The type
+        # checker inherits BaseString.__get__ (same value type).
+        __get__ = Field.__get__
 
     sanitize: bool = True  # whether value must be sanitized
     sanitize_overridable: bool = False  # whether the sanitation can be bypassed by the users part of the `base.group_sanitize_override` group

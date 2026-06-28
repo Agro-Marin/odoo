@@ -4,14 +4,15 @@ import typing
 from collections import defaultdict
 from typing import Self
 
-from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
+from ..._typing import ValuesType
 from ...primitives import MAGIC_COLUMNS, Command
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
 
 
-class CopyMixin:
+class CopyMixin(_ModelStubs):
     """Mixin providing record duplication operations."""
 
     __slots__ = ()

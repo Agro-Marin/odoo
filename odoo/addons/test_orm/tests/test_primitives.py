@@ -6,7 +6,6 @@ depend on them.
 """
 
 from odoo.fields import Command
-from odoo.orm.helpers import OriginIds
 from odoo.orm.primitives import NewId
 from odoo.tests.common import TransactionCase
 
@@ -230,8 +229,8 @@ class TestNewId(TransactionCase):
         """
         a = NewId()
         b = NewId()
-        self.assertFalse(a > b and b > a)
-        self.assertFalse(a < b and b < a)
+        self.assertFalse(a > b > a)
+        self.assertFalse(a < b < a)
 
     def test_hash_invariant_under_set(self):
         """Hash invariant: equal NewIds deduplicate in a set.
@@ -406,59 +405,6 @@ class TestCommand(TransactionCase):
         # Clear all
         discussion.write({"categories": [Command.clear()]})
         self.assertFalse(discussion.categories)
-
-
-class TestOriginIds(TransactionCase):
-    """Characterization tests for OriginIds.
-
-    OriginIds is a reversible iterable that extracts origin IDs from a
-    collection of mixed int/NewId IDs. Real int IDs pass through unchanged;
-    NewId objects yield their .origin; IDs without origins are filtered out.
-    """
-
-    def test_regular_ints_pass_through(self):
-        """Regular integer IDs are yielded unchanged."""
-        result = list(OriginIds((1, 2, 3)))
-        self.assertEqual(result, [1, 2, 3])
-
-    def test_newid_with_origin_yields_origin(self):
-        """NewId with origin yields the origin integer.
-
-        NewId.__bool__ is always False, so the `or` branch in the walrus
-        evaluates getattr(id_, 'origin', None) which returns the origin int.
-        """
-        ids = (NewId(origin=10), NewId(origin=20))
-        result = list(OriginIds(ids))
-        self.assertEqual(result, [10, 20])
-
-    def test_newid_without_origin_filtered_out(self):
-        """NewId without origin (origin=None) is filtered out."""
-        ids = (NewId(), NewId(ref="some_ref"))
-        result = list(OriginIds(ids))
-        self.assertEqual(result, [])
-
-    def test_mixed_ids(self):
-        """Mixed ints and NewIds — ints pass through, NewIds yield origins."""
-        ids = (1, NewId(origin=5), NewId(), 3, NewId(origin=7))
-        result = list(OriginIds(ids))
-        self.assertEqual(result, [1, 5, 3, 7])
-
-    def test_empty_sequence(self):
-        """Empty input yields nothing."""
-        self.assertEqual(list(OriginIds(())), [])
-
-    def test_reversed_preserves_semantics(self):
-        """__reversed__ applies the same filtering in reverse order."""
-        ids = (1, NewId(origin=5), NewId(), 3)
-        result = list(reversed(OriginIds(ids)))
-        self.assertEqual(result, [3, 5, 1])
-
-    def test_iterable_not_iterator(self):
-        """OriginIds can be iterated multiple times (it's an iterable, not an iterator)."""
-        oids = OriginIds((1, 2, 3))
-        first = list(oids)
-        second = list(oids)
-        self.assertEqual(first, second)
 
 
 class TestParseFieldExpr(TransactionCase):

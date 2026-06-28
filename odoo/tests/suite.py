@@ -175,7 +175,7 @@ class OdooSuite(TestSuite):
         """Set up the test class, recording stats if the stats logger is enabled."""
         previous_test_class = result._previousTestClass
         if not (
-            previous_test_class != type(test)
+            previous_test_class is not type(test)
             and hasattr(result, "stats")
             and stats_logger.isEnabledFor(logging.INFO)
         ):
@@ -194,7 +194,7 @@ class OdooSuite(TestSuite):
         previous_test_class = result._previousTestClass
         if not (
             previous_test_class
-            and previous_test_class != type(test)
+            and previous_test_class is not type(test)
             and hasattr(result, "stats")
             and stats_logger.isEnabledFor(logging.INFO)
         ):

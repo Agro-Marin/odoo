@@ -17,7 +17,7 @@ from . import (
     fields,  # must be imported after models
     models,
 )
-from .validation import check_pg_name
+from .validation import check_pg_name, is_manual_name
 
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
@@ -273,10 +273,23 @@ def _prepare_setup(model_cls: type[BaseModel]):
     for attr in ("_rec_name", "_active_name"):
         discardattr(model_cls, attr)
 
-    # reset properties memoized on model_cls
-    model_cls._constraint_methods = models.BaseModel._constraint_methods
-    model_cls._ondelete_methods = models.BaseModel._ondelete_methods
-    model_cls._onchange_methods = models.BaseModel._onchange_methods
+    # reset properties memoized on model_cls's own __dict__.  Each memo is
+    # stored under a distinct ``*__`` name read from the class's own __dict__
+    # (via ``helpers.own_class_memo``, used by BaseModel._constraint_methods,
+    # CreateMixin._prepare_create_values and CacheMixin._get_stored_computed_fields,
+    # to avoid leaking it to prototype-inheriting children).  The model class
+    # object is reused across re-setup (only ``__bases__`` is reassigned, above),
+    # so these memos are NOT cleared by class recreation — they must be discarded
+    # here, or a re-setup that adds/removes a field keeps serving the stale tuple.
+    for _memo in (
+        "_constraint_methods__",
+        "_ondelete_methods__",
+        "_onchange_methods__",
+        "_precompute_readonly_names__",
+        "_properties_field_names__",
+        "_stored_computed_fields__",
+    ):
+        discardattr(model_cls, _memo)
 
 
 def _setup(model_cls: type[BaseModel], env: Environment):
@@ -651,9 +664,7 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
         for model in [model_cls]
         + [model_cls.pool[inherit] for inherit in model_cls._inherits]
     )
-    if not (
-        is_class_field or model_cls.pool["ir.model.fields"]._is_manual_name(None, name)
-    ):
+    if not (is_class_field or is_manual_name(name)):
         raise ValidationError(  # pylint: disable=missing-gettext
             f"The field `{name}` is not defined in the `{model_cls._name}` Python class and does not start with 'x_'"
         )
