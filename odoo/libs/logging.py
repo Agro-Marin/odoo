@@ -37,6 +37,7 @@ class unquote(str):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return the string itself, without surrounding quotes."""
         return self
 
 
@@ -68,6 +69,7 @@ class mute_logger(logging.Handler):
         self.old_params: dict[str, tuple[list[logging.Handler], bool]] = {}
 
     def __enter__(self) -> None:
+        """Replace the target loggers' handlers with this muting handler."""
         for logger_name in self.loggers:
             logger = logging.getLogger(logger_name)
             self.old_params[logger_name] = (logger.handlers, logger.propagate)
@@ -80,11 +82,13 @@ class mute_logger(logging.Handler):
         exc_val: BaseException | None = None,
         exc_tb: types.TracebackType | None = None,
     ) -> None:
+        """Restore the target loggers' original handlers and propagation."""
         for logger_name in self.loggers:
             logger = logging.getLogger(logger_name)
             logger.handlers, logger.propagate = self.old_params[logger_name]
 
     def __call__[**P, R](self, func: Callable[P, R]) -> Callable[P, R]:
+        """Return a decorator that runs `func` with the loggers muted."""
         @wraps(func)
         def deco(*args: P.args, **kwargs: P.kwargs) -> R:
             with self:
@@ -93,6 +97,7 @@ class mute_logger(logging.Handler):
         return deco
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Discard the log record, producing no output."""
         pass
 
 
@@ -104,6 +109,7 @@ class MungedTracebackLogRecord(logging.LogRecord):
     """
 
     def getMessage(self) -> str:
+        """Return the message with the traceback header tagged as lowered."""
         return (
             super()
             .getMessage()
@@ -145,6 +151,7 @@ class lower_logging(logging.Handler):
         self.to_level: int = to_level or max_level
 
     def __enter__(self) -> Self:
+        """Install this handler on the root logger and start capturing."""
         logger = logging.getLogger()
         self.old_handlers = logger.handlers[:]
         self.old_propagate = logger.propagate
@@ -159,11 +166,13 @@ class lower_logging(logging.Handler):
         exc_val: BaseException | None = None,
         exc_tb: types.TracebackType | None = None,
     ) -> None:
+        """Restore the root logger's original handlers and propagation."""
         logger = logging.getLogger()
         logger.handlers = self.old_handlers
         logger.propagate = self.old_propagate
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Lower records above ``max_level`` and forward them to old handlers."""
         if record.levelno > self.max_level:
             record.levelname = f"_{record.levelname}"
             record.levelno = self.to_level

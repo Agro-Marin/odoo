@@ -1,3 +1,5 @@
+"""Iterable slicing helpers."""
+
 __all__ = ["split_every"]
 
 import warnings
@@ -25,7 +27,7 @@ def split_every[T, P](
 
 
 def split_every[T](n: int, iterable: Iterable[T], piece_maker=tuple):
-    """Splits an iterable into length-n pieces.
+    """Split an iterable into length-n pieces.
 
     .. deprecated:: 19.0
         Use :func:`itertools.batched` (Python 3.12+) instead.

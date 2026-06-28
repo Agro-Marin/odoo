@@ -468,7 +468,7 @@ def html_translate(callback: object, value: str | None) -> str | None:
 
 
 def html_term_converter(value: str) -> str:
-    """Convert the HTML fragment ``value`` to XML if necessary."""
+    """Convert the HTML fragment ``value`` to valid HTML."""
     div = f"<div>{value}</div>"
     root = etree.fromstring(div, etree.HTMLParser())
     # root is html > body > div; serialize the div as HTML, strip its tags
@@ -838,7 +838,7 @@ def translation_file_reader(
         assert module
         return XMLDataFileReader(source, module)
     _logger.info("Bad file format: %s", fileformat)
-    raise Exception(_("Bad file format: %s", fileformat))
+    raise ValueError(_("Bad file format: %s", fileformat))
 
 
 class CSVFileReader:
@@ -972,9 +972,13 @@ class PoFileReader:
             if entry.obsolete:
                 continue
 
-            # for "modules:", keep only the first module
-            match = re.match(r"(module[s]?): (\w+)", entry.comment)
-            _, module = match.groups()
+            # Default module from the entry's "module:" comment, if present.
+            # An imported .po may carry a non-Odoo translator comment (or none at
+            # all); a missing/non-matching comment must not crash the whole
+            # import. This default only feeds "code" rows (which _load ignores) —
+            # model/model_terms rows get their module from the occurrence below.
+            comment_match = re.match(r"(module[s]?): (\w+)", entry.comment or "")
+            module = comment_match.group(2) if comment_match else None
             comments = "\n".join(
                 [c for c in entry.comment.split("\n") if not c.startswith("module:")]
             )
@@ -1044,7 +1048,7 @@ def TranslationFileWriter(
     if fileformat == "tgz":
         return TarFileWriter(target, lang=lang)
 
-    raise Exception(
+    raise ValueError(
         _("Unrecognized extension: must be one of .csv, .po, or .tgz (received .%s).")
         % fileformat
     )
@@ -1162,7 +1166,7 @@ class PoFileWriter:
 
 class TarFileWriter:
     def __init__(self, target: object, lang: str | None) -> None:
-        self.tar = tarfile.open(fileobj=target, mode="w|gz")
+        self.tar = tarfile.open(fileobj=target, mode="w|gz")  # noqa: SIM115  # handle owned by TarFileWriter, closed in its own lifecycle
         self.lang = lang
 
     def write_rows(self, rows: Iterable) -> None:
@@ -1751,8 +1755,8 @@ class TranslationModuleReader(TranslationReader):
 
         This will include:
         - the python strings marked with _() or _lt()
-        - the javascript strings marked with _t() inside static/src/js/
-        - the strings inside Qweb files inside static/src/xml/
+        - the javascript strings marked with _t() inside static/src/
+        - the strings inside Qweb files inside static/src/
         - the spreadsheet data files
         """
 
@@ -1824,10 +1828,7 @@ def DeepDefaultDict() -> defaultdict:
 
 
 class TranslationImporter:
-    """Helper object for importing translation files to a database.
-    This class provides a convenient API to load the translations from many
-    files and import them all at once, which helps speeding up the whole import.
-    """
+    """Load many translation files and import them to a database all at once (for speed)."""
 
     def __init__(self, cr: object, verbose: bool = True) -> None:
         self.cr = cr
@@ -1881,7 +1882,7 @@ class TranslationImporter:
         """Load translations from the given file object.
 
         :param fileobj: buffer open to a translation file
-        :param fileformat: format of the `fielobj` file, one of 'po', 'csv', or 'xml'
+        :param fileformat: format of the `fileobj` file, one of 'po', 'csv', or 'xml'
         :param lang: language code of the translations contained in `fileobj`;
                      the language must be present and activated in the database
         :param xmlids: if given, only translations for records with xmlid in xmlids will be loaded
@@ -1969,7 +1970,9 @@ class TranslationImporter:
             # field_name, {xmlid: {src: {lang: value}}}
             for field_name, field_dictionary in model_dictionary.items():
                 field = fields.get(field_name)
-                for sub_xmlids in batched(field_dictionary.keys(), cr.BATCH_SIZE):
+                for sub_xmlids in batched(
+                    field_dictionary.keys(), cr.BATCH_SIZE, strict=False
+                ):
                     # [module_name, imd_name, module_name, imd_name, ...]
                     params = []
                     for xmlid in sub_xmlids:
@@ -2068,7 +2071,7 @@ class TranslationImporter:
             model_table = Model._table
             for field_name, field_dictionary in model_dictionary.items():
                 for sub_field_dictionary in batched(
-                    field_dictionary.items(), cr.BATCH_SIZE
+                    field_dictionary.items(), cr.BATCH_SIZE, strict=False
                 ):
                     # [xmlid, translations, xmlid, translations, ...]
                     params = []
@@ -2146,7 +2149,7 @@ def resetlocale() -> str | None:
 
 
 def load_language(cr: object, lang: str) -> None:
-    """Loads a translation terms for a language.
+    """Load translation terms for a language.
 
     Used mainly to automate language loading at db initialization.
 

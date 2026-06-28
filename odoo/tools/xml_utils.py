@@ -81,7 +81,7 @@ def _check_with_xsd(
     This will raise a UserError if the XML file is not valid according to the
     XSD file.
 
-    :param str | etree._Element tree_or_str: representation of the tree to be checked
+    :param etree._Element | str | bytes tree_or_str: representation of the tree to be checked
     :param io.IOBase | str stream: the byte stream used to build the XSD schema.
         If env is given, it can also be the name of an attachment in the filestore
     :param odoo.api.Environment env: If it is given, it enables resolving the
@@ -116,15 +116,16 @@ def cleanup_xml_node(
 ) -> etree._Element:
     """Clean up the sub-tree of the provided XML node.
 
-    If the provided XML node is of type:
-    - etree._Element, it is modified in-place.
-    - string/bytes, it is first parsed into an etree._Element
-    :param xml_node_or_string (etree._Element, str): XML node (or its string/bytes representation)
-    :param remove_blank_text (bool): if True, removes whitespace-only text from nodes
-    :param remove_blank_nodes (bool): if True, removes leaf nodes with no text (iterative, depth-first, done after remove_blank_text)
-    :param indent_level (int): depth or level of node within root tree (use -1 to leave indentation as-is)
-    :param indent_space (str): string to use for indentation (use '' to remove all indentation)
-    :returns (etree._Element): clean node, same instance that was received (if applicable)
+    An ``etree._Element`` is modified in-place; a string/bytes is first parsed
+    into an ``etree._Element``.
+
+    :param etree._Element | str | bytes xml_node_or_string: XML node (or its string/bytes representation)
+    :param bool remove_blank_text: if True, removes whitespace-only text from nodes
+    :param bool remove_blank_nodes: if True, removes leaf nodes with no text (iterative, depth-first, done after remove_blank_text)
+    :param int indent_level: depth or level of node within root tree (use -1 to leave indentation as-is)
+    :param str indent_space: string to use for indentation (use '' to remove all indentation)
+    :return: clean node, same instance that was received (if applicable)
+    :rtype: etree._Element
     """
     xml_node = xml_node_or_string
 
@@ -196,7 +197,7 @@ def load_xsd_files_from_url(
     :param bool force_reload: Deprecated.
     :param int request_max_timeout: maximum time (in seconds) before the request times out
     :param str xsd_name_prefix: if provided, will be added as a prefix to every XSD file name
-    :param list | str xsd_names_filter: if provided, will only save the XSD files with these names
+    :param list[str] xsd_names_filter: if provided, will only save the XSD files with these names
     :param func modify_xsd_content: function that takes the xsd content as argument and returns a modified version of it
     :rtype: odoo.api.ir.attachment | bool
     :return: every XSD attachment created/fetched or False if an error occurred (see warning logs)
@@ -323,7 +324,6 @@ def validate_xml_from_attachment(
     :param xml_content: the XML content to validate
     :param xsd_name: the XSD file name in database
     :param reload_files_function: Deprecated.
-    :return: the result of the function :func:`odoo.tools.xml_utils._check_with_xsd`
     """
 
     prefixed_xsd_name = f"{prefix}.{xsd_name}" if prefix else xsd_name

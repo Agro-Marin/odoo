@@ -1,3 +1,5 @@
+"""Grouping, deduplication, and partitioning helpers for iterables."""
+
 __all__ = ["groupby", "partition", "unique"]
 
 from collections import defaultdict
@@ -20,8 +22,7 @@ def groupby[T, K](
 
 
 def unique[T](it: Iterable[T]) -> Iterator[T]:
-    """ "Uniquifier" for the provided iterable: will output each element of
-    the iterable once.
+    """Yield each element of the iterable exactly once.
 
     The iterable's elements must be hashable.
 

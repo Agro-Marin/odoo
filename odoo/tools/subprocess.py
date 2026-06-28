@@ -57,7 +57,7 @@ def find_pg_tool(name: str) -> str:
     :param str name: Name of the PostgreSQL tool (e.g., 'pg_dump')
     :return: Full path to the tool
     :rtype: str
-    :raises Exception: If the tool is not found
+    :raises FileNotFoundError: If the tool is not found
     """
     path = None
     if config["pg_path"] and config["pg_path"] != "None":
@@ -65,7 +65,7 @@ def find_pg_tool(name: str) -> str:
     try:
         return which(name, path=path)
     except OSError:
-        raise Exception(f"Command `{name}` not found.") from None
+        raise FileNotFoundError(f"Command `{name}` not found.") from None
 
 
 def exec_pg_environ() -> dict[str, str]:
@@ -159,7 +159,7 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
 # ensure we have a non patched time for query times when using freezegun
 import time  # noqa: E402
 
-real_time = time.time.__call__  # type: ignore
+real_time = time.time.__call__  # type: ignore[operator]
 
 
 def dumpstacks(
@@ -168,7 +168,7 @@ def dumpstacks(
     thread_idents: set[int] | None = None,
     log_level: int = logging.INFO,
 ) -> None:
-    """Dump stack traces for running threads and greenlets.
+    """Dump stack traces for running threads.
 
     Signal handler that logs stack traces for debugging purposes.
     Useful for diagnosing hangs or understanding thread state.
@@ -220,7 +220,6 @@ def dumpstacks(
             code.append(
                 f"\n# Thread: {repr_} (db:{dbname}) (uid:{uid}) (url:{url}) (qc:{qc} qt:{qt} pt:{pt})"
             )
-            for line in extract_stack(stack):
-                code.append(line)
+            code.extend(extract_stack(stack))
 
     _logger.log(log_level, "\n".join(code))

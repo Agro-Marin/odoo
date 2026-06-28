@@ -17,7 +17,7 @@ if typing.TYPE_CHECKING:
     from odoo.libs.lru import LRU
     from odoo.models import BaseModel
 
-unsafe_eval = eval
+unsafe_eval = eval  # noqa: S307  # eval used intentionally to compile cache-key getters
 
 _logger = logging.getLogger(__name__)
 _logger_lock = threading.RLock()
@@ -136,12 +136,18 @@ class ormcache:
                 tx_lookups = set()
                 cr_cache["_ormcache_lookups"] = tx_lookups
 
-            tx_first = key not in tx_lookups
-            if tx_first:
-                counter.cache_name = _cache_name
-                tx_lookups.add(key)
-
+            tx_first = False
             try:
+                # store hashes, not the key itself, so we don't keep hard
+                # references that prevent cached objects from being collected.
+                # An unhashable key element raises TypeError here and routes to
+                # the uncached fallback below (like the d[key] miss), instead of
+                # crashing the call before the try/except can catch it.
+                tx_key = tuple(map(hash, key))
+                tx_first = tx_key not in tx_lookups
+                if tx_first:
+                    counter.cache_name = _cache_name
+                    tx_lookups.add(tx_key)
                 r = d[key]
                 counter.hit += 1
                 counter.tx_hit += tx_first
@@ -161,12 +167,12 @@ class ormcache:
             d[key] = value
             return value
 
-        lookup.__cache__ = self  # type: ignore
+        lookup.__cache__ = self  # type: ignore[attr-defined]
         return lookup
 
     def add_value(self, *args: Any, cache_value: Any = None, **kwargs: Any) -> None:
         model: BaseModel = args[0]
-        d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore
+        d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore[attr-defined]
         key = self.key(*args, **kwargs)
         d[key] = cache_value
 
@@ -193,18 +199,23 @@ class ormcache:
 
     def lookup(self, *args: Any, **kwargs: Any) -> Any:
         model: BaseModel = args[0]
-        d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore
+        d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore[attr-defined]
         key = self.key(*args, **kwargs)
         counter = _COUNTERS[model.pool.db_name, self.method]
 
         tx_lookups = model.env.cr.cache.setdefault("_ormcache_lookups", set())
-        # tx: is it the first call in the transation for that key
-        tx_first_lookup = key not in tx_lookups
-        if tx_first_lookup:
-            counter.cache_name = self.cache_name
-            tx_lookups.add(key)
-
+        tx_first_lookup = False
         try:
+            # tx: is it the first call in the transaction for that key; store
+            # hashes, not the key itself, so we don't keep hard references that
+            # prevent cached objects from being garbage collected.  An unhashable
+            # key element raises TypeError here and routes to the uncached
+            # fallback below, instead of crashing before the except can catch it.
+            tx_key = tuple(map(hash, key))
+            tx_first_lookup = tx_key not in tx_lookups
+            if tx_first_lookup:
+                counter.cache_name = self.cache_name
+                tx_lookups.add(tx_key)
             r = d[key]
             counter.hit += 1
             counter.tx_hit += tx_first_lookup
@@ -230,10 +241,10 @@ class ormcache:
 
 
 class ormcache_context(ormcache):
-    """This LRU cache decorator is a variant of :class:`ormcache`, with an
-    extra parameter ``keys`` that defines a sequence of dictionary keys. Those
-    keys are looked up in the ``context`` parameter and combined to the cache
-    key made by :class:`ormcache`.
+    """Variant of :class:`ormcache` with an extra ``keys`` parameter that
+    defines a sequence of dictionary keys. Those keys are looked up in the
+    ``context`` parameter and combined into the cache key made by
+    :class:`ormcache`.
     """
 
     def __init__(
@@ -414,7 +425,7 @@ def log_ormcache_stats(
                     )
             _logger.info("\n".join(log_msgs))
         except Exception:
-            _logger.exception()
+            _logger.exception("error while logging ormcache statistics")
         finally:
             global _logger_state  # noqa: PLW0603
             with _logger_lock:
@@ -478,7 +489,7 @@ def get_cache_size(
                 )
             objects.extend(getattr(cur_obj, attr, None) for attr in attributes)
         if hasattr(cur_obj, "__dict__"):
-            objects.append(object.__dict__)
+            objects.append(cur_obj.__dict__)
 
         if isinstance(cur_obj, Mapping):
             objects.extend(cur_obj.values())

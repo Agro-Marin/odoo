@@ -10,6 +10,8 @@
 # This code was simplified by removing configuration (keeping only the default
 # configuration) then constant-folding all the configuration items by hand.
 
+"""Reshape Arabic text into its correct contextual presentation forms."""
+
 import re
 from itertools import repeat
 
@@ -86,6 +88,7 @@ GROUP_INDEX_TO_LIGATURE_FORMs = [
 
 
 def reshape(text: str) -> str:
+    """Return ``text`` with each Arabic letter replaced by its contextual presentation form."""
     if not text:
         return ""
 

@@ -36,10 +36,6 @@ def hmac(
 ) -> str:
     """Compute HMAC with `database.secret` config parameter as key.
 
-    Uses the database's secret key to compute an HMAC signature for
-    authentication purposes. Different scopes ensure the same message
-    produces different signatures in different contexts.
-
     :param env: sudo environment to use for retrieving config parameter
     :param scope: scope of the authentication, to have different signature
         for the same message in different usage contexts
@@ -71,9 +67,8 @@ def hash_sign(
 ) -> str:
     """Generate a URL-safe signed token with optional expiration.
 
-    Creates a signed payload similar to JWT but using Odoo's HMAC
-    implementation. The token includes the message values, expiration
-    timestamp, and cryptographic signature.
+    The token includes the message values, expiration timestamp, and
+    cryptographic signature.
 
     :param env: sudo environment to use for retrieving config parameter
     :param scope: scope of the authentication, to have different signature
@@ -117,9 +112,6 @@ def hash_sign(
 def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any | None:
     """Verify and extract data from a signed token.
 
-    Validates the signature and expiration of a token generated
-    by hash_sign(), returning the original message values if valid.
-
     :param env: sudo environment to use for retrieving config parameter
     :param scope: scope of the authentication (must match the scope
         used when the token was created)
@@ -161,10 +153,6 @@ def limited_field_access_token(
     scope: str,
 ) -> str:
     """Generate a token granting access to a specific record field.
-
-    Creates a time-limited access token for a specific record and field
-    combination. Used to grant temporary access to resources without
-    requiring full authentication.
 
     The validity of the token is determined by the timestamp parameter.
     When not specified, a timestamp is automatically generated with a
@@ -208,9 +196,6 @@ def verify_limited_field_access_token(
     scope: str,
 ) -> bool:
     """Verify a field access token.
-
-    Validates that the given access token grants access to the
-    specified record and field, and that the token has not expired.
 
     :param record: the record to verify the token for
     :type record: odoo.models.Model

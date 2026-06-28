@@ -73,7 +73,7 @@ if windows:
     # given the quite usual mess in PATH on Windows, let's rather remove duplicates
     seen = set()
     defpath = [
-        dir for dir in defpath if dir.lower() not in seen and not seen.add(dir.lower())
+        d for d in defpath if d.lower() not in seen and not seen.add(d.lower())
     ]
     del seen
 
@@ -90,10 +90,10 @@ def which_files(
     path: str | list[str] | None = None,
     pathext: str | list[str] | None = None,
 ) -> Iterator[str]:
-    """Locate a file in a path supplied as a part of the file name,
-    or the user's path, or a supplied path.
-    The function yields full paths (not necessarily absolute paths),
-    in which the given file name matches an existing file in a directory on the path.
+    """Yield full paths where the file matches an existing file on the path.
+
+    Look for the file in a path supplied as part of the file name, the user's
+    path, or a supplied path. The yielded paths are not necessarily absolute.
 
     >>> def test_which(expected, *args, **argd):
     ...     result = list(which_files(*args, **argd))
@@ -182,8 +182,8 @@ def which_files(
             0, ""
         )  # always check command without extension, even for custom pathext
 
-    for dir in path:
-        basepath = pathlib.Path(dir) / file
+    for directory in path:
+        basepath = pathlib.Path(directory) / file
         for ext in pathext:
             fullpath = str(basepath) + ext
             if pathlib.Path(fullpath).exists() and access(fullpath, mode):
@@ -196,11 +196,11 @@ def which(
     path: str | list[str] | None = None,
     pathext: str | list[str] | None = None,
 ) -> str:
-    """Locate a file in a path supplied as a part of the file name,
-    or the user's path, or a supplied path.
-    The function returns full path (not necessarily absolute path),
-    in which the given file name matches an existing file in a directory on the path,
-    or raises IOError(errno.ENOENT).
+    """Return the first full path where the file matches an existing file.
+
+    Look for the file in a path supplied as part of the file name, the user's
+    path, or a supplied path; the returned path is not necessarily absolute.
+    Raise IOError(errno.ENOENT) when no match is found.
 
     >>> # for doctest see which_files()
     """

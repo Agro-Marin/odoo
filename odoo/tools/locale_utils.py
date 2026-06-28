@@ -40,7 +40,7 @@ def scan_languages() -> list[tuple[str, str]]:
     """Returns all languages supported by Odoo for translation
 
     :returns: a list of (lang_code, lang_name) pairs
-    :rtype: [(str, unicode)]
+    :rtype: list[tuple[str, str]]
     """
     try:
         # read (code, name) from languages in base/data/res.lang.csv
@@ -85,7 +85,7 @@ def babel_locale_parse(lang_code: str | None) -> babel.Locale:
     if lang_code:
         try:
             return babel.Locale.parse(lang_code)
-        except Exception:
+        except Exception:  # noqa: S110  # fall back to the default locale on parse failure
             pass
     try:
         return babel.Locale.default()

@@ -1,3 +1,5 @@
+"""Specialized mapping types and helpers."""
+
 __all__ = ["ConstantMapping", "DotDict", "ReadonlyDict", "submap"]
 
 from collections.abc import Iterable, Iterator, Mapping
@@ -21,15 +23,19 @@ class ConstantMapping[T](Mapping[Any, T]):
     __slots__ = ["_value"]
 
     def __init__(self, val: T) -> None:
+        """Initialize the mapping with the value returned for every key."""
         self._value = val
 
     def __len__(self) -> int:
+        """Return the number of keys, which is always zero."""
         return 0
 
     def __iter__(self) -> Iterator[Any]:
+        """Return an iterator over the keys, which is always empty."""
         return iter(())
 
     def __getitem__(self, item: Any) -> T:
+        """Return the constant value, regardless of ``item``."""
         return self._value
 
 
@@ -62,18 +68,23 @@ class ReadonlyDict[K, T](Mapping[K, T]):
     __slots__ = ("_data__",)
 
     def __init__(self, data: Mapping[K, T]) -> None:
+        """Initialize the read-only dictionary from another mapping."""
         self._data__ = dict(data)
 
     def __contains__(self, key: object) -> bool:
+        """Return whether the dictionary contains ``key``."""
         return key in self._data__
 
     def __getitem__(self, key: K) -> T:
+        """Return the value stored for ``key``."""
         return self._data__[key]
 
     def __len__(self) -> int:
+        """Return the number of keys in the dictionary."""
         return len(self._data__)
 
     def __iter__(self) -> Iterator[K]:
+        """Return an iterator over the keys."""
         return iter(self._data__)
 
 
@@ -108,5 +119,6 @@ class DotDict(dict):
     """
 
     def __getattr__(self, attrib: str) -> Any:
+        """Return the value for ``attrib``, wrapping nested dicts as ``DotDict``."""
         val = self.get(attrib)
         return DotDict(val) if isinstance(val, dict) else val

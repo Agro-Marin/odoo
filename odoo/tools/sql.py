@@ -13,11 +13,14 @@ from psycopg import sql as _sql
 from odoo.libs.json import dumps as json_dumps
 
 if TYPE_CHECKING:
+    from odoo.db import Cursor
     from odoo.fields import Field
 else:
-    # Runtime-importing Field would cycle (odoo.fields imports odoo.tools), so
-    # fall back to Any; type checkers see the real class via the branch above.
+    # Runtime-importing these would cycle (odoo.fields and odoo.db both import
+    # odoo.tools), so fall back to Any; type checkers see the real classes via
+    # the branch above.
     Field = typing.Any
+    Cursor = typing.Any
 
 
 from odoo.libs.sql import (
@@ -80,7 +83,7 @@ class SQL:
     The code is given as a ``%``-format string, and supports either positional
     arguments (with `%s`) or named arguments (with `%(name)s`). The arguments
     are meant to be merged into the code using the `%` formatting operator.
-    Note that the character ``%`` must always be escaped (as ``%%``), even if
+    The character ``%`` must always be escaped (as ``%%``), even if
     the code does not have parameters, like in ``SQL("foo LIKE 'a%%'")``.
 
     The SQL wrapper is designed to be composable: the arguments can be either
@@ -98,14 +101,14 @@ class SQL:
     parameters, which can be tedious, bug-prone, and is the main downside of
     `psycopg.sql <https://www.psycopg.org/psycopg3/docs/basic/adapt.html>`.
 
-    The second purpose of the wrapper is to discourage SQL injections. Indeed,
-    if ``code`` is a string literal (not a dynamic string), then the SQL object
+    The second purpose of the wrapper is to discourage SQL injections.
+    If ``code`` is a string literal (not a dynamic string), then the SQL object
     made with ``code`` is guaranteed to be safe, provided the SQL objects
     within its parameters are themselves safe.
 
     The wrapper may also contain some metadata ``to_flush``.  If not ``None``,
     its value is a field which the SQL code depends on.  The metadata of a
-    wrapper and its parts can be accessed by the iterator ``sql.to_flush``.
+    wrapper and its parts can be accessed via the ``sql.to_flush`` property.
     """
 
     __slots__ = ("__code", "__params", "__to_flush")
@@ -189,9 +192,7 @@ class SQL:
 
     @property
     def to_flush(self) -> Iterable[Field]:
-        """Return an iterator on the fields to flush in the metadata of
-        ``self`` and all of its parts.
-        """
+        """Return the fields to flush from ``self`` and all of its parts."""
         return self.__to_flush
 
     def render(self) -> str:
@@ -263,15 +264,20 @@ class SQL:
         subname: str | None = None,
         to_flush: Field | None = None,
     ) -> SQL:
-        """Return an SQL object that represents an identifier."""
-        assert name.isidentifier() or IDENT_RE.match(name), (
-            f"{name!r} invalid for SQL.identifier()"
-        )
+        """Return an SQL object that represents an identifier.
+
+        The validation below is a SQL-injection barrier: an identifier is
+        interpolated into the query verbatim (only double-quote-wrapped), so it
+        must be a real identifier.  This MUST be a ``raise``, not an ``assert`` —
+        asserts are stripped under ``python -O`` (a common production setting),
+        which would let a crafted name break out of the quoting.
+        """
+        if not (name.isidentifier() or IDENT_RE.match(name)):
+            raise ValueError(f"{name!r} invalid for SQL.identifier()")
         if subname is None:
             return cls(f'"{name}"', to_flush=to_flush)
-        assert subname.isidentifier() or IDENT_RE.match(subname), (
-            f"{subname!r} invalid for SQL.identifier()"
-        )
+        if not (subname.isidentifier() or IDENT_RE.match(subname)):
+            raise ValueError(f"{subname!r} invalid for SQL.identifier()")
         return cls(f'"{name}"."{subname}"', to_flush=to_flush)
 
 
@@ -279,7 +285,7 @@ class SQL:
 SQL.EMPTY = SQL()
 
 
-def existing_tables(cr: object, tablenames: Iterable[str]) -> list[str]:
+def existing_tables(cr: Cursor, tablenames: Iterable[str]) -> list[str]:
     """Return the names of existing tables among ``tablenames``."""
     cr.execute(
         SQL(
@@ -297,7 +303,7 @@ def existing_tables(cr: object, tablenames: Iterable[str]) -> list[str]:
     return [row[0] for row in cr.fetchall()]
 
 
-def table_exists(cr: object, tablename: str) -> bool:
+def table_exists(cr: Cursor, tablename: str) -> bool:
     """Return whether the given table exists."""
     return len(existing_tables(cr, {tablename})) == 1
 
@@ -311,7 +317,7 @@ class TableKind(enum.Enum):
     Other = None
 
 
-def table_kind(cr: object, tablename: str) -> TableKind | None:
+def table_kind(cr: Cursor, tablename: str) -> TableKind | None:
     """Return the kind of a table, if ``tablename`` is a regular or foreign
     table, or a view (ignores indexes, sequences, toast tables, and partitioned
     tables; unlogged tables are considered regular)
@@ -364,7 +370,7 @@ SQL_ORDER_BY_TYPE = defaultdict(
 
 
 def create_model_table(
-    cr: object, tablename: str, comment: str | None = None, columns: tuple = ()
+    cr: Cursor, tablename: str, comment: str | None = None, columns: tuple = ()
 ) -> None:
     """Create the table for a model."""
     colspecs = [
@@ -403,7 +409,7 @@ def create_model_table(
     _schema.debug("Table %r: created", tablename)
 
 
-def table_columns(cr: object, tablename: str) -> dict[str, dict]:
+def table_columns(cr: Cursor, tablename: str) -> dict[str, dict]:
     """Return a dict mapping column names to their configuration.
 
     Each value is a dict with keys ``column_name``, ``udt_name``,
@@ -435,7 +441,7 @@ def table_columns(cr: object, tablename: str) -> dict[str, dict]:
     return {row["column_name"]: row for row in cr.dictfetchall()}
 
 
-def column_exists(cr: object, tablename: str, columnname: str) -> bool:
+def column_exists(cr: Cursor, tablename: str, columnname: str) -> bool:
     """Return whether the given column exists."""
     cr.execute(
         SQL(
@@ -457,7 +463,7 @@ def column_exists(cr: object, tablename: str, columnname: str) -> bool:
 
 
 def create_column(
-    cr: object,
+    cr: Cursor,
     tablename: str,
     columnname: str,
     columntype: str,
@@ -491,7 +497,7 @@ def create_column(
 
 
 def convert_column(
-    cr: object, tablename: str, columnname: str, columntype: str
+    cr: Cursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     """Convert the column to the given type."""
     using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))  # pylint: disable=sql-injection
@@ -499,7 +505,7 @@ def convert_column(
 
 
 def convert_column_translatable(
-    cr: object, tablename: str, columnname: str, columntype: str
+    cr: Cursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     """Convert the column from/to a 'jsonb' translated field column."""
     drop_index(cr, make_index_name(tablename, columnname), tablename)
@@ -515,7 +521,7 @@ def convert_column_translatable(
 
 
 def _convert_column(
-    cr: object, tablename: str, columnname: str, columntype: str, using: SQL
+    cr: Cursor, tablename: str, columnname: str, columntype: str, using: SQL
 ) -> None:
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT, ALTER COLUMN %s TYPE %s USING %s",
@@ -539,7 +545,7 @@ def _convert_column(
     )
 
 
-def drop_depending_views(cr: object, table: str, column: str) -> None:
+def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
     """drop views depending on a field to allow the ORM to resize it in-place"""
     for v, k in get_depending_views(cr, table, column):
         cr.execute(
@@ -552,7 +558,7 @@ def drop_depending_views(cr: object, table: str, column: str) -> None:
         _schema.debug("Drop view %r", v)
 
 
-def get_depending_views(cr: object, table: str, column: str) -> list[tuple[str, str]]:
+def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, str]]:
     # http://stackoverflow.com/a/11773226/75349
     cr.execute(
         SQL(
@@ -577,7 +583,7 @@ def get_depending_views(cr: object, table: str, column: str) -> list[tuple[str, 
     return cr.fetchall()
 
 
-def set_not_null(cr: object, tablename: str, columnname: str) -> None:
+def set_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
     """Add a NOT NULL constraint on the given column."""
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s SET NOT NULL",
@@ -590,7 +596,7 @@ def set_not_null(cr: object, tablename: str, columnname: str) -> None:
     )
 
 
-def drop_not_null(cr: object, tablename: str, columnname: str) -> None:
+def drop_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
     """Drop the NOT NULL constraint on the given column."""
     cr.execute(
         SQL(
@@ -606,7 +612,7 @@ def drop_not_null(cr: object, tablename: str, columnname: str) -> None:
     )
 
 
-def set_default(cr: object, tablename: str, columnname: str, value: object) -> None:
+def set_default(cr: Cursor, tablename: str, columnname: str, value: object) -> None:
     """Set a SQL DEFAULT on the given column.
 
     This ensures the database fills in a default value even when the ORM
@@ -627,7 +633,7 @@ def set_default(cr: object, tablename: str, columnname: str, value: object) -> N
 
 
 def constraint_definition(
-    cr: object, tablename: str, constraintname: str
+    cr: Cursor, tablename: str, constraintname: str
 ) -> str | None:
     """Return the given constraint's definition."""
     cr.execute(
@@ -648,7 +654,7 @@ def constraint_definition(
 
 
 def add_constraint(
-    cr: object, tablename: str, constraintname: str, definition: str
+    cr: Cursor, tablename: str, constraintname: str, definition: str
 ) -> None:
     """Add a constraint on the given table."""
     query1 = SQL(
@@ -673,7 +679,7 @@ def add_constraint(
     )
 
 
-def drop_constraint(cr: object, tablename: str, constraintname: str) -> None:
+def drop_constraint(cr: Cursor, tablename: str, constraintname: str) -> None:
     """Drop the given constraint."""
     cr.execute(
         SQL(
@@ -686,14 +692,14 @@ def drop_constraint(cr: object, tablename: str, constraintname: str) -> None:
 
 
 def add_foreign_key(
-    cr: object,
+    cr: Cursor,
     tablename1: str,
     columnname1: str,
     tablename2: str,
     columnname2: str,
     ondelete: str,
 ) -> None:
-    """Create the given foreign key, and return ``True``."""
+    """Create the given foreign key."""
     cr.execute(
         SQL(
             "ALTER TABLE %s ADD FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s",
@@ -726,7 +732,7 @@ _FK_BASE_QUERY = """
 
 
 def _get_fk_constraints(
-    cr: object, tablename: str, columnname: str
+    cr: Cursor, tablename: str, columnname: str
 ) -> list[tuple[str, str, str, str]]:
     """Return all FK constraints on (tablename, columnname).
 
@@ -745,7 +751,7 @@ def _get_fk_constraints(
 
 
 def get_fk_constraints_batch(
-    cr: object, tablenames: Iterable[str]
+    cr: Cursor, tablenames: Iterable[str]
 ) -> list[tuple[str, str, str, str, str, str]]:
     """Return all FK constraints on the given tables in a single query.
 
@@ -764,7 +770,7 @@ def get_fk_constraints_batch(
 
 
 def get_foreign_keys(
-    cr: object,
+    cr: Cursor,
     tablename1: str,
     columnname1: str,
     tablename2: str,
@@ -780,7 +786,7 @@ def get_foreign_keys(
 
 
 def fix_foreign_key(
-    cr: object,
+    cr: Cursor,
     tablename1: str,
     columnname1: str,
     tablename2: str,
@@ -809,13 +815,13 @@ def fix_foreign_key(
     return True
 
 
-def index_exists(cr: object, indexname: str) -> bool:
+def index_exists(cr: Cursor, indexname: str) -> bool:
     """Return whether the given index exists."""
     cr.execute(SQL("SELECT 1 FROM pg_indexes WHERE indexname=%s", indexname))
     return cr.rowcount
 
 
-def index_definition(cr: object, indexname: str) -> tuple[str | None, str | None]:
+def index_definition(cr: Cursor, indexname: str) -> tuple[str | None, str | None]:
     """Read the index definition from the database"""
     cr.execute(
         SQL(
@@ -834,7 +840,7 @@ def index_definition(cr: object, indexname: str) -> tuple[str | None, str | None
 
 
 def create_index(
-    cr: object,
+    cr: Cursor,
     indexname: str,
     tablename: str,
     expressions: list[str],
@@ -867,7 +873,7 @@ def create_index(
 
 
 def add_index(
-    cr: object,
+    cr: Cursor,
     indexname: str,
     tablename: str,
     definition: str | SQL,
@@ -904,13 +910,13 @@ def add_index(
     )
 
 
-def drop_index(cr: object, indexname: str, tablename: str) -> None:
+def drop_index(cr: Cursor, indexname: str, tablename: str) -> None:
     """Drop the given index if it exists."""
     cr.execute(SQL("DROP INDEX IF EXISTS %s", SQL.identifier(indexname)))
     _schema.debug("Table %r: dropped index %r", tablename, indexname)
 
 
-def drop_view_if_exists(cr: object, viewname: str) -> None:
+def drop_view_if_exists(cr: Cursor, viewname: str) -> None:
     kind = table_kind(cr, viewname)
     if kind == TableKind.View:
         cr.execute(SQL("DROP VIEW %s CASCADE", SQL.identifier(viewname)))

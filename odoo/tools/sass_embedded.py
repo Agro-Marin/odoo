@@ -96,7 +96,7 @@ def find_sass() -> str | None:
     """Locate a Dart Sass binary: system ``PATH`` first, then the
     npm-provisioned toolchain in the Odoo root's ``node_modules``.
 
-    Mirrors :func:`odoo.libs.esbuild._find_esbuild`: a documented ``npm
+    Mirrors :func:`odoo.tools.assets.esbuild._find_esbuild`: a documented ``npm
     install`` provisions the compiler, so discovery must also look in
     ``node_modules`` — not only ``PATH`` (the historical behaviour, which
     silently disabled SCSS whenever Dart Sass was not installed system-wide).
@@ -264,22 +264,17 @@ class SassEmbeddedCompiler:
     ) -> str:
         """Compile a Sass/SCSS string to CSS.
 
-        Args:
-            source: The stylesheet source code.
-            syntax: One of 'scss', 'indented', 'css'.
-            style: One of 'expanded', 'compressed'.
-            source_map: Whether to generate a source map.
-            importers: Custom importers for resolving ``@import``/``@use``.
-            load_paths: Filesystem paths to search for imports.
-            quiet_deps: Suppress deprecation warnings from dependencies.
-            url: The URL of the source file (for error messages).
-
-        Returns:
-            The compiled CSS string.
-
-        Raises:
-            SassCompileError: If compilation fails.
-            SassProtocolError: If a protocol error occurs.
+        :param source: the stylesheet source code.
+        :param syntax: one of ``scss``, ``indented``, ``css``.
+        :param style: one of ``expanded``, ``compressed``.
+        :param source_map: whether to generate a source map.
+        :param importers: custom importers for resolving ``@import``/``@use``.
+        :param load_paths: filesystem paths to search for imports.
+        :param quiet_deps: suppress deprecation warnings from dependencies.
+        :param url: the URL of the source file (for error messages).
+        :return: the compiled CSS string.
+        :raises SassCompileError: if compilation fails.
+        :raises SassProtocolError: if a protocol error occurs.
         """
         with self._lock:
             self._start()
@@ -533,7 +528,7 @@ _on_stop_registered = False
 
 def get_sass_compiler() -> SassEmbeddedCompiler:
     """Return the singleton SassEmbeddedCompiler, creating it lazily."""
-    global _sass_compiler, _on_stop_registered
+    global _sass_compiler, _on_stop_registered  # noqa: PLW0603  # lazy singleton init
     if _sass_compiler is None:
         with _sass_lock:
             if _sass_compiler is None:
@@ -561,7 +556,7 @@ def get_sass_compiler() -> SassEmbeddedCompiler:
 
 def close_sass_compiler() -> None:
     """Shut down the singleton SassEmbeddedCompiler if running."""
-    global _sass_compiler
+    global _sass_compiler  # noqa: PLW0603  # tear down the lazy singleton
     with _sass_lock:
         if _sass_compiler is not None:
             _sass_compiler.close()

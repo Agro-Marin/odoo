@@ -21,9 +21,9 @@ import odoo.exceptions
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
-unsafe_eval = eval
+unsafe_eval = eval  # noqa: S307  # eval is the intentional core of the safe_eval sandbox
 
-__all__ = ["const_eval", "safe_eval"]
+__all__ = ["const_eval", "expr_eval", "safe_eval"]
 
 # `time` is usually already present, but some code imports it, e.g.
 # datetime.datetime.now() on Windows/Python 2.5.2 (bug lp:703841).
@@ -36,8 +36,8 @@ _ALLOWED_MODULES = ["_strptime", "math", "time"]
 # _ALLOWED_MODULES below ensure.
 def _import(
     name: str,
-    globals: dict | None = None,
-    locals: dict | None = None,
+    globals: dict | None = None,  # noqa: A002  # mirrors builtin __import__ signature
+    locals: dict | None = None,  # noqa: A002  # mirrors builtin __import__ signature
     fromlist: list[str] | None = None,
     level: int = -1,
 ) -> None:
@@ -186,7 +186,7 @@ _EXPR_OPCODES = (
                 "CONTAINS_OP",
                 "DICT_MERGE",
                 "DICT_UPDATE",
-                # Basically used in any "generator literal"
+                # Used in any "generator literal"
                 "GEN_START",  # added in 3.10 but already removed from 3.11.
                 # Added in 3.11, replacing all BINARY_* and INPLACE_*
                 "BINARY_OP",
@@ -301,7 +301,9 @@ _SAFE_OPCODES = (
 _logger = logging.getLogger(__name__)
 
 # Cache keyed by (co_code, co_names, allowed_codes_id): identical bytecode need
-# not be re-scanned for opcodes and names.
+# not be re-scanned for opcodes and names. Only populated for code objects with
+# no nested code object (lambda/comprehension), whose validation verdict the key
+# fully captures — see assert_valid_codeobj for why nested code is never cached.
 _validated_bytecode_cache: dict[tuple, bool] = {}
 _VALIDATED_CACHE_MAX = 8192
 
@@ -316,7 +318,7 @@ def assert_no_dunder_name(code_obj: CodeType, expr: str) -> None:
     :param code_obj: code object to name-validate
     :type code_obj: CodeType
     :param str expr: expression for the code object, for debugging
-    :raises NameError: a forbidden name (with two underscores) is found
+    :raises NameError: a forbidden name (a dunder or unsafe attribute) is found
     """
     for name in code_obj.co_names:
         if "__" in name or name in _UNSAFE_ATTRIBUTES:
@@ -337,11 +339,27 @@ def assert_valid_codeobj(
     :type code_obj: CodeType
     :param str expr: expression for the code object, for debugging
     :raises ValueError: forbidden bytecode in ``code_obj``
-    :raises NameError: a forbidden name (with two underscores) is found
+    :raises NameError: a forbidden name (a dunder or unsafe attribute) is found
     """
+    # Code objects nested in co_consts (lambdas, comprehensions, generator
+    # expressions) carry their OWN bytecode and names, which (co_code, co_names)
+    # do not capture. Two expressions can share an identical *parent*
+    # (co_code, co_names) while differing only inside a nested lambda — e.g.
+    # ``[(lambda v: v.foo)(x) for x in xs]`` vs
+    # ``[(lambda v: v.__class__)(x) for x in xs]`` compile to the same parent
+    # code object. Caching on the parent key alone let the second expression
+    # reuse the first's "validated" verdict and skip the nested dunder/opcode
+    # checks entirely — a sandbox escape (reaching ``object`` via ``__class__``).
+    # The cache is therefore only sound for code objects with no nested code
+    # object: for those, (co_code, co_names) fully determines the validation
+    # outcome (every other const is an inert literal). Anything containing a
+    # nested code object is validated in full, every time.
+    nested_code = [c for c in code_obj.co_consts if isinstance(c, CodeType)]
+    cacheable = not nested_code
+
     # Fast path: identical bytecode + names + allowed set already validated
     cache_key = (code_obj.co_code, code_obj.co_names, id(allowed_codes))
-    if cache_key in _validated_bytecode_cache:
+    if cacheable and cache_key in _validated_bytecode_cache:
         return
 
     assert_no_dunder_name(code_obj, expr)
@@ -355,12 +373,12 @@ def assert_valid_codeobj(
             % (expr, ", ".join(opname[x] for x in (code_codes - allowed_codes)))
         )
 
-    for const in code_obj.co_consts:
-        if isinstance(const, CodeType):
-            assert_valid_codeobj(allowed_codes, const, "lambda")
+    for const in nested_code:
+        assert_valid_codeobj(allowed_codes, const, "lambda")
 
-    # Only cache after full validation succeeds (including nested code objects)
-    if len(_validated_bytecode_cache) < _VALIDATED_CACHE_MAX:
+    # Only cache after full validation succeeds, and only for nested-code-free
+    # objects whose verdict the key actually captures (see above).
+    if cacheable and len(_validated_bytecode_cache) < _VALIDATED_CACHE_MAX:
         _validated_bytecode_cache[cache_key] = True
 
 
@@ -393,17 +411,17 @@ def compile_codeobj(
 def const_eval(expr: str) -> typing.Any:
     """Safely evaluate a string describing a Python constant.
 
-    Strings that are not valid Python expressions, or that contain code beyond
-    the constant, raise ValueError.
+    Strings that are not valid Python expressions raise SyntaxError; those
+    that contain code beyond the constant raise ValueError.
 
     >>> const_eval("10")
     10
     >>> const_eval("[1,2, (3,4), {'foo':'bar'}]")
     [1, 2, (3, 4), {'foo': 'bar'}]
-    >>> const_eval("1+2")
+    >>> const_eval("[1,2]*2")
     Traceback (most recent call last):
     ...
-    ValueError: opcode BINARY_ADD not allowed
+    ValueError: forbidden opcode(s) in '[1,2]*2': BINARY_OP
     """
     c = compile_codeobj(expr)
     assert_valid_codeobj(_CONST_OPCODES, c, expr)
@@ -422,7 +440,7 @@ def expr_eval(expr: str) -> typing.Any:
     >>> expr_eval("__import__('sys').modules")
     Traceback (most recent call last):
     ...
-    ValueError: opcode LOAD_NAME not allowed
+    NameError: Access to forbidden name '__import__' ("__import__('sys').modules")
     """
     c = compile_codeobj(expr)
     assert_valid_codeobj(_EXPR_OPCODES, c, expr)

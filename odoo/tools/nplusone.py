@@ -2,7 +2,7 @@
 N+1 CRUD detection for Odoo ORM.
 
 Detects repeated single-record create/write/unlink calls from the same call
-site within a transaction — a pattern that is 5-15× slower than batching.
+site within a transaction — a pattern that is 5-15x slower than batching.
 
 Activation: ``--dev=n1`` (opt-in, NOT part of ``--dev=all``). When disabled,
 overhead is a single boolean check per CRUD call (``_n1_enabled`` flag).
@@ -35,7 +35,7 @@ def setup(dev_mode: list[str] | None = None) -> None:
 
     Called once during server startup after config is parsed.
     """
-    global _n1_enabled
+    global _n1_enabled  # noqa: PLW0603  # module-level feature flag set once at startup
     if dev_mode is None:
         from odoo.tools import config
 
@@ -77,7 +77,7 @@ class NplusOneTracker:
         record_count: int,
         field_fingerprint: frozenset[str],
     ) -> None:
-        """Record a CRUD call.  Called from ``crud.py``."""
+        """Record a CRUD call from the create/write/unlink ORM mixins."""
         # Walk the stack to find the first frame outside ORM internals.
         frame = sys._getframe(2)  # skip record() + the CRUD method itself
         while frame is not None:
@@ -106,7 +106,7 @@ class NplusOneTracker:
         entry.vals_fingerprints.add(field_fingerprint)
 
     def report(self) -> None:
-        """Emit warnings for call sites that exceed the threshold."""
+        """Emit warnings for call sites that reach the threshold."""
         if not _logger.isEnabledFor(logging.WARNING):
             return
 

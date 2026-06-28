@@ -1,3 +1,5 @@
+"""Sequence merging and topological sorting helpers."""
+
 __all__ = ["merge_sequences", "topological_sort"]
 
 from collections import defaultdict
@@ -10,8 +12,7 @@ if TYPE_CHECKING:
 
 
 def topological_sort[T](elems: Mapping[T, Collection[T]]) -> list[T]:
-    """Return a list of elements sorted so that their dependencies are listed
-    before them in the result.
+    """Return the elements sorted so that each one's dependencies precede it.
 
     :param elems: specifies the elements to sort with their dependencies; it is
         a dictionary like `{element: dependencies}` where `dependencies` is a

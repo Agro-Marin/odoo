@@ -1,3 +1,5 @@
+"""Timezone lookup and localization helpers."""
+
 __all__ = [
     "TIMEZONE_ALIASES",
     "all_timezones",
@@ -226,7 +228,7 @@ def country_timezones() -> dict[str, list[str]]:
         >>> country_timezones()['JP']
         ['Asia/Tokyo']
     """
-    global _country_timezones
+    global _country_timezones  # noqa: PLW0603  # lazily-built module-level cache
     if _country_timezones is None:
         zone_territories = get_global("zone_territories")
         _country_timezones = {}

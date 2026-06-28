@@ -1,9 +1,4 @@
-"""
-Date and time utilities for Odoo.
-
-This module re-exports agnostic utilities from odoo.libs.datetime and adds
-Odoo-specific functions that require the environment.
-"""
+"""Date and time utilities: re-exports from odoo.libs.datetime plus Odoo-specific helpers."""
 
 import re
 import typing
@@ -137,7 +132,7 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
     weekday := [=+-] ('monday' | ... | 'sunday' | 'week_start')
     ```
 
-    An equivalent function is JavaScript is `parseSmartDateInput`.
+    An equivalent function in JavaScript is `parseSmartDateInput`.
 
     :param value: The string to parse
     :param env: The environment to get the current date (in user's tz)

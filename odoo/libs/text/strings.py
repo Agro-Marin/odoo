@@ -67,7 +67,7 @@ def str2bool(s: str, default: bool | None = None) -> bool:
     """
     # allow this (for now?) because it's used for get_param
     if type(s) is bool:
-        return s  # type: ignore
+        return s
 
     if not isinstance(s, str):
         warnings.warn(

@@ -1,3 +1,5 @@
+"""Date and datetime manipulation helpers."""
+
 __all__ = [
     "WEEKDAY_NUMBER",
     "Granularity",
@@ -72,7 +74,7 @@ def float_to_time(hours: float) -> time:
         >>> float_to_time(24.0)
         datetime.time(23, 59, 59, 999999)
     """
-    if hours == 24.0:
+    if hours == 24.0:  # noqa: RUF069  # exact sentinel: 24.0 maps to end-of-day
         return time.max
     fractional, integral = math.modf(hours)
     return time(int(integral), int(float_round(60 * fractional, precision_digits=0)), 0)

@@ -13,7 +13,7 @@ import idna
 
 
 def getaddresses(fieldvalues: list[str]) -> list[tuple[str, str]]:
-    """Wrapper for email.utils.getaddresses with strict=False (Python 3.13+)."""
+    """Wrap email.utils.getaddresses with strict=False (Python 3.13+)."""
     return email.utils.getaddresses(fieldvalues, strict=False)
 
 
@@ -94,11 +94,11 @@ def email_split_tuples(text: str) -> list[tuple[str, str]]:
             inside_pairs = getaddresses([email.replace(" ", ",")])
             name_parts: list[str] = []
             found_email: str | bool = False
-            for pair in inside_pairs:
-                if pair[1] and "@" not in pair[1]:
-                    name_parts.append(pair[1])
-                if pair[1] and "@" in pair[1]:
-                    found_email = pair[1]
+            for inner in inside_pairs:
+                if inner[1] and "@" not in inner[1]:
+                    name_parts.append(inner[1])
+                if inner[1] and "@" in inner[1]:
+                    found_email = inner[1]
             name, email = (
                 (" ".join(name_parts), found_email) if found_email else (name, email)
             )
@@ -149,7 +149,7 @@ def email_split_and_format(text: str) -> list[str]:
 
 
 def email_split_and_normalize(text: str) -> list[tuple[str, str]]:
-    """Same as email_split but with normalized emails.
+    """Return email_split_tuples results with normalized emails.
 
     :param text: Text containing email addresses
     :returns: List of (name, normalized_email) tuples
@@ -160,7 +160,7 @@ def email_split_and_normalize(text: str) -> list[tuple[str, str]]:
 
 
 def email_split_and_format_normalize(text: str) -> list[str]:
-    """Same as email_split_and_format but normalizing email.
+    """Return email_split_and_format results with normalized emails.
 
     :param text: Text containing email addresses
     :returns: List of formatted, normalized email addresses

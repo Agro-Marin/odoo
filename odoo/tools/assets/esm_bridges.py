@@ -24,8 +24,8 @@ from urllib.parse import quote
 from odoo.api import SUPERUSER_ID, Environment
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import ODOO_EXTERNAL_LIBS
-from odoo.libs.esbuild import EsbuildCompiler
-from odoo.libs.esm_graph import (
+from odoo.tools.assets.esbuild import EsbuildCompiler
+from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
     _bridge_shim_source,
     _BridgeExportResolver,
@@ -383,10 +383,9 @@ class BridgeShimManager:
         1. **Discovery** — which ``@addon/…`` specifiers are imported by
            the native modules that *belong to this bundle*?  Static regex
            over the source is good enough: each bundled file's own
-           imports are the complete discovery set.  We also include any
-           specifiers passed in ``native_specifiers`` even if no bundled
-           file imports them, because sibling bundles (test, dynamic)
-           may reach for them.
+           imports are the complete discovery set.  Specifiers in
+           ``native_specifiers`` are excluded — they are owned by this
+           bundle and resolve without a bridge.
 
         2. **Export surface** — for each discovered specifier, which
            named exports does the shim need to expose?  Consumer-import

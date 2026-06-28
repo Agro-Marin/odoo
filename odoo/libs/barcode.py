@@ -1,3 +1,5 @@
+"""Barcode rendering and check-digit helpers built on Reportlab."""
+
 import functools
 import re
 from threading import RLock
@@ -48,6 +50,7 @@ def _init_barcode() -> tuple[Any, str]:
 
 
 def createBarcodeDrawing(codeName: str, **options: Any) -> Any:
+    """Create a Reportlab barcode drawing for `codeName` with the given options."""
     barcode, _font = _init_barcode()
     return barcode.createBarcodeDrawing(codeName, **options)
 
@@ -59,11 +62,13 @@ def get_barcode_font() -> str:
 
 
 def get_barcode_check_digit(numeric_barcode: str) -> int:
-    """Computes and returns the barcode check digit. The used algorithm
-    follows the GTIN specifications and can be used by all compatible
-    barcode nomenclature, like as EAN-8, EAN-12 (UPC-A) or EAN-13.
+    """Compute and return the barcode check digit.
+
+    The used algorithm follows the GTIN specifications and can be used by all
+    compatible barcode nomenclature, like as EAN-8, EAN-12 (UPC-A) or EAN-13.
     https://www.gs1.org/sites/default/files/docs/barcodes/GS1_General_Specifications.pdf
     https://www.gs1.org/services/how-calculate-check-digit-manually
+
     :param numeric_barcode: the barcode to verify/recompute the check digit
     :return: the number corresponding to the right check digit.
     """
@@ -85,7 +90,8 @@ def get_barcode_check_digit(numeric_barcode: str) -> int:
 
 
 def check_barcode_encoding(barcode: str, encoding: str) -> bool:
-    """Checks if the given barcode is correctly encoded.
+    """Check whether the given barcode is correctly encoded.
+
     :return: True if the barcode string is encoded with the provided encoding.
     """
     encoding = encoding.lower()

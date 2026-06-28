@@ -42,7 +42,7 @@ def _to_ms(ns: int | float) -> float:
 
 
 def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
-    """Called before and after each run of the gc, see gc_set_timing."""
+    """Record gc collection timings; called before and after each gc run, see gc_set_timing."""
     global _gc_start  # noqa: PLW0603
     gen = info["generation"]
     if event == "start":

@@ -24,6 +24,8 @@
 # <letter> should be in final form. If no replacement is specified for a form,
 # then no that means the letter doesn't support this form.
 
+"""Arabic letter presentation-form lookup tables and letter-connection predicates."""
+
 UNSHAPED: int = 255
 ISOLATED: int = 0
 INITIAL: int = 1

@@ -134,7 +134,7 @@ class Cloc:
                     for j in ["cloc_exclude", "demo", "demo_xml"]:
                         exclude_list.extend(d.get(j, []))
                     break
-            except Exception:
+            except Exception:  # noqa: S110  # best-effort manifest read; cloc tolerates malformed manifests
                 pass
         if not exclude:
             exclude = set()

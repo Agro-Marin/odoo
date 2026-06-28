@@ -113,13 +113,11 @@ def _wrap_method(model_name, method_name, original_method):
 
 
 def profile_methods(model_name, method_names, registry=None):
-    """
-    Enable profiling for specific methods on a model.
+    """Enable profiling for specific methods on a model.
 
-    Args:
-        model_name: The model to profile (e.g., 'res.partner')
-        method_names: List of method names to profile
-        registry: Optional registry (uses thread's registry if not provided)
+    :param model_name: model to profile (e.g. ``res.partner``)
+    :param method_names: method names to profile
+    :param registry: registry to use (defaults to the current thread's registry)
     """
     if registry is None:
         # Import here to avoid circular imports
@@ -186,12 +184,10 @@ def clear_profile_data():
 
 
 def get_profile_report(sort_by="total_time", top_n=20):
-    """
-    Generate a profiling report.
+    """Generate a profiling report.
 
-    Args:
-        sort_by: 'total_time', 'calls', 'queries', 'self_time', 'avg_time'
-        top_n: Number of top methods to show
+    :param sort_by: one of ``total_time``, ``calls``, ``queries``, ``self_time``, ``avg_time``
+    :param top_n: number of top methods to show
     """
     data = _get_data()
 
@@ -308,7 +304,7 @@ def get_query_patterns():
             (s["records"], s["queries"]) for s in samples if s["records"] > 0
         ]
         if len(records_queries) >= 5:
-            # Simple linear regression to detect O(n) query patterns
+            # Heuristic: does query count scale with record count (O(n))?
             n_values = [r for r, q in records_queries]
             q_values = [q for r, q in records_queries]
             if max(n_values) > min(n_values) * 2:  # Enough variance in record counts

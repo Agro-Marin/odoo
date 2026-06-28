@@ -105,10 +105,10 @@ from odoo.libs.collections import (
     Collector,  # Collect items into groups
     ConstantMapping,  # Mapping returning constant value
     DotDict,  # Dict with attribute access
-    LastOrderedSet,  # Set ordered by last access
+    LastOrderedSet,  # Set ordered by last insertion (re-adding moves to end)
     OrderedSet,  # Set that preserves insertion order
-    ReadonlyDict,  # Read-only dict view
-    Reverse,  # Reverse iteration wrapper
+    ReadonlyDict,  # Immutable dict (not even updatable via update())
+    Reverse,  # Wrap a value to reverse its sort order
     ReversedIterable,  # Reversed iterable type
     StackMap,  # Dict with stack-like shadowing
     freehash,  # Hash for unhashable objects
@@ -315,9 +315,7 @@ class Callbacks:
         callbacks.add(foo)
 
         # add bar
-        callbacks.add
-
-
+        @callbacks.add
         def bar():
             print("bar")
 
@@ -403,7 +401,7 @@ def get_diff(
         html_diff: str, custom_style: str | bool, dark_color_scheme: bool
     ) -> str:
         """The HtmlDiff lib will add some useful classes on the DOM to
-        identify elements. Simply append to those classes some BS4 ones.
+        identify elements. Append some BS4 classes to those.
         For the table to fit the modal width, some custom style is needed.
         """
         to_append = {
