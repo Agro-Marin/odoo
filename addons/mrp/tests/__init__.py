@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from . import test_bom
 from . import test_byproduct

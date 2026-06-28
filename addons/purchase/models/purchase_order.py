@@ -180,6 +180,13 @@ class PurchaseOrder(models.Model):
         default="0",
         index=True,
     )
+    tag_ids = fields.Many2many(
+        comodel_name="srm.tag",
+        relation="purchase_order_tag_rel",
+        column1="order_id",
+        column2="tag_id",
+        string="Tags",
+    )
     date_order = fields.Datetime(
         string="Order Date",
         required=True,

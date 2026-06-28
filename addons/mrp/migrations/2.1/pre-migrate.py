@@ -7,10 +7,13 @@ data from date_finished and drops the old column.
 
 
 def _column_exists(cr, table, column):
-    cr.execute("""
+    cr.execute(
+        """
         SELECT 1 FROM information_schema.columns
         WHERE table_name = %s AND column_name = %s
-    """, [table, column])
+    """,
+        [table, column],
+    )
     return bool(cr.fetchone())
 
 
@@ -34,10 +37,13 @@ def migrate(cr, version):
             cr.execute(f"ALTER TABLE {table} RENAME COLUMN date_finished TO date_end")
 
         # Delete stale field record -- ORM will recreate with correct definition
-        cr.execute("""
+        cr.execute(
+            """
             DELETE FROM ir_model_fields
              WHERE model = %s AND name = 'date_finished'
-        """, [model])
+        """,
+            [model],
+        )
 
     # Drop old indexes -- ORM recreates them on update
     cr.execute("""

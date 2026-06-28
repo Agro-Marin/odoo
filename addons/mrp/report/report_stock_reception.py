@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
@@ -6,33 +5,40 @@ from odoo.tools import format_date
 
 
 class ReportStockReport_Reception(models.AbstractModel):
-    _inherit = 'report.stock.report_reception'
+    _inherit = "report.stock.report_reception"
 
     def _get_docs(self, docids):
-        if self.env.context.get('default_production_ids'):
-            return self.env['mrp.production'].search([('id', 'in', self.env.context.get('default_production_ids')), ('state', '!=', 'cancel')])
+        if self.env.context.get("default_production_ids"):
+            return self.env["mrp.production"].search(
+                [
+                    ("id", "in", self.env.context.get("default_production_ids")),
+                    ("state", "!=", "cancel"),
+                ]
+            )
         return super()._get_docs(docids)
 
     def _get_doc_model(self):
-        if self.env.context.get('default_production_ids'):
-            return 'mrp.production'
+        if self.env.context.get("default_production_ids"):
+            return "mrp.production"
         return super()._get_doc_model()
 
     def _get_doc_types(self):
         return super()._get_doc_types() + " or manufacturing orders"
 
     def _get_moves(self, docs):
-        if self.env.context.get('default_production_ids'):
-            return docs.move_finished_ids.filtered(lambda m: m.product_id.is_storable and m.state != 'cancel')
+        if self.env.context.get("default_production_ids"):
+            return docs.move_finished_ids.filtered(
+                lambda m: m.product_id.is_storable and m.state != "cancel"
+            )
         return super()._get_moves(docs)
 
     def _get_extra_domain(self, docs):
-        if self.env.context.get('default_production_ids'):
-            return [('raw_material_production_id', 'not in', docs.ids)]
+        if self.env.context.get("default_production_ids"):
+            return [("raw_material_production_id", "not in", docs.ids)]
         return super()._get_extra_domain(docs)
 
     def _get_formatted_scheduled_date(self, source):
-        if source._name == 'mrp.production':
+        if source._name == "mrp.production":
             return format_date(self.env, source.date_start)
         return super()._get_formatted_scheduled_date(source)
 

@@ -1,12 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-# -*- coding: utf-8 -*-
 
 from odoo import Command
+from odoo.tests import Form, HttpCase, tagged
+
 from odoo.addons.mrp.tests.common import TestMrpCommon
-from odoo.tests import tagged, Form, HttpCase
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestTourManualConsumption(HttpCase):
     def test_mrp_manual_consumption_02(self):
         """
@@ -14,52 +14,67 @@ class TestTourManualConsumption(HttpCase):
         and the field picked is set to True,
         and the MO is marked as done, the component quantity is not overwritten.
         """
-        Product = self.env['product.product']
-        product_finish = Product.create({
-            'name': 'finish',
-            'is_storable': True,
-            'tracking': 'none',})
-        product_nt = Product.create({
-            'name': 'No tracking',
-            'is_storable': True,
-            'tracking': 'none',})
-        bom = self.env['mrp.bom'].create({
-            'product_id': product_finish.id,
-            'product_tmpl_id': product_finish.product_tmpl_id.id,
-            'product_qty': 1,
-            'type': 'normal',
-            'bom_line_ids': [
-                (0, 0, {'product_id': product_nt.id, 'product_qty': 1}),
-            ],
-        })
+        Product = self.env["product.product"]
+        product_finish = Product.create(
+            {
+                "name": "finish",
+                "is_storable": True,
+                "tracking": "none",
+            }
+        )
+        product_nt = Product.create(
+            {
+                "name": "No tracking",
+                "is_storable": True,
+                "tracking": "none",
+            }
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_id": product_finish.id,
+                "product_tmpl_id": product_finish.product_tmpl_id.id,
+                "product_qty": 1,
+                "type": "normal",
+                "bom_line_ids": [
+                    (0, 0, {"product_id": product_nt.id, "product_qty": 1}),
+                ],
+            }
+        )
 
-        mo_form = Form(self.env['mrp.production'])
+        mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_finish
         mo_form.bom_id = bom
         mo_form.product_qty = 10
         mo = mo_form.save()
         mo.action_confirm()
 
-        self.assertEqual(mo.state, 'confirmed')
+        self.assertEqual(mo.state, "confirmed")
         move_nt = mo.move_raw_ids
         self.assertEqual(move_nt.manual_consumption, False)
         self.assertEqual(move_nt.quantity, 0)
         self.assertFalse(move_nt.picked)
 
         url = f"/odoo/action-mrp.mrp_production_action/{mo.id}"
-        self.start_tour(url, "test_mrp_manual_consumption_02", login="admin", timeout=100)
+        self.start_tour(
+            url, "test_mrp_manual_consumption_02", login="admin", timeout=100
+        )
 
         self.assertEqual(move_nt.manual_consumption, True)
         self.assertEqual(move_nt.picked, True)
         self.assertEqual(move_nt.quantity, 16.0)
 
+
 class TestManualConsumption(TestMrpCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env.ref('base.group_user').write({
-            'implied_ids': [Command.link(cls.env.ref('stock.group_production_lot').id)],
-        })
+        cls.env.ref("base.group_user").write(
+            {
+                "implied_ids": [
+                    Command.link(cls.env.ref("stock.group_production_lot").id)
+                ],
+            }
+        )
 
     def test_manual_consumption_with_different_component_price(self):
         """
@@ -70,26 +85,34 @@ class TestManualConsumption(TestMrpCommon):
         - Mark the MO as done.
         - Another move should be created and merged with the first move.
         """
-        self.bom_4.consumption = 'warning'
+        self.bom_4.consumption = "warning"
         component = self.bom_4.bom_line_ids.product_id
-        component.write({
-            'is_storable': True,
-            'standard_price': 10,
-        })
-        self.env['stock.quant']._update_available_quantity(component, self.stock_location, 2)
-        mo = self.env['mrp.production'].create({
-            'product_qty': 1,
-            'bom_id': self.bom_4.id,
-        })
+        component.write(
+            {
+                "is_storable": True,
+                "standard_price": 10,
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            component, self.stock_location, 2
+        )
+        mo = self.env["mrp.production"].create(
+            {
+                "product_qty": 1,
+                "bom_id": self.bom_4.id,
+            }
+        )
         mo.action_confirm()
-        self.assertEqual(mo.state, 'confirmed')
+        self.assertEqual(mo.state, "confirmed")
         component.standard_price = 20
         mo.move_raw_ids.quantity = 2.0
         mo.move_raw_ids.picked = True
         mo.move_raw_ids.manual_consumption = True
-        self.assertEqual(mo.state, 'progress')
+        self.assertEqual(mo.state, "progress")
         action = mo.button_mark_done()
-        consumption_warning = Form(self.env['mrp.consumption.warning'].with_context(**action['context']))
+        consumption_warning = Form(
+            self.env["mrp.consumption.warning"].with_context(**action["context"])
+        )
         action = consumption_warning.save().action_confirm()
         self.assertEqual(len(mo.move_raw_ids), 1)
         self.assertEqual(mo.move_raw_ids.quantity, 2)
@@ -100,36 +123,47 @@ class TestManualConsumption(TestMrpCommon):
         2. Test when a move is manual consumption but IS picked, quantity will not be updated automatically.
         3. Test when create backorder, the manual consumption should be set according to the bom.
         """
-        Product = self.env['product.product']
-        product_finish = Product.create({
-            'name': 'finish',
-            'is_storable': True,
-            'tracking': 'none'})
-        product_auto_consumption = Product.create({
-            'name': 'Automatic',
-            'is_storable': True,
-            'tracking': 'none'})
-        product_manual_consumption = Product.create({
-            'name': 'Manual',
-            'is_storable': True,
-            'tracking': 'none'})
-        bom = self.env['mrp.bom'].create({
-            'product_id': product_finish.id,
-            'product_tmpl_id': product_finish.product_tmpl_id.id,
-            'product_qty': 1,
-            'type': 'normal',
-            'bom_line_ids': [
-                (0, 0, {'product_id': product_auto_consumption.id, 'product_qty': 1}),
-                (0, 0, {'product_id': product_manual_consumption.id, 'product_qty': 1}),
-            ],
-        })
+        Product = self.env["product.product"]
+        product_finish = Product.create(
+            {"name": "finish", "is_storable": True, "tracking": "none"}
+        )
+        product_auto_consumption = Product.create(
+            {"name": "Automatic", "is_storable": True, "tracking": "none"}
+        )
+        product_manual_consumption = Product.create(
+            {"name": "Manual", "is_storable": True, "tracking": "none"}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_id": product_finish.id,
+                "product_tmpl_id": product_finish.product_tmpl_id.id,
+                "product_qty": 1,
+                "type": "normal",
+                "bom_line_ids": [
+                    (
+                        0,
+                        0,
+                        {"product_id": product_auto_consumption.id, "product_qty": 1},
+                    ),
+                    (
+                        0,
+                        0,
+                        {"product_id": product_manual_consumption.id, "product_qty": 1},
+                    ),
+                ],
+            }
+        )
 
         def get_moves(mo):
-            move_auto = mo.move_raw_ids.filtered(lambda m: m.product_id == product_auto_consumption)
-            move_manual = mo.move_raw_ids.filtered(lambda m: m.product_id == product_manual_consumption)
+            move_auto = mo.move_raw_ids.filtered(
+                lambda m: m.product_id == product_auto_consumption
+            )
+            move_manual = mo.move_raw_ids.filtered(
+                lambda m: m.product_id == product_manual_consumption
+            )
             return move_auto, move_manual
 
-        mo_form = Form(self.env['mrp.production'])
+        mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_finish
         mo_form.bom_id = bom
         mo_form.product_qty = 10
@@ -162,10 +196,14 @@ class TestManualConsumption(TestMrpCommon):
 
         # Bypass consumption issues wizard and create backorders
         action = mo.button_mark_done()
-        warning = Form(self.env['mrp.consumption.warning'].with_context(**action['context']))
+        warning = Form(
+            self.env["mrp.consumption.warning"].with_context(**action["context"])
+        )
         consumption = warning.save()
         action = consumption.action_set_qty()
-        backorder_form = Form(self.env['mrp.production.backorder'].with_context(**action['context']))
+        backorder_form = Form(
+            self.env["mrp.production.backorder"].with_context(**action["context"])
+        )
         backorder_form.save().action_backorder()
         backorder = mo.production_group_id.production_ids - mo
 
@@ -180,22 +218,27 @@ class TestManualConsumption(TestMrpCommon):
         """
         bom = self.bom_1
         components = bom.bom_line_ids.product_id
-        self.env['stock.quant']._update_available_quantity(components[0], self.stock_location, 10)
-        mo_form = Form(self.env['mrp.production'])
+        self.env["stock.quant"]._update_available_quantity(
+            components[0], self.stock_location, 10
+        )
+        mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_form.product_qty = 4
         mo = mo_form.save()
         mo.action_confirm()
-        self.assertEqual(mo.move_raw_ids.mapped('manual_consumption'), [False, False])
+        self.assertEqual(mo.move_raw_ids.mapped("manual_consumption"), [False, False])
         self.assertEqual(components[0].stock_quant_ids.reserved_quantity, 2.0)
         with Form(mo) as fmo:
             with fmo.move_raw_ids.edit(0) as line_0:
                 line_0.quantity = 3.0
                 line_0.picked = True
-        self.assertEqual(mo.move_raw_ids.mapped('manual_consumption'), [True, False])
+        self.assertEqual(mo.move_raw_ids.mapped("manual_consumption"), [True, False])
         self.assertEqual(components[0].stock_quant_ids.reserved_quantity, 3.0)
         mo.button_mark_done()
-        self.assertRecordValues(mo.move_raw_ids, [{'quantity': 3.0, 'picked': True}, {'quantity': 4.0, 'picked': True}])
+        self.assertRecordValues(
+            mo.move_raw_ids,
+            [{"quantity": 3.0, "picked": True}, {"quantity": 4.0, "picked": True}],
+        )
 
     def test_update_manual_consumption_01(self):
         """
@@ -204,22 +247,27 @@ class TestManualConsumption(TestMrpCommon):
         """
         bom = self.bom_1
         components = bom.bom_line_ids.product_id
-        self.env['stock.quant']._update_available_quantity(components[0], self.stock_location, 10)
-        mo_form = Form(self.env['mrp.production'])
+        self.env["stock.quant"]._update_available_quantity(
+            components[0], self.stock_location, 10
+        )
+        mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_form.product_qty = 4
         mo = mo_form.save()
         mo.action_confirm()
-        self.assertEqual(mo.move_raw_ids.mapped('manual_consumption'), [False, False])
+        self.assertEqual(mo.move_raw_ids.mapped("manual_consumption"), [False, False])
         self.assertEqual(components[0].stock_quant_ids.reserved_quantity, 2.0)
         with Form(mo) as fmo:
             with fmo.move_raw_ids.edit(0) as line_0:
                 line_0.quantity = 3.0
                 line_0.picked = True
             fmo.qty_producing = 2.0
-        self.assertEqual(mo.move_raw_ids.mapped('manual_consumption'), [True, False])
+        self.assertEqual(mo.move_raw_ids.mapped("manual_consumption"), [True, False])
         self.assertEqual(components[0].stock_quant_ids.reserved_quantity, 3.0)
-        self.assertRecordValues(mo.move_raw_ids, [{'quantity': 3.0, 'picked': True}, {'quantity': 2.0, 'picked': True}])
+        self.assertRecordValues(
+            mo.move_raw_ids,
+            [{"quantity": 3.0, "picked": True}, {"quantity": 2.0, "picked": True}],
+        )
 
     def test_reservation_state_with_manual_consumption(self):
         """
@@ -227,20 +275,23 @@ class TestManualConsumption(TestMrpCommon):
         """
         self.warehouse_1.manufacture_steps = "pbm"
         bom = self.bom_1
-        components = bom.bom_line_ids.mapped('product_id')
+        components = bom.bom_line_ids.mapped("product_id")
         components.is_storable = True
         # make the second component optional
         bom.bom_line_ids[-1].product_qty = 0.0
-        self.env['stock.quant']._update_available_quantity(components[0], self.warehouse_1.lot_stock_id, 10.0)
-        mo_form = Form(self.env['mrp.production'])
+        self.env["stock.quant"]._update_available_quantity(
+            components[0], self.warehouse_1.lot_stock_id, 10.0
+        )
+        mo_form = Form(self.env["mrp.production"])
         mo_form.picking_type_id = self.picking_type_manu
         mo_form.bom_id = bom
         mo_form.product_qty = 4
         mo = mo_form.save()
         mo.action_confirm()
-        self.assertRecordValues(mo.picking_ids.move_ids, [
-            { "product_id": components[0].id, "product_uom_qty": 2.0}
-        ])
+        self.assertRecordValues(
+            mo.picking_ids.move_ids,
+            [{"product_id": components[0].id, "product_uom_qty": 2.0}],
+        )
         self.assertEqual(mo.reservation_state, "waiting")
         mo.picking_ids.button_validate()
         self.assertEqual(mo.reservation_state, "assigned")
@@ -258,15 +309,17 @@ class TestManualConsumption(TestMrpCommon):
         """
         bom = self.bom_4
         component = bom.bom_line_ids.product_id
-        component.write({
-            "is_storable": True,
-            "tracking": "lot",
-        })
+        component.write(
+            {
+                "is_storable": True,
+                "tracking": "lot",
+            }
+        )
 
         # Create two lots with quants.
-        lots = self.env["stock.lot"].create([
-            {"name": f"lot_{i}", "product_id": component.id} for i in range(2)
-        ])
+        lots = self.env["stock.lot"].create(
+            [{"name": f"lot_{i}", "product_id": component.id} for i in range(2)]
+        )
         for lot in lots:
             self.env["stock.quant"]._update_available_quantity(
                 component, self.stock_location, 5, lot_id=lot
@@ -280,67 +333,105 @@ class TestManualConsumption(TestMrpCommon):
         mo.action_confirm()
 
         # Initially: not consumed.
-        self.assertRecordValues(mo.move_raw_ids, [
-            {"manual_consumption": False, "picked": False, "lot_ids": lots[0].ids},
-        ])
+        self.assertRecordValues(
+            mo.move_raw_ids,
+            [
+                {"manual_consumption": False, "picked": False, "lot_ids": lots[0].ids},
+            ],
+        )
 
         # Change only the lot in the 'Details' wizard, keep quantity unchanged.
-        with Form.from_action(self.env, mo.move_raw_ids[0].action_show_details()) as wiz_form:
+        with Form.from_action(
+            self.env, mo.move_raw_ids[0].action_show_details()
+        ) as wiz_form:
             with wiz_form.move_line_ids.edit(0) as move_line:
                 move_line.lot_id = lots[1]
             wiz_form.save()
 
         # Still it should not consumed.
-        self.assertRecordValues(mo.move_raw_ids, [
-            {"manual_consumption": False, "picked": False, "lot_ids": lots[1].ids},
-        ])
+        self.assertRecordValues(
+            mo.move_raw_ids,
+            [
+                {"manual_consumption": False, "picked": False, "lot_ids": lots[1].ids},
+            ],
+        )
 
         # Change the quantity in the 'Details' wizard.
-        with Form.from_action(self.env, mo.move_raw_ids[0].action_show_details()) as wiz_form:
+        with Form.from_action(
+            self.env, mo.move_raw_ids[0].action_show_details()
+        ) as wiz_form:
             with wiz_form.move_line_ids.edit(0) as move_line:
                 move_line.quantity = 2
             wiz_form.save()
 
         # Now it should be marked as consumed, since the done quantity differs from the demand.
-        self.assertRecordValues(mo.move_raw_ids, [
-            {"manual_consumption": True, "picked": True, "lot_ids": lots[1].ids},
-        ])
+        self.assertRecordValues(
+            mo.move_raw_ids,
+            [
+                {"manual_consumption": True, "picked": True, "lot_ids": lots[1].ids},
+            ],
+        )
 
     def test_manual_consumption_is_false_if_quantity_was_unchanged(self):
         """
         Check that a move's `manual_consumption` field is only set if the
         quantity of the move line was modified.
         """
-        product_lot = self.env['product.product'].create({
-            'name': 'Product Lot',
-            'is_storable': True,
-            'tracking': 'lot',
-        })
-        lot_1, lot_2 = self.env['stock.lot'].create([{
-            'name': 'lot_1', 'product_id': product_lot.id,
-        }, {
-            'name': 'lot_2', 'product_id': product_lot.id,
-        }])
-        self.env['stock.quant']._update_available_quantity(product_lot, self.stock_location, 2, lot_id=lot_1)
-        self.env['stock.quant']._update_available_quantity(product_lot, self.stock_location, 2, lot_id=lot_2)
+        product_lot = self.env["product.product"].create(
+            {
+                "name": "Product Lot",
+                "is_storable": True,
+                "tracking": "lot",
+            }
+        )
+        lot_1, lot_2 = self.env["stock.lot"].create(
+            [
+                {
+                    "name": "lot_1",
+                    "product_id": product_lot.id,
+                },
+                {
+                    "name": "lot_2",
+                    "product_id": product_lot.id,
+                },
+            ]
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product_lot, self.stock_location, 2, lot_id=lot_1
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product_lot, self.stock_location, 2, lot_id=lot_2
+        )
 
         # Create an MO with one component from lot_1, quantity 2
-        mo = self.env['mrp.production'].create({
-            'product_id': self.product.id,
-            'product_qty': 2,
-            'move_raw_ids': [Command.create({
-                'product_id': product_lot.id,
-                'quantity': 2,
-                'move_line_ids': [Command.create({
-                    'product_id': product_lot.id,
-                    'lot_id': lot_1.id,
-                })],
-            })],
-        })
+        mo = self.env["mrp.production"].create(
+            {
+                "product_id": self.product.id,
+                "product_qty": 2,
+                "move_raw_ids": [
+                    Command.create(
+                        {
+                            "product_id": product_lot.id,
+                            "quantity": 2,
+                            "move_line_ids": [
+                                Command.create(
+                                    {
+                                        "product_id": product_lot.id,
+                                        "lot_id": lot_1.id,
+                                    }
+                                )
+                            ],
+                        }
+                    )
+                ],
+            }
+        )
 
         # Using the details form, change only the lot of the move line
         action = mo.move_raw_ids.action_show_details()
-        details_form = Form(mo.move_raw_ids.with_context(action['context']), view=action['view_id'])
+        details_form = Form(
+            mo.move_raw_ids.with_context(action["context"]), view=action["view_id"]
+        )
         with details_form.move_line_ids.edit(0) as move_line:
             move_line.lot_id = lot_2
         move = details_form.save()

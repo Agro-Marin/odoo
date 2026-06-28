@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { loadBundle } from "@web/core/assets";
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { cookie } from "@web/core/browser/cookie";
 import { getColor } from "@web/core/colors/colors";
 import { registry } from "@web/core/registry";
@@ -48,7 +48,7 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
         this.canvasRef = useRef("canvas");
         onWillStart(async () => {
             this.displayUOM = await user.hasGroup("uom.group_uom");
-            await loadBundle("web.chartjs_lib");
+            await loadChartJS();
         });
 
         useEffect(() => {

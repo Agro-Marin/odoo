@@ -396,7 +396,7 @@ class ProductProduct(models.Model):
         if self.env.context.get("with_expiration"):
             max_date = (
                 self.env.context["to_date"]
-                if self.env.context.get("to_date")
+                if self.env.context.get("to_date") and self.env.context.get("fresh_qty_forecast")
                 else self.env.context["with_expiration"]
             )
             domain_quant &= Domain([("removal_date", "<=", max_date)])

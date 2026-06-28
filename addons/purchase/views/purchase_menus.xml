@@ -45,6 +45,13 @@
         action="product.action_product_supplierinfo" />
 
     <menuitem
+        id="srm_tag_menu"
+        name="Tags"
+        parent="menu_purchase_config"
+        sequence="20"
+        action="srm_tag_action" />
+
+    <menuitem
         id="menu_product_in_config_purchase"
         name="Products"
         parent="menu_purchase_config"

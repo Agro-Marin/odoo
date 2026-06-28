@@ -35,3 +35,5 @@ access_purchase_bill_match,access_purchase_bill_match,model_purchase_bill_match,
 access_purchase_mass_cancel_orders,access.purchase.mass.cancel.orders,model_purchase_mass_cancel_orders,purchase.group_purchase_user,1,1,1,0
 access_report_purchase_order,purchase.stock.report,model_purchase_report,purchase.group_purchase_manager,1,0,0,0
 access_report_purchase_order_user,purchase.stock.report user,model_purchase_report,purchase.group_purchase_user,1,0,0,0
+access_srm_tag_purchase_user,srm.tag purchase_user,model_srm_tag,purchase.group_purchase_user,1,1,1,0
+access_srm_tag_purchase_manager,srm.tag purchase_manager,model_srm_tag,purchase.group_purchase_manager,1,1,1,1

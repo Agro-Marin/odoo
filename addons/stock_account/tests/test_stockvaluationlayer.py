@@ -176,6 +176,47 @@ class TestStockValuationStandard(TestStockValuationCommon):
         finally:
             self.env.user.company_id = old_company
 
+    def test_multicompany_multicurrency_total_value(self):
+        """Selecting companies that don't share a currency must convert each company's
+        valuation into the main company's currency before summing (odoo#270575)."""
+        self.env.user.company_ids = [(4, self.other_company.id)]
+        other_wh = self.env['stock.warehouse'].search([('company_id', '=', self.other_company.id)], limit=1)
+
+        self.product.with_company(self.company).standard_price = 10
+        self.product.with_company(self.other_company).standard_price = 50
+
+        # Company 1 (main, kept in the user's currency): 15 units @ 10
+        self._make_in_move(self.product, 15)
+        # Company 2: 100 units @ 50, made while company 2 is the active company
+        old_company = self.env.user.company_id
+        try:
+            self.env.user.company_id = self.other_company
+            self._make_in_move(
+                self.product.with_company(self.other_company), 100,
+                location_dest_id=other_wh.lot_stock_id.id,
+                picking_type_id=other_wh.in_type_id.id,
+            )
+        finally:
+            self.env.user.company_id = old_company
+
+        product_both = self.product.with_context(
+            allowed_company_ids=(self.company | self.other_company).ids)
+        # Same currency: per-company values simply add up (15*10 + 100*50)
+        self.assertEqual(product_both.qty_available, 115)
+        self.assertEqual(product_both.total_value, 5150)
+
+        # 1 unit of the main currency is worth 0.5 of company 2's currency
+        other_currency = self.env['res.currency'].create({
+            'name': 'Other curr',
+            'symbol': 'O',
+            'rounding': 0.01,
+            'rate_ids': [Command.create({'name': '2020-01-01', 'rate': 0.5})],
+        })
+        self.other_company.currency_id = other_currency
+        self.product.invalidate_recordset(['total_value'])
+        # 150 (company 1) + 5000 / 0.5 = 150 + 10000 = 10150 in the main currency
+        self.assertEqual(product_both.total_value, 10150)
+
     def test_change_qty_and_locations_of_done_sml(self):
         sub_stock_loc = self.env['stock.location'].create({
             'name': 'shelf1',

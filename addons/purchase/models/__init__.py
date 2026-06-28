@@ -12,4 +12,5 @@ from . import (
     purchase_order_line,
     res_company,
     res_partner,
+    srm_tag,
 )

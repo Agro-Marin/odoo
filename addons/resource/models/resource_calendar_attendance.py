@@ -3,7 +3,7 @@ from datetime import date
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.orm._typing import ValuesType
+from odoo.models import ValuesType
 
 
 class ResourceCalendarAttendance(models.Model):

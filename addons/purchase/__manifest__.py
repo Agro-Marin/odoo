@@ -26,6 +26,7 @@
         "views/account_move_views.xml",
         "views/purchase_order_views.xml",
         "views/purchase_order_line_views.xml",
+        "views/srm_tag_views.xml",
         "views/res_partner_views.xml",
         "views/portal_templates.xml",
         "report/purchase_bill_match_views.xml",

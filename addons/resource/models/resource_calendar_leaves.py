@@ -6,7 +6,7 @@ from pytz import timezone, utc
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Datetime
-from odoo.orm._typing import ValuesType
+from odoo.models import ValuesType
 
 
 class ResourceCalendarLeaves(models.Model):

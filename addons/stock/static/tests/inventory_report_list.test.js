@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, queryOne } from "@odoo/hoot-dom";

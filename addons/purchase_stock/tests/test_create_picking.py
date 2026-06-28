@@ -883,6 +883,44 @@ class TestCreatePicking(ProductVariantsCommon):
         po.action_confirm()
         self.assertEqual(po.picking_ids.move_ids.description_picking, ('No variant: extra\n' if product_matrix_installed else '') + '[123] ABC\nReceive with care')
 
+    def test_receipt_return_type_change_qty_transferred(self):
+        """
+        Purchase, receive and return 1 unit of a product. Change the return operation type to be a delivery
+        in one step. Check that the qty_transferred is updated accordingly.
+        """
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        warehouse.delivery_steps = 'pick_ship'
+        warehouse.in_type_id.return_picking_type_id = warehouse.pick_type_id
+
+        po = self.env['purchase.order'].create({
+            'partner_id': self.partner_id.id,
+            'line_ids': [Command.create({
+                'product_id': self.product_id_1.id,
+                'product_qty': 1.0,
+                'product_uom_id': self.product_id_1.uom_id.id,
+                'price_unit': 100.0,
+            })],
+        })
+        po.action_confirm()
+        receipt = po.picking_ids
+        receipt.move_ids.quantity = 1.0
+        receipt.button_validate()
+        self.assertEqual(po.line_ids.qty_transferred, 1.0)
+
+        return_wizard = self.env['stock.return.picking'].with_context(
+            active_ids=receipt.ids,
+            active_id=receipt.id,
+            active_model='stock.picking',
+        ).create({})
+        return_wizard.product_return_moves.quantity = 1.0
+        res = return_wizard.action_create_returns()
+        return_pick = self.env['stock.picking'].browse(res['res_id'])
+        return_pick.picking_type_id = warehouse.out_type_id
+        return_pick.move_ids.quantity = 1.0
+        return_pick.button_validate()
+
+        self.assertEqual(po.line_ids.qty_transferred, 0.0)
+
     def test_average_cost_updated_after_po_with_discount(self):
         """
         Check the product price update from receiving discounted goods.
