@@ -1,4 +1,5 @@
 import base64
+import pathlib
 from datetime import UTC, datetime, timedelta, timezone
 from http import HTTPStatus
 from os.path import basename
@@ -15,7 +16,6 @@ from odoo.tools.image import image_process
 from odoo.tools.misc import submap
 
 from .test_common import HTTP_DATETIME_FORMAT, TestHttpBase
-import pathlib
 
 
 class TestHttpStaticCommon(TestHttpBase):

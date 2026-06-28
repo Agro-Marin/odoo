@@ -7,10 +7,12 @@ from . import test_greeting
 from . import test_http_audit
 from . import test_misc
 from . import test_models
+from . import test_openapi
 from . import test_registry
 from . import test_security
 from . import test_session
 from . import test_static
+from . import test_typed_routing
 from . import test_web_server
 from . import test_webjson
 from . import test_webjson2

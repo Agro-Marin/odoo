@@ -28,7 +28,7 @@ def content_disposition(filename: str, disposition_type: str = "attachment") -> 
         disk by the browser.
     :param disposition_type: Tell the browser what to do with the file,
         either ``"attachment"`` to save the file on disk,
-        either ``"inline"`` to display the file.
+        or ``"inline"`` to display the file.
     """
     if disposition_type not in ("attachment", "inline"):
         e = f"Invalid disposition_type: {disposition_type!r}"
@@ -55,13 +55,19 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
 
 def _normalize_dbfilter_host(host: str) -> str:
     """Reduce a raw ``Host`` header to the form the dbfilter regex matches
-    (strip ``:port`` and a leading ``www.``).
+    (strip ``:port``, lowercase, then strip a leading ``www.``).
 
     Normalising before the cache lookup collapses equivalent spellings
-    (``example.com``, ``www.example.com``, ``example.com:443``) onto a single
-    :func:`_compiled_dbfilter` entry. The operation is idempotent.
+    (``example.com``, ``www.example.com``, ``example.com:443``, ``EXAMPLE.com``)
+    onto a single :func:`_compiled_dbfilter` entry. Hostnames are
+    case-insensitive (RFC 4343), so a mixed-case ``Host`` (sent by a client or
+    forwarded verbatim by a proxy) must resolve to the same database — and must
+    not each spawn a distinct compiled-regex entry, which is the same
+    attacker-varied-host cache-amplification vector :data:`DB_MONODB_CACHE_TTL`
+    documents closing for the catalog read. Lowercasing precedes ``removeprefix``
+    so an upper-case ``WWW.`` is stripped too. The operation is idempotent.
     """
-    return host.partition(":")[0].removeprefix("www.")
+    return host.partition(":")[0].lower().removeprefix("www.")
 
 
 @functools.lru_cache(maxsize=512)
@@ -220,20 +226,44 @@ def _exception_debug(exception: BaseException) -> str:
     return "".join(traceback.format_exception(exception))
 
 
+# Exception types whose human text must NEVER reach a client: raw database-driver
+# errors carry the failing SQL, schema/constraint names and sometimes row data
+# (PII). Application-level exceptions — including ``ValueError`` raised by domain
+# parsing etc. — keep surfacing their message, the framework's deliberate API
+# contract (see ``test_webjson2``); only the opaque infrastructure errors below
+# are genericised. The exception class ``name`` is always kept (the web client
+# branches on it) and the traceback stays gated by ``_exception_debug``.
+_OPAQUE_EXCEPTION_TYPES = (psycopg.Error,)
+_MASKED_EXCEPTION_MESSAGE = "Internal Server Error"
+
+
 def serialize_exception(
     exception: BaseException,
     *,
     message: str | None = None,
     arguments: tuple | None = None,
 ) -> dict[str, Any]:
-    """Serialize an exception for JSON response."""
+    """Serialize an exception for a JSON response.
+
+    For opaque infrastructure errors (:data:`_OPAQUE_EXCEPTION_TYPES`), the human
+    ``message`` and ``arguments`` are replaced with a generic placeholder unless
+    the caller passes them explicitly — a raw ``psycopg`` error must not disclose
+    SQL/schema/row data to an untrusted client. The full detail still reaches the
+    server log via ``Application.__call__``.
+    """
     name = type(exception).__name__
     module = type(exception).__module__
+    opaque = isinstance(exception, _OPAQUE_EXCEPTION_TYPES)
+
+    if message is None:
+        message = _MASKED_EXCEPTION_MESSAGE if opaque else str(exception)
+    if arguments is None:
+        arguments = () if opaque else exception.args
 
     return {
         "name": f"{module}.{name}" if module else name,
-        "message": str(exception) if message is None else message,
-        "arguments": exception.args if arguments is None else arguments,
+        "message": message,
+        "arguments": arguments,
         "context": getattr(exception, "context", {}),
         "debug": _exception_debug(exception),
     }

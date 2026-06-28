@@ -50,7 +50,7 @@ class GeoIP(collections.abc.Mapping):
     Ip Geolocalization utility, determine information such as the
     country or the timezone of the user based on their IP Address.
 
-    The instances share the same API as `:class:`geoip2.models.City`
+    The instances share the same API as `geoip2.models.City
     <https://geoip2.readthedocs.io/en/latest/#geoip2.models.City>`_.
 
     When the IP couldn't be geolocalized (missing database, bad address)
@@ -59,12 +59,12 @@ class GeoIP(collections.abc.Mapping):
 
     :param str ip: The IP Address to geo-localize
 
-    .. note:
+    .. note::
 
         The geoip info for the current request are available at
         :attr:`~odoo.http.request.geoip`.
 
-    .. code-block:
+    .. code-block:: python
 
         >>> GeoIP("127.0.0.1").country.iso_code
         >>> odoo_ip = socket.gethostbyname("odoo.com")
@@ -133,8 +133,8 @@ class GeoIP(collections.abc.Mapping):
         return _none_if_null(self.country.iso_code or self.continent.code)
 
     def __getattr__(self, attr: str) -> Any:
-        # Be smart and determine whether the attribute exists on the
-        # country object or on the city object.
+        # Determine whether the attribute exists on the country object or
+        # on the city object.
         if hasattr(GEOIP_EMPTY_COUNTRY, attr):
             return getattr(self._country_record, attr)
         if hasattr(GEOIP_EMPTY_CITY, attr):

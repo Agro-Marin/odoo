@@ -95,10 +95,8 @@ class Application:
 
     def initialize(self) -> None:
         """
-        Initialize the application.
-
-        This is to be called when setting up a WSGI application after
-        initializing the configuration values.
+        Call when setting up a WSGI application, after initializing the
+        configuration values.
         """
         module_manager.initialize_sys_path()
         from odoo.service.server import load_server_wide_modules
@@ -118,10 +116,10 @@ class Application:
         Get the full-path of the file if the url resolves to a local
         static file, otherwise return None.
 
-        Without the second host parameters, ``url`` must be an absolute
-        path, others URLs are considered faulty.
+        Without the second host parameter, ``url`` must be an absolute
+        path; other URLs are considered faulty.
 
-        With the second host parameters, ``url`` can also be a full URI
+        With the second host parameter, ``url`` can also be a full URI
         and the authority found in the URL (if any) is validated against
         the given ``host``.
         """
@@ -135,13 +133,17 @@ class Application:
         except ValueError:
             return None
 
-        if netloc and netloc != host:
+        # Hostnames are case-insensitive (RFC 4343): compare the URL authority to
+        # ``host`` case-folded, else a same-host URL spelled ``Example.com`` misses
+        # the local-static fast path and falls through to slower attachment serving.
+        host = host.lower()
+        if netloc and netloc.lower() != host:
             return None
 
         # A hostless URL like ``odoo.com/<addon>/static/<file>`` has no ``//``, so
         # ``urlparse`` leaves ``netloc`` empty and puts the authority in the first
         # path segment (``_leading``). Validate that against ``host`` too.
-        if not netloc and _leading and _leading != host:
+        if not netloc and _leading and _leading.lower() != host:
             return None
 
         if not (static == "static" and resource):

@@ -123,12 +123,15 @@ STATIC_CACHE = 60 * 60 * 24 * 7
 # content (usually using a hash), one year.
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
 
-# TTL (seconds) for the per-host monodb database list cached in
-# ``request_class._monodb_dblist``. Without it, ``db_list(force=True)`` runs a
+# TTL (seconds) for the host-independent database catalog cached in
+# ``request_class._all_dbs_cached``. Without it, ``list_dbs(force=True)`` runs a
 # ``pg_database`` query on every db-less request (anonymous traffic, bots, health
-# checks). Staleness is benign and self-healing: a new DB is detected within this
-# delay, a dropped-but-cached DB routes to a RegistryError the entrypoint already
-# recovers from. Only this HTTP path is cached; shared ``list_dbs`` is not.
+# checks). The cached list is host-independent — only the cheap ``db_filter`` that
+# follows depends on the Host — so a burst across many distinct Hosts costs one
+# query per TTL bucket, not one per host. Staleness is benign and self-healing: a
+# new DB is detected within this delay, a dropped-but-cached DB routes to a
+# RegistryError the entrypoint already recovers from. Only this HTTP path is
+# cached; shared ``list_dbs`` is not.
 DB_MONODB_CACHE_TTL = 5.0
 
 

@@ -22,9 +22,9 @@ class Stream:
     This utility is safe, cache-aware and uses the best available
     streaming strategy. Works best with the --x-sendfile cli option.
 
-    Create a Stream via one of the constructors: :meth:`~from_path`:, or
-    :meth:`~from_binary_field`:, generate the corresponding HTTP response
-    object via :meth:`~get_response`:.
+    Create a Stream via one of the constructors :meth:`~from_path` or
+    :meth:`~from_binary_field`, then generate the corresponding HTTP response
+    via :meth:`~get_response`.
 
     Instantiating a Stream object manually without using one of the
     dedicated constructors is discouraged.
@@ -80,12 +80,12 @@ class Stream:
         cls, path: str, filter_ext: tuple[str, ...] = ("",), public: bool = False
     ) -> Stream:
         """
-        Create a :class:`~Stream`: from an addon resource.
+        Create a :class:`~Stream` from an addon resource.
 
         :param path: See :func:`~odoo.tools.file_path`
         :param filter_ext: See :func:`~odoo.tools.file_path`
         :param bool public: Advertise the resource as being cachable by
-            intermediate proxies, otherwise only let the browser caches
+            intermediate proxies, otherwise only let the browser cache
             it.
         """
         # Validate that ``path`` resolves under a known ``addons_path`` dir
@@ -132,7 +132,7 @@ class Stream:
 
     @classmethod
     def from_binary_field(cls, record: Any, field_name: str) -> Stream:
-        """Create a :class:`~Stream`: from a binary field."""
+        """Create a :class:`~Stream` from a binary field."""
         data_b64 = record[field_name]
         data = base64.b64decode(data_b64) if data_b64 else b""
         return cls(

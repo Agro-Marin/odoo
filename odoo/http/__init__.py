@@ -35,11 +35,11 @@ Here be dragons::
             Request._serve_db
                 env['ir.http']._match
                 if not match:
-                    model.retrying(Request._serve_ir_http_fallback)
+                    transaction.retrying(Request._serve_ir_http_fallback)
                         env['ir.http']._serve_fallback
                         env['ir.http']._post_dispatch
                 else:
-                    model.retrying(Request._serve_ir_http)
+                    transaction.retrying(Request._serve_ir_http)
                         env['ir.http']._authenticate
                         env['ir.http']._pre_dispatch
                         Dispatcher.pre_dispatch
@@ -61,7 +61,7 @@ Application.__call__
 Request._serve_static
   Handle all requests to ``/<module>/static/<asset>`` paths, open the
   underlying file on the filesystem and stream it via
-  :meth:``Request.send_file``
+  :meth:`Stream.get_response`
 
 Request._serve_nodb
   Handle requests to ``@route(auth='none')`` endpoints when the user is
@@ -78,7 +78,7 @@ Request._serve_db
   the same read-only cursor; ``_serve_ir_http`` is called reusing the
   same (but reset) read-only cursor, or a new read/write one.
 
-service.model.retrying
+service.transaction.retrying
   Manage the cursor, the environment and exceptions that occurred while
   executing the underlying function. They recover from various
   exceptions such as serialization errors and writes in read-only
@@ -115,8 +115,8 @@ ir.http._post_dispatch/Dispatcher.post_dispatch
 
 ir.http._handle_error
   Not present in the call-graph, is called for un-managed exceptions (SE
-  or RO) that occurred inside of ``Request._retrying``. It returns a http
-  response that wraps the error that occurred.
+  or RO) that occurred inside of ``service.transaction.retrying``. It
+  returns a http response that wraps the error that occurred.
 
 This package was split from a monolithic http.py for maintainability.
 All symbols are re-exported for backward compatibility.
@@ -229,13 +229,14 @@ from .application import (
 )
 
 # Re-exported for backward compatibility. NOTE: this binding is NOT an effective
-# monkeypatch point for the request path. ``_serve.py`` (``Registry(self.db)`` in
-# ``_serve_db``) and ``request_class.py`` import ``Registry`` into their OWN
-# namespaces, so patching ``odoo.http.Registry`` leaves those call sites
+# monkeypatch point for the request path. The ONLY ``Registry(self.db)`` call site
+# is ``_serve.py`` (``_serve_db`` → ``_acquire_registry_cursor``), which resolves
+# ``Registry`` from its OWN namespace, so patching ``odoo.http.Registry`` leaves it
 # untouched — a regression from the monolithic ``http.py``, where one namespace
-# made this patch point work. Patch ``odoo.http._serve.Registry`` and
-# ``odoo.http.request_class.Registry`` instead (see
-# ``test_http/tests/test_common.py::TestHttpBase.multidb_url_open``). The
+# made this patch point work. Patch ``odoo.http._serve.Registry`` to steer
+# dispatch. ``request_class.py`` also imports ``Registry`` but has NO call site
+# (annotation-only); that binding is kept solely so ``TestRegistryPatchPoint`` can
+# assert it shares one underlying object with ``_serve.Registry``. The
 # (in)effectiveness of each target is locked by
 # ``test_http_audit.py::TestRegistryPatchPoint``.
 from odoo.modules.registry import Registry

@@ -134,6 +134,18 @@ class TestHttpMisc(TestHttpBase):
             path,
             "Valid file with valid host",
         )
+        # Hostnames are case-insensitive (RFC 4343): a cased authority must still
+        # resolve, whether the case is in the URL or in the expected host.
+        self.assertEqual(
+            root.get_static_file(f"http://ODOO.com/{uri}", host="odoo.com"),
+            path,
+            "Valid file with case-mismatched host in URL",
+        )
+        self.assertEqual(
+            root.get_static_file(f"odoo.com/{uri}", host="Odoo.COM"),
+            path,
+            "Valid file with case-mismatched expected host",
+        )
 
         # Invalid URLs
         self.assertIsNone(

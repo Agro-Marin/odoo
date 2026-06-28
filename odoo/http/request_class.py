@@ -11,6 +11,7 @@ import werkzeug.datastructures
 import odoo
 from odoo.libs.json import loads as _fast_loads
 from odoo.modules.registry import Registry
+from odoo.service.db import list_dbs as _list_all_dbs
 from odoo.tools import profiler
 
 from ._csrf import _RequestCsrfMixin
@@ -24,10 +25,10 @@ from .constants import (
     SESSION_ROTATION_INTERVAL,
     get_default_session,
 )
+from .dispatcher import _dispatchers
 from .geoip import GeoIP
 from .helpers import (
     db_filter,
-    db_list,
     get_session_max_inactivity,
 )
 from .session import Session
@@ -36,33 +37,45 @@ from .wrappers import FutureResponse, HTTPRequest, Response
 _logger = logging.getLogger(__name__)
 
 
-@functools.lru_cache(maxsize=1024)
-def _monodb_dblist_cached(host: str, _ttl_bucket: int) -> tuple[str, ...]:
-    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) is in the key only so
-    # the entry expires every TTL seconds; its value is unused. ``maxsize`` bounds
-    # memory across many (attacker-supplied) Host values. A tuple is cached so the
-    # shared entry can't be mutated. ``db_list`` is resolved from this module's
-    # namespace, keeping the ``request_class.db_list`` test monkeypatch effective.
-    return tuple(db_list(force=True, host=host))
+@functools.lru_cache(maxsize=1)
+def _all_dbs_cached(_ttl_bucket: int) -> tuple[str, ...]:
+    # The unfiltered ``list_dbs(force=True)`` is the expensive half of monodb
+    # detection (a ``pg_database`` roundtrip) AND it is host-INDEPENDENT — the
+    # host only feeds the cheap ``db_filter`` regex applied afterwards. Caching it
+    # here (host-independent, a single entry) means a burst of db-less requests
+    # spread across many distinct ``Host`` values triggers ONE catalog query per
+    # TTL bucket, not one per host as a host-keyed cache did — a query-amplification
+    # vector under ``--dbfilter`` + anonymous traffic, where attacker-varied hosts
+    # (``a.x``, ``b.x``, ``:port`` …) each missed the old cache.
+    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) is the sole key so the
+    # entry expires every TTL seconds; ``maxsize=1`` keeps only the live bucket. A
+    # tuple is cached so the shared entry can't be mutated. ``_list_all_dbs`` is
+    # resolved from this module's namespace, keeping the
+    # ``request_class._list_all_dbs`` test monkeypatch effective.
+    return tuple(_list_all_dbs(force=True))
 
 
 def _monodb_dblist(host: str) -> list[str]:
-    """``db_list(force=True, host)`` for monodb detection, memoised per host.
+    """Databases visible for monodb detection, filtered for ``host``.
 
-    See :data:`DB_MONODB_CACHE_TTL` for the staleness contract. Only this
-    db-less detection path is cached; the shared :func:`db_list` is not. Returns
-    a fresh, caller-owned list.
+    The expensive catalog read is memoised host-independently (see
+    :func:`_all_dbs_cached` and :data:`DB_MONODB_CACHE_TTL` for the staleness
+    contract); the cheap, host-dependent :func:`db_filter` (whose regex is itself
+    cached) runs per call. Only this db-less detection path is cached; the shared
+    :func:`db_list` is not. Returns a fresh, caller-owned list.
     """
-    return list(_monodb_dblist_cached(host, int(time.time() // DB_MONODB_CACHE_TTL)))
+    all_dbs = _all_dbs_cached(int(time.time() // DB_MONODB_CACHE_TTL))
+    return db_filter(list(all_dbs), host=host)
 
 
 def clear_monodb_cache() -> None:
     """Drop the memoised monodb database list.
 
     For tests only (production relies on TTL expiry): they monkeypatch
-    ``db_list`` per request and must not see a value cached under a prior patch.
+    ``_list_all_dbs`` / ``db_filter`` per request and must not see a value cached
+    under a prior patch.
     """
-    _monodb_dblist_cached.cache_clear()
+    _all_dbs_cached.cache_clear()
 
 
 class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
@@ -168,7 +181,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 session.logout(keep_db=False)
             session.db = dbname
 
-        session.is_dirty = False
+        # Baseline the session after framework setup so application changes —
+        # including in-place nested mutation (``session.context[...] = ...``) —
+        # are detected by ``is_modified`` at save time.
+        session.mark_clean()
         return session, dbname
 
     # =====================================================
@@ -217,7 +233,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             else:
                 lang = babel.core.LOCALE_ALIASES[code]
             return lang
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             return None
 
     @functools.cached_property
@@ -240,7 +256,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         return {"lang": self.default_lang()}
 
     def default_lang(self) -> str:
-        """Returns default user language according to request specification
+        """Return the default user language for the request.
 
         :returns: Preferred language if specified or 'en_US'
         :rtype: str
@@ -358,7 +374,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
         ):
             root.session_store.rotate(sess, env, True)
-        elif sess.is_dirty:
+        elif sess.is_modified():
             root.session_store.save(sess)
 
         # Compare against the RAW client cookie, not the sanitized ``self.cookies``
@@ -366,7 +382,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         # ``session_id``), but reading the facade forces an ``ir.http`` call on the
         # session-save path of requests that never touch ``request.cookies``.
         cookie_sid = self.httprequest.session_id
-        if sess.is_dirty or cookie_sid != sess.sid:
+        if sess.is_modified() or cookie_sid != sess.sid:
             # Logged-out sessions skip the DB query: the inactivity timeout only
             # matters when authenticated, and the connection may be dead.
             max_age = get_session_max_inactivity(env) if sess.uid else SESSION_LIFETIME
@@ -383,9 +399,3 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 # Routing methods (`_set_request_dispatcher`, `_serve_static`, `_serve_db`,
 # `_serve_nodb`, `_update_served_exception`, `_serve_ir_http_fallback`,
 # `_serve_ir_http`) live on :class:`_RequestServeMixin` in `_serve.py`.
-
-
-# Late import to break the Request <-> Dispatcher cycle. ``_dispatchers`` is used
-# only inside ``Request.__init__`` at runtime, so importing below the class is
-# safe; dispatcher.py mirrors this. Do NOT move under TYPE_CHECKING (test_pep649).
-from .dispatcher import _dispatchers  # noqa: E402  — see note above
