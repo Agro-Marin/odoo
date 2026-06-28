@@ -448,6 +448,13 @@ class Response(Proxy):
 # :class:`Response` and ``abort`` accepts our :class:`Response`. The originals are
 # stashed on the module so a reload (test isolation, importlib.reload) doesn't
 # re-wrap an already-patched version into infinite recursion.
+#
+# This is the SECOND werkzeug patch site; the first is ``odoo/_monkeypatches/
+# werkzeug.py`` (the conventional home). These two cannot be merged: the patches
+# below wrap werkzeug objects *into* :class:`Response`/:class:`_Response`, so they
+# need ``odoo.http.wrappers`` loaded — whereas ``_monkeypatches`` fires the moment
+# ``werkzeug`` is first imported, long before this module exists. They therefore
+# live where their dependency is satisfied, applied when http is imported.
 if not hasattr(werkzeug.exceptions, "_odoo_original_get_response"):
     werkzeug.exceptions._odoo_original_get_response = HTTPException.get_response
 if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):

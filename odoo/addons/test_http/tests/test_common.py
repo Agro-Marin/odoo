@@ -51,18 +51,20 @@ class TestHttpBase(HttpCaseWithUserDemo):
         return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def nodb_url_open(self, url, *args, allow_redirects=False, **kwargs):
-        # Patch at multiple levels for code accessing via different import paths
+        # Patch at multiple levels for code accessing via different import paths.
+        # The monodb fast path now reads the host-independent ``_list_all_dbs``
+        # seam (see ``request_class._all_dbs_cached``) instead of ``db_list``.
         with (
             patch("odoo.http.db_list") as db_list1,
             patch("odoo.http.db_filter") as db_filter1,
-            patch("odoo.http.request_class.db_list") as db_list2,
+            patch("odoo.http.request_class._list_all_dbs") as list_all_dbs2,
             patch("odoo.http.request_class.db_filter") as db_filter2,
         ):
-            for db_list in (db_list1, db_list2):
-                db_list.return_value = []
+            db_list1.return_value = []
+            list_all_dbs2.return_value = []
             for db_filter in (db_filter1, db_filter2):
                 db_filter.return_value = []
-            # Clear AFTER patching so the request sees the patched db_list, not a
+            # Clear AFTER patching so the request sees the patched seam, not a
             # value cached under a previous patch in the same TTL bucket.
             odoo.http.request_class.clear_monodb_cache()
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
@@ -72,19 +74,26 @@ class TestHttpBase(HttpCaseWithUserDemo):
         assert len(dblist) >= 2, "There should be at least 2 databases"
         # Patch at multiple levels:
         # - odoo.http.* for code accessing via module (e.g., web.controllers.utils uses http.db_filter)
-        # - odoo.http.request_class.* for code importing from helpers
-        # - odoo.http._serve.Registry for the dispatch path created by the
-        #   audit-pass-6 split (Request → _RequestServeMixin in _serve.py)
+        # - odoo.http.request_class.* for db_filter/_list_all_dbs (imported there from helpers)
+        # - odoo.http._serve.Registry: THE effective dispatch patch — the only
+        #   Registry(self.db) call site, in _serve_db → _acquire_registry_cursor.
+        # - odoo.http.request_class.Registry: a forward-defensive no-op — that name
+        #   has no call site today (annotation-only), patched so a future override
+        #   that calls Registry from request_class's namespace stays covered.
         with (
             patch("odoo.http.db_list") as db_list1,
             patch("odoo.http.db_filter") as db_filter1,
-            patch("odoo.http.request_class.db_list") as db_list2,
+            patch("odoo.http.request_class._list_all_dbs") as list_all_dbs2,
             patch("odoo.http.request_class.db_filter") as db_filter2,
             patch("odoo.http.request_class.Registry") as Registry,
             patch("odoo.http._serve.Registry") as ServeRegistry,
         ):
-            for db_list in (db_list1, db_list2):
-                db_list.return_value = dblist
+            # The monodb fast path reads the unfiltered ``_list_all_dbs`` seam;
+            # feed it the full ``dblist`` so ``db_filter`` keeps >= 2 entries and
+            # the request is NOT mis-detected as monodb (the real db name being in
+            # ``dblist`` would otherwise filter the real catalog down to one).
+            db_list1.return_value = dblist
+            list_all_dbs2.return_value = dblist
             for db_filter in (db_filter1, db_filter2):
                 db_filter.side_effect = lambda dbs, host=None: [
                     db for db in dbs if db in dblist

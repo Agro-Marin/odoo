@@ -121,6 +121,11 @@ class TestHttpModels(TestHttpBase):
                 ),
             ],
         )
+        # The warning must name the offending route so a mis-declared
+        # ``readonly=True`` endpoint is actionable (and flags the re-run hazard).
+        self.assertIn(
+            f"/test_http/{milky_way.id}/setname", capture_http.output[0]
+        )
 
     def test_models5_max_upload_too_large(self):
         res = self.url_open(

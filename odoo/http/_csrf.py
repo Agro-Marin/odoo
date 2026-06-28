@@ -82,6 +82,15 @@ class _RequestCsrfMixin:
         except ValueError:
             return False
 
+        # ``hm`` is attacker-controlled (the token part before the last "o").
+        # A legitimate token's ``hm`` is an ASCII hex digest; ``consteq``
+        # (hmac.compare_digest) raises TypeError on a non-ASCII string, which
+        # would surface as an unauthenticated 500 and break this method's bool
+        # contract. A non-ASCII ``hm`` can never match a hexdigest, so fail
+        # closed before the constant-time compare.
+        if not hm.isascii():
+            return False
+
         msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
         hm_expected = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
         return consteq(hm, hm_expected)

@@ -62,8 +62,6 @@ the methods over HTTP, with examples in various programming languages.
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'api_doc.assets',
         ],

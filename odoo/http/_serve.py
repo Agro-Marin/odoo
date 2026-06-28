@@ -26,6 +26,7 @@ from odoo.service.transaction import retrying
 from odoo.tools import config
 
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
+from .dispatcher import HttpDispatcher, JsonRPCDispatcher, _dispatchers
 from .exceptions import RegistryError
 from .helpers import is_cors_preflight
 from .stream import Stream
@@ -76,9 +77,11 @@ class _RequestServeMixin:
         """
         root = self.app
 
-        module, _, path = self.httprequest.path[1:].partition("/static/")
         try:
             if filepath is None:
+                # Cold path: resolve module/resource from the request path. The
+                # trusted-path branch (hot path) skips this parsing entirely.
+                module, _, path = self.httprequest.path[1:].partition("/static/")
                 directory = root.static_path(module)
                 if not directory:
                     raise NotFound(f'Module "{module}" not found.\n')
@@ -98,6 +101,8 @@ class _RequestServeMixin:
             root.set_csp(res)
             return res
         except OSError:  # cover both missing file and invalid permissions
+            # Cold error path only: recompute module/resource for the 404 message.
+            module, _, path = self.httprequest.path[1:].partition("/static/")
             raise NotFound(f'File "{path}" not found in module {module}.\n') from None
 
     def _serve_aborted(self, exc: HTTPException) -> Response:
@@ -234,8 +239,13 @@ class _RequestServeMixin:
                     # which retries on a read/write cursor. Adding an
                     # ``else``/``return`` here would silently disable that retry.
                     _logger.warning(
-                        "%s, retrying with a read/write cursor",
+                        "%s, retrying with a read/write cursor — readonly route "
+                        "%s %s attempted a write, so its handler runs a second "
+                        "time; keep non-transactional side effects (emails, "
+                        "outbound calls, token burns) out until the first write",
                         exc.args[0].rstrip(),
+                        self.httprequest.method,
+                        self.httprequest.path,
                         exc_info=True,
                     )
                     threading.current_thread().cursor_mode = "ro->rw"
@@ -323,11 +333,11 @@ class _RequestServeMixin:
             exc.error_response = self.registry["ir.http"]._handle_error(exc)
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
-        """
-        Called when no controller match the request path. Delegate to
-        ``ir.http._serve_fallback`` to give modules the opportunity to
-        find an alternative way to serve the request. In case no module
-        provided a response, a generic 404 - Not Found page is returned.
+        """Serve the request when no controller matched its path.
+
+        Delegate to ``ir.http._serve_fallback`` so modules can serve the request
+        another way. If none does, raise a 404 Not Found carrying the rendered
+        error page.
         """
         self.params = self.get_http_params()
         self.registry["ir.http"]._auth_method_public()
@@ -344,21 +354,9 @@ class _RequestServeMixin:
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
-        """
-        Called when a controller match the request path. Delegate to
-        ``ir.http`` to serve a response.
-        """
+        """Serve the request via ``ir.http`` when a controller matched its path."""
         self.registry["ir.http"]._authenticate(rule.endpoint)
         self.registry["ir.http"]._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)
         self.registry["ir.http"]._post_dispatch(response)
         return response
-
-
-# Late import to break the Request <-> Dispatcher cycle. Same pattern as
-# request_class.py and dispatcher.py — see ``_checker_pep649`` for context.
-from .dispatcher import (  # noqa: E402
-    HttpDispatcher,
-    JsonRPCDispatcher,
-    _dispatchers,
-)

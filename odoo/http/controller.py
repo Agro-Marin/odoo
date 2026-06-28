@@ -24,7 +24,7 @@ class Controller:
 
     To *override* a controller, :ref:`inherit <python:tut-inheritance>`
     from its class, override relevant methods and re-expose them with
-    :func:`~odoo.http.route`. Please note that the decorators of all
+    :func:`~odoo.http.route`. The decorators of all
     methods are combined, if the overriding method's decorator has no
     argument all previous ones will be kept, any provided argument will
     override previously defined ones.

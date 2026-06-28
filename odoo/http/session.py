@@ -1,6 +1,7 @@
 import base64
 import collections.abc
 import contextlib
+import copy
 import itertools
 import os
 import re
@@ -95,7 +96,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 # authoritative metadata (token, create_time, gc marker), then
                 # flush this session's local edits so they are not lost.
                 new_sid = recent_session["next_sid"]
-                if session.is_dirty:
+                if session.is_modified():
                     # Loaded from the pre-rotation file during the grace window,
                     # so this ``__data`` carries the peer's ``next_sid`` /
                     # ``deletion_time``. Drop them before flushing onto ``new_sid``
@@ -184,7 +185,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
     def get_missing_session_identifiers(self, identifiers: Iterable[str]) -> set[str]:
         """
         :param identifiers: session identifiers whose file existence must be checked
-                            identifiers are a part session sid (first 42 chars)
+                            each is the first 42 chars of a session sid
         :type identifiers: iterable
         :return: the identifiers which are not present on the filesystem
         :rtype: set
@@ -274,14 +275,18 @@ def _coerce_session_value(value: Any) -> Any:
 class Session(collections.abc.MutableMapping):
     """Structure containing data persisted across requests.
 
-    Dirty-tracking happens through ``__setitem__`` only. Mutating a nested value
-    in place (``session.context['lang'] = 'es_MX'``) does NOT mark the session
-    dirty — call :meth:`touch` afterwards. Reassigning (``session['context'] =
-    session.context``) does not help either, since ``__setitem__`` compares equal
-    values; only a genuinely different value or :meth:`touch` marks it dirty.
+    Change-tracking is twofold. Explicit writes (``__setitem__``, ``__delitem__``,
+    ``clear``, :meth:`touch`) set :attr:`is_dirty` eagerly. On top of that,
+    :meth:`is_modified` detects *in-place* mutation of a nested value
+    (``session.context['lang'] = 'es_MX'``) — which bypasses ``__setitem__`` — by
+    diffing the data against a per-request baseline captured by :meth:`mark_clean`.
+    The request lifecycle calls :meth:`mark_clean` after load and gates
+    persistence on :meth:`is_modified`, so callers no longer need a defensive
+    :meth:`touch` after mutating a nested value.
     """
 
     __slots__ = (
+        "_Session__baseline",
         "_Session__data",
         "can_save",
         "is_dirty",
@@ -301,6 +306,11 @@ class Session(collections.abc.MutableMapping):
         # made; the store drops its reference, so the session owns the data.
         self.__data: dict[str, Any] = dict(data)
         self.is_dirty: bool = False
+        # Deep snapshot for nested-mutation detection, captured per request by
+        # ``mark_clean``. ``None`` until then: ``is_modified`` falls back to
+        # ``is_dirty`` so a session inspected before its first ``mark_clean``
+        # still reports explicit writes correctly.
+        self.__baseline: dict[str, Any] | None = None
         self.is_new: bool = new
         self.should_rotate: bool = False
         self.sid: str = sid
@@ -320,7 +330,8 @@ class Session(collections.abc.MutableMapping):
         requests, so silently storing a ``datetime`` as a string bites callers
         later. Reject loudly so the caller picks the representation (e.g.
         ``session["foo"] = some_dt.isoformat()``). In-place mutation of a nested
-        value does NOT trigger this; call :meth:`touch`.
+        value bypasses this validation; :meth:`is_modified` still flags the
+        change via the per-request baseline.
 
         :raises TypeError: if ``value`` (or a nested element) is not
             JSON-serializable.
@@ -407,7 +418,7 @@ class Session(collections.abc.MutableMapping):
         credential. If successful, store the authentication parameters in
         the current session, unless multi-factor-auth (MFA) is
         activated. In that case, that last part will be done by
-        :ref:`finalize`.
+        :meth:`finalize`.
 
         .. versionchanged:: saas-15.3
            The current request is no longer updated using the user and
@@ -465,7 +476,7 @@ class Session(collections.abc.MutableMapping):
         )
 
     def logout(self, keep_db: bool = False) -> None:
-        db = self.db if keep_db else get_default_session()["db"]  # None
+        db = self.db if keep_db else None  # get_default_session()["db"] is None
         debug = self.debug
         self.clear()
         self.update(get_default_session(), db=db, debug=debug)
@@ -477,6 +488,32 @@ class Session(collections.abc.MutableMapping):
 
     def touch(self) -> None:
         self.is_dirty = True
+
+    def mark_clean(self) -> None:
+        """Reset the dirty flag and re-baseline for nested-mutation detection.
+
+        Called once per request after the framework's own session setup (see
+        ``Request._get_session_and_dbname``), so that subsequent *application*
+        changes — including in-place mutation of a nested value such as
+        ``session.context['lang'] = 'es'`` that bypasses :meth:`__setitem__` —
+        are picked up by :meth:`is_modified` even if the caller forgets
+        :meth:`touch`. Costs one deep copy of the (small, JSON-native) session
+        data per request.
+        """
+        self.is_dirty = False
+        self.__baseline = copy.deepcopy(self.__data)
+
+    def is_modified(self) -> bool:
+        """Whether the session changed since the last :meth:`mark_clean`.
+
+        ``True`` for explicit writes (via :attr:`is_dirty`) *and* for in-place
+        mutation of nested values that bypass :meth:`__setitem__`. Before the
+        first :meth:`mark_clean` (no baseline yet) it falls back to
+        :attr:`is_dirty`.
+        """
+        if self.__baseline is None:
+            return self.is_dirty
+        return self.is_dirty or self.__data != self.__baseline
 
     def update_trace(self, request: Any) -> dict[str, Any] | None:
         """

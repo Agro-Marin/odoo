@@ -445,6 +445,51 @@ class TestDispatcherBehaviour(BaseCase):
             with self.assertRaises(werkzeug.exceptions.BadRequest):
                 Json2Dispatcher(request).dispatch(lambda **kw: kw, {})
 
+    def _dispatch_json2(self, method, content_type, *, csrf=True):
+        """Dispatch a bodyless json2 request; return the dispatcher's result.
+
+        The endpoint returns a ``Response`` so dispatch short-circuits before
+        ``make_json_response`` (no full request/registry needed)."""
+        from odoo.http import Json2Dispatcher, Response
+
+        request = _make_request(path="/x", method=method, content_type=content_type)
+        request.db = None
+        request.params = {}
+
+        def endpoint(**kw):
+            return Response("ok")
+
+        endpoint.routing = {} if csrf else {"csrf": False}
+        return Json2Dispatcher(request).dispatch(endpoint, {})
+
+    def test_json2_unsafe_nonjson_request_is_rejected(self):
+        # The CSRF vector: a state-changing json2 request whose body is NOT
+        # application/json is a cross-site "simple request" dodging the CORS
+        # preflight; it must be refused (closes the empty-body gap).
+        import werkzeug.exceptions
+
+        for method in ("POST", "PUT", "DELETE", "PATCH"):
+            for content_type in ("text/plain", None):
+                with self.assertRaises(werkzeug.exceptions.BadRequest) as cm:
+                    self._dispatch_json2(method, content_type)
+                self.assertIn("application/json", str(cm.exception))
+
+    def test_json2_safe_method_bodyless_is_allowed(self):
+        # GET/HEAD with only path args is the legitimate bodyless json2 use
+        # (e.g. /web/image/<id>); the guard must not touch it.
+        from odoo.http import Response
+
+        for method in ("GET", "HEAD"):
+            result = self._dispatch_json2(method, content_type=None)
+            self.assertIsInstance(result, Response)
+
+    def test_json2_csrf_opt_out_bypasses_guard(self):
+        # A route may opt out (csrf=False) and accept non-JSON unsafe requests.
+        from odoo.http import Response
+
+        result = self._dispatch_json2("POST", "text/plain", csrf=False)
+        self.assertIsInstance(result, Response)
+
     def test_nodb_dispatch_calls_endpoint_with_merged_params(self):
         from odoo.http import JsonRPCDispatcher
 
@@ -759,6 +804,64 @@ class TestDbFilterRegexCache(BaseCase):
 
 
 @tagged("post_install", "-at_install")
+class TestDbFilterHostCaseFolding(BaseCase):
+    """``_normalize_dbfilter_host`` must case-fold the Host header.
+
+    Hostnames are case-insensitive (RFC 4343), so a mixed-case ``Host`` (sent by
+    a client, or forwarded verbatim by a proxy) must (1) resolve to the SAME
+    database as its lower-case spelling and (2) NOT spawn a distinct compiled
+    regex per case variant — the attacker-varied-host cache-amplification vector
+    the package documents closing for the catalog read. ``.lower()`` must also
+    precede the ``www.`` strip, else an upper-case ``WWW.`` slips through.
+    """
+
+    def test_normalization_is_case_insensitive(self):
+        from odoo.http.helpers import _normalize_dbfilter_host as norm
+
+        for raw in (
+            "Example.com",
+            "EXAMPLE.COM",
+            "example.com:443",
+            "WWW.Example.com",
+            "www.EXAMPLE.com:8069",
+        ):
+            with self.subTest(host=raw):
+                self.assertEqual(norm(raw), "example.com")
+
+    def test_mixed_case_host_matches_same_db(self):
+        from odoo.http.helpers import _compiled_dbfilter
+
+        _compiled_dbfilter.cache_clear()
+        lower = _compiled_dbfilter(r"^%d$", "example.com")
+        # Mixed-case Host must compile to the SAME cached regex and match the db.
+        for raw in ("Example.com", "EXAMPLE.COM", "WWW.Example.com:443"):
+            with self.subTest(host=raw):
+                from odoo.http.helpers import _normalize_dbfilter_host as norm
+
+                self.assertIs(
+                    _compiled_dbfilter(r"^%d$", norm(raw)),
+                    lower,
+                    "case variants must reuse the lower-case regex entry",
+                )
+        self.assertTrue(lower.match("example"))
+
+    def test_case_variants_do_not_thrash_the_cache(self):
+        from odoo.http.helpers import (
+            _compiled_dbfilter,
+            _normalize_dbfilter_host,
+        )
+
+        _compiled_dbfilter.cache_clear()
+        for raw in ("example.com", "Example.com", "eXaMpLe.CoM", "EXAMPLE.COM"):
+            _compiled_dbfilter(r"^%d$", _normalize_dbfilter_host(raw))
+        self.assertEqual(
+            _compiled_dbfilter.cache_info().currsize,
+            1,
+            "all Host-case variants of one hostname must share one cache entry",
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestEnsureDbRouteConstant(BaseCase):
     """The ensure_db path list lives in one documented constant."""
 
@@ -828,18 +931,24 @@ class TestSessionContextNormalization(BaseCase):
     def test_null_context_is_normalised_and_mutable(self):
         from unittest.mock import patch
 
-        from odoo.http import root
+        from odoo.http import request_class, root
         from odoo.http.session import Session
 
         request = _make_request(path="/x")
         planted = Session({"context": None, "db": None}, "x" * 84)
 
         # No session cookie -> the store's ``new()`` supplies the session; pin
-        # db discovery to "no db" so the path is deterministic and DB-free.
+        # db discovery to "no db" (via the host-independent ``_list_all_dbs`` seam)
+        # so the path is deterministic and DB-free. Clear the monodb memo so the
+        # patched seam — not a value cached in this TTL bucket by another test — is
+        # what the request reads.
+        request_class.clear_monodb_cache()
+        self.addCleanup(request_class.clear_monodb_cache)
         with (
             patch.object(root.session_store, "new", return_value=planted),
-            patch("odoo.http.request_class.db_list", return_value=[]),
+            patch("odoo.http.request_class._list_all_dbs", return_value=[]),
         ):
+            request_class.clear_monodb_cache()
             request._post_init()
 
         self.assertIsInstance(
@@ -853,14 +962,18 @@ class TestSessionContextNormalization(BaseCase):
 
 @tagged("post_install", "-at_install")
 class TestMonodbListCache(BaseCase):
-    """``_monodb_dblist`` memoises the per-host ``pg_database`` query.
+    """``_monodb_dblist`` memoises the host-INDEPENDENT ``pg_database`` query.
 
-    The database-less request fast path (``_get_session_and_dbname``) used to run
-    ``db_list(force=True)`` — a catalog query — on every anonymous request. The
-    cached variant collapses a burst to one query per host per TTL bucket while
-    leaving the shared ``db_list`` (DB manager / cron existence checks) uncached.
-    It lives in ``request_class`` so the test infra's ``db_list`` monkeypatch
-    (``odoo.http.request_class.db_list``) stays the live binding.
+    The database-less request fast path (``_get_session_and_dbname``) would
+    otherwise run ``list_dbs(force=True)`` — a catalog query — on every anonymous
+    request. That fetch is host-independent (only the cheap ``db_filter`` regex
+    depends on the host), so it is memoised once per TTL bucket via
+    ``_all_dbs_cached`` and a burst across many distinct ``Host`` values collapses
+    to a single query. The previous host-keyed cache re-queried per host, an
+    amplification vector under ``--dbfilter`` + anonymous traffic with varied
+    ``Host`` headers. The fetch is reached through the module-level
+    ``_list_all_dbs`` binding, kept as the live test monkeypatch seam; the shared
+    ``db_list`` (DB manager / cron existence checks) stays uncached.
     """
 
     def setUp(self):
@@ -870,26 +983,56 @@ class TestMonodbListCache(BaseCase):
         request_class.clear_monodb_cache()
         self.addCleanup(request_class.clear_monodb_cache)
 
-    def test_same_host_and_bucket_queries_once(self):
+    def test_one_query_across_many_hosts_same_bucket(self):
         from unittest.mock import patch
 
         from odoo.http import request_class
 
         calls = []
 
-        def fake(force, host):
-            calls.append((force, host))
-            return [f"db_{host}"]
+        def fake(force=False):
+            calls.append(force)
+            return ["acme", "beta"]
 
-        with patch.object(request_class, "db_list", side_effect=fake):
-            request_class._monodb_dblist_cached("acme", 100)
-            request_class._monodb_dblist_cached("acme", 100)  # same bucket -> cached
-            request_class._monodb_dblist_cached("acme", 101)  # new bucket -> refetch
-            request_class._monodb_dblist_cached("other", 100)  # new host -> refetch
+        # Distinct AND equivalent hosts, same TTL bucket: the host-independent
+        # fetch must run exactly once. Regression guard for the amplification fix
+        # (the old host-keyed cache made this 6 queries; varied/attacker hosts
+        # such as ``a.evil``/``b.evil``/``:port`` each missed it).
+        with (
+            patch.object(request_class, "_list_all_dbs", side_effect=fake),
+            patch.object(
+                request_class, "db_filter", side_effect=lambda dbs, host=None: list(dbs)
+            ),
+        ):
+            for host in (
+                "acme.com",
+                "acme.com:443",
+                "www.acme.com",
+                "a.evil.com",
+                "b.evil.com",
+                "acme.com",
+            ):
+                request_class._monodb_dblist(host)
 
-        # 3 underlying queries: acme@100, acme@101, other@100 (the repeat is cached)
-        self.assertEqual(len(calls), 3, calls)
-        self.assertEqual([c[1] for c in calls], ["acme", "acme", "other"])
+        self.assertEqual(len(calls), 1, calls)
+
+    def test_new_ttl_bucket_refetches(self):
+        from unittest.mock import patch
+
+        from odoo.http import request_class
+
+        calls = []
+
+        def fake(force=False):
+            calls.append(force)
+            return ["x"]
+
+        with patch.object(request_class, "_list_all_dbs", side_effect=fake):
+            request_class._all_dbs_cached(100)
+            request_class._all_dbs_cached(100)  # same bucket -> cached
+            request_class._all_dbs_cached(101)  # new bucket -> refetch
+
+        self.assertEqual(len(calls), 2, calls)
 
     def test_ttl_constant_is_positive(self):
         from odoo.http.constants import DB_MONODB_CACHE_TTL
@@ -903,7 +1046,12 @@ class TestMonodbListCache(BaseCase):
 
         from odoo.http import request_class
 
-        with patch.object(request_class, "db_list", return_value=["only"]):
+        with (
+            patch.object(request_class, "_list_all_dbs", return_value=["only"]),
+            patch.object(
+                request_class, "db_filter", side_effect=lambda dbs, host=None: list(dbs)
+            ),
+        ):
             first = request_class._monodb_dblist("h")
             first.append("MUTATED")  # must not corrupt the cached entry
             second = request_class._monodb_dblist("h")  # same bucket -> cached
@@ -981,6 +1129,110 @@ class TestSerializeExceptionTraceback(BaseCase):
             _request_stack.pop()
 
         self.assertIn("Traceback (most recent call last)", payload["debug"])
+
+
+@tagged("post_install", "-at_install")
+class TestSerializeExceptionMasking(BaseCase):
+    """``serialize_exception`` must not leak raw database-driver error text to
+    clients (SQL, schema/constraint names, row data). Application-level
+    exceptions — including ``ValueError`` from domain parsing — keep surfacing
+    their message (the framework's API contract); only opaque infrastructure
+    errors are genericised. The ``name`` key is always preserved.
+    """
+
+    def test_psycopg_error_is_masked(self):
+        import psycopg
+
+        from odoo.http import serialize_exception
+        from odoo.http.helpers import _MASKED_EXCEPTION_MESSAGE
+
+        exc = psycopg.errors.UndefinedColumn(
+            "column users_secret.password does not exist\nLINE 1: SELECT ..."
+        )
+        payload = serialize_exception(exc)
+
+        self.assertEqual(payload["message"], _MASKED_EXCEPTION_MESSAGE)
+        self.assertEqual(payload["arguments"], ())
+        self.assertNotIn("users_secret", str(payload["message"]))
+        self.assertNotIn("users_secret", str(payload["arguments"]))
+        # The class name is still exposed (the web client branches on it).
+        self.assertTrue(payload["name"].startswith("psycopg."))
+        self.assertEqual(
+            set(payload), {"name", "message", "arguments", "context", "debug"}
+        )
+
+    def test_application_valueerror_is_surfaced(self):
+        # The fork deliberately surfaces application exception messages to API
+        # clients (e.g. an invalid-domain ValueError — see test_webjson2).
+        from odoo.http import serialize_exception
+
+        payload = serialize_exception(ValueError("Invalid field x in domain"))
+        self.assertEqual(payload["message"], "Invalid field x in domain")
+        self.assertEqual(payload["arguments"], ("Invalid field x in domain",))
+
+    def test_user_error_message_is_exposed(self):
+        from odoo.exceptions import AccessError, UserError
+        from odoo.http import serialize_exception
+
+        for exc in (UserError("Please set a date"), AccessError("no access")):
+            payload = serialize_exception(exc)
+            self.assertIn(exc.args[0], payload["message"])
+
+    def test_explicit_message_and_arguments_are_honoured(self):
+        from werkzeug.exceptions import NotFound
+
+        from odoo.http import serialize_exception
+
+        payload = serialize_exception(
+            NotFound(), message="Not Found", arguments=("Not Found", 404)
+        )
+        self.assertEqual(payload["message"], "Not Found")
+        self.assertEqual(payload["arguments"], ("Not Found", 404))
+
+
+@tagged("post_install", "-at_install")
+class TestEventServerShutdownSemantics(BaseCase):
+    """A SIGINT/SIGTERM (raised as ``KeyboardInterrupt`` by the signal handler)
+    is a graceful stop, not a crash.  ``serve_forever()`` does not catch it, so
+    ``EventServer.start`` must, or every normal stop (systemd, watchdog recycle)
+    would log CRITICAL and ``exit(1)`` — restart flapping and false alerts.
+    """
+
+    def _run_start(self, serve_exc):
+        from unittest.mock import MagicMock, patch
+
+        from odoo.service import _threaded
+        from odoo.service.server import EventServer
+
+        server = EventServer.__new__(EventServer)  # bypass __init__ (psutil/config)
+        server.interface, server.port, server.app = "127.0.0.1", 0, MagicMock()
+        server.logger, server.httpd = MagicMock(), None
+        httpd = MagicMock()
+        httpd.serve_forever.side_effect = serve_exc
+        raised = None
+        with (
+            patch.object(_threaded.werkzeug.serving, "make_server", return_value=httpd),
+            patch.object(_threaded.signal, "signal"),
+            patch.object(_threaded.threading, "Thread"),
+        ):
+            try:
+                server.start()
+            except BaseException as exc:
+                raised = exc
+        return server, raised
+
+    def test_signal_shutdown_is_graceful(self):
+        server, raised = self._run_start(KeyboardInterrupt())
+        self.assertIsNone(raised, "a graceful shutdown must not propagate")
+        self.assertFalse(
+            server.logger.critical.called, "graceful shutdown must not log CRITICAL"
+        )
+
+    def test_real_error_is_still_fatal(self):
+        server, raised = self._run_start(RuntimeError("boom"))
+        self.assertIsInstance(raised, SystemExit)
+        self.assertEqual(raised.code, 1)
+        self.assertTrue(server.logger.critical.called)
 
 
 @tagged("post_install", "-at_install")
@@ -1425,7 +1677,7 @@ class TestRequestAppInjection(BaseCase):
             request_class.clear_monodb_cache()
             self.addCleanup(request_class.clear_monodb_cache)
             with (
-                patch.object(request_class, "db_list", return_value=[]),
+                patch.object(request_class, "_list_all_dbs", return_value=[]),
                 patch.object(
                     request_class,
                     "db_filter",

@@ -9,6 +9,7 @@ from typing import Any
 from odoo.tools import unique
 from odoo.tools.misc import submap
 
+from ._params import build_param_specs, coerce_params
 from .constants import ROUTING_KEYS
 from .controller import Controller
 from .dispatcher import _dispatchers
@@ -107,6 +108,12 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     :param bool csrf: Whether CSRF protection should be enabled for the
         route. Enabled by default for ``'http'``-type requests, disabled
         by default for ``'jsonrpc'``-type requests.
+    :param bool typed: When ``True``, coerce and validate request parameters
+        against the handler's type annotations (see :mod:`odoo.http._params`):
+        an ``n: int`` parameter then arrives as a real ``int``, and a missing
+        required parameter or a value that cannot be coerced yields a ``400``.
+        Only annotated parameters are affected; unannotated ones pass through
+        unchanged. ``False`` by default.
     :param bool | Callable[[Controller, rule, dict], bool] readonly:
         Whether this endpoint should open a cursor on a read-only
         replica instead of (by default) the primary read/write database.
@@ -114,6 +121,13 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
         where ``controller`` is the controller instance, ``rule`` is the
         matched werkzeug routing rule, and ``args`` is the dict of URL
         path parameters. It must return a boolean.
+
+        If a ``readonly=True`` endpoint nevertheless issues a write, the request
+        is transparently re-dispatched on a read/write cursor — which means
+        **the handler body runs a second time**. Keep non-transactional side
+        effects (sending email, outbound HTTP calls, consuming a one-time token)
+        out of the handler until after the first database write, or they execute
+        twice. A WARNING naming the route is logged on every such promotion.
     :param Callable[[Exception], Response] handle_params_access_error:
         Implement a custom behavior if an error occurred when retrieving
         the record from the URL parameters (access error or missing error).
@@ -166,6 +180,11 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
             endpoint
         )
 
+        # Opt-in typed routing: coerce/validate annotated params against the
+        # handler's type hints (see odoo.http._params). ``None`` for the common
+        # untyped route, so route_wrapper pays nothing.
+        param_specs = build_param_specs(endpoint) if routing.get("typed") else None
+
         # ``controller_self`` is positional-only (``/``) and not named ``self``:
         # the wrapper is called as ``endpoint(**request.params)``, so a request
         # arg named ``self`` lands in ``**params`` (to be filtered) instead of
@@ -193,6 +212,11 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
             if params_ko:
                 # ``params_ko`` is already a set in every branch reaching here.
                 _logger.warning("%s called ignoring args %s", fname, params_ko)
+
+            if param_specs is not None:
+                # Typed route: coerce/validate annotated params (raises 400 on a
+                # missing-required or uncoercible value).
+                params_ok = coerce_params(params_ok, param_specs)
 
             result = endpoint(controller_self, *args, **params_ok)
             if (

@@ -3,7 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from http import HTTPStatus
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import werkzeug.exceptions
 from werkzeug.exceptions import (
@@ -22,6 +22,17 @@ from .constants import CORS_MAX_AGE, MISSING_CSRF_WARNING, SAFE_HTTP_METHODS
 from .exceptions import SessionExpiredException
 from .helpers import get_session_max_inactivity, serialize_exception
 from .wrappers import Response
+
+if TYPE_CHECKING:
+    from .request_class import Request
+else:
+    # ``Request`` is used ONLY in annotations here, never as a runtime value, so
+    # we don't import it at runtime — that would re-form the Request<->Dispatcher
+    # cycle and force the old bottom-of-file late import. The ``else: Any``
+    # fallback is the pattern blessed by ``test_lint.test_pep649`` (and used by
+    # ``odoo.tools.{files,sql}``): annotations like ``request: Request`` resolve
+    # to ``Any`` under PEP 649 introspection instead of raising ``NameError``.
+    Request = Any
 
 _logger = logging.getLogger(__name__)
 
@@ -61,9 +72,10 @@ class Dispatcher(ABC):
     def pre_dispatch(self, rule: Any, args: dict[str, Any]) -> None:
         """
         Prepare the system before dispatching the request to its
-        controller. This method is often overridden in ir.http to
-        extract some info from the request query-string or headers and
-        to save them in the session or in the context.
+        controller. Modules customize this step by overriding the
+        ``ir.http._pre_dispatch`` hook, which calls this method, e.g. to
+        read info from the request query-string or headers into the
+        session or context.
         """
         routing = rule.endpoint.routing
         self.request.session.can_save &= routing.get("save_session", True)
@@ -154,7 +166,7 @@ class HttpDispatcher(Dispatcher):
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
         """
         Perform http-related actions such as deserializing the request
-        body and query-string and checking cors/csrf while dispatching a
+        body and query-string and checking csrf while dispatching a
         request to a ``type='http'`` route.
 
         See :meth:`~odoo.http.Response.load` method for the compatible
@@ -365,6 +377,24 @@ class Json2Dispatcher(Dispatcher):
 
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
         # "args" are the path parameters, "id" in /web/image/<id>
+        httprequest = self.request.httprequest
+        # CSRF defense for state-changing requests.  A json2 route is normally
+        # called with ``Content-Type: application/json``, which forces a CORS
+        # preflight cross-origin (the same protection jsonrpc relies on).  An
+        # empty/non-JSON body on an unsafe method is a cross-site "simple
+        # request" that skips that preflight and could drive a state change from
+        # the path args alone, so reject it unless the route opts out
+        # (``csrf=False``).  A non-JSON request WITH a body is already refused by
+        # ``is_compatible_with`` (415); this closes the empty-body gap.
+        if (
+            httprequest.method not in SAFE_HTTP_METHODS
+            and httprequest.mimetype not in self.mimetypes
+            and endpoint.routing.get("csrf", True)
+        ):
+            raise werkzeug.exceptions.BadRequest(
+                "State-changing json2 requests must use the 'application/json' "
+                "Content-Type (CSRF protection)."
+            )
         if self.request.httprequest.content_length:
             try:
                 self.jsonrequest = self.request.get_json_data()
@@ -413,10 +443,3 @@ class Json2Dispatcher(Dispatcher):
             body = serialize_exception(exc)
 
         return self.request.make_json_response(body, headers=headers, status=status)
-
-
-# Late import to break the Dispatcher <-> Request cycle. ``Request`` is used only
-# in annotations and method bodies above, so it need not resolve at class
-# -definition time. Do NOT move under TYPE_CHECKING: test_pep649 pins these
-# annotations as runtime-resolvable. See test_pep649.KNOWN_FAILURES for context.
-from .request_class import Request  # noqa: E402  — see note above

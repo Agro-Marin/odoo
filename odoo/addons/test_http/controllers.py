@@ -101,6 +101,26 @@ class TestHttp(http.Controller):
         return str(kwargs)
 
     @http.route(
+        "/test_http/typed-echo", type="http", auth="none", methods=["GET"], typed=True
+    )
+    def typed_echo(self, n: int, flag: bool = False, **kwargs):
+        # ``typed=True`` coerces the query strings: ``n`` becomes a real int and
+        # ``flag`` a real bool before this body runs.
+        return f"{n}:{type(n).__name__}:{flag}:{type(flag).__name__}"
+
+    @http.route("/test_http/openapi.json", type="http", auth="none", methods=["GET"])
+    def openapi_json(self):
+        # Serve the curated (typed) API as an OpenAPI 3.1 document, generated
+        # from the live nodb routing map.  Imported locally: the module top is
+        # past its first statement, so a top-level import would trip E402.
+        from odoo.http.openapi import openapi_from_map
+
+        spec = openapi_from_map(
+            request.app.nodb_routing_map, title="test_http API", typed_only=True
+        )
+        return request.make_json_response(spec)
+
+    @http.route(
         "/test_http/echo-http-post",
         type="http",
         auth="none",

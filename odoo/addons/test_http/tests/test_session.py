@@ -313,6 +313,45 @@ class TestHttpSession(TestHttpBase):
         source["k"].append(2)
         self.assertEqual(session["iso"], {"k": [1]})
 
+    def test_session07c_is_modified_detects_nested_mutation(self):
+        """``is_modified`` catches in-place nested writes that bypass __setitem__.
+
+        The request lifecycle baselines via ``mark_clean`` after load and gates
+        persistence on ``is_modified``, so an application doing
+        ``session.context[...] = ...`` no longer has to remember ``touch()``.
+        """
+        sid = "a" * STORED_SESSION_BYTES * 2
+        session = Session({"uid": 5, "context": {"lang": "en_US"}}, sid)
+        session.mark_clean()
+        self.assertFalse(session.is_modified())
+
+        # In-place nested mutation: bypasses __setitem__, so is_dirty stays
+        # False, but is_modified must detect it (the bug this fixes).
+        session.context["lang"] = "es_MX"
+        self.assertFalse(session.is_dirty)
+        self.assertTrue(session.is_modified())
+
+        # Reverting the nested value to its baseline clears the modification
+        # (no intervening mark_clean, so the baseline is still "en_US").
+        session.context["lang"] = "en_US"
+        self.assertFalse(session.is_modified())
+
+        # A no-op top-level write is not a modification.
+        session["uid"] = 5
+        self.assertFalse(session.is_modified())
+
+        # Explicit writes still register, and re-baselining clears the state.
+        session["foo"] = "bar"
+        self.assertTrue(session.is_modified())
+        session.mark_clean()
+        self.assertFalse(session.is_modified())
+
+        # After re-baseline, the current values are the new baseline.
+        session.context["lang"] = "en_US"  # unchanged
+        self.assertFalse(session.is_modified())
+        session.context["lang"] = "de_DE"  # now changed
+        self.assertTrue(session.is_modified())
+
     @patch("odoo.http.root.session_store.vacuum")
     def test_session08_gc_ignored_no_db_name(self, mock):
         with patch.dict(os.environ, {"ODOO_SKIP_GC_SESSIONS": ""}):
