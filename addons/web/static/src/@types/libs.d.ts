@@ -4,8 +4,6 @@
  */
 declare type integer = number;
 
-declare const luxon: typeof import("luxon");
-
 // Bootstrap 5 globals used by database_manager.js and other public pages
 declare const Modal: any;
 declare const Tooltip: any;
@@ -21,13 +19,23 @@ declare const $: typeof import("jquery");
 // Third-party libraries loaded as globals
 declare const ace: any;
 declare const ZXing: any;
-declare const FullCalendar: any;
 declare const SignaturePad: any;
-// Chart.js — loaded lazily via ``loadBundle("web.chartjs_lib")`` by
-// ``views/graph/graph_renderer.js`` and
-// ``fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js``.
-// Typed as ``any`` because the chart.js npm types are not installed in this
-// fork; tighten to ``typeof import("chart.js").Chart`` when those types land.
+
+// Lazy-loaded third-party ES modules without bundled npm types in this fork
+// (pulled in via dynamic ``import()`` from ``@web/core/lib/*``). Declared so the
+// dynamic imports type-resolve; their exports are untyped (``any``).
+declare module "chart.js";
+declare module "chartjs-adapter-luxon";
+declare module "@fullcalendar/core";
+declare module "@fullcalendar/core/locales-all";
+// Chart.js — now a real ES module imported through ``@web/core/lib/chartjs``.
+// This ambient global remains ONLY for the two consumers that read
+// ``globalThis.Chart`` set by a deliberate installer module rather than
+// importing it: the generated ``spreadsheet/.../o_spreadsheet.js`` artifact
+// (via ``o_spreadsheet/chartjs_setup.js``) and survey's sync-``setup()`` chart
+// interactions (via ``survey/.../interactions/chartjs_setup.js``). All other
+// consumers import ``{ Chart }`` from ``@web/core/lib/chartjs``. Typed ``any``
+// because the chart.js npm types are not installed in this fork.
 declare const Chart: any;
 declare const StackTrace: {
     fromError(error: Error): Promise<Array<{ fileName: string; lineNumber: number; columnNumber: number; functionName: string }>>;
@@ -44,7 +52,6 @@ declare class BarcodeDetector {
 interface Window {
     ace: any;
     ZXing: any;
-    FullCalendar: any;
     SignaturePad: any;
     Chart: any;
     MozBlob: typeof Blob | undefined;

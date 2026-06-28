@@ -29,6 +29,9 @@ export class StateSelectionField extends Component {
         showLabel: true,
     };
 
+    /** @type {Record<string, string>} */
+    colors;
+
     setup() {
         this.colorPrefix = "o_status_";
         this.colors = {

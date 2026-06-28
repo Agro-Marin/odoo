@@ -83,7 +83,7 @@ export function highlightText(query, text, classes) {
             `(?<!&[^;]{0,5})(${escapeRegExp(/** @type {string} */ (htmlEscape(match)))})(?=(?:[^>]*<[^<]*>)*[^<>]*$)`,
             "ig",
         );
-        result = htmlReplace(result, regex, (_, match) => {
+        result = htmlReplace(result, regex, (/** @type {string} */ _, /** @type {any} */ match) => {
             /**
              * markup: text is a Markup object (either escaped inside htmlReplace or
              * flagged safe), `match` is directly coming from this value,
@@ -259,16 +259,16 @@ export function odoomark(text) {
         // Larger spacing
         ["\t", markup`<span style="margin-left: 2em"></span>`],
         // Bold
-        [/\*\*(.+?)\*\*/g, (_, content) => markup(`<b>${content}</b>`)],
+        [/\*\*(.+?)\*\*/g, (/** @type {string} */ _, /** @type {string} */ content) => markup(`<b>${content}</b>`)],
         // Muted
         [
             /--(.+?)--/g,
-            (_, content) => markup(`<span class="text-muted">${content}</span>`),
+            (/** @type {string} */ _, /** @type {string} */ content) => markup(`<span class="text-muted">${content}</span>`),
         ],
         // Badge
         [
             /&#x60;(.+?)&#x60;/g,
-            (_, content) =>
+            (/** @type {string} */ _, /** @type {string} */ content) =>
                 markup(
                     `<span class="o_tag position-relative d-inline-flex align-items-center mw-100 o_badge badge rounded-pill lh-1 o_tag_color_0">${content}</span>`,
                 ),

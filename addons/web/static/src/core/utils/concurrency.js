@@ -110,7 +110,10 @@ export class Mutex {
     async exec(action) {
         this._queueSize++;
         if (!this._unlockedProm) {
-            const { promise, resolve } = Promise.withResolvers();
+            const { promise, resolve } =
+                /** @type {{ promise: Promise<void>; resolve: () => void }} */ (
+                    Promise.withResolvers()
+                );
             this._unlockedProm = promise;
             this._unlock = () => {
                 resolve();
@@ -126,7 +129,8 @@ export class Mutex {
             }
             return Promise.resolve(result).finally(() => {
                 if (--this._queueSize === 0) {
-                    this._unlock();
+                    // Always set by the time the queue drains (see exec above).
+                    /** @type {() => void} */ (this._unlock)();
                 }
             });
         };

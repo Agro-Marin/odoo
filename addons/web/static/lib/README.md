@@ -14,7 +14,7 @@ Each subdirectory contains a `VERSION.txt` with the upstream version string (or 
 | `chartjs-adapter-luxon/` | 1.3.1 | https://github.com/chartjs/chartjs-adapter-luxon |
 | `diff_match_patch/` | forked | Trimmed fork of https://github.com/google/diff-match-patch (diff functions only). See header comment in `diff_match_patch.js` for the modifications applied. |
 | `dompurify/` | 3.3.1 | https://github.com/cure53/DOMPurify |
-| `fullcalendar/` | 7.0.0-rc.3 | https://fullcalendar.io — header comment in `fullcalendar.global.js`. Single-bundle Vanilla JS distribution (core + interaction + daygrid + timegrid + list + multimonth) plus `skeleton.css` and `locales-all.global.js`. |
+| `fullcalendar/` | 7.0.0 | https://fullcalendar.io — header comment in `fullcalendar.global.js`. Single-bundle Vanilla JS distribution (core + interaction + daygrid + timegrid + list + multimonth) plus `skeleton.css` and `locales-all.global.js`. **Fork-patched**: `fullcalendar.global.js` carries six AgroMarin patches (search `AGROMARIN FORK PATCH` and `Fork-local:`) that re-inject the stable v6 class names (`fc-event-mirror`, `fc-event-resizer`) and fix the portal host, slot-height measurement, and drag-snap behaviour — re-apply them when bumping the upstream version. `skeleton.css` class hashes are paired with this exact build, so always replace the JS and CSS together. |
 | `hoot/` | internal | Odoo HOOT test framework — versioned with the fork |
 | `hoot-dom/` | internal | Odoo HOOT DOM helpers — versioned with the fork |
 | `luxon/` | 3.7.2 | https://moment.github.io/luxon/ — `VERSION` constant in `luxon.js` |

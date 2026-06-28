@@ -91,8 +91,8 @@ export function usePosition(refName, getTarget, options = {}) {
 
         if (isTopmost) {
             // Attach listeners to keep the positioning up to date
-            const scrollListener = (e) => {
-                if (ref.el?.contains(e.target)) {
+            const scrollListener = (/** @type {Event} */ e) => {
+                if (ref.el?.contains(/** @type {Node} */ (e.target))) {
                     // In case the scroll event occurs inside the popper, do not reposition
                     return;
                 }
@@ -101,12 +101,13 @@ export function usePosition(refName, getTarget, options = {}) {
             // Get the ownerDocument of the target, and the topmost document
             // if the target is inside an iframe of same-origin
             // (c.f. html_builder), to handle scroll events at these 2 levels.
+            /** @type {Document[]} */
             const documents = [];
             const targetDocument = getTarget()?.ownerDocument;
             if (targetDocument) {
                 documents.push(targetDocument);
                 if (
-                    targetDocument.defaultView &&
+                    targetDocument.defaultView?.top &&
                     targetDocument.defaultView.top !== targetDocument.defaultView
                 ) {
                     try {

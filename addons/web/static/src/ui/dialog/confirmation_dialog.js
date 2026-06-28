@@ -27,7 +27,7 @@ export class ConfirmationDialog extends Component {
     static props = {
         close: Function,
         title: {
-            validate: (m) =>
+            validate: (/** @type {unknown} */ m) =>
                 typeof m === "string" ||
                 (typeof m === "object" && typeof m.toString === "function"),
             optional: true,

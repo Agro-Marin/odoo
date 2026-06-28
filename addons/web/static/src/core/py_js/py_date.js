@@ -344,6 +344,11 @@ export class PyTime extends PyDate {
         return new PyTime(hour, minute, second);
     }
 
+    /**
+     * @param {number} hour
+     * @param {number} minute
+     * @param {number} second
+     */
     constructor(hour, minute, second) {
         const now = new Date();
         const year = now.getFullYear();
@@ -536,7 +541,7 @@ export class PyRelativeDelta {
     }
 
     /**
-     * @param {Object} params
+     * @param {Record<string, any>} params
      * @param {1|-1} sign
      */
     constructor(params = {}, sign = +1) {
@@ -566,6 +571,9 @@ export class PyRelativeDelta {
         return new PyRelativeDelta(this, -1);
     }
 
+    /**
+     * @param {PyRelativeDelta} other
+     */
     isEqual(other) {
         // For now we don't do normalization in the constructor (or create method).
         // That is, we only compute the overflows at the time we add or subtract.

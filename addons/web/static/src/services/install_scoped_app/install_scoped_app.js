@@ -19,7 +19,10 @@ export class InstallScopedApp extends Component {
     static components = { Dropdown };
     setup() {
         this.pwa = useService(/** @type {any} */ ("pwa"));
-        this.state = useState({ manifest: {}, showInstallUI: false });
+        this.state = useState({
+            manifest: /** @type {Record<string, any>} */ ({}),
+            showInstallUI: false,
+        });
         this.isDisplayStandalone = isDisplayStandalone();
         // BeforeInstallPrompt event can take while before the browser triggers it. Some will display
         // immediately, others will wait that the user has interacted for some time with the website.
@@ -46,7 +49,7 @@ export class InstallScopedApp extends Component {
     onInstall() {
         this.state.showInstallUI = false;
         this.pwa.show({
-            onDone: (res) => {
+            onDone: (/** @type {{ outcome: string }} */ res) => {
                 if (res.outcome === "accepted") {
                     browser.location.replace(this.state.manifest.start_url);
                 } else {

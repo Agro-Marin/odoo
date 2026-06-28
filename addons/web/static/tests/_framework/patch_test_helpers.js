@@ -1,5 +1,6 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { after, onTimeZoneChange } from "@odoo/hoot";
 import { patch } from "@web/core/utils/patch";
 

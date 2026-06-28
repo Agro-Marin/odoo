@@ -19,6 +19,9 @@ import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
  *   - get formattedValue — returns the display value (format varies per type)
  */
 export class NumericInputFieldBase extends Component {
+    /** @type {{ hasFocus: boolean }} */
+    state;
+
     setup() {
         this.state = useState({ hasFocus: false });
         this.inputRef = useInputField({

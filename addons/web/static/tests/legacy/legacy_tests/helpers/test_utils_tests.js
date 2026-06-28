@@ -2,6 +2,7 @@
 
 /** @odoo-module alias=@web/../tests/legacy_tests/helpers/test_utils_tests default=false */
 
+import { luxon } from "@web/core/l10n/luxon";
 import testUtils from "./test_utils.js";
 const { DateTime } = luxon;
 

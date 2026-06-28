@@ -9,8 +9,19 @@
  * @property {string[]} [attributes]
  */
 
+/**
+ * @typedef {Object} LoadPathResult
+ * @property {string} [isInvalid]
+ * @property {string[]} names
+ * @property {{ resModel: string | null, fieldDefs: any }[]} modelsInfo
+ */
+
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
+/**
+ * @param {Record<string, any>} fieldDef
+ * @param {boolean} [followRelationalProperties=false]
+ */
 function getRelation(fieldDef, followRelationalProperties = false) {
     if (fieldDef.relation) {
         return fieldDef.relation;
@@ -30,11 +41,15 @@ export const fieldService = {
         "loadPropertyDefinitions",
         "loadPathDescription",
     ],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ orm: any }} services
+     */
     start(env, { orm }) {
         /**
          * @param {string} resModel
          * @param {LoadFieldsOptions} [options]
-         * @returns {Promise<object>}
+         * @returns {Promise<Record<string, any>>}
          */
         async function loadFields(resModel, options = {}) {
             if (typeof resModel !== "string" || !resModel) {
@@ -54,10 +69,11 @@ export const fieldService = {
         }
 
         /**
-         * @param {Object} fieldDefs
+         * @param {string} resModel
+         * @param {Record<string, any>} fieldDefs
          * @param {string} name
          * @param {import("@web/core/domain").DomainListRepr} [domain=[]]
-         * @returns {Promise<Object>}
+         * @returns {Promise<Record<string, any>>}
          */
         async function _loadPropertyDefinitions(
             resModel,
@@ -93,6 +109,7 @@ export const fieldService = {
                 });
             }
 
+            /** @type {Record<string, any>} */
             const definitions = {};
             for (const record of result.records) {
                 for (const definition of record[definitionRecordField]) {
@@ -115,7 +132,7 @@ export const fieldService = {
          * @param {string} resModel
          * @param {string} fieldName
          * @param {import("@web/core/domain").DomainListRepr} [domain]
-         * @returns {Promise<object[]>}
+         * @returns {Promise<Record<string, any>>}
          */
         async function loadPropertyDefinitions(resModel, fieldName, domain) {
             const fieldDefs = await loadFields(resModel);
@@ -124,9 +141,10 @@ export const fieldService = {
 
         /**
          * @param {string|null} resModel valid model name or null (case virtual)
-         * @param {Object|null} fieldDefs
+         * @param {Record<string, any>|null} fieldDefs
          * @param {string[]} names
          * @param {boolean} [followRelationalProperties=false]
+         * @returns {Promise<LoadPathResult>}
          */
         async function _loadPath(
             resModel,
@@ -173,6 +191,7 @@ export const fieldService = {
             }
 
             if (subResult) {
+                /** @type {LoadPathResult} */
                 const result = {
                     names,
                     modelsInfo: [...modelsInfo, ...subResult.modelsInfo],
@@ -191,7 +210,7 @@ export const fieldService = {
          * It says to load the fields of the appropriate model.
          * @param {string} resModel
          * @param {string} path
-         * @returns {Promise<Object>}
+         * @returns {Promise<LoadPathResult>}
          */
         async function loadPath(
             resModel,
@@ -231,12 +250,21 @@ export const fieldService = {
             };
         }
 
+        /**
+         * @param {any} [value]
+         */
         function makeString(value) {
             return String(value ?? "-");
         }
 
+        /**
+         * @param {string} resModel
+         * @param {string | number} path
+         * @param {boolean} [allowEmpty]
+         * @returns {Promise<{ isInvalid: boolean, displayNames: string[] }>}
+         */
         async function loadPathDescription(resModel, path, allowEmpty) {
-            if ([0, 1].includes(path)) {
+            if ([0, 1].includes(/** @type {number} */ (path))) {
                 return { isInvalid: false, displayNames: [makeString(path)] };
             }
             if (allowEmpty && !path) {
@@ -246,7 +274,10 @@ export const fieldService = {
                 return { isInvalid: true, displayNames: [makeString()] };
             }
             const { isInvalid, modelsInfo, names } = await loadPath(resModel, path);
-            const result = { isInvalid: !!isInvalid, displayNames: [] };
+            const result = {
+                isInvalid: !!isInvalid,
+                displayNames: /** @type {string[]} */ ([]),
+            };
             if (!isInvalid) {
                 const lastName = names.at(-1);
                 const lastFieldDef = modelsInfo.at(-1).fieldDefs[lastName];

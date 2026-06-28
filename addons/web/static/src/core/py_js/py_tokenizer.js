@@ -3,22 +3,17 @@
 
 /** @module @web/core/py_js/py_tokenizer - Lexer that splits Python expression strings into typed tokens */
 
+import { TokenType } from "./token_type.js";
+
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
 /**
- * @typedef {{type: 0, value: number}} TokenNumber
+ * The {@link Token} typedefs and the {@link TokenType} discriminant legend live
+ * in ``./token_type.js`` (single source of truth shared with the parser).
  *
- * @typedef {{type: 1, value: string}} TokenString
- *
- * @typedef {{type: 2, value: string}} TokenSymbol
- *
- * @typedef {{type: 3, value: string}} TokenName
- *
- * @typedef {{type: 4, value: string}} TokenConstant
- *
- * @typedef {TokenNumber | TokenString | TokenSymbol | TokenName | TokenConstant} Token
+ * @typedef { import("./token_type").Token } Token
  */
 
 export class TokenizerError extends Error {}
@@ -30,6 +25,7 @@ export class TokenizerError extends Error {}
 /**
  * Directly maps a single escape code to an output character
  */
+/** @type {Record<string, string>} */
 const directMap = {
     "\\": "\\",
     '"': '"',
@@ -162,7 +158,8 @@ function decodeStringLiteral(str, unicode) {
                 }
                 const r = /[0-7]{1,3}/g;
                 r.lastIndex = i + 1;
-                const m = r.exec(str);
+                // Guaranteed to match: `escape` already passed the octal test above.
+                const m = /** @type {RegExpExecArray} */ (r.exec(str));
                 const oct = m[0];
                 code = Number.parseInt(oct, 8);
                 out.push(String.fromCharCode(code));
@@ -223,6 +220,7 @@ const symbols = new Set([
 ]);
 
 // Regexps
+/** @param {...string} args */
 function group(...args) {
     return "(" + args.join("|") + ")";
 }
@@ -306,13 +304,14 @@ export function tokenize(str) {
         let token = str.slice(start, end).replace(strip, "");
         if (NumberPattern.test(token)) {
             tokens.push({
-                type: 0 /* Number */,
+                type: TokenType.Number,
                 value: Number.parseFloat(token),
             });
         } else if (StringPattern.test(token)) {
-            const m = StringPattern.exec(token);
+            // Guaranteed to match: the `StringPattern.test(token)` branch above.
+            const m = /** @type {RegExpExecArray} */ (StringPattern.exec(token));
             tokens.push({
-                type: 1 /* String */,
+                type: TokenType.String,
                 value: decodeStringLiteral(
                     m[3] !== undefined ? m[3] : m[5],
                     !!(m[2] || m[4]),
@@ -320,29 +319,29 @@ export function tokenize(str) {
             });
         } else if (symbols.has(token)) {
             // transform 'not in' and 'is not' in a single token
-            if (token === "in" && tokens.length > 0 && tokens.at(-1).value === "not") {
+            if (token === "in" && tokens.length > 0 && tokens.at(-1)?.value === "not") {
                 token = "not in";
                 tokens.pop();
             } else if (
                 token === "not" &&
                 tokens.length > 0 &&
-                tokens.at(-1).value === "is"
+                tokens.at(-1)?.value === "is"
             ) {
                 token = "is not";
                 tokens.pop();
             }
             tokens.push({
-                type: 2 /* Symbol */,
+                type: TokenType.Symbol,
                 value: token,
             });
         } else if (constants.has(token)) {
             tokens.push({
-                type: 4 /* Constant */,
+                type: TokenType.Constant,
                 value: token,
             });
         } else if (NamePattern.test(token)) {
             tokens.push({
-                type: 3 /* Name */,
+                type: TokenType.Name,
                 value: token,
             });
         } else {

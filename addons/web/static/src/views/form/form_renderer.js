@@ -140,7 +140,7 @@ export class FormRenderer extends Component {
                 }
                 for (const id of fieldNodeIds) {
                     const els = [...document.querySelectorAll(`[id=${id}]`)].filter(
-                        (el) => !rootRef.el.contains(el),
+                        (el) => !rootRef.el?.contains(el),
                     );
                     if (els.length) {
                         els[0].removeAttribute("id");

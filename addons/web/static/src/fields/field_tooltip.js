@@ -10,7 +10,7 @@
 export function getTooltipInfo(params) {
     let widgetDescription = undefined;
     if (params.fieldInfo.widget) {
-        widgetDescription = params.fieldInfo.field.displayName;
+        widgetDescription = params.fieldInfo.field?.displayName;
     }
 
     const info = {

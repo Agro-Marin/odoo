@@ -1,5 +1,6 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { click, drag, edit, hover, queryAll, queryFirst, queryRect } from "@odoo/hoot-dom";
 import { advanceFrame, advanceTime, animationFrame } from "@odoo/hoot-mock";
 import { EventBus } from "@odoo/owl";
@@ -419,7 +420,7 @@ export async function selectTimeRange(startDateTime, endDateTime) {
     //
     // The real interactive element per date in time-grid view is the
     // ``TimeGridCol`` with ``role='gridcell'`` and ``data-date``
-    // (rendered at ``fullcalendar.global.js:12137`` — a div with
+    // (rendered at ``fullcalendar.esm.js:12137`` — a div with
     // ``aria-current``, ``data-date`` and ``role='gridcell'``).  In
     // week/day view there are three elements per date:
     //   #0  column header        role=columnheader   ~21px tall
@@ -666,7 +667,7 @@ export async function moveEventToAllDaySlot(eventId, date) {
 export async function resizeEventToTime(eventId, dateTime) {
     // FC v7 only attaches the ``fc-event-resizer-end`` class to the segment
     // whose ``isEnd && eventUi.durationEditable`` are both truthy (see
-    // ``fullcalendar.global.js`` ``isEndResizable``).  Match the defensive
+    // ``fullcalendar.esm.js`` ``isEndResizable``).  Match the defensive
     // pattern used by ``resizeEventToDate`` below: query all segments for
     // this event id and select the last, then throw a diagnostic that
     // names the FC fields to check rather than letting the dereference
@@ -718,7 +719,7 @@ export async function resizeEventToDate(eventId, date) {
     // FC v7 splits multi-day all-day events into one DOM node per day
     // row (each tagged with the same ``data-event-id``).  The
     // ``isEnd`` flag — and hence the ``fc-event-resizer-end`` class
-    // (``fullcalendar.global.js:8945``: ``isEndResizable = !disableResizing
+    // (``fullcalendar.esm.js:8945``: ``isEndResizable = !disableResizing
     // && props.isEnd && eventUi.durationEditable``) — only sits on the
     // LAST segment.  ``findEvent`` returned the FIRST one, so the
     // resizer was on a sibling node and ``queryFirst`` returned null,

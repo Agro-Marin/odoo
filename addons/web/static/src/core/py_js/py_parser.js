@@ -4,6 +4,8 @@
 /** @module @web/core/py_js/py_parser - Pratt parser that converts Python token streams into AST nodes */
 
 import { binaryOperators, comparators } from "./py_tokenizer.js";
+import { ASTType } from "./ast_type.js";
+import { TokenType } from "./token_type.js";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -14,24 +16,12 @@ import { binaryOperators, comparators } from "./py_tokenizer.js";
  */
 
 /**
- * @typedef {{type: 0, value: number}} ASTNumber
- * @typedef {{type: 1, value: string}} ASTString
- * @typedef {{type: 2, value: boolean}} ASTBoolean
- * @typedef {{type: 3}} ASTNone
- * @typedef {{type: 4, value: AST[]}} ASTList
- * @typedef {{type: 5, value: string}} ASTName
- * @typedef {{type: 6, op: string, right: AST}} ASTUnaryOperator
- * @typedef {{type: 7, op: string, left: AST, right: AST}} ASTBinaryOperator
- * @typedef {{type: 8, fn: AST, args: AST[], kwargs: {[key: string]: AST}}} ASTFunctionCall
- * @typedef {{type: 9, name: ASTName, value: AST}} ASTAssignment
- * @typedef {{type: 10, value: AST[]}} ASTTuple
- * @typedef {{type: 11, value: { [key: string]: AST}}} ASTDictionary
- * @typedef {{type: 12, target: AST, key: AST}} ASTLookup
- * @typedef {{type: 13, condition: AST, ifTrue: AST, ifFalse: AST}} ASTIf
- * @typedef {{type: 14, op: string, left: AST, right: AST}} ASTBooleanOperator
- * @typedef {{type: 15, obj: AST, key: string}} ASTObjLookup
+ * The AST node typedefs and the {@link ASTType} discriminant legend live in
+ * ``./ast_type.js`` (single source of truth shared with the interpreter and the
+ * domain/context/tree decoders).
  *
- * @typedef { ASTNumber | ASTString | ASTBoolean | ASTNone | ASTList | ASTName | ASTUnaryOperator | ASTBinaryOperator | ASTFunctionCall | ASTAssignment | ASTTuple | ASTDictionary |ASTLookup | ASTIf | ASTBooleanOperator | ASTObjLookup} AST
+ * @typedef { import("./ast_type").AST } AST
+ * @typedef { import("./ast_type").ASTBinaryOperator } ASTBinaryOperator
  */
 
 class ParserError extends Error {}
@@ -131,7 +121,7 @@ export function bp(symbol) {
  * @returns {number}
  */
 function bindingPower(token) {
-    return token.type === 2 /* Symbol */ ? bp(token.value) : 0;
+    return token.type === TokenType.Symbol ? bp(/** @type {string} */ (token.value)) : 0;
 }
 
 /**
@@ -142,7 +132,7 @@ function bindingPower(token) {
  * @returns {boolean}
  */
 function isSymbol(token, value) {
-    return token.type === 2 /* Symbol */ && token.value === value;
+    return token.type === TokenType.Symbol && token.value === value;
 }
 
 /**
@@ -152,34 +142,34 @@ function isSymbol(token, value) {
  */
 function parsePrefix(current, cur) {
     switch (current.type) {
-        case 0 /* Number */:
-            return { type: 0 /* Number */, value: current.value };
-        case 1 /* String */:
-            return { type: 1 /* String */, value: current.value };
-        case 4 /* Constant */:
+        case TokenType.Number:
+            return { type: ASTType.Number, value: current.value };
+        case TokenType.String:
+            return { type: ASTType.String, value: current.value };
+        case TokenType.Constant:
             if (current.value === "None") {
-                return { type: 3 /* None */ };
+                return { type: ASTType.None };
             } else {
                 return {
-                    type: 2 /* Boolean */,
+                    type: ASTType.Boolean,
                     value: current.value === "True",
                 };
             }
-        case 3 /* Name */:
-            return { type: 5 /* Name */, value: current.value };
-        case 2 /* Symbol */:
+        case TokenType.Name:
+            return { type: ASTType.Name, value: current.value };
+        case TokenType.Symbol:
             switch (current.value) {
                 case "-":
                 case "+":
                 case "~":
                     return {
-                        type: 6 /* UnaryOperator */,
+                        type: ASTType.UnaryOperator,
                         op: current.value,
                         right: _parse(cur, 130),
                     };
                 case "not":
                     return {
-                        type: 6 /* UnaryOperator */,
+                        type: ASTType.UnaryOperator,
                         op: current.value,
                         right: _parse(cur, 50),
                     };
@@ -205,7 +195,7 @@ function parsePrefix(current, cur) {
                     cur.next();
                     isTuple = isTuple || content.length === 0;
                     return isTuple
-                        ? { type: 10 /* Tuple */, value: content }
+                        ? { type: ASTType.Tuple, value: content }
                         : content[0];
                 }
                 case "[": {
@@ -224,7 +214,7 @@ function parsePrefix(current, cur) {
                         throw new ParserError("parsing error");
                     }
                     cur.next();
-                    return { type: 4 /* List */, value };
+                    return { type: ASTType.List, value };
                 }
                 case "{": {
                     /** @type {Record<string, AST>} */
@@ -232,8 +222,8 @@ function parsePrefix(current, cur) {
                     while (cur.peek() && !isSymbol(cur.peek(), "}")) {
                         const key = _parse(cur, 0);
                         if (
-                            (key.type !== 1 /* String */ &&
-                                key.type !== 0) /* Number */ ||
+                            (key.type !== ASTType.String &&
+                                key.type !== ASTType.Number) ||
                             !cur.peek() ||
                             !isSymbol(cur.peek(), ":")
                         ) {
@@ -241,7 +231,7 @@ function parsePrefix(current, cur) {
                         }
                         cur.next();
                         const value = _parse(cur, 0);
-                        dict[key.value] = value;
+                        dict[/** @type {any} */ (key).value] = value;
                         if (cur.peek() && isSymbol(cur.peek(), ",")) {
                             cur.next();
                         }
@@ -250,7 +240,7 @@ function parsePrefix(current, cur) {
                     if (!cur.next()) {
                         throw new ParserError("parsing error");
                     }
-                    return { type: 11 /* Dictionary */, value: dict };
+                    return { type: ASTType.Dictionary, value: dict };
                 }
             }
     }
@@ -265,22 +255,22 @@ function parsePrefix(current, cur) {
  */
 function parseInfix(left, current, cur) {
     switch (current.type) {
-        case 2 /* Symbol */:
-            if (infixOperators.has(current.value)) {
+        case TokenType.Symbol:
+            if (infixOperators.has(/** @type {string} */ (current.value))) {
                 let right = _parse(cur, bindingPower(current));
                 if (current.value === "and" || current.value === "or") {
                     return {
-                        type: 14 /* BooleanOperator */,
+                        type: ASTType.BooleanOperator,
                         op: current.value,
                         left,
                         right,
                     };
                 } else if (current.value === ".") {
-                    if (right.type === 5 /* Name */) {
+                    if (right.type === ASTType.Name) {
                         return {
-                            type: 15 /* ObjLookup */,
+                            type: ASTType.ObjLookup,
                             obj: left,
-                            key: right.value,
+                            key: /** @type {any} */ (right).value,
                         };
                     } else {
                         throw new ParserError("invalid obj lookup");
@@ -288,27 +278,27 @@ function parseInfix(left, current, cur) {
                 }
                 /** @type {AST} */
                 let op = {
-                    type: 7 /* BinaryOperator */,
+                    type: ASTType.BinaryOperator,
                     op: /** @type {string} */ (current.value),
                     left,
                     right,
                 };
                 while (
-                    chainedOperators.has(current.value) &&
+                    chainedOperators.has(/** @type {string} */ (current.value)) &&
                     cur.peek() &&
-                    cur.peek().type === 2 /* Symbol */ &&
+                    cur.peek().type === TokenType.Symbol &&
                     chainedOperators.has(/** @type {string} */ (cur.peek().value))
                 ) {
                     const nextToken = cur.next();
                     /** @type {ASTBinaryOperator} */
                     const nextRight = {
-                        type: 7 /* BinaryOperator */,
+                        type: ASTType.BinaryOperator,
                         op: /** @type {string} */ (nextToken.value),
                         left: right,
                         right: _parse(cur, bindingPower(nextToken)),
                     };
                     op = {
-                        type: 14 /* BooleanOperator */,
+                        type: ASTType.BooleanOperator,
                         op: "and",
                         left: op,
                         right: nextRight,
@@ -325,8 +315,8 @@ function parseInfix(left, current, cur) {
                     const kwargs = {};
                     while (cur.peek() && !isSymbol(cur.peek(), ")")) {
                         const arg = _parse(cur, 0);
-                        if (arg.type === 9 /* Assignment */) {
-                            kwargs[arg.name.value] = arg.value;
+                        if (arg.type === ASTType.Assignment) {
+                            kwargs[/** @type {any} */ (arg).name.value] = /** @type {any} */ (arg).value;
                         } else {
                             args.push(arg);
                         }
@@ -339,17 +329,17 @@ function parseInfix(left, current, cur) {
                     }
                     cur.next();
                     return {
-                        type: 8 /* FunctionCall */,
+                        type: ASTType.FunctionCall,
                         fn: left,
                         args,
                         kwargs,
                     };
                 }
                 case "=":
-                    if (left.type === 5 /* Name */) {
+                    if (left.type === ASTType.Name) {
                         return {
-                            type: 9 /* Assignment */,
-                            name: left,
+                            type: ASTType.Assignment,
+                            name: /** @type {any} */ (left),
                             value: _parse(cur, 10),
                         };
                     }
@@ -362,7 +352,7 @@ function parseInfix(left, current, cur) {
                     }
                     cur.next();
                     return {
-                        type: 12 /* Lookup */,
+                        type: ASTType.Lookup,
                         target: left,
                         key: key,
                     };
@@ -375,7 +365,7 @@ function parseInfix(left, current, cur) {
                     cur.next();
                     const ifFalse = _parse(cur);
                     return {
-                        type: 13 /* If */,
+                        type: ASTType.If,
                         condition,
                         ifTrue: left,
                         ifFalse,

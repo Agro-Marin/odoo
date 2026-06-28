@@ -51,7 +51,7 @@ export function mergeClasses(...classes) {
  * should be added or not.
  *
  * @param {string | object | undefined} classDefinition
- * @returns {object}
+ * @returns {Record<string, any>}
  */
 function toClassObj(classDefinition) {
     if (!classDefinition) {
@@ -59,6 +59,7 @@ function toClassObj(classDefinition) {
     } else if (typeof classDefinition === "object") {
         return classDefinition;
     } else if (typeof classDefinition === "string") {
+        /** @type {Record<string, any>} */
         const classObj = {};
         for (const s of classDefinition.trim().split(/\s+/)) {
             classObj[s] = true;

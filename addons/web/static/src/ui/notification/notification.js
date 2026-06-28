@@ -18,14 +18,14 @@ export class Notification extends Component {
     static template = "web.NotificationWowl";
     static props = {
         message: {
-            validate: (m) =>
+            validate: (/** @type {unknown} */ m) =>
                 typeof m === "string" ||
                 (typeof m === "object" && typeof m.toString === "function"),
         },
         type: {
             type: String,
             optional: true,
-            validate: (t) => ["warning", "danger", "success", "info"].includes(t),
+            validate: (/** @type {any} */ t) => ["warning", "danger", "success", "info"].includes(t),
         },
         title: {
             type: [String, Boolean, { toString: Function }],
@@ -50,7 +50,7 @@ export class Notification extends Component {
         close: { type: Function },
     };
     static defaultProps = {
-        buttons: [],
+        buttons: /** @type {{ name: string, icon?: string, primary?: boolean, onClick: Function }[]} */ ([]),
         className: "",
         type: "warning",
         autocloseDelay: AUTOCLOSE_DELAY,

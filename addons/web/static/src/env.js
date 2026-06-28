@@ -308,7 +308,8 @@ async function _startServices(env, toStart) {
         const proms = [];
         const waveStarted = [];
         while (resolver.hasReady()) {
-            const name = resolver.shift();
+            // `hasReady()` guarantees `shift()` returns a value here.
+            const name = /** @type {string} */ (resolver.shift());
             if (name in services) {
                 continue;
             }

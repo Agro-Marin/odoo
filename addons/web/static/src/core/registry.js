@@ -4,6 +4,7 @@
 /** @module @web/core/registry - Hierarchical key-value store for services, components, fields, and actions */
 
 import { EventBus, onWillDestroy, onWillStart, useState, validate } from "@odoo/owl";
+import { reportJsError } from "@web/core/errors/error_beacon";
 import { makeAssetLog } from "@web/core/utils/asset_log";
 
 const log = makeAssetLog("registry");
@@ -20,10 +21,52 @@ export class DuplicatedKeyError extends Error {}
 // -----------------------------------------------------------------------------
 
 /**
- * @param {string} name
+ * @param {string | undefined} name
  * @param {string} key
  * @param {any} value
  * @param {object} schema
+ */
+/**
+ * Best-effort structured telemetry for registry-integrity anomalies — a
+ * schema-invalid registration refused in production.  Routed through the
+ * shared ``@web/core/errors/error_beacon`` helper so registry anomalies
+ * land in the SAME observability endpoint as JS errors, with one canonical
+ * payload shape (no longer hand-rolled here) and the shared
+ * per-(message,line,col) throttle.
+ *
+ * The ``console.warn`` is the always-on signal; the beacon is a best-effort
+ * upgrade where the platform allows it (``reportJsError`` never throws).
+ *
+ * @param {string} message
+ */
+function reportRegistryAnomaly(message) {
+    console.warn(`[registry] ${message}`);
+    reportJsError({ message: `[registry] ${message}`, filename: "@web/core/registry" });
+}
+
+/**
+ * Validate a candidate entry against the registry's schema.
+ *
+ * Returns whether the entry is ACCEPTED into the registry:
+ *   - valid (or no error)      → ``true``  (caller inserts).
+ *   - invalid + ``odoo.debug`` → throws (fail-fast; never inserted).
+ *   - invalid + production     → ``false`` (QUARANTINED, not inserted) and
+ *     a structured anomaly is reported.
+ *
+ * The production path is the load-bearing change: pre-2026-06 an invalid
+ * entry was inserted anyway and merely warned, so ``get``/``getAll``
+ * served a schema-violating value to every consumer that trusted the
+ * schema — the failure then surfaced far from the bad registration.
+ * Refusing the entry keeps the page alive (no throw) AND keeps the
+ * registry's core invariant ("every stored entry satisfies the schema")
+ * intact in every environment. A consumer of a quarantined key gets a
+ * clear ``KeyNotFoundError`` at the use site instead of corrupt data.
+ *
+ * @param {string | undefined} name
+ * @param {string} key
+ * @param {any} value
+ * @param {object | ((value: any) => boolean | void)} schema
+ * @returns {boolean} true if the entry should be inserted
  */
 const validateSchema = (name, key, value, schema) => {
     let error;
@@ -45,21 +88,17 @@ const validateSchema = (name, key, value, schema) => {
         error = e;
     }
     if (!error) {
-        return;
+        return true;
     }
     const msg = `Validation error for key "${key}" in registry "${name}": ${error}`;
     if (odoo.debug) {
         // Dev: fail-fast so the bad registration cannot enter the registry.
         throw new Error(msg, { cause: error });
     }
-    // Production: warn instead of throwing so a single bad registration
-    // cannot crash the page. Operators get visibility into latent schema
-    // mismatches that previously shipped silently. Pre-2026-05 the
-    // validation step short-circuited entirely outside debug mode, so
-    // any third-party module shipping a malformed entry kept working
-    // and the bug only surfaced when a developer happened to enable
-    // debug. The warning lifts that signal into production logs.
-    console.warn(`[registry] ${msg}`);
+    // Production: refuse the entry (quarantine) and report. Keeping the
+    // page alive no longer requires serving a known-invalid value.
+    reportRegistryAnomaly(msg);
+    return false;
 };
 
 // -----------------------------------------------------------------------------
@@ -115,9 +154,9 @@ export class Registry extends EventBus {
         this.content = Object.create(null);
         /** @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }} */
         this.subRegistries = {};
-        /** @type {GetRegistryItemShape<T>[]}*/
+        /** @type {GetRegistryItemShape<T>[] | null}*/
         this.elements = null;
-        /** @type {[string, GetRegistryItemShape<T>][]}*/
+        /** @type {[string, GetRegistryItemShape<T>][] | null}*/
         this.entries = null;
         this.name = name;
         this.validationSchema = null;
@@ -142,7 +181,12 @@ export class Registry extends EventBus {
      */
     add(key, value, { force, sequence } = {}) {
         if (this.validationSchema) {
-            validateSchema(this.name, key, value, this.validationSchema);
+            if (!validateSchema(this.name, key, value, this.validationSchema)) {
+                // Production: the entry failed schema validation and was
+                // quarantined (not inserted) — see validateSchema. Debug
+                // mode already threw. Return chainably without crashing.
+                return this;
+            }
         }
         if (!force && key in this.content) {
             // Multiple ESM bundles each inline their own copy of the same
@@ -169,7 +213,7 @@ export class Registry extends EventBus {
                 if (odoo.debug) {
                     console.warn(
                         `[registry] Duplicate add for key "${key}" in "${this.name || "(root)"}" registry with a different value (first registration wins). ` +
-                        `This may indicate either a cross-bundle inline (harmless) or an addon collision (bug).`,
+                            `This may indicate either a cross-bundle inline (harmless) or an addon collision (bug).`,
                     );
                 }
                 return this;
@@ -234,7 +278,9 @@ export class Registry extends EventBus {
             }
             this.elements = /** @type {any} */ (Object.freeze(elements));
         }
-        return this.elements;
+        // Non-null after the cache-fill above; the field is nullable only to
+        // model the "needs recompute" reset performed by the UPDATE listener.
+        return /** @type {ReadonlyArray<GetRegistryItemShape<T>>} */ (this.elements);
     }
 
     /**
@@ -255,7 +301,10 @@ export class Registry extends EventBus {
             }
             this.entries = /** @type {any} */ (Object.freeze(entries));
         }
-        return this.entries;
+        // Non-null after the cache-fill above (see getAll).
+        return /** @type {ReadonlyArray<[string, GetRegistryItemShape<T>]>} */ (
+            this.entries
+        );
     }
 
     /**
@@ -284,10 +333,11 @@ export class Registry extends EventBus {
     category(subcategory) {
         if (!(subcategory in this.subRegistries)) {
             this.subRegistries[subcategory] = new Registry(subcategory);
-            log("category-open", subcategory,
-                "parent=", this.name || "(root)");
+            log("category-open", subcategory, "parent=", this.name || "(root)");
         }
-        return this.subRegistries[subcategory];
+        return /** @type {Registry<GetRegistryCategories<T>[K]>} */ (
+            this.subRegistries[subcategory]
+        );
     }
 
     /**
@@ -332,7 +382,15 @@ export class Registry extends EventBus {
         }
         this.validationSchema = schema;
         for (const [key, value] of this.getEntries()) {
-            validateSchema(this.name, key, value, schema);
+            if (!validateSchema(this.name, key, value, schema)) {
+                // Production: an already-registered entry violates the
+                // newly-added schema → quarantine it retroactively so the
+                // registry invariant holds in every environment. Safe to
+                // mutate while iterating: getEntries() returned a frozen
+                // snapshot, and remove() only nulls the cache we already
+                // captured. Debug mode threw inside validateSchema.
+                this.remove(key);
+            }
         }
     }
 }
@@ -356,7 +414,8 @@ export class Registry extends EventBus {
 // with duplicate ``add("ui", …)`` calls.  ``Registry.add`` is silently
 // idempotent on duplicate keys — see the comment above.
 /** @type {Registry<import("registries").GlobalRegistry>} */
-export const registry = (globalThis.__odooRegistry__ ??= new Registry());
+export const registry = (/** @type {Record<string, any>} */ (globalThis).__odooRegistry__ ??=
+    new Registry());
 
 // ---------------------------------------------------------------------------
 // Registry hook (merged from registry_hook.js)
@@ -379,7 +438,7 @@ export const registry = (globalThis.__odooRegistry__ ??= new Registry());
  */
 export function useRegistry(registry) {
     const state = useState({ entries: [...registry.getEntries()] });
-    const listener = ({ detail }) => {
+    const listener = (/** @type {{ detail: { key: string, operation: string } }} */ { detail }) => {
         const index = state.entries.findIndex(([k]) => k === detail.key);
         if (detail.operation === "add") {
             const newEntries = registry.getEntries();

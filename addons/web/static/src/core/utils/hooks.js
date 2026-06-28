@@ -59,7 +59,7 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     if (!mobile && isMobileOS()) {
         return ref;
     }
-    function isFocusable(el) {
+    function isFocusable(/** @type {HTMLElement | null} */ el) {
         if (!el) {
             return false;
         }
@@ -149,7 +149,7 @@ export const useServiceProtectMethodHandling = {
  * @returns {Function}
  */
 function _protectMethod(component, fn) {
-    return function (...args) {
+    return function (/** @type {any[]} */ ...args) {
         if (status(component) === "destroyed") {
             return useServiceProtectMethodHandling.fn();
         }
@@ -184,7 +184,9 @@ export function useService(serviceName) {
     const service = services[serviceName];
     if (SERVICES_METADATA[serviceName]) {
         if (service instanceof Function) {
-            return _protectMethod(component, service);
+            return /** @type {import("services").ServiceFactories[K]} */ (
+                _protectMethod(component, service)
+            );
         } else {
             const methods = SERVICES_METADATA[serviceName] ?? [];
             const result = Object.create(service);
@@ -214,13 +216,15 @@ export function useService(serviceName) {
  */
 export function useSpellCheck({ refName } = {}) {
     const ref = useRef(refName || "spellcheck");
-    function toggleSpellcheck(ev) {
-        ev.target.spellcheck = document.activeElement === ev.target;
+    function toggleSpellcheck(/** @type {Event} */ ev) {
+        /** @type {HTMLElement} */ (ev.target).spellcheck =
+            document.activeElement === ev.target;
     }
     useEffect(
         (el) => {
             // Collect managed elements per effect run to avoid leaking stale
             // DOM references across re-runs.
+            /** @type {Element[]} */
             const elements = [];
             if (el) {
                 const inputs =
@@ -229,8 +233,8 @@ export function useSpellCheck({ refName } = {}) {
                         : el.querySelectorAll(
                               "input, textarea, [contenteditable=true]",
                           );
-                inputs.forEach((input) => {
-                    if (input.spellcheck !== false) {
+                inputs.forEach((/** @type {Element} */ input) => {
+                    if (/** @type {HTMLElement} */ (input).spellcheck !== false) {
                         elements.push(input);
                         input.addEventListener("focus", toggleSpellcheck);
                         input.addEventListener("blur", toggleSpellcheck);
@@ -261,8 +265,9 @@ export function useSpellCheck({ refName } = {}) {
  */
 export function useChildRef() {
     let defined = false;
+    /** @type {Ref} */
     let value;
-    return function ref(v) {
+    return function ref(/** @type {Ref} */ v) {
         value = v;
         if (defined) {
             return;
@@ -304,7 +309,7 @@ export function useOwnedDialogs() {
         closers.forEach((close) => close());
         closers.clear();
     });
-    const addDialog = (...args) => {
+    const addDialog = (/** @type {any[]} */ ...args) => {
         const originalClose = /** @type {any} */ (dialogService).add(...args);
         // Wrap so we can auto-remove from the set when the dialog closes naturally.
         const wrappedClose = () => {

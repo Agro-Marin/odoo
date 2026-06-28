@@ -33,6 +33,10 @@ import { Popover } from "@web/ui/popover/popover";
 /** Service for programmatically attaching popover components to target elements. */
 export const popoverService = {
     dependencies: ["overlay"],
+    /**
+     * @param {import("@web/env").OdooEnv} _
+     * @param {{ overlay: any }} services
+     */
     start(_, { overlay }) {
         /**
          * Signals the manager to add a popover.

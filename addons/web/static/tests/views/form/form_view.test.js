@@ -5497,7 +5497,7 @@ test(`keynav: switching to another record from an invalid one`, async () => {
     expect(`.o_field_widget[name=foo]`).toHaveClass("o_required_modifier");
 
     await contains(`.o_field_widget[name=foo] input`).edit("");
-    await press(["alt", "n"]);
+    await press(["alt", "f"]);
     await tick();
     await animationFrame();
     expect(`.o_breadcrumb`).toHaveText("first record");
@@ -5523,7 +5523,7 @@ test(`keynav: switching to another record from an invalid one on desktop`, async
     expect(`.o_pager_counter`).toHaveText("1 / 2");
 
     await contains(`.o_field_widget[name=foo] input`).edit("");
-    await press(["alt", "n"]);
+    await press(["alt", "f"]);
     await tick();
     await animationFrame();
     expect(`.o_pager_counter`).toHaveText("1 / 2");
@@ -5608,13 +5608,13 @@ test(`keynav: switching to another record from a dirty one`, async () => {
     await contains(`.o_field_widget[name=foo] input`).edit("new value", {
         confirm: false,
     });
-    await press(["alt", "n"]);
+    await press(["alt", "f"]);
     await tick();
     await animationFrame();
     expect.verifySteps(["web_save"]);
     expect(`.o_field_widget[name=foo] input`).toHaveValue("blip");
 
-    await press(["alt", "p"]);
+    await press(["alt", "d"]);
     await tick();
     await animationFrame();
     expect.verifySteps([]);
@@ -5636,12 +5636,12 @@ test(`keynav: switching to another record from a dirty one on desktop`, async ()
     await contains(`.o_field_widget[name=foo] input`).edit("new value", {
         confirm: false,
     });
-    await press(["alt", "n"]);
+    await press(["alt", "f"]);
     await tick();
     await animationFrame();
     expect(`.o_pager_counter`).toHaveText("2 / 2");
 
-    await press(["alt", "p"]);
+    await press(["alt", "d"]);
     await tick();
     await animationFrame();
     expect(`.o_pager_counter`).toHaveText("1 / 2");

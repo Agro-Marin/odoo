@@ -53,6 +53,7 @@ export const slowRpcService = {
                 return;
             }
             const rpcId = data.id;
+            /** @type {{ timeoutId: number, closeNotification?: () => void }} */
             const entry = { timeoutId: 0 };
             pending.set(rpcId, entry);
             entry.timeoutId = browser.setTimeout(() => {

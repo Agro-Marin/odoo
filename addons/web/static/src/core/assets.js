@@ -7,6 +7,12 @@ import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
+import {
+    buildBridgeModuleSource,
+    isLoaderBridgeUrl,
+    specToModuleUrl,
+    toDataModuleUrl,
+} from "./module_bridge.js";
 import { registry } from "./registry.js";
 import { makeAssetLog } from "./utils/asset_log.js";
 
@@ -32,6 +38,11 @@ export const assetCacheByDocument = new WeakMap();
 // already present in the document as off-limits so lazy ``loadBundle``
 // calls don't re-declare them.
 const injectedImportMapKeys = new Set();
+
+// Monotonic token for cross-document ``loadESMBundle`` done/error event names.
+// Deterministic (vs ``Math.random``), collision-proof across concurrent calls,
+// and predictable for tests.
+let crossDocLoadSeq = 0;
 
 /**
  * Pre-seed ``injectedImportMapKeys`` from the document's existing
@@ -98,10 +109,17 @@ function getAssetCache(targetDoc) {
 function computeBundleCacheMap(targetDoc) {
     const cacheMap = getGlobalBundleCache();
     for (const script of targetDoc.head.querySelectorAll("script[src]")) {
-        cacheMap.set(script.getAttribute("src"), Promise.resolve());
+        // The `[src]` selector guarantees the attribute is present.
+        cacheMap.set(
+            /** @type {string} */ (script.getAttribute("src")),
+            Promise.resolve(),
+        );
     }
     for (const link of targetDoc.head.querySelectorAll("link[rel=stylesheet][href]")) {
-        cacheMap.set(link.getAttribute("href"), Promise.resolve());
+        cacheMap.set(
+            /** @type {string} */ (link.getAttribute("href")),
+            Promise.resolve(),
+        );
     }
 }
 
@@ -117,14 +135,14 @@ whenReady(() => {
  * @param {(error: Error) => any} onError
  */
 const onLoadAndError = (el, onLoad, onError) => {
-    const onLoadListener = (event) => {
+    const onLoadListener = (/** @type {Event} */ event) => {
         removeListeners();
         onLoad(event);
     };
 
-    const onErrorListener = (error) => {
+    const onErrorListener = (/** @type {Event} */ error) => {
         removeListeners();
-        onError(error);
+        onError(/** @type {any} */ (error));
     };
 
     // Cleans up the load/error listeners if the page is unloaded before the
@@ -243,7 +261,7 @@ export const assets = {
         const cacheMap = getGlobalBundleCache();
         if (cacheMap.has(bundleName)) {
             log("getBundle:cache-hit", bundleName);
-            return cacheMap.get(bundleName);
+            return /** @type {Promise<BundleFileNames>} */ (cacheMap.get(bundleName));
         }
         log("getBundle:fetch", bundleName);
         const url = new URL(`/web/bundle/${bundleName}`, location.origin);
@@ -293,7 +311,9 @@ export const assets = {
                 cssLibs: cssLibs.length,
                 jsLibs: jsLibs.length,
                 esmSpecifiers: esmSpecifiers?.length ?? null,
-                importMapEntries: esmImportMap ? Object.keys(esmImportMap).length : null,
+                importMapEntries: esmImportMap
+                    ? Object.keys(esmImportMap).length
+                    : null,
             });
             return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
         })().catch((reason) => {
@@ -326,15 +346,21 @@ export const assets = {
                 )} as ${typeof bundleName}`,
             );
         }
-        log("loadBundle:start", bundleName,
-            "css=", css, "js=", js,
-            "crossDoc=", targetDoc !== document);
-        const { cssLibs, jsLibs, esmSpecifiers, esmImportMap } = await getBundle(bundleName);
+        log(
+            "loadBundle:start",
+            bundleName,
+            "css=",
+            css,
+            "js=",
+            js,
+            "crossDoc=",
+            targetDoc !== document,
+        );
+        const { cssLibs, jsLibs, esmSpecifiers, esmImportMap } =
+            await getBundle(bundleName);
         const promises = [];
         if (css && cssLibs) {
-            promises.push(
-                ...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })),
-            );
+            promises.push(...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })));
         }
         if (js && esmSpecifiers) {
             // ESM bundle: use dynamic import() which respects the
@@ -349,9 +375,7 @@ export const assets = {
         // Also load non-ESM files (XML template bundles, legacy JS)
         // via the classic path — these are still needed alongside ESM.
         if (js && jsLibs && jsLibs.length) {
-            promises.push(
-                ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
-            );
+            promises.push(...jsLibs.map((url) => assets.loadJS(url, { targetDoc })));
         }
         const result = await Promise.all(promises);
         log("loadBundle:done", bundleName, "promises=", promises.length);
@@ -374,9 +398,15 @@ export const assets = {
      * @returns {Promise<void>}
      */
     async loadESMBundle(specifiers, { targetDoc = document, importMap = null } = {}) {
-        log("loadESMBundle:start", "specs=", specifiers.length,
-            "importMap=", importMap ? Object.keys(importMap).length : 0,
-            "crossDoc=", !(targetDoc === document || targetDoc.defaultView === window));
+        log(
+            "loadESMBundle:start",
+            "specs=",
+            specifiers.length,
+            "importMap=",
+            importMap ? Object.keys(importMap).length : 0,
+            "crossDoc=",
+            !(targetDoc === document || targetDoc.defaultView === window),
+        );
         if (targetDoc === document || targetDoc.defaultView === window) {
             // Inject the bundle's import map entries before kicking off
             // the dynamic imports.  Required when this bundle's
@@ -394,6 +424,7 @@ export const assets = {
                 // and O(#existing-specs); cheap compared to the injection
                 // it prevents.
                 seedInjectedImportMapKeys(document);
+                /** @type {Record<string, any>} */
                 const freshEntries = {};
                 let nDup = 0;
                 for (const [spec, url] of Object.entries(importMap)) {
@@ -405,9 +436,15 @@ export const assets = {
                     }
                 }
                 const nFresh = Object.keys(freshEntries).length;
-                log("loadESMBundle:importMap filter",
-                    "fresh=", nFresh, "dup=", nDup,
-                    "total=", nFresh + nDup);
+                log(
+                    "loadESMBundle:importMap filter",
+                    "fresh=",
+                    nFresh,
+                    "dup=",
+                    nDup,
+                    "total=",
+                    nFresh + nDup,
+                );
                 if (nFresh) {
                     const mapEl = document.createElement("script");
                     mapEl.type = "importmap";
@@ -425,7 +462,11 @@ export const assets = {
             const modules = Object.fromEntries(results);
             if (/** @type {any} */ (globalThis).odoo?.loader?.registerNativeModules) {
                 odoo.loader.registerNativeModules(modules);
-                log("loadESMBundle:registered", specifiers.length, "modules into odoo.loader");
+                log(
+                    "loadESMBundle:registered",
+                    specifiers.length,
+                    "modules into odoo.loader",
+                );
             } else {
                 log("loadESMBundle:warn no odoo.loader.registerNativeModules");
             }
@@ -440,29 +481,22 @@ export const assets = {
         //   - the bundle-specific import map provided by the caller.
         // Browsers accept multiple import maps as long as rules don't
         // conflict — rules already present in targetDoc are kept.
-        const targetWin = targetDoc.defaultView;
+        const targetWin = /** @type {any} */ (targetDoc.defaultView);
+        // Build an extra import map for the target document.  For every module
+        // already registered in the target's odoo.loader, resolve its bare
+        // specifier (and the conventional file URL that a relative import
+        // would hit) to a bridge that re-exports the SAME instance from
+        // odoo.loader — so transitive ``@web/*`` imports don't re-evaluate and
+        // split the registry singleton.  Reuse the server-provided bundle
+        // import map (real URLs + cacheable bridge attachments) wherever it
+        // already covers a specifier, synthesising a runtime ``data:`` bridge
+        // only for modules the server could not statically predict.  Bridge
+        // sources are built by ``@web/core/module_bridge`` in the SAME format
+        // as the server-side generator (``esm_graph.py::_bridge_shim_source``).
+        const serverMap = importMap || {};
+        /** @type {Record<string, any>} */
         const extraMap = {};
-        const loadedModules = /** @type {any} */ (targetWin).odoo?.loader?.modules;
-        const validName = /^[a-zA-Z_$][\w$]*$/;
-        // Conventional mapping from bare specifier to the URL esbuild
-        // would have fetched if the module had been loaded individually:
-        // ``@<addon>/<rest>`` → ``/<addon>/static/src/<rest>.js``.  Lets us
-        // also intercept *relative* imports (``./animation.js``) that
-        // resolve to the same URL, so the module is never re-evaluated
-        // outside its original esbuild bundle (which would trigger
-        // duplicate registry errors).
-        const specToUrl = (spec) => {
-            if (!spec.startsWith("@") || spec.includes("..")) {
-                return null;
-            }
-            const slash = spec.indexOf("/");
-            if (slash <= 1) {
-                return null;
-            }
-            const addon = spec.slice(1, slash);
-            const rest = spec.slice(slash + 1);
-            return `/${addon}/static/src/${rest}.js`;
-        };
+        const loadedModules = targetWin.odoo?.loader?.modules;
         if (loadedModules && typeof loadedModules.get === "function") {
             const specs =
                 typeof loadedModules.keys === "function"
@@ -476,42 +510,39 @@ export const assets = {
                 if (!mod || typeof mod !== "object") {
                     continue;
                 }
-                const names = Object.keys(mod).filter(
-                    (k) => validName.test(k) && k !== "default",
-                );
-                const nameLines = names
-                    .map(
-                        (n) =>
-                            `export const ${n} = _m[${JSON.stringify(n)}];`,
-                    )
-                    .join("\n");
-                const shim =
-                    `const _m = window.odoo.loader.modules.get(${JSON.stringify(spec)});\n` +
-                    `export default _m?.default ?? _m;\n` +
-                    nameLines;
-                const dataUri = `data:text/javascript,${encodeURIComponent(shim)}`;
-                extraMap[spec] = dataUri;
-                const url = specToUrl(spec);
-                if (url) {
-                    extraMap[url] = dataUri;
+                // A target that re-exports ``spec`` from odoo.loader: reuse the
+                // server's cacheable bridge when it already provides one,
+                // otherwise synthesise a runtime data: bridge.  NEVER a raw
+                // source file — pointing the relative-import URL at the source
+                // would re-evaluate the module and split the singleton.
+                const bridgeTarget = isLoaderBridgeUrl(serverMap[spec])
+                    ? serverMap[spec]
+                    : toDataModuleUrl(buildBridgeModuleSource(spec, Object.keys(mod)));
+                if (serverMap[spec] === undefined) {
+                    extraMap[spec] = bridgeTarget;
+                }
+                const url = specToModuleUrl(spec);
+                if (url && serverMap[url] === undefined) {
+                    extraMap[url] = bridgeTarget;
                 }
             }
         }
-        if (importMap) {
-            // Bundle-specific entries (real URLs + targeted bridges)
-            // override the generic shims above for any overlapping keys.
-            Object.assign(extraMap, importMap);
-        }
+        // Server-provided entries (real URLs + targeted bridges) win for any
+        // overlapping keys.
+        Object.assign(extraMap, serverMap);
         if (Object.keys(extraMap).length) {
-            log("loadESMBundle:crossDoc injecting extra import map entries=",
-                Object.keys(extraMap).length);
+            log(
+                "loadESMBundle:crossDoc injecting extra import map entries=",
+                Object.keys(extraMap).length,
+            );
             const mapEl = targetDoc.createElement("script");
             mapEl.type = "importmap";
             mapEl.textContent = JSON.stringify({ imports: extraMap });
             (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
         }
-        const doneEvent = `__odoo_esm_bundle_loaded_${Math.random().toString(36).slice(2)}`;
-        const errorEvent = `__odoo_esm_bundle_error_${Math.random().toString(36).slice(2)}`;
+        const token = ++crossDocLoadSeq;
+        const doneEvent = `__odoo_esm_bundle_loaded_${token}`;
+        const errorEvent = `__odoo_esm_bundle_error_${token}`;
         const scriptText = `
             (async () => {
                 try {
@@ -532,12 +563,16 @@ export const assets = {
         const scriptEl = targetDoc.createElement("script");
         scriptEl.type = "module";
         scriptEl.textContent = scriptText;
-        const win = targetDoc.defaultView;
+        const win = /** @type {Window} */ (targetDoc.defaultView);
         await new Promise((resolve, reject) => {
-            win.addEventListener(doneEvent, () => resolve(), { once: true });
+            win.addEventListener(doneEvent, () => resolve(undefined), { once: true });
             win.addEventListener(
                 errorEvent,
-                (e) => reject(e.detail || new Error(`loadESMBundle failed`)),
+                (e) =>
+                    reject(
+                        /** @type {CustomEvent} */ (e).detail ||
+                            new Error(`loadESMBundle failed`),
+                    ),
                 { once: true },
             );
             (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
@@ -554,7 +589,7 @@ export const assets = {
     loadCSS(url, { retryCount = 0, targetDoc = document } = {}) {
         const cacheMap = getAssetCache(targetDoc);
         if (cacheMap.has(url)) {
-            return cacheMap.get(url);
+            return /** @type {Promise<void>} */ (cacheMap.get(url));
         }
         if (retryCount === 0) {
             log("loadCSS", url);
@@ -603,7 +638,7 @@ export const assets = {
     loadJS(url, { targetDoc = document } = {}) {
         const cacheMap = getAssetCache(targetDoc);
         if (cacheMap.has(url)) {
-            return cacheMap.get(url);
+            return /** @type {Promise<void>} */ (cacheMap.get(url));
         }
         log("loadJS", url);
         const scriptEl = targetDoc.createElement("script");

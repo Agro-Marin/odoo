@@ -2,7 +2,8 @@
 
 import { before, expect } from "@odoo/hoot";
 import { queryAllTexts, queryOne } from "@odoo/hoot-dom";
-import { contains, findComponent, preloadBundle } from "@web/../tests/web_test_helpers";
+import { contains, findComponent } from "@web/../tests/web_test_helpers";
+import { loadChartJS } from "@web/core/lib/chartjs";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
 import { GraphController } from "@web/views/graph/graph_controller";
@@ -216,6 +217,15 @@ export async function clickOnLegend(view, text) {
  * - disable all animations in the lib.
  */
 export function setupChartJsForTests() {
-    preloadBundle("web.chartjs_lib");
-    before(() => patch(Chart.defaults, { animation: false }));
+    // Load Chart.js (the ESM lib resolved through the import map) and disable
+    // its animations in a SINGLE awaited hook. The two steps must not be split
+    // across separate `before()` callbacks: `patch(Chart.defaults, …)` reads the
+    // live-bound `Chart`, which is `null` until `loadChartJS()` resolves, so a
+    // separate sync patch hook could run first and leave animations ON —
+    // making `getCenterPoint()`-based click hit-tests race the bar animation
+    // and miss the element.
+    before(async () => {
+        const Chart = await loadChartJS();
+        patch(Chart.defaults, { animation: false });
+    });
 }

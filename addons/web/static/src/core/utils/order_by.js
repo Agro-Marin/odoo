@@ -19,7 +19,7 @@ export function orderByToString(orderBy) {
 }
 
 /**
- * @param {any} string
+ * @param {string | null | undefined | false} string
  * @return {OrderTerm[]}
  */
 export function stringToOrderBy(string) {

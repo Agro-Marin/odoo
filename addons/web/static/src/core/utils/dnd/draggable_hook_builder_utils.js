@@ -206,6 +206,7 @@ export function makeCleanupManager(defaultCleanupFn) {
         add(defaultCleanupFn);
     };
 
+    /** @type {(() => void)[]} */
     const cleanups = [];
 
     add(defaultCleanupFn);

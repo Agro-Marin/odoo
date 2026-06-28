@@ -94,6 +94,9 @@ export class ViewButton extends Component {
         attrs: {},
     };
 
+    /** @type {any} */
+    dropdownControl;
+
     setup() {
         if (this.props.icon) {
             this.icon = iconFromString(this.props.icon);

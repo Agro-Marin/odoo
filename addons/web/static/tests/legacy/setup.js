@@ -2,6 +2,7 @@
 
 /** @odoo-module alias=@web/../tests/setup default=false */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { assets } from "@web/core/assets";
 import { user, _makeUser } from "@web/services/user";
 import { browser, makeRAMLocalStorage } from "@web/core/browser/browser";

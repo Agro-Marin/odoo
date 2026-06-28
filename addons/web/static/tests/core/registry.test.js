@@ -303,11 +303,13 @@ test("function predicate validates existing entries on addValidation", async () 
 // ``/tmp/registry_warn_test.mjs`` (inlines the production class and
 // exercises the branch under Node).
 
-test("non-debug: warns via console.warn instead of throwing", async () => {
-    // 2026-05-07 onward: validation runs in production too, but a failed
-    // schema check logs a warning rather than throwing, so a single bad
-    // registration cannot crash the page. Throwing remains the dev behavior
-    // (covered by the "can validate the values from a schema" test above).
+test("non-debug: refuses (quarantines) an invalid entry without throwing", async () => {
+    // 2026-06 onward: in production a schema-invalid registration is
+    // REFUSED (quarantined, not inserted) rather than inserted-and-warned.
+    // The page still cannot crash (no throw), but the registry never serves
+    // a schema-violating value — reading the key fails cleanly instead of
+    // returning corrupt data. Throwing remains the dev behavior (covered by
+    // "can validate the values from a schema" above).
     const schema = { name: String };
     const registry = new Registry();
     registry.addValidation(schema);
@@ -322,4 +324,24 @@ test("non-debug: warns via console.warn instead of throwing", async () => {
     expect(warnings.length).toBe(1);
     expect(warnings[0][0]).toInclude("[registry]");
     expect(warnings[0][0]).toInclude(`Validation error for key "jean"`);
+    // The quarantined entry must NOT be retrievable (no corrupt state).
+    expect(registry.contains("jean")).toBe(false);
+    expect(() => registry.get("jean")).toThrow();
+    // A subsequent VALID registration under the same key still works.
+    registry.add("jean", { name: "Jean" });
+    expect(registry.get("jean")).toEqual({ name: "Jean" });
+});
+
+test("non-debug: addValidation retroactively quarantines invalid existing entries", async () => {
+    // Adding a schema to an already-populated registry must enforce the
+    // invariant retroactively: pre-existing entries that violate the new
+    // schema are removed (production) rather than left in place.
+    const registry = new Registry();
+    registry.add("good", { name: "ok" });
+    registry.add("bad", { name: 123 }); // no schema yet → accepted
+    patchWithCleanup(console, { warn: () => {} });
+
+    expect(() => registry.addValidation({ name: String })).not.toThrow();
+    expect(registry.contains("good")).toBe(true);
+    expect(registry.contains("bad")).toBe(false);
 });

@@ -187,7 +187,9 @@ export class KanbanController extends MultiRecordController {
                 if (this.env.isSmall && this.model.root.isGrouped) {
                     const columnScrollTops = [];
                     const sel = ".o_kanban_group:not(.o_column_folded)";
-                    const columnEls = this.rootRef.el.querySelectorAll(sel);
+                    const columnEls = /** @type {HTMLElement} */ (
+                        this.rootRef.el
+                    ).querySelectorAll(sel);
                     const groups = this.model.root.groups;
                     for (const columnEl of columnEls) {
                         const scrollTop = columnEl.scrollTop;
@@ -203,7 +205,7 @@ export class KanbanController extends MultiRecordController {
                     }
                     state.scrollPositions = {
                         scrollLeft:
-                            this.rootRef.el.querySelector(".o_renderer")?.scrollLeft ||
+                            this.rootRef.el?.querySelector(".o_renderer")?.scrollLeft ||
                             0,
                         columnScrollTops,
                     };
@@ -218,7 +220,8 @@ export class KanbanController extends MultiRecordController {
                         const { scrollPositions } = this.props.state || {};
                         if (scrollPositions) {
                             const { scrollLeft, columnScrollTops } = scrollPositions;
-                            const renderer = this.rootRef.el?.querySelector(".o_renderer");
+                            const renderer =
+                                this.rootRef.el?.querySelector(".o_renderer");
                             if (renderer) {
                                 renderer.scrollLeft = scrollLeft;
                             }
@@ -466,7 +469,7 @@ export class KanbanController extends MultiRecordController {
 
     /** Scroll the content area to the top. */
     scrollTop() {
-        this.rootRef.el.querySelector(".o_content").scrollTo({ top: 0 });
+        this.rootRef.el?.querySelector(".o_content")?.scrollTo({ top: 0 });
     }
 
     /**

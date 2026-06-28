@@ -6,16 +6,15 @@
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router as _router } from "@web/core/browser/router";
-import { AppEvent, RpcEvent } from "@web/core/events";
+import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { actionLog } from "@web/core/utils/asset_log";
 import { Deferred, KeepLast } from "@web/core/utils/concurrency";
-import { UPDATE_METHODS } from "@web/services/orm_service";
 import { View, ViewNotFoundError } from "@web/views/view";
 
 import { executeActionButton } from "./action_button_executor.js";
+import { installActionCacheInvalidation } from "./action_cache_invalidation.js";
 import { clearUncommittedChanges } from "./action_clear_changes.js";
 import {
     ControllerNotFoundError,
@@ -159,38 +158,10 @@ export class ActionManager {
 
         router.hideKeyFromUrl("globalState");
 
-        rpcBus.addEventListener(RpcEvent.RESPONSE, async (ev) => {
-            // ``ev.detail`` itself may be null (synthetic test fires, or
-            // a malformed event from an upstream listener). Optional-chain
-            // it before reading ``.data`` so the listener never throws.
-            if (!ev.detail?.data?.params) {
-                return;
-            }
-            const { model, method } = ev.detail.data.params;
-            if (model === "ir.actions.act_window" && UPDATE_METHODS.includes(method)) {
-                rpcBus.trigger(RpcEvent.CLEAR_CACHES, "/web/action/load");
-                const virtualStack = await this._controllersFromState(router.current);
-                const tip = this.controllerStack.at(-1);
-                if (!tip) {
-                    // No active controller — nothing to refresh. This happens
-                    // in tests that fire ``RPC:RESPONSE`` events without ever
-                    // mounting a webclient (so ``controllerStack`` is empty);
-                    // without this guard the access ``tip.config.breadcrumbs``
-                    // throws ``Cannot read properties of undefined (reading 'config')``
-                    // and pollutes the test as an unhandled error.
-                    return;
-                }
-                const nextStack = [...virtualStack, tip];
-                nextStack
-                    .at(-1)
-                    .config.breadcrumbs.splice(
-                        0,
-                        nextStack.at(-1).config.breadcrumbs.length,
-                        ...this._getBreadcrumbs(nextStack),
-                    );
-                this.controllerStack = nextStack;
-            }
-        });
+        // Refresh the action stack when an act_window write invalidates the
+        // server-side action caches. Extracted to its own module to keep this
+        // cross-cutting concern out of the constructor.
+        installActionCacheInvalidation(this);
 
         // -------------------------------------------------------------------
         // Action-type dispatcher

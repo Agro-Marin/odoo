@@ -5,7 +5,7 @@ import { queryAllTexts } from "@odoo/hoot-dom";
 import {
     contains,
     mountWithCleanup,
-    preloadBundle,
+    preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
 import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
 
@@ -67,7 +67,7 @@ async function start(props = {}) {
     });
 }
 
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 test(`canCreate is true`, async () => {
     await start({

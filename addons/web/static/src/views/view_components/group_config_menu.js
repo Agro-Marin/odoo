@@ -37,6 +37,9 @@ export class GroupConfigMenu extends Component {
         group: { type: Object },
         list: { type: Object },
     };
+    /** @type {any} */
+    dialog;
+
     setup() {
         this.dialog = useService("dialog");
     }

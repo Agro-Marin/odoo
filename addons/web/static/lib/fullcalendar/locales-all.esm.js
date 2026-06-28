@@ -1,5 +1,10 @@
+// AGROMARIN: native-ESM locale bundle. Imports the live `Shared` registry
+// from the FullCalendar module and pushes the bundled locales into it,
+// replacing the old classic-script reliance on `globalThis.FullCalendar`.
+import { Shared } from "./fullcalendar.esm.js";
+
 /*!
-FullCalendar (Vanilla JS) v7.0.0-rc.3
+FullCalendar (Vanilla JS) v7.0.0
 Docs & License: https://fullcalendar.io
 (c) 2026 Adam Shaw
 */
@@ -1725,4 +1730,4 @@ Docs & License: https://fullcalendar.io
     __af$l0, __ar_dz$l1, __ar_kw$l2, __ar_ly$l3, __ar_ma$l4, __ar_sa$l5, __ar_tn$l6, __ar$l7, __az$l8, __bg$l9, __bn$l10, __bs$l11, __ca$l12, __cs$l13, __cy$l14, __da$l15, __de_at$l16, __de$l17, __el$l18, __en_au$l19, __en_gb$l20, __en_nz$l21, __eo$l22, __es_us$l23, __es$l24, __et$l25, __eu$l26, __fa$l27, __fi$l28, __fr_ca$l29, __fr_ch$l30, __fr$l31, __gl$l32, __he$l33, __hi$l34, __hr$l35, __hu$l36, __hy_am$l37, __id$l38, __is$l39, __it$l40, __ja$l41, __ka$l42, __kk$l43, __km$l44, __ko$l45, __ku$l46, __lb$l47, __lt$l48, __lv$l49, __mk$l50, __ms$l51, __nb$l52, __ne$l53, __nl$l54, __nn$l55, __pl$l56, __pt_br$l57, __pt$l58, __ro$l59, __ru$l60, __si_lk$l61, __sk$l62, __sl$l63, __sm$l64, __sq$l65, __sr_cyrl$l66, __sr$l67, __sv$l68, __ta_in$l69, __th$l70, __tr$l71, __ug$l72, __uk$l73, __uz_cy$l74, __uz$l75, __vi$l76, __zh_cn$l77, __zh_tw$l78, 
   );
 
-})(FullCalendar.Shared);
+})(Shared);

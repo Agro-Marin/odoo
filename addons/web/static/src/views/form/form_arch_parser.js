@@ -40,7 +40,7 @@ export class FormArchParser {
                     models,
                     modelName,
                     "form",
-                    jsClass,
+                    jsClass ?? undefined,
                 );
                 if (!(fieldInfo.name in fieldNextIds)) {
                     fieldNextIds[fieldInfo.name] = 0;

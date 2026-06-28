@@ -2,6 +2,7 @@
 
 /** @odoo-module alias=@web/../tests/views/calendar/helpers default=false */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { uiService } from "@web/ui/block/ui_service";
 import { createElement } from "@web/core/utils/dom/xml";
 import { registry } from "@web/core/registry";

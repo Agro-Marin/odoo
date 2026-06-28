@@ -70,6 +70,35 @@ test("deepEqual", () => {
     expect(deepEqual(obj1, obj2)).toBe(true);
     expect(deepEqual(obj1, obj3)).toBe(false);
     expect(deepEqual(obj2, obj3)).toBe(false);
+
+    // primitives, incl. NaN
+    expect(deepEqual(1, 1)).toBe(true);
+    expect(deepEqual(1, 2)).toBe(false);
+    expect(deepEqual(NaN, NaN)).toBe(true);
+
+    // arrays
+    expect(deepEqual([1, [2, 3]], [1, [2, 3]])).toBe(true);
+    expect(deepEqual([1, 2], [1, 2, 3])).toBe(false);
+
+    // Date / RegExp (no own keys — must compare by value, not be "always equal")
+    expect(deepEqual(new Date(2020, 0, 1), new Date(2020, 0, 1))).toBe(true);
+    expect(deepEqual(new Date(2020, 0, 1), new Date(2021, 0, 1))).toBe(false);
+    expect(deepEqual(/a/gi, /a/gi)).toBe(true);
+    expect(deepEqual(/a/g, /a/i)).toBe(false);
+    expect(deepEqual(new Date(0), {})).toBe(false);
+
+    // Map / Set
+    expect(deepEqual(new Map([[1, 2]]), new Map([[1, 2]]))).toBe(true);
+    expect(deepEqual(new Map([[1, 2]]), new Map([[1, 3]]))).toBe(false);
+    expect(deepEqual(new Set([1, 2, 3]), new Set([3, 2, 1]))).toBe(true);
+    expect(deepEqual(new Set([1, 2]), new Set([1, 9]))).toBe(false);
+
+    // cycle-safe (must not stack-overflow)
+    const a = { x: 1 };
+    a.self = a;
+    const b = { x: 1 };
+    b.self = b;
+    expect(deepEqual(a, b)).toBe(true);
 });
 
 test("deepCopy", () => {

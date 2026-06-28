@@ -65,7 +65,10 @@ export function findDependencyCycle(graph) {
         parent.set(startNode, null);
 
         while (stack.length) {
-            const frame = stack.at(-1);
+            // `stack.length` is non-zero here, so the top frame exists. Index
+            // (typed as the element type) rather than `.at(-1)` (typed
+            // `T | undefined`) so the access is statically known-defined.
+            const frame = stack[stack.length - 1];
             const node = frame[0];
             const deps = graph.get(node) || [];
 

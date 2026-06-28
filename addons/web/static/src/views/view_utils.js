@@ -9,6 +9,7 @@ import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { getFieldCodec } from "@web/core/field_codec";
 import { X2M_TYPES } from "@web/fields/field_types";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
 import { session } from "@web/session";
@@ -26,11 +27,14 @@ const NUMERIC_TYPES = ["integer", "float", "monetary"];
  */
 
 /**
- * @param {string?} type
+ * @param {string | null | undefined} type
  * @returns {string | false}
  */
 function getViewClass(type) {
-    const isValidType = Boolean(type) && registry.category("views").contains(type);
+    if (!type) {
+        return false;
+    }
+    const isValidType = registry.category("views").contains(type);
     return isValidType && `o_${type}_view`;
 }
 
@@ -62,16 +66,12 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
  */
 export function getFormattedValue(record, fieldName, fieldInfo = null) {
     const field = record.fields[fieldName];
-    /** @type {any} */
-    const formatter = registry.category("formatters").get(field.type, (val) => val);
-    const formatOptions = {};
-    if (fieldInfo && formatter.extractOptions) {
-        Object.assign(formatOptions, formatter.extractOptions(fieldInfo));
-    }
+    const codec = getFieldCodec(field.type);
+    const formatOptions = fieldInfo ? { ...codec.extractOptions(fieldInfo) } : {};
     formatOptions.data = record.data;
     formatOptions.field = field;
     return record.data[fieldName] !== undefined
-        ? formatter(record.data[fieldName], formatOptions)
+        ? codec.format(record.data[fieldName], formatOptions)
         : "";
 }
 
@@ -130,7 +130,7 @@ export function isNull(value) {
  * @return {string}     the valid string to be injected into a component's node props.
  */
 export function toStringExpression(str) {
-    return `\`${str.replaceAll("`", "\\`")}\``;
+    return `\`${(str ?? "").replaceAll("`", "\\`")}\``;
 }
 
 // ---------------------------------------------------------------------------

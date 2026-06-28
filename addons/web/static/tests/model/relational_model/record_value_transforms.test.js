@@ -9,6 +9,7 @@
  * Date/datetime paths use luxon.DateTime (globally available in Hoot).
  */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
 import {
     computeDataContext,

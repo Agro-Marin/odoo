@@ -4,13 +4,21 @@
 /** @module @web/fields/display/gauge/gauge_field - Chart.js doughnut gauge visualization for numeric fields */
 
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
-import { loadBundle } from "@web/core/assets";
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
 import { formatFloat } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
+/**
+ * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
+ *     maxValueField?: string;
+ *     maxValue?: number;
+ *     title?: string;
+ * }} GaugeFieldProps
+ */
+/** @extends {Component<GaugeFieldProps>} */
 export class GaugeField extends Component {
     static template = "web.GaugeField";
     static props = {
@@ -28,7 +36,7 @@ export class GaugeField extends Component {
         this.canvasRef = useRef("canvas");
 
         onWillStart(async () => {
-            await loadBundle("web.chartjs_lib");
+            await loadChartJS();
         });
 
         useEffect(
@@ -122,7 +130,6 @@ export class GaugeField extends Component {
                 aspectRatio: 2,
             },
         };
-        // @ts-ignore — Chart is provided at runtime by the chartjs_lib bundle, not imported as a module
         this.chart = new Chart(this.canvasRef.el, config);
     }
 }

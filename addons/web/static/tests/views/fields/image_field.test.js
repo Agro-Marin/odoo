@@ -1,5 +1,6 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { expect, test } from "@odoo/hoot";
 import {
     click,

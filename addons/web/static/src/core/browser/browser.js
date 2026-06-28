@@ -27,7 +27,7 @@ try {
     sessionStorage = makeRAMLocalStorage();
 }
 
-export const browser = {
+const browserImpl = {
     addEventListener: window.addEventListener.bind(window),
     dispatchEvent: window.dispatchEvent.bind(window),
     AnalyserNode: window.AnalyserNode,
@@ -98,12 +98,12 @@ const locationFacade = {
     // TS DOM lib (Firefox dropped it in 2019; Chrome never standardised it),
     // so the spread + extra args is dead surface.  Forward without args.
     reload() { return window.location.reload(); },
-    assign(url) { return window.location.assign(url); },
-    replace(url) { return window.location.replace(url); },
+    assign(/** @type {string | URL} */ url) { return window.location.assign(url); },
+    replace(/** @type {string | URL} */ url) { return window.location.replace(url); },
     toString() { return window.location.toString(); },
 };
 
-Object.defineProperty(browser, "location", {
+Object.defineProperty(browserImpl, "location", {
     // Assigning a string to ``browser.location`` should still trigger
     // a navigation, matching ``window.location = "..."`` semantics —
     // the setter delegates to the real ``window.location``.
@@ -116,14 +116,26 @@ Object.defineProperty(browser, "location", {
     configurable: true,
 });
 
-Object.defineProperty(browser, "innerHeight", {
+Object.defineProperty(browserImpl, "innerHeight", {
     get: () => window.innerHeight,
     configurable: true,
 });
-Object.defineProperty(browser, "innerWidth", {
+Object.defineProperty(browserImpl, "innerWidth", {
     get: () => window.innerWidth,
     configurable: true,
 });
+
+/**
+ * The runtime ``browser`` export: the object literal above plus the three
+ * accessors installed via ``Object.defineProperty`` (``location``,
+ * ``innerHeight``, ``innerWidth``), which type inference cannot see. The cast
+ * re-attaches them so consumers reading ``browser.location.href`` etc. are
+ * type-checked without changing the runtime object or its property descriptors.
+ */
+export const browser =
+    /** @type {typeof browserImpl & { location: typeof locationFacade, innerHeight: number, innerWidth: number }} */ (
+        browserImpl
+    );
 
 // -----------------------------------------------------------------------------
 // memory localStorage

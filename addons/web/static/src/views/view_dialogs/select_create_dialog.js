@@ -49,6 +49,13 @@ export class SelectCreateDialog extends Component {
         context: {},
     };
 
+    /** @type {any} */
+    viewService;
+    /** @type {any} */
+    dialogService;
+    /** @type {{ resIds: any[] }} */
+    state;
+
     setup() {
         this.viewService = useService("view");
         this.dialogService = useService("dialog");

@@ -279,15 +279,23 @@ describe("FetchRecordError on empty reload response", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Urgent save (sendBeacon path) — must include last_write_date in kwargs so
-// the server can reject the write under optimistic-locking. The normal-save
-// path sets kwargs.last_write_date at record_save.js:135; the urgent path
-// must mirror that or two users editing the same record can both close
-// their tabs and the later beacon silently overwrites the earlier write.
+// Urgent save (sendBeacon path) — must mirror the normal-save path's
+// field-scoped optimistic locking so the server can reject a genuine
+// concurrent edit even when the save was initiated by sendBeacon on tab
+// close. Both paths send the originally-loaded baseline of the written
+// fields as kwargs.known_values (record_save.js:111-115 for the urgent
+// branch, :171-176 for the normal branch). Without it, two users editing
+// the same record could both close their tabs and the later beacon would
+// silently overwrite the earlier write.
+//
+// NB: the mechanism is field-scoped (known_values), NOT timestamp-based
+// (last_write_date). The latter was the pre-2026-06 design, replaced by
+// commits "field-scoped optimistic locking in web_save" and "exclude
+// jsonb-backed fields from web_save optimistic locking".
 // ---------------------------------------------------------------------------
 
 describe("urgent save (sendBeacon path)", () => {
-    test("includes string write_date as kwargs.last_write_date", async () => {
+    test("sends comparable changed fields as kwargs.known_values baseline", async () => {
         let capturedBlob = null;
         mockSendBeacon((_url, blob) => {
             capturedBlob = blob;
@@ -298,7 +306,10 @@ describe("urgent save (sendBeacon path)", () => {
             resId: 7,
             changes: { name: "Updated under urgent save" },
         });
-        rec._values = markRaw({ write_date: "2026-05-01 12:00:00" });
+        // concurrencyBaseline reads record.fields[f].type and record._values[f]
+        // for each changed field, so the mock must supply both.
+        rec.fields = { name: { type: "char" } };
+        rec._values = markRaw({ name: "Original name" });
         rec.model.urgentSave.isActive = true;
         rec.model.useSendBeaconToSaveUrgently = true;
 
@@ -308,33 +319,45 @@ describe("urgent save (sendBeacon path)", () => {
         expect(capturedBlob).not.toBe(null);
         const payload = JSON.parse(await capturedBlob.text());
         expect(payload.params.method).toBe("web_save");
-        expect(payload.params.kwargs.last_write_date).toBe("2026-05-01 12:00:00");
+        // The baseline (pre-edit value) of the written scalar field is sent so
+        // the server can detect a genuine concurrent write to THIS field.
+        expect(payload.params.kwargs.known_values).toEqual({ name: "Original name" });
+        // The obsolete timestamp-based contract must not reappear.
+        expect(payload.params.kwargs.last_write_date).toBe(undefined);
     });
 
-    test("converts Luxon DateTime write_date via toISO() before sending", async () => {
+    test("omits non-comparable field types from kwargs.known_values", async () => {
         let capturedBlob = null;
         mockSendBeacon((_url, blob) => {
             capturedBlob = blob;
             return true;
         });
 
-        // Minimal Luxon DateTime stub: only needs .toISO(), matching the
-        // type-narrowing logic at record_save.js:135 (the normal save path).
-        const luxonStub = { toISO: () => "2026-05-01T12:00:00.000-06:00" };
-
         const rec = makeRecord({
             resId: 7,
-            changes: { name: "Updated under urgent save" },
+            // A comparable char field alongside types the baseline must skip:
+            // datetime (not safely comparable) and a translate-flagged char
+            // (jsonb-backed; server reads a per-lang dict, never the scalar).
+            changes: { name: "X", deadline: "2026-05-01 12:00:00", note: "hi" },
         });
-        rec._values = markRaw({ write_date: luxonStub });
+        rec.fields = {
+            name: { type: "char" },
+            deadline: { type: "datetime" },
+            note: { type: "char", translate: true },
+        };
+        rec._values = markRaw({
+            name: "orig",
+            deadline: "2026-01-01 00:00:00",
+            note: "hola",
+        });
         rec.model.urgentSave.isActive = true;
         rec.model.useSendBeaconToSaveUrgently = true;
 
         await save(rec, { reload: false });
 
         const payload = JSON.parse(await capturedBlob.text());
-        expect(payload.params.kwargs.last_write_date).toBe(
-            "2026-05-01T12:00:00.000-06:00",
-        );
+        // Only the plain scalar survives; datetime and translate-flagged
+        // fields are excluded so the server fails open on them.
+        expect(payload.params.kwargs.known_values).toEqual({ name: "orig" });
     });
 });

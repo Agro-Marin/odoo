@@ -61,7 +61,7 @@ export const DAYS_IN_MONTH = [null, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 
 export const DAYS_BEFORE_MONTH = [null];
 for (let dbm = 0, i = 1; i < DAYS_IN_MONTH.length; ++i) {
     DAYS_BEFORE_MONTH.push(dbm);
-    dbm += DAYS_IN_MONTH[i];
+    dbm += /** @type {number} */ (DAYS_IN_MONTH[i]);
 }
 
 // ─── Calendar functions ──────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ export function daysInMonth(year, month) {
     if (month === 2 && isLeap(year)) {
         return 29;
     }
-    return DAYS_IN_MONTH[month];
+    return /** @type {number} */ (DAYS_IN_MONTH[month]);
 }
 
 /** @param {number} year */
@@ -95,7 +95,7 @@ export function daysBeforeYear(year) {
  */
 export function daysBeforeMonth(year, month) {
     const postLeapFeb = month > 2 && isLeap(year);
-    return DAYS_BEFORE_MONTH[month] + (postLeapFeb ? 1 : 0);
+    return /** @type {number} */ (DAYS_BEFORE_MONTH[month]) + (postLeapFeb ? 1 : 0);
 }
 
 // ─── Ordinal conversion ─────────────────────────────────────────────────────
@@ -158,10 +158,12 @@ export function ord2ymd(n) {
     const leapyear = n1 === 3 && (n4 !== 24 || n100 === 3);
     assert(leapyear === isLeap(year));
     let month = (n + 50) >> 5;
-    let preceding = DAYS_BEFORE_MONTH[month] + (month > 2 && leapyear ? 1 : 0);
+    let preceding =
+        /** @type {number} */ (DAYS_BEFORE_MONTH[month]) + (month > 2 && leapyear ? 1 : 0);
     if (preceding > n) {
         --month;
-        preceding -= DAYS_IN_MONTH[month] + (month === 2 && leapyear ? 1 : 0);
+        preceding -=
+            /** @type {number} */ (DAYS_IN_MONTH[month]) + (month === 2 && leapyear ? 1 : 0);
     }
     n -= preceding;
     return {
@@ -194,19 +196,19 @@ export function tmxxx(year, month, day, hour, minute, second, microsecond) {
     if (microsecond < 0 || microsecond > 999999) {
         divmod(microsecond, 1000000, function (carry, ms) {
             microsecond = ms;
-            second += carry;
+            second = /** @type {number} */ (second) + carry;
         });
     }
     if (second < 0 || second > 59) {
         divmod(second, 60, function (carry, s) {
             second = s;
-            minute += carry;
+            minute = /** @type {number} */ (minute) + carry;
         });
     }
     if (minute < 0 || minute > 59) {
         divmod(minute, 60, function (carry, m) {
             minute = m;
-            hour += carry;
+            hour = /** @type {number} */ (hour) + carry;
         });
     }
     if (hour < 0 || hour > 23) {

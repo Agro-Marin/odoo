@@ -139,17 +139,17 @@ export const BUILTINS = {
         return true;
     },
 
-    set(iterable) {
+    set(/** @type {any} */ iterable) {
         if (arguments.length > 2) {
             // we always receive at least one argument: kwargs (return fnValue(...args, kwargs); in FunctionCall case)
             throw new EvaluationError(
                 `set expected at most 1 argument, got (${arguments.length - 1})`,
             );
         }
-        return execOnIterable(iterable, (iterable) => new Set(iterable));
+        return execOnIterable(iterable, (/** @type {any} */ iterable) => new Set(iterable));
     },
 
-    max(...args) {
+    max(/** @type {any[]} */ ...args) {
         const values = args.slice(0, -1); // remove kwargs
         const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
         if (items.length === 0) {
@@ -158,7 +158,7 @@ export const BUILTINS = {
         return Math.max(...items);
     },
 
-    min(...args) {
+    min(/** @type {any[]} */ ...args) {
         const values = args.slice(0, -1); // remove kwargs
         const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
         if (items.length === 0) {
@@ -168,13 +168,13 @@ export const BUILTINS = {
     },
 
     time: {
-        strftime(format) {
+        strftime(/** @type {string} */ format) {
             return PyDateTime.now().strftime(format);
         },
     },
 
     /** Return the length of a collection (array, string, Set, or object keys). */
-    len(value) {
+    len(/** @type {any} */ value) {
         if (typeof value === "string" || Array.isArray(value)) {
             return value.length;
         }
@@ -188,7 +188,7 @@ export const BUILTINS = {
     },
 
     /** Return the absolute value of a number or timedelta. */
-    abs(value) {
+    abs(/** @type {any} */ value) {
         if (value instanceof Object && value.negate && value.total_seconds) {
             // PyTimeDelta: negate if total duration is negative
             return value.total_seconds() >= 0 ? value : value.negate();
@@ -197,7 +197,7 @@ export const BUILTINS = {
     },
 
     /** Convert to integer (truncate toward zero). */
-    int(value) {
+    int(/** @type {any} */ value) {
         if (typeof value === "boolean") {
             return value ? 1 : 0;
         }
@@ -212,7 +212,7 @@ export const BUILTINS = {
     },
 
     /** Convert to float. */
-    float(value) {
+    float(/** @type {any} */ value) {
         if (typeof value === "boolean") {
             return value ? 1.0 : 0.0;
         }
@@ -227,7 +227,7 @@ export const BUILTINS = {
     },
 
     /** Convert to string. */
-    str(value) {
+    str(/** @type {any} */ value) {
         if (value === null || value === undefined) {
             return "None";
         }
@@ -238,7 +238,7 @@ export const BUILTINS = {
     },
 
     /** Round a number to a given number of decimal places (banker's rounding). */
-    round(value, ...rest) {
+    round(/** @type {any} */ value, /** @type {any[]} */ ...rest) {
         // rest includes kwargs as last element
         const ndigits = rest.length > 1 ? rest[0] : 0;
         return _pythonRound(value, ndigits);

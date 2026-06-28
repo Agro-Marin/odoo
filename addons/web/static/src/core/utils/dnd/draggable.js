@@ -48,11 +48,11 @@ export const useDraggable = /** @type {any} */ (
     makeDraggableHook(
         /** @type {any} */ ({
             name: "useDraggable",
-            onWillStartDrag: ({ ctx }) => pick(ctx.current, "element"),
-            onDragStart: ({ ctx }) => pick(ctx.current, "element"),
-            onDrag: ({ ctx }) => pick(ctx.current, "element"),
-            onDragEnd: ({ ctx }) => pick(ctx.current, "element"),
-            onDrop: ({ ctx }) => pick(ctx.current, "element"),
+            onWillStartDrag: (/** @type {{ ctx: { current: any } }} */ { ctx }) => pick(ctx.current, "element"),
+            onDragStart: (/** @type {{ ctx: { current: any } }} */ { ctx }) => pick(ctx.current, "element"),
+            onDrag: (/** @type {{ ctx: { current: any } }} */ { ctx }) => pick(ctx.current, "element"),
+            onDragEnd: (/** @type {{ ctx: { current: any } }} */ { ctx }) => pick(ctx.current, "element"),
+            onDrop: (/** @type {{ ctx: { current: any } }} */ { ctx }) => pick(ctx.current, "element"),
         }),
     )
 );

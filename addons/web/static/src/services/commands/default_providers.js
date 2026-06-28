@@ -61,24 +61,26 @@ commandProviderRegistry.add("command", {
     provide: (env, options = {}) => {
         const commands = env.services.command
             .getCommands(options.activeElement)
-            .map((cmd) => {
+            .map((/** @type {Record<string, any>} */ cmd) => {
                 cmd.category = commandCategoryRegistry.contains(cmd.category)
                     ? cmd.category
                     : "default";
                 return cmd;
             })
             .filter(
-                (command) => command.isAvailable === undefined || command.isAvailable(),
+                (/** @type {Record<string, any>} */ command) =>
+                    command.isAvailable === undefined || command.isAvailable(),
             );
         // Filter out same category dupplicate commands
         const uniqueCommands = commands.filter(
-            (obj, index) =>
+            (/** @type {Record<string, any>} */ obj, /** @type {number} */ index) =>
                 index ===
                 commands.findIndex(
-                    (o) => obj.name === o.name && obj.category === o.category,
+                    (/** @type {Record<string, any>} */ o) =>
+                        obj.name === o.name && obj.category === o.category,
                 ),
         );
-        return uniqueCommands.map((command) => ({
+        return uniqueCommands.map((/** @type {Record<string, any>} */ command) => ({
             Component: command.hotkey ? HotkeyCommandItem : DefaultCommandItem,
             action: command.action,
             category: command.category,

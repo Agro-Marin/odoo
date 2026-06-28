@@ -82,7 +82,7 @@ export function escapeRegExp(pattern) {
  * If the string is empty, 0, False or false it's considered as false
  * The rest is considered as true
  *
- * @param {string} str
+ * @param {string | null | undefined} str
  * @param {boolean} [trueIfEmpty=false]
  * @returns {boolean}
  */
@@ -245,7 +245,7 @@ export function sprintf(str, ...substitutions) {
     }
     if (hasSubstitutionDict(substitutions)) {
         // Keyed (%(key)s) substitutions
-        const dict = substitutions[0];
+        const dict = /** @type {Record<string, any>} */ (substitutions[0]);
         return str.replaceAll(R_KEYED_SUBSTITUTION, (_match, key) => dict[key] ?? "");
     } else {
         // Generic (%s) substitutions

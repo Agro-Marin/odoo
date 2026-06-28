@@ -9,12 +9,14 @@ import { escapeRegExp } from "@web/core/utils/format/strings";
 import { evaluate, formatAST, parseExpr } from "./py_js/py.js";
 import { EvaluationError } from "./py_js/py_builtin.js";
 import { toPyValue } from "./py_js/py_utils.js";
+import { ASTType } from "./py_js/ast_type.js";
 
 /**
- * Domain uses AST nodes pervasively via .value/.type without discriminated
- * union narrowing. Using `any` here avoids 15+ casts on every AST access.
- * @typedef {any} AST
+ * AST node — a discriminated union keyed on the literal ``type`` tag (see
+ * {@link ASTType}); ``.type``/``switch`` checks narrow it to each node shape.
+ * @typedef {import("./py_js/ast_type.js").AST} AST
  */
+/** @typedef {import("./py_js/ast_type.js").ASTList} ASTList */
 
 /**
  * @typedef {[string | 0 | 1, string, any]} Condition
@@ -28,6 +30,12 @@ export class InvalidDomainError extends Error {}
  * Javascript representation of an Odoo domain
  */
 export class Domain {
+    /**
+     * The normalized domain AST — always a List node (see normalizeDomainAST).
+     * @type {ASTList}
+     */
+    ast;
+
     /**
      * Combine various domains together with a given operator
      * @param {DomainRepr[]} domains
@@ -54,9 +62,9 @@ export class Domain {
         const rest = Domain.combine(nonEmpty.slice(1), operator);
         const result = new Domain([]);
         result.ast = {
-            type: 4 /* List */,
+            type: ASTType.List,
             value: [
-                { type: 1 /* String */, value: op },
+                { type: ASTType.String, value: op },
                 ...first.ast.value,
                 ...rest.ast.value,
             ],
@@ -89,7 +97,7 @@ export class Domain {
      */
     static not(domain) {
         const result = new Domain(domain);
-        result.ast.value.unshift({ type: 1, value: "!" });
+        result.ast.value.unshift({ type: ASTType.String, value: "!" });
         return result;
     }
 
@@ -101,13 +109,18 @@ export class Domain {
      * @return {Domain}
      */
     static removeDomainLeaves(domain, keysToRemove) {
-        /** Return how many AST elements the subtree rooted at ``idx`` spans. */
+        /**
+         * Return how many AST elements the subtree rooted at ``idx`` spans.
+         * @param {AST[]} elements
+         * @param {number} idx
+         * @returns {number}
+         */
         function subtreeSize(elements, idx) {
             const node = elements[idx];
-            if (node.type === 10 /* Tuple */) {
+            if (node.type === ASTType.Tuple) {
                 return 1;
             }
-            if (node.type === 1 /* String */) {
+            if (node.type === ASTType.String) {
                 if (node.value === "!") {
                     return 1 + subtreeSize(elements, idx + 1);
                 }
@@ -119,13 +132,18 @@ export class Domain {
             return 0;
         }
 
-        /** True if every leaf in the subtree at ``idx`` is in keysToRemove. */
+        /**
+         * True if every leaf in the subtree at ``idx`` is in keysToRemove.
+         * @param {AST[]} elements
+         * @param {number} idx
+         * @returns {boolean}
+         */
         function isFullyRemoved(elements, idx) {
             const node = elements[idx];
-            if (node.type === 10 /* Tuple */) {
-                return keysToRemove.includes(node.value[0].value);
+            if (node.type === ASTType.Tuple) {
+                return keysToRemove.includes(/** @type {any} */ (node.value[0]).value);
             }
-            if (node.type === 1 /* String */) {
+            if (node.type === ASTType.String) {
                 if (node.value === "!") {
                     return isFullyRemoved(elements, idx + 1);
                 }
@@ -140,7 +158,11 @@ export class Domain {
             return false;
         }
 
-        /** Push the neutral identity value for the given operator context. */
+        /**
+         * Push the neutral identity value for the given operator context.
+         * @param {string} operatorCtx
+         * @param {Domain} newDomain
+         */
         function pushNeutral(operatorCtx, newDomain) {
             if (operatorCtx === "&") {
                 newDomain.ast.value.push(...Domain.TRUE.ast.value);
@@ -149,24 +171,31 @@ export class Domain {
             }
         }
 
+        /**
+         * @param {AST[]} elements
+         * @param {number} idx
+         * @param {string} operatorCtx
+         * @param {Domain} newDomain
+         * @returns {number}
+         */
         function processLeaf(elements, idx, operatorCtx, newDomain) {
             const leaf = elements[idx];
-            if (leaf.type === 10 /* Tuple */) {
-                if (keysToRemove.includes(leaf.value[0].value)) {
+            if (leaf.type === ASTType.Tuple) {
+                if (keysToRemove.includes(/** @type {any} */ (leaf.value[0]).value)) {
                     pushNeutral(operatorCtx, newDomain);
                 } else {
                     newDomain.ast.value.push(leaf);
                 }
                 return 1;
-            } else if (leaf.type === 1 /* String */) {
+            } else if (leaf.type === ASTType.String) {
                 // Special case: both children of OR are removed leaves —
                 // replace the whole OR+children with a single neutral value.
                 if (
                     leaf.value === "|" &&
-                    elements[idx + 1].type === 10 &&
-                    elements[idx + 2].type === 10 &&
-                    keysToRemove.includes(elements[idx + 1].value[0].value) &&
-                    keysToRemove.includes(elements[idx + 2].value[0].value)
+                    elements[idx + 1].type === ASTType.Tuple &&
+                    elements[idx + 2].type === ASTType.Tuple &&
+                    keysToRemove.includes(/** @type {any} */ (elements[idx + 1]).value[0].value) &&
+                    keysToRemove.includes(/** @type {any} */ (elements[idx + 2]).value[0].value)
                 ) {
                     pushNeutral(operatorCtx, newDomain);
                     return 3;
@@ -229,7 +258,8 @@ export class Domain {
                     },
                 );
             }
-            this.ast = normalizeDomainAST(rawAST);
+            // normalizeDomainAST always yields a List node (it throws otherwise).
+            this.ast = /** @type {ASTList} */ (normalizeDomainAST(rawAST));
         }
     }
 
@@ -237,7 +267,7 @@ export class Domain {
      * Check if the set of records represented by a domain contains a record
      * Warning: smart dates (see parseSmartDateInput) are not handled here.
      *
-     * @param {Object} record
+     * @param {Record<string, any>} record
      * @returns {boolean}
      */
     contains(record) {
@@ -316,15 +346,15 @@ function toAST(domain) {
             case "!":
             case "&":
             case "|":
-                return { type: 1 /* String */, value: elem };
+                return { type: ASTType.String, value: elem };
             default:
                 return {
-                    type: 10 /* Tuple */,
+                    type: ASTType.Tuple,
                     value: elem.map(toPyValue),
                 };
         }
     });
-    return { type: 4 /* List */, value: elems };
+    return { type: ASTType.List, value: elems };
 }
 
 /**
@@ -336,13 +366,13 @@ function toAST(domain) {
  */
 
 function normalizeDomainAST(domain, op = "&") {
-    if (domain.type !== 4 /* List */) {
-        if (domain.type === 10 /* Tuple */) {
+    if (domain.type !== ASTType.List) {
+        if (domain.type === ASTType.Tuple) {
             const value = domain.value;
             /* Tuple contains at least one Tuple and optionally string */
             if (
-                !value.some((e) => e.type === 10) ||
-                !value.every((e) => e.type === 10 || e.type === 1)
+                !value.some((e) => e.type === ASTType.Tuple) ||
+                !value.every((e) => e.type === ASTType.Tuple || e.type === ASTType.String)
             ) {
                 throw new InvalidDomainError("Invalid domain AST");
             }
@@ -351,20 +381,29 @@ function normalizeDomainAST(domain, op = "&") {
         }
     }
     if (!domain.value.length) {
-        return domain;
+        // Return a fresh node, never the input. A string-built domain's AST
+        // comes from the memoized ``parseExpr`` cache, so returning it as-is
+        // makes every ``new Domain("[]")`` share one ``.ast.value`` array.
+        // The in-place AST mutators (``Domain.not``'s ``unshift``,
+        // ``removeDomainLeaves``'s ``push``) would then mutate that shared
+        // cache entry, corrupting every empty domain built afterwards
+        // process-wide (``Domain.not(new Domain([]))`` poisons the cache so
+        // the next ``new Domain("[]")`` throws "invalid domain"). The
+        // non-empty path below already ``slice()``s for the same reason.
+        return { type: domain.type, value: [] };
     }
     let expected = 1;
     for (const child of domain.value) {
         switch (child.type) {
-            case 1 /* String */:
+            case ASTType.String:
                 if (child.value === "&" || child.value === "|") {
                     expected++;
                 } else if (child.value !== "!") {
                     throw new InvalidDomainError("Invalid domain AST");
                 }
                 break;
-            case 4: /* list */
-            case 10 /* tuple */:
+            case ASTType.List:
+            case ASTType.Tuple:
                 if (child.value.length === 3) {
                     expected--;
                     break;
@@ -377,18 +416,18 @@ function normalizeDomainAST(domain, op = "&") {
     const values = domain.value.slice();
     while (expected < 0) {
         expected++;
-        values.unshift({ type: 1 /* String */, value: op });
+        values.unshift({ type: ASTType.String, value: op });
     }
     if (expected > 0) {
         throw new InvalidDomainError(
             `invalid domain ${formatAST(domain)} (missing ${expected} segment(s))`,
         );
     }
-    return { type: 4 /* List */, value: values };
+    return { type: ASTType.List, value: values };
 }
 
 /**
- * @param {Object} record
+ * @param {Record<string, any>} record
  * @param {Condition | boolean} condition
  * @returns {boolean}
  */
@@ -501,21 +540,23 @@ function matchCondition(record, condition) {
 const OPERATOR_ARITY = { "!": 1, "&": 2, "|": 2 };
 
 /**
- * @param {Object} record
- * @returns {Object}
+ * @param {Record<string, any>} record
+ * @returns {Record<string, (...args: (Condition | boolean)[]) => boolean>}
  */
 function makeOperators(record) {
     const match = matchCondition.bind(null, record);
     return {
-        "!": (x) => !match(x),
-        "&": (a, b) => match(a) && match(b),
-        "|": (a, b) => match(a) || match(b),
+        "!": (/** @type {Condition | boolean} */ x) => !match(x),
+        "&": (/** @type {Condition | boolean} */ a, /** @type {Condition | boolean} */ b) =>
+            match(a) && match(b),
+        "|": (/** @type {Condition | boolean} */ a, /** @type {Condition | boolean} */ b) =>
+            match(a) || match(b),
     };
 }
 
 /**
  *
- * @param {Object} record
+ * @param {Record<string, any>} record
  * @param {DomainListRepr} domain
  * @returns {boolean}
  */
@@ -525,6 +566,7 @@ function matchDomain(record, domain) {
     }
     const operators = makeOperators(record);
     // Iterate backwards in-place instead of allocating a reversed copy.
+    /** @type {any[]} */
     const condStack = [];
     for (let i = domain.length - 1; i >= 0; i--) {
         const item = domain[i];

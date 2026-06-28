@@ -933,7 +933,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         single build; its parsed surface must be memoized, not recomputed on
         every visit. ``assertIs`` is true only when the result is cached.
         """
-        from odoo.libs.esm_graph import _BridgeExportResolver
+        from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
         resolver = _BridgeExportResolver({}, {}, "test_bundle")
         # Seed the disk-read cache so source_exports resolves without I/O.

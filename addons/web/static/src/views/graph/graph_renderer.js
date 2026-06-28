@@ -12,7 +12,7 @@ import {
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { loadBundle } from "@web/core/assets";
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/l10n/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
@@ -55,7 +55,7 @@ export class GraphRenderer extends Component {
         this.legendTooltip = null;
 
         onWillStart(async () => {
-            await loadBundle("web.chartjs_lib");
+            await loadChartJS();
         });
 
         useEffect(() => this.renderChart());

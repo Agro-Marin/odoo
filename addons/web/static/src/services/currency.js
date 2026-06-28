@@ -68,7 +68,7 @@ export async function getCurrencyRates() {
         cache: {
             type: "disk",
             update: "once",
-            callback: (records, hasChanged) => {
+            callback: (/** @type {{id: number, inverse_rate: number, date: string}[]} */ records, /** @type {boolean} */ hasChanged) => {
                 if (hasChanged) {
                     Object.assign(rates, recordsToRates(records));
                 }
@@ -97,7 +97,7 @@ export async function getCurrencyRates() {
  * @returns {string}
  */
 export function formatCurrency(amount, currencyId, options = {}) {
-    const currency = getCurrency(currencyId);
+    const currency = getCurrency(/** @type {number} */ (currencyId));
 
     const digits =
         options.digits !== undefined ? options.digits : currency?.digits;

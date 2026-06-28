@@ -19,6 +19,7 @@ import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_h
 import {
     dayCellClassNames,
     dayHeaderClassNames,
+    fcInternalClassName,
     getFullCalendarTimeZone,
     useFullCalendar,
 } from "@web/views/calendar/hooks/full_calendar_hook";
@@ -112,8 +113,8 @@ export class CalendarCommonRenderer extends Component {
 
     get options() {
         return {
-            // v7 minifies the root and view class names (``fc-aJ``,
-            // ``fc-Cv``, …) — the legacy ``fc`` / ``fc-timeGridDay-view``
+            // v7 minifies the root and view class names into per-build
+            // hashes — the legacy ``fc`` / ``fc-timeGridDay-view``
             // / ``fc-dayGridMonth-view`` class hooks are gone.  Tests
             // (and downstream CSS/JS selectors throughout the fork) still
             // target those names, so we re-inject them via v7's
@@ -128,7 +129,7 @@ export class CalendarCommonRenderer extends Component {
                     : "fc-view",
             // v7 dropped all the human-readable ``fc-*`` class hooks
             // (``fc-day``, ``fc-col-header-cell``, ``fc-event-main``…)
-            // in favour of hashed names like ``fc-aJ``.  Re-inject the
+            // in favour of per-build hashed names.  Re-inject the
             // ones the fork's CSS and tests depend on through v7's
             // per-element class-name-generator options
             // (``dayCellClass``, ``dayHeaderClass``, …).  Each generator
@@ -261,7 +262,7 @@ export class CalendarCommonRenderer extends Component {
             // explicitSlatMinHeight)``.  Setting 22px matches the natural
             // slot height in this fork's UX (label line-height + padding)
             // and pairs with the fork-local patch in
-            // ``lib/fullcalendar/fullcalendar.global.js`` that uses this
+            // ``lib/fullcalendar/fullcalendar.esm.js`` that uses this
             // value as a fall-back when label measurement is delayed (HOOT
             // tests with deferred layout, ResizeObserver pending, etc.).
             slotMinHeight: 22,
@@ -296,7 +297,7 @@ export class CalendarCommonRenderer extends Component {
             fixedWeekCount: false,
             // FC v7's ``StandardEvent.render`` only mounts the after-class
             // <div> (which carries the ``fc-event-resizer-end`` re-injected
-            // by the fork patch at ``fullcalendar.global.js`` line 9020)
+            // by the fork patch at ``fullcalendar.esm.js`` line 9020)
             // when ``afterClassName || afterContent`` is truthy.  Without
             // a non-empty class generator for column/row events, the div
             // is omitted entirely and the resize handle disappears even
@@ -330,7 +331,7 @@ export class CalendarCommonRenderer extends Component {
     viewDidMount({ el, view, options }) {
         // v7 dropped ``view.calendar.currentData.options`` — the same
         // calendar options now arrive directly as the ``options`` field
-        // of the didMount payload (see ``fullcalendar.global.js:5358``
+        // of the didMount payload (see ``fullcalendar.esm.js:5358``
         // for the actual ``didMount({ ...renderProps, el })`` call).
         // ``view`` itself only exposes ``{ type, getCurrentData, dateEnv }``
         // in v7, so the old ``view.calendar`` reach-through is gone.
@@ -349,23 +350,26 @@ export class CalendarCommonRenderer extends Component {
             makeWeekColumn(/** @type {any} */ ({ el, weekText }));
         }
         // v6 exposed ``fc-scroller`` (and ``fc-scroller-liquid-y``) on
-        // every Scroller wrapper. v7 hashes those class names — the
-        // shared constant for ``internalScroller`` is ``fc-1i``, and
-        // vertical scrollers additionally carry ``classNames.liquid``
-        // (``fc-7k``). Tests, fork CSS in ``calendar_renderer.scss``,
-        // and downstream addons still target the v6 names. Re-inject
-        // them in-place so the stable name lives next to the hashed
-        // one without overriding FC's internal styling.
+        // every Scroller wrapper. v7 hashes those class names —
+        // ``internalScroller`` for the wrapper and ``liquid`` for the
+        // growing vertical scroller — and regenerates the hashes on every
+        // build, so they're resolved at runtime via ``fcInternalClassName``
+        // rather than hard-coded. Tests, fork CSS in
+        // ``calendar_renderer.scss``, and downstream addons still target the
+        // v6 names; re-inject them in-place so the stable name lives next to
+        // the hashed one without overriding FC's internal styling.
         //
         // Two scrollers per timegrid view: the day-name column header
-        // (horizontal, no overflow growth, no ``fc-7k``) and the time
-        // body (vertical, growing content, with ``fc-7k``). Only the
-        // vertical scroller is auto-scrolled to ``scrollTime`` by
-        // ``applyTimeScroll`` and is therefore the meaningful test
-        // anchor for ``[data-time="06:00:00"]`` alignment assertions.
-        for (const scrollerEl of el.querySelectorAll(".fc-1i")) {
+        // (horizontal, no overflow growth, not ``liquid``) and the time
+        // body (vertical, growing content, ``liquid``). Only the vertical
+        // scroller is auto-scrolled to ``scrollTime`` by ``applyTimeScroll``
+        // and is therefore the meaningful test anchor for
+        // ``[data-time="06:00:00"]`` alignment assertions.
+        const scrollerClass = fcInternalClassName("internalScroller");
+        const liquidClass = fcInternalClassName("liquid");
+        for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
             scrollerEl.classList.add("fc-scroller");
-            if (scrollerEl.classList.contains("fc-7k")) {
+            if (scrollerEl.classList.contains(liquidClass)) {
                 scrollerEl.classList.add("fc-scroller-liquid-y");
             }
         }
@@ -652,7 +656,7 @@ export class CalendarCommonRenderer extends Component {
         // Detect the ``"local"`` case by re-querying the timezone string
         // and rebuild the DateTime from UTC components in the local zone
         // so serializers produce the user-visible clock time.  See
-        // ``fullcalendar.global.js:1767-1789`` (``timestampToMarker`` /
+        // ``fullcalendar.esm.js:1767-1789`` (``timestampToMarker`` /
         // ``toDate``) for the FC-side conversion this mirrors.
         const isMarkerMode = getFullCalendarTimeZone() === "local";
         const Lux = DateTime;

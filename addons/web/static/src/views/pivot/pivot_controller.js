@@ -35,6 +35,11 @@ export class PivotController extends Component {
     };
 
     /** Initialize the pivot model, action hooks, scroll restoration, and search bar toggler. */
+    /** @type {any} */
+    model;
+    /** @type {any} */
+    searchBarToggler;
+
     setup() {
         this.model = useState(
             useModelWithSampleData(

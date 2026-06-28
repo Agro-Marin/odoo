@@ -138,7 +138,7 @@ export const errorService = {
                 /** @type {any} */ (uncaughtError).event = ev;
                 if (error instanceof Error) {
                     /** @type {any} */ (error).errorEvent = ev;
-                    const annotated = env.debug && env.debug.includes("assets");
+                    const annotated = env.debug?.includes("assets");
                     await completeUncaughtError(uncaughtError, error, annotated);
                 }
             }
@@ -189,10 +189,10 @@ export const errorService = {
             const uncaughtError = new UncaughtPromiseError();
             uncaughtError.unhandledRejectionEvent = ev;
             /** @type {any} */ (uncaughtError).event = ev;
-            uncaughtError.traceback = traceback;
+            uncaughtError.traceback = traceback ?? null;
             if (error instanceof Error) {
                 /** @type {any} */ (error).errorEvent = ev;
-                const annotated = env.debug && env.debug.includes("assets");
+                const annotated = env.debug?.includes("assets");
                 await completeUncaughtError(uncaughtError, error, annotated);
             }
             uncaughtError.cause = error;

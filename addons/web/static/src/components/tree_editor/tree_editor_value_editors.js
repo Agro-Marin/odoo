@@ -32,6 +32,7 @@ import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { unique } from "@web/core/utils/collections/arrays";
+import { getFieldCodec } from "@web/core/field_codec";
 /**
  * @typedef {Object} ValueEditorInfo
  * @property {import("@odoo/owl").ComponentConstructor | null} component
@@ -46,7 +47,6 @@ import { unique } from "@web/core/utils/collections/arrays";
 // ============================================================================
 
 const formatters = registry.category("formatters");
-const parsers = registry.category("parsers");
 
 /**
  * @param {string} fieldType
@@ -54,7 +54,7 @@ const parsers = registry.category("parsers");
  * @returns {any} parsed value, or the original string if parsing fails
  */
 function parseValue(fieldType, value) {
-    const parser = parsers.get(fieldType, (value) => value);
+    const parser = getFieldCodec(fieldType).parse;
     try {
         return parser(value);
     } catch {
@@ -68,7 +68,7 @@ function parseValue(fieldType, value) {
  * @returns {boolean}
  */
 function isParsable(fieldType, value) {
-    const parser = parsers.get(fieldType, (value) => value);
+    const parser = getFieldCodec(fieldType).parse;
     try {
         parser(value);
     } catch {

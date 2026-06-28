@@ -100,6 +100,15 @@ export class Many2XAutocomplete extends Component {
         specification: {},
         value: "",
     };
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    autoCompleteContainer;
+    /** @type {any} */
+    keepLast;
+    /** @type {any} */
+    selectCreate;
+
     setup() {
         this.orm = useService("orm");
 
@@ -123,8 +132,9 @@ export class Many2XAutocomplete extends Component {
                 },
                 fieldString,
                 onClose: () => {
-                    const autoCompleteInput =
-                        this.autoCompleteContainer.el.querySelector("input");
+                    const autoCompleteInput = /** @type {HTMLElement} */ (
+                        this.autoCompleteContainer.el
+                    ).querySelector("input");
 
                     // There are two cases:
                     // 1. Value is the same as the input: it means the autocomplete has re-rendered with the right value
@@ -321,7 +331,7 @@ export class Many2XAutocomplete extends Component {
             }
         } else {
             records = await lock(this.search(request));
-            if (records.length) {
+            if (records?.length) {
                 for (const record of records) {
                     suggestions.push(this.buildRecordSuggestion(request, record));
                 }
@@ -395,7 +405,9 @@ export class Many2XAutocomplete extends Component {
      * @returns {boolean}
      */
     addSearchMoreSuggestion({ records, request }) {
-        return request.length < this.props.searchThreshold || records?.length > 0;
+        return (
+            request.length < this.props.searchThreshold || (records?.length ?? 0) > 0
+        );
     }
 
     /**
@@ -497,7 +509,9 @@ export class Many2XAutocomplete extends Component {
 
     /** Triggers a "Search More" action using the current barcode input value */
     async onBarcodeSearch() {
-        const autoCompleteInput = this.autoCompleteContainer.el.querySelector("input");
+        const autoCompleteInput = /** @type {HTMLElement} */ (
+            this.autoCompleteContainer.el
+        ).querySelector("input");
         return this.onSearchMore(
             /** @type {HTMLInputElement} */ (autoCompleteInput).value,
         );
@@ -554,7 +568,7 @@ export class Many2XAutocomplete extends Component {
  * @param {Object} params.activeActions
  * @param {boolean} params.isToMany
  * @param {Function} [params.onClose]
- * @param {import("@odoo/owl").ComponentConstructor} [params.component]
+ * @param {import("@odoo/owl").ComponentConstructor | null} [params.component]
  * @param {string} [params.size]
  * @returns {Function} openDialog
  */

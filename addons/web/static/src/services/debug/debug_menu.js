@@ -39,6 +39,7 @@ export class DebugMenu extends DebugMenuBasic {
                         async provide() {
                             const categories = [...defaultCategories];
                             let category = categories.shift();
+                            /** @type {{ name: string, action: any, category: any }[]} */
                             const result = [];
                             items.forEach((item) => {
                                 if (item.type === "item") {

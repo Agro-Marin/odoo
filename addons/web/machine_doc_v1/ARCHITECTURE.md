@@ -300,7 +300,7 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 | Bundle | Library | Version |
 |--------|---------|---------|
 | `web.chartjs_lib` | Chart.js + chartjs-adapter-luxon | 4.5.1 + 1.3.1 |
-| `web.fullcalendar_lib` | FullCalendar (Vanilla JS bundle: core + interaction + daygrid + timegrid + list + multimonth), skeleton.css, locales-all | 7.0.0-rc.3 |
+| `web.fullcalendar_lib` | FullCalendar (Vanilla JS bundle: core + interaction + daygrid + timegrid + list + multimonth), skeleton.css, locales-all | 7.0.0 |
 | `web.ace_lib` | ACE code editor (Python, XML, QWeb, JS, SCSS, JSON modes) | 1.43.6 |
 
 ### Vendored libraries (`static/lib/`)
@@ -318,7 +318,7 @@ and the version string in the source file.
 | `chartjs-adapter-luxon` | 1.3.1 | Luxon date-adapter for Chart.js |
 | `diff_match_patch` | forked-from-google-diff-match-patch | Text diff/merge utility |
 | `dompurify` | 3.3.1 | HTML sanitization for Html fields and markup helpers |
-| `fullcalendar` | 7.0.0-rc.3 | Calendar view engine |
+| `fullcalendar` | 7.0.0 | Calendar view engine |
 | `hoot` | internal | Odoo's in-house JS test framework |
 | `hoot-dom` | internal | DOM helpers for Hoot |
 | `luxon` | 3.7.2 | DateTime library (all date/datetime field widgets) |

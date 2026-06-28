@@ -59,11 +59,20 @@ export function objectToString(obj) {
 }
 
 export class FormCompiler extends ViewCompiler {
+    // NB: these must be initialized at the declaration, NOT in setup().
+    // `ViewCompiler`'s constructor calls `this.setup()`, but native class-field
+    // initializers run *after* super() returns — so any value setup() assigns to
+    // a declared-but-uninitialized field is immediately clobbered back to
+    // `undefined`. Initializing here keeps the field both type-declared and
+    // correctly valued once construction finishes.
+    /** @type {Record<string, any>} */
+    encounteredFields = {};
+    /** @type {Record<string, Element[] | null>} */
+    labels = {};
+    /** @type {number} */
+    noteBookId = 0;
+
     setup() {
-        this.encounteredFields = {};
-        /** @type {Record<string, Element[]>} */
-        this.labels = {};
-        this.noteBookId = 0;
         /** @type {any} */ (this).compilers.push(
             ...compilersRegistry.getAll(),
             { selector: "div[name='button_box']", fn: this.compileButtonBox },
@@ -333,7 +342,7 @@ export class FormCompiler extends ViewCompiler {
         let sequence = 0;
 
         if (el.hasAttribute("col")) {
-            formGroup.setAttribute("maxCols", el.getAttribute("col"));
+            formGroup.setAttribute("maxCols", el.getAttribute("col") ?? "");
         }
 
         if (el.hasAttribute("string")) {
@@ -700,7 +709,7 @@ export class FormCompiler extends ViewCompiler {
                     append(fieldSlot, field);
                     setting.setAttribute(
                         "fieldInfo",
-                        /** @type {Element} */ (field).getAttribute("fieldInfo"),
+                        /** @type {Element} */ (field).getAttribute("fieldInfo") ?? "",
                     );
 
                     addLabel = child.hasAttribute("nolabel")

@@ -119,10 +119,12 @@ export function makeDraggableHook(hookParams) {
 
     const hookName = hookParams.name || "useAnonymousDraggable";
     const { setupHooks } = hookParams;
+    /** @type {Record<string, any[]>} */
     const allAcceptedParams = {
         ...DEFAULT_ACCEPTED_PARAMS,
         ...hookParams.acceptedParams,
     };
+    /** @type {Record<string, any>} */
     const defaultParams = {
         ...DEFAULT_DEFAULT_PARAMS,
         ...hookParams.defaultParams,
@@ -134,6 +136,7 @@ export function makeDraggableHook(hookParams) {
      * @returns {[string, any][]}
      */
     const computeParams = (params) => {
+        /** @type {Record<string, any>} */
         const computedParams = { enable: () => true };
         for (const prop of Object.keys(allAcceptedParams)) {
             if (prop in params) {
@@ -160,7 +163,7 @@ export function makeDraggableHook(hookParams) {
     const makeError = (reason) => new Error(`Error in hook ${hookName}: ${reason}.`);
 
     return {
-        [hookName](params) {
+        [hookName](/** @type {Record<string, any>} */ params) {
             let preventClick = false;
             /**
              * Executes a handler from the `hookParams`.
@@ -168,10 +171,10 @@ export function makeDraggableHook(hookParams) {
              * @param {Record<any, any>} [arg]
              */
             const callBuildHandler = (hookHandlerName, arg = {}) => {
-                if (typeof hookParams[hookHandlerName] !== "function") {
+                if (typeof /** @type {Record<string, any>} */ (hookParams)[hookHandlerName] !== "function") {
                     return;
                 }
-                const returnValue = hookParams[hookHandlerName]({
+                const returnValue = /** @type {Record<string, any>} */ (hookParams)[hookHandlerName]({
                     ctx,
                     ...helpers,
                     ...arg,
@@ -319,7 +322,7 @@ export function makeDraggableHook(hookParams) {
              * Applies scroll to the container if the current element is near
              * the edge of the container.
              */
-            const handleEdgeScrolling = (deltaTime) => {
+            const handleEdgeScrolling = (/** @type {number} */ deltaTime) => {
                 updateRects();
                 const { x: pointerX, y: pointerY } = ctx.pointer;
                 const xRect = ctx.current.scrollParentXRect;
@@ -364,7 +367,7 @@ export function makeDraggableHook(hookParams) {
                     }
                 }
 
-                const diffToScroll = ([delta, sign]) =>
+                const diffToScroll = (/** @type {[number, number]} */ [delta, sign]) =>
                     (1 - Math.max(delta, 0) / threshold) * correctedSpeed * sign;
                 if ((!direction || direction === "vertical") && diff.y) {
                     ctx.current.scrollParentY.scrollBy({
@@ -840,6 +843,11 @@ export function makeDraggableHook(hookParams) {
                 },
                 () => [ctx.ref.el],
             );
+            /**
+             * @param {string} type
+             * @param {any} listener
+             * @param {boolean | AddEventListenerOptions} [options]
+             */
             const addWindowListener = (type, listener, options) => {
                 if (params.iframeWindow) {
                     setupHooks.addListener(

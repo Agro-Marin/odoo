@@ -13,12 +13,12 @@ import {
 import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { groupBy, intersection } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { useDebounced } from "@web/core/utils/timing";
+import { getFieldCodec } from "@web/core/field_codec";
 import { Model } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
 import { user } from "@web/services/user";
@@ -914,9 +914,7 @@ export class CalendarModel extends Model {
         const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
         const field = fields[fieldName];
         const isX2Many = ["many2many", "one2many"].includes(field.type);
-        const formatter = registry
-            .category("formatters")
-            .get(isX2Many ? "many2one" : field.type);
+        const formatter = getFieldCodec(isX2Many ? "many2one" : field.type).format;
 
         const { colorFieldName } = filterInfo;
         const colorField = fields[fieldMapping.color];
@@ -955,9 +953,7 @@ export class CalendarModel extends Model {
         const value = Array.isArray(raw) ? raw[0] : raw;
         const field = fields[writeFieldName];
         const isX2Many = ["many2many", "one2many"].includes(field.type);
-        const formatter = registry
-            .category("formatters")
-            .get(isX2Many ? "many2one" : field.type);
+        const formatter = getFieldCodec(isX2Many ? "many2one" : field.type).format;
 
         const colorField = fields[fieldMapping.color];
         const colorValue =

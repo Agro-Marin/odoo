@@ -43,7 +43,7 @@ export function isId(value) {
 
 /**
  * Extract the related model name from a field definition.
- * @param {Object|null} fieldDef
+ * @param {Record<string, any>|null} fieldDef
  * @returns {string|null}
  */
 export function getResModel(fieldDef) {
@@ -59,7 +59,7 @@ const SPECIAL_FIELDS = ["country_id", "user_id", "partner_id", "stage_id", "id"]
 /**
  * Pick a sensible default field path from a set of field definitions.
  * Prefers well-known relational fields, falls back to the first available field.
- * @param {Record<string, Object>} fieldDefs
+ * @param {Record<string, Record<string, any>>} fieldDefs
  * @returns {string}
  * @throws {Error} if no fields exist
  */

@@ -53,7 +53,10 @@ export function toInterpolatedStringExpression(str) {
 export function appendAttr(el, attr, string) {
     const attrKey = `t-att-${attr}`;
     const attrVal = el.getAttribute(attrKey);
-    el.setAttribute(attrKey, appendToStringifiedObject(attrVal, string));
+    el.setAttribute(
+        attrKey,
+        appendToStringifiedObject(/** @type {string} */ (attrVal), string),
+    );
 }
 
 /**
@@ -176,7 +179,7 @@ export function isTextNode(node) {
 }
 
 /**
- * @param {string} title
+ * @param {string | null} title
  * @returns {Element}
  */
 export function makeSeparator(title) {
@@ -221,7 +224,7 @@ export class ViewCompiler {
      * @param {any} invisible
      * @param {Element} compiled
      * @param {Record<string, any>} params
-     * @returns {Element}
+     * @returns {Element | undefined}
      */
     applyInvisible(invisible, compiled, params) {
         if (!invisible || invisible === "False") {

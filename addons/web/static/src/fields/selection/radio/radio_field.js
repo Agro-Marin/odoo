@@ -12,6 +12,14 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
 let nextId = 0;
+/**
+ * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
+ *     orientation?: string;
+ *     label?: string;
+ *     domain?: any[] | Function;
+ * }} RadioFieldProps
+ */
+/** @extends {Component<RadioFieldProps>} */
 export class RadioField extends Component {
     static template = "web.RadioField";
     static props = {
@@ -23,6 +31,9 @@ export class RadioField extends Component {
     static defaultProps = {
         orientation: "vertical",
     };
+
+    /** @type {any} */
+    specialData;
 
     setup() {
         this.id = `radio_field_${nextId++}`;

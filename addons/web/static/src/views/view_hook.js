@@ -123,7 +123,7 @@ export function useBounceButton(containerRef, shouldBounce) {
                 return;
             }
             const handler = (ev) => {
-                const button = ui.activeElement.querySelector("[data-bounce-button]");
+                const button = ui.activeElement?.querySelector("[data-bounce-button]");
                 if (button && shouldBounce(ev.target)) {
                     button.classList.add("o_catch_attention");
                     browser.clearTimeout(timeout);

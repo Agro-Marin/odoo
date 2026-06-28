@@ -77,6 +77,21 @@ export class CalendarController extends Component {
         itemCalendarProps: { type: Object, optional: true },
     };
 
+    /** @type {any} */
+    action;
+    /** @type {any} */
+    displayDialog;
+    /** @type {any} */
+    model;
+    /** @type {any} */
+    state;
+    /** @type {any} */
+    _baseRendererProps;
+    /** @type {any} */
+    multiSelectionButtonsReactive;
+    /** @type {any} */
+    callbackRecorder;
+
     setup() {
         this.action = useService("action");
         this.orm = useService("orm");
@@ -103,11 +118,12 @@ export class CalendarController extends Component {
             browser.sessionStorage.getItem("calendar.showSideBar");
         this.state = useState({
             isWeekendVisible:
-                storedWeekendVisible !== "false" && storedWeekendVisible !== false,
+                storedWeekendVisible !== "false" &&
+                /** @type {any} */ (storedWeekendVisible) !== false,
             showSideBar:
                 !this.env.isSmall &&
                 sessionShowSidebar !== "false" &&
-                sessionShowSidebar !== false,
+                /** @type {any} */ (sessionShowSidebar) !== false,
         });
 
         this.searchBarToggler = useSearchBarToggler();
@@ -336,7 +352,7 @@ export class CalendarController extends Component {
                             .QuickCreateFormView,
                         this.getQuickCreateFormViewProps(record),
                         {
-                            onClose: () => resolve(),
+                            onClose: () => resolve(undefined),
                         },
                     );
                 });
@@ -347,7 +363,7 @@ export class CalendarController extends Component {
                     /** @type {any} */ (this.constructor).components.QuickCreate,
                     this.getQuickCreateProps(record),
                     {
-                        onClose: () => resolve(),
+                        onClose: () => resolve(undefined),
                     },
                 );
             });
@@ -376,7 +392,7 @@ export class CalendarController extends Component {
                         viewId: this.model.formViewId,
                         onRecordSaved: () => this.model.load(),
                     },
-                    { onClose: () => resolve() },
+                    { onClose: () => resolve(undefined) },
                 );
             });
         } else {

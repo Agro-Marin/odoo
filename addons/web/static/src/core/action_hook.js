@@ -147,6 +147,7 @@ export function useSetupAction(params = {}) {
     }
     if (__getLocalState__ && (getLocalState || rootRef)) {
         useCallbackRecorder(__getLocalState__, () => {
+            /** @type {Record<PropertyKey, any>} */
             const state = {};
             if (getLocalState) {
                 Object.assign(state, getLocalState());

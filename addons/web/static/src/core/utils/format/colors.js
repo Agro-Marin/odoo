@@ -214,7 +214,7 @@ export function convertRgbaToCSSColor(r, g, b, a) {
  *
  * @static
  * @param {string} cssColor - hexadecimal code or rgb() or rgba() or color()
- * @returns {Object|false}
+ * @returns {{red: number, green: number, blue: number, opacity: number}|false}
  *          - red [0, 255] (integer)
  *          - green [0, 255] (integer)
  *          - blue [0, 255] (integer)
@@ -379,6 +379,7 @@ export function rgbToHex(rgb = "", node = null) {
         const values = rgb.match(RGBA_REGEX) || [];
         const alpha = Number.parseFloat(values.pop());
         // Retrieve the background color.
+        /** @type {number[]} */
         let bgRgbValues = [];
         if (node) {
             let bgColor = getComputedStyle(node).backgroundColor;

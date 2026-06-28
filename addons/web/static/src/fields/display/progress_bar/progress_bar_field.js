@@ -5,13 +5,12 @@
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { registerField } from "@web/fields/_registry";
+import { getFieldCodec } from "@web/core/field_codec";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { parseFloat } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-const formatters = registry.category("formatters");
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
@@ -102,10 +101,8 @@ export class ProgressBarField extends Component {
      * @returns {string} Formatted string representation
      */
     formatValue(fieldName, value, humanReadable = !this.state.isEditing) {
-        const formatter = formatters.get(
-            this.props.record.fields[fieldName]?.type ?? "integer",
-        );
-        return formatter(value, { humanReadable });
+        const type = this.props.record.fields[fieldName]?.type ?? "integer";
+        return getFieldCodec(type).format(value, { humanReadable });
     }
 
     /**

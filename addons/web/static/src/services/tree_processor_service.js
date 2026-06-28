@@ -3,15 +3,6 @@
 
 /** @module @web/services/tree_processor_service - Converts domains to condition trees with human-readable descriptions and tooltips */
 
-/**
- * Format a condition value for display in domain descriptions.
- * Resolves record IDs to display names, selection labels, and date formatting.
- * @param {import("@web/core/tree/condition_tree").Value} val
- * @param {boolean} disambiguate - whether to JSON-stringify string values
- * @param {Object | null} fieldDef - field definition from the field service
- * @param {Record<number, string>} displayNames - map of record IDs to display names
- * @returns {string | import("@web/core/tree/condition_tree").Value}
- */
 import {
     condition,
     Expression,
@@ -33,6 +24,15 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 
+/**
+ * Format a condition value for display in domain descriptions.
+ * Resolves record IDs to display names, selection labels, and date formatting.
+ * @param {import("@web/core/tree/condition_tree").Value} val
+ * @param {boolean} disambiguate - whether to JSON-stringify string values
+ * @param {Record<string, any> | null} fieldDef - field definition from the field service
+ * @param {Record<number, string>} displayNames - map of record IDs to display names
+ * @returns {string | import("@web/core/tree/condition_tree").Value}
+ */
 function formatValue(val, disambiguate, fieldDef, displayNames) {
     if (val instanceof Expression) {
         return val.toString();
@@ -45,7 +45,10 @@ function formatValue(val, disambiguate, fieldDef, displayNames) {
         }
     }
     if (fieldDef?.type === "selection") {
-        const [, label] = (fieldDef.selection || []).find(([v]) => v === val) || [];
+        const [, label] =
+            (fieldDef.selection || []).find(
+                (/** @type {[any, string]} */ [v]) => v === val,
+            ) || [];
         if (label !== undefined) {
             val = label;
         }
@@ -106,6 +109,7 @@ function simplifyTree(tree) {
         return { ...tree, children: processedChildren };
     }
     const children = [];
+    /** @type {Record<string, { elems: any[], index: number }>} */
     const childrenByPath = {};
     for (let index = 0; index < processedChildren.length; index++) {
         const child = processedChildren[index];
@@ -150,7 +154,7 @@ function simplifyTree(tree) {
 /**
  * Recursively extract record IDs from relational conditions in a tree.
  * @param {any} tree
- * @param {(path: string) => Object | null} getFieldDef
+ * @param {(path: string) => Record<string, any> | null} getFieldDef
  * @param {Record<string, number[]>} idsByModel - accumulator, mutated in place
  * @returns {Record<string, number[]>} the same idsByModel accumulator
  */
@@ -181,7 +185,7 @@ function _extractIdsRecursive(tree, getFieldDef, idsByModel) {
 /**
  * Extract all record IDs from relational conditions, grouped by co-model.
  * @param {import("@web/core/tree/condition_tree").Tree} tree
- * @param {(path: string) => Object | null} getFieldDef
+ * @param {(path: string) => Record<string, any> | null} getFieldDef
  * @returns {Record<string, number[]>} map of model name to unique record IDs
  */
 function extractIdsFromTree(tree, getFieldDef) {
@@ -199,7 +203,7 @@ function extractIdsFromTree(tree, getFieldDef) {
  * @property {(resModel: string, tree: import("@web/core/tree/condition_tree").Tree, isSubExpression?: boolean, limit?: number, pathLimit?: number) => Promise<string>} getDomainTreeDescription
  * @property {(resModel: string, tree: import("@web/core/tree/condition_tree").Tree) => Promise<string>} getDomainTreeTooltip
  * @property {(resModel: string, tree: import("@web/core/tree/condition_tree").Tree, limit?: number, pathLimit?: number) => Promise<(node: any) => ConditionDescription>} makeGetConditionDescription
- * @property {(resModel: string, tree: import("@web/core/tree/condition_tree").Tree) => Promise<(path: string) => Object | null>} makeGetFieldDef
+ * @property {(resModel: string, tree: import("@web/core/tree/condition_tree").Tree) => Promise<(path: string) => Record<string, any> | null>} makeGetFieldDef
  * @property {(resModel: string, domain: any[], distributeNot?: boolean) => Promise<import("@web/core/tree/condition_tree").Tree>} treeFromDomain
  */
 
@@ -233,7 +237,7 @@ export const treeProcessorService = {
         /**
          * Load display names for all relational record IDs in a tree.
          * @param {import("@web/core/tree/condition_tree").Tree} tree
-         * @param {(path: string) => Object | null} getFieldDef
+         * @param {(path: string) => Record<string, any> | null} getFieldDef
          * @returns {Promise<Record<string, Record<number, string>>>} map of model to (id → displayName)
          */
         async function getDisplayNames(tree, getFieldDef) {
@@ -262,7 +266,7 @@ export const treeProcessorService = {
                 promises.push(
                     fieldService
                         .loadPathDescription(resModel, path)
-                        .then(({ displayNames }) => {
+                        .then((/** @type {{ displayNames: string[] }} */ { displayNames }) => {
                             pathDescriptions.set(
                                 path,
                                 `${displayNames.slice(0, limit).join(" \u2794 ")}${
@@ -303,8 +307,8 @@ export const treeProcessorService = {
 
         /**
          * Build a structured description of a single condition node.
-         * @param {Object} node - condition tree node
-         * @param {(path: string) => Object | null} getFieldDef
+         * @param {Record<string, any>} node - condition tree node
+         * @param {(path: string) => Record<string, any> | null} getFieldDef
          * @param {(path: string) => string | undefined} getPathDescription
          * @param {Record<string, Record<number, string>>} displayNames
          * @param {number} [limit=5] - max values before truncating
@@ -348,6 +352,7 @@ export const treeProcessorService = {
             );
 
             const pathDescription = getPathDescription(path);
+            /** @type {ConditionDescription} */
             const description = {
                 pathDescription,
                 operatorDescription: operatorLabel,
@@ -529,17 +534,20 @@ export const treeProcessorService = {
          * Loads all field info for paths used in the tree in parallel.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
-         * @returns {Promise<(path: string) => Object | null>}
+         * @returns {Promise<(path: string) => Record<string, any> | null>}
          */
         async function makeGetFieldDef(resModel, tree) {
             const paths = new Set(getPathsInTree(tree, true));
             const promises = [];
+            /** @type {Record<string, any>} */
             const fieldDefs = {};
             for (const path of paths) {
                 promises.push(
-                    fieldService.loadFieldInfo(resModel, path).then(({ fieldDef }) => {
-                        fieldDefs[path] = fieldDef;
-                    }),
+                    fieldService
+                        .loadFieldInfo(resModel, path)
+                        .then((/** @type {{ fieldDef: any }} */ { fieldDef }) => {
+                            fieldDefs[path] = fieldDef;
+                        }),
                 );
             }
             await Promise.all(promises);
@@ -561,7 +569,7 @@ export const treeProcessorService = {
         async function treeFromDomain(resModel, domain, distributeNot = true) {
             const tree = constructTreeFromDomain(domain, distributeNot);
             const getFieldDef = await makeGetFieldDef(resModel, tree);
-            return introduceVirtualOperators(tree, { getFieldDef });
+            return introduceVirtualOperators(tree, { getFieldDef: /** @type {any} */ (getFieldDef) });
         }
 
         return {

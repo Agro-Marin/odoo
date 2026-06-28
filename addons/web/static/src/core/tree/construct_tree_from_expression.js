@@ -3,10 +3,10 @@
 
 /** @module @web/core/tree/construct_tree_from_expression - Parses a Python expression string into a condition tree structure */
 
-/** Local AST alias widened to `any` because the canonical AST is a
- * discriminated union narrowed via `.type` checks at runtime; TS can't
- * track the narrowing through helper boundaries.
- * @typedef {any} AST */
+/** @typedef {import("../py_js/ast_type.js").AST} AST */
+/** @typedef {import("../py_js/ast_type.js").ASTName} ASTName */
+/** @typedef {import("../py_js/ast_type.js").ASTBinaryOperator} ASTBinaryOperator */
+/** @typedef {import("../py_js/ast_type.js").ASTFunctionCall} ASTFunctionCall */
 /** @import { Tree, Condition, ComplexCondition, Options } from "@web/core/tree/condition_tree" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
@@ -20,6 +20,7 @@ import {
     toValue,
 } from "@web/core/tree/condition_tree";
 import { COMPARATORS } from "@web/core/tree/operators";
+import { ASTType } from "../py_js/ast_type.js";
 
 /** @type {Record<string, string>} Operator exchange map for swapping left/right operands */
 const EXCHANGE = {
@@ -38,7 +39,7 @@ const EXCHANGE = {
  * @returns {AST}
  */
 function or(left, right) {
-    return { type: 14, op: "or", left, right };
+    return { type: ASTType.BooleanOperator, op: "or", left, right };
 }
 
 /**
@@ -48,7 +49,7 @@ function or(left, right) {
  * @returns {AST}
  */
 function and(left, right) {
-    return { type: 14, op: "and", left, right };
+    return { type: ASTType.BooleanOperator, op: "and", left, right };
 }
 
 /**
@@ -58,8 +59,8 @@ function and(left, right) {
  */
 function isSet(ast) {
     return (
-        ast.type === 8 &&
-        ast.fn.type === 5 &&
+        ast.type === ASTType.FunctionCall &&
+        ast.fn.type === ASTType.Name &&
         ast.fn.value === "set" &&
         ast.args.length <= 1
     );
@@ -75,7 +76,7 @@ function isValidPath2(ast, options) {
     if (!ast) {
         return null;
     }
-    if ([4, 10].includes(ast.type) && ast.value.length === 1) {
+    if ((ast.type === ASTType.List || ast.type === ASTType.Tuple) && ast.value.length === 1) {
         return isValidPath(ast.value[0], options);
     }
     return isValidPath(ast, options);
@@ -84,7 +85,7 @@ function isValidPath2(ast, options) {
 /**
  * Try to extract a `Condition` from a comparison AST (e.g. `field == value`).
  * Swaps operands if needed so the field path is on the left.
- * @param {AST} ast - a comparator AST node (type 7)
+ * @param {ASTBinaryOperator} ast - a comparator AST node
  * @param {Options} options
  * @returns {Condition|null} null if the AST cannot be represented as a simple condition
  */
@@ -118,20 +119,24 @@ function _getConditionFromComparator(ast, options) {
         }
     }
 
-    return condition(left.value, operator, toValue(right));
+    // left is a validated field path (ASTName) by this point; the swap above
+    // loses that refinement for TS, so assert it.
+    return condition(/** @type {ASTName} */ (left).value, operator, toValue(right));
 }
 
 /**
  * Try to extract a `Condition` from a `set(...).intersection(...)` AST pattern,
  * used for x2many "in"/"not in" checks.
- * @param {AST} ast - a function-call AST whose fn is a set intersection lookup
+ * @param {ASTFunctionCall} ast - a function-call AST whose fn is a set intersection lookup
  * @param {Options} options
  * @param {boolean} [negate=false]
  * @returns {Condition|null} null if the pattern cannot be decomposed
  */
 function _getConditionFromIntersection(ast, options, negate = false) {
-    let left = ast.fn.obj.args[0];
-    let right = ast.args[0];
+    // left/right are reassigned across heterogeneous AST node kinds below
+    // (swapped, unwrapped from list/tuple), which TS cannot track — hold as any.
+    let left = /** @type {any} */ (ast.fn).obj.args[0];
+    let right = /** @type {any} */ (ast.args[0]);
 
     if (!left) {
         return condition(negate ? 1 : 0, "=", 1);
@@ -147,7 +152,7 @@ function _getConditionFromIntersection(ast, options, negate = false) {
         right = temp;
     }
 
-    if ([4, 10].includes(left.type) && left.value.length === 1) {
+    if ([ASTType.List, ASTType.Tuple].includes(left.type) && left.value.length === 1) {
         left = left.value[0];
     }
 
@@ -159,13 +164,13 @@ function _getConditionFromIntersection(ast, options, negate = false) {
     // we only make simple conversions here
     if (isSet(right)) {
         if (!right.args[0]) {
-            right = { type: 4, value: [] };
-        } else if ([4, 10].includes(right.args[0].type)) {
+            right = { type: ASTType.List, value: [] };
+        } else if ([ASTType.List, ASTType.Tuple].includes(right.args[0].type)) {
             right = right.args[0];
         }
     }
 
-    if (![4, 10].includes(right.type)) {
+    if (![ASTType.List, ASTType.Tuple].includes(right.type)) {
         return null;
     }
 
@@ -186,7 +191,7 @@ function _leafFromAST(ast, options, negate = false) {
         return _treeFromAST(ast.right, options, !negate);
     }
 
-    if (ast.type === 5 /** name */ && isValidPath(ast, options)) {
+    if (ast.type === ASTType.Name && isValidPath(ast, options)) {
         return condition(ast.value, negate ? "=" : "!=", false);
     }
 
@@ -196,8 +201,8 @@ function _leafFromAST(ast, options, negate = false) {
     }
 
     if (
-        ast.type === 8 &&
-        ast.fn.type === 15 /** object lookup */ &&
+        ast.type === ASTType.FunctionCall &&
+        ast.fn.type === ASTType.ObjLookup &&
         isSet(ast.fn.obj) &&
         ast.fn.key === "intersection"
     ) {
@@ -207,7 +212,7 @@ function _leafFromAST(ast, options, negate = false) {
         }
     }
 
-    if (ast.type === 7 && COMPARATORS.includes(ast.op)) {
+    if (ast.type === ASTType.BinaryOperator && COMPARATORS.includes(ast.op)) {
         if (negate) {
             return _leafFromAST(not(ast), options);
         }
@@ -235,7 +240,7 @@ function _treeFromAST(ast, options, negate = false) {
         return _treeFromAST(ast.right, options, !negate);
     }
 
-    if (ast.type === 14) {
+    if (ast.type === ASTType.BooleanOperator) {
         const tree = connector(
             ast.op === "and" ? "&" : "|", // and/or are the only ops that are given type 14 (for now)
         );
@@ -256,7 +261,7 @@ function _treeFromAST(ast, options, negate = false) {
         return tree;
     }
 
-    if (ast.type === 13) {
+    if (ast.type === ASTType.If) {
         const newAST = or(
             and(ast.condition, ast.ifTrue),
             and(not(ast.condition), ast.ifFalse),

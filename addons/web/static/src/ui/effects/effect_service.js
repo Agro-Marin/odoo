@@ -20,7 +20,7 @@ const effectRegistry = registry.category("effects");
  * the RainbowMan component to instantiate and its props. If the effects are
  * disabled, displays the message in a notification.
  *
- * @param {Object} env
+ * @param {import("@web/env").OdooEnv} env
  * @param {Object} [params={}]
  * @param {string} [params.message="Well Done!"]
  *    The message in the notice the rainbowman holds or the content of the notification if effects are disabled
@@ -77,6 +77,10 @@ effectRegistry.addValidation((v) => typeof v === "function");
 /** Service for triggering visual effects (e.g. rainbow man) via the effects registry. */
 export const effectService = {
     dependencies: ["overlay"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ overlay: any }} services
+     */
     start(env, { overlay }) {
         /**
          * @param {Object} [params] various params depending on the type of effect

@@ -32,7 +32,6 @@ export {
  * @property {string} [format]
  * @property {string} [tz]
  *
- * @typedef {any} DateTime
  * @typedef {[NullableDateTime, NullableDateTime]} NullableDateRange
  * @typedef {any} NullableDateTime
  */
@@ -60,6 +59,7 @@ export function getMaxValidDate() {
 const nonAlphaRegex = /[^a-z]/gi;
 const nonDigitRegex = /[^\d]/g;
 
+/** @type {Record<string, string>} */
 const normalizeFormatTable = {
     // Python strftime to luxon.js conversion table
     a: "ccc",
@@ -83,6 +83,7 @@ const normalizeFormatTable = {
     X: "HH:mm:ss",
 };
 
+/** @type {Record<string, string>} */
 const smartDateUnits = {
     d: "days",
     m: "months",
@@ -92,6 +93,7 @@ const smartDateUnits = {
     M: "minutes",
     S: "seconds",
 };
+/** @type {Record<string, number>} */
 const smartWeekdays = {
     monday: 1,
     tuesday: 2,
@@ -168,7 +170,7 @@ function parseSmartDateInput(value) {
         }
 
         try {
-            const field_name = smartDateUnits[term.at(-1)];
+            const field_name = smartDateUnits[/** @type {string} */ (term.at(-1))];
             const number = Number.parseInt(term.slice(1, -1), 10);
             if (!field_name || Number.isNaN(number)) {
                 return null;
@@ -183,7 +185,7 @@ function parseSmartDateInput(value) {
                     field_name === "minutes" ||
                     field_name === "hours"
                 ) {
-                    now = now.startOf(field_name);
+                    now = now.startOf(/** @type {any} */ (field_name));
                 } else if (field_name === "weeks") {
                     return null;
                 } else {
@@ -322,6 +324,7 @@ export function toLocaleDateTimeString(
 export function formatDuration(seconds, showFullDuration) {
     const displayStyle = showFullDuration ? "long" : "narrow";
     const numberOfValuesToDisplay = showFullDuration ? 2 : 1;
+    /** @type {Array<"years" | "months" | "days" | "hours" | "minutes">} */
     const durationKeys = ["years", "months", "days", "hours", "minutes"];
 
     if (seconds < 60) {
@@ -337,7 +340,7 @@ export function formatDuration(seconds, showFullDuration) {
 
     if (
         !showFullDuration &&
-        duration.loc.locale.includes("en") &&
+        /** @type {any} */ (duration).loc.locale.includes("en") &&
         duration.months > 0
     ) {
         durationSplit[0] = durationSplit[0].replace("m", "M");
@@ -375,6 +378,7 @@ export function parseDateTime(value, options = {}) {
     }
 
     const fmt = options.format || localization.dateTimeFormat;
+    /** @type {{ setZone: boolean, zone: string, numberingSystem?: string }} */
     const parseOpts = {
         setZone: true,
         zone: options.tz || "default",

@@ -51,7 +51,11 @@
 import { Domain } from "@web/core/domain";
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { toPyValue } from "@web/core/py_js/py_utils";
+import { ASTType } from "../py_js/ast_type.js";
 export class Expression {
+    /**
+     * @param {string | AST} ast
+     */
     constructor(ast) {
         if (typeof ast === "string") {
             ast = parseExpr(ast);
@@ -136,10 +140,10 @@ export function cloneTree(tree) {
     return /** @type {Tree} */ (clone);
 }
 
-const areEqualValues = (value, otherValue) =>
+const areEqualValues = (/** @type {Value} */ value, /** @type {Value} */ otherValue) =>
     formatValue(value) === formatValue(otherValue);
 
-const areEqualArraysOfTrees = (array, otherArray) => {
+const areEqualArraysOfTrees = (/** @type {Tree[]} */ array, /** @type {Tree[]} */ otherArray) => {
     if (array.length !== otherArray.length) {
         return false;
     }
@@ -153,6 +157,11 @@ const areEqualArraysOfTrees = (array, otherArray) => {
     return true;
 };
 
+/**
+ * @param {any} tree
+ * @param {any} otherTree
+ * @returns {boolean}
+ */
 export const areEqualTrees = (tree, otherTree) => {
     if (tree.type !== otherTree.type) {
         return false;
@@ -194,41 +203,51 @@ export const areEqualTrees = (tree, otherTree) => {
  * @returns {Value}
  */
 export function toValue(ast, isWithinArray = false) {
-    if ([4, 10].includes(ast.type) && !isWithinArray) {
-        /** 4: list, 10: tuple */
-        return ast.value.map((v) => toValue(v, true));
-    } else if ([0, 1, 2].includes(ast.type)) {
-        /** 0: number, 1: string, 2: boolean */
+    if ([ASTType.List, ASTType.Tuple].includes(ast.type) && !isWithinArray) {
+        return ast.value.map((/** @type {any} */ v) => toValue(v, true));
+    } else if ([ASTType.Number, ASTType.String, ASTType.Boolean].includes(ast.type)) {
         return ast.value;
-    } else if (ast.type === 6 && ast.op === "-" && ast.right.type === 0) {
-        /** 6: unary operator */
+    } else if (ast.type === ASTType.UnaryOperator && ast.op === "-" && ast.right.type === ASTType.Number) {
         return -ast.right.value;
-    } else if (ast.type === 5 && ["false", "true"].includes(ast.value)) {
-        /** 5: name */
+    } else if (ast.type === ASTType.Name && ["false", "true"].includes(ast.value)) {
         return JSON.parse(ast.value);
     } else {
         return new Expression(ast);
     }
 }
 
+/**
+ * @param {Value} value
+ * @returns {AST}
+ */
 export function astFromValue(value) {
     if (value instanceof Expression) {
         return value.toAST();
     }
     if (Array.isArray(value)) {
-        return { type: 4, value: value.map(astFromValue) };
+        return { type: ASTType.List, value: value.map(astFromValue) };
     }
     return toPyValue(value);
 }
 
+/**
+ * @param {Value} value
+ * @returns {string}
+ */
 export function formatValue(value) {
     return formatAST(astFromValue(value));
 }
 
+/**
+ * @param {Value} value
+ */
 export function normalizeValue(value) {
     return toValue(astFromValue(value)); // no array in array (see isWithinArray)
 }
 
+/**
+ * @param {any} value
+ */
 export function isTree(value) {
     return (
         typeof value === "object" &&
@@ -251,6 +270,11 @@ export function addChild(parent, child) {
     }
 }
 
+/**
+ * @param {Function[]} transformations
+ * @param {any} transformed
+ * @param {...any} fixedParams
+ */
 export function applyTransformations(transformations, transformed, ...fixedParams) {
     for (let i = transformations.length - 1; i >= 0; i--) {
         const fn = transformations[i];
@@ -259,8 +283,11 @@ export function applyTransformations(transformations, transformed, ...fixedParam
     return transformed;
 }
 
+/**
+ * @param {Connector} connector
+ */
 function normalizeConnector(connector) {
-    const newTree = { ...connector, children: [] };
+    const newTree = { ...connector, children: /** @type {any[]} */ ([]) };
     for (const child of connector.children) {
         addChild(newTree, child);
     }
@@ -274,10 +301,14 @@ function normalizeConnector(connector) {
     return newTree;
 }
 
+/**
+ * @param {Value} path
+ * @param {Options} options
+ */
 function makeOptions(path, options) {
     return {
         ...options,
-        getFieldDef: (p) => {
+        getFieldDef: (/** @type {Value} */ p) => {
             if (typeof path === "string" && typeof p === "string") {
                 return options.getFieldDef?.(`${path}.${p}`) || null;
             }
@@ -328,8 +359,12 @@ export function operate(
     return clone;
 }
 
+/**
+ * @param {Function} transformation
+ * @param {number} [N=2]
+ */
 export function rewriteNConsecutiveChildren(transformation, N = 2) {
-    return (c, options) => {
+    return (/** @type {Connector} */ c, /** @type {Options} */ options) => {
         const children = [];
         const currentChildren = c.children;
         for (let i = 0; i < currentChildren.length; i++) {

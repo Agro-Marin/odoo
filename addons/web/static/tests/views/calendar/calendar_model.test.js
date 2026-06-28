@@ -13,6 +13,7 @@
  *  - views/calendar/calendar_record.js     — raw record normalization
  */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
 import {
     computeCalendarRange,

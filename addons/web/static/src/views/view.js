@@ -129,9 +129,7 @@ export function getDefaultConfig() {
     // pop()`` to force a notification; that hack got removed when the
     // value moved to ``nameState``.  Putting the value on the same proxy
     // the component reads achieves the same effect without the hack.
-    const breadcrumbReactive = reactive([
-        { name: undefined },
-    ]);
+    const breadcrumbReactive = reactive([{ name: undefined }]);
     const config = {
         actionId: false,
         actionType: false,
@@ -234,6 +232,11 @@ export class View extends Component {
         "*": true,
     };
 
+    /** @type {import("services").ServiceFactories["view"]} */
+    viewService;
+    /** @type {Record<string, any> | null} */
+    withSearchProps;
+
     setup() {
         const { arch, fields, resModel, searchViewArch, searchViewFields, type } =
             this.props;
@@ -282,6 +285,9 @@ export class View extends Component {
      */
     async loadView(props) {
         const type = props.type;
+        // A View always runs inside an action, so env.config is present;
+        // alias it (same object reference, so mutations below still apply).
+        const config = /** @type {Record<string, any>} */ (this.env.config);
 
         if (!session.view_info[type]) {
             throw new Error(`Invalid view type: ${type}`);
@@ -290,7 +296,7 @@ export class View extends Component {
         // determine views for which descriptions should be obtained
         let { viewId, searchViewId } = props;
 
-        const views = deepCopy(props.views || this.env.config.views);
+        const views = deepCopy(props.views || config.views);
         const view = views.find((v) => v[1] === type) || [];
         if (view.length) {
             view[0] = viewId !== undefined ? viewId : view[0];
@@ -310,7 +316,8 @@ export class View extends Component {
         // searchViewId will remains undefined if loadSearchView=false
 
         // prepare view description
-        const { context, resModel, loadActionMenus, loadIrFilters } = props;
+        const { resModel, loadActionMenus, loadIrFilters } = props;
+        const context = /** @type {Record<string, any>} */ (props.context ?? {});
         let {
             arch,
             fields,
@@ -337,12 +344,12 @@ export class View extends Component {
             // view description (or search view description if required) is incomplete
             // a loadViews is done to complete the missing information
             const options = {
-                actionId: this.env.config.actionId,
+                actionId: config.actionId,
                 loadActionMenus,
                 loadIrFilters,
             };
-            if (this.env.config.currentEmbeddedActionId) {
-                options.embeddedActionId = this.env.config.currentEmbeddedActionId;
+            if (config.currentEmbeddedActionId) {
+                options.embeddedActionId = config.currentEmbeddedActionId;
                 options.embeddedParentResId = context.active_id;
             }
             const result = await this.viewService.loadViews(
@@ -364,7 +371,7 @@ export class View extends Component {
                     irFilters = searchViewDescription.irFilters;
                 }
             }
-            this.env.config.views = views;
+            config.views = views;
             fields = fields || markRaw(result.fields);
             relatedModels = relatedModels || markRaw(result.relatedModels);
         }
@@ -376,15 +383,18 @@ export class View extends Component {
             actionMenus = viewDescription.actionMenus;
         }
 
-        const archXmlDoc = parseXML(arch.replaceAll("&amp;nbsp;", nbsp));
+        const archXmlDoc = parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
+        const propsContext = /** @type {Record<string, any>} */ (
+            this.props.context ?? {}
+        );
         for (const action of ACTIONS) {
-            if (action in this.props.context && !this.props.context[action]) {
+            if (action in propsContext && !propsContext[action]) {
                 archXmlDoc.setAttribute(action, "0");
             }
         }
 
         const jsClass = archXmlDoc.hasAttribute("js_class")
-            ? archXmlDoc.getAttribute("js_class")
+            ? /** @type {string} */ (archXmlDoc.getAttribute("js_class"))
             : props.jsClass || type;
         const descr = /** @type {any} */ (viewRegistry.get(jsClass));
 
@@ -394,7 +404,7 @@ export class View extends Component {
             ...(props.className || "").split(" "),
         ]);
 
-        Object.assign(this.env.config, {
+        Object.assign(config, {
             rawArch: arch,
             viewArch: archXmlDoc,
             viewId: viewDescription.id,
@@ -405,7 +415,7 @@ export class View extends Component {
         });
         const info = {
             actionMenus,
-            mode: props.display.mode,
+            mode: props.display?.mode,
             irFilters,
             searchViewArch,
             searchViewFields,
@@ -431,7 +441,7 @@ export class View extends Component {
         }
 
         if ("useSampleModel" in props) {
-            viewProps.useSampleModel = props.useSampleModel;
+            viewProps.useSampleModel = /** @type {boolean} */ (props.useSampleModel);
         } else if (sample) {
             viewProps.useSampleModel = evaluateBooleanExpr(sample);
         }
@@ -452,7 +462,7 @@ export class View extends Component {
             descr.searchMenuTypes ||
             /** @type {any} */ (this.constructor).searchMenuTypes;
         const defaultGroupBy = archXmlDoc.hasAttribute("default_group_by")
-            ? archXmlDoc.getAttribute("default_group_by").split(",")
+            ? (archXmlDoc.getAttribute("default_group_by") ?? "").split(",")
             : null;
         viewProps.searchMenuTypes = searchMenuTypes;
         const canOrderByCount =
@@ -460,7 +470,7 @@ export class View extends Component {
             /** @type {any} */ (this.constructor).canOrderByCount;
 
         const finalProps = descr.props
-            ? descr.props(viewProps, descr, this.env.config)
+            ? descr.props(viewProps, descr, config)
             : viewProps;
         // prepare the WithSearch component props
         this.Controller = descr.Controller;
@@ -521,16 +531,16 @@ export class View extends Component {
         // skips two ``pick`` allocations plus two ``JSON.stringify`` passes per
         // update.
         if (
-            this.props.arch !== nextProps.arch
-            || this.props.type !== nextProps.type
-            || this.props.resModel !== nextProps.resModel
+            this.props.arch !== nextProps.arch ||
+            this.props.type !== nextProps.type ||
+            this.props.resModel !== nextProps.resModel
         ) {
             return this.loadView(nextProps);
         }
         // we assume that nextProps can only vary in the search keys:
         // context, domain, groupBy, orderBy
         const { context, domain, groupBy, orderBy } = nextProps;
-        Object.assign(this.withSearchProps, {
+        Object.assign(/** @type {Record<string, any>} */ (this.withSearchProps), {
             context,
             domain,
             groupBy,

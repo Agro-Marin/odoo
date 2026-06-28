@@ -16,12 +16,21 @@ subprocess path.
 
 import json
 import logging
+import shutil
+import tempfile
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import odoo
+from odoo.db import db_connect
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
 from odoo.tests.common import TransactionCase
+from odoo.tools.assets.esbuild import EsbuildCompiler
+from odoo.tools.assets.esm_graph import _BridgeExportResolver
+
+from odoo.addons.base.models.assetsbundle import AssetsBundle, _parse_odoo_module_header
 
 
 class TestAssetLogHelper(TransactionCase):
@@ -192,8 +201,6 @@ class TestEsbuildAdvisoryLock(TransactionCase):
         self.assertTrue(got)
 
     def test_lock_rejects_other_cursor_while_held(self):
-        from odoo.db import db_connect
-
         IrQweb = self.env["ir.qweb"]
         self.assertTrue(IrQweb._esbuild_try_acquire_lock("test.lock.beta"))
         # Open a sibling connection and verify it cannot take the lock.
@@ -215,8 +222,6 @@ class TestEsbuildAdvisoryLock(TransactionCase):
         the whole scenario through scratch connections: one takes the
         lock + commits, the other observes the lock is free afterwards.
         """
-        from odoo.db import db_connect
-
         dbname = self.env.cr.dbname
         key = "esbuild:test.lock.gamma"
 
@@ -478,8 +483,6 @@ class TestPipelineIntegration(TransactionCase):
         )
 
         called = []
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         original = AssetsBundle.esbuild_native_bundle
 
         def _spy(self, *args, **kwargs):
@@ -551,11 +554,6 @@ class TestEsbuildIntegration(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        import shutil
-        from pathlib import Path
-
-        import odoo
-
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
             "esbuild",
@@ -706,8 +704,6 @@ class TestExternalLibsValidator(TransactionCase):
 
     def test_valid_configuration_passes(self):
         """The real configuration at import time must pass the validator."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         IrQweb = self.env["ir.qweb"]
         # Does not raise — proves the live configuration is consistent.
         AssetsBundle._validate_external_libs(
@@ -716,8 +712,6 @@ class TestExternalLibsValidator(TransactionCase):
 
     def test_missing_alias_raises(self):
         """Import-map spec without a matching alias must be rejected."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         with self.assertRaises(ValueError) as ctx:
             AssetsBundle._validate_external_libs({"@invented/lib"})
         self.assertIn("@invented/lib", str(ctx.exception))
@@ -725,8 +719,6 @@ class TestExternalLibsValidator(TransactionCase):
 
     def test_pattern_externals_accepted(self):
         """@odoo/owl etc. are covered by --external:@odoo/* and don't need aliases."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         # Does not raise even though none are in _LIB_CANDIDATES.
         AssetsBundle._validate_external_libs(
             {
@@ -744,11 +736,6 @@ class TestEsbuildSourceMaps(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        import shutil
-        from pathlib import Path
-
-        import odoo
-
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
             "esbuild",
@@ -798,8 +785,6 @@ class TestEsbuildSourceMaps(TransactionCase):
         )
         # esbuild source maps are JSON; minimal sanity check that we
         # captured the right bytes (not e.g. the metafile).
-        import json
-
         parsed = json.loads(bundle._last_sourcemap)
         self.assertIn("version", parsed)
         self.assertIn("mappings", parsed)
@@ -947,8 +932,6 @@ def _fake_native_module(url="", raw_content="", module_path="", filename=None):
     ``_esbuild_flags`` behaves like production — without building a real asset
     (or touching the filestore).
     """
-    from odoo.addons.base.models.assetsbundle import _parse_odoo_module_header
-
     return SimpleNamespace(
         url=url,
         raw_content=raw_content,
@@ -969,8 +952,6 @@ class TestEsbuildHelpers(TransactionCase):
     """
 
     def _compiler(self, name="web.assets_emoji", native_modules=(), provider=None):
-        from odoo.libs.esbuild import EsbuildCompiler
-
         return EsbuildCompiler(
             name,
             list(native_modules),
@@ -978,16 +959,10 @@ class TestEsbuildHelpers(TransactionCase):
         )
 
     def _odoo_root(self):
-        from pathlib import Path
-
-        import odoo
-
         return Path(odoo.__path__[0]).parent
 
     def test_resolve_opts_applies_defaults(self):
         """``None`` arguments resolve to the class-constant defaults."""
-        from odoo.libs.esbuild import EsbuildCompiler
-
         c = self._compiler()
         timeout_s, target, source_maps = c._esbuild_resolve_opts(None, None, None)
         self.assertEqual(timeout_s, EsbuildCompiler._ESBUILD_TIMEOUT_S)
@@ -1059,9 +1034,6 @@ class TestEsbuildHelpers(TransactionCase):
         """``linked`` mode rewrites ``sourceMappingURL`` to the final attachment
         name and captures the metafile + source-map bytes.
         """
-        import tempfile
-        from pathlib import Path
-
         c = self._compiler("web.assets_emoji")
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -1084,9 +1056,6 @@ class TestEsbuildHelpers(TransactionCase):
 
     def test_postprocess_no_sourcemap_leaves_last_none(self):
         """``""`` mode reads the bundle verbatim and captures no source map."""
-        import tempfile
-        from pathlib import Path
-
         c = self._compiler()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -1102,9 +1071,6 @@ class TestEsbuildHelpers(TransactionCase):
 
     def test_postprocess_missing_output_raises(self):
         """A vanished output file becomes a clear ``RuntimeError``."""
-        import tempfile
-        from pathlib import Path
-
         c = self._compiler()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -1125,8 +1091,6 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_resolves_external_lib(self):
         """A specifier in ``ext_libs`` returns its canonical URL directly."""
-        from odoo.libs.esm_graph import _BridgeExportResolver
-
         r = _BridgeExportResolver(
             {"luxon": "/web/static/lib/luxon/luxon.js"}, {}, "test"
         )
@@ -1134,15 +1098,11 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_resolves_lib_candidate(self):
         """A vendored ``_LIB_CANDIDATES`` entry maps to a ``/``-joined URL."""
-        from odoo.libs.esm_graph import _BridgeExportResolver
-
         r = _BridgeExportResolver({}, {"@odoo/x": ("a", "b", "c.js")}, "test")
         self.assertEqual(r.resolve_url("@odoo/x"), "/a/b/c.js")
 
     def test_resolver_resolves_addon_paths(self):
         """``@addon`` specifiers map to ``src`` / ``lib`` / ``tests`` URLs."""
-        from odoo.libs.esm_graph import _BridgeExportResolver
-
         r = _BridgeExportResolver({}, {}, "test")
         self.assertEqual(
             r.resolve_url("@web/core/registry"),
@@ -1155,16 +1115,12 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_resolver_unmappable_specifiers(self):
         """Bare or malformed specifiers resolve to ``None``."""
-        from odoo.libs.esm_graph import _BridgeExportResolver
-
         r = _BridgeExportResolver({}, {}, "test")
         self.assertIsNone(r.resolve_url("luxon"))
         self.assertIsNone(r.resolve_url("@noslash"))
 
     def test_resolver_caches_and_get_protocol(self):
         """``read_source`` caches misses; ``get`` honors the source_map default."""
-        from odoo.libs.esm_graph import _BridgeExportResolver
-
         r = _BridgeExportResolver({}, {}, "test")
         self.assertIsNone(r.read_source("nope"))  # unmappable -> None, cached
         self.assertIn("nope", r._cache)
@@ -1174,8 +1130,6 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_discover_classifies_import_kinds(self):
         """Named / default / namespace imports are classified per specifier."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         b = AssetsBundle("test.discover", [], env=self.env)
         b.native_modules = [
             _fake_native_module(
@@ -1194,8 +1148,6 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_discover_excludes_ignored(self):
         """Own / owl / external-lib specifiers are excluded; ext libs recorded."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         b = AssetsBundle("test.discover2", [], env=self.env)
         b.native_modules = [
             _fake_native_module(
@@ -1218,8 +1170,6 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_shim_source_default_and_named(self):
         """A default + named surface emits ``export default`` and sorted names."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         shim, star = AssetsBundle._bridge_shim_source(
             "@web/foo", set(), {"b", "a"}, True
         )
@@ -1235,8 +1185,6 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_shim_source_star_fallback(self):
         """No names and no default -> the ``export default _m`` star fallback."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         shim, star = AssetsBundle._bridge_shim_source("@web/bar", set(), set(), False)
         self.assertTrue(star)
         self.assertIn("export default _m;", shim)
@@ -1244,8 +1192,6 @@ class TestBridgeHelpers(TransactionCase):
 
     def test_shim_source_named_only_no_default(self):
         """Named exports without a default emit no ``export default``."""
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         shim, star = AssetsBundle._bridge_shim_source("@web/baz", set(), {"x"}, False)
         self.assertFalse(star)
         self.assertIn("export const x = _m?.x;", shim)
@@ -1255,8 +1201,6 @@ class TestBridgeHelpers(TransactionCase):
         """A ``__default__`` consumer kind forces a default export even when the
         source surface is empty.
         """
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-
         shim, star = AssetsBundle._bridge_shim_source(
             "@web/q", {"__default__"}, set(), False
         )

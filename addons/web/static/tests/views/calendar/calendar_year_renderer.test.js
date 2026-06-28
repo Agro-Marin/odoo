@@ -7,7 +7,7 @@ import {
     mockService,
     mountWithCleanup,
     patchWithCleanup,
-    preloadBundle,
+    preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
 
@@ -26,7 +26,7 @@ async function start(props = {}) {
     });
 }
 
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 test(`mount a CalendarYearRenderer`, async () => {
     await start();

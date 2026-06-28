@@ -86,6 +86,16 @@ trap 'rm -f "$TMP_CFG"' EXIT
     printf '      "@odoo/owl": ["%s"],\n' "$OWL_LOCAL"
     printf '      "@web/*": ["addons/web/static/src/*"]\n'
     printf '    }\n  },\n  "include": [\n'
+    # Ambient type declarations — the global ``odoo`` (@types/odoo.d.ts) and
+    # the ``services`` / ``registries`` modules (@types/services.d.ts,
+    # @types/registries/*.d.ts) — back the IDE jsconfig via its typeRoots +
+    # ``**/*.ts`` include. Mirror that here so files that use those ambient
+    # types (registry, hooks, the service layer, …) validate against their
+    # real declarations instead of spuriously failing on TS2304/TS2307.
+    # ``skipLibCheck`` leaves the .d.ts themselves unchecked, and gate errors
+    # are still filtered to the allowlisted files only, so this only ADDS
+    # resolution — it never makes an already-clean file dirty.
+    printf '    "%s/addons/web/static/src/@types/**/*.d.ts",\n' "$ROOT"
     for i in "${!FILES[@]}"; do
         sep=","; [[ $i -eq $((${#FILES[@]} - 1)) ]] && sep=""
         printf '    "%s/%s"%s\n' "$ROOT" "${FILES[$i]}" "$sep"
@@ -94,15 +104,25 @@ trap 'rm -f "$TMP_CFG"' EXIT
 } > "$TMP_CFG"
 
 # --- run tsc (never let a nonzero tsc exit abort the script) ------------------
+# Run from $ROOT so tsc prints error paths repo-relative ("addons/web/static/...")
+# to match the allowlist entries. Historically tsc was run from the tooling cwd,
+# so it emitted "../static/..." which the allowlist-path filter below never
+# matched — the gate silently passed regardless of real errors. The suffix match
+# below is a second line of defense if the cwd ever shifts again.
 set +e
-TSC_OUT="$($TSC --project "$TMP_CFG" 2>&1)"
+TSC_OUT="$(cd "$ROOT" && $TSC --project "$TMP_CFG" 2>&1)"
 set -e
 
 # --- filter errors to the target files ---------------------------------------
+# Match on the cwd-independent path suffix from "static/" (a full, unique tail
+# of each allowlisted path) so the comparison is robust to tsc's cwd. The "("
+# anchor pins the match to the start of tsc's "(line,col)" so one file's suffix
+# cannot match a longer path that merely ends with the same characters.
 fail=0
 for f in "${FILES[@]}"; do
-    # tsc prints paths relative to cwd; match the path suffix to be robust.
-    matches="$(printf '%s\n' "$TSC_OUT" | grep -F "$f(" || true)"
+    # strip the leading "addons/<module>/" -> "static/src/.../file.js"
+    suffix="${f#addons/*/}"
+    matches="$(printf '%s\n' "$TSC_OUT" | grep -F "$suffix(" || true)"
     if [[ -n "$matches" ]]; then
         fail=1
         echo "✗ $f"

@@ -34,6 +34,9 @@ export class GraphController extends Component {
     };
 
     /** Initialize the graph model, action hooks, and search bar toggler. */
+    /** @type {any} */
+    model;
+
     setup() {
         this.model = useState(
             useModelWithSampleData(

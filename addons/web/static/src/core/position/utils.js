@@ -191,6 +191,7 @@ function computePosition(
         shouldAccountForIFrame && target.ownerDocument === cont.ownerDocument;
 
     // Compute positioning data
+    /** @type {Record<string, number>} */
     const directionsData = {
         t: iframeBox.top + targetBox.top - popMargins.bottom - margin - popBox.height,
         b: iframeBox.top + targetBox.bottom + popMargins.top + margin,
@@ -198,6 +199,7 @@ function computePosition(
         l: iframeBox.left + targetBox.left - popMargins.right - margin - popBox.width,
         c: iframeBox.top + targetBox.top + targetBox.height / 2 - popBox.height / 2,
     };
+    /** @type {Record<string, number>} */
     const variantsData = {
         vf: iframeBox.left + targetBox.left,
         vs: iframeBox.left + targetBox.left + popMargins.left,
@@ -209,7 +211,7 @@ function computePosition(
         he: iframeBox.top + targetBox.bottom - popMargins.bottom - popBox.height,
     };
 
-    function getPositioningData(d, v) {
+    function getPositioningData(/** @type {string} */ d, /** @type {string} */ v) {
         const [direction, variant] = reverseForRTL(DIRECTIONS[d], VARIANTS[v]);
         /** @type {PositioningSolution} */
         const result = { direction, variant, top: 0, left: 0 };
@@ -291,14 +293,15 @@ function computePosition(
             let height;
             if (vertical) {
                 height = Math.abs(
-                    targetBox[direction] - (d === "t" ? directionMin : directionMax),
+                    targetBox[/** @type {"top" | "bottom" | "left" | "right"} */ (direction)] -
+                        (d === "t" ? directionMin : directionMax),
                 );
             } else {
                 height = {
                     s: variantMax - targetBox.top,
                     m: variantMax - variantMin,
                     e: targetBox.bottom - variantMin,
-                }[v];
+                }[/** @type {"s" | "m" | "e"} */ (v)];
             }
             result.maxHeight = Math.floor(height);
         }

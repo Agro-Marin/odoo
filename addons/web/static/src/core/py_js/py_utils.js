@@ -5,13 +5,16 @@
 
 import { PyDate, PyDateTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
+import { ASTType } from "./ast_type.js";
 
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
 /**
- * @typedef { import("./py_parser").AST } AST
+ * AST node — a discriminated union keyed on the literal ``type`` tag (see
+ * {@link ASTType}); ``.type``/``switch`` checks narrow it to each node shape.
+ * @typedef {import("./ast_type.js").AST} AST
  */
 
 // -----------------------------------------------------------------------------
@@ -27,23 +30,23 @@ import { bp } from "./py_parser.js";
 export function toPyValue(value) {
     switch (typeof value) {
         case "string":
-            return { type: 1 /* String */, value };
+            return { type: ASTType.String, value };
         case "number":
-            return { type: 0 /* Number */, value };
+            return { type: ASTType.Number, value };
         case "boolean":
-            return { type: 2 /* Boolean */, value };
+            return { type: ASTType.Boolean, value };
         case "object":
             if (Array.isArray(value)) {
-                return { type: 4 /* List */, value: value.map(toPyValue) };
+                return { type: ASTType.List, value: value.map(toPyValue) };
             } else if (value === null) {
-                return { type: 3 /* None */ };
+                return { type: ASTType.None };
             } else if (value instanceof Date) {
                 return {
-                    type: 1,
+                    type: ASTType.String,
                     value: /** @type {any} */ (PyDateTime.convertDate(value)),
                 };
             } else if (value instanceof PyDate || value instanceof PyDateTime) {
-                return { type: 1, value: /** @type {any} */ (value) };
+                return { type: ASTType.String, value: /** @type {any} */ (value) };
             } else {
                 /** @type {Record<string, any>} */
                 const content = {};
@@ -52,7 +55,7 @@ export function toPyValue(value) {
                 for (const key in value) {
                     content[key] = toPyValue(value[key]);
                 }
-                return { type: 11 /* Dictionary */, value: content };
+                return { type: ASTType.Dictionary, value: content };
             }
         default:
             throw new Error("Invalid type");
@@ -66,52 +69,52 @@ export function toPyValue(value) {
  */
 export function formatAST(ast, lbp = 0) {
     switch (ast.type) {
-        case 3 /* None */:
+        case ASTType.None:
             return "None";
-        case 1 /* String */:
+        case ASTType.String:
             return JSON.stringify(ast.value);
-        case 0 /* Number */:
+        case ASTType.Number:
             return String(ast.value);
-        case 2 /* Boolean */:
+        case ASTType.Boolean:
             return ast.value ? "True" : "False";
-        case 4 /* List */:
+        case ASTType.List:
             return `[${ast.value.map(formatAST).join(", ")}]`;
-        case 6 /* UnaryOperator */:
+        case ASTType.UnaryOperator:
             if (ast.op === "not") {
                 return `not ` + formatAST(ast.right, 50);
             }
             return ast.op + formatAST(ast.right, 130);
-        case 7 /* BinaryOperator */: {
+        case ASTType.BinaryOperator: {
             const abp = bp(ast.op);
             const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
             return abp < lbp ? `(${str})` : str;
         }
-        case 11 /* Dictionary */: {
+        case ASTType.Dictionary: {
             const pairs = [];
             for (const k of Object.keys(ast.value || {})) {
                 pairs.push(`"${k}": ${formatAST(ast.value[k])}`);
             }
             return `{` + pairs.join(", ") + `}`;
         }
-        case 10 /* Tuple */:
+        case ASTType.Tuple:
             return `(${ast.value.map(formatAST).join(", ")})`;
-        case 5 /* Name */:
+        case ASTType.Name:
             return ast.value;
-        case 12 /* Lookup */: {
+        case ASTType.Lookup: {
             return `${formatAST(ast.target)}[${formatAST(ast.key)}]`;
         }
-        case 13 /* If */: {
+        case ASTType.If: {
             const { ifTrue, condition, ifFalse } = ast;
             return `${formatAST(ifTrue)} if ${formatAST(condition)} else ${formatAST(ifFalse)}`;
         }
-        case 14 /* BooleanOperator */: {
+        case ASTType.BooleanOperator: {
             const abp = bp(ast.op);
             const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
             return abp < lbp ? `(${str})` : str;
         }
-        case 15 /* ObjLookup */:
+        case ASTType.ObjLookup:
             return `${formatAST(ast.obj, 150)}.${ast.key}`;
-        case 8 /* FunctionCall */: {
+        case ASTType.FunctionCall: {
             const args = ast.args.map(formatAST);
             const kwargs = [];
             for (const kwarg of Object.keys(ast.kwargs || {})) {
@@ -131,9 +134,11 @@ export const PY_DICT = Object.create(null);
  * @returns {AST} a python dictionary
  */
 export function toPyDict(obj) {
-    return new Proxy(obj, {
-        getPrototypeOf() {
-            return PY_DICT;
-        },
-    });
+    return /** @type {AST} */ (
+        new Proxy(obj, {
+            getPrototypeOf() {
+                return PY_DICT;
+            },
+        })
+    );
 }

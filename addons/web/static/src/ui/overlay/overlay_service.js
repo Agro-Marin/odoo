@@ -28,17 +28,17 @@ const services = registry.category("services");
 export const overlayService = {
     start() {
         let nextId = 0;
-        const overlays = reactive({});
+        const overlays = reactive(/** @type {Record<number, any>} */ ({}));
 
         mainComponents.add("OverlayContainer", {
-            Component: OverlayContainer,
+            Component: /** @type {any} */ (OverlayContainer),
             props: { overlays },
         });
 
         const remove = async (
-            id,
+            /** @type {number} */ id,
             onRemove = /** @type {(params?: any) => void} */ (() => {}),
-            removeParams,
+            /** @type {any} */ removeParams,
         ) => {
             if (id in overlays) {
                 try {
@@ -57,7 +57,7 @@ export const overlayService = {
          */
         const add = (component, props, options = {}) => {
             const id = ++nextId;
-            const removeCurrentOverlay = (removeParams) =>
+            const removeCurrentOverlay = (/** @type {any} */ removeParams = undefined) =>
                 remove(id, options.onRemove, removeParams);
             overlays[id] = {
                 id,

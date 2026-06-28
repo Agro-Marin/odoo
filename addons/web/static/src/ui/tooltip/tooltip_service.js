@@ -49,10 +49,18 @@ export const SHOW_AFTER_DELAY = 250;
 
 export const tooltipService = {
     dependencies: ["popover"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ popover: any }} services
+     */
     start(env, { popover }) {
+        /** @type {number | null} */
         let openTooltipTimeout;
+        /** @type {(() => void) | null} */
         let closeTooltip;
+        /** @type {number} */
         let showTimer;
+        /** @type {HTMLElement | null} */
         let target = null;
         const elementsWithTooltips = new WeakMap();
 
@@ -158,6 +166,7 @@ export const tooltipService = {
                 openTooltip(el, elementsWithTooltips.get(el));
             } else if (element) {
                 const dataset = element.dataset;
+                /** @type {Record<string, any>} */
                 const params = {
                     tooltip: dataset.tooltip,
                     template: dataset.tooltipTemplate,
@@ -201,7 +210,7 @@ export const tooltipService = {
             cleanupTooltip(ev);
         }
 
-        function cleanupTooltip(ev) {
+        function cleanupTooltip(/** @type {Event} */ ev) {
             const el = /** @type {HTMLElement} */ (ev.target);
             if (target === el.closest("[data-tooltip], [data-tooltip-template]")) {
                 cleanup();
@@ -223,6 +232,7 @@ export const tooltipService = {
             }, timeoutDelay);
         }
 
+        /** @type {number} */
         let cleanupIntervalId;
         whenReady(() => {
             // Regularly check that the target is still in the DOM and if not, close the tooltip
@@ -275,7 +285,7 @@ export const tooltipService = {
         });
 
         return {
-            add(el, params) {
+            add(/** @type {HTMLElement} */ el, /** @type {Record<string, any>} */ params) {
                 elementsWithTooltips.set(el, params);
                 return () => {
                     elementsWithTooltips.delete(el);

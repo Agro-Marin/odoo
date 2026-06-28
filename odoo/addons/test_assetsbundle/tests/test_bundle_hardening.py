@@ -22,12 +22,12 @@ from unittest.mock import patch
 
 from odoo import SUPERUSER_ID, api
 from odoo.db import db_connect
-from odoo.libs.esbuild import _find_esbuild
-from odoo.libs.esm_bridges import BridgeShimManager
-from odoo.libs.esm_graph import _MODULE_SYNTAX_RE
-from odoo.libs.esm_registry import esm_registry, validate_esm_config
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, TransactionCase, get_db_name
+from odoo.tools.assets.esbuild import _find_esbuild
+from odoo.tools.assets.esm_bridges import BridgeShimManager
+from odoo.tools.assets.esm_graph import _MODULE_SYNTAX_RE
+from odoo.tools.assets.esm_registry import esm_registry, validate_esm_config
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
@@ -1135,10 +1135,10 @@ class TestAssetErrorTaxonomy(BaseCase):
 
 
 class TestEsmGraphCanonicalHome(BaseCase):
-    """ESM-graph predicates live in ``odoo.libs.esm_graph``, not as re-exports."""
+    """ESM-graph predicates live in ``odoo.tools.assets.esm_graph``, not as re-exports."""
 
     def test_predicates_resolve_from_esm_graph(self):
-        from odoo.libs import esm_graph
+        from odoo.tools.assets import esm_graph
 
         self.assertTrue(callable(esm_graph.is_native_module))
         self.assertTrue(callable(esm_graph._parse_odoo_module_header))

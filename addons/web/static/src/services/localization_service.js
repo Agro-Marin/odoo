@@ -84,10 +84,24 @@ export const localizationService = {
         /**
          * Apply translation data to the global `translatedTerms` and configure
          * the `localization` object with date/time formats and number settings.
-         * @param {{ hash: string, modules: Object, lang_parameters: Object, multi_lang: boolean }} result
+         * @param {{
+         *     hash: string,
+         *     modules: Record<string, { messages: { id: string, string: string }[] }>,
+         *     lang_parameters: {
+         *         date_format: string,
+         *         time_format: string,
+         *         decimal_point: string,
+         *         direction: string,
+         *         grouping: string,
+         *         thousands_sep: string,
+         *         week_start: number,
+         *     },
+         *     multi_lang: boolean,
+         * }} result
          */
         const updateTranslations = (result) => {
             // Eventually, we want a new python route to return directly the good result.
+            /** @type {Record<string, Record<string, string>>} */
             const terms = {};
             for (const addon of Object.keys(result.modules)) {
                 terms[addon] = {};

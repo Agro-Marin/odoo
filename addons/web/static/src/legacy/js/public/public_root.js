@@ -17,11 +17,7 @@ import { jsToPyLocale, pyToJsLocale } from "@web/core/l10n/utils";
 import { App, Component, whenReady } from "@odoo/owl";
 import { RPCError } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";
-
-// Accessed lazily — /** @type {any} */ (globalThis).luxon is a global from a legacy bundle that may not be
-// available yet when this native ESM module first evaluates (e.g. error pages).
-/** @type {() => any} */
-const getLuxonSettings = () => /** @type {any} */ (globalThis).luxon.Settings;
+import { Settings } from "@web/core/l10n/luxon";
 
 // Load localizations outside the PublicRoot to not wait for DOM ready (but
 // wait for them in PublicRoot)
@@ -439,7 +435,7 @@ export async function createPublicRoot(RootWidget) {
         translatableAttributes: ["data-tooltip"],
     });
     const locale = pyToJsLocale(lang) || browser.navigator.language;
-    getLuxonSettings().defaultLocale = locale;
+    Settings.defaultLocale = locale;
     const [root] = await Promise.all([
         app.mount(document.body),
         publicRoot.attachTo(document.body),

@@ -31,6 +31,7 @@
  */
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+import { registry } from "@web/core/registry";
 import { parseServerValue } from "./field_values.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -46,54 +47,56 @@ import { parseServerValue } from "./field_values.js";
  * @returns {any} server-formatted value
  */
 export function formatServerValue(fieldType, value) {
-    switch (fieldType) {
-        case "date":
-            return value ? serializeDate(value) : false;
-        case "datetime":
-            return value ? serializeDateTime(value) : false;
-        case "char":
-        case "text":
-            return value !== "" ? value : false;
-        case "html":
-            return value?.length ? value : false;
-        case "many2one":
-            return value ? value.id : false;
-        case "many2one_reference":
-            return value ? value.resId : 0;
-        case "reference":
-            return value?.resModel && value.resId
-                ? `${value.resModel},${value.resId}`
-                : false;
-        case "properties":
-            if (!value) {
-                return false;
-            }
-            return value.map((property) => {
-                property = { ...property };
-                for (const key of ["value", "default"]) {
-                    let val;
-                    if (property.type === "many2one") {
-                        val = property[key] && [
-                            property[key].id,
-                            property[key].display_name,
-                        ];
-                    } else if (
-                        (property.type === "date" || property.type === "datetime") &&
-                        typeof property[key] === "string"
-                    ) {
-                        // TO REMOVE: need refactoring PropertyField to use the same format as the server
-                        val = property[key];
-                    } else if (property[key] !== undefined) {
-                        val = formatServerValue(property.type, property[key]);
-                    }
-                    property[key] = val;
-                }
-                return property;
-            });
-        default:
-            return value;
-    }
+    return registry.category("serializers").get(fieldType, (v) => v)(value);
 }
+
+/**
+ * Per-type client→server value serializers, keyed by field type — the inverse
+ * of the ``deserializers`` registry (`@web/model/relational_model/field_values`).
+ *
+ * Single source shared with the value codec (`@web/core/field_codec`): the
+ * codec's ``serialize`` reads this same registry. Each entry is
+ * ``(value) => serverValue``; types with no entry pass the value through
+ * unchanged. Note the intentional read-rich/write-lean asymmetry vs the
+ * deserializers (e.g. ``many2one`` reads ``[id, name]`` → ``{id, display_name}``
+ * but writes back just the id) — the server only needs the id on write.
+ */
+registry
+    .category("serializers")
+    .add("date", (value) => (value ? serializeDate(value) : false))
+    .add("datetime", (value) => (value ? serializeDateTime(value) : false))
+    .add("char", (value) => (value !== "" ? value : false))
+    .add("text", (value) => (value !== "" ? value : false))
+    .add("html", (value) => (value?.length ? value : false))
+    .add("many2one", (value) => (value ? value.id : false))
+    .add("many2one_reference", (value) => (value ? value.resId : 0))
+    .add("reference", (value) =>
+        value?.resModel && value.resId ? `${value.resModel},${value.resId}` : false,
+    )
+    .add("properties", (value) => {
+        if (!value) {
+            return false;
+        }
+        return value.map((property) => {
+            property = { ...property };
+            for (const key of ["value", "default"]) {
+                let val;
+                if (property.type === "many2one") {
+                    val = property[key] && [property[key].id, property[key].display_name];
+                } else if (
+                    (property.type === "date" || property.type === "datetime") &&
+                    typeof property[key] === "string"
+                ) {
+                    // TO REMOVE: need refactoring PropertyField to use the same format as the server
+                    val = property[key];
+                } else if (property[key] !== undefined) {
+                    val = formatServerValue(property.type, property[key]);
+                }
+                property[key] = val;
+            }
+            return property;
+        });
+    });
 
 /**
  * Compute default values for fields that don't have data yet.

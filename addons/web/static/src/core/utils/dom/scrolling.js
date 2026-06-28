@@ -3,14 +3,14 @@
 
 /** @module @web/core/utils/dom/scrolling - Scroll detection, scrollIntoView, and scrollbar compensation utilities */
 
-function isScrollableX(el) {
+function isScrollableX(/** @type {Element} */ el) {
     if (el.scrollWidth > el.clientWidth && el.clientWidth > 0) {
         return couldBeScrollableX(el);
     }
     return false;
 }
 
-export function couldBeScrollableX(el) {
+export function couldBeScrollableX(/** @type {Element | null} */ el) {
     if (el) {
         const overflow = getComputedStyle(el).getPropertyValue("overflow-x");
         if (/\bauto\b|\bscroll\b/.test(overflow)) {
@@ -23,7 +23,7 @@ export function couldBeScrollableX(el) {
 /**
  * Get the closest horizontally scrollable for a given element.
  *
- * @param {HTMLElement} el
+ * @param {HTMLElement | null} el
  * @returns {HTMLElement | null}
  */
 export function closestScrollableX(el) {
@@ -36,14 +36,14 @@ export function closestScrollableX(el) {
     return null;
 }
 
-export function isScrollableY(el) {
+export function isScrollableY(/** @type {Element | null} */ el) {
     if (el && el.scrollHeight > el.clientHeight && el.clientHeight > 0) {
         return couldBeScrollableY(el);
     }
     return false;
 }
 
-export function couldBeScrollableY(el) {
+export function couldBeScrollableY(/** @type {Element | null} */ el) {
     if (el) {
         const overflow = getComputedStyle(el).getPropertyValue("overflow-y");
         if (/\bauto\b|\bscroll\b/.test(overflow)) {
@@ -56,7 +56,7 @@ export function couldBeScrollableY(el) {
 /**
  * Get the closest vertically scrollable for a given element.
  *
- * @param {HTMLElement} el
+ * @param {HTMLElement | null} el
  * @returns {HTMLElement | null}
  */
 export function closestScrollableY(el) {
@@ -78,20 +78,29 @@ export function closestScrollableY(el) {
  * @param {boolean} [options.isAnchor] states if the scroll is to an anchor
  * @param {ScrollBehavior} [options.behavior] "smooth", "instant", "auto"
  * @param {number} [options.offset] applies a vertical offset
+ * @returns {Promise<any[]> | void}
  */
 export function scrollTo(element, options = {}) {
     const { behavior = "auto", isAnchor = false, offset = 0 } = options;
-    const scrollable = closestScrollableY(options.scrollable || element.parentElement);
-    if (!scrollable) {
+    const maybeScrollable = closestScrollableY(
+        options.scrollable || element.parentElement,
+    );
+    if (!maybeScrollable) {
         return;
     }
+    // Bind a non-null const so the nested awaitScroll closure sees HTMLElement:
+    // TS does not carry the guard's narrowing across a function boundary.
+    const scrollable = maybeScrollable;
 
     const scrollRect = scrollable.getBoundingClientRect();
     const elementRect = element.getBoundingClientRect();
 
     const scrollPromises = [];
 
-    /** Wait for scrollend, but resolve immediately if no actual scrolling occurs. */
+    /**
+     * Wait for scrollend, but resolve immediately if no actual scrolling occurs.
+     * @param {number} targetTop
+     */
     function awaitScroll(targetTop) {
         const prevTop = scrollable.scrollTop;
         scrollable.scrollTo({ top: targetTop, behavior });
@@ -104,7 +113,7 @@ export function scrollTo(element, options = {}) {
             return Promise.resolve();
         }
         return new Promise((resolve) => {
-            scrollable.addEventListener("scrollend", () => resolve(), {
+            scrollable.addEventListener("scrollend", () => resolve(undefined), {
                 once: true,
             });
         });
@@ -148,7 +157,7 @@ export function scrollTo(element, options = {}) {
 }
 
 export function compensateScrollbar(
-    el,
+    /** @type {HTMLElement | null} */ el,
     add = true,
     isScrollElement = true,
     cssProperty = "padding-right",
@@ -176,7 +185,7 @@ export function compensateScrollbar(
     const borderRightWidth = Math.ceil(Number.parseFloat(style.borderRightWidth));
     const bordersWidth = borderLeftWidth + borderRightWidth;
     const newValue =
-        Number.parseInt(style[cssProperty], 10) +
+        Number.parseInt(/** @type {Record<string, any>} */ (style)[cssProperty], 10) +
         scrollableEl.offsetWidth -
         scrollableEl.clientWidth -
         bordersWidth;
