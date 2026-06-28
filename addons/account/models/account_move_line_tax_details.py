@@ -5,35 +5,39 @@ from odoo.tools import SQL
 
 
 class AccountMoveLine(models.Model):
-    _inherit = 'account.move.line'
+    _inherit = "account.move.line"
 
     @api.model
     def _get_query_tax_details_from_domain(self, domain, fallback=True) -> SQL:
-        """ Create the tax details sub-query based on the orm domain passed as parameter.
+        """Create the tax details sub-query based on the orm domain passed as parameter.
 
         :param domain:      An orm domain on account.move.line.
         :param fallback:    Fallback on an approximated mapping if the mapping failed.
         :return:            query as SQL object
         """
-        query = self.env['account.move.line']._search(domain)
+        query = self.env["account.move.line"]._search(domain)
 
-        return self._get_query_tax_details(query.from_clause, query.where_clause, fallback=fallback)
+        return self._get_query_tax_details(
+            query.from_clause, query.where_clause, fallback=fallback
+        )
 
     @api.model
     def _get_extra_query_base_tax_line_mapping(self) -> SQL:
-        #TO OVERRIDE
+        # TO OVERRIDE
         return SQL()
 
     @api.model
-    def _get_query_tax_details(self, table_references, search_condition, fallback=True) -> SQL:
-        """ Create the tax details sub-query based on the orm domain passed as parameter.
+    def _get_query_tax_details(
+        self, table_references, search_condition, fallback=True
+    ) -> SQL:
+        """Create the tax details sub-query based on the orm domain passed as parameter.
 
         :param table_references:    The query to inject after the FROM, as an SQL object.
         :param search_condition:    The query to inject in the WHERE clause, as an SQL object.
         :param fallback:            Fallback on an approximated mapping if the mapping failed.
         :return:                    query as an SQL object
         """
-        group_taxes = self.env['account.tax'].search([('amount_type', '=', 'group')])
+        group_taxes = self.env["account.tax"].search([("amount_type", "=", "group")])
 
         group_taxes_query_list = []
         for group_tax in group_taxes:
@@ -41,18 +45,28 @@ class AccountMoveLine(models.Model):
             if not children_taxes:
                 continue
 
-            children_taxes_in_query = SQL(','.join('%s' for dummy in children_taxes),
-                                          *children_taxes.ids)
-            group_taxes_query_list.append(SQL('WHEN tax.id = %s THEN ARRAY[%s]', group_tax.id, children_taxes_in_query))
+            children_taxes_in_query = SQL(
+                ",".join("%s" for dummy in children_taxes), *children_taxes.ids
+            )
+            group_taxes_query_list.append(
+                SQL(
+                    "WHEN tax.id = %s THEN ARRAY[%s]",
+                    group_tax.id,
+                    children_taxes_in_query,
+                )
+            )
 
         if group_taxes_query_list:
-            group_taxes_query = SQL('''UNNEST(CASE %s ELSE ARRAY[tax.id] END)''', SQL(' ').join(group_taxes_query_list))
+            group_taxes_query = SQL(
+                """UNNEST(CASE %s ELSE ARRAY[tax.id] END)""",
+                SQL(" ").join(group_taxes_query_list),
+            )
         else:
-            group_taxes_query = SQL('tax.id')
+            group_taxes_query = SQL("tax.id")
 
         if fallback:
             fallback_query = SQL(
-                '''
+                """
                 UNION ALL
 
                 SELECT
@@ -73,17 +87,19 @@ class AccountMoveLine(models.Model):
                     AND base_line.currency_id = account_move_line.currency_id
                 WHERE base_tax_line_mapping.tax_line_id IS NULL
                 AND %(search_condition)s
-                ''',
+                """,
                 table_references=table_references,
                 search_condition=search_condition,
             )
         else:
             fallback_query = SQL()
 
-        extra_query_base_tax_line_mapping = self._get_extra_query_base_tax_line_mapping()
+        extra_query_base_tax_line_mapping = (
+            self._get_extra_query_base_tax_line_mapping()
+        )
 
         return SQL(
-            '''
+            """
             /*
             As example to explain the different parts of the query, we'll consider a move with the following lines:
             Name            Tax_line_id         Tax_ids                 Debit       Credit      Base lines
@@ -503,7 +519,7 @@ class AccountMoveLine(models.Model):
                     0.0
                 ) AS tax_amount_currency
             FROM base_tax_matching_all_amounts sub
-            ''',
+            """,
             extra_query_base_tax_line_mapping=extra_query_base_tax_line_mapping,
             group_taxes_query=group_taxes_query,
             search_condition=search_condition,

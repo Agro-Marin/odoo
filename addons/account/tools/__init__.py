@@ -6,7 +6,7 @@ from .dict_to_xml import dict_to_xml
 
 
 class LegacyHTTPAdapter(requests.adapters.HTTPAdapter):
-    """ An adapter to allow unsafe legacy renegotiation necessary to connect to
+    """An adapter to allow unsafe legacy renegotiation necessary to connect to
     gravely outdated ETA production servers.
     """
 

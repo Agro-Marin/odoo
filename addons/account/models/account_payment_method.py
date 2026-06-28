@@ -5,16 +5,18 @@ from odoo.fields import Domain
 
 
 class AccountPaymentMethod(models.Model):
-    _name = 'account.payment.method'
+    _name = "account.payment.method"
     _description = "Payment Methods"
 
     name = fields.Char(required=True, translate=True)
     code = fields.Char(required=True)  # For internal identification
-    payment_type = fields.Selection(selection=[('inbound', 'Inbound'), ('outbound', 'Outbound')], required=True)
+    payment_type = fields.Selection(
+        selection=[("inbound", "Inbound"), ("outbound", "Outbound")], required=True
+    )
 
     _name_code_unique = models.Constraint(
-        'unique (code, payment_type)',
-        'The combination code/payment type already exists!',
+        "unique (code, payment_type)",
+        "The combination code/payment type already exists!",
     )
 
     @api.model_create_multi
@@ -28,14 +30,19 @@ class AccountPaymentMethod(models.Model):
         # In said script we can then allow for a custom behavior for the payment.method.line on the journals.
         for method in payment_methods:
             information = methods_info.get(method.code, {})
-            if information.get('mode') == 'multi':
+            if information.get("mode") == "multi":
                 method_domain = method._get_payment_method_domain(method.code)
-                journals = self.env['account.journal'].search(method_domain)
-                self.env['account.payment.method.line'].create([{
-                    'name': method.name,
-                    'payment_method_id': method.id,
-                    'journal_id': journal.id
-                } for journal in journals])
+                journals = self.env["account.journal"].search(method_domain)
+                self.env["account.payment.method.line"].create(
+                    [
+                        {
+                            "name": method.name,
+                            "payment_method_id": method.id,
+                            "journal_id": journal.id,
+                        }
+                        for journal in journals
+                    ]
+                )
         return payment_methods
 
     @api.model
@@ -48,16 +55,17 @@ class AccountPaymentMethod(models.Model):
         if not code:
             return Domain.TRUE
         information = self._get_payment_method_information().get(code)
-        journal_types = information.get('type', ('bank', 'cash', 'credit'))
-        domain = Domain('type', 'in', journal_types)
+        journal_types = information.get("type", ("bank", "cash", "credit"))
+        domain = Domain("type", "in", journal_types)
 
-        if with_currency and (currency_ids := information.get('currency_ids')):
+        if with_currency and (currency_ids := information.get("currency_ids")):
             domain &= (
-                Domain('currency_id', '=', False) & Domain('company_id.currency_id', 'in', currency_ids)
-            ) | Domain('currency_id', 'in', currency_ids)
+                Domain("currency_id", "=", False)
+                & Domain("company_id.currency_id", "in", currency_ids)
+            ) | Domain("currency_id", "in", currency_ids)
 
-        if with_country and (country_id := information.get('country_id')):
-            domain &= Domain('company_id.account_fiscal_country_id', '=', country_id)
+        if with_country and (country_id := information.get("country_id")):
+            domain &= Domain("company_id.account_fiscal_country_id", "=", country_id)
 
         return domain
 
@@ -76,7 +84,7 @@ class AccountPaymentMethod(models.Model):
         - ``country_id``: The id of the country needed on the company for it to be eligible.
         """
         return {
-            'manual': {'mode': 'multi', 'type': ('bank', 'cash', 'credit')},
+            "manual": {"mode": "multi", "type": ("bank", "cash", "credit")},
         }
 
     @api.model
@@ -88,61 +96,63 @@ class AccountPaymentMethod(models.Model):
         return []
 
     def unlink(self):
-        self.env['account.payment.method.line'].search([('payment_method_id', 'in', self.ids)]).unlink()
+        self.env["account.payment.method.line"].search(
+            [("payment_method_id", "in", self.ids)]
+        ).unlink()
         return super().unlink()
 
 
 class AccountPaymentMethodLine(models.Model):
-    _name = 'account.payment.method.line'
+    _name = "account.payment.method.line"
     _description = "Payment Methods"
-    _order = 'sequence, id'
+    _order = "sequence, id"
 
     # == Business fields ==
-    name = fields.Char(compute='_compute_name', readonly=False, store=True)
+    name = fields.Char(compute="_compute_name", readonly=False, store=True)
     sequence = fields.Integer(default=10)
     payment_method_id = fields.Many2one(
-        string='Payment Method',
-        comodel_name='account.payment.method',
+        string="Payment Method",
+        comodel_name="account.payment.method",
         domain="[('payment_type', '=?', payment_type), ('id', 'in', available_payment_method_ids)]",
         required=True,
     )
     payment_account_id = fields.Many2one(
-        comodel_name='account.account',
+        comodel_name="account.account",
         check_company=True,
         copy=False,
-        ondelete='restrict',
-        domain="['|', ('account_type', 'in', ('asset_current', 'liability_current')), ('id', '=', default_account_id)]"
+        ondelete="restrict",
+        domain="['|', ('account_type', 'in', ('asset_current', 'liability_current')), ('id', '=', default_account_id)]",
     )
     journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name="account.journal",
         check_company=True,
-        index='btree_not_null',
+        index="btree_not_null",
     )
-    default_account_id = fields.Many2one(
-        related='journal_id.default_account_id'
-    )
+    default_account_id = fields.Many2one(related="journal_id.default_account_id")
 
     # == Display purpose fields ==
-    code = fields.Char(related='payment_method_id.code')
-    payment_type = fields.Selection(related='payment_method_id.payment_type')
-    company_id = fields.Many2one(related='journal_id.company_id')
-    available_payment_method_ids = fields.Many2many(related='journal_id.available_payment_method_ids')
+    code = fields.Char(related="payment_method_id.code")
+    payment_type = fields.Selection(related="payment_method_id.payment_type")
+    company_id = fields.Many2one(related="journal_id.company_id")
+    available_payment_method_ids = fields.Many2many(
+        related="journal_id.available_payment_method_ids"
+    )
 
-    @api.depends('journal_id')
-    @api.depends_context('hide_payment_journal_id')
+    @api.depends("journal_id")
+    @api.depends_context("hide_payment_journal_id")
     def _compute_display_name(self):
         for method in self:
-            if self.env.context.get('hide_payment_journal_id'):
+            if self.env.context.get("hide_payment_journal_id"):
                 return super()._compute_display_name()
             method.display_name = f"{method.name} ({method.journal_id.name})"
 
-    @api.depends('payment_method_id.name')
+    @api.depends("payment_method_id.name")
     def _compute_name(self):
         for method in self:
             if not method.name:
                 method.name = method.payment_method_id.name
 
-    @api.constrains('name')
+    @api.constrains("name")
     def _ensure_unique_name_for_journal(self):
         self.journal_id._check_payment_method_line_ids_multiplicity()
 
@@ -153,11 +163,15 @@ class AccountPaymentMethodLine(models.Model):
         """
         unused_payment_method_lines = self
         for line in self:
-            payment_count = self.env['account.payment'].sudo().search_count([('payment_method_line_id', '=', line.id)])
+            payment_count = (
+                self.env["account.payment"]
+                .sudo()
+                .search_count([("payment_method_line_id", "=", line.id)])
+            )
             if payment_count > 0:
                 unused_payment_method_lines -= line
 
-        (self - unused_payment_method_lines).write({'journal_id': False})
+        (self - unused_payment_method_lines).write({"journal_id": False})
 
         return super(AccountPaymentMethodLine, unused_payment_method_lines).unlink()
 
@@ -168,6 +182,10 @@ class AccountPaymentMethodLine(models.Model):
 
         :param account_id: The id of an account.account.
         """
-        account = self.env['account.account'].browse(account_id)
-        if not account.reconcile and account.account_type not in ('asset_cash', 'liability_credit_card', 'off_balance'):
+        account = self.env["account.account"].browse(account_id)
+        if not account.reconcile and account.account_type not in (
+            "asset_cash",
+            "liability_credit_card",
+            "off_balance",
+        ):
             account.reconcile = True
