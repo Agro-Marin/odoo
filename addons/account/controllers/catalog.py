@@ -6,8 +6,7 @@ from odoo.addons.product.controllers.catalog import ProductCatalogController
 
 
 class ProductCatalogAccountController(ProductCatalogController):
-
-    @route('/product/catalog/get_sections', auth='user', type='jsonrpc', readonly=True)
+    @route("/product/catalog/get_sections", auth="user", type="jsonrpc", readonly=True)
     def product_catalog_get_sections(self, res_model, order_id, child_field, **kwargs):
         """Return the sections which are in given order to be shown in the product catalog.
 
@@ -28,9 +27,15 @@ class ProductCatalogAccountController(ProductCatalogController):
         order = request.env[res_model].browse(order_id)
         return order.with_company(order.company_id)._get_sections(child_field, **kwargs)
 
-    @route('/product/catalog/create_section', auth='user', type='jsonrpc')
+    @route("/product/catalog/create_section", auth="user", type="jsonrpc")
     def product_catalog_create_section(
-        self, res_model, order_id, child_field, name, position, **kwargs,
+        self,
+        res_model,
+        order_id,
+        child_field,
+        name,
+        position,
+        **kwargs,
     ):
         """Create a new section on the given order.
 
@@ -45,12 +50,20 @@ class ProductCatalogAccountController(ProductCatalogController):
         """
         order = request.env[res_model].browse(order_id)
         return order.with_company(order.company_id)._create_section(
-            child_field, name, position, **kwargs,
+            child_field,
+            name,
+            position,
+            **kwargs,
         )
 
-    @route('/product/catalog/resequence_sections', auth='user', type='jsonrpc')
+    @route("/product/catalog/resequence_sections", auth="user", type="jsonrpc")
     def product_catalog_resequence_sections(
-        self, res_model, order_id, sections, child_field, **kwargs,
+        self,
+        res_model,
+        order_id,
+        sections,
+        child_field,
+        **kwargs,
     ):
         """Reorder the sections of a given order.
 
@@ -63,5 +76,7 @@ class ProductCatalogAccountController(ProductCatalogController):
         """
         order = request.env[res_model].browse(order_id)
         return order.with_company(order.company_id)._resequence_sections(
-            sections, child_field, **kwargs,
+            sections,
+            child_field,
+            **kwargs,
         )

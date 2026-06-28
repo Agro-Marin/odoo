@@ -4,7 +4,7 @@ from odoo import models
 
 
 class ProductCatalogMixin(models.AbstractModel):
-    _inherit = 'product.catalog.mixin'
+    _inherit = "product.catalog.mixin"
 
     def _create_section(self, child_field, name, position, **kwargs):
         """Create a new section in order.
@@ -23,26 +23,27 @@ class ProductCatalogMixin(models.AbstractModel):
         if not parent_field:
             return {}
 
-        lines = self[child_field].sorted('sequence')
+        lines = self[child_field].sorted("sequence")
         line_model = lines._name
         sequence = 10
         if lines:
             sequence = (
-                lines[0].sequence - 1 if position == 'top'
-                else lines[-1].sequence + 1
+                lines[0].sequence - 1 if position == "top" else lines[-1].sequence + 1
             )
 
-        section = self.env[line_model].create({
-            parent_field: self.id,
-            'name': name,
-            'display_type': 'line_section',
-            'sequence': sequence,
-            **self._get_default_create_section_values(),
-        })
+        section = self.env[line_model].create(
+            {
+                parent_field: self.id,
+                "name": name,
+                "display_type": "line_section",
+                "sequence": sequence,
+                **self._get_default_create_section_values(),
+            }
+        )
 
         return {
-            'id': section.id,
-            'sequence': section.sequence,
+            "id": section.id,
+            "sequence": section.sequence,
         }
 
     def _get_new_line_sequence(self, child_field, section_id):
@@ -53,18 +54,23 @@ class ProductCatalogMixin(models.AbstractModel):
         :rtype: int
         :return: Computed sequence number.
         """
-        lines = self[child_field].sorted('sequence')
+        lines = self[child_field].sorted("sequence")
 
         if section_id:
             # Insert after the selected section line
-            sequence = lines.filtered_domain([
-                ('display_type', '=', 'line_section'),
-                ('id', '=', section_id),
-            ]).sequence + 1
-        elif (
-            section_lines := lines.filtered_domain([
-                ('display_type', '=', 'line_section'),
-            ])
+            sequence = (
+                lines.filtered_domain(
+                    [
+                        ("display_type", "=", "line_section"),
+                        ("id", "=", section_id),
+                    ]
+                ).sequence
+                + 1
+            )
+        elif section_lines := lines.filtered_domain(
+            [
+                ("display_type", "=", "line_section"),
+            ]
         ):
             # Insert before the first section (top of the order)
             sequence = section_lines[0].sequence
@@ -72,7 +78,7 @@ class ProductCatalogMixin(models.AbstractModel):
             # No sections exist, insert at the end
             sequence = (lines and lines[-1].sequence + 1) or 10
 
-        for line in lines.filtered_domain([('sequence', '>=', sequence)]):
+        for line in lines.filtered_domain([("sequence", ">=", sequence)]):
             line.sequence += 1
 
         return sequence
@@ -88,31 +94,31 @@ class ProductCatalogMixin(models.AbstractModel):
         sections = {}
         no_section_count = 0
         lines = self[child_field]
-        for line in lines.sorted('sequence'):
-            if line.display_type == 'line_section':
+        for line in lines.sorted("sequence"):
+            if line.display_type == "line_section":
                 sections[line.id] = {
-                    'id': line.id,
-                    'name': line.name,
-                    'sequence': line.sequence,
-                    'line_count': 0,
+                    "id": line.id,
+                    "name": line.name,
+                    "sequence": line.sequence,
+                    "line_count": 0,
                 }
             elif self._is_line_valid_for_section_line_count(line):
                 sec_id = line.get_line_parent_section().id
                 if sec_id and sec_id in sections:
-                    sections[sec_id]['line_count'] += 1
+                    sections[sec_id]["line_count"] += 1
                 else:
                     no_section_count += 1
 
         if no_section_count > 0 or not sections:
             # If there are products outside of a section or no section at all
             sections[False] = {
-                'id': False,
-                'name': self.env._("No Section"),
-                'sequence': lines[0].sequence - 1 if lines else 0,
-                'line_count': no_section_count,
+                "id": False,
+                "name": self.env._("No Section"),
+                "sequence": lines[0].sequence - 1 if lines else 0,
+                "line_count": no_section_count,
             }
 
-        return sorted(sections.values(), key=lambda x: x['sequence'])
+        return sorted(sections.values(), key=lambda x: x["sequence"])
 
     def _get_default_create_section_values(self):
         """Return default values for creating a new section in order through catalog.
@@ -128,7 +134,7 @@ class ProductCatalogMixin(models.AbstractModel):
         :return: parent field
         :rtype: str
         """
-        return ''
+        return ""
 
     def _is_line_valid_for_section_line_count(self, line):
         """Check if a line is valid for inclusion in the section's line count.
@@ -139,7 +145,7 @@ class ProductCatalogMixin(models.AbstractModel):
         """
         return (
             not line.display_type
-            and line.product_type != 'combo'
+            and line.product_type != "combo"
             and line.product_uom_qty > 0
         )
 
@@ -152,37 +158,40 @@ class ProductCatalogMixin(models.AbstractModel):
         :return: A dictonary containing the new sequences of all the sections of order.
         :rtype: dict
         """
-        lines = self[child_field].sorted('sequence')
+        lines = self[child_field].sorted("sequence")
         move_section, target_section = sections
 
         move_block = lines.filtered(
-            lambda line: line.id == move_section['id']
-            or line.parent_id.id == move_section['id'],
+            lambda line: (
+                line.id == move_section["id"] or line.parent_id.id == move_section["id"]
+            ),
         )
 
         target_block = lines.filtered(
-            lambda line: line.id == target_section['id']
-            or line.parent_id.id == target_section['id'],
+            lambda line: (
+                line.id == target_section["id"]
+                or line.parent_id.id == target_section["id"]
+            ),
         )
 
         remaining_lines = lines - move_block
-        insert_after = move_section['sequence'] < target_section['sequence']
+        insert_after = move_section["sequence"] < target_section["sequence"]
         insert_index = len(remaining_lines)
         for idx, line in enumerate(remaining_lines):
-            if line.id == (target_block[-1].id if insert_after else target_section['id']):
+            if line.id == (
+                target_block[-1].id if insert_after else target_section["id"]
+            ):
                 insert_index = idx + 1 if insert_after else idx
                 break
 
         reordered_lines = (
-            remaining_lines[:insert_index] +
-            move_block +
-            remaining_lines[insert_index:]
+            remaining_lines[:insert_index] + move_block + remaining_lines[insert_index:]
         )
 
         sections = {}
         for sequence, line in enumerate(reordered_lines, start=1):
             line.sequence = sequence
-            if line.display_type == 'line_section':
+            if line.display_type == "line_section":
                 sections[line.id] = sequence
 
         return sections

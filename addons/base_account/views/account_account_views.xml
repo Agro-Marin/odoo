@@ -1,6 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="view_account_search" model="ir.ui.view">
+        <field name="name">account.account.search</field>
+        <field name="model">account.account</field>
+        <field name="arch" type="xml">
+            <search string="Accounts">
+                <field name="name"
+                    filter_domain="['|', '|', ('name', 'ilike', self), ('code', '=ilike', self + '%'), ('description', 'ilike', self)]"
+                    string="Account" />
+                <filter string="Receivable" name="receivableacc"
+                    domain="[('account_type','=','asset_receivable')]" />
+                <filter string="Payable" name="payableacc"
+                    domain="[('account_type','=','liability_payable')]" />
+                <filter string="Equity" name="equityacc"
+                    domain="[('internal_group','=', 'equity')]" />
+                <filter string="Assets" name="assetsacc"
+                    domain="[('internal_group','=', 'asset')]" />
+                <filter string="Liability" name="liabilityacc"
+                    domain="[('internal_group','=', 'liability')]" />
+                <filter string="Income" name="incomeacc"
+                    domain="[('internal_group','=', 'income')]" />
+                <filter string="Expenses" name="expensesacc"
+                    domain="[('internal_group','=', 'expense')]" />
+                <filter string="Fixed Assets" name="type_asset_fixed"
+                    domain="[('account_type', '=', 'asset_fixed')]"
+                    invisible="True" />
+                <filter string="Frequent Expenses" name="type_expense"
+                    domain="[('account_type', '=', 'expense')]"
+                    invisible="True" />
+                <separator />
+                <filter string="Inactive Accounts" name="inactiveacc"
+                    domain="[('active', '=', False)]" />
+                <separator />
+                <field name="account_type" />
+                <group>
+                    <filter string="Account Type" name="accounttype"
+                        domain="" context="{'group_by':'account_type'}" />
+                </group>
+                <searchpanel class="account_root w-auto">
+                    <field name="root_id" icon="fa-filter" limit="false" />
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_account_list" model="ir.ui.view">
+        <field name="name">account.account.list</field>
+        <field name="model">account.account</field>
+        <field name="arch" type="xml">
+            <list create="1" delete="1" multi_edit="1" string="Chart of accounts">
+                <field name="placeholder_code" column_invisible="1" />
+                <field name="internal_group" column_invisible="True" />
+
+                <field name="code" string="Code" widget="char_with_placeholder_field"
+                    options="{'placeholder_field': 'placeholder_code'}" />
+                <field name="name" />
+                <field name="account_type" widget="account_type_selection" />
+                <field name="reconcile" widget="boolean_toggle"
+                    invisible="account_type in ('asset_cash', 'liability_credit_card', 'off_balance')" />
+                <field name="active"
+                    widget="boolean_toggle"
+                    optional="hide" />
+                <field name="non_trade"
+                    widget="boolean_toggle"
+                    invisible="account_type not in ('liability_payable', 'asset_receivable')"
+                    optional="hide" />
+                <field name="tag_ids"
+                    domain="[('applicability', '=', 'accounts')]"
+                    optional="hide" widget="many2many_tags" />
+                <field name="currency_id"
+                    options="{'no_create': True}"
+                    groups="base.group_multi_currency" />
+                <field name="company_ids" widget="many2many_tags"
+                    readonly="True"
+                    optional="show"
+                    groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_account_account_kanban" model="ir.ui.view">
+        <field name="name">account.account.kanban</field>
+        <field name="model">account.account</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <templates>
+                    <t t-name="card">
+                        <div class="row">
+                            <div class="col-8">
+                                <field class="fw-bolder" name="name" />
+                            </div>
+                            <div class="col-4 text-end">
+                                <field class="badge rounded-pill" name="code" />
+                            </div>
+                        </div>
+                        <div>
+                            <strong>Type: </strong>
+                            <field name="account_type" />
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="view_account_form" model="ir.ui.view">
         <field name="name">account.account.form</field>
         <field name="model">account.account</field>
@@ -71,102 +175,6 @@
                     </notebook>
                 </sheet>
             </form>
-        </field>
-    </record>
-
-    <record id="view_account_list" model="ir.ui.view">
-        <field name="name">account.account.list</field>
-        <field name="model">account.account</field>
-        <field name="arch" type="xml">
-            <list create="1" delete="1" multi_edit="1" string="Chart of accounts">
-                <field name="placeholder_code" column_invisible="1" />
-                <field name="code" string="Code" widget="char_with_placeholder_field"
-                    options="{'placeholder_field': 'placeholder_code'}" />
-                <field name="name" />
-                <field name="account_type" widget="account_type_selection" />
-                <field name="internal_group" column_invisible="True" />
-                <field name="reconcile" widget="boolean_toggle"
-                    invisible="account_type in ('asset_cash', 'liability_credit_card', 'off_balance')" />
-                <field name="active" optional="hide" widget="boolean_toggle" />
-                <field name="non_trade" widget="boolean_toggle"
-                    invisible="account_type not in ('liability_payable', 'asset_receivable')"
-                    optional="hide" />
-                <field name="tag_ids" domain="[('applicability', '=', 'accounts')]"
-                    optional="hide" widget="many2many_tags" />
-                <field name="currency_id" options="{'no_create': True}"
-                    groups="base.group_multi_currency" />
-                <field name="company_ids" widget="many2many_tags" readonly="True"
-                    groups="base.group_multi_company" />
-            </list>
-        </field>
-    </record>
-
-    <record id="view_account_account_kanban" model="ir.ui.view">
-        <field name="name">account.account.kanban</field>
-        <field name="model">account.account</field>
-        <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile">
-                <templates>
-                    <t t-name="card">
-                        <div class="row">
-                            <div class="col-8">
-                                <field class="fw-bolder" name="name" />
-                            </div>
-                            <div class="col-4 text-end">
-                                <field class="badge rounded-pill" name="code" />
-                            </div>
-                        </div>
-                        <div>
-                            <strong>Type: </strong>
-                            <field name="account_type" />
-                        </div>
-                    </t>
-                </templates>
-            </kanban>
-        </field>
-    </record>
-
-    <record id="view_account_search" model="ir.ui.view">
-        <field name="name">account.account.search</field>
-        <field name="model">account.account</field>
-        <field name="arch" type="xml">
-            <search string="Accounts">
-                <field name="name"
-                    filter_domain="['|', '|', ('name', 'ilike', self), ('code', '=ilike', self + '%'), ('description', 'ilike', self)]"
-                    string="Account" />
-                <filter string="Receivable" name="receivableacc"
-                    domain="[('account_type','=','asset_receivable')]" />
-                <filter string="Payable" name="payableacc"
-                    domain="[('account_type','=','liability_payable')]" />
-                <filter string="Equity" name="equityacc"
-                    domain="[('internal_group','=', 'equity')]" />
-                <filter string="Assets" name="assetsacc"
-                    domain="[('internal_group','=', 'asset')]" />
-                <filter string="Liability" name="liabilityacc"
-                    domain="[('internal_group','=', 'liability')]" />
-                <filter string="Income" name="incomeacc"
-                    domain="[('internal_group','=', 'income')]" />
-                <filter string="Expenses" name="expensesacc"
-                    domain="[('internal_group','=', 'expense')]" />
-                <filter string="Fixed Assets" name="type_asset_fixed"
-                    domain="[('account_type', '=', 'asset_fixed')]"
-                    invisible="True" />
-                <filter string="Frequent Expenses" name="type_expense"
-                    domain="[('account_type', '=', 'expense')]"
-                    invisible="True" />
-                <separator />
-                <filter string="Inactive Accounts" name="inactiveacc"
-                    domain="[('active', '=', False)]" />
-                <separator />
-                <field name="account_type" />
-                <group>
-                    <filter string="Account Type" name="accounttype"
-                        domain="" context="{'group_by':'account_type'}" />
-                </group>
-                <searchpanel class="account_root w-auto">
-                    <field name="root_id" icon="fa-filter" limit="false" />
-                </searchpanel>
-            </search>
         </field>
     </record>
 
