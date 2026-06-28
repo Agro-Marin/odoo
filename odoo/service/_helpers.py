@@ -43,6 +43,23 @@ def memory_info(process: Any) -> int:
     return process.memory_info().rss
 
 
+def over_memory_soft_limit(process: Any, soft_limit: int) -> int | None:
+    """Return the current RSS when it exceeds ``soft_limit``, else ``None``.
+
+    The single soft-memory-limit decision shared by ``Worker.check_limits``,
+    ``ThreadedServer.process_limit`` and ``EventServer.process_limits``; each
+    caller then takes its own recycle action (flag the worker for orderly exit,
+    mark the over-limit thread, or ``SIGTERM`` the process) and logs at its own
+    level.  A ``soft_limit`` of 0 disables the check (gunicorn ``max_requests``
+    semantics); the ``/proc`` RSS read is skipped in that case rather than read
+    and discarded.
+    """
+    if not soft_limit:
+        return None
+    memory = memory_info(process)
+    return memory if memory > soft_limit else None
+
+
 def empty_pipe(fd: int) -> None:
     """Drain all pending data from a non-blocking pipe file descriptor.
 
@@ -68,4 +85,5 @@ __all__ = (
     "cron_database_list",
     "empty_pipe",
     "memory_info",
+    "over_memory_soft_limit",
 )

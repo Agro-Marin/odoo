@@ -213,9 +213,7 @@ class ModuleNode:
 
 
 class ModuleGraph:
-    """
-    Sorted Odoo modules ordered by (module.phase, module.depth, module.name)
-    """
+    """Odoo modules sorted by (module.phase, module.depth, module.order_name)."""
 
     def __init__(
         self, cr: BaseCursor, mode: Literal["load", "update"] = "load"

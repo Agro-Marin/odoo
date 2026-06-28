@@ -22,8 +22,18 @@ from .errors import CURSOR_LOGGER_NAME
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
 
 # Global SQL query counter (debug/profiling).  Intentionally a bare, non-atomic
-# int: concurrent += can lose counts under --workers=0, but it's approximate by
-# design and a lock would slow every query.  Forked workers each keep their own.
+# int.  It is *approximate by design*: a process-wide lock on every query would
+# serialise all query completions (a scalability bottleneck, the more so on a
+# free-threaded build — exactly what we don't want), so it is deliberately not
+# taken.  Accuracy by execution mode:
+#   * forked workers (--workers=N): each process keeps its own counter — exact.
+#   * threaded under the GIL (--workers=0): the GIL serialises the bytecode of
+#     `+=` in practice, so loss is negligible (measured ~0%).
+#   * free-threaded build (PYTHON_GIL=0): `+=` is a genuine read-add-write race
+#     and loses the large majority of concurrent increments (measured ~93% lost
+#     with 24 threads).  Do NOT rely on this counter there; for an exact
+#     per-request count use the thread's own `query_count` (bumped below without
+#     cross-thread contention).
 sql_counter: int = 0
 
 
@@ -74,6 +84,7 @@ class _MetricsMixin:
         query: Any = None,
         params: Any = None,
         start: float = 0.0,
+        hooks: Any = None,
     ) -> None:
         """Update query counters, thread-local metrics, and run query hooks.
 
@@ -83,6 +94,10 @@ class _MetricsMixin:
         :param query: The executed query (passed to hooks, may be None)
         :param params: The query parameters (passed to hooks, may be None)
         :param start: Monotonic timestamp before execution (passed to hooks)
+        :param hooks: the thread's ``query_hooks`` (or None).  The caller already
+            read it to decide whether to capture ``start``, so it is passed in
+            rather than re-read here — this runs on every query, and the read is
+            otherwise paid twice per query for no benefit.
         """
         global sql_counter  # noqa: PLW0603 — intentionally process-global
         self.sql_log_count += count
@@ -94,7 +109,7 @@ class _MetricsMixin:
             t.query_count += count
         if hasattr(t, "query_time"):
             t.query_time += delay
-        for hook in getattr(t, "query_hooks", ()):
+        for hook in hooks or ():
             hook(self, query, params, start, delay)
 
     def _record_sql_log(

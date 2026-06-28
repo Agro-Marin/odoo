@@ -2,8 +2,8 @@
 
 Entry point for ``odoo-bin <command> [args]``. :func:`main` discovers
 :class:`Command` subclasses in ``odoo/cli/<name>.py`` (built-in) and
-``<addon>/cli/<name>.py`` (addon-provided), importing each module lazily so
-``--help`` stays cheap.
+``<addon>/cli/<name>.py`` (addon-provided), importing each module only when
+its command is dispatched.
 
 Discovery contract: ``cli/<name>.py`` must define ``class <Name>(Command)``
 whose lowercased name equals ``<name>``; set ``name`` explicitly when it would

@@ -33,8 +33,7 @@ _logger = logging.getLogger("odoo.service.db")
 
 # Pattern enforced by the HTTP controller and service layer alike.
 # First char must be alphanumeric; any additional chars may include _ . -
-# (``*`` not ``+`` — a single-character alphanumeric name is valid in PG
-# and was wrongly rejected by the previous ``+`` quantifier).
+# (``*`` not ``+`` so a valid single-character name is accepted).
 DBNAME_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*\Z"
 
 # PostgreSQL caps identifiers at NAMEDATALEN-1 = 63 bytes. Names beyond
@@ -61,9 +60,8 @@ def validate_db_name(name: str) -> None:
 
     Centralizes the two checks (length + regex shape) so every entry point
     in ``odoo.service.db`` (create, duplicate, rename, restore) gets the
-    same diagnostics — the previous code duplicated the regex check at
-    each call site and never enforced the length, letting PG silently
-    truncate to 63 bytes.
+    same diagnostics, and so a 64+ char name is rejected rather than silently
+    truncated by PG to 63 bytes.
 
     Length is checked **before** the regex so a degenerate input (e.g.,
     a megabyte-sized string slipping past an upstream bound) is rejected
@@ -124,8 +122,6 @@ def check_super(passwd: str) -> Literal[True]:
     raise odoo.exceptions.AccessDenied
 
 
-
-
 def _drop_conn(cr: BaseCursor, db_name: str) -> None:
     """Try to terminate all other connections that might prevent dropping the DB.
 
@@ -133,8 +129,7 @@ def _drop_conn(cr: BaseCursor, db_name: str) -> None:
     ``pg_signal_backend`` membership.  Failures are caught (callers will see
     a downstream ``ObjectInUse`` from ``DROP DATABASE`` if termination was
     needed) but logged at debug level so operators with --log-level=debug
-    can spot a missing-permission misconfiguration; the previous bare
-    ``suppress(Exception)`` made permission errors invisible.
+    can spot a missing-permission misconfiguration.
     """
     try:
         cr.execute(

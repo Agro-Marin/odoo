@@ -20,9 +20,10 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Personally-identifiable columns processed when no --fields/--file/--allfields
-# selection is given. Keep in sync with the unobfuscate default: a run that
-# covers fewer fields than were obfuscated leaves encrypted data behind.
+# Personally-identifiable columns processed by default; --no-default-fields
+# drops them, --fields/--file add to them, and --allfields overrides them.
+# Keep in sync with the unobfuscate default: a run that covers fewer fields
+# than were obfuscated leaves encrypted data behind.
 DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
     ("mail_tracking_value", "old_value_char"),
     ("mail_tracking_value", "old_value_text"),
@@ -58,7 +59,7 @@ DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
 def _parse_field_spec(spec: str) -> tuple[str, str]:
     """Parse a ``table.column`` field specification into a 2-tuple.
 
-    Raises ValueError if the spec doesn't have exactly one dot.
+    :raises ValueError: if *spec* is not of the form ``table.column``
     """
     parts = spec.strip().split(".")
     if len(parts) != 2 or not all(parts):

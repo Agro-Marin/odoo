@@ -268,6 +268,22 @@ def _rollback_new_database(db_name: str, what: str) -> None:
         _drop_database(db_name)
 
 
+def _assert_filestore_dest_free(dest: str, problem: str) -> None:
+    """Pre-flight a name-creating op: refuse if its destination filestore exists.
+
+    A leftover ``filestore/<name>/`` (from a failed drop, a manual ``dropdb``, or
+    a crashed restore) would silently bind the new database to foreign
+    attachments.  Run before any DB-level work so a conflict leaves nothing to
+    roll back.  ``problem`` is the operation-specific lead; the shared remedy is
+    appended.
+    """
+    if Path(dest).exists():
+        raise RuntimeError(
+            f"{problem}: destination filestore {dest!r} already exists.  "
+            f"Move or delete the stale directory before retrying."
+        )
+
+
 @check_db_management_enabled
 def exp_create_database(
     db_name: str,
@@ -278,7 +294,7 @@ def exp_create_database(
     country_code: str | None = None,
     phone: str | None = None,
 ) -> Literal[True]:
-    """Similar to exp_create but blocking.
+    """Create and initialize a new database.
 
     Rolls back the empty database on init failure (module install error,
     missing language, etc.) so the name can be reused for another attempt.
@@ -326,20 +342,8 @@ def exp_duplicate_database(
     """
     validate_db_name(db_name)
 
-    # Pre-flight: refuse if the destination filestore already exists.  Same
-    # rationale as ``exp_rename`` — a leftover ``filestore/<db_name>/``
-    # (from a failed drop, manual ``dropdb``, or crashed restore) would
-    # silently bind the duplicated database to a foreign filestore.  The
-    # previous ``if … and not Path(to_fs).exists()`` skipped the copy with
-    # no error, leaving ``ir.attachment`` rows resolving against orphaned
-    # binary content.  Performed BEFORE ``CREATE DATABASE`` so a conflict
-    # doesn't leave an empty database to roll back.
     to_fs = odoo.tools.config.filestore(db_name)
-    if Path(to_fs).exists():
-        raise RuntimeError(
-            f"Cannot duplicate to {db_name!r}: destination filestore {to_fs!r} "
-            f"already exists.  Move or delete the stale directory before retrying."
-        )
+    _assert_filestore_dest_free(to_fs, f"Cannot duplicate to {db_name!r}")
 
     _logger.info("Duplicate database `%s` to `%s`.", db_original_name, db_name)
     odoo.db.close_db(db_original_name)
@@ -412,10 +416,7 @@ def exp_duplicate_database(
 # The cumulative budget across 5 attempts (0.2 + 0.4 + 0.8 + 1.6 + 3.2 = 6.2s)
 # spans the realistic worst-case for a busy production DB: a connection
 # holder needs to receive ``pg_terminate_backend``, unwind its transaction,
-# commit/rollback, and fully release the connection.  The previous 3-attempt
-# / 0.6s budget consistently failed under load; under traffic patterns where
-# a fresh request lands every ~150ms, a 0.6s window almost guarantees a new
-# connection lands inside it.
+# commit/rollback, and fully release the connection.
 _DROP_DATABASE_MAX_RETRIES = 5
 _DROP_DATABASE_BACKOFF_BASE = 0.2  # seconds; doubles each attempt
 
@@ -442,11 +443,6 @@ def _retry_terminate_then_ddl(
     operation-specific failure — to abort immediately.  After
     ``_DROP_DATABASE_MAX_RETRIES`` exhausted attempts the last ``ObjectInUse``
     is re-raised wrapped in ``RuntimeError``.
-
-    This loop was previously copy-pasted three times (drop / duplicate /
-    rename); a fix to the backoff or the race window had to be made in three
-    places, and the paths drifted (rename was once one-shot where the other
-    two retried).
     """
     last_error: psycopg.errors.ObjectInUse | None = None
     for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
@@ -462,7 +458,11 @@ def _retry_terminate_then_ddl(
                 _DROP_DATABASE_MAX_RETRIES,
                 e,
             )
-            time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
+            # Don't sleep after the final attempt — the loop is about to exit
+            # and raise, so the backoff would only delay the error by its
+            # longest interval (3.2s) for no retry.
+            if attempt < _DROP_DATABASE_MAX_RETRIES:
+                time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
         else:
             return
     raise RuntimeError(
@@ -588,12 +588,10 @@ def exp_dump(db_name: str, backup_format: str) -> str:
     Encodes in 3 MiB chunks against an on-disk tempfile, so the raw N bytes
     never sit in memory.  Peak memory is ``~8N/3``: the ``bytearray``
     accumulator (``4N/3``) is briefly co-resident with the final ``str``
-    (``4N/3``) during ``decode("ascii")``.  That is still a ~30 % reduction
-    versus the previous ``b64encode(t.read())`` form (raw N + encoded 4N/3
-    + decoded str 4N/3 ≈ 11N/3, which OOMed on production-sized databases),
-    but a multi-GB dump still doubles process RSS — callers that need true
+    (``4N/3``) during ``decode("ascii")`` (measured 2.68x input at N=30 MiB).
+    A multi-GB dump still doubles process RSS — callers that need true
     streaming should use ``dump_db(..., stream=...)`` with a writable file
-    or response object.  Measured peak: 2.68x input size (verified at N=30 MiB).
+    or response object.
 
     The web UI at ``/web/database/backup`` does NOT go through this function:
     it calls ``dump_db(name, None, ...)`` (``stream=None``), which buffers the
@@ -649,7 +647,6 @@ def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
     buffered custom-format path (``stdout`` = a ``TemporaryFile``).  Bounds the
     run with ``_pg_dump_total_timeout`` so a hung pg_dump cannot block a worker
     indefinitely — ``subprocess.run`` kills and reaps the child on timeout.
-    The timeout + returncode handling used to be copy-pasted in both paths.
     """
     timeout = _pg_dump_total_timeout()
     try:
@@ -766,15 +763,17 @@ def dump_db(
     backup_format: str = "zip",
     with_filestore: bool = True,
 ) -> IO[bytes] | None:
-    """Dump database `db` into file-like object `stream` if stream is None
+    """Dump database ``db_name`` into ``stream``; if ``stream`` is None,
     return a file object with the dump.
 
     .. warning::
         For the ``zip`` format this is a **best-effort online snapshot**, not
-        a transactional one.  The filestore is copied first (line-of-fire
-        ``shutil.copytree``), then the manifest is written, then ``pg_dump``
-        runs as a separate process.  Concurrent writes during this window
-        produce inconsistent dumps:
+        a transactional one.  The manifest is written first (it opens a cursor
+        on the source DB, so it doubles as a cheap connectivity/existence check
+        and an unreachable DB fails before the filestore copy), then the
+        filestore is copied (line-of-fire ``shutil.copytree``), then ``pg_dump``
+        runs as a separate process.  Concurrent writes during the
+        copytree→pg_dump window produce inconsistent dumps:
 
         * a new ``ir.attachment`` row whose binary was written to the filestore
           AFTER the copytree but BEFORE pg_dump → row in dump.sql, file missing.
@@ -808,14 +807,19 @@ def dump_db(
 
     if backup_format == "zip":
         with tempfile.TemporaryDirectory() as dump_dir:
-            if with_filestore:
-                filestore = odoo.tools.config.filestore(db_name)
-                if Path(filestore).exists():
-                    shutil.copytree(filestore, Path(dump_dir, "filestore"))
+            # Manifest first: ``db_connect`` + cursor here is the cheapest
+            # operation that touches the source DB, so writing the manifest
+            # before the (potentially multi-GB) filestore copytree makes an
+            # unreachable or bogus DB fail fast instead of after the copy.  It
+            # does not widen the consistency window, which is copytree→pg_dump.
             with Path(dump_dir, "manifest.json").open("w") as fh:
                 db = odoo.db.db_connect(db_name)
                 with db.cursor() as cr:
                     json.dump(dump_db_manifest(cr), fh, indent=4)
+            if with_filestore:
+                filestore = odoo.tools.config.filestore(db_name)
+                if Path(filestore).exists():
+                    shutil.copytree(filestore, Path(dump_dir, "filestore"))
             cmd.insert(-1, "--file=" + str(Path(dump_dir, "dump.sql")))
             _run_pg_dump_blocking(cmd, env, stdout=subprocess.DEVNULL)
             # ``dump.sql`` sorts last in the archive so a streaming consumer
@@ -922,29 +926,19 @@ def restore_db(
     instead of replacing ``dst`` — a leftover ``filestore/<db>/`` (orphaned
     by an earlier failed drop, manual ``dropdb``, or crashed restore) would
     otherwise nest the dumped filestore inside the stale one, leaving
-    ``ir.attachment`` rows resolving against the wrong tree.  Same fix as
-    ``exp_rename`` and ``exp_duplicate_database``; restore was the missing
-    third in that family.
+    ``ir.attachment`` rows resolving against the wrong tree.
     """
     if not isinstance(db, str):
         raise TypeError(f"db must be a str, got {type(db).__name__!r}")
-    # Enforce the same name shape/length guarantee as create/duplicate/rename
-    # (restore was historically the only name-accepting entry point that
-    # skipped this, letting PG silently truncate a 64+ char name to 63 bytes).
+    # Validate name shape/length (else PG silently truncates a 64+ char name
+    # to 63 bytes), same gate as create/duplicate/rename.
     validate_db_name(db)
     if exp_db_exist(db):
         _logger.warning("RESTORE DB: %s already exists", db)
         raise RuntimeError(f"Database {db!r} already exists")
 
-    # Pre-flight: refuse if the destination filestore already exists.
-    # Performed BEFORE ``_create_empty_database`` so a conflict doesn't
-    # leave an empty database to roll back.
     fs_dest = odoo.tools.config.filestore(db)
-    if Path(fs_dest).exists():
-        raise RuntimeError(
-            f"Cannot restore to {db!r}: destination filestore {fs_dest!r} "
-            f"already exists.  Move or delete the stale directory before retrying."
-        )
+    _assert_filestore_dest_free(fs_dest, f"Cannot restore to {db!r}")
 
     _logger.info("RESTORING DB: %s", db)
     _create_empty_database(db)
@@ -1064,10 +1058,8 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
     Refuses pre-flight when the destination filestore already exists.  A
     leftover ``filestore/<new_name>/`` (orphaned by an earlier failed drop,
     a manual ``dropdb``, or a crashed restore) would silently bind the
-    renamed database to a foreign filestore, serving wrong attachments —
-    the previous code's ``if … and not Path(new_fs).exists()`` skipped the
-    move with no error.  Operators must move or delete the stale directory
-    before retrying.
+    renamed database to a foreign filestore, serving wrong attachments.
+    Operators must move or delete the stale directory before retrying.
 
     If ``shutil.move`` fails after the SQL rename succeeded, the database is
     renamed back to ``old_name`` so DB and filestore stay in sync — the
@@ -1080,15 +1072,9 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
 
     old_fs = odoo.tools.config.filestore(old_name)
     new_fs = odoo.tools.config.filestore(new_name)
-    # Pre-flight: refuse if destination filestore already exists.  Performed
-    # before any DB operation so a conflict doesn't leave a half-renamed
-    # database to roll back.
-    if Path(new_fs).exists():
-        raise RuntimeError(
-            f"Cannot rename database {old_name!r} to {new_name!r}: destination "
-            f"filestore {new_fs!r} already exists.  Move or delete the stale "
-            f"directory before retrying."
-        )
+    _assert_filestore_dest_free(
+        new_fs, f"Cannot rename database {old_name!r} to {new_name!r}"
+    )
 
     odoo.modules.registry.Registry.delete(old_name)
     odoo.db.close_db(old_name)
@@ -1271,8 +1257,7 @@ def exp_db_exist(db_name: str) -> bool:
     operators investigating "why does my UI say the DB doesn't exist?" can
     distinguish "really doesn't exist" (psycopg ``InvalidCatalogName``,
     SQLSTATE 3D000) from "transient PG issue" (semaphore saturation, pool
-    timeout, network blip).  The previous form caught ``Exception`` and
-    swallowed the cause silently.
+    timeout, network blip).
     """
     try:
         db = odoo.db.db_connect(db_name)
@@ -1309,8 +1294,8 @@ def list_dbs(force: bool = False) -> list[str]:
        other. If two Odoo instances share a PG role, they'll see each
        other's DBs; give each instance its own role for isolation.
 
-    Returns the system database (``postgres``) and the configured template
-    are excluded so they never appear in the manager UI.
+    The system database (``postgres``) and the configured template are
+    excluded so they never appear in the manager UI.
     """
     if not odoo.tools.config["list_db"] and not force:
         raise odoo.exceptions.AccessDenied
@@ -1492,14 +1477,15 @@ _DISPATCH: dict[str, Callable] = {
 # ``frozenset`` so the membership test in ``dispatch`` is O(1) and the
 # set is immutable at module load (a future contributor can't mutate the
 # auth gate from another module).  Every entry MUST also exist in
-# ``_DISPATCH``; the test in ``test_db.py`` pins this invariant.
+# ``_DISPATCH``; ``base/tests/test_server.py::TestDbDispatchAuth`` pins this
+# invariant.
 #
 # ``list_countries`` is intentionally absent: it reads bundled XML
 # (``addons/base/data/res_country_data.xml``) and is invoked by the
 # unauthenticated database-creation wizard before any DB exists.  Gating
 # it would either raise ``ValueError`` on the empty-params unpack or
-# ``AccessDenied`` on a public read; the test ``TestDispatchPublicAccess``
-# pins this invariant.
+# ``AccessDenied`` on a public read; ``TestDbDispatchAuth`` pins that it
+# (and the other public reads) stay unauthenticated.
 _REQUIRES_MASTER_PASSWORD: frozenset[str] = frozenset({
     "create_database",
     "duplicate_database",

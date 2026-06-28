@@ -10,9 +10,10 @@ parts of ``service/`` mutate them as ``lifecycle.server_phoenix = True`` (not a
 ``global`` in their own namespace) so every reader sees the same binding.
 
 * ``server`` — current server instance, set by ``start``.
-* ``server_phoenix`` — "should we re-exec after stop?" flag, set on SIGHUP
-  (``ThreadedServer.signal_handler``, ``PreforkServer.process_signals``) and in
-  ``PreforkServer.stop``, read by ``start()`` after ``server.run()`` returns.
+* ``server_phoenix`` — "should we re-exec after stop?" flag, set ``True`` on
+  SIGHUP (``ThreadedServer.signal_handler``, ``PreforkServer.process_signals``)
+  and cleared in ``PreforkServer.stop``, read by ``start()`` after
+  ``server.run()`` returns.
   The watcher's read is racy, but a stale read only costs one extra (idempotent)
   SIGHUP, so no Lock is needed.
 """
@@ -73,7 +74,7 @@ def load_server_wide_modules() -> None:
 
 def _reexec(updated_modules: list[str] | None = None) -> None:
     """Reexecute odoo-server process with (nearly) the same arguments."""
-    if osutil.is_running_as_nt_service():
+    if osutil.is_running_as_nt_service(nt_service_name):
         # Windows-only restart via the SCM. ``shell=True`` is required because
         # ``net`` is a shell built-in/cmd alias on Windows; ``nt_service_name``
         # is a build-time constant from ``odoo.release``, not user input.
@@ -97,13 +98,71 @@ def _reexec(updated_modules: list[str] | None = None) -> None:
     os.execve(sys.executable, args, os.environ)  # noqa: S606
 
 
+def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
+    """Run the ``post_install`` test suite for a freshly (re)loaded registry.
+
+    Pregenerates QWeb asset bundles first when the suite contains an HTTPCase,
+    so the first in-test HTTP request doesn't pay the bundle-build cost and time
+    out.  Runs the suite into ``registry._assertion_report`` (mutated in place —
+    the caller reads ``wasSuccessful()`` for its return code) and logs the
+    test/query counts.
+    """
+    from odoo.tests import loader
+
+    t0 = time.time()
+    t0_sql = db.sql_counter
+    module_names = (
+        registry.updated_modules
+        if update_module
+        else sorted(registry._init_modules)
+    )
+    _logger.info("Starting post tests")
+    tests_before = registry._assertion_report.testsRun
+    post_install_suite = loader.make_suite(module_names, "post_install")
+    if post_install_suite.has_http_case():
+        with registry.cursor() as cr:
+            env = api.Environment(cr, api.SUPERUSER_ID, {})
+            env["ir.qweb"]._pregenerate_assets_bundles()
+    result = loader.run_suite(
+        post_install_suite,
+        global_report=registry._assertion_report,
+    )
+    registry._assertion_report.update(result)
+    _logger.info(
+        "%d post-tests in %.2fs, %s queries",
+        registry._assertion_report.testsRun - tests_before,
+        time.time() - t0,
+        db.sql_counter - t0_sql,
+    )
+    registry._assertion_report.log_stats()
+
+
 def preload_registries(dbnames: list[str] | None) -> int:
-    """Preload a registries, possibly run a test file."""
+    """Preload registries for ``dbnames``, optionally running post-install tests."""
     # TODO: move all config checks to args dont check tools.config here
     dbnames = dbnames or []
     rc = 0
 
     preload_profiler = contextlib.nullcontext()
+
+    registries_size = int(os.environ.get("ODOO_REGISTRY_LRU_SIZE") or 0)
+    if not registries_size and os.name == "posix":
+        # Size the LRU depending of the memory limits
+        # A registry takes 10MB of memory on average, so we reserve
+        # 10Mb (registry) + 5Mb (working memory) per registry
+        avgsz = 15 * 1024 * 1024
+        limit_memory_soft = (
+            config["limit_memory_soft"]
+            if config["limit_memory_soft"] > 0
+            else (2048 * 1024 * 1024)
+        )
+        registries_size = (limit_memory_soft // avgsz) or 1
+    elif not registries_size and len(dbnames) > Registry.registries.count:
+        # If we give a list of databases higher and did not specify the size,
+        # use the number of preloaded databases as the limit.
+        registries_size = len(dbnames)
+    if registries_size:
+        Registry.registries.count = registries_size
 
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
@@ -131,35 +190,7 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
                 # run post-install tests
                 if config["test_enable"]:
-                    from odoo.tests import loader
-
-                    t0 = time.time()
-                    t0_sql = db.sql_counter
-                    module_names = (
-                        registry.updated_modules
-                        if update_module
-                        else sorted(registry._init_modules)
-                    )
-                    _logger.info("Starting post tests")
-                    tests_before = registry._assertion_report.testsRun
-                    post_install_suite = loader.make_suite(module_names, "post_install")
-                    if post_install_suite.has_http_case():
-                        with registry.cursor() as cr:
-                            env = api.Environment(cr, api.SUPERUSER_ID, {})
-                            env["ir.qweb"]._pregenerate_assets_bundles()
-                    result = loader.run_suite(
-                        post_install_suite,
-                        global_report=registry._assertion_report,
-                    )
-                    registry._assertion_report.update(result)
-                    _logger.info(
-                        "%d post-tests in %.2fs, %s queries",
-                        registry._assertion_report.testsRun - tests_before,
-                        time.time() - t0,
-                        db.sql_counter - t0_sql,
-                    )
-
-                    registry._assertion_report.log_stats()
+                    _run_post_install_tests(registry, update_module)
                 if (
                     registry._assertion_report
                     and not registry._assertion_report.wasSuccessful()
@@ -171,6 +202,40 @@ def preload_registries(dbnames: list[str] | None) -> int:
             )
             return -1
     return rc
+
+
+def _limit_malloc_arenas() -> None:
+    """Cap glibc's malloc arenas at 2 on 64-bit Linux (threaded server only).
+
+    glibc's malloc() uses arenas [1] to efficiently handle memory allocation of
+    multi-threaded applications, allowing better allocation handling when
+    several threads call malloc() concurrently [2].  Due to Python's GIL this
+    optimization has no effect on multithreaded Python programs.  Unfortunately,
+    a downside of creating one arena per CPU core is an increase in virtual
+    memory — which Odoo relies upon to limit the memory usage of threaded
+    workers.  On 32-bit systems an arena defaults to 512K, on 64-bit to 64M [3],
+    so a threaded worker quickly reaches its memory soft limit under concurrent
+    requests.  We therefore cap arenas at 2 unless MALLOC_ARENA_MAX is set
+    (MALLOC_ARENA_MAX=0 restores glibc's default behaviour).
+
+    [1] https://sourceware.org/glibc/wiki/MallocInternals#Arenas_and_Heaps
+    [2] https://www.gnu.org/software/libc/manual/html_node/The-GNU-Allocator.html
+    [3] https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=00ce48c;hb=0a8262a#l862
+    """
+    if not (
+        platform.system() == "Linux"
+        and sys.maxsize > 2**32
+        and "MALLOC_ARENA_MAX" not in os.environ
+    ):
+        return
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL("libc.so.6")
+        M_ARENA_MAX = -8
+        assert libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2))
+    except Exception:
+        _logger.warning("Could not set ARENA_MAX through mallopt()")
 
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
@@ -195,33 +260,7 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
 
         server = PreforkServer(odoo.http.root)
     else:
-        if (
-            platform.system() == "Linux"
-            and sys.maxsize > 2**32
-            and "MALLOC_ARENA_MAX" not in os.environ
-        ):
-            # glibc's malloc() uses arenas [1] in order to efficiently handle memory allocation of multi-threaded
-            # applications. This allows better memory allocation handling in case of multiple threads that
-            # would be using malloc() concurrently [2].
-            # Due to the python's GIL, this optimization have no effect on multithreaded python programs.
-            # Unfortunately, a downside of creating one arena per cpu core is the increase of virtual memory
-            # which Odoo is based upon in order to limit the memory usage for threaded workers.
-            # On 32bit systems the default size of an arena is 512K while on 64bit systems it's 64M [3],
-            # hence a threaded worker will quickly reach it's default memory soft limit upon concurrent requests.
-            # We therefore set the maximum arenas allowed to 2 unless the MALLOC_ARENA_MAX env variable is set.
-            # Note: Setting MALLOC_ARENA_MAX=0 allow to explicitly set the default glibs's malloc() behaviour.
-            #
-            # [1] https://sourceware.org/glibc/wiki/MallocInternals#Arenas_and_Heaps
-            # [2] https://www.gnu.org/software/libc/manual/html_node/The-GNU-Allocator.html
-            # [3] https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=00ce48c;hb=0a8262a#l862
-            try:
-                import ctypes
-
-                libc = ctypes.CDLL("libc.so.6")
-                M_ARENA_MAX = -8
-                assert libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2))
-            except Exception:
-                _logger.warning("Could not set ARENA_MAX through mallopt()")
+        _limit_malloc_arenas()
         server = ThreadedServer(odoo.http.root)
 
     watcher = None
@@ -242,10 +281,16 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
                 module,
             )
 
-    rc = server.run(preload, stop)
-
-    if watcher:
-        watcher.stop()
+    try:
+        rc = server.run(preload, stop)
+    finally:
+        # Stop the watcher on every exit path, including an exception out of
+        # ``server.run`` (e.g. a port-bind ``OSError`` raised from
+        # ``http_spawn``).  Otherwise the inotify thread and its kernel watches
+        # leak, and ``FSWatcherInotify.stop``'s ``del self.watcher`` — which
+        # frees those watches before a reexec — never runs.
+        if watcher:
+            watcher.stop()
     # like the legend of the phoenix, all ends with beginnings
     if server_phoenix:
         _reexec()

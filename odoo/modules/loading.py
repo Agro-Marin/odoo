@@ -85,9 +85,7 @@ def load_data(
 def load_demo(
     env: Environment, package: ModuleNode, idref: IdRef, mode: LoadMode
 ) -> bool:
-    """
-    Loads demo data for the specified package.
-    """
+    """Loads demo data for the specified package."""
 
     try:
         if package.manifest.get("demo") or package.manifest.get("demo_xml"):
@@ -112,9 +110,7 @@ def load_demo(
 
 
 def force_demo(env: Environment) -> None:
-    """
-    Forces the `demo` flag on all modules, and installs demo data for all installed modules.
-    """
+    """Forces the `demo` flag on all modules, and installs demo data for all installed modules."""
     env.cr.execute("UPDATE ir_module_module SET demo=True")
     env.cr.execute(
         "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade', 'to remove')"
@@ -332,7 +328,6 @@ def load_module_graph(
             registry.updated_modules.append(package.name)
 
             ver = adapt_version(package.manifest["version"])
-            # Set new modules and dependencies
             module.write({"state": "installed", "db_version": ver})
 
             package.state = "installed"
@@ -803,9 +798,7 @@ def load_modules(
 
 
 def reset_modules_state(db_name: str) -> None:
-    """
-    Resets modules flagged as "to x" to their original state
-    """
+    """Resets modules flagged as "to x" to their original state"""
     # Warning, this function was introduced in response to commit 763d714
     # which locks cron jobs for dbs which have modules marked as 'to %'.
     # The goal of this function is to be called ONLY when module

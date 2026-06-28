@@ -130,7 +130,7 @@ class Template:
         return self.id
 
     def files(self) -> Generator[tuple[Path, bytes]]:
-        """List the (local) path and content of all files in the template."""
+        """List the path and content of all files in the template."""
         for dirpath, _, filenames in self.path.walk():
             for f in filenames:
                 filepath = dirpath / f

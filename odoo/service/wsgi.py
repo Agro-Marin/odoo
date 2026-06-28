@@ -67,8 +67,8 @@ class LoggingBaseWSGIServerMixIn:
 
 
 class BaseWSGIServerNoBind(LoggingBaseWSGIServerMixIn, werkzeug.serving.BaseWSGIServer):
-    """werkzeug Base WSGI Server patched to skip socket binding. PreforkServer
-    use this class, sets the socket and calls the process_request() manually
+    """werkzeug Base WSGI Server patched to skip socket binding. WorkerHTTP
+    uses this class, sets the socket and calls process_request() manually.
     """
 
     def __init__(self, app: Any) -> None:
@@ -85,11 +85,8 @@ class BaseWSGIServerNoBind(LoggingBaseWSGIServerMixIn, werkzeug.serving.BaseWSGI
 
     def server_bind(self) -> None:
         # Skip the actual ``socket.bind`` — every request gets its socket
-        # monkey-patched in by ``WorkerHTTP.process_request`` and the
-        # listener-style socket werkzeug would create here is immediately
-        # discarded.  The previous form let werkzeug bind ``127.0.0.1:0``
-        # (allocating an ephemeral kernel port) and then closed it from
-        # ``__init__``: a wasted bind/close pair per worker startup.
+        # monkey-patched in by ``WorkerHTTP.process_request``, so binding here
+        # would only allocate (and waste) an ephemeral kernel port.
         # ``server_name`` / ``server_port`` are set to placeholders so any
         # werkzeug logging code that reads them doesn't AttributeError.
         self.server_name = "127.0.0.1"
@@ -314,11 +311,10 @@ class ThreadedWSGIServerReloadable(
             # selector will find a pending connection to accept on the socket. There is a 100 ms
             # penalty in such case in order to avoid cpu bound loop while waiting for the semaphore.
             return
-        # The semaphore is released either by ``shutdown_request`` (every
-        # path where get_request() succeeded) or by the override of
-        # ``get_request`` below (the OSError-from-accept path that upstream
-        # silently swallows).  The 1:1 acquire/release pairing is what
-        # prevents the leak that the previous form had.
+        # Released either by ``shutdown_request`` (every path where
+        # get_request() succeeded) or by the ``get_request`` override below (the
+        # OSError-from-accept path upstream silently swallows).  The 1:1
+        # acquire/release pairing is what keeps the semaphore from leaking.
         super()._handle_request_noblock()
 
     def get_request(self) -> Any:

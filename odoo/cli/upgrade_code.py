@@ -62,14 +62,12 @@ try:
     import odoo.addons
     from . import Command
 except ImportError:
-    # Direct execution (not via odoo-bin): release/parse_version are
-    # standalone, so import them without odoo. Guard the sys.path prepend
-    # against duplicate entries on repeated imports.
-    if str(ROOT) not in sys.path:
-        sys.path.insert(0, str(ROOT))
-    import release
-
-    # Import parse_version directly from file to avoid shadowing stdlib with libs/
+    # Direct execution (not via odoo-bin): release and parse_version are
+    # standalone helpers, so load them straight from their files. Loading by
+    # path (instead of prepending ROOT to sys.path) keeps the odoo/ tree off
+    # sys.path, so its packages can't shadow stdlib modules — e.g. odoo/http/
+    # over http, or odoo/tools/json.py over json — when the upgrade scripts run.
+    release = _load_module_from_file("release", ROOT / "release.py")
     _parse_version_module = _load_module_from_file(
         "parse_version", ROOT / "libs" / "parse_version.py"
     )

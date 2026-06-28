@@ -19,6 +19,7 @@ cannot drift.  :mod:`odoo.db.pool` re-imports these names, so
 
 from __future__ import annotations
 
+import contextlib
 from time import monotonic
 
 import psycopg
@@ -43,14 +44,38 @@ _HEALTHCHECK_GRACE_PERIOD = 1.0
 # creation (``configure``) and on return (``reset``).
 _IDLE_SINCE_ATTR = "_odoo_idle_since"
 
-# Opt-in hard session reset on return, via the ``db_discard_on_return`` config
-# option (env ``ODOO_DB_DISCARD_ON_RETURN``).  By default _reset_connection issues
-# no ``DISCARD``/``RESET ALL`` (purely client-side, preserves the
-# prepared-statement cache) — at the cost of leaking session state (committed temp
-# tables, GUCs, ``LISTEN``, advisory locks) to the next borrower.  Enable it for
-# hard isolation (deallocates the cache).  Read from config on each return (a
-# cheap dict lookup) rather than frozen at import, so it stays operator-tunable
-# and test-overridable.
+# Cheap session-state reset issued on every connection return (the default).
+# Closes the session-scoped state a borrower can leave behind for the *next*,
+# unrelated borrower of the same physical connection — a multi-tenant isolation
+# hazard — in a single round-trip:
+#   * RESET ALL                  — GUCs set via ``SET`` (search_path, work_mem, …)
+#   * RESET SESSION AUTHORIZATION — ``SET ROLE``/``SET SESSION AUTHORIZATION``
+#                                   (NOT covered by ``RESET ALL`` — verified)
+#   * CLOSE ALL                  — open (non-holdable) cursors
+#   * UNLISTEN *                 — ``LISTEN`` channel registrations
+#   * pg_advisory_unlock_all()   — session-level advisory locks
+#   * DISCARD TEMP / SEQUENCES   — committed temp tables, sequence caches
+# It deliberately omits ``DEALLOCATE ALL``/``DISCARD PLANS`` so the
+# prepared-statement and plan caches survive for the next borrower — that is the
+# extra cost the heavier ``DISCARD ALL`` pays under ``db_discard_on_return``.
+# (``DISCARD`` cannot run inside a transaction block; the connection is switched
+# to autocommit first, as psycopg_pool has already rolled back any open tx.)
+_RESET_SESSION_STATE_SQL = (
+    "RESET ALL;"
+    " RESET SESSION AUTHORIZATION;"
+    " CLOSE ALL;"
+    " UNLISTEN *;"
+    " SELECT pg_advisory_unlock_all();"
+    " DISCARD TEMP;"
+    " DISCARD SEQUENCES"
+)
+
+# Hard session reset on return, via the ``db_discard_on_return`` config option
+# (env ``ODOO_DB_DISCARD_ON_RETURN``).  When enabled, ``_reset_connection`` runs
+# the full ``DISCARD ALL`` instead of the cheap reset above — additionally
+# deallocating the prepared-statement cache and plan cache.  Read from config on
+# each return (a cheap dict lookup) rather than frozen at import, so it stays
+# operator-tunable and test-overridable.
 
 
 def _configure_connection(conn: psycopg.Connection) -> None:
@@ -87,32 +112,37 @@ def _reset_connection(conn: psycopg.Connection) -> None:
     ``RESET ALL``), and restore the prepare tuning that ``Cursor.execute`` may
     have cleared in its DDL fallback (``prepare_threshold = None``).
 
-    By default this issues NO ``DISCARD``/``RESET ALL``
-    (see :data:`_DISCARD_ON_RETURN`).
+    By default this issues a cheap single-round-trip session reset
+    (:data:`_RESET_SESSION_STATE_SQL`) that closes the cross-borrower leaks —
+    GUCs (incl. ``search_path``), ``SET ROLE``, committed temp tables,
+    ``LISTEN`` channels, session advisory locks, open cursors — while
+    preserving the prepared-statement/plan caches for the next borrower.  With
+    the ``db_discard_on_return`` config option set, it runs the full
+    ``DISCARD ALL`` instead (hard isolation, also dropping those caches).
 
-    .. warning::
-        In the default mode, session-scoped state a borrower leaves behind
-        survives to the *next* borrower of the same physical connection until
-        ``max_lifetime`` (1h) recycles it — only autocommit/isolation/read_only
-        and the prepare tuning are reset below.  In particular:
-
-        - **Committed temp tables** (not ``ON COMMIT DROP``) stay visible — a
-          re-``CREATE TEMP TABLE`` then hits ``DuplicateTable``.  Callers MUST use
-          ``ON COMMIT DROP`` (+ ``DROP TABLE IF EXISTS``); see
-          ``account/res_currency.py``.
-        - **Arbitrary GUCs** (``SET x = y``) persist; use ``SET LOCAL`` or ``RESET``.
-        - **Server-side cursors, ``LISTEN`` channels, advisory locks** persist
-          without ``CLOSE``/``UNLISTEN``/unlock.
-
-        Opt into ``db_discard_on_return`` for hard isolation.
+    ``DISCARD``/``DISCARD TEMP`` cannot run inside a transaction block; psycopg_pool
+    has already rolled back the open transaction, so we switch to autocommit first.
     """
+    # ``prepare=False`` on both resets: these are one-off maintenance commands,
+    # and psycopg cannot PREPARE a multi-statement string — without it, auto-prepare
+    # would try to prepare the cheap reset once ``prepare_threshold`` is reached and
+    # raise ``cannot insert multiple commands into a prepared statement``.
     if tools.config["db_discard_on_return"]:
-        # ``DISCARD ALL`` can't run in a transaction block; psycopg_pool already
-        # rolled back, so switch to autocommit first.  This also deallocates the
-        # prepared-statement cache (the documented cost), which the tuning below
-        # leaves ready to re-warm.
+        # Hard isolation: also deallocates the prepared-statement and plan caches
+        # (the documented cost), which the tuning below leaves ready to re-warm.
         conn.autocommit = True
-        conn.execute("DISCARD ALL")
+        conn.execute("DISCARD ALL", prepare=False)
+        # ``DISCARD ALL`` deallocated every server-side prepared statement; drop
+        # psycopg's client-side prepare cache too, or the next borrower would
+        # ``EXECUTE`` a name the server no longer knows ("prepared statement
+        # _pgN does not exist").  Mirrors ``Cursor._invalidate_caches_after_ddl``.
+        with contextlib.suppress(AttributeError):
+            conn._prepared.clear()
+    else:
+        # Default: close session-state leaks in one round-trip, keeping the
+        # prepared-statement/plan caches (see _RESET_SESSION_STATE_SQL).
+        conn.autocommit = True
+        conn.execute(_RESET_SESSION_STATE_SQL, prepare=False)
     conn.autocommit = False
     conn.isolation_level = None  # restore server default
     conn.read_only = None  # restore server default

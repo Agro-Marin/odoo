@@ -73,8 +73,15 @@ class CommonServer:
 
     @classmethod
     def on_stop(cls, func: Callable) -> None:
-        """Register a cleanup function to be executed when the server stops."""
-        _ON_STOP_FUNCS.append(func)
+        """Register a cleanup function to be executed when the server stops.
+
+        Idempotent: registering the same callable twice is a no-op.  The list is
+        process-global and append-only, so without this a module imported twice
+        — or a server stopped and restarted in-process (tests, embedded use) —
+        would fire the same hook more than once on ``stop()``.
+        """
+        if func not in _ON_STOP_FUNCS:
+            _ON_STOP_FUNCS.append(func)
 
     def stop(self) -> None:
         for func in _ON_STOP_FUNCS:

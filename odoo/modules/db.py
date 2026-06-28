@@ -8,7 +8,6 @@ from psycopg.types.json import Json
 import odoo.api
 import odoo.modules
 import odoo.tools
-from odoo.orm.runtime import Registry
 
 from .registry import Registry
 
@@ -243,7 +242,7 @@ def has_unaccent(cr: BaseCursor) -> FunctionStatus:
 
 
 def has_trigram(cr: BaseCursor) -> bool:
-    """Test if the database has the a word_similarity function.
+    """Test if the database has a word_similarity function.
 
     The word_similarity is supposed to be provided by the PostgreSQL built-in
     pg_trgm module but any similar function will be picked by Odoo.
@@ -271,8 +270,7 @@ def initialize_db(
 ) -> None:
     """Initialize a new database with modules, admin user, and company settings.
 
-    This function handles the high-level initialization of a new Odoo database,
-    including:
+    Performs:
     - Creating the module registry and loading modules
     - Installing language translations
     - Configuring the company based on country

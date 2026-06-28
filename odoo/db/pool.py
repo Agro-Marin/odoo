@@ -82,10 +82,22 @@ _DEFAULT_BORROW_TIMEOUT = 30.0
 # ``LISTEN``/cron connection is never touched).  Kept well above the borrow
 # timeout so no borrow can be in flight; the residual reap-vs-borrow microrace is
 # recovered by borrow()'s PoolClosed retry.  ``0`` disables it.
+#
+# NB: this default (300s) is BELOW ``_DEFAULT_MAX_IDLE`` (600s) by design — on a
+# multi-database host, reclaiming a quiet pool's ~4 worker threads is worth more
+# than keeping its connections warm, so the pool (and its still-warm idle
+# connections) is reaped before those connections reach their own idle timeout;
+# the next access to that database pays a pool rebuild + reconnect.  A
+# single-database host is unaffected: its only pool is re-stamped active on every
+# give_back, so it is never the idle pool a sweep reaps.  Raise to >=
+# ``_DEFAULT_MAX_IDLE`` to let connections idle out first (fewer reconnects,
+# more lingering pools).
 _DEFAULT_REAP_IDLE_TTL = 300.0
 
-# Monotonic timestamp stamped on each per-DSN psycopg pool whenever it is handed
-# out by _get_or_create_pool; the reaper measures idleness against it.
+# Monotonic timestamp stamped on each per-DSN psycopg pool whenever it sees
+# activity — a borrow (_get_or_create_pool) or a return (give_back), both routed
+# through _note_pool_activity.  The reaper measures idleness against it, so a pool
+# that just handed out or took back a connection is never mistaken for idle.
 _LAST_BORROW_ATTR = "_odoo_last_borrow"
 
 # libpq connect timeout (seconds) for that probe.  Kept short: a permanent
@@ -209,6 +221,21 @@ class ConnectionPool:
         stats = pool.get_stats()
         return stats.get("pool_size", 0) - stats.get("pool_available", 0)
 
+    @staticmethod
+    def _note_pool_activity(pool: _PsycopgPool) -> None:
+        """Stamp *pool* as freshly active for the idle reaper.
+
+        The single place the ``_LAST_BORROW_ATTR`` stamp is written.  Called on
+        EVERY borrow (:meth:`_get_or_create_pool`) and EVERY return
+        (:meth:`give_back`): a pool that just handed out or took back a connection
+        is active, not idle, and must not be reaped out from under its next user.
+        Stamping on return — not only on borrow — is what stops a connection held
+        longer than ``reap_idle_ttl`` and then returned from leaving its pool with
+        a stale stamp that the next sweep reaps.  ``setattr`` is atomic under the
+        GIL, so this needs no lock.
+        """
+        setattr(pool, _LAST_BORROW_ATTR, monotonic())
+
     def _probe_connectable(self, conninfo: str, kwargs: dict) -> None:
         """Fail fast on a permanently-unreachable target before building a pool.
 
@@ -310,9 +337,10 @@ class ConnectionPool:
         """Get an existing pool for this DSN or create a new one."""
         pool = self._pools.get(key)
         if pool is not None and not pool.closed:
-            # Stamp (outside the lock, atomic) so the reaper sees it as freshly
-            # used; the TTL >> borrow time and borrow()'s retry cover the microrace.
-            setattr(pool, _LAST_BORROW_ATTR, monotonic())
+            # Mark active (outside the lock, atomic) so the reaper sees it as
+            # freshly used; the TTL >> borrow time and borrow()'s retry cover the
+            # microrace.
+            self._note_pool_activity(pool)
             return pool
 
         # Build conninfo and run the pre-flight probe BEFORE taking self._lock:
@@ -350,7 +378,7 @@ class ConnectionPool:
             # the pool for this key while we were probing.
             pool = self._pools.get(key)
             if pool is not None and not pool.closed:
-                setattr(pool, _LAST_BORROW_ATTR, monotonic())
+                self._note_pool_activity(pool)
                 return pool
 
             pool = _PsycopgPool(
@@ -368,9 +396,9 @@ class ConnectionPool:
                 num_workers=3,
                 open=True,
             )
-            # Stamp before publishing so a fresh pool is never seen as idle by a
-            # concurrent reaper running for another key.
-            setattr(pool, _LAST_BORROW_ATTR, monotonic())
+            # Mark active before publishing so a fresh pool is never seen as idle
+            # by a concurrent reaper running for another key.
+            self._note_pool_activity(pool)
             self._pools[key] = pool
             self._debug("Created pool for %s", dict(key))
 
@@ -421,13 +449,14 @@ class ConnectionPool:
 
         *exclude_key* is the pool the caller is about to use and must never reap
         (the cold path passes the just-created key); ``None`` excludes nothing
-        (the give_back sweep's just-returned pool is protected by its fresh stamp).
+        (on the give_back sweep the just-returned pool is protected because
+        :meth:`give_back` re-stamps it through :meth:`_note_pool_activity`).
 
-        A pool is reapable when BOTH: it has not been handed out in the last
-        ``reap_idle_ttl`` seconds (so no borrow can be in flight), and it holds no
-        checked-out connection (:meth:`_checked_out` ``== 0`` — reliable once idle
-        past the TTL, since any async ``reset`` has long since drained, so a
-        non-zero reading is a genuine hold like a cron ``LISTEN``).
+        A pool is reapable when BOTH: it has seen no activity — borrow or return —
+        in the last ``reap_idle_ttl`` seconds (so none can be in flight), and it
+        holds no checked-out connection (:meth:`_checked_out` ``== 0`` — reliable
+        once idle past the TTL, since any async ``reset`` has long since drained,
+        so a non-zero reading is a genuine hold like a cron ``LISTEN``).
 
         Returns ``[]`` when disabled (``reap_idle_ttl <= 0``).
         """
@@ -452,7 +481,8 @@ class ConnectionPool:
         fixed set of databases would never reap idle siblings for quiet/dropped
         databases.  This sweeps them on the common return path, throttled to once
         per ``self._reap_check_interval`` (a lock-free monotonic compare on the
-        common path).  The just-returned pool is never reaped (fresh stamp).
+        common path).  The just-returned pool is never reaped: :meth:`give_back`
+        re-stamps it via :meth:`_note_pool_activity` before this sweep runs.
         """
         if self._reap_check_interval <= 0:
             return
@@ -631,7 +661,7 @@ class ConnectionPool:
 
         :param connection: The connection to return
         :param keep_in_pool: If False, close the connection before returning
-            it so the pool discards it (used for template databases).
+            it so the pool discards it (e.g. for template/system databases).
         """
         # Gate the debug block on the level: connection.info.dsn is eager and
         # give_back() runs on every cursor close, so pay nothing when DEBUG is
@@ -656,6 +686,13 @@ class ConnectionPool:
         # Clear the marker BEFORE releasing so a second give_back() hits the
         # no-op branch above instead of releasing the permit twice.
         connection._odoo_pool = None
+        # Returning a connection is activity: mark the pool fresh so neither the
+        # reap sweep below nor a later one treats a just-used pool as idle.
+        # Without this, a connection held longer than reap_idle_ttl and then
+        # returned leaves the pool's stamp stale, and the next sweep reaps it —
+        # discarding the warm connection and forcing a rebuild + reconnect (and a
+        # synchronous pre-flight probe) on the very next use.
+        self._note_pool_activity(pool)
         try:
             if not keep_in_pool:
                 # Close the connection first; the pool detects the closed
@@ -761,10 +798,7 @@ class ConnectionPool:
             _logger.debug("%r: Drained %d pool(s)", self, len(pools))
 
     def get_stats(self) -> dict[str, dict]:
-        """Return pool statistics for all databases.
-
-        Returns a dict keyed by database name with psycopg_pool stats.
-        """
+        """Return psycopg_pool stats keyed by database name."""
         # Snapshot under the lock so a concurrent create/close can't raise
         # "dictionary changed size during iteration".
         with self._lock:

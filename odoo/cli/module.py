@@ -104,7 +104,7 @@ class Module(DatabaseCommand):
         return None
 
     def _get_module_names(self, module_names: list[str]) -> set[str]:
-        """Get valid module names from disk before starting the Db environment"""
+        """Return the module names that exist on disk (addon directory or .zip)."""
         initialize_sys_path()
         return {
             module
