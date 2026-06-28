@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";

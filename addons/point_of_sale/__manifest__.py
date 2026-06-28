@@ -156,7 +156,6 @@
             # JS boot
             # libs (should be loaded before framework)
             'point_of_sale/static/lib/**/*',
-            'web/static/lib/luxon/luxon.js',
             'web/static/lib/zxing-library/zxing-library.js',
 
             ('include', 'point_of_sale.base_app'),
@@ -253,8 +252,6 @@
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'point_of_sale._assets_pos',
             'point_of_sale.assets_prod',

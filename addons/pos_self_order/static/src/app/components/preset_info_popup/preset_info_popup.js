@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { isValidEmail } from "@point_of_sale/utils";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";

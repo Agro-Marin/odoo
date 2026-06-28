@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { test, expect } from "@odoo/hoot";
 import { TipScreen } from "@pos_restaurant/app/screens/tip_screen/tip_screen";
 import { mountWithCleanup, MockServer } from "@web/../tests/web_test_helpers";

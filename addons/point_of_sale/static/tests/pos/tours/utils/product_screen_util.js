@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import { back as utilsBack, inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";

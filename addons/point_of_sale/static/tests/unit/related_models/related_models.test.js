@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { expect, test, describe } from "@odoo/hoot";
 import { createRelatedModels, Base } from "@point_of_sale/app/models/related_models";
 import { serializeDateTime } from "@web/core/l10n/dates";

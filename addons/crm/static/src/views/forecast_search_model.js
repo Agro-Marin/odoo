@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Domain } from "@web/core/domain";
 import { makeContext } from "@web/core/context";
 import { SearchModel } from "@web/search/search_model";

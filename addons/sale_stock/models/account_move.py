@@ -123,13 +123,15 @@ class AccountMove(models.Model):
             quantity = sml.product_uom_id._compute_quantity(sml.quantity, product_uom)
 
             # is it a stock return considering the document type (should it be it thought of as positively or negatively?)
+            # dropship returns use 'supplier' locations instead of 'internal', so both are accepted.
             is_stock_return = (
                 self.move_type == "out_invoice"
-                and (sml.location_id.usage, sml.location_dest_id.usage)
-                == ("customer", "internal")
-                or self.move_type == "out_refund"
-                and (sml.location_id.usage, sml.location_dest_id.usage)
-                == ("internal", "customer")
+                and sml.location_id.usage == "customer"
+                and sml.location_dest_id.usage in ("internal", "supplier")
+            ) or (
+                self.move_type == "out_refund"
+                and sml.location_dest_id.usage == "customer"
+                and sml.location_id.usage in ("internal", "supplier")
             )
 
             if is_stock_return:

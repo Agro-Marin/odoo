@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 
