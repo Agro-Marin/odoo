@@ -1,16 +1,55 @@
 """Tests for the OrmCore Layer 1 facade.
 
-These tests verify that OrmCore correctly delegates to FieldCache and
-ComputeEngine, and that the flat API produces identical results to
-calling the underlying components directly.
+These tests verify that OrmCore faithfully delegates to FieldCache and
+ComputeEngine under the *same* method names, producing identical results to
+calling the underlying components directly. Operations not exposed on the facade
+(``set_value``, ``invalidate_*``, ``clear`` …) are reached via ``core.cache`` /
+``core.engine`` and covered by ``test_cache.py`` / ``test_compute.py``.
 """
 
 import unittest
 from collections import namedtuple
+from unittest.mock import Mock
 
 from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.core import OrmCore
+
+# Drift guard (ADR-0010 step 3): each OrmCore pass-through and the
+# FieldCache/ComputeEngine method it MUST delegate to, with the call arity.
+# ``clear_cache`` is the one intentional rename (-> cache.clear); ``new_scheduler``
+# is a factory, not a pass-through, and is covered by its own tests above.
+# (orm_method, target, underlying_method, arity, returns_value)
+# ``returns_value`` is False for the void pass-throughs (the facade calls but
+# does not return the result) — for those only the delegation is checked.
+_DELEGATIONS = [
+    ("get_field_data", "cache", "get_field_data", 1, True),
+    ("get_field_data_or_none", "cache", "get_field_data_or_none", 1, True),
+    ("mark_dirty", "cache", "mark_dirty", 2, False),
+    ("get_dirty", "cache", "get_dirty", 1, True),
+    ("pop_dirty", "cache", "pop_dirty", 1, True),
+    ("pop_dirty_for_model", "cache", "pop_dirty_for_model", 1, True),
+    ("has_dirty_field", "cache", "has_dirty_field", 1, True),
+    ("is_any_dirty", "cache", "is_any_dirty", 0, True),
+    ("add_patch", "cache", "add_patch", 3, False),
+    ("get_patches", "cache", "get_patches", 1, True),
+    ("iter_field_items", "cache", "iter_field_items", 0, True),
+    ("clear_cache", "cache", "clear", 0, False),
+    ("schedule", "engine", "schedule", 2, False),
+    ("mark_done", "engine", "mark_done", 2, False),
+    ("is_pending", "engine", "is_pending", 2, True),
+    ("has_pending_field", "engine", "has_pending_field", 1, True),
+    ("has_pending", "engine", "has_pending", 0, True),
+    ("pending_ids", "engine", "pending_ids", 1, True),
+    ("pending_fields", "engine", "pending_fields", 0, True),
+    ("discard_field", "engine", "discard_field", 1, False),
+    ("is_protected", "engine", "is_protected", 2, True),
+    ("protected_ids", "engine", "protected_ids", 1, True),
+    ("push_protection", "engine", "push_protection", 0, False),
+    ("pop_protection", "engine", "pop_protection", 0, True),
+    ("protect", "engine", "protect", 2, False),
+]
+_NON_PASSTHROUGH = {"new_scheduler"}  # factory, not a same-name delegation
 
 # Lightweight field stub — hashable, named for debugging.
 FakeField = namedtuple("FakeField", ["model_name", "name"])
@@ -24,45 +63,18 @@ class TestOrmCoreCache(unittest.TestCase):
         self.f1 = FakeField("res.partner", "name")
         self.f2 = FakeField("res.partner", "email")
 
-    def test_set_and_get_value(self) -> None:
-        self.core.set_value(self.f1, 1, "Alice")
-        self.assertEqual(self.core.get_value(self.f1, 1), "Alice")
-
-    def test_get_value_default(self) -> None:
-        self.assertIsNone(self.core.get_value(self.f1, 999))
-        self.assertEqual(self.core.get_value(self.f1, 999, "fallback"), "fallback")
-
-    def test_field_data_returns_live_dict(self) -> None:
-        self.core.set_value(self.f1, 1, "Alice")
-        data = self.core.field_data(self.f1)
+    def test_get_field_data_returns_live_dict(self) -> None:
+        self.core.cache.set_value(self.f1, 1, "Alice")
+        data = self.core.get_field_data(self.f1)
         self.assertEqual(data[1], "Alice")
-        # mutations on the returned dict are visible
+        # mutations on the returned dict are visible through the cache
         data[2] = "Bob"
-        self.assertEqual(self.core.get_value(self.f1, 2), "Bob")
+        self.assertEqual(self.core.cache.get_value(self.f1, 2), "Bob")
 
-    def test_field_data_or_none(self) -> None:
-        self.assertIsNone(self.core.field_data_or_none(self.f1))
-        self.core.set_value(self.f1, 1, "X")
-        self.assertIsNotNone(self.core.field_data_or_none(self.f1))
-
-    def test_update_batch(self) -> None:
-        self.core.update_batch(self.f1, (1, 2, 3), "same")
-        for i in (1, 2, 3):
-            self.assertEqual(self.core.get_value(self.f1, i), "same")
-
-    def test_insert_if_absent(self) -> None:
-        self.core.set_value(self.f1, 1, "keep")
-        self.core.insert_if_absent(self.f1, [1, 2], ["overwrite", "new"])
-        self.assertEqual(self.core.get_value(self.f1, 1), "keep")
-        self.assertEqual(self.core.get_value(self.f1, 2), "new")
-
-    def test_pop_value(self) -> None:
-        self.core.set_value(self.f1, 1, "val")
-        self.assertEqual(self.core.pop_value(self.f1, 1), "val")
-        self.assertIsNone(self.core.get_value(self.f1, 1))
-
-    def test_pop_value_default(self) -> None:
-        self.assertEqual(self.core.pop_value(self.f1, 999, "miss"), "miss")
+    def test_get_field_data_or_none(self) -> None:
+        self.assertIsNone(self.core.get_field_data_or_none(self.f1))
+        self.core.cache.set_value(self.f1, 1, "X")
+        self.assertIsNotNone(self.core.get_field_data_or_none(self.f1))
 
     # -- dirty tracking --
 
@@ -87,12 +99,6 @@ class TestOrmCoreCache(unittest.TestCase):
     def test_pop_dirty_empty(self) -> None:
         self.assertIsNone(self.core.pop_dirty(self.f1))
 
-    def test_iter_dirty_fields(self) -> None:
-        self.core.mark_dirty(self.f1, [1])
-        self.core.mark_dirty(self.f2, [2])
-        dirty_fields = set(self.core.iter_dirty_fields())
-        self.assertEqual(dirty_fields, {self.f1, self.f2})
-
     # -- patches --
 
     def test_add_and_get_patches(self) -> None:
@@ -104,45 +110,13 @@ class TestOrmCoreCache(unittest.TestCase):
     def test_get_patches_none(self) -> None:
         self.assertIsNone(self.core.get_patches(self.f1))
 
-    # -- invalidation --
-
-    def test_invalidate_field_all(self) -> None:
-        self.core.set_value(self.f1, 1, "a")
-        self.core.set_value(self.f1, 2, "b")
-        self.core.invalidate_field(self.f1)
-        self.assertIsNone(self.core.get_value(self.f1, 1))
-
-    def test_invalidate_field_specific_ids(self) -> None:
-        self.core.set_value(self.f1, 1, "a")
-        self.core.set_value(self.f1, 2, "b")
-        self.core.invalidate_field(self.f1, [1])
-        self.assertIsNone(self.core.get_value(self.f1, 1))
-        self.assertEqual(self.core.get_value(self.f1, 2), "b")
-
-    def test_invalidate_all(self) -> None:
-        self.core.set_value(self.f1, 1, "a")
-        self.core.set_value(self.f2, 1, "b")
-        self.core.invalidate_all()
-        self.assertIsNone(self.core.get_value(self.f1, 1))
-        self.assertIsNone(self.core.get_value(self.f2, 1))
-
     # -- iteration --
 
-    def test_iter_fields(self) -> None:
-        self.core.set_value(self.f1, 1, "a")
-        self.core.set_value(self.f2, 1, "b")
-        self.assertEqual(set(self.core.iter_fields()), {self.f1, self.f2})
-
     def test_iter_field_items(self) -> None:
-        self.core.set_value(self.f1, 1, "a")
+        self.core.cache.set_value(self.f1, 1, "a")
         items = dict(self.core.iter_field_items())
         self.assertIn(self.f1, items)
         self.assertEqual(items[self.f1][1], "a")
-
-    def test_has_field(self) -> None:
-        self.assertFalse(self.core.has_field(self.f1))
-        self.core.set_value(self.f1, 1, "a")
-        self.assertTrue(self.core.has_field(self.f1))
 
 
 class TestOrmCoreCompute(unittest.TestCase):
@@ -155,8 +129,8 @@ class TestOrmCoreCompute(unittest.TestCase):
 
     def test_schedule_and_pending(self) -> None:
         self.core.schedule(self.f1, [1, 2])
-        self.assertTrue(self.core.has_pending(self.f1))
-        self.assertTrue(self.core.has_any_pending())
+        self.assertTrue(self.core.has_pending_field(self.f1))
+        self.assertTrue(self.core.has_pending())
         self.assertEqual(self.core.pending_ids(self.f1), {1, 2})
 
     def test_is_pending(self) -> None:
@@ -168,8 +142,8 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertFalse(self.core.is_pending(self.f1, 1))
 
     def test_has_pending_false(self) -> None:
-        self.assertFalse(self.core.has_pending(self.f1))
-        self.assertFalse(self.core.has_any_pending())
+        self.assertFalse(self.core.has_pending_field(self.f1))
+        self.assertFalse(self.core.has_pending())
 
     def test_pending_ids_empty(self) -> None:
         self.assertEqual(self.core.pending_ids(self.f1), ())
@@ -182,21 +156,17 @@ class TestOrmCoreCompute(unittest.TestCase):
     def test_mark_done_clears_entry(self) -> None:
         self.core.schedule(self.f1, [1])
         self.core.mark_done(self.f1, [1])
-        self.assertFalse(self.core.has_pending(self.f1))
+        self.assertFalse(self.core.has_pending_field(self.f1))
 
     def test_pending_fields(self) -> None:
         self.core.schedule(self.f1, [1])
         self.core.schedule(self.f2, [2])
         self.assertEqual(set(self.core.pending_fields()), {self.f1, self.f2})
 
-    def test_pending_property(self) -> None:
-        self.core.schedule(self.f1, [1])
-        self.assertIn(self.f1, self.core.pending)
-
     def test_discard_field(self) -> None:
         self.core.schedule(self.f1, [1, 2])
         self.core.discard_field(self.f1)
-        self.assertFalse(self.core.has_pending(self.f1))
+        self.assertFalse(self.core.has_pending_field(self.f1))
 
     def test_discard_field_noop(self) -> None:
         # should not raise
@@ -224,36 +194,41 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertTrue(self.core.is_protected(self.f1, 1))
         self.assertFalse(self.core.is_protected(self.f1, 2))
 
+    # -- scheduler factory --
+
+    def test_new_scheduler_is_bound_to_engine(self) -> None:
+        from odoo.orm.components.recompute import RecomputeScheduler
+
+        sched = self.core.new_scheduler()
+        self.assertIsInstance(sched, RecomputeScheduler)
+        self.assertIs(sched._engine, self.core.engine)
+        # each call returns a fresh, independent scheduler
+        self.assertIsNot(sched, self.core.new_scheduler())
+
+    def test_new_scheduler_cycle_aware_seeds_pending(self) -> None:
+        self.core.schedule(self.f1, [1, 2])
+        aware = self.core.new_scheduler(cycle_aware=True)
+        plain = self.core.new_scheduler(cycle_aware=False)
+        # cycle_aware reads the engine's live pending map (cycle detection);
+        # plain starts with nothing marked.
+        self.assertEqual(aware._marked.get(self.f1), {1, 2})
+        self.assertEqual(dict(plain._marked), {})
+
 
 class TestOrmCoreLifecycle(unittest.TestCase):
-    """Test clear/invalidation lifecycle."""
+    """Test the clear_cache lifecycle operation."""
 
     def setUp(self) -> None:
         self.core = OrmCore()
         self.f1 = FakeField("x", "a")
 
-    def test_clear(self) -> None:
-        self.core.set_value(self.f1, 1, "v")
-        self.core.mark_dirty(self.f1, [1])
-        self.core.schedule(self.f1, [1])
-        self.core.clear()
-        self.assertIsNone(self.core.get_value(self.f1, 1))
-        self.assertFalse(self.core.is_any_dirty())
-        self.assertFalse(self.core.has_any_pending())
-
     def test_clear_cache_only(self) -> None:
-        self.core.set_value(self.f1, 1, "v")
+        self.core.cache.set_value(self.f1, 1, "v")
         self.core.schedule(self.f1, [1])
         self.core.clear_cache()
-        self.assertIsNone(self.core.get_value(self.f1, 1))
-        self.assertTrue(self.core.has_pending(self.f1))
-
-    def test_clear_compute_only(self) -> None:
-        self.core.set_value(self.f1, 1, "v")
-        self.core.schedule(self.f1, [1])
-        self.core.clear_compute()
-        self.assertEqual(self.core.get_value(self.f1, 1), "v")
-        self.assertFalse(self.core.has_pending(self.f1))
+        # cache data is gone, but compute state survives
+        self.assertIsNone(self.core.cache.get_value(self.f1, 1, None))
+        self.assertTrue(self.core.has_pending_field(self.f1))
 
 
 class TestOrmCoreConstructor(unittest.TestCase):
@@ -283,7 +258,7 @@ class TestOrmCoreConstructor(unittest.TestCase):
 
 class TestOrmCoreDelegationConsistency(unittest.TestCase):
     """Verify that OrmCore methods produce identical results to direct
-    component access — the facade must be transparent.
+    component access — the facade must be a faithful, transparent pass-through.
     """
 
     def setUp(self) -> None:
@@ -292,10 +267,10 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
         self.core = OrmCore(cache=self.cache, engine=self.engine)
         self.f1 = FakeField("m", "f")
 
-    def test_field_data_is_same_object(self) -> None:
-        self.core.set_value(self.f1, 1, "v")
+    def test_get_field_data_is_same_object(self) -> None:
+        self.cache.set_value(self.f1, 1, "v")
         self.assertIs(
-            self.core.field_data(self.f1),
+            self.core.get_field_data(self.f1),
             self.cache.get_field_data(self.f1),
         )
 
@@ -306,16 +281,23 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
             self.engine.pending_ids(self.f1),
         )
 
-    def test_has_pending_matches_engine(self) -> None:
+    def test_has_pending_field_matches_engine(self) -> None:
         self.assertEqual(
-            self.core.has_pending(self.f1),
+            self.core.has_pending_field(self.f1),
             self.engine.has_pending_field(self.f1),
         )
         self.core.schedule(self.f1, [1])
         self.assertEqual(
-            self.core.has_pending(self.f1),
+            self.core.has_pending_field(self.f1),
             self.engine.has_pending_field(self.f1),
         )
+
+    def test_has_pending_matches_engine(self) -> None:
+        # facade.has_pending() is the no-arg "any pending" predicate, faithful
+        # to ComputeEngine.has_pending().
+        self.assertEqual(self.core.has_pending(), self.engine.has_pending())
+        self.core.schedule(self.f1, [1])
+        self.assertEqual(self.core.has_pending(), self.engine.has_pending())
 
     def test_is_pending_matches_engine(self) -> None:
         self.core.schedule(self.f1, [1])
@@ -357,6 +339,43 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
             self.core.protected_ids(self.f1),
             self.engine.protected_ids(self.f1),
         )
+
+
+class TestOrmCoreDelegationDrift(unittest.TestCase):
+    """Drift guard (ADR-0010): every OrmCore pass-through delegates to the
+    same-named FieldCache / ComputeEngine method.
+
+    Uses ``Mock(spec=...)``, which raises ``AttributeError`` if OrmCore calls a
+    method the underlying class no longer has — so an upstream rename/removal
+    fails *here*, loudly, instead of silently breaking ``env._core``.
+    """
+
+    def test_pass_throughs_delegate_by_same_name(self) -> None:
+        for orm_method, target, underlying, arity, returns in _DELEGATIONS:
+            with self.subTest(method=orm_method):
+                cache = Mock(spec=FieldCache)
+                engine = Mock(spec=ComputeEngine)
+                core = OrmCore(cache=cache, engine=engine)
+                target_obj = cache if target == "cache" else engine
+                args = tuple(object() for _ in range(arity))
+
+                result = getattr(core, orm_method)(*args)
+
+                underlying_mock = getattr(target_obj, underlying)
+                underlying_mock.assert_called_once_with(*args)
+                if returns:
+                    self.assertIs(result, underlying_mock.return_value)
+
+    def test_table_covers_every_pass_through(self) -> None:
+        """Guard the guard: a new public OrmCore method must be added to
+        ``_DELEGATIONS`` (or to ``_NON_PASSTHROUGH``), or this fails."""
+        documented = {row[0] for row in _DELEGATIONS}
+        public = {
+            name
+            for name in vars(OrmCore)
+            if not name.startswith("_") and callable(getattr(OrmCore, name))
+        }
+        self.assertEqual(public - _NON_PASSTHROUGH, documented)
 
 
 if __name__ == "__main__":

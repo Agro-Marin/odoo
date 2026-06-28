@@ -12,7 +12,7 @@ from odoo_rust import origin_ids as _origin_ids_rust  # type: ignore[import-unty
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Reversible
+    from collections.abc import Iterable
 
     from .models.base import BaseModel
 
@@ -38,26 +38,28 @@ def _origin_ids(ids: Iterable) -> list[int]:
     return _origin_ids_python(ids)
 
 
-class OriginIds:
-    """Reversible iterable of the origin ids of a collection of ``ids``.
+# Class-level memoization
 
-    Actual ids pass through; ids without origin are dropped. For eager
-    consumption prefer ``_origin_ids(ids)`` (uses Rust when available,
-    ~3x faster for int-only tuples).
+
+def own_class_memo[T](cls: type, key: str, factory: typing.Callable[[], T]) -> T:
+    """Return a per-class value memoized on ``cls``'s OWN ``__dict__``.
+
+    The read uses ``cls.__dict__.get`` rather than attribute access on purpose:
+    a model that prototype-inherits another (``_inherit`` with a new ``_name``)
+    carries the parent's runtime class in its MRO, so ``getattr(cls, key)`` would
+    find — and the child would silently reuse — the *parent's* memo. Only the
+    read must be MRO-blind; the ``setattr`` write lands on the child's own dict.
+
+    ``factory`` runs at most once per class, on the first miss. A value that is
+    falsy-but-not-``None`` (e.g. an empty tuple) is cached and returned normally;
+    only ``None`` means "not computed yet", so ``key`` must never legitimately
+    memoize ``None``.
     """
-
-    __slots__ = ["ids"]
-
-    def __init__(self, ids: Reversible) -> None:
-        self.ids = ids
-
-    def __iter__(self) -> Iterator[int]:
-        return iter(_origin_ids(self.ids))
-
-    def __reversed__(self) -> Iterator[int]:
-        for id_ in reversed(self.ids):
-            if id_ := id_ or getattr(id_, "origin", None):
-                yield id_
+    value = cls.__dict__.get(key)
+    if value is None:
+        value = factory()
+        setattr(cls, key, value)
+    return value
 
 
 # Record utilities

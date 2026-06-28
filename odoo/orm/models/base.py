@@ -7,18 +7,20 @@ field/method discovery, and coordination.
 import collections
 import functools
 import logging
-import time
 import typing
 from collections import defaultdict
 from inspect import getmembers
 
 from odoo.exceptions import UserError
 from odoo.tools import SQL, OrderedSet, frozendict
+from odoo.tools.orm_profiler import _OrmProfile
 
 from .. import decorators as api
+from .._recordset import set_base_model
 from ..fields.base import Field, determine
 from ..fields.misc import Id
 from ..fields.textual import Char
+from ..helpers import own_class_memo
 from ..parsing import parse_field_expr
 from .metaclass import MetaModel
 from .mixins import (
@@ -26,19 +28,23 @@ from .mixins import (
     CacheMixin,
     # Core operations
     CopyMixin,
-    CrudMixin,
+    CreateMixin,
     EnvironmentMixin,
-    IOMixin,
+    ExportMixin,
     IterationMixin,
     LifecycleMixin,
+    LoadMixin,
     ReadGroupMixin,
     # Data access
     ReadMixin,
+    RecomputeMixin,
     SchemaMixin,
     SearchMixin,
     # Features
     TranslationMixin,
     TraversalMixin,
+    UnlinkMixin,
+    WriteMixin,
 )
 
 if typing.TYPE_CHECKING:
@@ -54,11 +60,14 @@ _orm_crud = logging.getLogger("odoo.orm.crud")
 
 
 class BaseModel(
-    CrudMixin,
+    CreateMixin,
+    WriteMixin,
+    UnlinkMixin,
     CopyMixin,
     IterationMixin,
     TraversalMixin,
     CacheMixin,
+    RecomputeMixin,
     EnvironmentMixin,
     LifecycleMixin,
     ReadMixin,
@@ -66,7 +75,8 @@ class BaseModel(
     ReadGroupMixin,
     TranslationMixin,
     SchemaMixin,
-    IOMixin,
+    ExportMixin,
+    LoadMixin,
     AccessMixin,
     metaclass=MetaModel,
 ):
@@ -257,20 +267,21 @@ class BaseModel(
         if not self._depends:
             return table_sql
 
-        # add self._depends (and its transitive closure) as metadata to table_sql
-        fields_to_flush: list[Field] = []
-        seen: set[str] = set()
+        # add self._depends (and its transitive closure) as metadata to table_sql.
+        # Seed ``seen`` with self so a self-referential _depends doesn't re-walk
+        # self, and dedupe fields (an OrderedSet) so a field reachable through
+        # two parents isn't emitted as duplicate ``to_flush`` metadata.
+        fields_to_flush: OrderedSet[Field] = OrderedSet()
+        seen: set[str] = {self._name}
         models = [self]
         while models:
             current_model = models.pop()
             for model_name, field_names in current_model._depends.items():
+                model = self.env[model_name]
                 if model_name not in seen:
                     seen.add(model_name)
-                    model = self.env[model_name]
                     models.append(model)
-                fields_to_flush.extend(
-                    self.env[model_name]._fields[fname] for fname in field_names
-                )
+                fields_to_flush.update(model._fields[fname] for fname in field_names)
 
         return SQL.EMPTY.join(
             [
@@ -298,31 +309,32 @@ class BaseModel(
             return wrapper
 
         cls = self.env.registry[self._name]
-        methods = []
-        for attr, func in getmembers(cls, is_constraint):
-            if callable(func._constrains):
-                func = wrap(func, func._constrains(self.sudo()))
-            for name in func._constrains:
-                field = cls._fields.get(name)
-                if not field:
-                    _logger.warning(
-                        "method %s.%s: @constrains parameter %r is not a field name",
-                        cls._name,
-                        attr,
-                        name,
-                    )
-                elif not (field.store or field.inverse or field.inherited):
-                    _logger.warning(
-                        "method %s.%s: @constrains parameter %r is not writeable",
-                        cls._name,
-                        attr,
-                        name,
-                    )
-            methods.append(func)
 
-        # optimization: memoize result on cls, it will not be recomputed
-        cls._constraint_methods = methods
-        return methods
+        def build():
+            methods = []
+            for attr, func in getmembers(cls, is_constraint):
+                if callable(func._constrains):
+                    func = wrap(func, func._constrains(self.sudo()))
+                for name in func._constrains:
+                    field = cls._fields.get(name)
+                    if not field:
+                        _logger.warning(
+                            "method %s.%s: @constrains parameter %r is not a field name",
+                            cls._name,
+                            attr,
+                            name,
+                        )
+                    elif not (field.store or field.inverse or field.inherited):
+                        _logger.warning(
+                            "method %s.%s: @constrains parameter %r is not writeable",
+                            cls._name,
+                            attr,
+                            name,
+                        )
+                methods.append(func)
+            return methods
+
+        return own_class_memo(cls, "_constraint_methods__", build)
 
     @property
     def _ondelete_methods(self) -> list:
@@ -332,10 +344,11 @@ class BaseModel(
             return callable(func) and hasattr(func, "_ondelete")
 
         cls = self.env.registry[self._name]
-        methods = [func for _, func in getmembers(cls, is_ondelete)]
-        # optimization: memoize results on cls, it will not be recomputed
-        cls._ondelete_methods = methods
-        return methods
+        return own_class_memo(
+            cls,
+            "_ondelete_methods__",
+            lambda: [func for _, func in getmembers(cls, is_ondelete)],
+        )
 
     @property
     def _onchange_methods(self) -> dict[str, list]:
@@ -346,35 +359,42 @@ class BaseModel(
 
         # collect onchange methods on the model's class
         cls = self.env.registry[self._name]
-        methods = defaultdict(list)
-        for _attr, func in getmembers(cls, is_onchange):
-            missing = []
-            for name in func._onchange:
-                if name in cls._fields:
-                    methods[name].append(func)
-                else:
-                    missing.append(name)
-            if missing:
-                _logger.warning(
-                    "@api.onchange%r parameters must be field names -> not valid: %s",
-                    func._onchange,
-                    missing,
+
+        def build():
+            methods = defaultdict(list)
+            for _attr, func in getmembers(cls, is_onchange):
+                missing = []
+                for name in func._onchange:
+                    if name in cls._fields:
+                        methods[name].append(func)
+                    else:
+                        missing.append(name)
+                if missing:
+                    _logger.warning(
+                        "@api.onchange%r parameters must be field names -> not valid: %s",
+                        func._onchange,
+                        missing,
+                    )
+
+            # add onchange methods to implement "change_default" on fields
+            def onchange_default(field, self):
+                value = field.convert_to_write(self[field.name], self)
+                condition = f"{field.name}={value}"
+                defaults = self.env["ir.default"]._get_model_defaults(
+                    self._name, condition
                 )
+                self.update(defaults)
 
-        # add onchange methods to implement "change_default" on fields
-        def onchange_default(field, self):
-            value = field.convert_to_write(self[field.name], self)
-            condition = f"{field.name}={value}"
-            defaults = self.env["ir.default"]._get_model_defaults(self._name, condition)
-            self.update(defaults)
+            for name, field in cls._fields.items():
+                if field.change_default:
+                    methods[name].append(functools.partial(onchange_default, field))
 
-        for name, field in cls._fields.items():
-            if field.change_default:
-                methods[name].append(functools.partial(onchange_default, field))
+            # return a plain dict: this is memoized per-class, so a later
+            # ``self._onchange_methods[unknown]`` must not vivify (and grow) the
+            # shared defaultdict.
+            return dict(methods)
 
-        # optimization: memoize result on cls, it will not be recomputed
-        cls._onchange_methods = methods
-        return methods
+        return own_class_memo(cls, "_onchange_methods__", build)
 
     def _is_an_ordinary_table(self) -> bool:
         return self.pool.is_an_ordinary_table(self)
@@ -389,9 +409,8 @@ class BaseModel(
         if not methods:
             return
 
-        _debug = _orm_crud.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_crud)
+        if prof.debug:
             _count = 0
 
         # By default, constraints run as sudo (like stored computed fields —
@@ -407,13 +426,14 @@ class BaseModel(
             ) and excluded_names.isdisjoint(check._constrains):
                 use_sudo = getattr(check, "_constrains_sudo", True)
                 check(records_sudo if use_sudo else records_user)
-                if _debug:
+                if prof.debug:
                     _count += 1
 
-        if _debug:
+        prof.stop()
+        if prof.debug:
             _orm_crud.debug(
                 "[%.3f ms] _validate_fields %s: %d constraints",
-                (time.perf_counter() - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
                 _count,
             )
@@ -574,6 +594,10 @@ class BaseModel(
 collections.abc.Set.register(BaseModel)
 # not exactly true as BaseModel doesn't have index or count
 collections.abc.Sequence.register(BaseModel)
+
+# Inject BaseModel into the Layer-1 inversion seam so fields/ and domain/ can
+# recognise recordsets without importing Layer 2 (see odoo/orm/_recordset.py).
+set_base_model(BaseModel)
 
 
 AbstractModel = BaseModel

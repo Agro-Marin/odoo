@@ -14,7 +14,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator
+    from collections.abc import Collection, Iterable
 
 
 class _StackMap:
@@ -31,19 +31,21 @@ class _StackMap:
         self._maps: list[dict[Any, Any]] = []
 
     def get(self, key: Any, default: Any = None) -> Any:
-        """Return the value for *key* searching from top to bottom."""
-        for mapping in reversed(self._maps):
-            try:
-                return mapping[key]
-            except KeyError:
-                pass
+        """Return the value for *key* searching from top (most recent) to bottom.
+
+        Hot path: per-field protection checks during writes. The stack is
+        usually empty or depth-1 and most fields are unprotected (a miss), so
+        walking by index with ``key in m`` avoids both the ``reversed()``
+        iterator allocation and the per-miss ``KeyError`` of the try/except form.
+        """
+        maps = self._maps
+        i = len(maps)
+        while i:
+            i -= 1
+            m = maps[i]
+            if key in m:
+                return m[key]
         return default
-
-    def __contains__(self, key: Any) -> bool:
-        return any(key in m for m in self._maps)
-
-    def __iter__(self) -> Iterator[Any]:
-        return iter({key for m in self._maps for key in m})
 
     def pushmap(self, m: dict[Any, Any] | None = None) -> None:
         """Push a new mapping onto the stack."""
@@ -55,14 +57,6 @@ class _StackMap:
 
     def __setitem__(self, key: Any, value: Any) -> None:
         self._maps[-1][key] = value
-
-    def __getitem__(self, key: Any) -> Any:
-        for mapping in reversed(self._maps):
-            try:
-                return mapping[key]
-            except KeyError:
-                pass
-        raise KeyError(key)
 
     def __len__(self) -> int:
         """Return the number of mappings on the stack (scope depth).
@@ -88,6 +82,15 @@ class ComputeEngine:
     __slots__ = ("_pending", "_protected")
 
     def __init__(self, pending_factory: type | None = None) -> None:
+        """Initialize empty pending and protection structures.
+
+        :param pending_factory: set-like factory for the pending-id sets (e.g.
+            ``OrderedSet`` for deterministic recomputation order); defaults to
+            ``set``.
+        """
+        # Invariant: ``_pending`` never holds an empty set. ``schedule`` skips
+        # empty ids, and ``mark_done`` deletes a field once drained. This makes
+        # ``field in _pending`` equivalent to "has pending recomputations".
         self._pending: defaultdict[Any, set] = defaultdict(pending_factory or set)
         self._protected = _StackMap()
 
@@ -106,8 +109,20 @@ class ComputeEngine:
     # Scheduling
 
     def schedule(self, field: Any, ids: Iterable) -> None:
-        """Mark *field* for recomputation on *ids*."""
-        self._pending[field].update(ids)
+        """Mark *field* for recomputation on *ids*.
+
+        Empty *ids* is a no-op and never creates an entry. ``_pending`` holds
+        only non-empty sets (see invariant in ``__init__``), so ``field in
+        _pending`` means "has real pending recomputations" — which
+        :meth:`has_pending_field` relies on for its O(1) ``Field.__get__`` check.
+        """
+        existing = self._pending.get(field)
+        if existing is None:
+            ids = list(ids)
+            if not ids:
+                return
+            existing = self._pending[field]  # vivify via the configured factory
+        existing.update(ids)
 
     def mark_done(self, field: Any, ids: Iterable) -> None:
         """Mark *field* as computed on *ids*.
@@ -161,11 +176,6 @@ class ComputeEngine:
         """
         self._pending.pop(field, None)
 
-    def prune_empty(self) -> None:
-        """Remove fields with empty pending sets (called after recomputation)."""
-        for field in [f for f in self._pending if not self._pending[f]]:
-            del self._pending[field]
-
     # Protection
 
     def is_protected(self, field: Any, record_id: Any) -> bool:
@@ -196,6 +206,7 @@ class ComputeEngine:
         self._pending.clear()
 
     def __repr__(self) -> str:
+        """Return a debug summary with pending field/entry and scope counts."""
         n_fields = len(self._pending)
         n_entries = sum(len(ids) for ids in self._pending.values())
         n_scopes = len(self._protected)

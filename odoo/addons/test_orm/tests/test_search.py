@@ -2161,3 +2161,15 @@ class TestNonIntId(TransactionCase):
             [], [], ["name:count"]
         )
         self.assertEqual(result, [{"name:count": 1, "__extra_domain": [(1, "=", 1)]}])
+
+
+class TestReadGroupNoGroupby(TransactionCase):
+    def test_offset_ignored_without_groupby(self):
+        """Without a groupby, PostgreSQL returns exactly one aggregate row;
+        limit/offset must not slice that single row away."""
+        model = self.env["test_orm.message"]
+        base = model._read_group([], [], ["__count"])
+        self.assertEqual(len(base), 1)
+        # offset/limit must be ignored for the groupless single-row result
+        self.assertEqual(model._read_group([], [], ["__count"], offset=1), base)
+        self.assertEqual(model._read_group([], [], ["__count"], limit=0), base)

@@ -1,0 +1,250 @@
+"""Pure-Python regression tests for the domain optimizer — no Odoo, no database.
+
+``Domain.optimize(model)`` / ``optimize_full(model)`` only read ``model._name``
+and ``model._fields[name].{type, relational, comodel_name, ...}``, so the whole
+optimizer (``optimizations.py``, ~1k lines of rewrite passes) is exercisable
+against a ten-line stub model — milliseconds per case, no registry bootstrap.
+The full-stack suite (``addons/test_orm/tests/test_domain.py``) uses a real
+``TransactionCase``; this suite locks the BASIC-level algebra so a confluence or
+canonicalisation regression fails here, fast, instead of as a slow search in
+production.
+
+Every expected value below was captured from the live optimizer, not assumed.
+"""
+
+import unittest
+
+# Importing registers all optimization passes onto ``_OPTIMIZATIONS_FOR``.
+# Required because the stubbed ``odoo.orm.domain.__init__`` never runs (it is the
+# real package's ``__init__`` that normally pulls ``optimizations`` in).
+import odoo.orm.domain.optimizations  # noqa: F401  (side-effect import)
+from odoo.orm.domain.ast import Domain, OptimizationLevel
+
+
+class _StubField:
+    """Minimal structural stand-in for :class:`odoo.fields.Field`.
+
+    Carries only the attributes the optimizer reads when resolving a leaf.
+    """
+
+    def __init__(self, name, ftype="integer", *, relational=False, comodel=None):
+        self.name = name
+        self.type = ftype
+        self.relational = relational
+        self.model_name = "m"
+        self.comodel_name = comodel
+        self.store = True
+        self.required = False
+        self.inherited = False
+        self.company_dependent = False
+
+
+class _StubModel:
+    """Ten-line stand-in for a recordset: just ``_name`` and ``_fields``."""
+
+    _name = "m"
+
+    def __init__(self):
+        self._fields = {
+            "a": _StubField("a"),
+            "b": _StubField("b"),
+            "c": _StubField("c"),
+            "name": _StubField("name", "char"),
+            "ok": _StubField("ok", "boolean"),
+        }
+
+
+def _opt(domain):
+    """Optimise ``domain`` against the stub model and return the legacy list form."""
+    return list(domain.optimize(_StubModel()))
+
+
+class TestScalarNormalisation(unittest.TestCase):
+    """Scalar (in)equality leaves canonicalise to ``in`` / ``not in`` sets."""
+
+    def test_eq_becomes_in(self):
+        self.assertEqual(_opt(Domain("a", "=", 1)), [("a", "in", [1])])
+
+    def test_neq_becomes_not_in(self):
+        self.assertEqual(_opt(Domain("a", "!=", 1)), [("a", "not in", [1])])
+
+    def test_in_singleton_stays_in(self):
+        self.assertEqual(_opt(Domain("a", "in", [1])), [("a", "in", [1])])
+
+    def test_in_dedups_values(self):
+        self.assertEqual(_opt(Domain("a", "in", [1, 2, 2, 1])), [("a", "in", [1, 2])])
+
+    def test_like_is_left_alone(self):
+        self.assertEqual(_opt(Domain("name", "like", "x")), [("name", "like", "x")])
+
+
+class TestBooleanNormalisation(unittest.TestCase):
+    """Boolean leaves normalise to ``in [True]`` regardless of phrasing."""
+
+    def test_eq_true(self):
+        self.assertEqual(_opt(Domain("ok", "=", True)), [("ok", "in", [True])])
+
+    def test_neq_false_equals_eq_true(self):
+        self.assertEqual(_opt(Domain("ok", "!=", False)), [("ok", "in", [True])])
+
+
+class TestNegation(unittest.TestCase):
+    """``~`` folds into the leaf operator; double negation cancels."""
+
+    def test_single_negation(self):
+        self.assertEqual(_opt(~Domain("a", "=", 1)), [("a", "not in", [1])])
+
+    def test_double_negation_cancels(self):
+        self.assertEqual(_opt(~~Domain("a", "=", 1)), [("a", "in", [1])])
+
+
+class TestSetMerging(unittest.TestCase):
+    """Same-field conditions merge by set algebra (union / intersection)."""
+
+    def test_or_unions(self):
+        self.assertEqual(
+            _opt(Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])),
+            [("a", "in", [1, 2, 3])],
+        )
+
+    def test_and_intersects(self):
+        self.assertEqual(
+            _opt(Domain("a", "in", [1, 2]) & Domain("a", "in", [2, 3])),
+            [("a", "in", [2])],
+        )
+
+    def test_or_of_eqs_merges(self):
+        self.assertEqual(
+            _opt(Domain("a", "=", 1) | Domain("a", "=", 2)),
+            [("a", "in", [1, 2])],
+        )
+
+    def test_and_of_equal_eqs_dedups(self):
+        self.assertEqual(
+            _opt(Domain("a", "=", 1) & Domain("a", "=", 1)),
+            [("a", "in", [1])],
+        )
+
+    def test_contradiction_collapses_to_false(self):
+        # a == 1 AND a == 2 is unsatisfiable; (0, '=', 1) is the FALSE leaf.
+        self.assertEqual(
+            _opt(Domain("a", "=", 1) & Domain("a", "=", 2)),
+            [(0, "=", 1)],
+        )
+
+    def test_distinct_field_inequalities_not_merged(self):
+        # Range merging is not a BASIC pass: two ``<`` on one field are kept.
+        # They ARE canonically ordered by value, though, so the optimized form
+        # (and its SQL/query-cache key) is independent of the caller's leaf order.
+        canonical = ["&", ("a", "<", 3), ("a", "<", 5)]
+        self.assertEqual(_opt(Domain("a", "<", 5) & Domain("a", "<", 3)), canonical)
+        self.assertEqual(_opt(Domain("a", "<", 3) & Domain("a", "<", 5)), canonical)
+
+
+class TestBooleanAbsorption(unittest.TestCase):
+    """TRUE / FALSE absorb correctly in AND / OR."""
+
+    def test_true_and_x_is_x(self):
+        self.assertEqual(_opt(Domain.TRUE & Domain("a", "=", 1)), [("a", "in", [1])])
+
+    def test_false_and_x_is_false(self):
+        self.assertEqual(_opt(Domain.FALSE & Domain("a", "=", 1)), [(0, "=", 1)])
+
+    def test_true_or_x_is_true(self):
+        self.assertEqual(_opt(Domain.TRUE | Domain("a", "=", 1)), [(1, "=", 1)])
+
+    def test_false_or_x_is_x(self):
+        self.assertEqual(_opt(Domain.FALSE | Domain("a", "=", 1)), [("a", "in", [1])])
+
+
+class TestNaryFlattening(unittest.TestCase):
+    """Nested same-operator n-ary nodes flatten into one node."""
+
+    def test_nested_and_flattens(self):
+        d = (Domain("a", "=", 1) & Domain("b", "=", 2)) & Domain("c", "=", 3)
+        self.assertEqual(
+            _opt(d),
+            ["&", "&", ("a", "in", [1]), ("b", "in", [2]), ("c", "in", [3])],
+        )
+
+    def test_nested_or_flattens(self):
+        d = (Domain("a", "=", 1) | Domain("b", "=", 2)) | Domain("c", "=", 3)
+        self.assertEqual(
+            _opt(d),
+            ["|", "|", ("a", "in", [1]), ("b", "in", [2]), ("c", "in", [3])],
+        )
+
+
+class TestOptimizerInvariants(unittest.TestCase):
+    """Cross-cutting guarantees the rest of the ORM relies on."""
+
+    def test_optimize_does_not_mutate_original(self):
+        # Reusing an UN-optimised domain across models must stay safe, so
+        # optimize() returns a new tree and leaves the input at level NONE.
+        original = Domain("a", "=", 1)
+        original.optimize(_StubModel())
+        self.assertEqual(list(original), [("a", "=", 1)])
+        self.assertIs(original._opt_level, OptimizationLevel.NONE)
+
+    def test_optimize_is_idempotent(self):
+        model = _StubModel()
+        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)
+        twice = once.optimize(model)
+        self.assertEqual(once, twice)
+        self.assertIs(once._opt_level, twice._opt_level)
+
+    def test_boolean_singletons_optimize_to_themselves(self):
+        model = _StubModel()
+        self.assertIs(Domain.TRUE.optimize(model), Domain.TRUE)
+        self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)
+
+
+class TestOptimizeModelScoping(unittest.TestCase):
+    """``_opt_level`` is cached per model: reusing an optimised (canonical)
+    domain against a different model must not skip type-dependent BASIC
+    coercion, which would silently emit wrong SQL.
+    """
+
+    class _Field:
+        def __init__(self, name, ftype, model_name):
+            self.name = name
+            self.type = ftype
+            self.relational = False
+            self.model_name = model_name
+            self.comodel_name = None
+            self.store = True
+            self.required = False
+            self.inherited = False
+            self.company_dependent = False
+
+    class _Model:
+        def __init__(self, name, field_types):
+            self._name = name
+            self._fields = {
+                n: TestOptimizeModelScoping._Field(n, t, name)
+                for n, t in field_types.items()
+            }
+
+    def test_reuse_across_models_recoerces_value(self):
+        int_model = self._Model("int_model", {"a": "integer"})
+        bool_model = self._Model("bool_model", {"a": "boolean"})
+        # optimise against a model where `a` is integer (value stays an int)
+        opt = Domain("a", "=", 5).optimize(int_model)
+        self.assertEqual(list(opt), [("a", "in", [5])])
+        # reuse the SAME canonical, level-stamped node against a model where
+        # `a` is boolean: it must re-coerce (5 -> True), not return the stale int.
+        reused = list(opt.optimize(bool_model))
+        self.assertEqual(reused, list(Domain("a", "=", 5).optimize(bool_model)))
+        self.assertEqual(reused, [("a", "in", [True])])
+
+    def test_same_model_reuse_stays_idempotent(self):
+        int_model = self._Model("int_model", {"a": "integer"})
+        opt = Domain("a", "=", 5).optimize(int_model)
+        again = opt.optimize(int_model)
+        self.assertEqual(list(again), list(opt))
+        self.assertIs(again._opt_level, opt._opt_level)
+        self.assertEqual(opt._opt_model_name, "int_model")
+
+
+if __name__ == "__main__":
+    unittest.main()

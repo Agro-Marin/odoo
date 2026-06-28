@@ -289,7 +289,7 @@ class test_integer_field(ImporterCase):
                     'type': 'error',
                     'rows': {'from': 0, 'to': 0},
                     'record': 0,
-                    'message': "integer out of range\n",
+                    'message': "integer out of range",
                 }
             ],
         )
@@ -303,7 +303,7 @@ class test_integer_field(ImporterCase):
                     'type': 'error',
                     'rows': {'from': 0, 'to': 0},
                     'record': 0,
-                    'message': "integer out of range\n",
+                    'message': "integer out of range",
                 }
             ],
         )

@@ -114,6 +114,15 @@ def nary_condition_optimization(
             # group adjacent conditions sharing field and operators
             result = []
             merge_conditions: list[DomainCondition] = []
+
+            def flush() -> None:
+                # emit the pending group: merge it when it has >=2 conditions,
+                # otherwise pass it through unchanged. No-op on an empty group.
+                if len(merge_conditions) >= 2:
+                    result.extend(optimization(cls, merge_conditions, model))
+                else:
+                    result.extend(merge_conditions)
+
             for domain in domains:
                 if isinstance(domain, DomainCondition) and domain.operator in operators:
                     field = domain._field(model)
@@ -125,26 +134,21 @@ def nary_condition_optimization(
                             merge_conditions.append(domain)
                             continue
                         # we are changing (field, operator), save the previous group
-                        if len(merge_conditions) >= 2:
-                            result.extend(optimization(cls, merge_conditions, model))
-                        else:
-                            result.extend(merge_conditions)
+                        flush()
                         merge_conditions = [domain]
                         continue
                 if merge_conditions:
-                    if len(merge_conditions) >= 2:
-                        result.extend(optimization(cls, merge_conditions, model))
-                    else:
-                        result.extend(merge_conditions)
+                    flush()
                     merge_conditions = []
                 result.append(domain)
-            if merge_conditions:
-                if len(merge_conditions) >= 2:
-                    result.extend(optimization(cls, merge_conditions, model))
-                else:
-                    result.extend(merge_conditions)
+            flush()
             return result
 
+        # Return the *undecorated* function (not ``optimizer``): ``@nary_optimization``
+        # already registered ``optimizer`` for its side effect, and returning the raw
+        # function lets stacked ``@nary_condition_optimization`` decorators (e.g. on
+        # ``_optimize_merge_any`` for both "any" and "any!") each wrap the original
+        # rather than wrapping each other's grouping wrapper.
         return optimization
 
     return register
@@ -245,6 +249,12 @@ def _optimize_in_required(condition, model):
     ``False`` in memory.
     """
     value = condition.value
+    # Stripping False only changes anything when a False is actually present;
+    # check that first so the common case skips the field/registry lookups
+    # entirely. (Also avoids the previous len()-equality proxy for set
+    # equality, which was only correct because BASIC already deduplicated.)
+    if False not in value:
+        return condition
     field = condition._field(model)
     if (
         field.falsy_value is None
@@ -253,10 +263,12 @@ def _optimize_in_required(condition, model):
         # only optimize if there are no NewId's
         and all(model._ids)
     ):
-        value = OrderedSet(v for v in value if v is not False)
-    if len(value) == len(condition.value):
-        return condition
-    return DomainCondition(condition.field_expr, condition.operator, value)
+        return DomainCondition(
+            condition.field_expr,
+            condition.operator,
+            OrderedSet(v for v in value if v is not False),
+        )
+    return condition
 
 
 @operator_optimization(["any", "not any", "any!", "not any!"])
@@ -367,9 +379,13 @@ def _optimize_relational_name_search(condition, model):
     # Handle equality with str values
     if positive_operator != "in" or not isinstance(value, COLLECTION_TYPES):
         return condition
-    str_values, other_values = partition(lambda v: isinstance(v, str), value)
-    if not str_values:
+    # Cheap scan before allocating: the common case (`field_id in {ids}`) has no
+    # string values, and `partition` would copy the whole collection into
+    # `other_values` only to discard it.  `value` is a concrete collection here
+    # (checked above), so re-iterating it is safe.
+    if not any(isinstance(v, str) for v in value):
         return condition
+    str_values, other_values = partition(lambda v: isinstance(v, str), value)
     domain = DomainCondition(
         condition.field_expr,
         any_operator,
@@ -713,7 +729,7 @@ def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | Order
             paths = comodel.exists().mapped("parent_path")
         return Domain.OR(
             DomainCondition("parent_path", "=like", path + "%") for path in paths
-        )  # type: ignore
+        )
     else:
         # walk children with sudo(); forbidden records are filtered by the
         # rest of the domain
@@ -926,23 +942,29 @@ def _optimize_merge_not_any(cls, conditions, model):
 
 @nary_optimization
 def _optimize_same_conditions(cls, conditions, model):
-    """Merge (adjacent) conditions that are the same.
+    """Remove duplicate conditions, regardless of their position.
 
-    Quick optimization for some conditions, just compare if we have the same
-    condition twice.
+    De-duplicating only *adjacent* equals (the previous behaviour) is not
+    confluent: the n-ary sort key excludes the condition value, so two equal
+    conditions sharing a sort key need not end up adjacent, and operators
+    without a value-merge pass (``like``, ``ilike``, …) would then survive in
+    one permutation but not the other — the same logical domain optimizing to
+    two different SQL strings, defeating the query cache.  A first-occurrence
+    set de-dup is order-independent and O(n); every possible child is hashable
+    (``DomainCondition.__hash__`` is total, falling back to a value-independent
+    hash for unhashable SQL/Query values).
     """
     # check if we need to create a new list (this is usually not the case)
-    prev = None
+    seen: set = set()
     for condition in conditions:
-        if prev == condition:
+        if condition in seen:
             break
-        prev = condition
+        seen.add(condition)
     else:
         return conditions
 
-    # avoid any function calls, and use the stack semantics for prev comparison
-    prev = None
-    return [condition for condition in conditions if prev != (prev := condition)]
+    seen.clear()
+    return [c for c in conditions if not (c in seen or seen.add(c))]
 
 
 __all__ = [

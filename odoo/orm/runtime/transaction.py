@@ -8,7 +8,8 @@ lazily on the first ``Environment.__new__`` for a cursor with no transaction yet
 import logging
 import typing
 from contextlib import suppress
-from weakref import WeakSet, ref as weakref_ref
+from weakref import WeakSet
+from weakref import ref as weakref_ref
 
 from odoo.tools import OrderedSet, reset_cached_properties
 from odoo.tools.nplusone import NplusOneTracker, _n1_enabled
@@ -18,6 +19,7 @@ from ..components.cache import FieldCache
 from ..components.compute import ComputeEngine
 from ..components.core import OrmCore
 from ..components.unit_of_work import UnitOfWork
+from .backend import InMemoryBackend
 from .cache_compat import Cache
 from .registry import Registry
 
@@ -34,13 +36,14 @@ class Transaction:
 
     __slots__ = (
         "_Transaction__file_open_tmp_paths",
+        "_cache_store",
+        "_compute_engine",
         "_last_env",
         "_n1_tracker",
         "_orm_profiler",
         "_ref_cache",
+        "backend",
         "cache",
-        "cache_store",
-        "compute_engine",
         "core",
         "default_env",
         "envs",
@@ -52,28 +55,30 @@ class Transaction:
     def __init__(self, registry: Registry, storage=None):
         self.registry = registry
         # Optional in-memory storage backend (DictBackend): when set, CRUD
-        # dispatches here instead of generating SQL.  ``None`` = PostgreSQL.
+        # dispatches to ``backend`` instead of generating SQL.  ``None`` = the
+        # PostgreSQL fast path (no backend object, no dispatch indirection).
         self.storage = storage
+        self.backend = InMemoryBackend(storage) if storage is not None else None
         self.envs: WeakSet[Environment] = WeakSet()
         self.envs.data = OrderedSet()  # type: ignore[attr-defined]
         # default environment (for flushing)
         self.default_env: Environment | None = None
         # MRU env-lookup cache (repeated with_user/sudo).  Weakref so it does not
         # prolong env lifetime; callers do ``_last_env() if _last_env else None``.
-        self._last_env: "weakref_ref[Environment] | None" = None
+        self._last_env: weakref_ref[Environment] | None = None
 
         # OrderedSet dirty factory preserves write order during flush.
-        self.cache_store = FieldCache(dirty_factory=OrderedSet)
+        self._cache_store = FieldCache(dirty_factory=OrderedSet)
 
         # OrderedSet pending factory gives deterministic recompute order.
-        self.compute_engine = ComputeEngine(pending_factory=OrderedSet)
+        self._compute_engine = ComputeEngine(pending_factory=OrderedSet)
 
         # Layer 1 facade (env._core).
-        self.core = OrmCore(cache=self.cache_store, engine=self.compute_engine)
+        self.core = OrmCore(cache=self._cache_store, engine=self._compute_engine)
 
         self.unit_of_work = UnitOfWork(
-            self.cache_store,
-            self.compute_engine,
+            self._cache_store,
+            self._compute_engine,
             max_iterations=MAX_FIXPOINT_ITERATIONS,
         )
         # Process pending fields in dependency order (fewer convergence
@@ -98,7 +103,7 @@ class Transaction:
         )
 
         # temporary directories (see odoo.tools.file_open_temporary_directory)
-        self.__file_open_tmp_paths = []  # type: ignore # noqa: PLE0237
+        self.__file_open_tmp_paths = []  # type: ignore[misc, var-annotated] # noqa: PLE0237
 
     def flush(self) -> None:
         """Flush pending computations and updates in the transaction."""
@@ -124,8 +129,8 @@ class Transaction:
 
     def clear(self):
         """Clear the caches and pending computations/updates."""
-        self.cache_store.clear()  # data + dirty + patches
-        self.compute_engine.clear()  # pending recomputations
+        self._cache_store.clear()  # data + dirty + patches
+        self._compute_engine.clear()  # pending recomputations
         self._ref_cache.clear()
         # reset per-env Field._get_cache() memos
         for env in self.envs:
@@ -164,7 +169,7 @@ class Transaction:
 
         Unsafe: invalidating a dirty field drops the value to be written.
         """
-        self.cache_store.invalidate_all()
+        self._cache_store.invalidate_all()
         self._ref_cache.clear()
         # reset Field._get_cache()
         for env in self.envs:

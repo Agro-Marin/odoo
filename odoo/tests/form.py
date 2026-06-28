@@ -863,6 +863,9 @@ class X2MValue(collections.abc.Sequence):
 
     _virtual_seq = itertools.count()
 
+    # Mutable sequence of ids — not hashable.
+    __hash__ = None
+
     def __init__(self, iterable_of_vals: Any = ()) -> None:
         """Initialise from an iterable of value dicts, keyed by their ``id``."""
         self._data: dict[Any, UpdateDict] = {

@@ -143,7 +143,7 @@ class ConcurrencyError(Exception):
     Signal that two concurrent transactions tried to commit something
     that violates some constraint. Signal that the transaction that
     failed should be retried after a short delay, see
-    :func:`~odoo.service.model.retrying`.
+    :func:`~odoo.service.transaction.retrying`.
 
     This exception is low-level and has very few use cases, it should
     only be used if all alternatives are deemed worse.

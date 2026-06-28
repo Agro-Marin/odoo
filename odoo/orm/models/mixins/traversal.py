@@ -22,6 +22,7 @@ from ... import decorators as api
 from ..._typing import DomainType
 from ...domain import Domain
 from ...parsing import regex_order
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -82,7 +83,7 @@ class ReversibleComparator:
         return f"<ReversibleComparator {self.__item!r}{' reverse' if self.__reverse else ''}>"
 
 
-class TraversalMixin:
+class TraversalMixin(_ModelStubs):
     """Mixin providing traversal and transformation operations for recordsets."""
 
     __slots__ = ()
@@ -222,6 +223,13 @@ class TraversalMixin:
                     for rec_id, rec in zip(self._ids, self, strict=True)
                     if any(rec.mapped(func))
                 )
+            if func == "id":
+                # 'id' is never stored in the field cache (Id.__get__ reads
+                # record._ids directly), so the cache-scan fast path below would
+                # report every record as a miss and fall back to per-record
+                # __get__. Keeping truthy ids is exactly this comprehension;
+                # falsy ids are unsaved (NewId) or 0, matching `if record.id`.
+                return self.browse([id_ for id_ in self._ids if id_])
             # Fast path: batch ACL + recompute, then C-level cache scan.
             # Falls back to __get__ for missed indices (list(self) preserves
             # prefetch groups).
@@ -394,29 +402,17 @@ class TraversalMixin:
             # Try ID-based sort: avoids creating N singleton records
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
-                rs = object.__new__(self.__class__)
-                rs.env = self.env
-                rs._ids = ids
-                rs._prefetch_ids = self._prefetch_ids
-                return rs
+                return self._spawn(self.env, ids, self._prefetch_ids)
             key = self._sorted_order_to_function(order)
         elif key is None:
             order = self._order
             self._sorted_ensure_computed(order)
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
-                rs = object.__new__(self.__class__)
-                rs.env = self.env
-                rs._ids = ids
-                rs._prefetch_ids = self._prefetch_ids
-                return rs
+                return self._spawn(self.env, ids, self._prefetch_ids)
             key = self._sorted_order_to_function(order)
         ids = tuple(item._ids[0] for item in sorted(self, key=key, reverse=reverse))
-        rs = object.__new__(self.__class__)
-        rs.env = self.env
-        rs._ids = ids
-        rs._prefetch_ids = self._prefetch_ids
-        return rs
+        return self._spawn(self.env, ids, self._prefetch_ids)
 
     def _sorted_ensure_computed(self, order: str) -> None:
         """Pre-trigger access check + recomputation for all sort fields.

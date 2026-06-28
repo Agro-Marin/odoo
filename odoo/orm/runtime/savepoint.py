@@ -27,6 +27,10 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
 
     __slots__ = ("_saved_default_env", "_saved_registry_seq")
 
+    # This subclass DOES restore ORM cache/env on rollback (see the hooks below),
+    # so ``BaseCursor.savepoint`` accepts it for transaction-bearing cursors.
+    _restores_orm_state = True
+
     def _save_orm_state(self, cr: BaseCursor) -> None:
         # default_env and registry_sequence are the only durable state; cache /
         # compute state is ephemeral (clear() handles it).

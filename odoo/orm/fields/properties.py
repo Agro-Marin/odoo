@@ -30,10 +30,21 @@ NoneType = type(None)
 
 def check_property_field_value_name(property_name: str) -> None:
     """Validate that ``property_name`` is alphanumeric and within length limits."""
-    if not (0 < len(property_name) <= 512) or not regex_alphanumeric.match(
+    # fullmatch (not match): ``$`` matches before a trailing newline, so a name
+    # like ``"foo\n"`` would otherwise pass and be embedded literally into SQL.
+    if not (0 < len(property_name) <= 512) or not regex_alphanumeric.fullmatch(
         property_name
     ):
         raise ValueError(f"Wrong property field value name {property_name!r}.")
+
+
+# Property pseudo-types whose value references comodel records (and so carry a
+# ``comodel``, contribute res_ids to prefetch, and gain display_names). Single
+# source of truth for the "is this property relational?" test that the
+# read/write ladders below would otherwise spell out as scattered string
+# literals. The single- vs multi-value distinction (many2one vs many2many) stays
+# explicit where the handling genuinely differs.
+RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
 
 
 class Properties(Field):
@@ -290,7 +301,7 @@ class Properties(Field):
                 property_value = property_definition.get("value") or []
                 default = property_definition.get("default") or []
 
-                if type_ not in ("many2one", "many2many") or comodel not in env:
+                if type_ not in RELATIONAL_PROPERTY_TYPES or comodel not in env:
                     continue
 
                 if type_ == "many2one":
@@ -313,7 +324,7 @@ class Properties(Field):
             for record in recs:
                 # read a field to pre-fetch the recordset
                 with contextlib.suppress(AccessError):
-                    record.display_name
+                    record.display_name  # noqa: B018  # touch the field to trigger recordset prefetch
 
         return res_ids_per_model
 
@@ -690,7 +701,7 @@ class Properties(Field):
             if property_type not in ("integer", "float") or property_value != 0:
                 property_value = property_value or False
             if (
-                property_type in ("many2one", "many2many")
+                property_type in RELATIONAL_PROPERTY_TYPES
                 and property_model
                 and property_value
             ):
@@ -754,7 +765,7 @@ class Properties(Field):
                 # definition not found
                 return value or False
 
-            if not value and definition["type"] in ("many2one", "many2many"):
+            if not value and definition["type"] in RELATIONAL_PROPERTY_TYPES:
                 return record.env.get(definition.get("comodel"))
             return value
 
@@ -986,10 +997,9 @@ class Property(abc.Mapping):
         if not prop:
             raise KeyError(property_name)
 
-        if prop.get("type") == "many2one" and prop.get("comodel"):
-            return self.record.env[prop.get("comodel")].browse(prop.get("value"))
-
-        if prop.get("type") == "many2many" and prop.get("comodel"):
+        if prop.get("type") in RELATIONAL_PROPERTY_TYPES and prop.get("comodel"):
+            # many2one and many2many resolve identically: browse the stored ids
+            # (a scalar id or a list of ids both yield a recordset).
             return self.record.env[prop.get("comodel")].browse(prop.get("value"))
 
         if prop.get("type") == "selection" and prop.get("value"):
@@ -1015,7 +1025,17 @@ class Property(abc.Mapping):
         return prop.get("value") or False
 
     def __hash__(self) -> int:
-        return hash(frozendict(self._values))
+        # Normalise list values (many2many/tags property values are lists of
+        # ids) to tuples: a frozendict containing a list is itself unhashable,
+        # so hashing such a Property would otherwise raise TypeError.
+        return hash(
+            frozendict(
+                {
+                    name: tuple(value) if isinstance(value, list) else value
+                    for name, value in self._values.items()
+                }
+            )
+        )
 
 
 class PropertiesDefinition(Field):
@@ -1048,9 +1068,9 @@ class PropertiesDefinition(Field):
     )
     # those keys will be removed if the types does not match
     PROPERTY_PARAMETERS_MAP = {
-        "comodel": {"many2one", "many2many"},
+        "comodel": RELATIONAL_PROPERTY_TYPES,
         "currency_field": {"monetary"},
-        "domain": {"many2one", "many2many"},
+        "domain": RELATIONAL_PROPERTY_TYPES,
         "selection": {"selection"},
         "tags": {"tags"},
     }
@@ -1132,7 +1152,7 @@ class PropertiesDefinition(Field):
 
             type_ = property_definition.get("type")
 
-            if type_ in ("many2one", "many2many"):
+            if type_ in RELATIONAL_PROPERTY_TYPES:
                 # check if the model still exists in the environment, the module of the
                 # model might have been uninstalled so the model might not exist anymore
                 property_model = property_definition.get("comodel")

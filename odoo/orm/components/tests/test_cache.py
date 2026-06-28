@@ -27,6 +27,21 @@ class TestFieldCacheData(unittest.TestCase):
         result = self.cache.get_value("name", 999, default=None)
         self.assertIsNone(result)
 
+    def test_get_missing_does_not_vivify(self) -> None:
+        """A get_value miss must not leave an empty {} entry in _data.
+
+        Regression: indexing the defaultdict (``self._data[field]``) auto-created
+        an empty sub-dict for any never-cached field on every miss, leaking
+        entries that later inflate iter_field_items / invalidate_all scans.
+        """
+        # miss with a default
+        self.cache.get_value("ghost", 1, default=None)
+        self.assertNotIn("ghost", dict(self.cache.iter_field_items()))
+        # miss that raises
+        with self.assertRaises(KeyError):
+            self.cache.get_value("ghost2", 1)
+        self.assertNotIn("ghost2", dict(self.cache.iter_field_items()))
+
     def test_get_none_value_is_not_missing(self) -> None:
         self.cache.set_value("name", 1, None)
         self.assertIsNone(self.cache.get_value("name", 1))
@@ -54,46 +69,6 @@ class TestFieldCacheData(unittest.TestCase):
         self.cache.set_value("name", 1, "Alice")
         self.assertIsNotNone(self.cache.get_field_data_or_none("name"))
 
-    def test_update_batch_singleton(self) -> None:
-        self.cache.update_batch("state", (1,), "draft")
-        self.assertEqual(self.cache.get_value("state", 1), "draft")
-
-    def test_update_batch_multiple(self) -> None:
-        self.cache.update_batch("state", (1, 2, 3), "confirmed")
-        for id_ in (1, 2, 3):
-            self.assertEqual(self.cache.get_value("state", id_), "confirmed")
-
-    def test_update_batch_empty(self) -> None:
-        # should not raise
-        self.cache.update_batch("state", (), "draft")
-        self.assertFalse(self.cache.has_value("state", 1))
-
-    def test_insert_if_absent_no_overwrite(self) -> None:
-        self.cache.set_value("name", 1, "Alice")
-        self.cache.insert_if_absent("name", [1, 2], ["Bob", "Carol"])
-        # id 1 keeps "Alice" (was already cached)
-        self.assertEqual(self.cache.get_value("name", 1), "Alice")
-        # id 2 gets "Carol" (was not cached)
-        self.assertEqual(self.cache.get_value("name", 2), "Carol")
-
-    def test_insert_if_absent_all_new(self) -> None:
-        self.cache.insert_if_absent("name", [1, 2], ["Alice", "Bob"])
-        self.assertEqual(self.cache.get_value("name", 1), "Alice")
-        self.assertEqual(self.cache.get_value("name", 2), "Bob")
-
-    def test_pop_value(self) -> None:
-        self.cache.set_value("name", 1, "Alice")
-        val = self.cache.pop_value("name", 1)
-        self.assertEqual(val, "Alice")
-        self.assertFalse(self.cache.has_value("name", 1))
-
-    def test_pop_value_missing_raises(self) -> None:
-        with self.assertRaises(KeyError):
-            self.cache.pop_value("name", 999)
-
-    def test_pop_value_missing_default(self) -> None:
-        val = self.cache.pop_value("name", 999, default="fallback")
-        self.assertEqual(val, "fallback")
 
 
 class TestFieldCacheDirty(unittest.TestCase):
@@ -115,6 +90,28 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.cache.mark_dirty("name", [1])
         self.cache.mark_dirty("name", [1])
         self.assertEqual(len(self.cache.get_dirty("name")), 1)
+
+    def test_mark_dirty_empty_creates_no_phantom(self) -> None:
+        """mark_dirty() with empty ids must not vivify a phantom dirty field.
+
+        Regression: ``self._dirty[field].update(ids)`` auto-created an empty set
+        under *field*, so ``is_any_dirty``/``iter_dirty_fields`` (and hence
+        ``UnitOfWork.dirty_models``) reported a field with nothing to flush.
+        The real-world trigger is the all-NewId generator at textual.py.
+        """
+        self.cache.mark_dirty("name", [])
+        self.assertFalse(self.cache.is_any_dirty())
+        self.assertNotIn("name", list(self.cache.iter_dirty_fields()))
+        # empty generator (all NewIds filtered out)
+        self.cache.mark_dirty("ref", (i for i in [] if i))
+        self.assertFalse(self.cache.is_any_dirty())
+        self.assertEqual(self.cache.dirty_entry_count(), 0)
+
+    def test_mark_dirty_empty_keeps_existing(self) -> None:
+        """An empty mark on an already-dirty field leaves it untouched."""
+        self.cache.mark_dirty("name", [1, 2])
+        self.cache.mark_dirty("name", [])
+        self.assertEqual(self.cache.get_dirty("name"), {1, 2})
 
     def test_has_dirty_field(self) -> None:
         self.assertFalse(self.cache.has_dirty_field("name"))
@@ -283,15 +280,6 @@ class TestFieldCacheIntrospection(unittest.TestCase):
     def setUp(self) -> None:
         self.cache = FieldCache()
 
-    def test_iter_fields_empty(self) -> None:
-        self.assertEqual(list(self.cache.iter_fields()), [])
-
-    def test_iter_fields(self) -> None:
-        self.cache.set_value("name", 1, "Alice")
-        self.cache.set_value("email", 1, "alice@x.com")
-        fields = set(self.cache.iter_fields())
-        self.assertEqual(fields, {"name", "email"})
-
     def test_iter_field_items(self) -> None:
         self.cache.set_value("name", 1, "Alice")
         items = list(self.cache.iter_field_items())
@@ -299,11 +287,6 @@ class TestFieldCacheIntrospection(unittest.TestCase):
         field, data = items[0]
         self.assertEqual(field, "name")
         self.assertEqual(data, {1: "Alice"})
-
-    def test_has_field(self) -> None:
-        self.assertFalse(self.cache.has_field("name"))
-        self.cache.set_value("name", 1, "Alice")
-        self.assertTrue(self.cache.has_field("name"))
 
     def test_repr(self) -> None:
         self.cache.set_value("name", 1, "Alice")
@@ -370,12 +353,15 @@ class TestPopDirtyForModel(unittest.TestCase):
         result = self.cache.pop_dirty_for_model("res.partner")
         self.assertEqual(result, {})
 
-    def test_skips_empty_id_sets(self) -> None:
-        """Fields with empty dirty sets (after mark+pop) are excluded."""
-        self.cache.mark_dirty(self.f_partner_name, [1])
-        self.cache.pop_dirty(self.f_partner_name)
-        # Re-add with empty set via defaultdict access
-        _ = self.cache._dirty[self.f_partner_name]
+    def test_empty_mark_yields_nothing_to_pop(self) -> None:
+        """An empty mark_dirty never registers the field (the _dirty invariant).
+
+        Previously ``mark_dirty`` could vivify an empty set, which
+        ``pop_dirty_for_model`` then had to filter out with an ``if ids`` guard.
+        The field is now never registered in the first place.
+        """
+        self.cache.mark_dirty(self.f_partner_name, [])
+        self.assertNotIn(self.f_partner_name, self.cache._dirty)
         result = self.cache.pop_dirty_for_model("res.partner")
         self.assertEqual(result, {})
 

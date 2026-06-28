@@ -624,3 +624,35 @@ class One2manyCase(TransactionExpressionCase):
             )
         ]
         self.assertEqual(len(record.low_priority_line_ids.ids), 2)
+
+    def test_convert_to_write_partial_cache_origin(self):
+        """Serialising a modified x2many whose line origins are only partially
+        cached must not raise "dictionary changed size during iteration".
+
+        ``_RelationalMulti.convert_to_write`` iterates ``rec._cache`` (a view
+        over the live field-cache dict) while reading ``origin[name]``, which
+        can fetch+prefetch the origin and insert new field keys into that very
+        dict. The field-name list must therefore be snapshotted before the loop.
+        """
+        multi = self.env["test_orm.multi"].create(
+            {"lines": [Command.create({"name": "L1"}), Command.create({"name": "L2"})]}
+        )
+        line_ids = multi.lines.ids
+        field = multi._fields["lines"]
+
+        # Drop the cache so the line origins' stored fields are uncached and
+        # absent from the cache dict, forcing origin[name] to fetch+prefetch.
+        self.env.invalidate_all()
+        new_lines = self.env["test_orm.multi.line"].browse()
+        for line in self.env["test_orm.multi.line"].browse(line_ids):
+            new_lines |= self.env["test_orm.multi.line"].new(
+                {"name": "CHANGED"}, origin=line
+            )
+
+        # Must not raise; must produce a SET of the origin ids + an UPDATE per
+        # modified line.
+        result = field.convert_to_write(new_lines, multi)
+        self.assertEqual(result[0], Command.set(line_ids))
+        updates = [cmd for cmd in result if cmd[0] == Command.UPDATE]
+        self.assertEqual(len(updates), 2)
+        self.assertTrue(all(cmd[2] == {"name": "CHANGED"} for cmd in updates))

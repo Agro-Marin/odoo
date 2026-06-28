@@ -13,6 +13,7 @@ from ... import decorators as api
 from ...domain import Domain
 from ...helpers import to_record_ids
 from ...primitives import NO_ACCESS
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,16 +25,10 @@ _lt = LazyTranslate("base")
 _logger = logging.getLogger("odoo.models")
 
 
-class AccessMixin:
+class AccessMixin(_ModelStubs):
     """Mixin providing field- and record-level access control."""
 
     __slots__ = ()
-
-    # Type hints for attributes provided by BaseModel (runtime)
-    _fields: dict
-    _name: str
-    _ids: tuple
-    env: typing.Any
 
     # Field-level access control
 
@@ -114,7 +109,9 @@ class AccessMixin:
         " To get the list of allowed fields, use `fields_get`.",
     )
     def check_field_access_rights(
-        self, operation: str, field_names: list[str] | None
+        self,
+        operation: typing.Literal["read", "write"],
+        field_names: list[str] | None,
     ) -> list[str]:
         """Check the user access rights on the given fields.
 
@@ -122,7 +119,8 @@ class AccessMixin:
         Otherwise, an error is raised if we try to access a forbidden field.
         Note that this function ignores unknown (virtual) fields.
 
-        :param operation: one of ``create``, ``read``, ``write``, ``unlink``
+        :param operation: one of ``read``, ``write`` (field access is group-based,
+          so ``create``/``unlink`` have no field-level granularity)
         :param field_names: names of the fields
         :return: provided fields if fields is truthy (or the fields
           readable by the current user).
@@ -167,7 +165,7 @@ class AccessMixin:
             # _check_access returns (records, partial_factory); call it to
             # build the AccessError, then raise.  Raising the bare partial
             # would TypeError out ("must derive from BaseException").
-            raise result[1]()
+            raise result[1]()  # noqa: RSE102  # result[1] is a partial factory; the call builds the exception
 
     def has_access(self, operation: str) -> bool:
         """Return whether the current user is allowed to perform ``operation``
@@ -317,6 +315,10 @@ class AccessMixin:
         # (depends only on the environment, not the record), so resolve once.
         property_company = self.env.company
         for record in self:
+            # ``record.sudo()`` is invariant across the field loops below; build
+            # it once per record instead of re-allocating a sudo recordset for
+            # every checked field (was O(records x checked-fields) allocations).
+            record_su = record.sudo()
             # Part 1: records linked via relation fields must match the origin
             # document's company, i.e. self.account_id.company_id == self.company_id
             if regular_fields:
@@ -327,17 +329,18 @@ class AccessMixin:
                 elif "company_ids" in self:
                     companies = record.company_ids
                 else:
+                    # developer diagnostic: log with %-args (not translated) so
+                    # logging stays lazy and the message isn't run through _().
                     _logger.warning(
-                        _(
-                            "Skipping a company check for model %(model_name)s. Its fields %(field_names)s are set as company-dependent, "
-                            "but the model doesn't have a `company_id` or `company_ids` field!",
-                            model_name=self._name,
-                            field_names=regular_fields,
-                        )
+                        "Skipping a company check for model %s. Its fields %s "
+                        "are set as company-dependent, but the model doesn't "
+                        "have a `company_id` or `company_ids` field!",
+                        self._name,
+                        regular_fields,
                     )
                     continue
                 for name in regular_fields:
-                    corecords = record.sudo()[name]
+                    corecords = record_su[name]
                     if corecords:
                         domain = corecords._check_company_domain(companies)
                         if domain and corecords != corecords.with_context(
@@ -348,7 +351,7 @@ class AccessMixin:
             # must match the company owning the property value (self.env.company),
             # i.e. self.property_account_payable_id.company_id == self.env.company
             for name in property_fields:
-                corecords = record.sudo()[name]
+                corecords = record_su[name]
                 if corecords:
                     domain = corecords._check_company_domain(property_company)
                     if domain and corecords != corecords.with_context(

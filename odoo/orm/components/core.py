@@ -1,8 +1,22 @@
-"""Layer 1 facade — unified cache + compute operations.
+"""Layer 1 facade — the id-level cache + compute surface (``env._core``).
 
 :class:`OrmCore` composes :class:`FieldCache` and :class:`ComputeEngine` behind
-a single flat API (``env._core``), so internal consumers reach cache and compute
-through one object instead of multi-attribute traversal chains.
+a single flat object (``env._core``), the sanctioned handle for framework ORM
+code to reach the cache and compute engine (ADR-0010). The two underlying
+objects are private to :class:`~odoo.orm.runtime.transaction.Transaction`
+(``_cache_store`` / ``_compute_engine``); code goes through this facade.
+
+The facade is an **intentionally curated subset**, not a complete mirror: it
+exposes field-value reads, dirty/patch tracking, recompute scheduling and field
+protection — the operations the model layer drives by ``(field, id)``. It
+deliberately does **not** expose cache *mutation* (``set_value``,
+``invalidate_*``) or *lifecycle* (``clear``): those are
+Transaction's responsibility, and recordset-level cache access belongs to the
+legacy ``env.cache`` wrapper. Each exposed method carries the **same name** as
+the ``FieldCache`` / ``ComputeEngine`` method it delegates to (a drift-guard
+test enforces this); :meth:`OrmCore.new_scheduler` additionally hides
+:class:`RecomputeScheduler` construction (and the raw ``engine.pending`` seed)
+so model code drives a scheduler without reaching the engine directly.
 
 Layer 1 of the three-layer ORM: Core (cache/compute/triggers — pure data, no
 I/O); Layer 2 Persistence (SQL/cursors/fetch/write); Layer 3 API (ACL,
@@ -14,18 +28,22 @@ from typing import TYPE_CHECKING, Any
 
 from .cache import FieldCache
 from .compute import ComputeEngine
+from .recompute import RecomputeScheduler
 
 if TYPE_CHECKING:
-    from collections import defaultdict
     from collections.abc import Collection, Iterable, Iterator
 
 
 class OrmCore:
-    """Unified Layer 1 facade over FieldCache + ComputeEngine.
+    """Curated Layer 1 facade over FieldCache + ComputeEngine.
 
-    Single entry point used by internal ORM code via ``env._core``. Every method
-    delegates to the public API of the underlying FieldCache / ComputeEngine, so
-    component invariants are never bypassed; the facade owns no data of its own.
+    The id-level entry point used by framework ORM code via ``env._core`` (see
+    the module docstring and ADR-0010 for the contract). Each pass-through method
+    delegates to the identically-named method of the underlying ``FieldCache`` /
+    ``ComputeEngine``; :meth:`new_scheduler` builds a recompute scheduler bound to
+    the engine. The exposed surface is an intentional subset
+    (reads/dirty/patches/schedule/protect); cache mutation and lifecycle live on
+    :class:`~odoo.orm.runtime.transaction.Transaction` / ``env.cache`` by design.
     """
 
     __slots__ = ("cache", "engine")
@@ -35,12 +53,13 @@ class OrmCore:
         cache: FieldCache | None = None,
         engine: ComputeEngine | None = None,
     ) -> None:
+        """Wrap a cache and compute engine, creating empty ones if omitted."""
         self.cache = cache if cache is not None else FieldCache()
         self.engine = engine if engine is not None else ComputeEngine()
 
     # Cache: data access
 
-    def field_data(self, field: Any) -> dict[Any, Any]:
+    def get_field_data(self, field: Any) -> dict[Any, Any]:
         """Return the live cache dict for *field* (``{id: value}``).
 
         Primary batch-access API: consumers that iterate records call this once,
@@ -48,37 +67,9 @@ class OrmCore:
         """
         return self.cache.get_field_data(field)
 
-    def field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
+    def get_field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
         """Return the cache dict for *field*, or ``None`` if nothing cached."""
         return self.cache.get_field_data_or_none(field)
-
-    def get_value(self, field: Any, record_id: Any, default: Any = None) -> Any:
-        """Return a single cached value, or *default*.
-
-        Unlike :meth:`FieldCache.get_value` (which raises ``KeyError`` on a
-        miss), this returns *default* — for hot-path callers that do not
-        distinguish "absent" from "cached ``None``".
-        """
-        field_cache = self.cache.get_field_data_or_none(field)
-        if field_cache is None:
-            return default
-        return field_cache.get(record_id, default)
-
-    def set_value(self, field: Any, record_id: Any, value: Any) -> None:
-        """Set a single cached value."""
-        self.cache.set_value(field, record_id, value)
-
-    def insert_if_absent(self, field: Any, ids: Iterable, values: Iterable) -> None:
-        """Set values only for IDs not already cached (``setdefault`` in bulk)."""
-        self.cache.insert_if_absent(field, ids, values)
-
-    def update_batch(self, field: Any, ids: tuple, value: Any) -> None:
-        """Set the same *value* for all *ids*."""
-        self.cache.update_batch(field, ids, value)
-
-    def pop_value(self, field: Any, record_id: Any, default: Any = None) -> Any:
-        """Remove and return a cached value."""
-        return self.cache.pop_value(field, record_id, default)
 
     # Cache: dirty tracking
 
@@ -106,10 +97,6 @@ class OrmCore:
         """Return whether any field has dirty entries."""
         return self.cache.is_any_dirty()
 
-    def iter_dirty_fields(self) -> Iterator[Any]:
-        """Iterate over fields that have dirty entries."""
-        return self.cache.iter_dirty_fields()
-
     # Cache: patches (x2many)
 
     def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
@@ -120,35 +107,32 @@ class OrmCore:
         """Return the patches dict for *field*, or ``None``."""
         return self.cache.get_patches(field)
 
-    # Cache: invalidation
-
-    def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
-        """Invalidate cached values for *field*."""
-        self.cache.invalidate_field(field, ids)
-
-    def invalidate_all(self) -> None:
-        """Clear all cached data (but not dirty or patches)."""
-        self.cache.invalidate_all()
-
     # Cache: iteration
-
-    def iter_fields(self) -> Iterator[Any]:
-        """Iterate over fields with cached data."""
-        return self.cache.iter_fields()
 
     def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
         """Iterate over ``(field, cache_dict)`` pairs."""
         return self.cache.iter_field_items()
-
-    def has_field(self, field: Any) -> bool:
-        """Return whether *field* has cached data."""
-        return self.cache.has_field(field)
 
     # Compute: scheduling
 
     def schedule(self, field: Any, ids: Iterable) -> None:
         """Mark *field* for recomputation on *ids*."""
         self.engine.schedule(field, ids)
+
+    def new_scheduler(self, *, cycle_aware: bool = False) -> RecomputeScheduler:
+        """Create a :class:`RecomputeScheduler` bound to this engine.
+
+        The factory keeps scheduler construction (and the raw ``engine.pending``
+        seed) behind the facade, so model code drives the returned scheduler
+        without reaching ``core.engine`` directly.
+
+        :param cycle_aware: seed cycle detection with the fields already pending
+            (``before`` modification passes, where the scheduler must not
+            re-enter fields already scheduled); when ``False`` it starts empty
+            and the caller schedules inline into pending.
+        """
+        marked = self.engine.pending if cycle_aware else {}
+        return RecomputeScheduler(self.engine, marked=marked)
 
     def mark_done(self, field: Any, ids: Iterable) -> None:
         """Mark *field* as computed on *ids*."""
@@ -158,11 +142,11 @@ class OrmCore:
         """Check whether a specific *record_id* needs recomputation for *field*."""
         return self.engine.is_pending(field, record_id)
 
-    def has_pending(self, field: Any) -> bool:
+    def has_pending_field(self, field: Any) -> bool:
         """Return whether *field* has pending recomputations (hot-path guard)."""
         return self.engine.has_pending_field(field)
 
-    def has_any_pending(self) -> bool:
+    def has_pending(self) -> bool:
         """Return whether any field has pending recomputations."""
         return self.engine.has_pending()
 
@@ -173,15 +157,6 @@ class OrmCore:
     def pending_fields(self) -> Collection[Any]:
         """Return a view of fields with pending recomputations."""
         return self.engine.pending_fields()
-
-    @property
-    def pending(self) -> defaultdict[Any, set]:
-        """Raw pending dict — for RecomputeScheduler cycle detection."""
-        return self.engine.pending
-
-    def pending_real_fields(self) -> list[Any]:
-        """Fields with at least one real (truthy) pending record ID."""
-        return self.engine.pending_real_fields()
 
     def discard_field(self, field: Any) -> None:
         """Remove *field* from pending recomputations."""
@@ -211,18 +186,10 @@ class OrmCore:
 
     # Lifecycle
 
-    def clear(self) -> None:
-        """Clear all cached data, dirty flags, patches, and pending computations."""
-        self.cache.clear()
-        self.engine.clear()
-
     def clear_cache(self) -> None:
         """Clear only cache data + dirty + patches (not compute state)."""
         self.cache.clear()
 
-    def clear_compute(self) -> None:
-        """Clear only pending computations (not cache)."""
-        self.engine.clear()
-
     def __repr__(self) -> str:
+        """Return a debug representation of the wrapped cache and engine."""
         return f"<OrmCore {self.cache!r} {self.engine!r}>"

@@ -13,6 +13,7 @@ from ..._typing import (
     DomainType,
     IdType,
 )
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
@@ -20,7 +21,7 @@ if typing.TYPE_CHECKING:
     from ...fields.base import Field
 
 
-class LifecycleMixin:
+class LifecycleMixin(_ModelStubs):
     """Mixin providing lifecycle and metadata operations for recordsets."""
 
     __slots__ = ()

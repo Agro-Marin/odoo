@@ -226,5 +226,52 @@ class TestDictBackendSealedApi(unittest.TestCase):
         self.assertEqual(self.backend.contains_ids("nope", [1, 2]), set())
 
 
+class TestDictBackendSearch(unittest.TestCase):
+    """search_rows — the One2many-resolution lookup (was only doctest-covered)."""
+
+    def setUp(self) -> None:
+        self.backend = DictBackend()
+        # order rows pointing at partners + an amount for comparison ops
+        self.backend.insert_rows(
+            "order",
+            ["partner_id", "amount"],
+            [(1, 100), (2, 200), (1, 300), (3, 200)],
+        )  # ids 1..4
+
+    def test_default_equality(self) -> None:
+        # matches the docstring example: partner_id == 1 -> rows 1 and 3
+        self.assertEqual(self.backend.search_rows("order", "partner_id", 1), [1, 3])
+
+    def test_explicit_equality(self) -> None:
+        self.assertEqual(self.backend.search_rows("order", "partner_id", 2, "="), [2])
+
+    def test_not_equal(self) -> None:
+        self.assertEqual(
+            self.backend.search_rows("order", "partner_id", 1, "!="), [2, 4]
+        )
+
+    def test_in_operator(self) -> None:
+        self.assertEqual(
+            self.backend.search_rows("order", "partner_id", [1, 3], "in"), [1, 3, 4]
+        )
+
+    def test_comparison_operators(self) -> None:
+        self.assertEqual(self.backend.search_rows("order", "amount", 200, ">"), [3])
+        self.assertEqual(
+            self.backend.search_rows("order", "amount", 200, ">="), [2, 3, 4]
+        )
+        self.assertEqual(self.backend.search_rows("order", "amount", 100, "<="), [1])
+
+    def test_no_match_returns_empty(self) -> None:
+        self.assertEqual(self.backend.search_rows("order", "partner_id", 999), [])
+
+    def test_unknown_table_returns_empty(self) -> None:
+        self.assertEqual(self.backend.search_rows("nope", "partner_id", 1), [])
+
+    def test_unsupported_operator_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            self.backend.search_rows("order", "partner_id", 1, "like")
+
+
 if __name__ == "__main__":
     unittest.main()

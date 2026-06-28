@@ -22,7 +22,7 @@ class JsonFieldTest(TransactionCase):
         history_field = type(self.discussion_1).history
         self.assertIsNot(
             self.discussion_1.history,
-            self.env._core.get_value(history_field, self.discussion_1.id),
+            self.env._core.cache.get_value(history_field, self.discussion_1.id),
         )
 
         self.assertEqual(self.discussion_1.history, {"delete_messages": []})

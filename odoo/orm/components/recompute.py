@@ -13,6 +13,8 @@ Protection subtraction and cycle detection are handled internally via the
 :class:`ComputeEngine`.
 """
 
+from __future__ import annotations
+
 import typing
 from collections import defaultdict
 from typing import Any
@@ -20,6 +22,7 @@ from typing import Any
 if typing.TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from ._protocols import SchedulableField
     from .compute import ComputeEngine
 
 
@@ -50,6 +53,7 @@ class RecomputeScheduler:
         compute_engine: ComputeEngine,
         marked: Mapping | None = None,
     ) -> None:
+        """Bind to *compute_engine* and start with empty result accumulators."""
         self._engine = compute_engine
         self._marked: Mapping = marked if marked is not None else {}
         self._seen_recursive: dict[Any, set] = defaultdict(set)
@@ -58,9 +62,8 @@ class RecomputeScheduler:
 
     def process_entry(
         self,
-        field: Any,
+        field: SchedulableField,
         ids: set | frozenset,
-        create: bool = False,
         cached_ids: set | None = None,
     ) -> frozenset:
         """Process one trigger entry.
@@ -68,11 +71,9 @@ class RecomputeScheduler:
         Applies protection subtraction and cycle detection, then routes the
         entry to :attr:`to_recompute` or :attr:`to_invalidate`.
 
-        :param field: field-like object with ``.recursive`` and
-            ``.is_stored_computed`` attributes.
+        :param field: a :class:`~._protocols.SchedulableField` (reads
+            ``.recursive`` and ``.is_stored_computed``).
         :param ids: record IDs affected by the modification.
-        :param create: record-creation context — unused here, only threaded
-            through to recursive requests.
         :param cached_ids: for recursive non-stored fields, the IDs with cached
             data; only those are processed. ``None`` skips this filter.
         :returns: frozenset of IDs needing recursive traversal (empty if none).
@@ -113,7 +114,11 @@ class RecomputeScheduler:
                     ids = ids & cached_ids
             if not ids:
                 return frozenset()
-            self._seen_recursive[field].update(ids)
+            # Only the non-stored branch reads `_seen_recursive`; stored fields
+            # use `_marked`/`to_recompute` for cycle detection, so writing here
+            # for them would just leak memory.
+            if not field.is_stored_computed:
+                self._seen_recursive[field].update(ids)
             recursive_ids = frozenset(ids)
 
         # 3. Route to recompute or invalidate
@@ -124,13 +129,8 @@ class RecomputeScheduler:
 
         return recursive_ids
 
-    def clear(self) -> None:
-        """Reset all accumulated results."""
-        self.to_recompute.clear()
-        self.to_invalidate.clear()
-        self._seen_recursive.clear()
-
     def __repr__(self) -> str:
+        """Return a debug summary with recompute/invalidate field and entry counts."""
         n_recompute = sum(len(ids) for ids in self.to_recompute.values())
         n_invalidate = sum(len(ids) for _, ids in self.to_invalidate)
         return (

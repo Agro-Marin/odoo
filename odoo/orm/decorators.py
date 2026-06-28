@@ -308,7 +308,7 @@ def autovacuum[C: Callable](method: C) -> C:
         raise TypeError(
             f"{method.__name__}: autovacuum methods must be private (start with '_')"
         )
-    method._autovacuum = True  # type: ignore
+    method._autovacuum = True  # type: ignore[attr-defined]
     return method
 
 
@@ -320,9 +320,7 @@ def model[C: Callable](method: C) -> C:
         def method(self, args): ...
 
     """
-    if method.__name__ == "create":
-        return model_create_multi(method)  # type: ignore
-    method._api_model = True  # type: ignore
+    method._api_model = True  # type: ignore[attr-defined]
     return method
 
 
@@ -338,7 +336,7 @@ def private[C: Callable](method: C) -> C:
     existing public methods that become non-RPC callable or for ORM
     methods.
     """
-    method._api_private = True  # type: ignore
+    method._api_private = True  # type: ignore[attr-defined]
     return method
 
 
@@ -350,7 +348,7 @@ def readonly[C: Callable](method: C) -> C:
         def method(self, args):
             ...
     """
-    method._readonly = True  # type: ignore
+    method._readonly = True  # type: ignore[attr-defined]
     return method
 
 
@@ -375,7 +373,9 @@ def deprecated(reason: str) -> Decorator:
             )
             return method(*args, **kwargs)
 
-        wrapper._deprecated = reason
+        # PEP 702 standard marker: api_doc (api_doc.py) and the override-signature
+        # lint (test_override_signatures.py) both detect deprecation via this dunder.
+        wrapper.__deprecated__ = reason
         return wrapper  # type: ignore[return-value]
 
     return decorator
@@ -398,5 +398,5 @@ def model_create_multi[T](
             vals_list = [vals_list]
         return method(self, vals_list)
 
-    create._api_model = True  # type: ignore
+    create._api_model = True  # type: ignore[attr-defined]
     return create

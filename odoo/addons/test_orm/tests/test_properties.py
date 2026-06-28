@@ -1828,6 +1828,10 @@ class PropertiesCase(TestPropertiesMixin):
             attributes = self.message_1.read(["attributes"])[0]["attributes"]
             self.assertEqual(attributes[0]["value"], name_get(partners[:10]))
 
+        # regression: hashing a Property holding a many2many (list) value must
+        # not raise TypeError (a frozendict over a list is unhashable).
+        self.assertIsInstance(hash(self.message_1.attributes), int)
+
         partners[:5].unlink()
         with self.assertQueryCount(5):
             attributes = self.message_1.read(["attributes"])[0]["attributes"]
@@ -2142,7 +2146,7 @@ class PropertiesCase(TestPropertiesMixin):
         self.assertEqual(message.attributes, {"state": "draft"})
 
         # check cached value
-        cached_value = self.env._core.get_value(
+        cached_value = self.env._core.cache.get_value(
             message._fields["attributes"], message.id
         )
         self.assertEqual(cached_value, {"state": "draft"})

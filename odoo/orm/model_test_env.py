@@ -6,12 +6,11 @@ real :class:`Environment` to exercise compute methods, field logic, or business
 rules without issuing SQL. :func:`model_test_env` builds a lightweight
 :class:`ModelRegistry` from class definitions for fully DB-free testing.
 
-See :class:`~odoo.orm.components.in_memory.InMemoryEnvironment` for the
-lighter-weight alternative using plain Python callables instead of
-``@api.depends`` compute methods.
+For the components engine in isolation (``FieldCache`` / ``ComputeEngine`` /
+``ModelGraph`` / ``UnitOfWork``), see the Tier-1 unit tests under
+``odoo/orm/components/tests/``.
 """
 
-import functools
 import logging
 from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping
@@ -25,9 +24,11 @@ from odoo.libs.collections.misc import Collector
 from odoo.tools import OrderedSet
 
 from . import registration
+from .components.model_graph import ModelGraph
 from .components.storage import DictBackend
 from .models import AbstractModel
 from .primitives import SUPERUSER_ID
+from .runtime._registry_fields import _RegistryFieldsMixin
 from .runtime.transaction import Transaction
 
 if TYPE_CHECKING:
@@ -36,6 +37,15 @@ if TYPE_CHECKING:
     from .runtime.registry import Registry
 
 _logger = logging.getLogger("odoo.orm.model_test_env")
+
+
+class InMemorySqlNotSupported(NotImplementedError):
+    """Raised when a DB-free test hits raw SQL the in-memory tier cannot run.
+
+    The point of failing loud (instead of returning an empty result) is to stop
+    a model test from going *green while production would be red* — the central
+    risk of a DB-free tier.  See :meth:`InMemoryCursor.execute`.
+    """
 
 
 # Minimal 'base' model for testing
@@ -59,6 +69,27 @@ class _TestBase(AbstractModel):
     _module = None
 
 
+class _TestIrDefault(AbstractModel):
+    """Minimal ``ir.default`` provider for :class:`ModelRegistry`.
+
+    ``BaseModel.default_get`` unconditionally calls
+    ``self.env["ir.default"]._get_model_defaults(model_name)`` (see
+    ``models/mixins/create.py``), so *every* ``create()`` needs an
+    ``ir.default`` model in the registry.  The real one lives in
+    ``odoo.addons.base`` and would drag the whole framework in, defeating the
+    DB-free purpose, so the harness injects this stub returning "no admin
+    defaults" — exactly what an empty test database would yield.
+    """
+
+    _name = "ir.default"
+    _description = "Ir Default (test stub)"
+    _register = False
+    _module = None
+
+    def _get_model_defaults(self, model_name, condition=False):
+        return {}
+
+
 class InMemoryCursor(BaseCursor):
     """Cursor backed by fixture data — no PostgreSQL required.
 
@@ -71,7 +102,10 @@ class InMemoryCursor(BaseCursor):
 
     :param registry: pre-built model registry (e.g. ``self.env.registry``).
     :param fixtures: optional ``{query_string: rows}`` map; ``execute`` looks up
-        ``str(query)`` here, returning ``[]`` for unknown queries.
+        ``str(query)`` here.  A query that is *not* registered raises
+        :class:`InMemorySqlNotSupported` — the DB-free tier handles ORM CRUD in
+        memory but cannot run raw SQL (e.g. ``read_group``, custom
+        ``cr.execute``), and silently returning ``[]`` would give a false green.
     """
 
     def __init__(
@@ -91,8 +125,29 @@ class InMemoryCursor(BaseCursor):
     # Query execution — fixture-backed
 
     def execute(self, query, params=None, log_exceptions: bool = True) -> None:
-        """Look up *query* in the fixture dict; default to empty result."""
-        self._last_result = self._fixtures.get(str(query), [])
+        """Return a registered fixture for *query*, or fail loud.
+
+        ORM CRUD (create/write/read/search) is served by the in-memory backend
+        and never reaches this cursor, so any query arriving here is raw SQL a
+        model method emitted itself (``read_group``, a custom ``cr.execute``,
+        ...).  That SQL cannot run without PostgreSQL; returning an empty result
+        silently would hand the test a *false green* — the one failure mode a
+        fast tier must not introduce.  Register the expected rows via
+        ``fixtures={str(query): rows}`` or move the test to a DB-backed
+        ``TransactionCase``.
+        """
+        key = str(query)
+        if key in self._fixtures:
+            self._last_result = self._fixtures[key]
+            return
+        raise InMemorySqlNotSupported(
+            "InMemoryCursor (DB-free model_test_env) cannot execute raw SQL:\n"
+            f"    {key}\n"
+            "ORM CRUD is handled in memory, but this query (e.g. read_group or a "
+            "custom cr.execute) needs PostgreSQL. Register its result via "
+            "model_test_env(..., fixtures={str(query): rows}) or use a DB-backed "
+            "TransactionCase."
+        )
 
     def fetchall(self) -> list[tuple]:
         """Return all rows from the last executed query."""
@@ -109,13 +164,37 @@ class InMemoryCursor(BaseCursor):
     # fetchscalar() is inherited from BaseCursor (self.fetchone()-based) — the
     # local fetchone() above makes the inherited version correct here.
 
+    # Fixtures are tuple rows with no column metadata, so the dict cursor API
+    # cannot reconstruct dict rows. Returning empty silently would hand a model
+    # method that consumes the dict API a *false green* (the failure mode this
+    # tier must not introduce, matching ``execute``'s fail-loud contract), so a
+    # populated last result fails loud instead.
+    _DICT_API_UNSUPPORTED = (
+        "InMemoryCursor (DB-free model_test_env) cannot serve the dict cursor "
+        "API (dictfetchone/dictfetchall): fixtures are tuple rows with no column "
+        "names. Consume the registered fixture via fetchone/fetchall, or move the "
+        "test to a DB-backed TransactionCase."
+    )
+
     def dictfetchone(self) -> dict | None:
-        """Return ``None`` — no column metadata available without a real cursor."""
-        return None
+        """Return ``None`` for an empty result; fail loud if rows are present.
+
+        Without a real cursor there is no column metadata to build a dict, so a
+        populated result raises rather than silently returning ``None``.
+        """
+        if not self._last_result:
+            return None
+        raise InMemorySqlNotSupported(self._DICT_API_UNSUPPORTED)
 
     def dictfetchall(self) -> list[dict]:
-        """Return ``[]`` — no column metadata available without a real cursor."""
-        return []
+        """Return ``[]`` for an empty result; fail loud if rows are present.
+
+        See :meth:`dictfetchone`: a populated result cannot be returned as dicts
+        and must not be silently swallowed as ``[]``.
+        """
+        if not self._last_result:
+            return []
+        raise InMemorySqlNotSupported(self._DICT_API_UNSUPPORTED)
 
     # Time
 
@@ -148,12 +227,19 @@ class InMemoryCursor(BaseCursor):
 # ModelRegistry — lightweight registry from class definitions
 
 
-class ModelRegistry(Mapping):
+class ModelRegistry(_RegistryFieldsMixin, Mapping):
     """Lightweight model registry built from Python class definitions.
 
     Satisfies the interface that :class:`Environment` and :class:`Transaction`
     need from :class:`Registry`, without database access or module loading —
     just a ``Mapping[str, type[BaseModel]]`` with set-up field descriptors.
+
+    The field-dependency graph (``field_depends``, ``field_inverses``,
+    ``field_computed``, ``_field_triggers``, trigger-tree queries) is inherited
+    from the **real** :class:`_RegistryFieldsMixin` — the same code the
+    production :class:`Registry` uses — so cascading recompute, inverse
+    propagation and trigger resolution are exercised exactly as in production,
+    not via a parallel reimplementation that could silently drift.
 
     :param model_defs: model definition classes; ``base`` is auto-injected if
         absent.
@@ -169,6 +255,12 @@ class ModelRegistry(Mapping):
         self.db_name = db_name
         self.models: dict[str, type[BaseModel]] = {}
 
+        # Real dependency graph: powers cascading recomputation (triggers,
+        # inverses, computed groups) so stored computed fields recompute on
+        # create/write exactly as in production. Populated lazily by
+        # _field_triggers after field setup.
+        self.model_graph = ModelGraph()
+
         # Attributes accessed by registration._setup() and _setup_fields().
         # Setting _init_modules=False skips manual (Studio/custom) field
         # loading.  Empty dicts for translated/company_dependent fields
@@ -180,12 +272,6 @@ class ModelRegistry(Mapping):
         self.many2many_relations: Collector = Collector()
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
-
-        # Field dependency tracking — same interface as the real
-        # Registry.field_depends / field_depends_context properties,
-        # which delegate to model_graph._depends / _depends_context.
-        self._field_depends: dict = {}
-        self._field_depends_context: dict = {}
 
         # ormcache support — the decorator accesses pool._Registry__caches
         # (name-mangled) to store method results.  defaultdict(dict) gives
@@ -200,6 +286,15 @@ class ModelRegistry(Mapping):
         # Domain optimizer checks which fields have NOT NULL constraints.
         # Populated during _build after field setup.
         self.not_null_fields: set = set()
+
+        # Fields whose setup / dependency resolution was degraded because a
+        # comodel was absent from this (minimal) model set — keyed by field,
+        # valued by a short reason. Exposed so a test can assert *exactly*
+        # which fields it expected to degrade; a newly-degraded field (e.g. a
+        # real @depends regression) then shows up here instead of silently
+        # resolving to no triggers. Only KeyError (missing model/field) is
+        # tolerated; any other error propagates and fails the build.
+        self.degraded_fields: dict = {}
 
         # DB-only hooks — no-ops in test registry.  Model field setup code
         # calls these to register foreign keys, constraints, and post-init
@@ -229,75 +324,11 @@ class ModelRegistry(Mapping):
     def __delitem__(self, model_name: str) -> None:
         del self.models[model_name]
 
-    # Registry-compatible properties
-
-    @property
-    def field_depends(self) -> dict:
-        """Field → tuple of dependency field names."""
-        return self._field_depends
-
-    @property
-    def field_depends_context(self) -> dict:
-        """Field → tuple of context key names."""
-        return self._field_depends_context
-
-    @functools.cached_property
-    def field_computed(self) -> dict:
-        """Map each computed field to its co-computed fields.
-
-        Like :attr:`Registry.field_computed`: fields sharing a ``compute``
-        method are grouped so the ORM can protect them atomically.
-        """
-        computed: dict = {}
-        for model_cls in self.models.values():
-            groups: defaultdict = defaultdict(list)
-            for field in model_cls._fields.values():
-                if field.compute:
-                    computed[field] = group = groups[field.compute]
-                    group.append(field)
-        return computed
-
-    @functools.cached_property
-    def field_inverses(self) -> Collector:
-        """Map each relational field to its inverse fields.
-
-        Like :attr:`Registry.field_inverses`: calls ``field.setup_inverses()``
-        for every relational field.
-        """
-        result: Collector = Collector()
-        for model_cls in self.models.values():
-            for field in model_cls._fields.values():
-                if field.relational:
-                    try:
-                        field.setup_inverses(self, result)
-                    except Exception:
-                        _logger.debug(
-                            "setup_inverses for %s.%s failed",
-                            model_cls._name,
-                            field.name,
-                        )
-        return result
-
-    @functools.cached_property
-    def _field_triggers(self) -> dict:
-        """Empty trigger map — no cascading recomputation in the test registry.
-
-        An empty dict makes the ``_modified_trigger_loop`` fast path always
-        fire, so compute methods must be called explicitly in tests.
-        """
-        return {}
-
-    def is_modifying_relations(self, field) -> bool:
-        """Return ``False`` — no trigger graph in the test registry."""
-        return False
-
-    def get_trigger_tree(self, fields, select=bool):
-        """Return an empty trigger tree — no trigger graph in tests."""
-        return {}
-
-    def get_dependent_fields(self, field):
-        """Yield nothing — no field dependency graph in tests."""
-        return iter(())
+    # Field-dependency graph (field_depends, field_depends_context,
+    # field_inverses, field_computed, _field_triggers, get_trigger_tree,
+    # get_field_trigger_tree, get_dependent_fields, is_modifying_relations) is
+    # inherited from _RegistryFieldsMixin — the same code the real Registry
+    # runs. field_depends reads model_graph._depends, populated by _build().
 
     # No-op stubs for DB-only Registry methods
 
@@ -402,6 +433,15 @@ class ModelRegistry(Mapping):
         if not has_base:
             all_defs.insert(0, _TestBase)
 
+        # 4b. Ensure an 'ir.default' provider is present — default_get() calls
+        #     it on every create(), so without it CRUD is unusable. Inject the
+        #     stub only when the caller hasn't supplied a real ir.default.
+        has_ir_default = any(
+            getattr(cls, "_name", None) == "ir.default" for cls in all_defs
+        )
+        if not has_ir_default:
+            all_defs.append(_TestIrDefault)
+
         # 5. Stable sort: 'base'-named models first (root of all models)
         all_defs.sort(
             key=lambda c: 0 if getattr(c, "_name", "") == "base" else 1,
@@ -429,17 +469,40 @@ class ModelRegistry(Mapping):
         for model_cls in model_classes:
             self._setup_fields_lenient(model_cls, env)
 
-        # 9. Resolve field dependencies (for cache_key / recomputation)
+        # 9. Resolve field dependencies into model_graph._depends /
+        #    _depends_context (read back via the inherited field_depends /
+        #    field_depends_context properties), exactly as the real Registry
+        #    does in init_models(). The try/except keeps this harness usable
+        #    with a *minimal* model set, where a field may depend on a comodel
+        #    the caller didn't include; the real (full) registry never hits it.
         for model_cls in self.models.values():
             model = model_cls(env, (), ())
             for field in model._fields.values():
                 try:
                     depends, depends_context = field.get_depends(model)
-                    self._field_depends[field] = tuple(depends)
-                    self._field_depends_context[field] = tuple(depends_context)
-                except Exception:
-                    self._field_depends[field] = ()
-                    self._field_depends_context[field] = ()
+                    self.field_depends[field] = tuple(depends)
+                    self.field_depends_context[field] = tuple(depends_context)
+                except KeyError as exc:
+                    # KeyError == a dependency path crosses a comodel/field the
+                    # caller didn't include (legitimate for a minimal model set).
+                    # Anything else (a broken @depends, a real resolution bug)
+                    # must NOT degrade to silent no-triggers — let it propagate.
+                    self.field_depends[field] = ()
+                    self.field_depends_context[field] = ()
+                    self.degraded_fields[field] = f"get_depends: missing {exc}"
+
+        if self.degraded_fields:
+            # Surface the degradation once (not silently): a stored computed
+            # field with degraded deps will NOT recompute in this harness.
+            _logger.warning(
+                "model_test_env: %d field(s) degraded (missing comodel in the "
+                "model set); their triggers/deps are inert. Inspect via "
+                "registry.degraded_fields. Degraded: %s",
+                len(self.degraded_fields),
+                ", ".join(
+                    sorted(f"{f.model_name}.{f.name}" for f in self.degraded_fields)
+                ),
+            )
 
         # 10. Populate not_null_fields (for domain optimizer)
         for model_cls in self.models.values():
@@ -477,13 +540,26 @@ class ModelRegistry(Mapping):
         for name, field in model_cls._fields.items():
             try:
                 field.setup(model)
-            except Exception:
+            except Exception as exc:
+                # Tolerate ONLY a missing comodel — the one legitimate gap for a
+                # minimal model set. It is recognised structurally (the comodel
+                # is absent from the registry) or as a KeyError from related-path
+                # resolution. A real setup error on a field whose comodel *is*
+                # present (bad attribute, type mismatch, broken invariant) must
+                # surface, not masquerade as a fully-configured field.
+                comodel = getattr(field, "comodel_name", None)
+                missing_comodel = bool(comodel) and comodel not in model_cls.pool
+                if not missing_comodel and not isinstance(exc, KeyError):
+                    raise
                 _logger.debug(
                     "Field %s.%s setup incomplete (missing comodel?); field will raise if accessed in test",
                     model_cls._name,
                     name,
                 )
                 field._setup_done = True
+                model_cls.pool.degraded_fields[field] = (
+                    f"setup: {type(exc).__name__}: {exc}"
+                )
             else:
                 # Track company-dependent Many2one fields (mirrors _setup_fields)
                 if field.type == "many2one" and field.company_dependent:
@@ -501,19 +577,26 @@ def model_test_env(
     *model_classes: type[BaseModel],
     registry: ModelRegistry | None = None,
     db_name: str = ":memory:",
+    fixtures: dict[str, list[tuple]] | None = None,
 ):
     """Yield a database-free :class:`Environment` for testing model methods.
 
     Builds a :class:`ModelRegistry` and a fresh :class:`InMemoryCursor` with a
     :class:`DictBackend`. CRUD dispatches to the in-memory backend; compute
     methods, field access, and ``filtered``/``mapped``/``sorted`` work as in
-    production. To reuse a registry across tests, pass ``registry=``.
+    production. The registry builds the real dependency graph, so **stored
+    computed fields are recomputed automatically on create/write** — including
+    transitive and cross-model (One2many/Many2one) cascades — without invoking
+    compute methods by hand. To reuse a registry across tests, pass ``registry=``.
 
     :param model_classes: model definition classes (``base`` auto-injected);
         ignored when *registry* is given.
     :param registry: pre-built :class:`ModelRegistry` to reuse; each call still
         gets a fresh cursor/storage, so tests stay isolated.
     :param db_name: fake database name (default ``":memory:"``).
+    :param fixtures: optional ``{str(query): rows}`` results for the raw SQL a
+        model method runs (e.g. ``read_group``).  Unregistered raw SQL raises
+        :class:`InMemorySqlNotSupported` rather than silently returning ``[]``.
     """
     if registry is None:
         registry = ModelRegistry(model_classes, db_name=db_name)
@@ -528,7 +611,7 @@ def model_test_env(
         with suppress(AttributeError):
             delattr(registry, attr)
 
-    cr = InMemoryCursor(registry)
+    cr = InMemoryCursor(registry, fixtures=fixtures)
 
     # Pre-seed minimal records so env.user / env.company resolve: many methods
     # access env.company (via ormcache keys) → env.user.company_id → DictBackend.

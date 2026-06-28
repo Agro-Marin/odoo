@@ -106,7 +106,7 @@ def parse_read_group_spec(spec: str) -> tuple[str, str | None, str | None]:
     return groups[0], groups[2], groups[3]
 
 
-@functools.cache
+@functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def fix_import_export_id_paths(fieldname: str) -> tuple[str, ...]:
     """Normalize import/export id syntax and split the field path on '/'.
 

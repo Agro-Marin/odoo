@@ -28,12 +28,13 @@ from ....constants import (
 )
 from ....domain import Domain
 from ....parsing import parse_read_group_spec
+from .._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class _ReadGroupFormatMixin:
+class _ReadGroupFormatMixin(_ModelStubs):
     """Post-processing and formatting for read_group results."""
 
     __slots__ = ()
@@ -42,7 +43,6 @@ class _ReadGroupFormatMixin:
     _fields: dict
     _name: str
     env: typing.Any
-    pool: typing.Any
 
     def _read_group_postprocess_groupby(
         self, groupby_spec: str, raw_values: list
@@ -262,7 +262,7 @@ class _ReadGroupFormatMixin:
                 row["__domain"] &= additional_domain
 
         elif property_type == "many2one":
-            comodel = definition.get("comodel")
+            comodel = self.env[definition.get("comodel")]
             # same ids for prefetch and for the "not in" group domain
             prefetch_ids = all_groups = tuple(
                 row[fullname] for row in rows_dict if row[fullname]
@@ -276,17 +276,13 @@ class _ReadGroupFormatMixin:
                     )
                 else:
                     additional_domain = Domain(fullname, "=", row[fullname])
-                    record = (
-                        self.env[comodel]
-                        .browse(row[fullname])
-                        .with_prefetch(prefetch_ids)
-                    )
+                    record = comodel.browse(row[fullname]).with_prefetch(prefetch_ids)
                     row[fullname] = (row[fullname], record.display_name)
 
                 row["__domain"] &= additional_domain
 
         elif property_type == "many2many":
-            comodel = definition.get("comodel")
+            comodel = self.env[definition.get("comodel")]
             # same ids for prefetch and for the "not in" group domain
             prefetch_ids = all_groups = tuple(
                 row[fullname] for row in rows_dict if row[fullname]
@@ -301,11 +297,7 @@ class _ReadGroupFormatMixin:
                         additional_domain = Domain.TRUE
                 else:
                     additional_domain = Domain(fullname, "in", row[fullname])
-                    record = (
-                        self.env[comodel]
-                        .browse(row[fullname])
-                        .with_prefetch(prefetch_ids)
-                    )
+                    record = comodel.browse(row[fullname]).with_prefetch(prefetch_ids)
                     row[fullname] = (row[fullname], record.display_name)
 
                 row["__domain"] &= additional_domain

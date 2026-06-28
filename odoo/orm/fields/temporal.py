@@ -137,7 +137,9 @@ class Date(BaseDate[date]):
     type = "date"
     _column_type = ("date", "date")
 
-    __get__ = _make_scalar_get(lambda v: False if v is None else v)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits BaseDate[date].__get__.
+        __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @staticmethod
     def today(*args) -> date:
@@ -211,11 +213,8 @@ class Date(BaseDate[date]):
     ) -> typing.Any:
         if not value:
             return None
-        if isinstance(value, datetime):
-            # Defensive: some data files (e.g., CRM demo data) pass datetime
-            # objects to Date fields.  Silently truncate to date rather than
-            # raising, since the time component carries no meaning here.
-            value = value.date()
+        # to_date() truncates a datetime to a date, so data files that pass a
+        # datetime to a Date field (e.g. CRM demo data) are handled there.
         return self.to_date(value)
 
     @override
@@ -235,7 +234,9 @@ class Datetime(BaseDate[datetime]):
     type = "datetime"
     _column_type = ("timestamp", "timestamp")
 
-    __get__ = _make_scalar_get(lambda v: False if v is None else v)
+    if not typing.TYPE_CHECKING:
+        # Runtime fast path; the type checker inherits BaseDate[datetime].__get__.
+        __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @staticmethod
     def now(*args) -> datetime:
@@ -332,8 +333,12 @@ class Datetime(BaseDate[datetime]):
             if (
                 tz_name := record.env.context.get("tz")
             ) and tz_name in _get_all_timezones_set():
-                # only use the timezone from the context
-                dt = dt.astimezone(get_timezone(tz_name))
+                # only use the timezone from the context; the cached value is a
+                # naive UTC datetime, so anchor it to UTC before converting --
+                # a bare ``astimezone`` on a naive value assumes server-local
+                # time and is wrong on non-UTC servers (matches the SQL path's
+                # ``timezone('UTC', ...)`` and ``context_timestamp``).
+                dt = dt.replace(tzinfo=utc).astimezone(get_timezone(tz_name))
             return get_property(dt)
 
         return getter

@@ -14,6 +14,7 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import ReversedIterable
 
 from ... import decorators as api
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator, Reversible
@@ -22,7 +23,7 @@ if typing.TYPE_CHECKING:
     from ...runtime import Environment
 
 
-class IterationMixin:
+class IterationMixin(_ModelStubs):
     """Mixin providing iteration and set operations for recordsets."""
 
     __slots__ = ()
@@ -45,13 +46,38 @@ class IterationMixin:
         :param prefetch_ids: a reversible iterable of record ids (for prefetching)
 
         .. note::
-            :meth:`Environment.__getitem__` inlines this body (``object.__new__``
-            + the three slot assignments) on its hot path.  Any new attribute
-            added here must also be set there, or empty recordsets will lack it.
+            Recordsets are normally built via :meth:`_spawn` (or :meth:`browse`),
+            which bypass this ``__init__``.  ``_spawn`` is the single source of
+            truth for the slot set; a handful of per-record hot loops still
+            inline the same three assignments for speed (``__iter__``,
+            ``__reversed__``, ``CacheMixin._flush``, ``Environment.__getitem__``)
+            and are marked as such.  Any new slot must be set in ``_spawn`` and
+            those marked mirrors, or empty recordsets will lack it.
         """
         self.env = env
         self._ids = ids
         self._prefetch_ids = prefetch_ids
+
+    @classmethod
+    def _spawn(
+        cls,
+        env: Environment,
+        ids: tuple[IdType, ...],
+        prefetch_ids: Reversible[IdType],
+    ) -> Self:
+        """Build a recordset without the ``__init__`` dispatch overhead.
+
+        Single source of truth for recordset construction: it sets exactly the
+        :attr:`BaseModel.__slots__`.  Use it instead of hand-rolling
+        ``object.__new__(cls)`` + slot assignments, so adding a slot is a
+        one-line change here rather than a hunt across every construction site.
+        Hot per-record loops may still inline the body (see ``__init__``).
+        """
+        record = object.__new__(cls)
+        record.env = env
+        record._ids = ids
+        record._prefetch_ids = prefetch_ids
+        return record
 
     @api.private
     def browse(self, ids: int | typing.Iterable[IdType] = ()) -> Self:
@@ -69,12 +95,7 @@ class IterationMixin:
             ids = (ids,)
         elif ids.__class__ is not tuple:
             ids = tuple(ids)
-        # Inline object creation — avoids __init__ dispatch overhead.
-        rs = object.__new__(self.__class__)
-        rs.env = self.env
-        rs._ids = ids
-        rs._prefetch_ids = ids
-        return rs
+        return self._spawn(self.env, ids, ids)
 
     # Internal properties
 
@@ -106,13 +127,14 @@ class IterationMixin:
             if size == 1:
                 yield self
             return
-        # Inline object creation, bypassing the type.__call__ dispatch chain.
+        # HOT per-record loop: inline mirror of `_spawn` (keep slot assignments
+        # in sync), bypassing the method call and type.__call__ dispatch chain.
         _new = object.__new__
         cls = self.__class__
         env = self.env
         prefetch_ids = self._prefetch_ids
         if size > PREFETCH_MAX and prefetch_ids is ids:
-            for sub_ids in batched(ids, PREFETCH_MAX):
+            for sub_ids in batched(ids, PREFETCH_MAX, strict=False):
                 for id_ in sub_ids:
                     rs = _new(cls)
                     rs.env = env
@@ -129,7 +151,7 @@ class IterationMixin:
 
     def __reversed__(self) -> Iterator[Self]:
         """Return a reversed iterator over ``self``."""
-        # mirror of __iter__
+        # mirror of __iter__ (HOT per-record loop: inline mirror of `_spawn`)
         ids = self._ids
         size = len(ids)
         if size <= 1:
@@ -141,7 +163,7 @@ class IterationMixin:
         env = self.env
         prefetch_ids = self._prefetch_ids
         if size > PREFETCH_MAX and prefetch_ids is ids:
-            for sub_ids in batched(reversed(ids), PREFETCH_MAX):
+            for sub_ids in batched(reversed(ids), PREFETCH_MAX, strict=False):
                 for id_ in sub_ids:
                     rs = _new(cls)
                     rs.env = env
@@ -404,18 +426,10 @@ class IterationMixin:
             return self._fields[key].__get__(self)
         elif isinstance(key, slice):
             ids = self._ids[key]
-            rs = object.__new__(self.__class__)
-            rs.env = self.env
-            rs._ids = ids
-            rs._prefetch_ids = ids
-            return rs
+            return self._spawn(self.env, ids, ids)
         else:
             ids = (self._ids[key],)
-            rs = object.__new__(self.__class__)
-            rs.env = self.env
-            rs._ids = ids
-            rs._prefetch_ids = self._prefetch_ids
-            return rs
+            return self._spawn(self.env, ids, self._prefetch_ids)
 
     def __setitem__(self, key: str, value: typing.Any):
         """Assign the field ``key`` to ``value`` in record ``self``."""

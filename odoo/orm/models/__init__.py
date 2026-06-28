@@ -13,7 +13,8 @@ from .metaclass import MetaModel
 # Mixins (used internally by BaseModel, exported for subclass access)
 from .mixins import (
     AccessMixin,
-    IOMixin,
+    ExportMixin,
+    LoadMixin,
     ReadGroupMixin,
     SchemaMixin,
     TranslationMixin,

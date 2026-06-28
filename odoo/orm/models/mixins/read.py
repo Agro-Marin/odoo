@@ -1,7 +1,6 @@
 """Read operations mixin for BaseModel."""
 
 import logging
-import time
 import typing
 from collections import defaultdict, deque
 from typing import Self
@@ -13,11 +12,12 @@ from odoo_rust import (
 from odoo.exceptions import MissingError
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
-from odoo.tools.orm_profiler import _orm_profiling_enabled
+from odoo.tools.orm_profiler import _OrmProfile
 
 from ... import decorators as api
 from ..._typing import ValuesType
 from ...primitives import LOG_ACCESS_COLUMNS
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Sequence
@@ -29,7 +29,7 @@ _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
 
 
-class ReadMixin:
+class ReadMixin(_ModelStubs):
     """Mixin providing read and fetch operations for recordsets."""
 
     __slots__ = ()
@@ -79,16 +79,18 @@ class ReadMixin:
         :return: a list of dictionaries mapping field names to their values,
                  with one dictionary per record
         :raise AccessError: if user is not allowed to access requested information
-        :raise ValueError: if a requested field does not exist
+
+        Unknown or non-string field names (e.g. integer field ids sent by the
+        web client) are not fatal here: they are logged as a warning and
+        dropped from the result, so a typo'd name simply yields a dict without
+        that key. (``search``/``create``/``write`` still raise ``ValueError``
+        for unknown fields; only ``read`` is lenient.)
 
         This is a high-level method that is not supposed to be overridden. In
         order to modify how fields are read from database, see methods
         :meth:`_fetch_query` and :meth:`_read_format`.
         """
-        _debug = _orm_read.isEnabledFor(logging.DEBUG)
-        _agg = _orm_profiling_enabled
-        if _debug or _agg:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_read)
 
         if not fields:
             fields = list(self.fields_get(attributes=()))
@@ -108,24 +110,22 @@ class ReadMixin:
                 # check field access, otherwise done during fetch()
                 self._determine_fields_to_fetch(fields)
         self._origin.fetch(fields)
-        if _debug:
-            _t_fetch = time.perf_counter()
+        prof.mark("fetch")
         result = self._read_format(fnames=fields, load=load)
 
-        if _debug or _agg:
-            _t_end = time.perf_counter()
-        if _debug:
+        prof.stop()
+        if prof.debug:
             _orm_read.debug(
                 "[%.3f ms] read %s: %d records, %d fields | fetch=%.1f format=%.1f",
-                (_t_end - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
                 len(self),
                 len(fields),
-                (_t_fetch - _t0) * 1000,
-                (_t_end - _t_fetch) * 1000,
+                prof.ms("start", "fetch"),
+                prof.ms("fetch", "end"),
             )
-        if _agg and (p := self.env.transaction._orm_profiler):
-            p.record_read(self._name, len(self), _t_end - _t0)
+        if prof.agg and (p := self.env.transaction._orm_profiler):
+            p.record_read(self._name, len(self), prof.elapsed)
 
         return result
 
@@ -361,9 +361,7 @@ class ReadMixin:
         if not self or not (field_names is None or field_names):
             return
 
-        _debug = _orm_read.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = time.perf_counter()
+        prof = _OrmProfile(_orm_read)
 
         fields_to_fetch = self._determine_fields_to_fetch(
             field_names, ignore_when_in_cache=True
@@ -389,10 +387,11 @@ class ReadMixin:
         # fetch the fields
         fetched = self._fetch_query(query, fields_to_fetch)
 
-        if _debug:
+        if prof.debug:
+            prof.stop()
             _orm_read.debug(
                 "[%.3f ms] fetch %s: %d records, %d fields",
-                (time.perf_counter() - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
                 len(self),
                 len(fields_to_fetch),
@@ -472,9 +471,7 @@ class ReadMixin:
         This method may be overridden to change what fields to actually fetch,
         or to change the values that are put in cache.
         """
-        _debug = _orm_read.isEnabledFor(logging.DEBUG)
-        if _debug:
-            _t0 = _t_sql = _t_cache = time.perf_counter()
+        prof = _OrmProfile(_orm_read)
 
         # determine columns fields and those with their own read() method
         column_fields: OrderedSet[Field] = OrderedSet()
@@ -492,49 +489,9 @@ class ReadMixin:
 
         context = self.env.context
 
-        # Backend dispatch: DictBackend or PostgreSQL
-        storage = self.env.transaction.storage
-        if storage is not None:
-            # In-memory path: IDs come from the query (_search_storage/_as_query).
-            result_ids = query._ids
-            if result_ids is None:
-                # Query not resolved yet: fall back to the table's known IDs.
-                result_ids = tuple(storage.table_ids(self._table))
-
-            if not result_ids:
-                return self.browse()
-
-            fetched = self.browse(result_ids)
-            if column_fields:
-                # Pre-resolve field caches once.  Context-dependent fields may
-                # fail (env.company unavailable) — write to base cache.
-                env = self.env
-                _fdc = env._field_depends_context
-                field_caches: dict = {}
-                for field in column_fields:
-                    if field not in _fdc:
-                        field_caches[field] = env._core.field_data(field)
-                    else:
-                        try:
-                            field_caches[field] = field._get_cache(env)
-                        except Exception:
-                            field_caches[field] = env._core.field_data(field)
-                for record_id in result_ids:
-                    row = storage.get_row(self._table, record_id)
-                    if row is not None:
-                        for field in column_fields:
-                            value = row.get(field.name)
-                            fc = field_caches[field]
-                            fc.setdefault(
-                                record_id,
-                                field.convert_to_cache(value, fetched),
-                            )
-
-            # process non-column fields
-            if fetched:
-                for field in other_fields:
-                    field.read(fetched)
-            return fetched
+        # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
+        if (backend := self.env.backend) is not None:
+            return backend.fetch(self, query, column_fields, other_fields)
 
         if column_fields:
             # the query may involve several tables: we need fully-qualified names
@@ -556,8 +513,7 @@ class ReadMixin:
 
             # select the given columns from the rows in the query
             rows = self.env.execute_query(query.select(*sql_terms))
-            if _debug:
-                _t_sql = time.perf_counter()
+            prof.mark("sql")
 
             if not rows:
                 return self.browse()
@@ -571,31 +527,30 @@ class ReadMixin:
             # cached, so we need not flush when fetched values don't clobber it.
             for field, values in zip(column_fields, column_values, strict=True):
                 field._insert_cache(fetched, values)
-            if _debug:
-                _t_cache = time.perf_counter()
+            prof.mark("cache")
         else:
             fetched = self.browse(query)
-            if _debug:
-                _t_sql = _t_cache = time.perf_counter()
+            prof.mark("sql")
+            prof.mark("cache")
 
         # process non-column fields
         if fetched:
             for field in other_fields:
                 field.read(fetched)
 
-        if _debug:
-            _t_end = time.perf_counter()
+        prof.stop()
+        if prof.debug:
             _orm_read.debug(
                 "[%.3f ms] _fetch_query %s: %d col + %d other fields -> %d rows"
                 " | sql=%.1f cache=%.1f other=%.1f",
-                (_t_end - _t0) * 1000,
+                prof.elapsed * 1000,
                 self._name,
                 len(column_fields),
                 len(other_fields),
                 len(fetched),
-                (_t_sql - _t0) * 1000,
-                (_t_cache - _t_sql) * 1000,
-                (_t_end - _t_cache) * 1000,
+                prof.ms("start", "sql"),
+                prof.ms("sql", "cache"),
+                prof.ms("cache", "end"),
             )
 
         return fetched

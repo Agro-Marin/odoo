@@ -165,6 +165,29 @@ class TestInherit(common.TransactionCase):
         self.assertEqual(len(parent._constraint_methods), 1)
         self.assertEqual(len(child._constraint_methods), 1)
 
+    def test_memoized_properties_not_leaked_to_child(self):
+        """Class-memoized model properties must be stored on each model's OWN
+        runtime class, never inherited via the MRO.
+
+        ``test_inherit_child`` prototype-inherits ``test_inherit_parent`` (new
+        ``_name``, parent runtime class among its bases).  The memos
+        (``_constraint_methods`` / ``_ondelete_methods`` / ``_onchange_methods``)
+        are stored under a distinct ``*__`` name read from the class's own
+        ``__dict__``; a plain attribute lookup would let the child reuse the
+        parent's memo and silently drop the child's own methods.  Here both
+        models happen to have one constraint, so a length check (above) cannot
+        detect a leak — assert the storage location instead.
+        """
+        parent = self.env["test_inherit_parent"]
+        child = self.env["test_inherit_child"]
+        # access parent first: this is what populates the parent memo and would
+        # trigger the leak on the subsequent child access under the old code.
+        parent._constraint_methods  # noqa: B018
+        child._constraint_methods  # noqa: B018
+        # each model computed and stored its OWN memo (not inherited):
+        self.assertIn("_constraint_methods__", type(parent).__dict__)
+        self.assertIn("_constraint_methods__", type(child).__dict__)
+
 
 class TestXMLIDS(common.TransactionCase):
     def test_xml_ids(self):

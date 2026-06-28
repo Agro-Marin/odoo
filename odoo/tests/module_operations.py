@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse
 import contextlib
 import logging.config
@@ -273,9 +274,7 @@ def test_standalone(args: argparse.Namespace) -> None:
             try:
                 func(env)
             except Exception:
-                _logger.error(
-                    "Standalone script %s failed", func.__name__, exc_info=True
-                )
+                _logger.exception("Standalone script %s failed", func.__name__)
 
     _logger.info(
         "%d standalone scripts executed in %.2fs",

@@ -13,6 +13,7 @@ from ....constants import (
 )
 from ....parsing import parse_read_group_spec, regex_order_part_read_group
 from ....primitives import SQL_OPERATORS
+from .._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from ....fields import Field
@@ -50,7 +51,7 @@ def _safe_sql_str_literal(value: str) -> str:
     return f"'{value}'"
 
 
-class _ReadGroupSQLMixin:
+class _ReadGroupSQLMixin(_ModelStubs):
     """SQL expression generation for read_group (SELECT/GROUP BY/HAVING/ORDER BY)."""
 
     __slots__ = ()
@@ -60,7 +61,6 @@ class _ReadGroupSQLMixin:
     _table: str
     _name: str
     env: typing.Any
-    pool: typing.Any
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
         """Return the SQL expression for *aggregate_spec*.
@@ -206,7 +206,19 @@ class _ReadGroupSQLMixin:
 
         elif field.type == "many2many":
             if field.related and not field.store:
-                _model, field, alias = self._traverse_related_sql(alias, field, query)
+                access_model, field, alias = self._traverse_related_sql(
+                    alias, field, query
+                )
+            else:
+                access_model = self
+
+            # Grouping by a field requires read access to it. The other groupby
+            # branches obtain this via ``_field_to_sql``; this branch builds the
+            # join directly (returning ``field.column2`` below) and never calls
+            # ``_field_to_sql``, so the check must be made explicitly. Without
+            # it, a ``groups``-restricted stored many2many could be grouped by a
+            # user who cannot read it — leaking its distinct values and counts.
+            access_model._check_field_access(field, "read")
 
             if not field.store:
                 raise ValueError(
@@ -244,81 +256,95 @@ class _ReadGroupSQLMixin:
         if field.type in ("datetime", "date") or (
             field.type == "properties" and granularity
         ):
-            if not granularity:
-                raise ValueError(
-                    f"Granularity not set on a date(time) field: {groupby_spec!r}"
-                )
-            if granularity not in READ_GROUP_ALL_TIME_GRANULARITY:
-                raise ValueError(
-                    f"Granularity specification isn't correct: {granularity!r}"
-                )
-
-            if field.type == "properties":
-                # _read_group_groupby_properties already built a DATE/TIMESTAMP
-                # CASE expr, so apply date ops directly rather than via
-                # Properties.property_to_sql (which treats its arg as a JSON key,
-                # not a granularity).
-                definition = self.get_property_definition(f"{field.name}.{seq_fnames}")
-                prop_type = definition.get("type")
-                if prop_type == "datetime":
-                    if tz_name := self.env.context.get("tz"):
-                        if tz_name in _get_all_timezones_set():
-                            # tz_name is allow-listed (pytz canonical names);
-                            # embedded, not bound, for GROUP BY consistency
-                            # (see ``_safe_sql_str_literal``).
-                            sql_expr = SQL(
-                                "timezone(%s, timezone('UTC', %%s))"
-                                % _safe_sql_str_literal(tz_name),
-                                sql_expr,
-                            )
-                if granularity in READ_GROUP_NUMBER_GRANULARITY:
-                    pg_granularity = READ_GROUP_NUMBER_GRANULARITY[granularity]
-                    sql_expr = SQL(
-                        "date_part(%s, %%s)" % _safe_sql_str_literal(pg_granularity),
-                        sql_expr,
-                    )
-            elif granularity in READ_GROUP_NUMBER_GRANULARITY:
-                sql_expr = field.property_to_sql(
-                    sql_expr, granularity, self, alias, query
-                )
-            elif field.type == "datetime":
-                # set the timezone only
-                sql_expr = field.property_to_sql(sql_expr, "tz", self, alias, query)
-
-            if granularity == "week":
-                # first_week_day: 0=Monday, 1=Tuesday, ...
-                first_week_day = int(get_lang(self.env).week_start) - 1
-                days_offset = first_week_day and 7 - first_week_day
-                # Embed days_offset as a SQL int literal for GROUP BY consistency
-                # (bound params get distinct $N, splitting SELECT and GROUP BY).
-                # ``%d`` forces int formatting — a non-int raises TypeError, so
-                # no malformed INTERVAL can be produced. The leading ``-`` is
-                # part of the format string (interval was always ``-{n} DAY``).
-                sql_expr = SQL(
-                    "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
-                    " + INTERVAL '-%d DAY')"
-                    % (days_offset, days_offset),
-                    sql_expr,
-                )
-            elif granularity in READ_GROUP_TIME_GRANULARITY:
-                # Embed granularity as a SQL literal for GROUP BY consistency
-                # (see ``_safe_sql_str_literal``).
-                sql_expr = SQL(
-                    "date_trunc(%s, %%s::timestamp)"
-                    % _safe_sql_str_literal(granularity),
-                    sql_expr,
-                )
-
-            # A part-number granularity yields a number, so needs no conversion.
-            if (
-                field.type == "date"
-                and granularity not in READ_GROUP_NUMBER_GRANULARITY
-            ):
-                # date_trunc returns a timestamp; convert it back to a date.
-                sql_expr = SQL("%s::date", sql_expr)
-
+            sql_expr = self._read_group_groupby_temporal(
+                sql_expr, field, granularity, seq_fnames, groupby_spec, alias, query
+            )
         elif field.type == "boolean":
             sql_expr = SQL("COALESCE(%s, FALSE)", sql_expr)
+
+        return sql_expr
+
+    def _read_group_groupby_temporal(
+        self,
+        sql_expr: SQL,
+        field: Field,
+        granularity: str,
+        seq_fnames: str,
+        groupby_spec: str,
+        alias: str,
+        query: Query,
+    ) -> SQL:
+        """Apply a date/datetime *granularity* transform to *sql_expr*.
+
+        Covers real date(time) fields and date(time)-typed properties: timezone
+        shift, number-part extraction (``date_part``), week/period truncation
+        (``date_trunc``), and the trailing cast back to ``date``.
+        """
+        if not granularity:
+            raise ValueError(
+                f"Granularity not set on a date(time) field: {groupby_spec!r}"
+            )
+        if granularity not in READ_GROUP_ALL_TIME_GRANULARITY:
+            raise ValueError(
+                f"Granularity specification isn't correct: {granularity!r}"
+            )
+
+        if field.type == "properties":
+            # _read_group_groupby_properties already built a DATE/TIMESTAMP
+            # CASE expr, so apply date ops directly rather than via
+            # Properties.property_to_sql (which treats its arg as a JSON key,
+            # not a granularity).
+            definition = self.get_property_definition(f"{field.name}.{seq_fnames}")
+            prop_type = definition.get("type")
+            if prop_type == "datetime":
+                if tz_name := self.env.context.get("tz"):
+                    if tz_name in _get_all_timezones_set():
+                        # tz_name is allow-listed (pytz canonical names);
+                        # embedded, not bound, for GROUP BY consistency
+                        # (see ``_safe_sql_str_literal``).
+                        sql_expr = SQL(
+                            "timezone(%s, timezone('UTC', %%s))"
+                            % _safe_sql_str_literal(tz_name),
+                            sql_expr,
+                        )
+            if granularity in READ_GROUP_NUMBER_GRANULARITY:
+                pg_granularity = READ_GROUP_NUMBER_GRANULARITY[granularity]
+                sql_expr = SQL(
+                    "date_part(%s, %%s)" % _safe_sql_str_literal(pg_granularity),
+                    sql_expr,
+                )
+        elif granularity in READ_GROUP_NUMBER_GRANULARITY:
+            sql_expr = field.property_to_sql(sql_expr, granularity, self, alias, query)
+        elif field.type == "datetime":
+            # set the timezone only
+            sql_expr = field.property_to_sql(sql_expr, "tz", self, alias, query)
+
+        if granularity == "week":
+            # first_week_day: 0=Monday, 1=Tuesday, ...
+            first_week_day = int(get_lang(self.env).week_start) - 1
+            days_offset = first_week_day and 7 - first_week_day
+            # Embed days_offset as a SQL int literal for GROUP BY consistency
+            # (bound params get distinct $N, splitting SELECT and GROUP BY).
+            # ``%d`` forces int formatting — a non-int raises TypeError, so
+            # no malformed INTERVAL can be produced. The leading ``-`` is
+            # part of the format string (interval was always ``-{n} DAY``).
+            sql_expr = SQL(
+                "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
+                " + INTERVAL '-%d DAY')" % (days_offset, days_offset),
+                sql_expr,
+            )
+        elif granularity in READ_GROUP_TIME_GRANULARITY:
+            # Embed granularity as a SQL literal for GROUP BY consistency
+            # (see ``_safe_sql_str_literal``).
+            sql_expr = SQL(
+                "date_trunc(%s, %%s::timestamp)" % _safe_sql_str_literal(granularity),
+                sql_expr,
+            )
+
+        # A part-number granularity yields a number, so needs no conversion.
+        if field.type == "date" and granularity not in READ_GROUP_NUMBER_GRANULARITY:
+            # date_trunc returns a timestamp; convert it back to a date.
+            sql_expr = SQL("%s::date", sql_expr)
 
         return sql_expr
 
@@ -362,7 +388,7 @@ class _ReadGroupSQLMixin:
         return stack[0]
 
     def _read_group_orderby(
-        self, order: str, groupby_terms: dict[str, SQL], query: Query
+        self, order: str | None, groupby_terms: dict[str, SQL], query: Query
     ) -> SQL:
         """Return the ORDER BY SQL for *order* and *groupby_terms*.
 

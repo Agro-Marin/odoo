@@ -7,12 +7,13 @@ import warnings
 from typing import Self
 
 from ... import decorators as api
-from ..._typing import (  # noqa: TC003 — runtime import required (PEP 649)
+from ..._typing import (
     IdType,
     ValuesType,
 )
 from ...helpers import _origin_ids
 from ...primitives import NewId
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Reversible
@@ -20,7 +21,7 @@ if typing.TYPE_CHECKING:
     from ...runtime import Environment
 
 
-class EnvironmentMixin:
+class EnvironmentMixin(_ModelStubs):
     """Mixin providing environment manipulation methods for recordsets."""
 
     __slots__ = ()
@@ -46,11 +47,7 @@ class EnvironmentMixin:
         .. note::
             The returned recordset has the same prefetch object as ``self``.
         """
-        rs = object.__new__(self.__class__)
-        rs.env = env
-        rs._ids = self._ids
-        rs._prefetch_ids = self._prefetch_ids
-        return rs
+        return self._spawn(env, self._ids, self._prefetch_ids)
 
     @api.private
     def sudo(self, flag: bool = True) -> Self:
@@ -170,11 +167,7 @@ class EnvironmentMixin:
         """
         if prefetch_ids is None:
             prefetch_ids = self._ids
-        rs = object.__new__(self.__class__)
-        rs.env = self.env
-        rs._ids = self._ids
-        rs._prefetch_ids = prefetch_ids
-        return rs
+        return self._spawn(self.env, self._ids, prefetch_ids)
 
     def _update_cache(self, values: ValuesType, validate: bool = True) -> None:
         """Update the cache of ``self`` with ``values``.
@@ -208,14 +201,6 @@ class EnvironmentMixin:
                 for invf in self.pool.field_inverses[field]:
                     invf._update_inverse(inv_recs, self)
 
-    def _convert_to_record(self, values: dict) -> dict:
-        """Convert the ``values`` dictionary from the cache format to the
-        record format.
-        """
-        return {
-            name: self._fields[name].convert_to_record(value, self)
-            for name, value in values.items()
-        }
 
     def _convert_to_write(self, values: dict) -> ValuesType:
         """Convert the ``values`` dictionary into the format of :meth:`write`."""
@@ -271,8 +256,4 @@ class EnvironmentMixin:
             return self  # already real records
         ids = tuple(_origin_ids(self._ids))
         prefetch_ids = _origin_ids(self._prefetch_ids)
-        rs = object.__new__(self.__class__)
-        rs.env = self.env
-        rs._ids = ids
-        rs._prefetch_ids = prefetch_ids
-        return rs
+        return self._spawn(self.env, ids, prefetch_ids)

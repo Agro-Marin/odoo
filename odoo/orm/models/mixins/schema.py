@@ -4,7 +4,6 @@ conversion of SQL errors to user messages. Table object classes are in
 """
 
 import logging
-import typing
 
 import psycopg
 import psycopg.errors
@@ -14,11 +13,12 @@ from odoo.tools import SQL, format_list, ormcache, sql
 from ... import decorators as api
 from ...helpers import get_columns_from_sql_diagnostics
 from ...validation import raise_on_invalid_object_name
+from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
 
 
-class SchemaMixin:
+class SchemaMixin(_ModelStubs):
     """Mixin providing database schema management.
 
     Table creation, column initialization, constraint management, and SQL
@@ -26,19 +26,6 @@ class SchemaMixin:
     """
 
     __slots__ = ()
-
-    # Type hints for attributes provided by BaseModel (runtime)
-    _fields: dict
-    _table: str
-    _name: str
-    _description: str
-    _abstract: bool
-    _auto: bool
-    _parent_store: bool
-    _parent_name: str
-    _table_objects: dict
-    env: typing.Any
-    id: int
 
     def _parent_store_compute(self) -> None:
         """Compute parent_path field from scratch."""
@@ -355,5 +342,6 @@ class SchemaMixin:
 
         # No good message can be created for psycopg.errors.CheckViolation
 
-        # fallback
-        return str(exc)
+        # fallback — strip so the message has no trailing newline (PostgreSQL/
+        # psycopg may append one) in user-facing import/UI errors.
+        return str(exc).strip()

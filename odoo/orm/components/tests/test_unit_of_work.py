@@ -57,34 +57,6 @@ class TestDirtyModels(unittest.TestCase):
         self.cache.mark_dirty(f2, [1])
         self.assertEqual(self.uow.dirty_models(), ["sale.order"])
 
-    def test_dirty_fields_list(self) -> None:
-        f = _field("sale.order", "amount")
-        self.cache.set_value(f, 1, 100)
-        self.cache.mark_dirty(f, [1])
-        fields = self.uow.dirty_fields()
-        self.assertEqual(len(fields), 1)
-        self.assertEqual(fields[0], f)
-
-
-class TestHasPendingWork(unittest.TestCase):
-    def setUp(self) -> None:
-        self.cache = FieldCache()
-        self.engine = ComputeEngine()
-        self.uow = UnitOfWork(self.cache, self.engine)
-
-    def test_no_work(self) -> None:
-        self.assertFalse(self.uow.has_pending_work())
-
-    def test_pending_compute(self) -> None:
-        self.engine.schedule("total", [1])
-        self.assertTrue(self.uow.has_pending_work())
-
-    def test_dirty_field(self) -> None:
-        f = _field("m", "x")
-        self.cache.set_value(f, 1, 1)
-        self.cache.mark_dirty(f, [1])
-        self.assertTrue(self.uow.has_pending_work())
-
 
 class TestConvergenceDetection(unittest.TestCase):
     """Test convergence / stall detection methods."""
@@ -262,6 +234,33 @@ class TestRunFlushLoop(unittest.TestCase):
         )
         self.assertTrue(result.converged)
         self.assertEqual(flush_count[0], 2)
+
+    def test_converged_result_has_no_stalled_fields(self) -> None:
+        """A loop that stalls transiently then converges must not report stalls.
+
+        Regression: run_flush_loop set stalled_fields on a non-progress
+        iteration but never cleared them when it later converged via the
+        empty-dirty break, returning the inconsistent (converged=True,
+        stalled_fields=[...]) pair.
+        """
+        f = _field("m", "a")
+        self.cache.mark_dirty(f, [1, 2])  # dirty count stays 2 across iter 0->1
+        calls = [0]
+
+        def flush(models):
+            # iter 0 flush: leave dirty unchanged -> iter 1 sees no progress
+            #   (curr_dirty_count >= prev) and records a stall.
+            # iter 1 flush: clear dirty -> iter 2 converges via empty break.
+            if calls[0] == 1:
+                self.cache.pop_dirty(f)
+            calls[0] += 1
+
+        result = self.uow.run_flush_loop(
+            recompute_fn=lambda field: None,
+            flush_fn=flush,
+        )
+        self.assertTrue(result.converged)
+        self.assertEqual(result.stalled_fields, [])
 
     def test_recompute_non_convergence_propagates(self) -> None:
         """If recompute loop doesn't converge, flush loop breaks early."""

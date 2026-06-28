@@ -519,6 +519,26 @@ class TestTransitiveTriggers(unittest.TestCase):
         self.assertIn(c, deps)
         self.assertIn(d, deps)
 
+    def test_deep_same_model_chain(self) -> None:
+        """A long chain of same-model (empty-path) triggers resolves to a flat
+        root holding every transitive target, in order, without duplicates.
+
+        Regression: the closure walk and the per-node merge were both
+        O(depth**2) (tuple ``seen`` copy + ``set(node.root)`` rebuilt on every
+        merge), so a chain of same-model computed fields all accumulating at the
+        root degraded sharply with depth. Build is now O(depth); this also
+        exercises that path for correctness at depth.
+        """
+        g = ModelGraph()
+        fields = [_field(f"f{i}") for i in range(200)]
+        for i in range(len(fields) - 1):
+            g.add_trigger(fields[i], (), [fields[i + 1]])
+
+        tree = g.get_field_trigger_tree(fields[0])
+        # all targets land on the root (empty path), once each, in chain order
+        self.assertEqual(tree.root, fields[1:])
+        self.assertEqual(len(tree.root), len(set(tree.root)))
+
 
 # ---------------------------------------------------------------------------
 # Path concatenation tests
@@ -531,14 +551,14 @@ class TestConcatPaths(unittest.TestCase):
     def test_simple_concat(self) -> None:
         a = _field("a")
         b = _field("b")
-        result = _concat_paths((a,), (b,), {})
+        result = _concat_paths((a,), (b,))
         self.assertEqual(result, (a, b))
 
     def test_empty_concat(self) -> None:
-        self.assertEqual(_concat_paths((), (), {}), ())
+        self.assertEqual(_concat_paths((), ()), ())
         a = _field("a")
-        self.assertEqual(_concat_paths((a,), (), {}), (a,))
-        self.assertEqual(_concat_paths((), (a,), {}), (a,))
+        self.assertEqual(_concat_paths((a,), ()), (a,))
+        self.assertEqual(_concat_paths((), (a,)), (a,))
 
     def test_m2o_o2m_cancellation(self) -> None:
         """A many2one followed by its inverse one2many should cancel."""
@@ -557,7 +577,7 @@ class TestConcatPaths(unittest.TestCase):
             inverse_name="partner_id",
             relational=True,
         )
-        result = _concat_paths((m2o,), (o2m,), {})
+        result = _concat_paths((m2o,), (o2m,))
         self.assertEqual(result, ())
 
     def test_m2o_o2m_no_cancel_if_different_inverse(self) -> None:
@@ -577,7 +597,7 @@ class TestConcatPaths(unittest.TestCase):
             inverse_name="other_id",
             relational=True,
         )
-        result = _concat_paths((m2o,), (o2m,), {})
+        result = _concat_paths((m2o,), (o2m,))
         self.assertEqual(result, (m2o, o2m))
 
     def test_m2o_o2m_no_cancel_if_different_models(self) -> None:
@@ -597,7 +617,7 @@ class TestConcatPaths(unittest.TestCase):
             inverse_name="partner_id",
             relational=True,
         )
-        result = _concat_paths((m2o,), (o2m,), {})
+        result = _concat_paths((m2o,), (o2m,))
         self.assertEqual(result, (m2o, o2m))
 
 
@@ -904,6 +924,152 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertLess(order[a], order[c])
         # B and C are in a cycle → same (max) priority
         self.assertEqual(order[b], order[c])
+
+    def test_plain_column_feeding_computed_chain(self) -> None:
+        """Plain column → total → grand_total (the canonical real shape).
+
+        Regression lock for the simplification of ``_compute_recompute_order``
+        (the dead ``dep_field in all_targets or ...`` disjunct was removed).
+        Only stored-computed fields may appear in the order; a plain stored
+        column that is a *dependency* of computed fields must never be ordered,
+        and the computed chain must still sort dependency-before-dependent.
+        """
+        g = ModelGraph()
+        column = _field("amount", store=True)  # plain column, no compute
+        total = self._stored_computed("total")
+        grand_total = self._stored_computed("grand_total")
+        g.add_trigger(column, (), [total])  # non-computed dep → computed target
+        g.add_trigger(total, (), [grand_total])  # computed dep → computed target
+
+        order = g.recompute_order
+        self.assertNotIn(column, order)  # never ordered: not stored-computed
+        self.assertIn(total, order)
+        self.assertIn(grand_total, order)
+        self.assertLess(order[total], order[grand_total])
+
+    def test_only_stored_computed_fields_in_order(self) -> None:
+        """The order's keys are exactly the stored-computed fields, regardless
+        of how many non-stored / non-computed fields trigger or are triggered.
+        """
+        g = ModelGraph()
+        col = _field("col", store=True)  # plain column
+        non_stored = _field("ns", store=False, compute="_c")  # computed, not stored
+        sc = self._stored_computed("sc")
+        g.add_trigger(col, (), [sc, non_stored])
+        g.add_trigger(non_stored, (), [sc])  # non-stored dep feeding stored-computed
+
+        order = g.recompute_order
+        self.assertEqual(set(order), {sc})
+
+
+class TestModelGraphFreeze(unittest.TestCase):
+    """Test ModelGraph.freeze() — eager cache population for read-only querying.
+
+    freeze() must (a) precompute every cache entry runtime queries can produce,
+    so that (b) subsequent queries perform no cache mutation (the property that
+    makes the process-shared graph safe to read concurrently / free-threaded),
+    and (c) not change any query result versus lazy computation.
+    """
+
+    def _build_graph(self) -> ModelGraph:
+        """A representative graph: scalar + relational deps, a stored-computed
+        target (for recompute_order), a path-based trigger, and an inverse."""
+        g = ModelGraph()
+        price = _field("price")
+        qty = _field("qty")
+        partner_id = _field("partner_id", type_="many2one", relational=True)
+        total = _field("total", is_stored_computed=True, store=True, compute="_c")
+        partner_total = _field(
+            "partner_total", is_stored_computed=True, store=True, compute="_c"
+        )
+        g.add_trigger(price, (), [total])
+        g.add_trigger(qty, (), [total])
+        g.add_trigger(price, (partner_id,), [partner_total])
+        g.add_trigger(total, (), [partner_total])  # stored→stored, for ordering
+        g._inverses[partner_id] = (partner_id,)
+        return g
+
+    def test_freeze_populates_all_caches(self) -> None:
+        g = self._build_graph()
+        self.assertEqual(g._trigger_trees, {})
+        self.assertEqual(g._modifying_relations, {})
+        self.assertIsNone(g._recompute_order)
+
+        g.freeze()
+
+        # Every field with triggers has a cached tree and modifying-relations.
+        for field in g._triggers:
+            self.assertIn(field, g._trigger_trees)
+            self.assertIn(field, g._modifying_relations)
+        self.assertIsNotNone(g._recompute_order)
+
+    def test_queries_after_freeze_do_not_mutate(self) -> None:
+        """The core race-freedom guarantee: post-freeze reads write nothing."""
+        g = self._build_graph()
+        g.freeze()
+
+        trees_keys = set(g._trigger_trees)
+        modrel_keys = set(g._modifying_relations)
+        order_obj = g._recompute_order  # identity must not change (no recompute)
+
+        # Exercise every public query path, including non-trigger fields and an
+        # arbitrary multi-field set (the get_trigger_tree merge path).
+        non_trigger = _field("unrelated")
+        for field in list(g._triggers) + [non_trigger]:
+            g.get_field_trigger_tree(field)
+            g.is_modifying_relations(field)
+            list(g.get_dependent_fields(field))
+        g.get_trigger_tree(list(g._triggers) + [non_trigger])
+        _ = g.recompute_order
+
+        self.assertEqual(set(g._trigger_trees), trees_keys, "trigger-tree cache grew")
+        self.assertEqual(
+            set(g._modifying_relations), modrel_keys, "modifying-relations cache grew"
+        )
+        self.assertIs(g._recompute_order, order_obj, "recompute_order recomputed")
+
+    def test_non_trigger_field_is_uncached(self) -> None:
+        """A field with no triggers returns False without polluting the cache —
+        the property that bounds the cache to a finite, freezable key set."""
+        g = self._build_graph()
+        g.freeze()
+        x = _field("no_deps")
+        self.assertFalse(g.is_modifying_relations(x))
+        self.assertNotIn(x, g._modifying_relations)
+
+    def test_freeze_is_idempotent(self) -> None:
+        g = self._build_graph()
+        g.freeze()
+        trees, modrel, order = (
+            dict(g._trigger_trees),
+            dict(g._modifying_relations),
+            dict(g.recompute_order),
+        )
+        g.freeze()
+        self.assertEqual(set(g._trigger_trees), set(trees))
+        self.assertEqual(g._modifying_relations, modrel)
+        self.assertEqual(g.recompute_order, order)
+
+    def test_freeze_preserves_query_results(self) -> None:
+        """Freezing must not change any answer versus lazy computation."""
+        eager = self._build_graph()
+        eager.freeze()
+        lazy = self._build_graph()  # identical graph, never frozen
+        # Build matching field handles by name for comparison.
+        for f_eager in eager._triggers:
+            f_lazy = next(f for f in lazy._triggers if f.name == f_eager.name)
+            self.assertEqual(
+                eager.is_modifying_relations(f_eager),
+                lazy.is_modifying_relations(f_lazy),
+            )
+            self.assertEqual(
+                {d.name for d in eager.get_dependent_fields(f_eager)},
+                {d.name for d in lazy.get_dependent_fields(f_lazy)},
+            )
+        self.assertEqual(
+            {f.name: p for f, p in eager.recompute_order.items()},
+            {f.name: p for f, p in lazy.recompute_order.items()},
+        )
 
 
 if __name__ == "__main__":

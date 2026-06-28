@@ -8,13 +8,13 @@ and inherits SQL/format/fill logic from the sub-mixins in this package.
 import itertools
 import typing
 from collections import defaultdict
-from operator import itemgetter
 
 from odoo.tools import SQL, unique
 
 from .... import decorators as api
 from ...._typing import DomainType
 from ....domain import Domain
+from ....helpers import itemgetter_tuple
 from ....parsing import parse_read_group_spec, regex_field_agg
 from .fill import _ReadGroupFillMixin
 from .format import _ReadGroupFormatMixin
@@ -22,15 +22,6 @@ from .sql import _ReadGroupSQLMixin
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
-
-
-def _itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
-    """Like :func:`itemgetter` but always returns a tuple, even for one item."""
-    if len(items) == 0:
-        return lambda a: ()
-    if len(items) == 1:
-        return lambda gettable: (gettable[items[0]],)
-    return itemgetter(*items)
 
 
 class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMixin):
@@ -99,37 +90,11 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
 
         # Many2many handling
         many2many_groupby_specs = []
-        if (
-            len(grouping_sets) > 1
-        ):  # only relevant with multiple groupings
-
-            def might_duplicate_rows(model, spec) -> bool:
-                fname, property_name, __ = parse_read_group_spec(spec)
-                field = model._fields[fname]
-                if field.type == "properties":
-                    definition = self.get_property_definition(
-                        f"{fname}.{property_name}"
-                    )
-                    property_type = definition.get("type")
-                    return property_type in ("tags", "many2many")
-
-                if property_name:
-                    # raise (not assert) so this holds under python -O: a
-                    # malformed spec must not silently look up the wrong comodel.
-                    if field.type != "many2one":
-                        raise TypeError(
-                            f"Field {fname!r} on {model._name!r}: dotted "
-                            f"groupby spec only supported for many2one, got "
-                            f"{field.type!r}"
-                        )
-                    return might_duplicate_rows(
-                        self.env[field.comodel_name], property_name
-                    )
-
-                return field.type == "many2many"
-
+        if len(grouping_sets) > 1:  # only relevant with multiple groupings
             many2many_groupby_specs.extend(
-                spec for spec in all_groupby_specs if might_duplicate_rows(self, spec)
+                spec
+                for spec in all_groupby_specs
+                if self._groupby_spec_might_duplicate_rows(self, spec)
             )
 
         if (
@@ -227,7 +192,16 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 for aggregate in aggregates
             )
             if order:
-                order = order.replace("__count", "id:count_distinct")
+                # token-anchored replace (not str.replace): only rewrite an
+                # order term whose spec is exactly '__count', so a field named
+                # e.g. 'line__count' is not corrupted.
+                parts = []
+                for part in order.split(","):
+                    part = part.strip()
+                    if part == "__count" or part.startswith("__count "):
+                        part = "id:count_distinct" + part[len("__count") :]
+                    parts.append(part)
+                order = ", ".join(parts)
 
         # SQL query construction
         groupby_terms: dict[str, SQL] = {
@@ -275,10 +249,54 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
 
         # row_values: [(GROUPING(...), a1, b1, aggregates...), ...]
         row_values = self.env.execute_query(query.select(*select_args))
-
         if not row_values:  # shortcut
             return result
 
+        return self._read_grouping_sets_dispatch_rows(
+            row_values, grouping_sets, all_groupby_specs, aggregates, groupby_terms, result
+        )
+
+    def _groupby_spec_might_duplicate_rows(self, model, spec) -> bool:
+        """Whether grouping by *spec* on *model* can duplicate rows (m2m/tags).
+
+        Recurses through a dotted many2one path down to its comodel.
+        """
+        fname, property_name, __ = parse_read_group_spec(spec)
+        field = model._fields[fname]
+        if field.type == "properties":
+            definition = self.get_property_definition(f"{fname}.{property_name}")
+            property_type = definition.get("type")
+            return property_type in ("tags", "many2many")
+
+        if property_name:
+            # raise (not assert) so this holds under python -O: a malformed spec
+            # must not silently look up the wrong comodel.
+            if field.type != "many2one":
+                raise TypeError(
+                    f"Field {fname!r} on {model._name!r}: dotted groupby spec "
+                    f"only supported for many2one, got {field.type!r}"
+                )
+            return self._groupby_spec_might_duplicate_rows(
+                self.env[field.comodel_name], property_name
+            )
+
+        return field.type == "many2many"
+
+    def _read_grouping_sets_dispatch_rows(
+        self,
+        row_values: list[tuple],
+        grouping_sets: Sequence[Sequence[str]],
+        all_groupby_specs: Sequence[str],
+        aggregates: Sequence[str],
+        groupby_terms: dict[str, SQL],
+        result: list[list[tuple]],
+    ) -> list[list[tuple]]:
+        """Split the ``GROUPING SETS`` rows back into per-grouping-set results.
+
+        Each row carries a ``GROUPING()`` bitmask identifying which grouping set
+        it belongs to; this maps every mask to its target result list and the
+        column extractor, then dispatches the (column-transposed) rows.
+        """
         # Result post-processing: the integer from GROUPING() keys each row to
         # the correct user grouping set.
         aggregates_indexes = tuple(
@@ -314,7 +332,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             if groupby_mask not in mask_grouping_mapping:
                 mask_grouping_mapping[groupby_mask] = (
                     result[result_index].append,
-                    _itemgetter_tuple(
+                    itemgetter_tuple(
                         list(
                             itertools.chain(
                                 (
@@ -419,8 +437,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 ]
             return []
 
-        query.limit = limit
-        query.offset = offset
+        if groupby:
+            # Without a groupby, PostgreSQL returns exactly one aggregate row;
+            # applying limit/offset there would wrongly slice that single row
+            # away (e.g. offset=1 -> []), breaking the documented single-row
+            # contract. Only paginate when there are groups.
+            query.limit = limit
+            query.offset = offset
 
         groupby_terms: dict[str, SQL] = {
             spec: self._read_group_groupby(self._table, spec, query) for spec in groupby
@@ -441,7 +464,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         row_values = self.env.execute_query(query.select(*select_args))
 
         if not row_values:
-            return row_values
+            return []
 
         # post-process values column by column
         column_iterator = zip(*row_values, strict=False)
@@ -605,7 +628,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 ):
                     key_name = key_name.split(":")[0]
                     if order_term.startswith(f"{key_name} ") or key_name == order_term:
-                        order_term = order_term.replace(key_name, annotated)
+                        # replace only the leading field token, preserving any
+                        # trailing direction/nulls clause (a blanket str.replace
+                        # could rewrite a later occurrence of the field name)
+                        order_term = annotated + order_term[len(key_name) :]
                         break
                 new_terms.append(order_term)
             orderby = ",".join(new_terms)
