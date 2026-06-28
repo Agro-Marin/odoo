@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { waitForChannels } from "@bus/../tests/bus_test_helpers";
 import { onWebsocketEvent } from "@bus/../tests/mock_websocket";
 

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
 
 import { useService } from "@web/core/utils/hooks";

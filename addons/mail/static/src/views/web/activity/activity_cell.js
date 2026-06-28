@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Avatar } from "@mail/views/web/fields/avatar/avatar";
 import { Component, useRef } from "@odoo/owl";

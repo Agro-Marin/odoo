@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
+import { Chart } from "@web/core/lib/chartjs";
 import { onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";

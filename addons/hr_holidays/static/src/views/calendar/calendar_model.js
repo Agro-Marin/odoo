@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 import {
     deserializeDate,

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, useState } from "@odoo/owl";
 
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import {
     ComboConfiguratorDialog
 } from '@sale/js/combo_configurator_dialog/combo_configurator_dialog';
@@ -98,7 +99,7 @@ export class CartService {
      *      attribute(s), as a list of `product.template.attribute.value` ids.
      * @param {Boolean} [product.isCombo=false] - Whether the product is part of a combo template.
      *      Defaults to false.
-     * @param {...*} [product.rest] - Locally unused data sent to the controllers.
+     * @param {*} [product.rest] - Locally unused data sent to the controllers.
      * @param {Object} [options] - Define how to add products to the cart.
      * @param {Boolean} [options.isBuyNow=false] - Whether the product should be added immediately,
      *      bypassing optional configurations. Defaults to false.
@@ -439,7 +440,7 @@ export class CartService {
      *      attribute(s), as a list of `product.template.attribute.value` ids.
      * @param {Boolean} [data.shouldRedirectToCart=false] - Whether to redirect the
      *      customer to the cart. Defaults to false.
-     * @param {...*} [data.rest] - Locally unused data sent to the controllers.
+     * @param {*} [data.rest] - Locally unused data sent to the controllers.
      *
      * @returns {Number} - The product's quantity in the cart.
      */

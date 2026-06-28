@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import { findComponent, makeMockServer, mountView } from "@web/../tests/web_test_helpers";

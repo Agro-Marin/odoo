@@ -10,6 +10,7 @@
  * @typedef {import("@spreadsheet").DateDefaultValue} DateDefaultValue
  */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { Domain } from "@web/core/domain";
 import { user } from "@web/services/user";

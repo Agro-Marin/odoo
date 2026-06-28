@@ -2,6 +2,7 @@
 import { useRef } from "@odoo/owl";
 
 import { _t } from "@web/core/l10n/translation";
+import { DateTime } from "@web/core/l10n/luxon";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
 
@@ -81,7 +82,7 @@ export class ProjectTaskCalendarController extends CalendarController {
         if (timeSlotElement) {
             dateStr += `T${timeSlotElement.dataset.time}`;
         }
-        const date = globalThis.luxon.DateTime.fromISO(dateStr);
+        const date = DateTime.fromISO(dateStr);
         if (date.isValid) {
             element.hidden = true;
             await this.model.planTask(taskId, date, Boolean(timeSlotElement));

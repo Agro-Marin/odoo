@@ -5,13 +5,13 @@ import {
     asyncStep,
     mockService,
     onRpc,
-    preloadBundle,
+    preloadFullCalendar,
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 
 defineCalendarModels();
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 test("can listen on bus and display notifications in DOM and click OK", async () => {
     const pyEnv = await startServer();

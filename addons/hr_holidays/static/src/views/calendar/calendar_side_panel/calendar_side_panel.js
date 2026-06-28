@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { CalendarSidePanel } from "@web/views/calendar/calendar_side_panel/calendar_side_panel";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { Cache } from "@web/core/utils/collections/cache";

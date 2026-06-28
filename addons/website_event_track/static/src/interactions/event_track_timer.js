@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { formatDuration } from "@web/core/l10n/dates";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";

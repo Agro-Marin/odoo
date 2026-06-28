@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { setSelection } from "@html_editor/../tests/_helpers/selection";
 import {
     insertText as htmlInsertText,

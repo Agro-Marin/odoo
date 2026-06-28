@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";

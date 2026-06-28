@@ -5,13 +5,13 @@ import { mockDate } from "@odoo/hoot-mock";
 import {
     asyncStep,
     mockService,
-    preloadBundle,
+    preloadFullCalendar,
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 
 defineCalendarModels();
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 test("activity menu widget:today meetings", async () => {
     mockDate(2018, 3, 20, 6, 0, 0);

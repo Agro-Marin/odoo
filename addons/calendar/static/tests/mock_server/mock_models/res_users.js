@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { serverState } from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";

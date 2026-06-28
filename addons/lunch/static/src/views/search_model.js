@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Domain } from '@web/core/domain';
 import { rpc } from "@web/core/network/rpc";
 import { SearchModel } from '@web/search/search_model';

@@ -8,6 +8,7 @@
  *
  * credit to `underscore.js`
  */
+import { luxon } from "@web/core/l10n/luxon";
 import { browser } from "@web/core/browser/browser";
 function throttle(func, wait, options) {
     let timeout, context, args, result;

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { ResPartner } from "@mail/core/common/res_partner_model";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";

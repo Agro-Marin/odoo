@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { isToday } from "@mail/utils/common/dates";
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useRef, useSubEnv } from "@odoo/owl";

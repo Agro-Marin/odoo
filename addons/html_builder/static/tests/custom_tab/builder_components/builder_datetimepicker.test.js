@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { addBuilderOption, setupHTMLBuilder } from "@html_builder/../tests/helpers";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { expect, test, describe } from "@odoo/hoot";

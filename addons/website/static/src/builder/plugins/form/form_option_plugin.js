@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { Cache } from "@web/core/utils/collections/cache";
 import { Plugin } from "@html_editor/plugin";

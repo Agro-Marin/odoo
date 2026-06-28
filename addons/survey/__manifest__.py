@@ -61,7 +61,6 @@ sent mails with personal token for the invitation of the survey.
     "sequence": 220,
     "assets": {
         "survey.survey_assets": [
-            ("include", "web.chartjs_lib"),
             "survey/static/src/utils.js",
             "/survey/static/src/interactions/survey_image_zoomer_templates.xml",
             "survey/static/src/js/survey_preload_image_mixin.js",
@@ -78,20 +77,13 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/src/interactions/*",
         ],
         "survey.survey_user_input_session_assets": [
+            "survey/static/src/interactions/chartjs_setup.js",
             "survey/static/src/interactions/survey_session_colors.js",
             "survey/static/src/interactions/survey_session_chart.js",
             "survey/static/src/interactions/survey_session_text_answers.js",
             "survey/static/src/interactions/survey_session_leaderboard.js",
             "survey/static/src/interactions/survey_session_manage.js",
             "survey/static/src/xml/survey_session_text_answer_template.xml",
-        ],
-        # Lazy-loaded by ``interactions/survey_session_chart.js`` via
-        # ``loadBundle("survey.assets_chartjs_datalabels_lib")``.  Kept
-        # separate from ``survey_user_input_session_assets`` so the
-        # ~38 KB plugin only ships when a session host opens the live
-        # chart panel — it is not needed for the participant view.
-        "survey.assets_chartjs_datalabels_lib": [
-            "survey/static/src/js/libs/chartjs-plugin-datalabels.js",
         ],
         "web.report_assets_common": [
             "survey/static/src/scss/survey_reports.scss",
@@ -121,8 +113,6 @@ sent mails with personal token for the invitation of the survey.
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'survey.survey_assets',
             'survey.survey_user_input_session_assets',

@@ -1,5 +1,5 @@
 import { Model, Spreadsheet } from "@odoo/o-spreadsheet";
-import { loadBundle } from "@web/core/assets";
+import { loadChartJS } from "@web/core/lib/chartjs";
 
 import { getFixture } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
@@ -26,7 +26,7 @@ export async function mountSpreadsheet(model) {
     // const serviceRegistry = registry.category("services");
     // serviceRegistry.add("dialog", makeFakeDialogService(), { force: true });
     // serviceRegistry.add("notification", makeFakeNotificationService(), { force: true });
-    await loadBundle("web.chartjs_lib");
+    await loadChartJS();
     mountWithCleanup(Parent, {
         props: {
             model,

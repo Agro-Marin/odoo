@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAll, queryAllProperties, queryAllTexts, queryFirst } from "@odoo/hoot-dom";

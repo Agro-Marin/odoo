@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 
 import { fields, getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";

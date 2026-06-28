@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { loadBundle } from "@web/core/assets";
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
@@ -66,7 +66,7 @@ export class SurveyResultChart extends Interaction {
     }
 
     async willStart() {
-        await loadBundle("web.chartjs_lib");
+        await loadChartJS();
     }
 
     /**

@@ -1,9 +1,10 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Interaction } from "@web/public/interaction";
 import { _t } from "@web/core/l10n/translation";
 import { deserializeDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
-import { loadBundle } from "@web/core/assets";
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 const { DateTime } = luxon;
 
 class WebsiteLinksCharts extends Interaction {
@@ -80,7 +81,7 @@ class WebsiteLinksCharts extends Interaction {
         for (const pieChartData of Object.values(this.pieChartsData)) {
             pieChartData.data = await pieChartData.fetch();
         }
-        await loadBundle("web.chartjs_lib");
+        await loadChartJS();
     }
 
     start() {

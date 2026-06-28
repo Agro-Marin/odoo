@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useService, useOwnedDialogs } from "@web/core/utils/hooks";
 import { AllocationFormViewDialog } from "./view_dialog/allocation_form_view_dialog.js";
