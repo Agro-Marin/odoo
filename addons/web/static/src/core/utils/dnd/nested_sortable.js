@@ -76,12 +76,15 @@ export const useNestedSortable = /** @type {any} */ (
                 listTagName: "ul",
                 nestInterval: 15,
                 maxLevels: 0,
-                isAllowed: (ctx) => true,
+                isAllowed: (/** @type {Record<string, any>} */ ctx) => true,
                 useElementSize: false,
             },
 
             // Set the parameters.
-            onComputeParams({ ctx, params }) {
+            onComputeParams(/** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
+                ctx,
+                params,
+            }) {
                 // Group selector
                 ctx.groupSelector = params.groups || null;
                 if (ctx.groupSelector) {
@@ -104,7 +107,10 @@ export const useNestedSortable = /** @type {any} */ (
 
             // Set the current group and create the placeholder row that will take the
             // place of the moving row.
-            onWillStartDrag({ ctx, addCleanup }) {
+            onWillStartDrag(/** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
+                ctx,
+                addCleanup,
+            }) {
                 if (ctx.groupSelector) {
                     ctx.currentGroup = ctx.current.element.closest(ctx.groupSelector);
                     if (!ctx.connectGroups) {
@@ -136,7 +142,10 @@ export const useNestedSortable = /** @type {any} */ (
             // Make the placeholder take the place of the moving row, and add style on
             // different elements to provide feedback that there is an ongoing dragging
             // sequence.
-            onDragStart({ ctx, addStyle }) {
+            onDragStart(/** @type {{ ctx: Record<string, any>, addStyle: Function }} */ {
+                ctx,
+                addStyle,
+            }) {
                 // Horizontal position which will be used to detect row changes when moving vertically, so that
                 // we do not need to be on the row to trigger row changes (only the vertical position matters).
                 // Nested rows are shorter than "root" rows, and do not start at the same horizontal position.
@@ -168,7 +177,11 @@ export const useNestedSortable = /** @type {any} */ (
                     group: ctx.currentGroup,
                 };
             },
-            _getDeepestChildLevel(ctx, node, depth = 0) {
+            _getDeepestChildLevel(
+                /** @type {Record<string, any>} */ ctx,
+                /** @type {Element} */ node,
+                depth = 0,
+            ) {
                 let result = 0;
                 const childSelector = `${ctx.listTagName} ${ctx.elementSelector}`;
                 for (const childNode of node.querySelectorAll(childSelector)) {
@@ -179,7 +192,7 @@ export const useNestedSortable = /** @type {any} */ (
                 }
                 return depth ? result + 1 : result;
             },
-            _hasReachMaxAllowedLevel(ctx) {
+            _hasReachMaxAllowedLevel(/** @type {Record<string, any>} */ ctx) {
                 if (!ctx.nest || ctx.maxLevels < 1) {
                     return false;
                 }
@@ -191,7 +204,7 @@ export const useNestedSortable = /** @type {any} */ (
                 }
                 return level > ctx.maxLevels;
             },
-            _isAllowedNodeMove(ctx) {
+            _isAllowedNodeMove(/** @type {Record<string, any>} */ ctx) {
                 return (
                     !this._hasReachMaxAllowedLevel(ctx) &&
                     ctx.isAllowed(ctx.current, ctx.elementSelector)
@@ -199,8 +212,11 @@ export const useNestedSortable = /** @type {any} */ (
             },
             // Check if the cursor moved enough to trigger a move. If it did, move the
             // placeholder accordingly.
-            onDrag({ ctx, callHandler }) {
-                const onMove = (prevPos) => {
+            onDrag(/** @type {{ ctx: Record<string, any>, callHandler: Function }} */ {
+                ctx,
+                callHandler,
+            }) {
+                const onMove = (/** @type {Record<string, any>} */ prevPos) => {
                     if (!ctx.isAllowed(ctx.current, ctx.elementSelector)) {
                         ctx.current.placeHolder.classList.add("d-none");
                         return;
@@ -237,16 +253,21 @@ export const useNestedSortable = /** @type {any} */ (
                  * @param {HTMLElement} el
                  * @return {HTMLElement} list
                  */
-                const getChildList = (el) => {
-                    let list = el.querySelector(ctx.listTagName);
-                    if (!list) {
-                        list = document.createElement(ctx.listTagName);
-                        el.appendChild(list);
+                const getChildList = (/** @type {Element} */ el) => {
+                    // The list element is a <ul>/<ol> tag, so the queried match
+                    // is an HTMLElement. Split the create path from the lookup
+                    // path so neither return reassigns through `Element | null`
+                    // (which would defeat flow-narrowing on the later append).
+                    const existing = el.querySelector(ctx.listTagName);
+                    if (existing) {
+                        return /** @type {HTMLElement} */ (existing);
                     }
+                    const list = document.createElement(ctx.listTagName);
+                    el.appendChild(list);
                     return list;
                 };
 
-                const getPosition = (el) => ({
+                const getPosition = (/** @type {Element} */ el) => ({
                     previous: el.previousElementSibling,
                     next: el.nextElementSibling,
                     parent: el.parentElement?.closest(ctx.elementSelector) || null,
@@ -413,7 +434,7 @@ export const useNestedSortable = /** @type {any} */ (
             },
             // If the drop position is different from the starting position, run the
             // onDrop handler from the parameters.
-            onDrop({ ctx }) {
+            onDrop(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
                 if (!this._isAllowedNodeMove(ctx)) {
                     return;
                 }
@@ -436,7 +457,7 @@ export const useNestedSortable = /** @type {any} */ (
                 }
             },
             // Run the onDragEnd handler from the parameters.
-            onDragEnd({ ctx }) {
+            onDragEnd(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
                 return {
                     element: ctx.current.element,
                     group: ctx.currentGroup,

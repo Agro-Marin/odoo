@@ -1,5 +1,6 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { expect, test } from "@odoo/hoot";
 import { click, edit } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";

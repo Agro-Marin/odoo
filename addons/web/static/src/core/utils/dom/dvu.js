@@ -37,7 +37,7 @@ import { isVirtualKeyboardSupported } from "@web/core/browser/feature_detection"
 import { throttleForAnimation } from "@web/core/utils/timing";
 
 const viewport = {
-    listeners: [],
+    listeners: /** @type {Function[]} */ ([]),
 
     /**
      * Register a callback for viewport changes
@@ -86,7 +86,7 @@ if (typeof window !== "undefined") {
  * Get current viewport dimensions
  * Takes into account VirtualKeyboard API if available
  *
- * @returns {Object} - Object with width and height properties in pixels
+ * @returns {{ width: number, height: number }} - width and height in pixels
  */
 export function getViewportDimensions() {
     return {

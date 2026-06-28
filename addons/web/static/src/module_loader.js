@@ -16,11 +16,12 @@
  *     signatures match the ambient TypeScript declaration in
  *     ``@types/odoo.d.ts``; grep works.
  *
- * The class MUST remain a real ES class (not a plain object) because
- * Hoot tests extend it via
- * ``Object.getPrototypeOf(odoo.loader.constructor)``.  Converting it to
- * a plain object would make subclasses inherit from ``Object`` and
- * break any test that relies on the loader prototype chain.
+ * The class MUST remain a real ES class (not a plain object).  Tests
+ * recover it from the live instance via ``odoo.loader.constructor`` and
+ * re-instantiate it (``module_loader.test.js``); a plain object would
+ * have ``Object`` as its constructor and break that recovery.  Keeping
+ * a class shell also leaves the door open for Hoot to subclass the
+ * loader for isolated test-module graphs without changing this file.
  *
  * ──────────────────────────────────────────────────────────────────
  * Historical note
@@ -49,6 +50,13 @@
  *   2. Remain idempotent: if two bundles on the same page both inline
  *      the shim, the second one must no-op so all bundles share the
  *      same Map.
+ *   3. Guard the singleton invariant.  The one thing that breaks
+ *      (1) is a specifier re-bound to a DIFFERENT namespace object —
+ *      a duplicated module in the bundle graph would split the
+ *      ``@web/core/registry`` singleton silently.  The loader detects
+ *      this by identity and surfaces it on ``bus`` (event ``rebind``)
+ *      plus the debug-gated asset log, without ever failing the
+ *      bundle's top-level evaluation.
  *
  * Everything else the old loader did is provably unused across the
  * entire fork (core, enterprise, design-themes, agromarin).  The
@@ -117,6 +125,21 @@
         modules = new Map();
 
         /**
+         * Lifecycle event surface for the module graph.  Today it
+         * dispatches exactly one event:
+         *
+         *   • ``rebind`` — a CustomEvent fired when ``registerNativeModules``
+         *     re-binds an already-known specifier to a DIFFERENT
+         *     namespace object.  ``detail.specifiers`` is the list of
+         *     affected specifiers.  In production this means a
+         *     duplicated module in the bundle graph (singleton split
+         *     risk); in dev hot-reload it's the expected signal that a
+         *     module was re-evaluated.  Integrations can subscribe via
+         *     ``odoo.loader.bus.addEventListener("rebind", ...)``.
+         */
+        bus = new EventTarget();
+
+        /**
          * Register already-evaluated ES module namespaces into the
          * shared Map.
          *
@@ -130,21 +153,49 @@
          *     stays authoritative).
          *
          * Overwrite semantics: ``Map.set`` replaces any prior entry
-         * with the same key.  This matches the pre-refactor behavior
-         * and is deliberate — it lets a bundle re-register modules
-         * during hot reload in dev mode without stale state.  In
-         * production, two registrations of the same specifier would
-         * indicate a mis-configured bundle graph (duplicated
-         * module), which callers can observe by listening on
-         * ``bus`` once that event surface exists.
+         * with the same key — last-write-wins, unchanged from the
+         * pre-refactor behavior.  Re-binding a specifier to the SAME
+         * namespace object (repeat dynamic ``import()`` returning the
+         * cached namespace, parallel cross-doc bridges, the second
+         * inline shim) is benign and stays silent.
+         *
+         * Re-binding to a DIFFERENT namespace object is the one event
+         * that breaks singleton identity across bundles — it's
+         * detected by reference and surfaced on ``bus`` (event
+         * ``rebind``) plus the debug-gated asset log.  These are
+         * opt-in channels by design: never a beacon or ``console.error``,
+         * so a legitimate dev hot-reload can't spam telemetry.  The
+         * registration itself never throws — it runs at the bundle's
+         * top level, where a raised error would white-screen the page.
          *
          * @param {Record<string, any>} modulesByName
          */
         registerNativeModules(modulesByName) {
-            const names = Object.keys(modulesByName);
-            _loaderDebug("registerNativeModules count=", names.length);
-            for (const [name, mod] of Object.entries(modulesByName)) {
+            const entries = Object.entries(modulesByName);
+            _loaderDebug("registerNativeModules count=", entries.length);
+            /** @type {string[] | undefined} */
+            let rebound;
+            for (const [name, mod] of entries) {
+                const prev = this.modules.get(name);
+                if (prev !== undefined && prev !== mod) {
+                    (rebound ??= []).push(name);
+                }
                 this.modules.set(name, mod);
+            }
+            if (rebound) {
+                _loaderDebug("registerNativeModules rebind", rebound);
+                try {
+                    this.bus.dispatchEvent(
+                        new CustomEvent("rebind", { detail: { specifiers: rebound } }),
+                    );
+                } catch {
+                    // A context lacking ``CustomEvent`` (or a
+                    // ``dispatchEvent`` that itself throws) must not
+                    // abort the bundle's top-level evaluation.  A
+                    // throwing listener doesn't reach here — the DOM
+                    // reports those globally and ``dispatchEvent``
+                    // still returns.
+                }
             }
         }
     }
@@ -162,6 +213,13 @@
     // page goes white with no telemetry).  Once the bundle loads
     // successfully, the in-app error_service installs its own listeners
     // on top of these — both fire; the endpoint tolerates duplicates.
+    //
+    // This is the PRE-ESM mirror of ``@web/core/errors/error_beacon``:
+    // that module is the canonical wire shape + endpoint + throttle for
+    // every ES-module caller, but the shim cannot ``import`` it (it runs
+    // before any module evaluates), so the same logic is inlined here.
+    // Keep the payload fields and endpoint in sync with that module and
+    // the server contract (``observability.py::js_error``).
     //
     // Throttle: one beacon per (message, line, col) per page lifetime.
     // ``ErrorEvent.error`` is sometimes missing (cross-origin scripts);

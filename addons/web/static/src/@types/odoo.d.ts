@@ -8,9 +8,16 @@
 
 class OdooModuleLoader {
     /**
-     * Free extension point — no standard event names are dispatched
-     * by the loader itself today.  Third-party integrations can
-     * subscribe for future native-module lifecycle hooks.
+     * Module-graph lifecycle event surface.  Dispatches a single
+     * event today:
+     *
+     *   • ``rebind`` — a ``CustomEvent<OdooModuleRebindDetail>`` fired
+     *     when ``registerNativeModules`` re-binds an already-known
+     *     specifier to a DIFFERENT namespace object (duplicated module
+     *     in the bundle graph in production; an expected re-evaluation
+     *     in dev hot-reload).
+     *
+     * Subscribe via ``odoo.loader.bus.addEventListener("rebind", ...)``.
      */
     bus: EventTarget;
 
@@ -27,13 +34,21 @@ class OdooModuleLoader {
 
     /**
      * Register already-evaluated ES module namespaces into
-     * ``modules``.  Called from the esbuild bundle's entry point and
-     * from ``@web/core/assets.loadESMBundle`` cross-doc mode.
+     * ``modules`` (last-write-wins).  Called from the esbuild bundle's
+     * entry point and from ``@web/core/assets.loadESMBundle`` cross-doc
+     * mode.  Re-binding a specifier to a different namespace object
+     * emits ``rebind`` on ``bus``.
      */
-    registerNativeModules: (modulesByName: Record<string, OdooModule>) => void;
+    registerNativeModules(modulesByName: Record<string, OdooModule>): void;
 }
 
 type OdooModule = Record<string, any>;
+
+/** ``detail`` payload of the ``rebind`` event on ``OdooModuleLoader.bus``. */
+interface OdooModuleRebindDetail {
+    /** Specifiers whose namespace object changed in this registration. */
+    specifiers: string[];
+}
 
 declare const odoo: {
     csrf_token: string;
@@ -60,15 +75,8 @@ declare const odoo: {
     };
 };
 
-/**
- * Luxon datetime library. Loaded via a non-deferred <script> tag before
- * the ESM bundle evaluates (see `ir_qweb._get_native_module_nodes`); the
- * IIFE assigns `window.luxon` (and therefore `globalThis.luxon`) as a
- * side-effect. `declare var` (not `const`) is required for the binding
- * to land on the `globalThis` interface so that `globalThis.luxon` and
- * bare `luxon` references both type-check. Declared loose because we
- * don't ship Luxon's full .d.ts surface here — consumers that need
- * precise types should destructure DateTime/Duration/Settings and rely
- * on the destructured locals.
- */
-declare var luxon: any;
+// NOTE: luxon is a real ES module resolved via the import map
+// (``odoo.libs.constants.ODOO_EXTERNAL_LIBS``); consumers import it from
+// ``@web/core/l10n/luxon`` (typed re-export surface).  There is no
+// ``window.luxon`` global any more — the old UMD IIFE + ``declare var
+// luxon`` ambient global were removed with the ESM migration.

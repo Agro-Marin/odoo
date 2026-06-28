@@ -86,7 +86,7 @@ export function evaluateExpr(expr, context = {}) {
 /**
  * Evaluates a python expression to return a boolean.
  *
- * @param {string} expr
+ * @param {string | undefined} expr
  * @param {{[key: string]: any}} [context]
  * @returns {boolean}
  */

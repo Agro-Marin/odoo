@@ -25,6 +25,7 @@ import { useService } from "@web/core/utils/hooks";
  * @returns {PopoverHookReturnType}
  */
 export function makePopover(addFn, component, options) {
+    /** @type {(() => void) | null} */
     let removeFn = null;
     function close() {
         removeFn?.();

@@ -196,7 +196,7 @@ export async function annotateTraceback(error) {
         return traceback;
     }
     const lines = traceback.split("\n");
-    if (lines.at(-1).trim() === "") {
+    if (lines.at(-1)?.trim() === "") {
         // firefox traceback have an empty line at the end
         lines.splice(-1);
     }

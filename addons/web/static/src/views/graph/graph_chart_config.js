@@ -20,14 +20,13 @@ import {
     lightenColor,
 } from "@web/core/colors/colors";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
+import { getFieldCodec } from "@web/core/field_codec";
 import { formatFloat, formatMonetary } from "@web/fields/formatters";
 
 import { SEP } from "./graph_model.js";
 
 const NO_DATA = _t("No data");
-const fmtRegistry = registry.category("formatters");
 
 const colorScheme = cookie.get("color_scheme");
 const GRAPH_LEGEND_COLOR = getCustomColor(colorScheme, "#111827", "#ffffff");
@@ -131,7 +130,7 @@ function shortenLabel(label) {
 function formatValue(value, allIntegers = true, formatType = "") {
     const largeNumber = Math.abs(value) >= 1000;
     if (formatType) {
-        return fmtRegistry.get(formatType)(value);
+        return getFieldCodec(formatType).format(value);
     }
     if (allIntegers && !largeNumber) {
         return String(value);

@@ -5,12 +5,11 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { extractDigits } from "@web/fields/field_utils";
+import { getFieldCodec } from "@web/core/field_codec";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-const formatters = registry.category("formatters");
 
 export class StatInfoField extends Component {
     static template = "web.StatInfoField";
@@ -25,8 +24,7 @@ export class StatInfoField extends Component {
     /** @returns {string} Field value formatted according to its type and digit precision. */
     get formattedValue() {
         const field = this.props.record.fields[this.props.name];
-        const formatter = formatters.get(field.type);
-        return formatter(this.props.record.data[this.props.name], {
+        return getFieldCodec(field.type).format(this.props.record.data[this.props.name], {
             digits: this.props.digits,
             field,
         });

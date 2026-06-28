@@ -151,7 +151,7 @@ export class ActionMenus extends Component {
             this.executeAction(item.action);
         } else if (item.url) {
             // Event has been prevented at its source: we need to redirect manually.
-            browser.location = item.url;
+            browser.location.href = item.url;
         }
     }
 

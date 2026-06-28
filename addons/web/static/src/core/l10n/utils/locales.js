@@ -23,7 +23,7 @@
  *  language[_territory][.codeset][@modifier]
  *  https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
  *
- * @param {string} locale The locale formatted for use on the JavaScript-side.
+ * @param {string | null} locale The locale formatted for use on the JavaScript-side.
  * @returns {string} The locale formatted for use on the Python-side.
  */
 export function jsToPyLocale(locale) {

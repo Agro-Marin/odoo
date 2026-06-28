@@ -53,13 +53,16 @@ export class RainbowMan extends Component {
     setup() {
         useExternalListener(document.body, "click", this.closeRainbowMan);
         this.state = useState({ isFading: false });
-        this.delay = RainbowMan.rainbowFadeouts[this.props.fadeout];
+        this.delay =
+            /** @type {Record<string, number | false>} */ (RainbowMan.rainbowFadeouts)[
+                this.props.fadeout
+            ];
         if (this.delay) {
             useEffect(
                 () => {
                     const timeout = browser.setTimeout(() => {
                         this.state.isFading = true;
-                    }, this.delay);
+                    }, /** @type {number} */ (this.delay));
                     return () => browser.clearTimeout(timeout);
                 },
                 () => [],

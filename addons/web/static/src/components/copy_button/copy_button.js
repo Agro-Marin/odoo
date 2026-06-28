@@ -19,6 +19,11 @@ export class CopyButton extends Component {
         content: { type: [String, Object, Function], optional: true },
     };
 
+    /** @type {import("@odoo/owl").Ref<HTMLButtonElement>} */
+    button;
+    /** @type {any} */
+    popover;
+
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLButtonElement>} */
         this.button = useRef("button");
@@ -27,7 +32,9 @@ export class CopyButton extends Component {
 
     /** Show a temporary success tooltip on the button for 800ms. */
     showTooltip() {
-        this.popover.open(this.button.el, { tooltip: this.props.successText });
+        this.popover.open(/** @type {HTMLElement} */ (this.button.el), {
+            tooltip: this.props.successText,
+        });
         browser.setTimeout(this.popover.close, 800);
     }
 

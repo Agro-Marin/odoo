@@ -109,7 +109,7 @@ export const nameService = {
                             specification,
                             context: { active_test: false },
                         })
-                        .then(({ records }) => {
+                        .then((/** @type {{ records: { id: number, display_name: string }[] }} */ { records }) => {
                             const displayNames = Object.fromEntries(
                                 records.map((rec) => [rec.id, rec.display_name]),
                             );
@@ -132,9 +132,9 @@ export const nameService = {
                                 }
                             }
                         })
-                        .catch((error) => {
+                        .catch((/** @type {unknown} */ error) => {
                             for (const resId of idsInBatch) {
-                                if (mapping[resId]) {
+                                if (resId in mapping) {
                                     mapping[resId].reject(error);
                                     delete mapping[resId];
                                 }

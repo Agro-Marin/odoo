@@ -60,6 +60,9 @@ export class CheckBox extends Component {
         },
     };
 
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    rootRef;
+
     setup() {
         this.id = `checkbox-comp-${CheckBox.nextId++}`;
         this.rootRef = useRef("root");
@@ -74,7 +77,10 @@ export class CheckBox extends Component {
                 ).checked;
                 this.props.onChange(!oldValue);
             },
-            { area: () => this.rootRef.el, bypassEditableProtection: true },
+            {
+                area: () => /** @type {HTMLElement} */ (this.rootRef.el),
+                bypassEditableProtection: true,
+            },
         );
     }
 
@@ -87,7 +93,7 @@ export class CheckBox extends Component {
 
         // Reproduce the click event behavior as if it comes from the input element.
         const input = /** @type {HTMLInputElement} */ (
-            this.rootRef.el.querySelector("input")
+            /** @type {HTMLElement} */ (this.rootRef.el).querySelector("input")
         );
         input.focus();
         if (!this.props.disabled) {

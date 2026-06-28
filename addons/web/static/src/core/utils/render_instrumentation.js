@@ -25,24 +25,26 @@ import { onRendered } from "@odoo/owl";
  */
 export function useRenderCounter(label) {
     onRendered(() => {
-        if (globalThis.__renderTrace) {
-            const stats = (globalThis.__renderStats_ ||= /** @type {Record<string, number>} */ (
-                Object.create(null)
-            ));
+        if (/** @type {Record<string, any>} */ (globalThis).__renderTrace) {
+            const stats =
+                (/** @type {Record<string, any>} */ (globalThis).__renderStats_ ||=
+                    /** @type {Record<string, number>} */ (Object.create(null)));
             stats[label] = (stats[label] || 0) + 1;
         }
     });
 }
 
 // Install global accessors once per process. Idempotent so HMR is safe.
-if (typeof globalThis.__renderStats !== "function") {
+if (typeof /** @type {Record<string, any>} */ (globalThis).__renderStats !== "function") {
     /** @returns {Record<string, number>} */
-    globalThis.__renderStats = () =>
-        Object.assign(Object.create(null), globalThis.__renderStats_ || {});
-    globalThis.__renderReset = () => {
-        globalThis.__renderStats_ = /** @type {Record<string, number>} */ (
-            Object.create(null)
+    (/** @type {Record<string, any>} */ (globalThis)).__renderStats = () =>
+        Object.assign(
+            Object.create(null),
+            /** @type {Record<string, any>} */ (globalThis).__renderStats_ || {},
         );
+    (/** @type {Record<string, any>} */ (globalThis)).__renderReset = () => {
+        (/** @type {Record<string, any>} */ (globalThis)).__renderStats_ =
+            /** @type {Record<string, number>} */ (Object.create(null));
     };
-    globalThis.__renderTrace = false;
+    (/** @type {Record<string, any>} */ (globalThis)).__renderTrace = false;
 }

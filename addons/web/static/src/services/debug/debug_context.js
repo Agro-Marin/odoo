@@ -99,8 +99,8 @@ class DebugContext {
                 )
                 .filter(Boolean)
                 .sort((x, y) => {
-                    const xSeq = x.sequence || 1000;
-                    const ySeq = y.sequence || 1000;
+                    const xSeq = x?.sequence || 1000;
+                    const ySeq = y?.sequence || 1000;
                     return xSeq - ySeq;
                 })
         );

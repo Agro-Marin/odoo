@@ -21,7 +21,7 @@ import {
  * @param {Object} params - FullCalendar configuration options (functions are bound to the component)
  * @returns {{ api: FullCalendar.Calendar, el: HTMLElement }} accessor for the calendar instance and DOM element
  */
-import { loadBundle } from "@web/core/assets";
+import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
 import { Settings } from "@web/core/l10n/luxon";
 
 /**
@@ -151,7 +151,7 @@ export function dayCellClassNames(info) {
     // v6 also carried ``fc-day-<short-weekday>`` (sun/mon/tue/wed/thu/
     // fri/sat) on every day cell, derived from the cell date.  v7
     // dropped these but exposes ``info.dow`` (0=Sunday..6=Saturday) in
-    // its render-props payload — see ``fullcalendar.global.js:8367``
+    // its render-props payload — see ``fullcalendar.esm.js:8367``
     // (``getDateMeta`` populating the spread used by
     // ``dayCellRenderProps``).  Re-inject the v6 short-name suffix
     // from ``dow`` directly to stay independent of timezone-marker
@@ -190,6 +190,25 @@ export function dayHeaderClassNames(info) {
     return classes.join(" ");
 }
 
+/**
+ * Resolve one of FullCalendar v7's build-hashed internal class names
+ * (e.g. ``"internalScroller"`` -> ``"fc-7a"``) for the loaded library build.
+ *
+ * v7 hashes its structural class names and regenerates those hashes on every
+ * build, so hard-coding them (``".fc-1i"``) silently breaks on each library
+ * bump. The public ``ProtectedStyles`` export carries the live name->hash map
+ * for the loaded build, so resolving through it keeps the fork's stable-v6-name
+ * re-injection working across upgrades with no code changes. Must be called
+ * after ``web.fullcalendar_lib`` has loaded (e.g. from a renderer's
+ * mount/refresh handler), when the ``FullCalendar`` global is available.
+ *
+ * @param {string} name internal class-name key from FC's ``classNames`` map
+ * @returns {string} the hashed class name for the loaded build
+ */
+export function fcInternalClassName(name) {
+    return FullCalendar.ProtectedStyles.default[name];
+}
+
 export function useFullCalendar(refName, paramsOrGetter) {
     const component = useComponent();
     const ref = useRef(refName);
@@ -221,7 +240,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
     // bundle loader's ``Promise<void[]>`` (same idiom as
     // ``components/code_editor/code_editor.js``).
     onWillStart(async () => {
-        await loadBundle("web.fullcalendar_lib");
+        await loadFullCalendar();
     });
 
     onMounted(() => {
@@ -229,12 +248,12 @@ export function useFullCalendar(refName, paramsOrGetter) {
             // v7's exported ``Calendar`` is a thin wrapper that already
             // pre-injects the five default plugins (dayGrid/timeGrid/
             // interaction/list/multiMonth — see lines ~16956-16973 of
-            // ``fullcalendar.global.js``).  Callers do NOT need to pass
+            // ``fullcalendar.esm.js``).  Callers do NOT need to pass
             // ``plugins`` — v6's auto-registration is now built into the
             // wrapper's constructor.
             // Mark the FC root as the portal host BEFORE constructing the
             // calendar so the fork-local override in
-            // ``lib/fullcalendar/fullcalendar.global.js`` (function
+            // ``lib/fullcalendar/fullcalendar.esm.js`` (function
             // ``getAppendableRoot``) routes MorePopover and ElementMirror
             // into this element instead of <body>.  Without this, FC
             // portals to document.body which sits outside the test

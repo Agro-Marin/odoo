@@ -2,6 +2,8 @@
 
 import { before, withFetch } from "@odoo/hoot";
 import { loadBundle } from "@web/core/assets";
+import { loadChartJS } from "@web/core/lib/chartjs";
+import { loadFullCalendar } from "@web/core/lib/fullcalendar";
 
 import * as _fields from "./_framework/mock_server/mock_fields.js";
 import * as _models from "./_framework/mock_server/mock_model.js";
@@ -177,18 +179,33 @@ export function defineWebModels() {
 
 /**
  * @param {string} bundleName
- * @param {{ once?: boolean }} [options]
  */
-export function preloadBundle(bundleName, options) {
-    const once = options?.once || false;
+export function preloadBundle(bundleName) {
     before(async function preloadBundle() {
-        if (once) {
-            odoo.loader.preventGlobalDefine = true;
-        }
         await withFetch(globalCachedFetch, () => loadBundle(bundleName));
-        if (once) {
-            odoo.loader.preventGlobalDefine = false;
-        }
+    });
+}
+
+/**
+ * Preload Chart.js (+ its luxon date adapter) once before a suite, the way
+ * `preloadBundle("web.chartjs_lib")` used to — except the libs are now real ES
+ * modules pulled through the import map by `loadChartJS`, not a classic-script
+ * bundle that assigned `window.Chart`.
+ */
+export function preloadChartJS() {
+    before(async function preloadChartJS() {
+        await withFetch(globalCachedFetch, () => loadChartJS());
+    });
+}
+
+/**
+ * Preload FullCalendar (+ locales, skeleton CSS) once before a suite, the way
+ * `preloadBundle("web.fullcalendar_lib")` used to — now via the `loadFullCalendar`
+ * ESM loader instead of a classic-script bundle assigning `window.FullCalendar`.
+ */
+export function preloadFullCalendar() {
+    before(async function preloadFullCalendar() {
+        await withFetch(globalCachedFetch, () => loadFullCalendar());
     });
 }
 

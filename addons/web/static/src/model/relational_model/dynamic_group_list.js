@@ -244,9 +244,16 @@ export class DynamicGroupList extends DynamicList {
         }
         const lastGroup = this.groups.at(-1);
 
-        // This is almost a copy/past of the code in relational_model.js
-        // Maybe we can create an addGroup method in relational_model.js
-        // and call it from here and from relational_model.js
+        // Builds the same group-config shape as `postprocessReadGroup`
+        // (group_postprocessor.js) — NOT relational_model.js, which no longer
+        // carries this code after the model decomposition. The two are
+        // deliberately not merged: this path creates one *leaf* group from a
+        // user action (single-level groupBy, unconditional `initialLimit`, no
+        // nested `groups`/`extraDomain` handling), while postprocessReadGroup
+        // builds groups from a `web_read_group` response and must handle
+        // multi-level grouping, reload, and extra-domain AND-combination. A
+        // shared helper would have to re-introduce that nesting logic here for
+        // no real gain, so the small overlap is intentional duplication.
         const commonConfig = {
             resModel: this.config.resModel,
             fields: this.config.fields,

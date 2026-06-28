@@ -2,6 +2,7 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
+import { luxon } from "@web/core/l10n/luxon";
 import { after, before, beforeEach, createJobScopedGetter } from "@odoo/hoot";
 import { validateType } from "@odoo/owl";
 

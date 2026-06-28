@@ -3,12 +3,12 @@
 
 /** @module @web/services/http_service - Simple HTTP GET/POST helpers with status checking and FormData support */
 
+import { browser } from "@web/core/browser/browser";
+import { registry } from "@web/core/registry";
+
 /**
  * @param {Response} response
  */
-
-import { browser } from "@web/core/browser/browser";
-import { registry } from "@web/core/registry";
 function checkResponseStatus(response) {
     if (response.status >= 502 && response.status <= 504) {
         // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
@@ -27,7 +27,7 @@ function checkResponseStatus(response) {
 export async function get(route, readMethod = "json") {
     const response = await browser.fetch(route, { method: "GET" });
     checkResponseStatus(response);
-    return response[readMethod]();
+    return /** @type {any} */ (response)[readMethod]();
 }
 
 /**
@@ -55,7 +55,7 @@ export async function post(route, params = {}, readMethod = "json") {
         method: "POST",
     });
     checkResponseStatus(response);
-    return response[readMethod]();
+    return /** @type {any} */ (response)[readMethod]();
 }
 
 export const httpService = {

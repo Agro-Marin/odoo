@@ -3,9 +3,8 @@
 
 /** @module @web/core/tree/construct_domain_from_tree - Converts a condition tree into an Odoo domain string representation */
 
-/** AST/Tree/Value widened to `any` because they're discriminated unions
- * narrowed via `.type` checks at runtime. */
-/** @typedef {any} AST */
+/** Tree/Value kept `any` (separate condition-tree unions). */
+/** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {any} Tree */
 /** @typedef {any} Value */
 /** @import { Condition } from "./condition_tree.js" */
@@ -13,6 +12,7 @@
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 
 import { isBool, isNot } from "./ast_utils.js";
+import { ASTType } from "../py_js/ast_type.js";
 import {
     astFromValue,
     condition,
@@ -28,10 +28,10 @@ import {
  * @returns {AST}
  */
 function bool(ast) {
-    if (isBool(ast) || isNot(ast) || ast.type === 2) {
+    if (isBool(ast) || isNot(ast) || ast.type === ASTType.Boolean) {
         return ast;
     }
-    return { type: 8, fn: { type: 5, value: "bool" }, args: [ast], kwargs: {} };
+    return { type: ASTType.FunctionCall, fn: { type: ASTType.Name, value: "bool" }, args: [ast], kwargs: {} };
 }
 
 /**
@@ -48,7 +48,7 @@ function getASTs(tree, isSubTree = false) {
             ASTs.push(toAST("!"));
         }
         ASTs.push({
-            type: 10,
+            type: ASTType.Tuple,
             value: [tree.path, tree.operator, tree.value].map(toAST),
         });
         return ASTs;
@@ -92,7 +92,7 @@ function getASTs(tree, isSubTree = false) {
  */
 function toAST(value) {
     if (isTree(value)) {
-        return { type: 4, value: getASTs(value) };
+        return { type: ASTType.List, value: getASTs(value) };
     }
     return astFromValue(value);
 }

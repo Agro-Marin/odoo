@@ -17,7 +17,7 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 export const ACTIVE_ELEMENT_CLASS = "focus";
-const throttledFocus = throttleForAnimation((el) => el?.focus());
+const throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) => el?.focus());
 
 class NavigationItem {
     /**@type {number} */
@@ -37,6 +37,9 @@ class NavigationItem {
      */
     target = undefined;
 
+    /**
+     * @param {{ index: number, el: HTMLElement, options: NavigationOptions, navigator: Navigator }} param0
+     */
     constructor({ index, el, options, navigator }) {
         this.index = index;
 
@@ -54,7 +57,7 @@ class NavigationItem {
             const subInput = el.querySelector(
                 ":scope input, :scope button, :scope textarea",
             );
-            this.target = subInput || el;
+            this.target = /** @type {HTMLElement} */ (subInput || el);
         } else {
             this.target = el;
         }
@@ -118,8 +121,8 @@ export class Navigator {
     /**@type {Array<NavigationItem>}*/
     items = [];
 
-    /**@private*/ _hotkeyRemoves = [];
-    /**@private*/ _hotkeyService = undefined;
+    /**@private @type {Array<() => void>}*/ _hotkeyRemoves = [];
+    /**@private @type {import("@web/services/hotkeys/hotkey_service").HotkeyService}*/ _hotkeyService = undefined;
 
     /**
      * @param {NavigationOptions} options
@@ -155,7 +158,7 @@ export class Navigator {
         /**@private*/
         this._options = deepMerge(
             {
-                isNavigationAvailable: ({ target }) =>
+                isNavigationAvailable: (/** @type {{ navigator: Navigator, target: HTMLElement }} */ { target }) =>
                     this.contains(target) &&
                     (this.isFocused || this._options.virtualFocus),
                 shouldFocusChildInput: true,
@@ -182,7 +185,7 @@ export class Navigator {
                         bypassEditableProtection: true,
                     },
                     enter: {
-                        isAvailable: ({ navigator }) => Boolean(navigator.activeItem),
+                        isAvailable: (/** @type {{ navigator: Navigator, target: HTMLElement }} */ { navigator }) => Boolean(navigator.activeItem),
                         callback: () => {
                             const item = this.activeItem || this.items[0];
                             item?.select();
@@ -361,7 +364,7 @@ export class Navigator {
                 this._hotkeyService.add(hotkey, async () => await callback(this), {
                     global: true,
                     allowRepeat,
-                    isAvailable: (target) =>
+                    isAvailable: (/** @type {HTMLElement} */ target) =>
                         this._isNavigationAvailable(target) &&
                         isAvailable({ navigator: this, target }),
                     bypassEditableProtection,
@@ -388,6 +391,9 @@ export class Navigator {
         this.unregisterHotkeys();
     }
 
+    /**
+     * @param {number} index
+     */
     _setActiveItem(index) {
         this.activeItem?.setInactive(false);
         this.activeItemIndex = index;
@@ -416,6 +422,7 @@ export class Navigator {
 
     /**
      * @private
+     * @param {number} index
      */
     _updateActiveItemIndex(index) {
         if (this.items[index]) {
@@ -429,10 +436,16 @@ export class Navigator {
         }
     }
 
+    /**
+     * @param {HTMLElement} target
+     */
     _isNavigationAvailable(target) {
         return this._options.isNavigationAvailable({ navigator: this, target });
     }
 
+    /**
+     * @param {EventTarget | null} target
+     */
     _checkFocus(target) {
         const isEl = target instanceof HTMLElement;
         const navOK = isEl && this._isNavigationAvailable(target);
@@ -497,7 +510,7 @@ export function useNavigation(containerRef, options = {}) {
     const newOptions = { ...options };
     if (!newOptions.getItems) {
         newOptions.getItems = () =>
-            containerRef.el?.querySelectorAll(":scope .o-navigable") ?? [];
+            /** @type {any} */ (containerRef).el?.querySelectorAll(":scope .o-navigable") ?? [];
     }
 
     const hotkeyService = useService("hotkey");
@@ -515,7 +528,7 @@ export function useNavigation(containerRef, options = {}) {
             }
             return () => observer.disconnect();
         },
-        () => [containerRef.el],
+        () => [/** @type {any} */ (containerRef).el],
     );
 
     useExternalListener(

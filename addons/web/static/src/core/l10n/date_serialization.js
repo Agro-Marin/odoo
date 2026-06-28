@@ -70,7 +70,7 @@ export function deserializeDate(value, options = {}) {
  * in UTC into a Luxon DateTime in the user's timezone.
  *
  * @param {string} value
- * @param {Object} [options]
+ * @param {{tz?: string}} [options]
  * @returns {any} Luxon DateTime
  */
 export function deserializeDateTime(value, options = {}) {

@@ -8,7 +8,7 @@
  * @module @web/services/commands/command_category
  */
 
-/** @type {import("@web/core/registry").Registry} */
+/** @type {import("@web/core/registry").Registry<any>} */
 import { registry } from "@web/core/registry";
 const commandCategoryRegistry = registry.category("command_categories");
 commandCategoryRegistry

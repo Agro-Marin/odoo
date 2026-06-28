@@ -43,6 +43,11 @@ export class FormViewDialog extends Component {
         isToMany: false,
     };
 
+    /** @type {any} */
+    actionService;
+    /** @type {any} */
+    viewProps;
+
     setup() {
         super.setup();
 

@@ -14,6 +14,7 @@ import {
 } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { registry } from "@web/core/registry";
 import { unique } from "@web/core/utils/collections/arrays";
 import { x2ManyCommands } from "./commands.js";
 
@@ -29,87 +30,83 @@ const granularityToInterval = {
 export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"]; // types that can be aggregated in grouped views
 
 /**
+ * Per-type server→client value deserializers, keyed by field type.
+ *
+ * This is the single source for "how a server value becomes a client value",
+ * shared with the value codec (``@web/core/field_codec``): the codec's
+ * ``deserialize`` reads this same registry, so model and UI can never diverge.
+ * Each entry is ``(value, field) => clientValue``; types with no entry pass
+ * the value through unchanged (see {@link parseServerValue}).
+ */
+const deserializers = registry.category("deserializers");
+deserializers
+    .add("char", (value) => value || "")
+    .add("text", (value) => value || "")
+    .add("html", (value) => markup(value || ""))
+    .add("date", (value) => (value ? deserializeDate(value) : false))
+    .add("datetime", (value) => (value ? deserializeDateTime(value) : false))
+    .add("selection", (value, field) => {
+        if (value === false) {
+            // process selection: convert false to 0, if 0 is a valid key
+            return field.selection.some((opt) => opt[0] === 0) ? 0 : value;
+        }
+        return value;
+    })
+    .add("reference", (value) => {
+        if (value === false) {
+            return false;
+        }
+        return {
+            resId: value.id.id,
+            resModel: value.id.model,
+            displayName: value.display_name,
+        };
+    })
+    .add("many2one_reference", (value) => {
+        if (value === 0) {
+            // unset many2one_reference fields' value is 0
+            return false;
+        }
+        if (typeof value === "number") {
+            // many2one_reference fetched without "fields" key in spec -> only returns the id
+            return { resId: value };
+        }
+        return {
+            resId: value.id,
+            displayName: value.display_name,
+        };
+    })
+    .add("many2one", (value) => {
+        if (Array.isArray(value)) {
+            // Used for web_read_group, where the value is an array of [id, display_name]
+            return { id: value[0], display_name: value[1] };
+        }
+        return value;
+    })
+    .add("properties", (value) =>
+        value
+            ? value.map((property) => {
+                  // Shallow-clone to avoid mutating the server response object
+                  property = { ...property };
+                  if (property.value !== undefined) {
+                      property.value = parseServerValue(property, property.value ?? false);
+                  }
+                  if (property.default !== undefined) {
+                      property.default = parseServerValue(property, property.default ?? false);
+                  }
+                  return property;
+              })
+            : [],
+    );
+
+/**
  * @protected
  * @param {Field} field
  * @param {any} value
  * @returns {any}
  */
 export function parseServerValue(field, value) {
-    switch (field.type) {
-        case "char":
-        case "text": {
-            return value || "";
-        }
-        case "html": {
-            return markup(value || "");
-        }
-        case "date": {
-            return value ? deserializeDate(value) : false;
-        }
-        case "datetime": {
-            return value ? deserializeDateTime(value) : false;
-        }
-        case "selection": {
-            if (value === false) {
-                // process selection: convert false to 0, if 0 is a valid key
-                return field.selection.some((opt) => opt[0] === 0) ? 0 : value;
-            }
-            return value;
-        }
-        case "reference": {
-            if (value === false) {
-                return false;
-            }
-            return {
-                resId: value.id.id,
-                resModel: value.id.model,
-                displayName: value.display_name,
-            };
-        }
-        case "many2one_reference": {
-            if (value === 0) {
-                // unset many2one_reference fields' value is 0
-                return false;
-            }
-            if (typeof value === "number") {
-                // many2one_reference fetched without "fields" key in spec -> only returns the id
-                return { resId: value };
-            }
-            return {
-                resId: value.id,
-                displayName: value.display_name,
-            };
-        }
-        case "many2one": {
-            if (Array.isArray(value)) {
-                // Used for web_read_group, where the value is an array of [id, display_name]
-                value = { id: value[0], display_name: value[1] };
-            }
-            return value;
-        }
-        case "properties": {
-            return value
-                ? value.map((property) => {
-                      // Shallow-clone to avoid mutating the server response object
-                      property = { ...property };
-                      if (property.value !== undefined) {
-                          property.value = parseServerValue(
-                              property,
-                              property.value ?? false,
-                          );
-                      }
-                      if (property.default !== undefined) {
-                          property.default = parseServerValue(
-                              property,
-                              property.default ?? false,
-                          );
-                      }
-                      return property;
-                  })
-                : [];
-        }
-    }
-    return value;
+    return deserializers.get(field.type, (v) => v)(value, field);
 }
 
 export function getAggregateSpecifications(fields) {

@@ -206,6 +206,7 @@ export function derived(fn) {
  * @returns {{ readonly value: T }}
  */
 export function memoizedDerived(fn, deps) {
+    /** @type {T} */
     let cached;
     let dirty = true;
     const reactiveDeps = reactive(deps, () => {

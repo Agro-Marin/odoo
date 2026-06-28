@@ -71,6 +71,9 @@ export class ListController extends MultiRecordController {
      * Initialize list-specific state, model, pager, scroll restoration, and hooks.
      * @override
      */
+    /** @type {Record<string, any>} */
+    optionalActiveFields;
+
     setup() {
         super.setup();
 
@@ -115,7 +118,7 @@ export class ListController extends MultiRecordController {
             beforeLeave: this.beforeLeave.bind(this),
             beforeUnload: this.beforeUnload.bind(this),
             getLocalState: () => {
-                const renderer = this.rootRef.el.querySelector(".o_list_renderer");
+                const renderer = this.rootRef.el?.querySelector(".o_list_renderer");
                 return {
                     modelState: this.model.exportState(),
                     rendererScrollPositions: {
@@ -135,8 +138,9 @@ export class ListController extends MultiRecordController {
                     } else {
                         const { rendererScrollPositions } = this.props.state || {};
                         if (rendererScrollPositions) {
-                            const renderer =
-                                this.rootRef.el.querySelector(".o_list_renderer");
+                            const renderer = /** @type {HTMLElement} */ (
+                                this.rootRef.el?.querySelector(".o_list_renderer")
+                            );
                             renderer.scrollLeft = rendererScrollPositions.left;
                             renderer.scrollTop = rendererScrollPositions.top;
                         }
@@ -229,7 +233,8 @@ export class ListController extends MultiRecordController {
                     onRecordSaved: this.onRecordSaved.bind(this),
                     onWillSaveRecord: this.onWillSaveRecord.bind(this),
                     onWillSaveMulti: this.onWillSaveMulti.bind(this),
-                    onAskMultiSaveConfirmation: this.onAskMultiSaveConfirmation.bind(this),
+                    onAskMultiSaveConfirmation:
+                        this.onAskMultiSaveConfirmation.bind(this),
                     onWillSetInvalidField: this.onWillSetInvalidField.bind(this),
                 },
             },
@@ -392,24 +397,29 @@ export class ListController extends MultiRecordController {
 
     /** Handle click on the "New" / "Create" button. */
     async onClickCreate() {
-        return executeButtonCallback(this.rootRef.el, () => this.createRecord());
+        return executeButtonCallback(/** @type {HTMLElement} */ (this.rootRef.el), () =>
+            this.createRecord(),
+        );
     }
 
     /** Handle click on the "Discard" button — leaves edit mode without saving. */
     async onClickDiscard() {
-        return executeButtonCallback(this.rootRef.el, () =>
+        return executeButtonCallback(/** @type {HTMLElement} */ (this.rootRef.el), () =>
             this.model.root.leaveEditMode({ discard: true }),
         );
     }
 
     /** Handle click on the "Save" button — saves the edited record and leaves edit mode. */
     async onClickSave() {
-        return executeButtonCallback(this.rootRef.el, async () => {
-            const saved = await this.editedRecord.save();
-            if (saved) {
-                await this.model.root.leaveEditMode();
-            }
-        });
+        return executeButtonCallback(
+            /** @type {HTMLElement} */ (this.rootRef.el),
+            async () => {
+                const saved = await this.editedRecord.save();
+                if (saved) {
+                    await this.model.root.leaveEditMode();
+                }
+            },
+        );
     }
 
     /**
@@ -444,8 +454,9 @@ export class ListController extends MultiRecordController {
             if (this.env.isSmall) {
                 this.rootRef.el.scrollTop = 0;
             } else {
-                const renderer =
-                    this.rootRef.el.querySelector(".o_content .o_list_renderer");
+                const renderer = this.rootRef.el.querySelector(
+                    ".o_content .o_list_renderer",
+                );
                 if (renderer) {
                     renderer.scrollTop = 0;
                 }
@@ -521,7 +532,7 @@ export class ListController extends MultiRecordController {
                 };
 
                 const focusedCellBeforeDialog = /** @type {HTMLElement | null} */ (
-                    document.activeElement.closest(".o_data_cell")
+                    document.activeElement?.closest(".o_data_cell")
                 );
                 this.dialogService.add(ListConfirmationDialog, dialogProps, {
                     onClose: () => {

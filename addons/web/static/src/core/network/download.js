@@ -74,7 +74,7 @@ function _download(data, filename, mimetype) {
 /**
  * Download data as a file
  *
- * @param {Object} data
+ * @param {string | Blob | File} data
  * @param {String} filename
  * @param {String} mimetype
  * @returns {boolean | Promise<any>}
@@ -106,7 +106,7 @@ export function download(options) {
     return download._download(options);
 }
 
-download._download = (options) =>
+download._download = (/** @type {any} */ options) =>
     new Promise((resolve, reject) => {
         const xhr = new browser.XMLHttpRequest();
         let data;
@@ -158,7 +158,7 @@ function configureBlobDownloadXHR(
         let filename = null;
         if (header) {
             try {
-                filename = parse(header).parameters.filename;
+                filename = /** @type {Record<string, any>} */ (parse(header).parameters).filename;
             } catch {
                 // Malformed Content-Disposition — fall back to no filename.
             }

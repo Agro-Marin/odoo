@@ -172,7 +172,7 @@ export function _pl(count, forms) {
  * the table of a restaurant (POS module) vs. a spreadsheet table.
  *
  * @param {string} source The term to translate
- * @param {string} moduleName The name of the module, used as a context key to
+ * @param {string} [moduleName] The name of the module, used as a context key to
  * retrieve the translation.
  * @param  {Substitutions} substitutions The other arguments passed to _t.
  * @returns {string | Markup | TranslatedString}

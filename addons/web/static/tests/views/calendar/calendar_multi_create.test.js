@@ -19,7 +19,7 @@ import {
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
-    preloadBundle,
+    preloadFullCalendar,
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
@@ -200,7 +200,7 @@ class FilterUser extends models.Model {
 
 defineModels([Event, EventType, CalendarUser, FilterUser]);
 
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 beforeEach(() => {
     mockTimeZone("Europe/Brussels");
@@ -824,7 +824,7 @@ test("multi_create: avoid trigger add/del event on specific element", async () =
     // v7 dropped ``.fc-popover-title`` (no class hook on the title
     // element).  The title is now a ``<div>`` whose ``id`` ends in
     // ``-title`` (FC v7 builds it as ``popoverId + '-title'`` for
-    // ``aria-labelledby``); see fullcalendar.global.js:9573-9579.
+    // ``aria-labelledby``); see fullcalendar.esm.js:9573-9579.
     // Match by id-suffix to stay v7-correct.
     await click(`.fc-popover [id$="-title"]`);
     await animationFrame();

@@ -23,6 +23,10 @@ import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
 /** Service for showing mobile-friendly bottom sheet overlays (slide-up panels). */
 export const bottomSheetService = {
     dependencies: ["overlay"],
+    /**
+     * @param {import("@web/env").OdooEnv} _
+     * @param {{ overlay: any }} services
+     */
     start(_, { overlay }) {
         let bottomSheetCount = 0;
         /**

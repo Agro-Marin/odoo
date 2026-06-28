@@ -82,13 +82,17 @@ class DefaultFooter extends Component {
             .filter((el) => el.name);
     }
 
-    onClick(namespace) {
+    onClick(/** @type {string} */ namespace) {
         this.props.switchNamespace(namespace);
     }
 }
 
 export const commandService = {
     dependencies: ["dialog", "hotkey", "ui"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ dialog: any, hotkey: any, ui: any }} services
+     */
     start(env, { dialog, hotkey: hotkeyService, ui }) {
         /** @type {Map<number, CommandRegistration>} */
         const registeredCommands = new Map();
@@ -107,6 +111,7 @@ export const commandService = {
          * @returns the actual command palette config if the command palette is already open
          */
         function openMainPalette(config = /** @type {any} */ ({}), onClose) {
+            /** @type {Record<string, any>} */
             const configByNamespace = {};
             for (const provider of commandProviderRegistry.getAll()) {
                 const namespace = provider.namespace || "default";
@@ -225,7 +230,7 @@ export const commandService = {
             }
             if (registration.hotkey) {
                 const action = async () => {
-                    const commandService = env.services.command;
+                    const commandService = /** @type {any} */ (env.services.command);
                     const config = await command.action();
                     if (!isPaletteOpened && config) {
                         commandService.openPalette(config);

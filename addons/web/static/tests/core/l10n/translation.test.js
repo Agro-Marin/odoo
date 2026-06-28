@@ -1,6 +1,7 @@
 // @ts-check
 
 /* eslint no-restricted-syntax: 0 */
+import { luxon } from "@web/core/l10n/luxon";
 import { after, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, markup, xml } from "@odoo/owl";

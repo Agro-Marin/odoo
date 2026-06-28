@@ -79,6 +79,17 @@ export class Notebook extends Component {
         onPageUpdate: { type: Function, optional: true },
     };
 
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    activePane;
+    /** @type {Array<[string, Object]>} */
+    pages;
+    /** @type {Set<string>} */
+    invalidPages;
+    /** @type {{ currentPage: string | null }} */
+    state;
+    /** @type {string[]} */
+    disabledPages;
+
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLElement>} */
         this.activePane = useRef("activePane");

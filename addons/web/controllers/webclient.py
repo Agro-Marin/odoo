@@ -6,6 +6,7 @@ from odoo import http
 from odoo.http import Response, request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.modules import Manifest
+from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.misc import file_path
 
 from .utils import _local_web_translations
@@ -150,7 +151,6 @@ class WebClient(http.Controller):
 
         debug = bundle_params.get("debug", request.session.debug)
 
-        from odoo.libs.esm_registry import esm_registry
         use_esm = bundle_name in esm_registry().dynamic_bundle_names
         log_event(
             _http_log, logging.DEBUG, "bundle_request",

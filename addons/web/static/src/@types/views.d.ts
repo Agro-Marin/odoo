@@ -181,7 +181,7 @@ declare module "@web/views/view_utils" {
     export function isX2Many(field: any): boolean;
     export function isNumeric(field: any): boolean;
     export function isNull(value: any): boolean;
-    export function toStringExpression(str: string): string;
+    export function toStringExpression(str: string | null): string;
 
     export function computeModelOptions(
         env: any,
@@ -580,7 +580,7 @@ declare module "@web/views/view_compiler" {
     export function getModifier(el: Element, modifierName: string): string | null;
     export function isComponentNode(el: Element): boolean;
     export function isTextNode(node: Node): boolean;
-    export function makeSeparator(title: string): Element;
+    export function makeSeparator(title: string | null): Element;
     export function resetViewCompilerCache(): void;
 
     export function useViewCompiler(

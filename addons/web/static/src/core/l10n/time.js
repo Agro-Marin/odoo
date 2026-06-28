@@ -186,7 +186,7 @@ export function parseTime(value, parseSeconds) {
     let minute = 0;
     let second = 0;
 
-    const parse = (str) => {
+    const parse = (/** @type {string} */ str) => {
         if (!str.length) {
             return 0;
         } else if (/^[\d]+$/.test(str)) {
@@ -212,7 +212,7 @@ export function parseTime(value, parseSeconds) {
     } else if (parts.length === 1) {
         const raw = parts[0];
 
-        const pickSolution = (...solutions) => {
+        const pickSolution = (/** @type {string[][]} */ ...solutions) => {
             for (const solution of solutions) {
                 const h = parse(solution[0]);
                 if (h <= 24) {
@@ -299,9 +299,9 @@ function normalizeTimeStr(timeStr) {
  */
 function meridiemCheck(timeStr) {
     const amPmMatch =
-        typeof timeStr === "string" ? timeStr.toLowerCase().match(/(am|pm)/g) : false;
+        typeof timeStr === "string" ? timeStr.toLowerCase().match(/(am|pm)/g) : null;
     return {
-        isPm: amPmMatch && amPmMatch[0] === "pm",
-        isAm: amPmMatch && amPmMatch[0] === "am",
+        isPm: amPmMatch?.[0] === "pm",
+        isAm: amPmMatch?.[0] === "am",
     };
 }

@@ -30,7 +30,9 @@ export const notificationService = {
 
     start() {
         let notifId = 0;
-        const notifications = reactive({});
+        const notifications = reactive(
+            /** @type {Record<number, { id: number, props: Record<string, any>, onClose?: () => void }>} */ ({}),
+        );
 
         registry.category("main_components").add(
             this.notificationContainer.name,
@@ -59,6 +61,9 @@ export const notificationService = {
             return closeFn;
         }
 
+        /**
+         * @param {number} id
+         */
         function close(id) {
             if (notifications[id]) {
                 const notification = notifications[id];

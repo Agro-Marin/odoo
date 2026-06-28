@@ -63,7 +63,8 @@ export class TemplateRegistry {
         /** @type {Record<string, string>} */
         this.templates = Object.create(null);
         this.info = Object.create(null);
-        /** @type {Record<string, Element | null>} */
+        // Only ever holds `_parse(...)` results, which are non-null Elements.
+        /** @type {Record<string, Element>} */
         this.parsedTemplates = Object.create(null);
         this.parsedTemplateExtensions = Object.create(null);
         /** @type {Map<string, Element | null>} */
@@ -173,7 +174,7 @@ export class TemplateRegistry {
             if (!(otherBlockId in this.parsedTemplateExtensions[name])) {
                 this.parsedTemplateExtensions[name][otherBlockId] = [];
                 for (const { templateString, url } of this.templateExtensions[name][
-                    otherBlockId
+                    Number(otherBlockId)
                 ]) {
                     this.parsedTemplateExtensions[name][otherBlockId].push({
                         template: this._parse(templateString),

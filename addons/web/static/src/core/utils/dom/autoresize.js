@@ -15,9 +15,11 @@ import { browser } from "@web/core/browser/browser";
  * of some parent div (like in the text_field component).
  *
  * @param {{ el: HTMLInputElement | HTMLTextAreaElement | null }} ref
+ * @param {{ ignoreIfEmpty?: boolean, onResize?: (el: HTMLInputElement | HTMLTextAreaElement, options: object) => void, offset?: number, minimumHeight?: number }} [options]
  */
 export function useAutoresize(ref, options = {}) {
     let wasProgrammaticallyResized = false;
+    /** @type {(programmaticResize?: boolean) => void} */
     let resize = null;
     useEffect(
         (el) => {
@@ -118,7 +120,7 @@ function resizeInput(input, options) {
     // Input scrollWidth can differ from span/block text rendering width by ~10px
     // in Chromium, causing visual jumping when toggling between readonly and edit.
     const textWidth = measureTextWidth(input);
-    const width = textWidth + (isSafari16 ? 8 : 0) + (options.offset || 0);
+    const width = textWidth + (isSafari16 ? 8 : 0) + (options?.offset || 0);
     if (width > maxWidth) {
         input.style.width = "100%";
         return;

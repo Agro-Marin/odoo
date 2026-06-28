@@ -12,17 +12,17 @@ import { hasTouch } from "@web/core/browser/feature_detection";
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
+import { getFieldCodec } from "@web/core/field_codec";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { useNavigation } from "@web/services/navigation/navigation";
 
-const parsers = registry.category("parsers");
-
 const parseValue = (value, fieldType) => {
-    const parser = parsers.contains(fieldType) ? parsers.get(fieldType) : (str) => str;
+    // Registered parser for the type, else identity for parserless types —
+    // exactly what @web/core/field_codec's parse provides.
+    const parser = getFieldCodec(fieldType).parse;
     switch (fieldType) {
         case "date": {
             return serializeDate(parser(value));

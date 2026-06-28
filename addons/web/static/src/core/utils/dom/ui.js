@@ -162,8 +162,11 @@ export function getTabableElements(container = document.body) {
     const elements = [
         ...container.querySelectorAll(TABABLE_SELECTORS.join(",")),
     ].filter((el) => isVisible(el) && !el.closest("[inert]"));
-    /** @type {Record<number, HTMLElement[]>} */
-    const byTabIndex = Object.groupBy(elements, (el) => el.tabIndex);
+    // Object.groupBy is typed Partial<Record<…>>, but it only creates a key
+    // when ≥1 element falls in it, so the values are never undefined.
+    const byTabIndex = /** @type {Record<number, HTMLElement[]>} */ (
+        Object.groupBy(elements, (el) => el.tabIndex)
+    );
 
     const withTabIndexZero = byTabIndex[0] || [];
     delete byTabIndex[0];

@@ -5,6 +5,7 @@
 
 const RSTRIP_REGEXP = /(?=\n[ \t]*$)/;
 
+/** @type {string | null} */
 let translationContext = null;
 
 const TCTX = "t-translation-context";
@@ -37,7 +38,10 @@ function setTranslationContext(node) {
             }
             break;
         case Node.ELEMENT_NODE:
-            /** @type {Element} */ (node).setAttribute(TCTX, translationContext);
+            /** @type {Element} */ (node).setAttribute(
+                TCTX,
+                /** @type {string} */ (translationContext),
+            );
             break;
     }
 }
@@ -141,7 +145,7 @@ function getXpath(operation) {
         capturedGroup
             .split(",")
             .map(
-                (c) =>
+                (/** @type {string} */ c) =>
                     `contains(concat(' ', @class, ' '), ' ${c.trim().slice(1, -1)} ')`,
             )
             .join(" and "),
@@ -225,6 +229,10 @@ function getNodes(element, operation) {
     return nodes;
 }
 
+/**
+ * @param {string} str
+ * @param {string} separator
+ */
 function splitAndTrim(str, separator) {
     return str.split(separator).map((s) => s.trim());
 }
@@ -268,7 +276,7 @@ function modifyAttributes(target, operation) {
             if (!(add || remove)) {
                 target.setAttribute(
                     `t-translation-context-${attributeName}`,
-                    translationContext,
+                    /** @type {string} */ (translationContext),
                 );
             }
         } else {

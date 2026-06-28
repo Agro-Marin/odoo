@@ -23,7 +23,7 @@ import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
  * every key. Callers pass ``params.model`` from the JSON-RPC payload.
  */
 
-function jsonEqual(v1, v2) {
+function jsonEqual(/** @type {any} */ v1, /** @type {any} */ v2) {
     return JSON.stringify(v1) === JSON.stringify(v2);
 }
 
@@ -49,7 +49,7 @@ const VERSION_FIELD = "__version";
  * m2o special data) without serializing.  Benchmark: ~400× faster than
  * ``jsonEqual`` on a 200-record list when length differs by one.
  */
-function shapeDiffers(a, b) {
+function shapeDiffers(/** @type {any} */ a, /** @type {any} */ b) {
     if (Array.isArray(a)) {
         return !Array.isArray(b) || a.length !== b.length;
     }
@@ -95,7 +95,7 @@ function payloadChanged(fromCacheValue, result) {
     return !jsonEqual(fromCacheValue, result);
 }
 
-function validateSettings({ type, update }) {
+function validateSettings(/** @type {{ type: string, update: string }} */ { type, update }) {
     if (!["ram", "disk"].includes(type)) {
         throw new Error(`Invalid "type" settings provided to RPCCache: ${type}`);
     }
@@ -135,12 +135,15 @@ const CRYPTO_ALGO = "AES-GCM";
 const MAX_STORAGE_SIZE = 2 * 1024 * 1024 * 1024; // 2Gb
 
 class Crypto {
+    /**
+     * @param {string} secret
+     */
     constructor(secret) {
         this._cryptoKey = null;
         this._ready = window.crypto.subtle
             .importKey(
                 "raw",
-                new Uint8Array(secret.match(/../g).map((h) => Number.parseInt(h, 16))).buffer,
+                new Uint8Array(secret.match(/../g).map((/** @type {string} */ h) => Number.parseInt(h, 16))).buffer,
                 CRYPTO_ALGO,
                 false,
                 ["encrypt", "decrypt"],
@@ -150,6 +153,9 @@ class Crypto {
             });
     }
 
+    /**
+     * @param {any} value
+     */
     async encrypt(value) {
         await this._ready;
         // The iv must never be reused with a given key.
@@ -165,7 +171,7 @@ class Crypto {
         return { ciphertext, iv };
     }
 
-    async decrypt({ ciphertext, iv }) {
+    async decrypt(/** @type {{ ciphertext: BufferSource, iv: BufferSource }} */ { ciphertext, iv }) {
         await this._ready;
         const decrypted = await window.crypto.subtle.decrypt(
             {
@@ -239,10 +245,18 @@ class RamCache {
         }
     }
 
+    /**
+     * @param {string} table
+     * @param {string} key
+     */
     read(table, key) {
         return this.ram[table]?.[key];
     }
 
+    /**
+     * @param {string} table
+     * @param {string} key
+     */
     delete(table, key) {
         delete this.ram[table]?.[key];
         const model = this.keyModel[table]?.[key];
@@ -256,6 +270,9 @@ class RamCache {
         }
     }
 
+    /**
+     * @param {string | string[] | null} [tables]
+     */
     invalidate(tables = null) {
         if (tables) {
             tables = typeof tables === "string" ? [tables] : tables;
@@ -305,10 +322,16 @@ class RamCache {
 }
 
 export class RPCCache {
+    /**
+     * @param {string} name
+     * @param {string | number} version
+     * @param {string} secret
+     */
     constructor(name, version, secret) {
         this.crypto = new Crypto(secret);
         this.indexedDB = new IndexedDB(name, version + CRYPTO_ALGO);
         this.ramCache = new RamCache();
+        /** @type {Record<string, { callbacks: Function[], invalidated: boolean }>} */
         this.pendingRequests = {};
         this.checkSize(); // we want to control the disk space used by Odoo
     }
@@ -375,8 +398,9 @@ export class RPCCache {
             // execute the fallback and write the result in the caches
             const prom = new Promise((resolve, reject) => {
                 const fromCache = new Deferred();
+                /** @type {any} */
                 let fromCacheValue;
-                const onFulfilled = (result) => {
+                const onFulfilled = (/** @type {any} */ result) => {
                     resolve(result);
                     // Always notify pending callbacks — subscribers explicitly
                     // requested server data via `update: "always"`. The RPC result
@@ -422,7 +446,7 @@ export class RPCCache {
                     }
                     return result;
                 };
-                const onRejected = async (error) => {
+                const onRejected = async (/** @type {any} */ error) => {
                     await fromCache;
                     if (!request.invalidated) {
                         delete this.pendingRequests[requestKey];
@@ -460,7 +484,7 @@ export class RPCCache {
                     // we would have early returned because of `pendingRequests`) and it would have
                     // been removed from the ram cache if it had been rejected
                     // => no need to define a `catch` callback.
-                    ramValue.then((value) => {
+                    ramValue.then((/** @type {any} */ value) => {
                         resolve(value);
                         fromCacheValue = value;
                         fromCache.resolve();
@@ -496,6 +520,9 @@ export class RPCCache {
         return ramValue.then(shape);
     }
 
+    /**
+     * @param {string | string[] | null} [tables]
+     */
     invalidate(tables) {
         this.indexedDB.invalidate(tables);
         this.ramCache.invalidate(tables);

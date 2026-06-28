@@ -32,10 +32,10 @@ function useEarlyExternalListener(target, eventName, handler, eventParams) {
  * @param {(node?: Node) => any} callback
  */
 function useClickAway(callback) {
-    function blurHandler(ev) {
-        const target = ev.relatedTarget || document.activeElement;
-        if (target?.tagName === "IFRAME") {
-            callback(target);
+    function blurHandler(/** @type {Event} */ ev) {
+        const target = /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
+        if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
+            callback(/** @type {Node} */ (target));
         }
     }
 
@@ -43,8 +43,8 @@ function useClickAway(callback) {
         callback(document.documentElement);
     }
 
-    function pointerDownHandler(ev) {
-        callback(ev.composedPath()[0]);
+    function pointerDownHandler(/** @type {Event} */ ev) {
+        callback(/** @type {Node} */ (ev.composedPath()[0]));
     }
 
     useEarlyExternalListener(window, "pointerdown", pointerDownHandler, {
@@ -88,7 +88,7 @@ export class Popover extends Component {
         component: { type: Function },
         componentProps: { optional: true, type: Object },
         target: {
-            validate: (target) => {
+            validate: (/** @type {any} */ target) => {
                 // target may be inside an iframe, so get the Element constructor
                 // to test against from its owner document's default view
                 const Element = target?.ownerDocument?.defaultView?.Element;
@@ -117,7 +117,7 @@ export class Popover extends Component {
         position: {
             optional: true,
             type: String,
-            validate: (p) => {
+            validate: (/** @type {string} */ p) => {
                 const [d, v = "middle"] = p.split("-");
                 return (
                     ["top", "bottom", "left", "right"].includes(d) &&
@@ -198,7 +198,7 @@ export class Popover extends Component {
         return {
             extendedFlipping: this.props.extendedFlipping,
             margin: this.props.arrow ? 8 : 0,
-            onPositioned: (el, solution) => {
+            onPositioned: (/** @type {HTMLElement} */ el, /** @type {any} */ solution) => {
                 this.onPositioned(solution);
                 this.props.onPositioned?.(el, solution);
             },
@@ -244,7 +244,11 @@ export class Popover extends Component {
         }
     }
 
-    onPositioned({ direction, variant, variantOffset }) {
+    onPositioned(/** @type {{ direction: any, variant: any, variantOffset: any }} */ {
+        direction,
+        variant,
+        variantOffset,
+    }) {
         if (this.props.arrow) {
             this.updateArrow(direction, variant, variantOffset);
         }

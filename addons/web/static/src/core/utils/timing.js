@@ -47,11 +47,13 @@ export function batched(callback, synchronize = () => Promise.resolve()) {
  * @returns {T & { cancel: () => void }} the debounced function
  */
 export function debounce(func, delay, options) {
+    /** @type {any} */
     let handle;
     const funcName = func.name ? `${func.name} (debounce)` : "debounce";
     const useAnimationFrame = delay === "animationFrame";
     const setFnName = useAnimationFrame ? "requestAnimationFrame" : "setTimeout";
     const clearFnName = useAnimationFrame ? "cancelAnimationFrame" : "clearTimeout";
+    /** @type {any[] | null} */
     let lastArgs;
     let leading = false;
     let trailing = true;
@@ -63,15 +65,22 @@ export function debounce(func, delay, options) {
         trailing = options.trailing ?? trailing;
     }
 
+    /** @type {any} */
     let lastSelf;
     // Deferreds of the calls waiting for the trailing execution. Every debounced
     // call (i.e. not run on the leading edge) is queued here so the trailing
     // execution settles them all: superseded calls resolve/reject with the
     // trailing result instead of hanging forever, and a thrown or rejected func
     // propagates to every awaiter (so `await debounced()` and `.catch()` work).
+    /** @type {{ resolve: Function, reject: Function }[]} */
     let pending = [];
 
     // Run `func`, then settle the given awaiters with its result (or error).
+    /**
+     * @param {any} self
+     * @param {any[]} args
+     * @param {{ resolve: Function, reject: Function }[]} awaiters
+     */
     function execute(self, args, awaiters) {
         let result;
         try {
@@ -99,7 +108,7 @@ export function debounce(func, delay, options) {
     return Object.assign(
         {
             /** @type {any} */
-            [funcName](...args) {
+            [funcName](/** @type {any[]} */ ...args) {
                 lastSelf = this;
                 return new Promise((resolve, reject) => {
                     if (leading && !handle) {
@@ -154,7 +163,7 @@ export function debounce(func, delay, options) {
  * @returns {() => void} stop function
  */
 export function setRecurringAnimationFrame(callback) {
-    const handler = (timestamp) => {
+    const handler = (/** @type {number} */ timestamp) => {
         callback(timestamp - lastTimestamp);
         lastTimestamp = timestamp;
         handle = browser.requestAnimationFrame(handler);
@@ -184,20 +193,23 @@ export function setRecurringAnimationFrame(callback) {
  * @returns {T & { cancel: () => void }} the throttled function
  */
 export function throttleForAnimation(func) {
+    /** @type {any} */
     let handle = null;
     // Only the last pending call matters — use a single variable instead of
     // a Set + spread-to-array which allocated on every animation frame tick.
+    /** @type {{ args: any[], resolve: Function } | null} */
     let lastCall = null;
     const funcName = func.name
         ? `${func.name} (throttleForAnimation)`
         : "throttleForAnimation";
+    /** @type {any} */
     let self;
     const pending = () => {
         if (lastCall) {
             handle = browser.requestAnimationFrame(pending);
             const { args, resolve } = lastCall;
             lastCall = null;
-            Promise.resolve(func.apply(self, args)).then(resolve);
+            Promise.resolve(func.apply(self, args)).then(/** @type {(v: any) => any} */ (resolve));
         } else {
             handle = null;
         }
@@ -205,7 +217,7 @@ export function throttleForAnimation(func) {
     return Object.assign(
         {
             /** @type {any} */
-            [funcName](...args) {
+            [funcName](/** @type {any[]} */ ...args) {
                 self = this;
                 return new Promise((resolve) => {
                     const isNew = handle === null;

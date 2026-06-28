@@ -28,13 +28,96 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
 }
 
 /**
- * Deeply compares two objects.
+ * Deeply compares two values.
+ *
+ * Handles primitives (with ``NaN`` equal to ``NaN``), plain objects, arrays,
+ * ``Date``, ``RegExp``, ``Map`` and ``Set``, and is cycle-safe. Previously this
+ * delegated to {@link shallowEqual} recursively, which silently reported any two
+ * ``Date``/``Map``/``Set`` as equal (they expose no own keys) and stack-
+ * overflowed on self-referential inputs — neither matched the "deeply compares"
+ * contract.
  *
  * @param {unknown} obj1
  * @param {unknown} obj2
  * @returns {boolean}
  */
-export const deepEqual = (obj1, obj2) => shallowEqual(obj1, obj2, deepEqual);
+export function deepEqual(obj1, obj2) {
+    return _deepEqual(obj1, obj2, new WeakMap());
+}
+
+/**
+ * @param {any} a
+ * @param {any} b
+ * @param {WeakMap<object, object>} seen pairs already being compared (cycle guard)
+ * @returns {boolean}
+ */
+function _deepEqual(a, b, seen) {
+    if (a === b) {
+        return true; // same reference or identical primitive (also short-circuits cycles)
+    }
+    if (typeof a === "number" && typeof b === "number") {
+        return Number.isNaN(a) && Number.isNaN(b); // NaN === NaN
+    }
+    if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
+        return false; // primitive mismatch (=== already ruled out equality)
+    }
+    if (seen.get(a) === b) {
+        return true; // this exact pair is already under comparison up the stack
+    }
+    seen.set(a, b);
+
+    if (a instanceof Date || b instanceof Date) {
+        return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+    }
+    if (a instanceof RegExp || b instanceof RegExp) {
+        return (
+            a instanceof RegExp &&
+            b instanceof RegExp &&
+            a.source === b.source &&
+            a.flags === b.flags
+        );
+    }
+    const aIsArray = Array.isArray(a);
+    if (aIsArray || Array.isArray(b)) {
+        if (!aIsArray || !Array.isArray(b) || a.length !== b.length) {
+            return false;
+        }
+        return a.every((v, i) => _deepEqual(v, b[i], seen));
+    }
+    if (a instanceof Map || b instanceof Map) {
+        if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) {
+            return false;
+        }
+        for (const [key, value] of a) {
+            if (!b.has(key) || !_deepEqual(value, b.get(key), seen)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (a instanceof Set || b instanceof Set) {
+        if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) {
+            return false;
+        }
+        for (const av of a) {
+            // fast path for primitives; fall back to a deep search for objects
+            if (b.has(av) || [...b].some((bv) => _deepEqual(av, bv, seen))) {
+                continue;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    const aKeys = Reflect.ownKeys(a);
+    if (aKeys.length !== Reflect.ownKeys(b).length) {
+        return false;
+    }
+    return aKeys.every(
+        (key) =>
+            Object.prototype.hasOwnProperty.call(b, key) && _deepEqual(a[key], b[key], seen),
+    );
+}
 
 /**
  * Recursively un-wraps OWL reactive proxies in plain objects, arrays, Maps,
@@ -168,7 +251,7 @@ export function omit(object, ...properties) {
     const propertiesSet = new Set(properties);
     for (const key of Object.keys(object)) {
         if (!propertiesSet.has(/** @type {any} */ (key))) {
-            result[key] = object[key];
+            result[key] = /** @type {Record<string, any>} */ (object)[key];
         }
     }
     return result;

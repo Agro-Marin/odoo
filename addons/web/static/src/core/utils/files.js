@@ -46,7 +46,7 @@ export function useFileUploader() {
     const notification = useService("notification");
     /**
      * @param {string} route
-     * @param {Object} params
+     * @param {Record<string, any>} params
      */
     return async (route, params) => {
         if (params.ufile && params.ufile.length) {
@@ -69,6 +69,10 @@ export function useFileUploader() {
     };
 }
 
+/**
+ * @param {Blob} blob
+ * @param {Record<string, any>} [params]
+ */
 export function resizeBlobImg(blob, params = {}) {
     if (!blob.type || !blob.type.startsWith("image/")) {
         return Promise.reject(
@@ -91,7 +95,13 @@ export function resizeBlobImg(blob, params = {}) {
                 const canvas = document.createElement("canvas");
                 canvas.width = width;
                 canvas.height = height;
-                const ctx = canvas.getContext("2d");
+                // A freshly-created canvas always provides a 2d context; the
+                // null case only occurs if the platform lacks canvas support
+                // (in which case nothing here works). Assert it so the
+                // known-non-null context typechecks.
+                const ctx = /** @type {CanvasRenderingContext2D} */ (
+                    canvas.getContext("2d")
+                );
                 ctx.imageSmoothingQuality = "high";
                 ctx.imageSmoothingEnabled = true;
 

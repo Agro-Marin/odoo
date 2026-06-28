@@ -20,7 +20,7 @@ const macroSchema = {
                 timeout: { type: Number, optional: true },
                 trigger: { type: [Function, String], optional: true },
             },
-            validate: (step) => step.action || step.trigger,
+            validate: (/** @type {any} */ step) => step.action || step.trigger,
         },
     },
     onComplete: { type: Function, optional: true },
@@ -29,12 +29,21 @@ const macroSchema = {
 };
 
 class MacroError extends Error {
+    /**
+     * @param {string} type
+     * @param {string} message
+     * @param {ErrorOptions} [options]
+     */
     constructor(type, message, options) {
         super(message, options);
         this.type = type;
     }
 }
 
+/**
+ * @param {any} trigger
+ * @param {any} action
+ */
 async function performAction(trigger, action) {
     if (!action) {
         return;
@@ -50,6 +59,9 @@ async function performAction(trigger, action) {
     }
 }
 
+/**
+ * @param {Function | string} [trigger]
+ */
 async function waitForTrigger(trigger) {
     if (!trigger) {
         return;
@@ -87,6 +99,7 @@ export async function waitUntil(predicate) {
     if (result) {
         return Promise.resolve(result);
     }
+    /** @type {number} */
     let handle;
     return new Promise((resolve) => {
         const runCheck = () => {
@@ -121,6 +134,9 @@ export class Macro {
     onStep = () => {};
     /** @type {Function} */
     onError = () => {};
+    /**
+     * @param {{ name?: string, timeout?: number, steps?: MacroStep[], onComplete?: Function, onStep?: Function, onError?: Function }} descr
+     */
     constructor(descr) {
         try {
             validate(descr, macroSchema);
@@ -133,7 +149,11 @@ export class Macro {
         Object.assign(this, descr);
         this.onComplete ??= () => {};
         this.onStep ??= () => {};
-        this.onError ??= (error, step, index) => {
+        this.onError ??= (
+            /** @type {Error} */ error,
+            /** @type {MacroStep} */ step,
+            /** @type {number} */ index,
+        ) => {
             console.error(error.message, step, index);
         };
     }
@@ -178,6 +198,9 @@ export class Macro {
         await this.advance();
     }
 
+    /**
+     * @param {Error} [error]
+     */
     stop(error) {
         if (this.isComplete) {
             return;
@@ -199,18 +222,22 @@ export class MacroMutationObserver {
         subtree: true,
         characterData: true,
     };
+    /**
+     * @param {Function} callback
+     */
     constructor(callback) {
         this.callback = callback;
         this.observer = new MutationObserver((mutationList, observer) => {
             callback(mutationList);
             mutationList.forEach((mutationRecord) =>
                 Array.from(mutationRecord.addedNodes).forEach((node) => {
+                    /** @type {HTMLIFrameElement[]} */
                     let iframes = [];
                     if (
                         String(/** @type {Element} */ (node).tagName).toLowerCase() ===
                         "iframe"
                     ) {
-                        iframes = [node];
+                        iframes = [/** @type {HTMLIFrameElement} */ (node)];
                     } else if (node instanceof HTMLElement) {
                         iframes = Array.from(node.querySelectorAll("iframe"));
                     }
@@ -227,35 +254,55 @@ export class MacroMutationObserver {
     disconnect() {
         this.observer.disconnect();
     }
+    /**
+     * @param {Node} node
+     * @param {ShadowRoot[]} [shadowRoots]
+     */
     findAllShadowRoots(node, shadowRoots = []) {
-        if (node.shadowRoot) {
-            shadowRoots.push(node.shadowRoot);
-            this.findAllShadowRoots(node.shadowRoot, shadowRoots);
+        const shadowRoot = /** @type {Element} */ (node).shadowRoot;
+        if (shadowRoot) {
+            shadowRoots.push(shadowRoot);
+            this.findAllShadowRoots(shadowRoot, shadowRoots);
         }
         node.childNodes.forEach((child) => {
             this.findAllShadowRoots(child, shadowRoots);
         });
         return shadowRoots;
     }
+    /**
+     * @param {Element} target
+     */
     observe(target) {
         this.observer.observe(target, this.observerOptions);
         //When iframes already exist at "this.target" initialization
         target
             .querySelectorAll("iframe")
             .forEach((el) =>
-                this.observeIframe(el, this.observer, () => this.callback()),
+                this.observeIframe(
+                    /** @type {HTMLIFrameElement} */ (el),
+                    this.observer,
+                    () => this.callback(),
+                ),
             );
         //When shadowDom already exist at "this.target" initialization
         this.findAllShadowRoots(target).forEach((shadowRoot) => {
             this.observer.observe(shadowRoot, this.observerOptions);
         });
     }
+    /**
+     * @param {HTMLIFrameElement} iframeEl
+     * @param {MutationObserver} observer
+     * @param {Function} callback
+     */
     observeIframe(iframeEl, observer, callback) {
         const observeIframeContent = () => {
             if (iframeEl.contentDocument) {
                 iframeEl.contentDocument.addEventListener("load", (event) => {
                     callback();
-                    observer.observe(event.target, this.observerOptions);
+                    observer.observe(
+                        /** @type {Node} */ (event.target),
+                        this.observerOptions,
+                    );
                 });
                 if (
                     !iframeEl.src ||

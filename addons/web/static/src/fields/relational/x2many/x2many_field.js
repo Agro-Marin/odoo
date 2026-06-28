@@ -49,6 +49,19 @@ export class X2ManyField extends Component {
         context: { type: Object },
     };
 
+    /** @type {any} */
+    _openRecord;
+    /** @type {any} */
+    selectCreate;
+    /** @type {any} */
+    addInLine;
+    /** @type {any} */
+    activeActions;
+    /** @type {import("services").ServiceFactories["action"]} */
+    action;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notificationService;
+
     setup() {
         this.field = this.props.record.fields[this.props.name];
         const { saveRecord, updateRecord, removeRecord } = useX2ManyCrud(
@@ -126,9 +139,9 @@ export class X2ManyField extends Component {
         const selectCreate = useSelectCreate({
             resModel: this.props.record.data[this.props.name].resModel,
             activeActions: this.activeActions,
-            onSelected: (resIds) => saveRecord(resIds),
+            onSelected: (resIds) => saveRecord?.(resIds),
             onCreateEdit: ({ context }) => this._openRecord({ context }),
-            onUnselect: this.isMany2Many ? undefined : () => saveRecord(),
+            onUnselect: this.isMany2Many ? undefined : () => saveRecord?.(),
         });
 
         this.selectCreate = (params) => {

@@ -28,11 +28,18 @@ addons/web/static/src/core/l10n/luxon.js
 addons/web/static/src/core/l10n/date_utils.js
 addons/web/static/src/core/l10n/utils/normalize.js
 addons/web/static/src/core/l10n/utils/format_list.js
+addons/web/static/src/core/l10n/translation.js
+addons/web/static/src/core/l10n/localization.js
+addons/web/static/src/core/l10n/utils.js
+addons/web/static/src/core/l10n/utils/locales.js
+addons/web/static/src/core/l10n/time.js
+addons/web/static/src/core/l10n/dates.js
 
 # --- core/network ---
 addons/web/static/src/core/network/rpc.js
 addons/web/static/src/core/network/rpc_dedup.js
 addons/web/static/src/core/network/content_disposition.js
+addons/web/static/src/core/network/download.js
 
 # --- core/utils ---
 addons/web/static/src/core/utils/functions.js
@@ -40,9 +47,171 @@ addons/web/static/src/core/utils/order_by.js
 addons/web/static/src/core/utils/format/strings.js
 addons/web/static/src/core/utils/format/numbers.js
 addons/web/static/src/core/utils/format/binary.js
+addons/web/static/src/core/utils/hooks.js
+addons/web/static/src/core/utils/reactive.js
+addons/web/static/src/core/utils/concurrency.js
+addons/web/static/src/core/utils/timing.js
+addons/web/static/src/core/utils/render.js
+addons/web/static/src/core/utils/components.js
+addons/web/static/src/core/utils/decorations.js
+addons/web/static/src/core/utils/urls.js
 
 # --- core (root) ---
 addons/web/static/src/core/domain.js
 addons/web/static/src/core/context.js
 addons/web/static/src/core/events.js
 addons/web/static/src/core/constants.js
+addons/web/static/src/core/registry.js
+addons/web/static/src/core/templates.js
+addons/web/static/src/core/assets.js
+
+# --- core/browser ---
+addons/web/static/src/core/browser/feature_detection.js
+addons/web/static/src/core/browser/browser.js
+addons/web/static/src/core/browser/router.js
+
+# --- core/py_js ---
+addons/web/static/src/core/py_js/py.js
+addons/web/static/src/core/py_js/py_parser.js
+addons/web/static/src/core/py_js/py_utils.js
+addons/web/static/src/core/py_js/py_tokenizer.js
+addons/web/static/src/core/py_js/ast_type.js
+addons/web/static/src/core/py_js/token_type.js
+addons/web/static/src/core/py_js/py_interpreter.js
+addons/web/static/src/core/py_js/py_builtin.js
+addons/web/static/src/core/py_js/py_date.js
+addons/web/static/src/core/py_js/py_date_helpers.js
+addons/web/static/src/core/py_js/py_timedelta.js
+
+# --- core/tree ---
+addons/web/static/src/core/tree/ast_utils.js
+addons/web/static/src/core/tree/condition_tree.js
+addons/web/static/src/core/tree/construct_domain_from_tree.js
+addons/web/static/src/core/tree/construct_expression_from_tree.js
+addons/web/static/src/core/tree/construct_tree_from_domain.js
+addons/web/static/src/core/tree/construct_tree_from_expression.js
+addons/web/static/src/core/tree/domain_contains_expressions.js
+addons/web/static/src/core/tree/domain_from_tree.js
+addons/web/static/src/core/tree/expression_from_tree.js
+addons/web/static/src/core/tree/in_range_options.js
+addons/web/static/src/core/tree/operator_labels.js
+addons/web/static/src/core/tree/operators.js
+addons/web/static/src/core/tree/tree_from_domain.js
+addons/web/static/src/core/tree/tree_from_expression.js
+addons/web/static/src/core/tree/utils.js
+addons/web/static/src/core/tree/virtual_operators.js
+
+# --- services ---
+addons/web/static/src/services/orm_service.js
+addons/web/static/src/services/title_service.js
+addons/web/static/src/services/http_service.js
+addons/web/static/src/services/localization_service.js
+addons/web/static/src/services/currency.js
+addons/web/static/src/services/name_service.js
+addons/web/static/src/services/feature_flags.js
+addons/web/static/src/services/field_service.js
+addons/web/static/src/services/user.js
+addons/web/static/src/services/error_service.js
+
+# --- fields ---
+addons/web/static/src/fields/standard_field_props.js
+addons/web/static/src/fields/field_utils.js
+addons/web/static/src/fields/formatters.js
+addons/web/static/src/fields/parsers.js
+addons/web/static/src/fields/field_types.js
+addons/web/static/src/fields/field_codec.js
+addons/web/static/src/fields/_registry.js
+addons/web/static/src/fields/field.js
+addons/web/static/src/fields/field_tooltip.js
+addons/web/static/src/fields/numpad_decimal_hook.js
+addons/web/static/src/fields/basic/numeric_input_field_base.js
+addons/web/static/src/fields/basic/text_input_field_base.js
+addons/web/static/src/fields/basic/integer/integer_field.js
+addons/web/static/src/fields/basic/float/float_field.js
+addons/web/static/src/fields/basic/email/email_field.js
+addons/web/static/src/fields/basic/url/url_field.js
+addons/web/static/src/fields/basic/boolean/boolean_field.js
+addons/web/static/src/fields/basic/phone/phone_field.js
+addons/web/static/src/fields/basic/copy_clipboard/copy_clipboard_field.js
+addons/web/static/src/fields/basic/boolean_icon/boolean_icon_field.js
+addons/web/static/src/fields/basic/percentage/percentage_field.js
+addons/web/static/src/fields/basic/float_factor/float_factor_field.js
+addons/web/static/src/fields/basic/float_time/float_time_field.js
+addons/web/static/src/fields/basic/monetary/monetary_field.js
+addons/web/static/src/fields/basic/boolean_toggle/boolean_toggle_field.js
+addons/web/static/src/fields/basic/json/json_field.js
+addons/web/static/src/fields/basic/html/html_field.js
+addons/web/static/src/fields/basic/float_toggle/float_toggle_field.js
+addons/web/static/src/fields/basic/char/char_field.js
+addons/web/static/src/fields/basic/text/text_field.js
+addons/web/static/src/fields/selection/selection_like_field.js
+addons/web/static/src/fields/selection/label_selection/label_selection_field.js
+addons/web/static/src/fields/selection/radio/radio_field.js
+addons/web/static/src/fields/selection/state_selection/state_selection_field.js
+addons/web/static/src/fields/selection/priority/priority_field.js
+
+# --- fields/relational ---
+addons/web/static/src/fields/relational/many2x_autocomplete.js
+addons/web/static/src/fields/relational/relational_active_actions.js
+addons/web/static/src/fields/relational/x2many_crud.js
+addons/web/static/src/fields/relational/special_data.js
+addons/web/static/src/fields/relational/many2one/many2one_field.js
+addons/web/static/src/fields/relational/many2one/many2one.js
+addons/web/static/src/fields/relational/x2many/x2many_field.js
+addons/web/static/src/fields/relational/many2many_tags/many2many_tags_field.js
+
+# --- components ---
+addons/web/static/src/components/tags_list/tags_list.js
+addons/web/static/src/components/datetime/datetime_input.js
+addons/web/static/src/views/settings/settings_form_renderer.js
+addons/web/static/src/views/view_components/selection_box.js
+addons/web/static/src/views/view_components/group_config_menu.js
+addons/web/static/src/search/cog_menu/cog_menu.js
+addons/web/static/src/components/checkbox/checkbox.js
+addons/web/static/src/components/copy_button/copy_button.js
+addons/web/static/src/components/pager/pager.js
+addons/web/static/src/components/notebook/notebook.js
+addons/web/static/src/components/dropdown/dropdown.js
+
+# --- model ---
+addons/web/static/src/model/relational_model/utils.js
+
+# --- search ---
+addons/web/static/src/search/utils/misc.js
+addons/web/static/src/search/utils/dates.js
+addons/web/static/src/search/with_search/with_search.js
+
+# --- views ---
+addons/web/static/src/views/standard_view_props.js
+addons/web/static/src/views/field_arch.js
+addons/web/static/src/views/view.js
+addons/web/static/src/views/view_utils.js
+addons/web/static/src/views/multi_record_controller.js
+addons/web/static/src/views/form/form_renderer.js
+addons/web/static/src/views/form/form_arch_parser.js
+addons/web/static/src/views/form/form_compiler.js
+addons/web/static/src/views/form/form_controller.js
+addons/web/static/src/views/list/list_arch_parser.js
+addons/web/static/src/views/list/list_controller.js
+addons/web/static/src/views/list/list_renderer.js
+addons/web/static/src/views/kanban/kanban_controller.js
+addons/web/static/src/views/kanban/kanban_renderer.js
+addons/web/static/src/views/graph/graph_controller.js
+addons/web/static/src/views/pivot/pivot_controller.js
+addons/web/static/src/views/calendar/calendar_controller.js
+addons/web/static/src/views/view_buttons.js
+addons/web/static/src/views/view_hook.js
+addons/web/static/src/views/view_button/view_button.js
+addons/web/static/src/views/view_compiler.js
+addons/web/static/src/views/view_service.js
+addons/web/static/src/views/widgets/widget.js
+addons/web/static/src/views/list/list_view.js
+addons/web/static/src/views/form/form_view.js
+addons/web/static/src/views/kanban/kanban_view.js
+addons/web/static/src/views/list/list_confirmation_dialog.js
+addons/web/static/src/views/view_dialogs/form_view_dialog.js
+addons/web/static/src/views/view_dialogs/select_create_dialog.js
+
+# --- entrypoint ---
+addons/web/static/src/env.js
+addons/web/static/src/session.js

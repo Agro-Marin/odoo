@@ -22,7 +22,7 @@ import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
  */
 
 /**
- * @param {() => PagerProps} getProps
+ * @param {() => (PagerProps | undefined)} getProps
  */
 export function usePager(getProps) {
     const env = useEnv();

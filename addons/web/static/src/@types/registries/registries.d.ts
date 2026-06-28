@@ -71,6 +71,15 @@ declare module "registries" {
 
     export type ParsersRegistryItemShape = (value: any, options?: any) => any;
 
+    // Transport conversion (client <-> server), distinct from format/parse.
+    // serialize: client value -> server value; deserialize: server value ->
+    // client value (the `field` arg carries the field definition for types
+    // like selection/reference). Registered by the model layer
+    // (`record_value_transforms.js` / `field_values.js`); read by both the
+    // model and `fields/field_codec.js` so the two can never diverge.
+    export type SerializersRegistryItemShape = (value: any) => any;
+    export type DeserializersRegistryItemShape = (value: any, field?: any) => any;
+
     export type PublicComponentsRegistryItemShape = ComponentConstructor;
 
     export type SampleServerRegistryItemShape = (...args: any[]) => any;
@@ -148,6 +157,8 @@ declare module "registries" {
         lazy_components: LazyComponentsRegistryItemShape;
         main_components: MainComponentsRegistryItemShape;
         parsers: ParsersRegistryItemShape;
+        serializers: SerializersRegistryItemShape;
+        deserializers: DeserializersRegistryItemShape;
         public_components: PublicComponentsRegistryItemShape;
         "public.interactions": InteractionRegistryItemShape;
         sample_server: SampleServerRegistryItemShape;

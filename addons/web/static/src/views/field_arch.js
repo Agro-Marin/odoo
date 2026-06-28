@@ -62,7 +62,8 @@ const viewRegistry = registry.category("views");
  * @returns {{ name: string, type: string, viewType: string, widget: string | null, field: ReturnType<typeof getFieldFromRegistry>, context: string, string?: string, help?: string, onChange: boolean, forceSave: boolean, options: Object, decorations: Record<string, string>, attrs: Record<string, string>, domain?: string, readonly?: string | null, required?: string | null, invisible?: string | null, column_invisible?: string | null, viewMode?: string, views?: Object, relatedFields?: Object, isHandle?: boolean }}
  */
 export function parseFieldNode(node, models, modelName, viewType, jsClass) {
-    const name = node.getAttribute("name");
+    // A `<field>` node always carries a name; the throw below guards the rest.
+    const name = /** @type {string} */ (node.getAttribute("name"));
     const widget = node.getAttribute("widget");
     const fields = models[modelName].fields;
     if (!fields[name]) {
@@ -70,7 +71,7 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
     }
     const field = getFieldFromRegistry(
         fields[name].type,
-        widget,
+        widget ?? undefined,
         viewType,
         jsClass,
     );
@@ -138,8 +139,7 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
             if (relatedFields instanceof Function) {
                 relatedFields = relatedFields(fieldInfo);
             }
-            /** @type {any[]} */
-            const relatedFieldsArr = relatedFields;
+            const relatedFieldsArr = /** @type {any[]} */ (relatedFields);
             for (const relatedField of relatedFieldsArr) {
                 if (!("readonly" in relatedField)) {
                     relatedField.readonly = true;
@@ -168,7 +168,7 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
                 );
             // We copy and hence isolate the subview from the main view's tree
             // This way, the subview's tree is autonomous and CSS selectors will work normally
-            const childCopy = child.cloneNode(true);
+            const childCopy = /** @type {Element} */ (child.cloneNode(true));
             const archInfo = new ArchParser().parse(
                 childCopy,
                 models,
@@ -177,7 +177,7 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
             views[viewType] = {
                 ...archInfo,
                 limit: archInfo.limit || 40,
-                fields: models[fields[name].relation].fields,
+                fields: models[/** @type {string} */ (fields[name].relation)].fields,
             };
         }
 
@@ -199,7 +199,8 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
             fieldInfo.viewMode = viewMode;
         }
         if (Object.keys(views).length) {
-            fieldInfo.relatedFields = models[fields[name].relation]?.fields;
+            fieldInfo.relatedFields =
+                models[/** @type {string} */ (fields[name].relation)]?.fields;
             fieldInfo.views = views;
         }
     }
@@ -207,9 +208,7 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         /** @type {any} */
         let relatedFields = fieldInfo.field.relatedFields;
         if (relatedFields) {
-            relatedFields = Object.fromEntries(
-                relatedFields.map((f) => [f.name, f]),
-            );
+            relatedFields = Object.fromEntries(relatedFields.map((f) => [f.name, f]));
             fieldInfo.viewMode = "default";
             fieldInfo.views = {
                 default: {

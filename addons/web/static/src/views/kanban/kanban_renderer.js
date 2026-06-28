@@ -90,12 +90,24 @@ export class KanbanRenderer extends Component {
         tooltipInfo: {},
     };
 
+    /** @type {any[]} */
+    dialogClose;
+    /** @type {{ selectionAvailable: boolean; processedIds: string[]; columnQuickCreateIsFolded: boolean }} */
+    state;
+    /** @type {any} */
+    dialog;
+    /** @type {any} */
+    exampleData;
+    /** @type {any} */
+    lastCheckedRecord;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    rootRef;
+    /** @type {any} */
+    lastOpenedGroupId;
+
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
         this.dialogClose = [];
-        /**
-         * @type {{ processedIds: string[], columnQuickCreateIsFolded: boolean }}
-         */
         this.state = useState({
             selectionAvailable: false,
             processedIds: [],
@@ -158,7 +170,7 @@ export class KanbanRenderer extends Component {
                 if (model.useSampleModel || !model.hasData()) {
                     return;
                 }
-                const firstCard = this.rootRef.el.querySelector(".o_kanban_record");
+                const firstCard = this.rootRef.el?.querySelector(".o_kanban_record");
                 if (firstCard) {
                     // Focus first kanban card
                     firstCard.focus();
@@ -171,7 +183,8 @@ export class KanbanRenderer extends Component {
             getCanOpenRecords: () => this.props.archInfo.canOpenRecords,
             getQuickCreateActive: () => Boolean(this.props.quickCreateState.groupId),
             onSpace: (target, isRange) => this.onSpaceKeyPress(target, isRange),
-            onArrowNav: (area, direction) => this.focusNextCard(area, direction),
+            onArrowNav: (area, direction) =>
+                this.focusNextCard(area, direction) ?? false,
             searchModel: this.env.searchModel,
         });
 
@@ -193,8 +206,10 @@ export class KanbanRenderer extends Component {
                 ) {
                     groupIdToFocus = groups[lastOpenedGroupIndex + 1].group.id;
                 }
-                const groupEl = this.rootRef.el.querySelector(
-                    `.o_kanban_group[data-id="${groupIdToFocus}"]`,
+                const groupEl = /** @type {HTMLElement} */ (
+                    this.rootRef.el?.querySelector(
+                        `.o_kanban_group[data-id="${groupIdToFocus}"]`,
+                    )
                 );
                 const rect = groupEl.getBoundingClientRect();
                 // Don't scroll if the group to focus is completely inside of the viewport
@@ -528,7 +543,7 @@ export class KanbanRenderer extends Component {
 
     /**
      * @param {string} dataRecordId
-     * @param {string} dataGroupId
+     * @param {string | undefined} dataGroupId
      * @param {Object} params
      * @param {HTMLElement} params.element
      * @param {HTMLElement} [params.group]
@@ -544,8 +559,8 @@ export class KanbanRenderer extends Component {
         let previous = /** @type {HTMLElement | null} */ (_previous);
         if (
             !this.props.list.isGrouped ||
-            parent.classList.contains("o_kanban_hover") ||
-            parent.dataset.id === element.parentElement.dataset.id
+            parent?.classList.contains("o_kanban_hover") ||
+            parent?.dataset.id === element.parentElement?.dataset.id
         ) {
             if (!this.props.list.records.find((r) => r.id === dataRecordId)) {
                 // Race condition: a new rendering has been scheduled/is ongoing but hasn't been
@@ -618,11 +633,11 @@ export class KanbanRenderer extends Component {
      *
      * @param {HTMLElement} area
      * @param {"down"|"up"|"right"|"left"} direction
-     * @returns {true?} true if the next card has been focused
+     * @returns {true | undefined} true if the next card has been focused
      */
     focusNextCard(area, direction) {
         const { isGrouped } = this.props.list;
-        const closestCard = document.activeElement.closest(".o_kanban_record");
+        const closestCard = document.activeElement?.closest(".o_kanban_record");
         if (!closestCard) {
             return;
         }
@@ -634,7 +649,7 @@ export class KanbanRenderer extends Component {
             .filter((group) => group.length);
 
         let iGroup;
-        let iCard;
+        let iCard = -1;
         for (iGroup = 0; iGroup < cards.length; iGroup++) {
             const i = cards[iGroup].indexOf(/** @type {HTMLElement} */ (closestCard));
             if (i !== -1) {

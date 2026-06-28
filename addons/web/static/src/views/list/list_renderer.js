@@ -46,7 +46,10 @@ import {
 } from "./list_column_utils.js";
 import { ListGridState } from "./list_grid_state.js";
 import { listGroupRenderingMixin } from "./list_group_rendering.js";
-import { containsActiveElement, useListKeyboardNavigation } from "./list_keyboard_nav.js";
+import {
+    containsActiveElement,
+    useListKeyboardNavigation,
+} from "./list_keyboard_nav.js";
 import { listSortingMixin } from "./list_sorting.js";
 import { useListOptionalFields } from "./list_optional_fields.js";
 import { useListSelection } from "./list_selection.js";
@@ -119,6 +122,37 @@ export class ListRenderer extends Component {
         "optionalActiveFields?",
         "readonly?",
     ];
+
+    /** @type {any} */
+    uiService;
+    /** @type {any} */
+    notificationService;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    tableRef;
+    /** @type {any} */
+    sel;
+    /** @type {any} */
+    nav;
+    /** @type {any[]} */
+    columns;
+    /** @type {any[]} */
+    allColumns;
+    /** @type {any} */
+    editedRecord;
+    /** @type {any} */
+    gridState;
+    /** @type {any} */
+    virt;
+    /** @type {any} */
+    agg;
+    /** @type {any} */
+    columnWidths;
+    /** @type {any} */
+    state;
+    /** @type {any} */
+    activeElement;
+    /** @type {any[]} */
+    dialogClose;
 
     setup() {
         useRenderCounter("list.ListRenderer");
@@ -241,10 +275,7 @@ export class ListRenderer extends Component {
             this.allColumns = /** @type {Column[]} */ (
                 processAllColumns(this.props.archInfo.columns, this.props.list)
             );
-            measure(
-                "list:processAllColumns",
-                "list:processAllColumns:start",
-            );
+            measure("list:processAllColumns", "list:processAllColumns:start");
 
             Object.assign(
                 this.optionalActiveFields,
@@ -269,10 +300,7 @@ export class ListRenderer extends Component {
             });
             mark("list:gridState.rebuild:start");
             this.gridState.rebuild();
-            measure(
-                "list:gridState.rebuild",
-                "list:gridState.rebuild:start",
-            );
+            measure("list:gridState.rebuild", "list:gridState.rebuild:start");
 
             mark("list:virt.refresh:start");
             this.virt.refresh();
@@ -641,6 +669,7 @@ export class ListRenderer extends Component {
      * @param {RelationalRecord} record
      * @param {Column} column
      * @param {PointerEvent} ev
+     * @param {boolean} [newWindow]
      */
     async onCellClicked(record, column, ev, newWindow) {
         if (/** @type {any} */ (ev.target).special_click) {
@@ -656,9 +685,9 @@ export class ListRenderer extends Component {
             (this.isInlineEditable(record) && !hasSelection)
         ) {
             if (record.isInEdition && this.editedRecord === record) {
-                const cell = this.tableRef.el.querySelector(
-                    `.o_selected_row td[name='${column.name}']`,
-                );
+                const cell = /** @type {HTMLElement} */ (
+                    this.tableRef.el
+                ).querySelector(`.o_selected_row td[name='${column.name}']`);
                 if (cell && containsActiveElement(cell)) {
                     this.nav.lastEditedCell = { column, record };
                     // Cell is already focused.
@@ -670,7 +699,8 @@ export class ListRenderer extends Component {
                 const recordId = record.id;
                 await this.resequencePromise;
                 // row might have changed position after resequence — look up by id
-                record = this.props.list.records.find((r) => r.id === recordId) || record;
+                record =
+                    this.props.list.records.find((r) => r.id === recordId) || record;
                 await this.props.list.enterEditMode(record);
                 this.nav.cellToFocus = { column, record };
                 if (
@@ -787,7 +817,9 @@ export class ListRenderer extends Component {
 
         if (handled) {
             this.lastCreatingAction = false;
-            for (const tbody of this.tableRef.el.getElementsByTagName("tbody")) {
+            for (const tbody of /** @type {HTMLElement} */ (
+                this.tableRef.el
+            ).getElementsByTagName("tbody")) {
                 tbody.classList.add("o_keyboard_navigation");
             }
             ev.preventDefault();
@@ -915,9 +947,9 @@ export class ListRenderer extends Component {
             return; // there's no row or group in edition
         }
 
-        this.tableRef.el
+        /** @type {HTMLElement} */ (this.tableRef.el)
             .querySelector("tbody")
-            .classList.remove("o_keyboard_navigation");
+            ?.classList.remove("o_keyboard_navigation");
 
         const target = /** @type {HTMLElement} */ (ev.target);
         // Close group input when the user clicks anywhere except the input itself.
@@ -925,7 +957,10 @@ export class ListRenderer extends Component {
         if (this.state.showGroupInput && !target.closest(".o_list_group_input")) {
             this.state.showGroupInput = false;
         }
-        if (this.tableRef.el.contains(target) && target.closest(".o_data_row")) {
+        if (
+            /** @type {HTMLElement} */ (this.tableRef.el).contains(target) &&
+            target.closest(".o_data_row")
+        ) {
             // ignore clicks inside the table that are originating from a record row
             // as they are handled directly by the renderer.
             return;

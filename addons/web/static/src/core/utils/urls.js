@@ -98,11 +98,12 @@ export function imageUrl(
     }
     if (unique) {
         if (DateTime && unique instanceof DateTime) {
-            urlParams.unique = unique.ts;
+            // `.ts` is luxon's internal epoch-ms, not in @types/luxon's public surface.
+            urlParams.unique = /** @type {any} */ (unique).ts;
         } else if (DateTime) {
             const dateTimeFromUnique = DateTime.fromSQL(unique);
             if (dateTimeFromUnique.isValid) {
-                urlParams.unique = dateTimeFromUnique.ts;
+                urlParams.unique = /** @type {any} */ (dateTimeFromUnique).ts;
             } else if (typeof unique === "string" && unique.length) {
                 urlParams.unique = unique;
             }

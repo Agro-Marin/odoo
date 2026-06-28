@@ -189,7 +189,10 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
 
     let empty = !record.isNew;
     if ("isEmpty" in field) {
-        empty = empty && field.isEmpty(record, fieldName);
+        const isEmpty = /** @type {(record: any, fieldName: string) => boolean} */ (
+            field.isEmpty
+        );
+        empty = empty && isEmpty(record, fieldName);
     } else {
         empty = empty && !record.data[fieldName];
     }

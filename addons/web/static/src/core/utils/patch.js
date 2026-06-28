@@ -5,7 +5,7 @@
 
 /**
  *  @typedef {{
- *      originalProperties: Map<string, PropertyDescriptor>;
+ *      originalProperties: Map<string, PropertyDescriptor | undefined>;
  *      skeleton: object;
  *      extensions: Set<object>;
  *  }} PatchDescription
@@ -20,14 +20,16 @@ const patchDescriptions = new WeakMap();
  * @returns {PatchDescription}
  */
 function getPatchDescription(objToPatch) {
-    if (!patchDescriptions.has(objToPatch)) {
-        patchDescriptions.set(objToPatch, {
+    let description = patchDescriptions.get(objToPatch);
+    if (!description) {
+        description = {
             originalProperties: new Map(),
             skeleton: Object.create(Object.getPrototypeOf(objToPatch)),
             extensions: new Set(),
-        });
+        };
+        patchDescriptions.set(objToPatch, description);
     }
-    return patchDescriptions.get(objToPatch);
+    return description;
 }
 
 /**
@@ -50,7 +52,7 @@ function isClassPrototype(objToPatch) {
  * Traverse the prototype chain to find a potential property.
  * @param {object} objToPatch
  * @param {string} key
- * @returns {object}
+ * @returns {PropertyDescriptor | null}
  */
 function findAncestorPropertyDescriptor(objToPatch, key) {
     let prototype = objToPatch;
@@ -70,7 +72,7 @@ function findAncestorPropertyDescriptor(objToPatch, key) {
  * If the intent is to patch a class, don't forget to patch the prototype, unless
  * you want to patch static properties/methods.
  *
- * @template T
+ * @template {object} T
  * @template {Partial<T>} U
  * @param {T} objToPatch The object to patch
  * @param {U} extension The object containing the patched properties
@@ -105,7 +107,7 @@ export function patch(objToPatch, extension) {
             newProperty.enumerable = false;
         }
 
-        if ((newProperty.get && 1) ^ (newProperty.set && 1)) {
+        if (Boolean(newProperty.get) !== Boolean(newProperty.set)) {
             // get and set are defined together. If they are both defined
             // in the previous descriptor but only one in the new descriptor
             // then the other will be undefined so we need to apply the
@@ -133,7 +135,7 @@ export function patch(objToPatch, extension) {
                 Object.defineProperty(objToPatch, key, property);
             } else {
                 // Or remove the property if it did not exist at first.
-                delete objToPatch[key];
+                delete (/** @type {Record<string, any>} */ (objToPatch))[key];
             }
         }
 

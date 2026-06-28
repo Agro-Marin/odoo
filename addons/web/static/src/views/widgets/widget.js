@@ -76,7 +76,7 @@ export class Widget extends Component {
      * @returns {{ name: string, widget: Object, options: Object, attrs: Object }}
      */
     static parseWidgetNode = function (node) {
-        const name = node.getAttribute("name");
+        const name = /** @type {string} */ (node.getAttribute("name"));
         const widget = viewWidgetRegistry.get(name);
         const widgetInfo = {
             name,

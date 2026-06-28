@@ -90,9 +90,9 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
     );
     if ("withDomain" in selectedOptions) {
         return {
-            description: selectedOptions.withDomain[0].description,
+            description: /** @type {any} */ (selectedOptions.withDomain)[0].description,
             domain: Domain.and([
-                selectedOptions.withDomain[0].domain,
+                /** @type {any} */ (selectedOptions.withDomain)[0].domain,
                 searchItem.domain,
             ]),
         };

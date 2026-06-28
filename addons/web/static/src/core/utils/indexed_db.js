@@ -10,7 +10,7 @@ const VERSION_KEY = "__version__";
 
 export class IDBQuotaExceededError extends Error {}
 
-function formatStorageSize(size) {
+function formatStorageSize(/** @type {number} */ size) {
     const units = ["B", "KB", "MB", "GB"];
     let i = 0;
     while (size >= 1000 && i < units.length - 1) {
@@ -21,7 +21,7 @@ function formatStorageSize(size) {
 }
 
 export class IndexedDB {
-    constructor(name, version) {
+    constructor(/** @type {string} */ name, /** @type {string} */ version) {
         this.name = name;
         this._tables = new Set([VERSION_TABLE]);
         this.mutex = new Mutex();
@@ -151,7 +151,7 @@ export class IndexedDB {
     /**
      * open the database and execute the callback with the db as parameter.
      *
-     * @params {Function} callback
+     * @param {(db?: IDBDatabase) => any} callback
      * @returns Promise
      */
     async execute(callback) {
@@ -162,7 +162,7 @@ export class IndexedDB {
     // Protected
     // -------------------------------------------------------------------------
 
-    async _deleteDatabase(callback) {
+    async _deleteDatabase(/** @type {() => any} */ callback) {
         return new Promise((resolve) => {
             const request = indexedDB.deleteDatabase(this.name);
             request.onsuccess = () => {
@@ -177,7 +177,7 @@ export class IndexedDB {
         });
     }
 
-    async _checkVersion(version) {
+    async _checkVersion(/** @type {string} */ version) {
         const currentVersion = await this._execute((db) => {
             if (db) {
                 return this._read(db, VERSION_TABLE, VERSION_KEY);
@@ -200,6 +200,10 @@ export class IndexedDB {
         }
     }
 
+    /**
+     * @param {(db?: IDBDatabase) => any} callback
+     * @param {number} [idbVersion]
+     */
     async _execute(callback, idbVersion) {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.name, idbVersion);
@@ -244,7 +248,7 @@ export class IndexedDB {
         });
     }
 
-    async _write(db, table, key, record) {
+    async _write(/** @type {IDBDatabase} */ db, /** @type {string} */ table, /** @type {string} */ key, /** @type {any} */ record) {
         return new Promise((resolve, reject) => {
             // AAB: do we care about write performance?
             // Relaxed durability improves the write performances
@@ -254,8 +258,10 @@ export class IndexedDB {
                 durability: "relaxed",
             });
             transaction.objectStore(table).put(record, key); // put to allow updates
-            transaction.onerror = (ev) => reject(ev.target.error); // firefox (DOMException)
-            transaction.onabort = (ev) => reject(ev.target.error); // chrome (QuotaExceededError)
+            transaction.onerror = (ev) =>
+                reject(/** @type {IDBTransaction} */ (ev.target).error); // firefox (DOMException)
+            transaction.onabort = (ev) =>
+                reject(/** @type {IDBTransaction} */ (ev.target).error); // chrome (QuotaExceededError)
             transaction.oncomplete = resolve;
 
             // Force the changes to be committed to the database asap
@@ -264,7 +270,7 @@ export class IndexedDB {
         });
     }
 
-    async _invalidate(db, tables) {
+    async _invalidate(/** @type {IDBDatabase} */ db, /** @type {string[] | null} */ tables) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
@@ -274,7 +280,7 @@ export class IndexedDB {
                 : objectStoreNames;
 
             if (!tables.length) {
-                return resolve();
+                return resolve(undefined);
             }
             // Relaxed durability improves the write performances
             // https://nolanlawson.com/2021/08/22/speeding-up-indexeddb-reads-and-writes/
@@ -299,7 +305,7 @@ export class IndexedDB {
         });
     }
 
-    async _read(db, table, key) {
+    async _read(/** @type {IDBDatabase} */ db, /** @type {string} */ table, /** @type {string} */ key) {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(table, "readonly");
             const objectStore = transaction.objectStore(table);
@@ -309,19 +315,19 @@ export class IndexedDB {
         });
     }
 
-    async _invalidateByModel(db, tables, model) {
+    async _invalidateByModel(/** @type {IDBDatabase} */ db, /** @type {string[]} */ tables, /** @type {string} */ model) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
             );
             const targetTables = objectStoreNames.filter((t) => tables.includes(t));
             if (!targetTables.length) {
-                return resolve();
+                return resolve(undefined);
             }
             const transaction = db.transaction(targetTables, "readwrite", {
                 durability: "relaxed",
             });
-            transaction.oncomplete = () => resolve();
+            transaction.oncomplete = () => resolve(undefined);
             transaction.onerror = () => reject(transaction.error);
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {
@@ -349,14 +355,14 @@ export class IndexedDB {
         });
     }
 
-    async _invalidateWhere(db, tables, predicate) {
+    async _invalidateWhere(/** @type {IDBDatabase} */ db, /** @type {string[]} */ tables, /** @type {(key: string) => boolean} */ predicate) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
             );
             const targetTables = objectStoreNames.filter((t) => tables.includes(t));
             if (!targetTables.length) {
-                return resolve();
+                return resolve(undefined);
             }
             // Relaxed durability matches sibling write paths; the
             // cursor iteration runs inside the single transaction so
@@ -369,7 +375,7 @@ export class IndexedDB {
             // store ``delete(key)`` writes below) has landed durably.
             // Wire it before opening cursors so the handlers exist when
             // the transaction enters its terminal state.
-            transaction.oncomplete = () => resolve();
+            transaction.oncomplete = () => resolve(undefined);
             transaction.onerror = () => reject(transaction.error);
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {

@@ -131,7 +131,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            "web/static/lib/luxon/luxon.js",
             (
                 "include",
                 "web._assets_bootstrap_frontend",
@@ -322,7 +321,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/**/*.dark.scss",
         ],
         "web._assets_core": [
-            "web/static/lib/luxon/luxon.js",
             "web/static/src/session.js",
             "web/static/src/env.js",
             "web/static/src/ui/**/*",
@@ -459,8 +457,6 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/tests/legacy/legacy_tests/helpers/test_utils_tests.js",
             ),
-            "web/static/lib/fullcalendar/skeleton.css",
-            "web/static/lib/fullcalendar/fullcalendar.global.js",
             "web/static/lib/zxing-library/zxing-library.js",
             "web/static/lib/ace/ace.js",
             "web/static/lib/ace/mode-python.js",
@@ -469,10 +465,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/ace/mode-qweb.js",
             "web/static/lib/ace/theme-monokai.js",
             "web/static/lib/stacktracejs/stacktrace.js",
-            (
-                "include",
-                "web.chartjs_lib",
-            ),
             "web/static/lib/signature_pad/signature_pad.umd.js",
             "web/static/tests/legacy/helpers/**/*.js",
             "web/static/tests/helpers/cleanup.js",
@@ -522,21 +514,10 @@ This module provides the core of the Odoo Web Client.
         "web.assets_clickbot": [
             "web/static/src/webclient/clickbot/clickbot.js",
         ],
-        "web.chartjs_lib": [
-            "/web/static/lib/Chart/Chart.js",
-            "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js",
-        ],
-        "web.fullcalendar_lib": [
-            "/web/static/lib/fullcalendar/skeleton.css",
-            "/web/static/lib/fullcalendar/fullcalendar.global.js",
-            "/web/static/lib/fullcalendar/locales-all.global.js",
-        ],
     },
     "auto_install": True,
     "bootstrap": True,
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'web.assets_web',
             'web.assets_web_dark',

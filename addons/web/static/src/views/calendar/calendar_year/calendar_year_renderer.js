@@ -19,6 +19,7 @@ import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_h
 import {
     dayCellClassNames,
     dayHeaderClassNames,
+    fcInternalClassName,
     getFullCalendarTimeZone,
     useFullCalendar,
 } from "@web/views/calendar/hooks/full_calendar_hook";
@@ -156,7 +157,7 @@ export class CalendarYearRenderer extends Component {
     viewDidMount({ el, view, options }) {
         // v7 dropped ``view.calendar.currentData.options`` — the same
         // calendar options now arrive directly as the ``options`` field
-        // of the didMount payload (see ``fullcalendar.global.js:5358``
+        // of the didMount payload (see ``fullcalendar.esm.js:5358``
         // for the actual ``didMount({ ...renderProps, el })`` call).
         if (!options) {
             return; // v6-shape fallback or unexpected payload
@@ -171,9 +172,12 @@ export class CalendarYearRenderer extends Component {
         // ``CalendarCommonRenderer.viewDidMount``. Year view doesn't
         // auto-scroll like timegrid, but downstream selectors and CSS
         // still target ``.fc-scroller`` (see ``calendar_renderer.scss``).
-        for (const scrollerEl of el.querySelectorAll(".fc-1i")) {
+        // Hashes are resolved at runtime so they survive FC library bumps.
+        const scrollerClass = fcInternalClassName("internalScroller");
+        const liquidClass = fcInternalClassName("liquid");
+        for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
             scrollerEl.classList.add("fc-scroller");
-            if (scrollerEl.classList.contains("fc-7k")) {
+            if (scrollerEl.classList.contains(liquidClass)) {
                 scrollerEl.classList.add("fc-scroller-liquid-y");
             }
         }

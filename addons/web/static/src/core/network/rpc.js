@@ -108,7 +108,7 @@ function validateRPCSettings(settings) {
 export class NetworkError extends Error {}
 
 export class RPCError extends NetworkError {
-    constructor(...args) {
+    constructor(/** @type {any[]} */ ...args) {
         super(...args);
         /** @type {string} */
         this.name = "RPC_ERROR";
@@ -136,7 +136,7 @@ export class RPCError extends NetworkError {
 
 export class ConnectionLostError extends NetworkError {
     /**
-     * @param {string} url
+     * @param {string} [url]
      * @param  {...any} args
      */
     constructor(url, ...args) {
@@ -145,7 +145,7 @@ export class ConnectionLostError extends NetworkError {
             : "Connection couldn't be established or was interrupted";
         super(message, ...args);
         this.name = "ConnectionLostError";
-        /** @type {string} */
+        /** @type {string | undefined} */
         this.url = url;
     }
 }
@@ -407,6 +407,12 @@ export function rpc(url, params = {}, settings = {}) {
     return rpc._rpc(url, params, settings);
 }
 // such that it can be overriden in tests
+/**
+ * @param {string} url
+ * @param {{[key: string]: any}} params
+ * @param {{[key: string]: any}} settings
+ * @returns {Promise<any>}
+ */
 rpc._rpc = function (url, params, settings) {
     validateRPCSettings(settings);
     if (settings.dedup) {

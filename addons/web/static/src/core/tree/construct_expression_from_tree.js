@@ -3,10 +3,8 @@
 
 /** @module @web/core/tree/construct_expression_from_tree - Converts a condition tree into a Python expression string */
 
-/** Local Tree/AST aliases widened to `any` because the canonical types are
- * discriminated unions narrowed via `.type` checks at runtime; TS can't
- * track the narrowing through helper boundaries.
- * @typedef {any} AST */
+/** Tree kept `any` (condition_tree's Tree is a separate union). */
+/** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {any} Tree */
 /** @import { Condition, Options } from "@web/core/tree/condition_tree" */
 
@@ -15,6 +13,7 @@ import { formatAST } from "@web/core/py_js/py";
 import { isValidPath, not } from "@web/core/tree/ast_utils";
 import { astFromValue, Expression, isTree } from "@web/core/tree/condition_tree";
 import { COMPARATORS, TERM_OPERATORS_NEGATION } from "@web/core/tree/operators";
+import { ASTType } from "../py_js/ast_type.js";
 
 /**
  * Normalize a condition by folding negation into the operator when possible.
@@ -38,8 +37,13 @@ function getNormalizedCondition(condition) {
  */
 function isX2Many(ast, options) {
     if (isValidPath(ast, options)) {
-        const fieldDef = options.getFieldDef(ast.value); // safe: isValidPath has not returned null;
-        return ["many2many", "one2many"].includes(fieldDef.type);
+        // isValidPath only returns true when getFieldDef is defined and returns
+        // non-null (see ast_utils.isValidPath), so the optional call resolves.
+        const fieldDef = options.getFieldDef?.(ast.value);
+        return (
+            !!fieldDef &&
+            ["many2many", "one2many"].includes(/** @type {Record<string, any>} */ (fieldDef).type)
+        );
     }
     return false;
 }
@@ -56,11 +60,11 @@ function isX2Many(ast, options) {
 function _constructExpressionFromTree(tree, options, isRoot = false) {
     if (tree.type === "connector" && tree.value === "|" && tree.children.length === 2) {
         // check if we have an "if else"
-        const isSimpleAnd = (tree) =>
+        const isSimpleAnd = (/** @type {Tree} */ tree) =>
             tree.type === "connector" &&
             tree.value === "&" &&
             tree.children.length === 2;
-        if (tree.children.every((c) => isSimpleAnd(c))) {
+        if (tree.children.every((/** @type {Tree} */ c) => isSimpleAnd(c))) {
             const [c1, c2] = tree.children;
             for (let i = 0; i < 2; i++) {
                 const c1Child = c1.children[i];
@@ -84,7 +88,7 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
 
     if (tree.type === "connector") {
         const connector = tree.value === "&" ? "and" : "or";
-        const subExpressions = tree.children.map((c) =>
+        const subExpressions = tree.children.map((/** @type {Tree} */ c) =>
             _constructExpressionFromTree(c, options),
         );
         if (!subExpressions.length) {
@@ -124,11 +128,11 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
             // check if this is too restricive for us
             return new Error("Invalid condition");
         }
-        return formatAST({ type: 2, value: Boolean(path) });
+        return formatAST({ type: ASTType.Boolean, value: Boolean(path) });
     }
 
     const pathAST = astFromValue(path);
-    if (typeof path == "string" && isValidPath({ type: 5, value: path }, options)) {
+    if (typeof path == "string" && isValidPath({ type: ASTType.Name, value: path }, options)) {
         pathAST.type = 5;
     }
 
@@ -145,39 +149,41 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     if (
         ["in", "not in"].includes(operator) &&
         !(value instanceof Expression) &&
-        ![4, 10].includes(valueAST.type)
+        !(/** @type {number[]} */ ([ASTType.List, ASTType.Tuple])).includes(valueAST.type)
     ) {
-        valueAST = { type: 4, value: [valueAST] };
+        valueAST = { type: ASTType.List, value: [valueAST] };
     }
 
     if (
-        pathAST.type === 5 &&
+        pathAST.type === ASTType.Name &&
         isX2Many(pathAST, options) &&
         ["in", "not in"].includes(operator)
     ) {
-        const ast = {
-            type: 8,
+        // Hand-built `set(path).intersection(value)` call. Cast to AST: the
+        // node omits FunctionCall's `kwargs` (formatAST tolerates its absence).
+        const ast = /** @type {AST} */ ({
+            type: ASTType.FunctionCall,
             fn: {
-                type: 15,
+                type: ASTType.ObjLookup,
                 obj: {
                     args: [pathAST],
-                    type: 8,
+                    type: ASTType.FunctionCall,
                     fn: {
-                        type: 5,
+                        type: ASTType.Name,
                         value: "set",
                     },
                 },
                 key: "intersection",
             },
             args: [valueAST],
-        };
+        });
         return formatAST(operator === "not in" ? not(ast) : ast);
     }
 
     // add case true for boolean fields
 
     return formatAST({
-        type: 7,
+        type: ASTType.BinaryOperator,
         op,
         left: pathAST,
         right: valueAST,

@@ -6,10 +6,9 @@
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
 import { registerField } from "@web/fields/_registry";
+import { getFieldCodec } from "@web/core/field_codec";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-const formatters = registry.category("formatters");
 
 export class BadgeField extends Component {
     static template = "web.BadgeField";
@@ -24,11 +23,9 @@ export class BadgeField extends Component {
 
     /** @returns {string} Field value formatted for display (respects selection labels). */
     get formattedValue() {
-        const formatter = formatters.get(
-            this.props.record.fields[this.props.name].type,
-        );
-        return formatter(this.props.record.data[this.props.name], {
-            selection: this.props.record.fields[this.props.name].selection,
+        const { type, selection } = this.props.record.fields[this.props.name];
+        return getFieldCodec(type).format(this.props.record.data[this.props.name], {
+            selection,
         });
     }
 

@@ -18,6 +18,9 @@ export class PriorityField extends Component {
         autosave: { type: Boolean, optional: true },
     };
 
+    /** @type {{ index: number }} */
+    state;
+
     setup() {
         this.state = useState({
             index: -1,

@@ -30,10 +30,10 @@ import { session } from "@web/session";
  * @property {boolean} showEffect - whether to show UI effects (confetti, etc.)
  * @property {number} userId - res.users ID
  * @property {string} writeDate - partner write date (for avatar cache busting)
- * @property {Object} context - user context (lang, tz, uid, allowed_company_ids)
+ * @property {Record<string, any>} context - user context (lang, tz, uid, allowed_company_ids)
  * @property {string} lang - BCP 47 locale string
  * @property {string} tz - timezone identifier
- * @property {Object} settings - res.users.settings snapshot
+ * @property {Record<string, any>} settings - res.users.settings snapshot
  * @property {(update: Object) => void} updateContext - merge keys into the user context
  * @property {(group: string) => Promise<boolean>} hasGroup - check group membership (cached)
  * @property {(model: string, operation: string, ids?: number[]) => Promise<boolean>} checkAccessRight - check model ACL (cached)
@@ -99,7 +99,8 @@ export function _makeUser(session) {
     function updateActiveCompanies(cids, allowedCompanies, defaultCompany) {
         activeCompanies = cids
             .map((cid) => allowedCompanies.find((c) => c.id === cid))
-            .filter(Boolean);
+            // Narrow out the `undefined` from `.find` (TS 5.5+ infers the predicate).
+            .filter((c) => c !== undefined);
         if (!activeCompanies.length) {
             // Fall back to the default company, or the first allowed company if
             // the default is undefined (e.g. session current_company not found
@@ -128,10 +129,15 @@ export function _makeUser(session) {
         userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
     }
 
-    // Companies information
+    // Companies information. Session data with heterogeneous shapes (call sites
+    // build varying subsets of id/child_ids/currency_id), so typed `any[]`.
+    /** @type {any[]} */
     let allowedCompanies = [];
+    /** @type {any[]} */
     const allowedCompaniesWithAncestors = [];
+    /** @type {any[]} */
     let activeCompanies = [];
+    /** @type {any} */
     let defaultCompany;
 
     if (userCompanies) {
@@ -179,7 +185,7 @@ export function _makeUser(session) {
             kwargs: { context },
         });
     };
-    const getGroupCacheKey = (group) => group;
+    const getGroupCacheKey = (/** @type {string} */ group) => group;
     const groupCache = new Cache(getGroupCacheValue, getGroupCacheKey);
     if (isInternalUser !== undefined) {
         groupCache.cache["base.group_user"] = Promise.resolve(isInternalUser);
@@ -206,8 +212,11 @@ export function _makeUser(session) {
             kwargs: { context },
         });
     };
-    const getAccessRightCacheKey = (model, operation, ids) =>
-        JSON.stringify([model, operation, ids]);
+    const getAccessRightCacheKey = (
+        /** @type {string} */ model,
+        /** @type {string} */ operation,
+        /** @type {number[]} */ ids,
+    ) => JSON.stringify([model, operation, ids]);
     const accessRightCache = new Cache(
         getAccessRightCacheValue,
         getAccessRightCacheKey,
@@ -296,7 +305,7 @@ export function _makeUser(session) {
                   ? [activeCompanies[0].id]
                   : [];
 
-            function addCompanies(companyIds) {
+            function addCompanies(/** @type {number[]} */ companyIds) {
                 for (const companyId of companyIds) {
                     if (!newCompanyIds.includes(companyId)) {
                         newCompanyIds.push(companyId);

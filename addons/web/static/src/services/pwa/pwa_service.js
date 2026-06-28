@@ -24,7 +24,9 @@ const serviceRegistry = registry.category("services");
  * is already stored in this variable, or add an event listener itself, to make sure the `_handleBeforeInstallPrompt`
  * function is called at the right moment, and can give the correct information to the service.
  */
+/** @type {Event | null} */
 let BEFOREINSTALLPROMPT_EVENT;
+/** @type {((ev: Event) => void) | undefined} */
 let REGISTER_BEFOREINSTALLPROMPT_EVENT;
 
 browser.addEventListener("beforeinstallprompt", (ev) => {
@@ -64,7 +66,9 @@ export const pwaService = {
      * @returns {PwaServiceState}
      */
     start(env, { dialog }) {
+        /** @type {any} */
         let _manifest;
+        /** @type {any} */
         let nativePrompt;
 
         const state = reactive({

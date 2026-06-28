@@ -19,6 +19,9 @@ export class BooleanField extends Component {
         ...standardFieldProps,
     };
 
+    /** @type {{ value?: boolean }} */
+    state;
+
     setup() {
         useRenderCounter("fields.BooleanField");
         this.state = useState(/** @type {{ value?: boolean }} */ ({}));

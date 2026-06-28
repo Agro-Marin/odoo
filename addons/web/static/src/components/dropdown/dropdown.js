@@ -129,6 +129,17 @@ export class Dropdown extends Component {
         bottomSheet: true,
     };
 
+    /** @type {any} */
+    nesting;
+    /** @type {any} */
+    group;
+    /** @type {any} */
+    popover;
+    /** @type {any} */
+    navigation;
+    /** @type {import("services").ServiceFactories["ui"]} */
+    uiService;
+
     setup() {
         this.menuRef = this.props.menuRef || useChildRef();
         this._boundHandleClick = this.handleClick.bind(this);
@@ -263,7 +274,7 @@ export class Dropdown extends Component {
         }
 
         if (this.hasParent || this.group.isOpen) {
-            this.target.focus();
+            this.target?.focus();
             this.state.open();
         }
     }

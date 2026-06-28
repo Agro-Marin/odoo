@@ -19,8 +19,8 @@ function onKeydown(/** @type {KeyboardEvent} */ ev) {
     ev.preventDefault();
     target.setRangeText(
         decimalPoint,
-        target.selectionStart,
-        target.selectionEnd,
+        /** @type {number} */ (target.selectionStart),
+        /** @type {number} */ (target.selectionEnd),
         "end",
     );
 }

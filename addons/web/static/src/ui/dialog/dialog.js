@@ -19,7 +19,12 @@ import { useActiveElement } from "@web/ui/block/ui_service";
 const useDialogDraggable = makeDraggableHook(
     /** @type {any} */ ({
         name: "useDialogDraggable",
-        onWillStartDrag({ ctx, addCleanup, addStyle, getRect }) {
+        onWillStartDrag(/** @type {{ ctx: { current: any }, addCleanup: Function, addStyle: Function, getRect: Function }} */ {
+            ctx,
+            addCleanup,
+            addStyle,
+            getRect,
+        }) {
             const { height, width } = getRect(ctx.current.element);
             ctx.current.container = document.createElement("div");
             addStyle(ctx.current.container, {
@@ -32,7 +37,7 @@ const useDialogDraggable = makeDraggableHook(
             ctx.current.element.after(ctx.current.container);
             addCleanup(() => ctx.current.container.remove());
         },
-        onDrop({ ctx, getRect }) {
+        onDrop(/** @type {{ ctx: { current: any }, getRect: Function }} */ { ctx, getRect }) {
             const { top, left } = getRect(ctx.current.element);
             return {
                 left: left - ctx.current.elementRect.left,
@@ -59,7 +64,8 @@ export class Dialog extends Component {
         size: {
             type: String,
             optional: true,
-            validate: (s) => ["sm", "md", "lg", "xl", "fs", "fullscreen"].includes(s),
+            validate: (/** @type {any} */ s) =>
+                ["sm", "md", "lg", "xl", "fs", "fullscreen"].includes(s),
         },
         technical: { type: Boolean, optional: true },
         title: { type: String, optional: true },
@@ -121,7 +127,7 @@ export class Dialog extends Component {
                     handle: ".modal-header",
                     ignore: "button, input",
                     edgeScrolling: { enabled: false },
-                    onDrop: ({ top, left }) => {
+                    onDrop: (/** @type {{ top: number, left: number }} */ { top, left }) => {
                         this.position.left += left;
                         this.position.top += top;
                     },

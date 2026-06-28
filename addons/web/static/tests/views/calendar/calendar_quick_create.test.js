@@ -6,7 +6,7 @@ import {
     contains,
     getService,
     mountWithCleanup,
-    preloadBundle,
+    preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { CalendarQuickCreate } from "@web/views/calendar/quick_create/calendar_quick_create";
@@ -35,7 +35,7 @@ async function start(params = {}) {
     await waitFor(`.o_dialog`);
 }
 
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 test.tags("desktop");
 test(`mount a CalendarQuickCreate`, async () => {

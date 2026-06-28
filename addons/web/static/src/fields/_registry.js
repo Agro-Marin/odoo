@@ -142,7 +142,7 @@ export function fieldKey(spec) {
  *   ``"kanban.progressbar"``) or a typed spec.
  * @param {T} widget - Widget descriptor with component, displayName,
  *   supportedTypes, …
- * @param {...unknown} rest - Forwarded to ``registry.add`` (e.g.
+ * @param {...any} rest - Forwarded opaquely to ``registry.add`` (e.g.
  *   ``force`` flag, sequence number).
  * @returns {T}
  */

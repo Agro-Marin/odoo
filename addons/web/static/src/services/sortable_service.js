@@ -57,7 +57,7 @@ export const sortableService = {
                     }
                 }
                 /**
-                 * @type {Map<Function, function():Array>}
+                 * @type {Map<Function, function(): any[]>}
                  */
                 const setupFunctions = new Map();
                 /**
@@ -80,15 +80,21 @@ export const sortableService = {
                 const setupHooks = {
                     wrapState: reactive,
                     throttle: throttleForAnimation,
-                    addListener: (el, type, listener) => {
+                    addListener: (
+                        /** @type {EventTarget} */ el,
+                        /** @type {string} */ type,
+                        /** @type {EventListenerOrEventListenerObject} */ listener,
+                    ) => {
                         el.addEventListener(type, listener);
                         cleanupFunctions.push(() =>
                             el.removeEventListener(type, listener),
                         );
                     },
-                    setup: (setupFn, dependenciesFn) =>
-                        setupFunctions.set(setupFn, dependenciesFn),
-                    teardown: (fn) => cleanupFunctions.push(fn),
+                    setup: (
+                        /** @type {Function} */ setupFn,
+                        /** @type {() => any[]} */ dependenciesFn,
+                    ) => setupFunctions.set(setupFn, dependenciesFn),
+                    teardown: (/** @type {Function} */ fn) => cleanupFunctions.push(fn),
                 };
 
                 useSortable(/** @type {any} */ ({ setupHooks, ...hookParams }));

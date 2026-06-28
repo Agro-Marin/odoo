@@ -7,6 +7,7 @@ import { Domain } from "@web/core/domain";
 import { formatAST } from "@web/core/py_js/py";
 
 import { addChild, connector, toValue } from "./condition_tree.js";
+import { ASTType } from "../py_js/ast_type.js";
 /** @import { AST } from "@web/core/py_js/py_parser" */
 /** @import { DomainRepr } from "@web/core/domain" */
 /** @import { Tree } from "./condition_tree.js" */
@@ -20,12 +21,12 @@ import { addChild, connector, toValue } from "./condition_tree.js";
 function _constructTree(ASTs, distributeNot = false, negate = false) {
     const [firstAST, ...tailASTs] = ASTs;
 
-    if (firstAST.type === 1 && /** @type {any} */ (firstAST).value === "!") {
+    if (firstAST.type === ASTType.String && /** @type {any} */ (firstAST).value === "!") {
         return _constructTree(tailASTs, distributeNot, !negate);
     }
 
     /** @type {any} */
-    const tree = { type: firstAST.type === 1 ? "connector" : "condition" };
+    const tree = { type: firstAST.type === ASTType.String ? "connector" : "condition" };
     if (tree.type === "connector") {
         tree.value = /** @type {any} */ (firstAST).value;
         if (distributeNot && negate) {

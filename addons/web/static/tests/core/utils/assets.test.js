@@ -257,3 +257,116 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
     iframeFirst.remove();
     iframeSecond.remove();
 });
+
+// ---------------------------------------------------------------------------
+// ESM path (loadESMBundle) — same-document and cross-document
+// ---------------------------------------------------------------------------
+
+test("loadESMBundle: same-document imports specifiers and registers them on odoo.loader", async () => {
+    const registered = [];
+    patchWithCleanup(odoo.loader, {
+        registerNativeModules: (modules) => registered.push(modules),
+    });
+
+    const spec = "data:text/javascript,export const answer = 42;";
+    await assets.loadESMBundle([spec]);
+
+    expect(registered.length).toBe(1);
+    expect(registered[0][spec].answer).toBe(42);
+});
+
+/**
+ * Build a detached iframe whose window carries a mock ``odoo.loader`` with the
+ * given pre-registered modules, and capture every node appended to its head.
+ * @param {Map<string, object>} modules
+ */
+const makeCrossDocTarget = (modules) => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const targetDoc = iframe.contentDocument;
+    const targetWin = iframe.contentWindow;
+    targetWin.odoo = { loader: { modules } };
+    const captured = [];
+    patchWithCleanup(targetDoc.head, { appendChild: (node) => captured.push(node) });
+    return { iframe, targetDoc, targetWin, captured };
+};
+
+const getInjectedImports = (captured) => {
+    const mapNode = captured.find((n) => n.type === "importmap");
+    return mapNode ? JSON.parse(mapNode.textContent).imports : null;
+};
+
+test("loadESMBundle: cross-document builds bridge import map, reusing server bridges", async () => {
+    const { iframe, targetWin, captured } = makeCrossDocTarget(
+        new Map([
+            ["@web/foo", { bar: 1, default: {} }], // runtime-only → data: bridge
+            ["@web/served", { baz: 2 }], // covered by a server bridge → reuse it
+            ["@web/own", { qux: 3 }], // covered by a server REAL FILE url
+            ["@odoo/owl", { Component: 1 }], // always skipped
+        ]),
+    );
+    const serverMap = {
+        "@web/served": "/web/assets/esm/bridges/abc.js", // bridge URL
+        "@web/own": "/web/own/static/src/own.js", // raw source file
+        "@web/extra": "/web/assets/esm/bridges/def.js", // not loaded at runtime
+    };
+
+    const promise = assets.loadESMBundle(["@web/served"], {
+        targetDoc: iframe.contentDocument,
+        importMap: serverMap,
+    });
+    const imports = getInjectedImports(captured);
+
+    // @web/foo: runtime-only → data: bridge for the bare spec AND its file URL
+    // (``specToModuleUrl("@web/foo")`` === "/web/static/src/foo.js").
+    expect(imports["@web/foo"].startsWith("data:")).toBe(true);
+    expect(imports["/web/static/src/foo.js"]).toBe(imports["@web/foo"]);
+    const fooSrc = decodeURIComponent(imports["@web/foo"].slice("data:text/javascript,".length));
+    expect(fooSrc.includes('odoo.loader.modules.get("@web/foo")')).toBe(true);
+    expect(fooSrc.includes("export const bar = _m?.bar;")).toBe(true);
+
+    // @web/served: server BRIDGE reused; no data: URI generated; file URL → bridge.
+    expect(imports["@web/served"]).toBe("/web/assets/esm/bridges/abc.js");
+    expect(imports["/web/static/src/served.js"]).toBe("/web/assets/esm/bridges/abc.js");
+
+    // @web/own: server provides a RAW FILE → bare spec resolves to it (server
+    // wins), but the relative-import URL must NOT point at the raw file (that
+    // would re-evaluate); it stays a loader-re-exporting data: bridge.
+    expect(imports["@web/own"]).toBe("/web/own/static/src/own.js");
+    expect(imports["/web/static/src/own.js"].startsWith("data:")).toBe(true);
+
+    // @odoo/owl is never bridged.
+    expect(imports["@odoo/owl"]).toBe(undefined);
+
+    // Server-only entry (not loaded at runtime) is still merged in.
+    expect(imports["@web/extra"]).toBe("/web/assets/esm/bridges/def.js");
+
+    // Resolve the pending load by firing the done event the injected script
+    // would have dispatched.
+    const scriptNode = captured.find((n) => n.type === "module");
+    expect(Boolean(scriptNode)).toBe(true);
+    const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
+    targetWin.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
+    await expect(promise).resolves.toBe(undefined);
+
+    iframe.remove();
+});
+
+test("loadESMBundle: cross-document rejects with the injected script's error detail", async () => {
+    const { iframe, targetWin, captured } = makeCrossDocTarget(new Map());
+
+    const promise = assets.loadESMBundle(["@web/x"], {
+        targetDoc: iframe.contentDocument,
+        importMap: { "@web/x": "data:text/javascript,export default 1" },
+    });
+    const scriptNode = captured.find((n) => n.type === "module");
+    const token = scriptNode.textContent.match(/__odoo_esm_bundle_error_(\d+)/)[1];
+    targetWin.dispatchEvent(
+        new CustomEvent(`__odoo_esm_bundle_error_${token}`, {
+            detail: new Error("boom in iframe"),
+        }),
+    );
+    await expect(promise).rejects.toThrow(/boom in iframe/);
+
+    iframe.remove();
+});

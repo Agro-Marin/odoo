@@ -52,7 +52,7 @@ export const viewService = {
     dependencies: ["orm"],
     async: ["loadViews"],
     start(env, { orm }) {
-        rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
+        rpcBus.addEventListener(RpcEvent.RESPONSE, (/** @type {CustomEvent} */ ev) => {
             // ``ev.detail`` itself may be null (synthetic test fires or a
             // malformed event). Optional-chain it before reading ``.data``
             // so the listener never throws on the shared bus.

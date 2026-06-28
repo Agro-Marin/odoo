@@ -72,10 +72,11 @@ const FUZZY_NAMESPACES = ["default"];
  * @returns an array filter predicate
  */
 function commandsWithinCategory(categoryName, categories) {
-    return (cmd) => {
+    return (/** @type {CommandItem} */ cmd) => {
         const inCurrentCategory = categoryName === cmd.category;
         const fallbackCategory =
-            categoryName === "default" && !categories.includes(cmd.category);
+            categoryName === "default" &&
+            !categories.includes(/** @type {string} */ (cmd.category));
         return inCurrentCategory || fallbackCategory;
     };
 }
@@ -112,7 +113,8 @@ export class CommandPalette extends Component {
 
     setup() {
         if (this.props.bus) {
-            const setConfig = ({ detail }) => this.setCommandPaletteConfig(detail);
+            const setConfig = (/** @type {{ detail: CommandPaletteConfig }} */ { detail }) =>
+                this.setCommandPaletteConfig(detail);
             this.props.bus.addEventListener(CommandPaletteEvent.SET_CONFIG, setConfig);
             onWillDestroy(() =>
                 this.props.bus.removeEventListener(CommandPaletteEvent.SET_CONFIG, setConfig),
@@ -187,7 +189,9 @@ export class CommandPalette extends Component {
         this.configByNamespace = config.configByNamespace || {};
         this.state.FooterComponent = config.FooterComponent;
 
-        this.providersByNamespace = { default: [] };
+        this.providersByNamespace = /** @type {Record<string, Provider[]>} */ ({
+            default: [],
+        });
         for (const provider of config.providers) {
             const namespace = provider.namespace || "default";
             if (namespace in this.providersByNamespace) {
@@ -209,7 +213,7 @@ export class CommandPalette extends Component {
      * Modifies the commands to be displayed according to the namespace and the options.
      * Selects the first command in the new list.
      * @param {string} namespace
-     * @param {object} options
+     * @param {{ searchValue?: string, activeElement?: Element, sessionId?: number }} [options]
      */
     async setCommands(namespace, options = {}) {
         this.categoryKeys = ["default"];
@@ -219,7 +223,9 @@ export class CommandPalette extends Component {
             const result = provide(this.env, options);
             return result;
         });
-        let commands = (await this.keepLast.add(Promise.all(proms))).flat();
+        let commands = /** @type {CommandItem[]} */ (
+            (await this.keepLast.add(Promise.all(proms))).flat()
+        );
         const namespaceConfig = /** @type {any} */ (
             this.configByNamespace[namespace] || {}
         );
@@ -228,6 +234,7 @@ export class CommandPalette extends Component {
         } else {
             // we have to sort the commands by category to avoid navigation issues with the arrows
             if (namespaceConfig.categories) {
+                /** @type {CommandItem[]} */
                 let commandsSorted = [];
                 this.categoryKeys = namespaceConfig.categories;
                 this.categoryNames = namespaceConfig.categoryNames || {};
@@ -343,6 +350,9 @@ export class CommandPalette extends Component {
         }
     }
 
+    /**
+     * @param {number} index
+     */
     onCommandMouseEnter(index) {
         if (this.mouseSelectionActive) {
             this.selectCommand(index);
@@ -360,7 +370,7 @@ export class CommandPalette extends Component {
         try {
             await this.setCommands(this.state.namespace, {
                 searchValue,
-                activeElement: this.activeElement,
+                activeElement: /** @type {Element} */ (this.activeElement),
                 sessionId: this._sessionId,
             });
         } finally {
@@ -387,14 +397,20 @@ export class CommandPalette extends Component {
         });
     }
 
+    /**
+     * @param {Event} ev
+     */
     onSearchInput(ev) {
-        this.debounceSearch(ev.target.value);
+        this.debounceSearch(/** @type {HTMLInputElement} */ (ev.target).value);
     }
 
+    /**
+     * @param {KeyboardEvent} ev
+     */
     onKeyDown(ev) {
         if (
             ev.key.toLowerCase() === "backspace" &&
-            !ev.target.value.length &&
+            !(/** @type {HTMLInputElement} */ (ev.target).value.length) &&
             !ev.repeat
         ) {
             this.switchNamespace("default");
@@ -407,9 +423,10 @@ export class CommandPalette extends Component {
 
     /**
      * Close the palette on outside click.
+     * @param {Event} ev
      */
     onWindowMouseDown(ev) {
-        if (!this.root.el.contains(ev.target)) {
+        if (!this.root.el.contains(/** @type {Node} */ (ev.target))) {
             this.props.close();
         }
     }
@@ -427,7 +444,7 @@ export class CommandPalette extends Component {
             this.configByNamespace[namespace] || {}
         );
         this.lastDebounceSearch = debounce(
-            (value) => this.search(value),
+            (/** @type {string} */ value) => this.search(value),
             namespaceConfig.debounceDelay || 0,
         );
         this.state.namespace = namespace;

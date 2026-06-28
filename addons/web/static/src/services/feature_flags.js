@@ -291,6 +291,7 @@ export function _resetFeatureFlagsCache() {
  * @returns {Array<{ name: string; value: FeatureFlagValue; source: "url" | "localStorage" | "server"; }>}
  */
 export function getFeatureFlagsSnapshot() {
+    /** @type {{ name: string; value: FeatureFlagValue; source: "url" | "server" | "localStorage" }[]} */
     const out = [];
     const seen = new Set();
     const urlOverrides = _getUrlOverrides();

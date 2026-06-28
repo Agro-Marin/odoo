@@ -41,7 +41,7 @@ function cast(value) {
  * @typedef {{ [key: string]: any }} Route
  */
 
-function parseString(str) {
+function parseString(/** @type {string} */ str) {
     if (!str) {
         return Object.create(null);
     }
@@ -76,7 +76,7 @@ function computeNextState(values, replace) {
     return sanitizeSearch(nextState);
 }
 
-function sanitize(obj, valueToRemove) {
+function sanitize(/** @type {Record<string, any>} */ obj, /** @type {any} */ valueToRemove) {
     return Object.fromEntries(
         Object.entries(obj)
             .filter(([, v]) => v !== valueToRemove)
@@ -84,11 +84,11 @@ function sanitize(obj, valueToRemove) {
     );
 }
 
-function sanitizeSearch(search) {
+function sanitizeSearch(/** @type {Record<string, any>} */ search) {
     return sanitize(search);
 }
 
-function sanitizeHash(hash) {
+function sanitizeHash(/** @type {Record<string, any>} */ hash) {
     return sanitize(hash, "");
 }
 
@@ -108,7 +108,7 @@ export function parseSearchQuery(search) {
     return search ? parseString(search.slice(1)) : {};
 }
 
-function pathFromActionState(state) {
+function pathFromActionState(/** @type {Route} */ state) {
     const path = [];
     const { action, model, active_id, resId } = state;
     if (active_id && typeof active_id === "number") {
@@ -146,7 +146,7 @@ export function startUrl() {
 function stateToUrl(state) {
     let path = "";
     const keysToOmit = new Set(_hiddenKeysFromUrl);
-    const actionStack = (state.actionStack || [state]).map((a) => ({ ...a }));
+    const actionStack = (state.actionStack || [state]).map((/** @type {Record<string, any>} */ a) => ({ ...a }));
     if (actionStack.at(-1)?.action !== "menu") {
         for (const [prevAct, currentAct] of slidingWindow(actionStack, 2).reverse()) {
             const {
@@ -186,7 +186,7 @@ function stateToUrl(state) {
     return `/${start_url}${path}${search ? `?${search}` : ""}`;
 }
 
-function urlToState(urlObj) {
+function urlToState(/** @type {URL} */ urlObj) {
     const { pathname, hash, search } = urlObj;
     const state = parseSearchQuery(search);
 
@@ -268,21 +268,25 @@ function urlToState(urlObj) {
     return state;
 }
 
+/** @type {Record<string, any>} */
 let state;
+/** @type {any} */
 let pushTimeout;
+/** @type {{ replace: boolean, reload: boolean, state: Record<string, any>, title?: string }} */
 let pushArgs;
+/** @type {Set<string>} */
 let _lockedKeys;
 let _hiddenKeysFromUrl = new Set();
 
 export function startRouter() {
-    const url = new URL(browser.location);
+    const url = new URL(/** @type {any} */ (browser.location));
     state = router.urlToState(url);
     // ** url-retrocompatibility **
     if (browser.location.pathname === "/web") {
         // Change the url of the current history entry to the canonical url.
         // This change should be done only at the first load, and not when clicking on old style internal urls.
         // Or when clicking back/forward on the browser.
-        browser.history.replaceState(browser.history.state, null, url.href);
+        browser.history.replaceState(browser.history.state, "", url.href);
     }
     pushTimeout = null;
     pushArgs = {
@@ -309,7 +313,7 @@ browser.addEventListener("popstate", (ev) => {
         browser.history.replaceState({ nextState: state }, "", browser.location.href);
         return;
     }
-    state = ev.state?.nextState || router.urlToState(new URL(browser.location));
+    state = ev.state?.nextState || router.urlToState(new URL(/** @type {any} */ (browser.location)));
     // Some client actions want to handle loading their own state. This is a ugly hack to allow not
     // reloading the webclient's state when they manipulate history.
     if (!ev.state?.skipRouteChange && !router.skipLoad) {
@@ -345,7 +349,10 @@ browser.addEventListener("click", (ev) => {
         return;
     }
     const a = target.closest("a");
-    const href = a?.getAttribute("href");
+    if (!a) {
+        return;
+    }
+    const href = a.getAttribute("href");
     if (href && !href.startsWith("#")) {
         let url;
         try {
@@ -404,8 +411,8 @@ function makeDebouncedPush(mode) {
         }
     }
     /**
-     * @param {object} state
-     * @param {object} options
+     * @param {Record<string, any>} state
+     * @param {{ replace?: boolean, reload?: boolean, sync?: boolean }} [options]
      */
     return function pushOrReplaceState(state, options = {}) {
         pushArgs.replace ||= options.replace;
@@ -443,8 +450,8 @@ export const router = {
     pushState: makeDebouncedPush("push"),
     replaceState: makeDebouncedPush("replace"),
     cancelPushes: () => browser.clearTimeout(pushTimeout),
-    addLockedKey: (key) => _lockedKeys.add(key),
-    hideKeyFromUrl: (key) => _hiddenKeysFromUrl.add(key),
+    addLockedKey: (/** @type {string} */ key) => _lockedKeys.add(key),
+    hideKeyFromUrl: (/** @type {string} */ key) => _hiddenKeysFromUrl.add(key),
     skipLoad: false,
 };
 

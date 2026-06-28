@@ -65,8 +65,8 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
         precision = 1;
     }
     let roundingFactor = precision;
-    let normalize = (val) => val / roundingFactor;
-    let denormalize = (val) => val * roundingFactor;
+    let normalize = (/** @type {number} */ val) => val / roundingFactor;
+    let denormalize = (/** @type {number} */ val) => val * roundingFactor;
     // inverting small rounding factors reduces rounding errors
     if (roundingFactor < 1) {
         roundingFactor = invertFloat(roundingFactor);
@@ -324,7 +324,7 @@ const _INVERTDICT = Object.freeze({
  * @returns {number}
  */
 export function invertFloat(value) {
-    let res = _INVERTDICT[value];
+    let res = /** @type {Record<number, number>} */ (_INVERTDICT)[value];
     if (res === undefined) {
         const [coeff, expt] = value.toExponential().split("e").map(Number.parseFloat);
         res = Number.parseFloat(`${coeff}e${-expt}`) / coeff ** 2;

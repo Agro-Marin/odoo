@@ -98,7 +98,7 @@ export function intersection(iter1, iter2) {
  * @returns {boolean}
  */
 export function isIterable(value) {
-    return Boolean(value && typeof value === "object" && value[Symbol.iterator]);
+    return Boolean(value && typeof value === "object" && Symbol.iterator in value);
 }
 
 /**

@@ -1,12 +1,13 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, queryAllTexts, queryFirst, queryRect } from "@odoo/hoot-dom";
 import { runAllTimers } from "@odoo/hoot-mock";
 import {
     mockService,
     mountWithCleanup,
-    preloadBundle,
+    preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
 import { CallbackRecorder } from "@web/core/action_hook";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
@@ -36,7 +37,7 @@ async function start(props = {}, target) {
     });
 }
 
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 beforeEach(() => {
     // Upstream uses ``"UTC+1"``, but Luxon turns that into a
     // ``FixedOffsetZone`` whose name (``"UTC+1"``) is rejected by

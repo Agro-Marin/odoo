@@ -71,6 +71,17 @@ export class Many2ManyTagsField extends Component {
     static RECORD_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
     static SEARCH_MORE_LIMIT = 320;
 
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {any} */
+    popover;
+    /** @type {Record<number, any>} */
+    previousColorsMap;
+    /** @type {any} */
+    openMany2xRecord;
+    /** @type {any} */
+    mutex;
+
     setup() {
         useRenderCounter("fields.Many2ManyTagsField");
         this.orm = useService("orm");
@@ -231,7 +242,7 @@ export const many2ManyTagsField = {
     component: Many2ManyTagsField,
     displayName: _t("Tags"),
     supportedOptions: [
-        ...m2oSupportedOptions.filter((o) => o.name !== "no_open"),
+        ...(m2oSupportedOptions ?? []).filter((o) => o.name !== "no_open"),
         {
             label: _t("Can create"),
             name: "create",

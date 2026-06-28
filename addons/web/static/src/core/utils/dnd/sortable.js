@@ -100,7 +100,10 @@ const hookParams = {
     },
 
     // Build steps
-    onComputeParams({ ctx, params }) {
+    onComputeParams(/** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
+        ctx,
+        params,
+    }) {
         // Group selector
         ctx.groupSelector = params.groups || null;
         if (ctx.groupSelector) {
@@ -117,7 +120,12 @@ const hookParams = {
     },
 
     // Runtime steps
-    onDragStart({ ctx, addListener, addStyle, callHandler }) {
+    onDragStart(/** @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }} */ {
+        ctx,
+        addListener,
+        addStyle,
+        callHandler,
+    }) {
         /**
          * Element "pointerenter" event handler.
          * @param {PointerEvent} ev
@@ -148,13 +156,16 @@ const hookParams = {
             callHandler("onElementLeave", { element });
         };
 
-        const onElementComplexPointerEnter = (ev) => {
+        const onElementComplexPointerEnter = (/** @type {PointerEvent} */ ev) => {
             if (ctx.haveAlreadyChanged) {
                 return;
             }
             const element = /** @type {HTMLElement} */ (ev.currentTarget);
 
-            const siblingArray = [...element.parentElement.children].filter(
+            const siblingArray = [
+                // The dragged/target item is always attached to its list here.
+                ...(/** @type {HTMLElement} */ (element.parentElement)).children,
+            ].filter(
                 (el) =>
                     el === current.placeHolder ||
                     (el.matches(elementSelector) &&
@@ -207,7 +218,10 @@ const hookParams = {
             const elementRect = element.getBoundingClientRect();
             const relatedElementRect = relatedElement.getBoundingClientRect();
 
-            const siblingArray = [...element.parentElement.children].filter(
+            const siblingArray = [
+                // The dragged/target item is always attached to its list here.
+                ...(/** @type {HTMLElement} */ (element.parentElement)).children,
+            ].filter(
                 (el) =>
                     el === current.placeHolder ||
                     (el.matches(elementSelector) &&
@@ -303,13 +317,13 @@ const hookParams = {
 
         return pick(current, "element", "group");
     },
-    onDrag({ ctx }) {
+    onDrag(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
         ctx.haveAlreadyChanged = false;
     },
-    onDragEnd({ ctx }) {
+    onDragEnd(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
         return pick(ctx.current, "element", "group");
     },
-    onDrop({ ctx }) {
+    onDrop(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
         const { current, groupSelector } = ctx;
         const previous = current.placeHolder.previousElementSibling;
         const next = current.placeHolder.nextElementSibling;
@@ -332,7 +346,10 @@ const hookParams = {
             };
         }
     },
-    onWillStartDrag({ ctx, addCleanup }) {
+    onWillStartDrag(/** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
+        ctx,
+        addCleanup,
+    }) {
         const { connectGroups, current, groupSelector } = ctx;
 
         if (groupSelector) {

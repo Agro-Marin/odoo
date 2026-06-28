@@ -42,12 +42,12 @@ export function useActiveElement(refName) {
     const uiService = useService("ui");
     const ref = useRef(refName);
 
-    function trapFocus(e) {
+    function trapFocus(/** @type {KeyboardEvent} */ e) {
         const hotkey = getActiveHotkey(e);
         if (!["tab", "shift+tab"].includes(hotkey)) {
             return;
         }
-        const el = e.currentTarget;
+        const el = /** @type {HTMLElement} */ (e.currentTarget);
         const [firstTabableEl, lastTabableEl] = getFirstAndLastTabableElements(el);
         if (!firstTabableEl && !lastTabableEl) {
             e.preventDefault();
@@ -160,7 +160,7 @@ export const utils = {
     getSize() {
         return MEDIAS.findIndex((media) => media.matches);
     },
-    isSmall(ui = {}) {
+    isSmall(/** @type {{ size?: number }} */ ui = {}) {
         return (ui.size ?? utils.getSize()) <= SIZES.SM;
     },
 };
@@ -183,6 +183,7 @@ export function listenSizeChange(callback) {
  * and responsive size tracking.
  */
 export const uiService = {
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         // block/unblock code
         registry
@@ -193,6 +194,7 @@ export const uiService = {
             );
 
         let blockCount = 0;
+        /** @param {{ message?: string, delay?: number }} [data] */
         function block(data) {
             blockCount++;
             // TODO could probably be improved to handle multiple block demands
@@ -218,17 +220,18 @@ export const uiService = {
         }
 
         // UI active element code
+        /** @type {(Document | HTMLElement)[]} */
         let activeElems = [document];
 
-        function activateElement(el) {
+        function activateElement(/** @type {HTMLElement} */ el) {
             activeElems.push(el);
             bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, el);
         }
-        function deactivateElement(el) {
+        function deactivateElement(/** @type {HTMLElement} */ el) {
             activeElems = activeElems.filter((x) => x !== el);
             bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, ui.activeElement);
         }
-        function getActiveElementOf(el) {
+        function getActiveElementOf(/** @type {Node} */ el) {
             for (const activeElement of activeElems.toReversed()) {
                 if (activeElement.contains(el)) {
                     return activeElement;

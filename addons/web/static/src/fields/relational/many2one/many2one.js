@@ -140,6 +140,19 @@ export class Many2One extends Component {
         string: "",
     };
 
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    rootRef;
+    /** @type {import("services").ServiceFactories["action"]} */
+    action;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {{ isFloating: boolean }} */
+    state;
+    /** @type {any} */
+    recordDialog;
+
     setup() {
         this.rootRef = useRef("root");
 
@@ -155,7 +168,7 @@ export class Many2One extends Component {
                 fieldString: this.props.string,
                 isToMany: false,
                 onClose: () => {
-                    this.input.focus();
+                    this.input?.focus();
                 },
                 onRecordSaved: async () => {
                     const resId = this.props.value?.id;
@@ -262,7 +275,7 @@ export class Many2One extends Component {
 
     /** @returns {HTMLInputElement|null} */
     get input() {
-        return this.rootRef.el?.querySelector("input");
+        return this.rootRef.el?.querySelector("input") ?? null;
     }
 
     /** @returns {string} URL path to the linked record's form view */
@@ -387,6 +400,9 @@ class KanbanMany2OneAssignPopover extends Many2One {
 export class KanbanMany2One extends Component {
     static template = "web.KanbanMany2One";
     static props = { ...Many2One.props };
+
+    /** @type {any} */
+    assignPopover;
 
     setup() {
         this.assignPopover = usePopover(KanbanMany2OneAssignPopover, {

@@ -1,5 +1,6 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
@@ -11,7 +12,7 @@ import {
     findComponent,
     models,
     mountView,
-    preloadBundle,
+    preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
 
@@ -27,7 +28,7 @@ class Event extends models.Model {
 }
 
 defineModels([Event]);
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 beforeEach(() => {
     mockDate("2021-08-14T08:00:00");
 });

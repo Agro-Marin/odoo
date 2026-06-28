@@ -52,6 +52,9 @@ export class CogMenu extends ActionMenus {
         items: {},
     };
 
+    /** @type {any[]} */
+    registryItems;
+
     setup() {
         super.setup();
         onWillStart(async () => {
@@ -76,7 +79,9 @@ export class CogMenu extends ActionMenus {
         const areDisplayed = await Promise.all(
             registryItems.map((item) =>
                 "isDisplayed" in item
-                    ? item.isDisplayed(/** @type {import("@web/env").OdooEnv} */ (this.env))
+                    ? /** @type {Function} */ (item.isDisplayed)(
+                          /** @type {import("@web/env").OdooEnv} */ (this.env),
+                      )
                     : true,
             ),
         );
@@ -101,7 +106,7 @@ export class CogMenu extends ActionMenus {
      * >} merged cog + action items, sorted by group
      */
     get cogItems() {
-        return [...this.registryItems, ...this.actionItems].toSorted(
+        return [...this.registryItems, ...(this.actionItems ?? [])].toSorted(
             (item1, item2) => (item1.groupNumber || 0) - (item2.groupNumber || 0),
         );
     }

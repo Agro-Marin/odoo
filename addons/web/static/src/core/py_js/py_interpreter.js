@@ -14,13 +14,17 @@ import {
 } from "./py_date.js";
 import { parseArgs } from "./py_parser.js";
 import { PY_DICT, toPyDict } from "./py_utils.js";
+import { ASTType } from "./ast_type.js";
 
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
 /**
- * @typedef { import("./py_parser").AST } AST
+ * AST node walked by the interpreter — a discriminated union keyed on the
+ * literal ``type`` tag (see {@link ASTType}); ``switch (ast.type)`` narrows each
+ * case to its concrete node shape.
+ * @typedef {import("./ast_type.js").AST} AST
  */
 
 // -----------------------------------------------------------------------------
@@ -29,6 +33,7 @@ import { PY_DICT, toPyDict } from "./py_utils.js";
 
 // Lazy-initialized on first call to evaluate() — avoids TDZ when
 // py_builtin.js hasn't finished executing yet (native ESM circular import).
+/** @type {(value?: any) => boolean} */
 let isTrue;
 
 /** Properties that must never be accessed via bracket or dot notation in expressions. */
@@ -67,7 +72,7 @@ function pytypeIndex(val) {
 }
 
 /**
- * @param {Object} obj
+ * @param {Function} obj
  * @returns {boolean}
  */
 function isConstructor(obj) {
@@ -147,6 +152,11 @@ function isIn(left, right) {
 }
 
 const DICT = {
+    /**
+     * @this {Record<string, any>}
+     * @param {...any} args
+     * @returns {any}
+     */
     get(...args) {
         const { key, defValue } = parseArgs(args, ["key", "defValue"]);
         if (Object.hasOwn(this, key)) {
@@ -159,14 +169,23 @@ const DICT = {
 };
 
 const STRING = {
+    /** @this {string} */
     lower() {
         return this.toLowerCase();
     },
+    /** @this {string} */
     upper() {
         return this.toUpperCase();
     },
 };
 
+/**
+ * @param {string} key
+ * @param {Function} func
+ * @param {Set<any>} set
+ * @param {...any} args
+ * @returns {any}
+ */
 function applyFunc(key, func, set, ...args) {
     // we always receive at least one argument: kwargs (return fnValue(...args, kwargs); in FunctionCall case)
     if (args.length === 1) {
@@ -181,11 +200,14 @@ function applyFunc(key, func, set, ...args) {
 }
 
 const SET = {
-    /** @this {Set<any>} */
+    /**
+     * @this {Set<any>}
+     * @param {...any} args
+     */
     intersection(...args) {
         return applyFunc(
             "intersection",
-            (iterable) => {
+            (/** @type {Iterable<any>} */ iterable) => {
                 const intersection = new Set();
                 for (const i of iterable) {
                     if (this.has(i)) {
@@ -198,11 +220,14 @@ const SET = {
             ...args,
         );
     },
-    /** @this {Set<any>} */
+    /**
+     * @this {Set<any>}
+     * @param {...any} args
+     */
     difference(...args) {
         return applyFunc(
             "difference",
-            (iterable) => {
+            (/** @type {any} */ iterable) => {
                 iterable = new Set(iterable);
                 const difference = new Set();
                 for (const e of this) {
@@ -216,11 +241,14 @@ const SET = {
             ...args,
         );
     },
-    /** @this {Set<any>} */
+    /**
+     * @this {Set<any>}
+     * @param {...any} args
+     */
     union(...args) {
         return applyFunc(
             "union",
-            (iterable) => new Set([...this, ...iterable]),
+            (/** @type {Iterable<any>} */ iterable) => new Set([...this, ...iterable]),
             this,
             ...args,
         );
@@ -244,13 +272,14 @@ function methods(_class) {
 
 // Lazy-initialized on first call to evaluate() — avoids TDZ when
 // py_builtin.js hasn't finished executing yet (native ESM circular import).
+/** @type {Set<any>} */
 let allowedFns;
 
 const unboundFn = Symbol("unbound function");
 
 /**
  * @param {AST} ast
- * @param {Object} context
+ * @param {Record<string, any>} context
  * @returns {any}
  */
 export function evaluate(ast, context = {}) {
@@ -281,23 +310,34 @@ export function evaluate(ast, context = {}) {
         ]);
     }
     const dicts = new Set();
+    /** @type {any} */
     let pyContext;
     let evalDepth = 0;
-    const evalContext = Object.assign(Object.create(null), context);
-    if (!("context" in evalContext)) {
-        Object.defineProperty(evalContext, "context", {
-            get() {
-                if (!pyContext) {
-                    pyContext = toPyDict(context);
-                }
-                return pyContext;
-            },
-        });
-    }
+    // Name resolution reads directly from ``context`` rather than from a
+    // null-proto *copy* of it. The previous implementation ran
+    // ``Object.assign(Object.create(null), context)`` on every ``evaluate``
+    // call, which is O(number-of-keys) — and a record's eval context carries
+    // every field value (see ``RelationalRecord._setEvalContext``), so a
+    // single modifier like ``state == 'draft'`` paid to shallow-copy ~50
+    // unrelated fields per record per render. Reading from ``context``
+    // directly makes a name lookup O(1) and removes the per-call allocation.
+    //
+    // Two invariants of the old copy are preserved explicitly in the Name
+    // case below:
+    //   • null-proto semantics — name resolution uses ``Object.hasOwn`` so a
+    //     name like ``toString``/``constructor`` never resolves to an
+    //     inherited ``Object.prototype`` member; it falls through to a
+    //     builtin or raises, exactly as before.
+    //   • the lazy ``context`` self-reference — referencing ``context`` in an
+    //     expression yields ``toPyDict(context)`` UNLESS the caller supplied
+    //     its own ``context`` key, in which case the caller's value wins.
+    const callerProvidesContext = Object.hasOwn(context, "context");
 
     /**
      * Apply a unary operator within the current evaluation scope.
      * Defined here (instead of module-level) to reuse _evaluate and dicts.
+     * @param {import("./ast_type.js").ASTUnaryOperator} ast
+     * @returns {any}
      */
     function _applyUnaryOp(ast) {
         const value = _evaluate(ast.right);
@@ -320,6 +360,8 @@ export function evaluate(ast, context = {}) {
     /**
      * Apply a binary operator within the current evaluation scope.
      * Defined here (instead of module-level) to reuse _evaluate and dicts.
+     * @param {import("./ast_type.js").ASTBinaryOperator} ast
+     * @returns {any}
      */
     function _applyBinaryOp(ast) {
         const left = _evaluate(ast.left);
@@ -447,32 +489,44 @@ export function evaluate(ast, context = {}) {
         throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
     }
 
+    /**
+     * @param {AST} ast
+     * @returns {any}
+     */
     function _innerEvaluate(ast) {
         if (++evalDepth > MAX_EVAL_DEPTH) {
             throw new EvaluationError("Maximum expression depth exceeded");
         }
         try {
         switch (ast.type) {
-            case 0 /* Number */:
-            case 1 /* String */:
+            case ASTType.Number:
+            case ASTType.String:
                 return ast.value;
-            case 5 /* Name */:
-                if (ast.value in evalContext) {
-                    return evalContext[ast.value];
-                } else if (ast.value in BUILTINS) {
-                    return BUILTINS[ast.value];
-                } else {
-                    throw new EvaluationError(`Name '${ast.value}' is not defined`);
+            case ASTType.Name: {
+                const name = ast.value;
+                if (name === "context" && !callerProvidesContext) {
+                    if (!pyContext) {
+                        pyContext = toPyDict(context);
+                    }
+                    return pyContext;
                 }
-            case 3 /* None */:
+                if (Object.hasOwn(context, name)) {
+                    return context[name];
+                } else if (name in BUILTINS) {
+                    return (/** @type {Record<string, any>} */ (BUILTINS))[name];
+                } else {
+                    throw new EvaluationError(`Name '${name}' is not defined`);
+                }
+            }
+            case ASTType.None:
                 return null;
-            case 2 /* Boolean */:
+            case ASTType.Boolean:
                 return ast.value;
-            case 6 /* UnaryOperator */:
+            case ASTType.UnaryOperator:
                 return _applyUnaryOp(ast);
-            case 7 /* BinaryOperator */:
+            case ASTType.BinaryOperator:
                 return _applyBinaryOp(ast);
-            case 14 /* BooleanOperator */: {
+            case ASTType.BooleanOperator: {
                 const left = _evaluate(ast.left);
                 if (ast.op === "and") {
                     return isTrue(left) ? _evaluate(ast.right) : left;
@@ -480,10 +534,11 @@ export function evaluate(ast, context = {}) {
                     return isTrue(left) ? left : _evaluate(ast.right);
                 }
             }
-            case 4 /* List */:
-            case 10 /* Tuple */:
+            case ASTType.List:
+            case ASTType.Tuple:
                 return ast.value.map(_evaluate);
-            case 11 /* Dictionary */: {
+            case ASTType.Dictionary: {
+                /** @type {Record<string, any>} */
                 const dict = {};
                 for (const key of Object.keys(ast.value || {})) {
                     dict[key] = _evaluate(ast.value[key]);
@@ -491,9 +546,10 @@ export function evaluate(ast, context = {}) {
                 dicts.add(dict);
                 return dict;
             }
-            case 8 /* FunctionCall */: {
+            case ASTType.FunctionCall: {
                 const fnValue = _evaluate(ast.fn);
                 const args = ast.args.map(_evaluate);
+                /** @type {Record<string, any>} */
                 const kwargs = {};
                 for (const kwarg of Object.keys(ast.kwargs || {})) {
                     kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
@@ -509,7 +565,7 @@ export function evaluate(ast, context = {}) {
                 }
                 return fnValue(...args, kwargs);
             }
-            case 12 /* Lookup */: {
+            case ASTType.Lookup: {
                 const dict = _evaluate(ast.target);
                 const key = _evaluate(ast.key);
                 if (BLOCKED_PROPERTIES.has(key)) {
@@ -517,25 +573,25 @@ export function evaluate(ast, context = {}) {
                 }
                 return dict[key];
             }
-            case 13 /* If */: {
+            case ASTType.If: {
                 if (isTrue(_evaluate(ast.condition))) {
                     return _evaluate(ast.ifTrue);
                 } else {
                     return _evaluate(ast.ifFalse);
                 }
             }
-            case 15 /* ObjLookup */: {
+            case ASTType.ObjLookup: {
                 let left = _evaluate(ast.obj);
                 let result;
                 if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
                     // this is a dictionary => need to apply dict methods
-                    result = DICT[ast.key];
+                    result = (/** @type {Record<string, any>} */ (DICT))[ast.key];
                 } else if (typeof left === "string") {
-                    result = STRING[ast.key];
+                    result = (/** @type {Record<string, any>} */ (STRING))[ast.key];
                 } else if (left instanceof Set) {
-                    result = SET[ast.key];
+                    result = (/** @type {Record<string, any>} */ (SET))[ast.key];
                 } else if (ast.key === "get" && typeof left === "object") {
-                    result = DICT[ast.key];
+                    result = (/** @type {Record<string, any>} */ (DICT))[ast.key];
                     left = toPyDict(left);
                 } else {
                     if (BLOCKED_PROPERTIES.has(ast.key)) {
@@ -561,6 +617,7 @@ export function evaluate(ast, context = {}) {
 
     /**
      * @param {AST} ast
+     * @returns {any}
      */
     function _evaluate(ast) {
         const val = _innerEvaluate(ast);

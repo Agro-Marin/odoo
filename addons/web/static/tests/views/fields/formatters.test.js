@@ -1,5 +1,6 @@
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
 import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_helpers";

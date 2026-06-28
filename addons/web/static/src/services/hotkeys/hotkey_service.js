@@ -43,15 +43,19 @@ export const hotkeyService = {
     // Be aware that all odoo hotkeys are designed with this modifier in mind,
     // so changing the overlay modifier may conflict with some shortcuts.
     overlayModifier: "alt",
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ ui: any }} services
+     */
     start(env, { ui }) {
         /** @type {Map<number, HotkeyRegistration>} */
         const registrations = new Map();
         let nextToken = 0;
         let overlaysVisible = false;
 
-        addListeners(browser);
+        addListeners(/** @type {any} */ (browser));
 
-        function addListeners(target) {
+        function addListeners(/** @type {Window} */ target) {
             target.addEventListener("keydown", onKeydown);
             target.addEventListener("keyup", removeHotkeyOverlays);
             target.addEventListener("blur", removeHotkeyOverlays);

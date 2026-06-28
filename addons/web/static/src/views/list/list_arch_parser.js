@@ -236,7 +236,7 @@ export class ListArchParser {
                 });
             } else if (node.tagName === "groupby" && node.getAttribute("name")) {
                 const fieldName = node.getAttribute("name");
-                const coModelName = fields[fieldName].relation;
+                const coModelName = fields[/** @type {string} */ (fieldName)].relation;
                 const groupByArchInfo = groupListArchParser.parse(
                     node,
                     models,
@@ -303,17 +303,21 @@ export class ListArchParser {
                     ? exprToBoolean(xmlDoc.getAttribute("open_form_view") || "")
                     : false;
                 treeAttr.defaultGroupBy = xmlDoc.hasAttribute("default_group_by")
-                    ? xmlDoc.getAttribute("default_group_by").split(",")
+                    ? /** @type {string} */ (
+                          xmlDoc.getAttribute("default_group_by")
+                      ).split(",")
                     : null;
 
                 const limitAttr = node.getAttribute("limit");
                 treeAttr.limit = limitAttr && Number.parseInt(limitAttr, 10);
 
                 const countLimitAttr = node.getAttribute("count_limit");
-                treeAttr.countLimit = countLimitAttr && Number.parseInt(countLimitAttr, 10);
+                treeAttr.countLimit =
+                    countLimitAttr && Number.parseInt(countLimitAttr, 10);
 
                 const groupsLimitAttr = node.getAttribute("groups_limit");
-                treeAttr.groupsLimit = groupsLimitAttr && Number.parseInt(groupsLimitAttr, 10);
+                treeAttr.groupsLimit =
+                    groupsLimitAttr && Number.parseInt(groupsLimitAttr, 10);
 
                 treeAttr.noOpen = exprToBoolean(node.getAttribute("no_open") || "");
                 treeAttr.rawExpand = xmlDoc.getAttribute("expand");

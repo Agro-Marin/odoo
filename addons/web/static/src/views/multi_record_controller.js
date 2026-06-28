@@ -44,6 +44,31 @@ export class MultiRecordController extends Component {
     // Setup
     // -------------------------------------------------------------------------
 
+    /** @type {any} */
+    actionService;
+    /** @type {any} */
+    dialogService;
+    /** @type {any} */
+    notification;
+    /** @type {any} */
+    orm;
+    /** @type {any} */
+    _uiHooks;
+    /** @type {any} */
+    archInfo;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    rootRef;
+    /** @type {boolean} */
+    archiveEnabled;
+    /** @type {any} */
+    searchBarToggler;
+    /** @type {boolean} */
+    firstLoad;
+    /** @type {any} */
+    exportRecords;
+    /** @type {any} */
+    deleteRecordsWithConfirmation;
+
     setup() {
         // --- Services ---
         const { action, dialog, notification, orm, uiHooks } = useControllerServices();
@@ -229,7 +254,9 @@ export class MultiRecordController extends Component {
             if (this.env.isSmall) {
                 this.rootRef.el.scrollTop = 0;
             } else {
-                this.rootRef.el.querySelector(".o_content").scrollTop = 0;
+                /** @type {HTMLElement} */ (
+                    this.rootRef.el.querySelector(".o_content")
+                ).scrollTop = 0;
             }
         }
     }

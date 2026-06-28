@@ -170,7 +170,9 @@ export function parse(string) {
     const type = match[1].toLowerCase();
 
     let key;
+    /** @type {string[]} */
     const names = [];
+    /** @type {Record<string, string>} */
     const params = {};
     let value;
 

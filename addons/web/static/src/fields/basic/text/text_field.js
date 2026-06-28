@@ -37,6 +37,13 @@ export class TextField extends TextInputFieldBase {
         rowCount: 2,
     };
 
+    /** @type {import("@odoo/owl").Ref<HTMLTextAreaElement>} */
+    textareaRef;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    divRef;
+    /** @type {any} */
+    dynamicPlaceholder;
+
     /** @returns {HTMLTextAreaElement | null} */
     get inputEl() {
         return /** @type {HTMLTextAreaElement | null} */ (this.textareaRef.el);

@@ -10,7 +10,7 @@ import { parseExpr } from "@web/core/py_js/py";
 /** @type {Record<string, string|Function>} */
 export const OPERATOR_DESCRIPTIONS = {
     // valid operators (see TERM_OPERATORS in expression.py)
-    "=": (fieldDefType) => {
+    "=": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
             case "many2many":
@@ -20,7 +20,7 @@ export const OPERATOR_DESCRIPTIONS = {
                 return _t("is equal to");
         }
     },
-    "!=": (fieldDefType) => {
+    "!=": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
             case "many2many":
@@ -31,7 +31,7 @@ export const OPERATOR_DESCRIPTIONS = {
         }
     },
     "<=": _t("lower or equal to"),
-    "<": (fieldDefType) => {
+    "<": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "date":
             case "datetime":
@@ -40,7 +40,7 @@ export const OPERATOR_DESCRIPTIONS = {
                 return _t("lower than");
         }
     },
-    ">": (fieldDefType) => {
+    ">": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "date":
             case "datetime":
@@ -57,7 +57,7 @@ export const OPERATOR_DESCRIPTIONS = {
     "not like": _t("not like"),
     ilike: _t("contains"),
     "not ilike": _t("does not contain"),
-    in: (fieldDefType) => {
+    in: (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
             case "many2many":
@@ -67,7 +67,7 @@ export const OPERATOR_DESCRIPTIONS = {
                 return _t("is in");
         }
     },
-    "not in": (fieldDefType) => {
+    "not in": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
             case "many2many":
@@ -79,7 +79,7 @@ export const OPERATOR_DESCRIPTIONS = {
     },
     child_of: _t("child of"),
     parent_of: _t("parent of"),
-    any: (fieldDefType) => {
+    any: (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
                 return _t("matches");
@@ -87,7 +87,7 @@ export const OPERATOR_DESCRIPTIONS = {
                 return _t("match");
         }
     },
-    "not any": (fieldDefType) => {
+    "not any": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
                 return _t("matches none of");
@@ -161,7 +161,8 @@ export function getOperatorLabel(
     if (typeof operator === "string" && operator in OPERATOR_DESCRIPTIONS) {
         label =
             getDescr(operator, fieldDefType) ||
-            getOperatorDescription(operator, fieldDefType);
+            getOperatorDescription(operator, fieldDefType) ||
+            formatValue(operator);
     } else {
         label = formatValue(operator);
     }

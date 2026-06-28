@@ -94,6 +94,25 @@ export class FormController extends Component {
         updateActionState: () => {},
     };
 
+    /** @type {any} */
+    ui;
+    /** @type {any} */
+    multiCompanyRecovery;
+    /** @type {any} */
+    formDialogStack;
+    /** @type {any} */
+    duplicateId;
+    /** @type {any} */
+    onWillDisplayOnchangeWarning;
+    /** @type {any} */
+    model;
+    /** @type {any} */
+    saveCoordinator;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    rootRef;
+    /** @type {any} */
+    deleteRecordsWithConfirmation;
+
     setup() {
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         const { action, dialog, notification, orm, uiHooks } = useControllerServices();
@@ -294,10 +313,10 @@ export class FormController extends Component {
                     if (
                         !isInEdition &&
                         !this.rootRef.el
-                            .querySelector(".o_content")
+                            ?.querySelector(".o_content")
                             ?.contains(document.activeElement)
                     ) {
-                        const elementToFocus = this.rootRef.el.querySelector(
+                        const elementToFocus = this.rootRef.el?.querySelector(
                             ".o_content button.btn-primary",
                         );
                         if (elementToFocus) {

@@ -32,6 +32,11 @@ export class CharField extends TextInputFieldBase {
     };
     static defaultProps = { dynamicPlaceholder: false };
 
+    /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
+    input;
+    /** @type {any} */
+    dynamicPlaceholder;
+
     /** @returns {HTMLInputElement | null} */
     get inputEl() {
         return /** @type {HTMLInputElement | null} */ (this.input.el);

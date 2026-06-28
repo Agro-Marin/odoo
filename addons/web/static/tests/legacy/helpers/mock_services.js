@@ -2,6 +2,7 @@
 
 /** @odoo-module alias=@web/../tests/helpers/mock_services default=false */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { effectService } from "@web/ui/effects/effect_service";
 import { localization } from "@web/core/l10n/localization";
 import { ConnectionAbortedError, rpcBus, rpc } from "@web/core/network/rpc";

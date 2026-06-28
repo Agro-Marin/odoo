@@ -44,6 +44,11 @@ export class Pager extends Component {
         updateTotal: { type: Function, optional: true },
     };
 
+    /** @type {{ isEditing: boolean; isDisabled: boolean }} */
+    state;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    inputRef;
+
     setup() {
         this.state = useState({
             isEditing: false,

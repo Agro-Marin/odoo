@@ -6,8 +6,9 @@
 import { evaluateExpr, parseExpr } from "./py_js/py.js";
 import { BUILTINS } from "./py_js/py_builtin.js";
 import { evaluate } from "./py_js/py_interpreter.js";
+import { ASTType } from "./py_js/ast_type.js";
 
-/** @typedef {any} AST */
+/** @typedef {import("./py_js/ast_type.js").AST} AST */
 
 /**
  * @typedef {{
@@ -48,19 +49,19 @@ export function makeContext(contexts, initialEvaluationContext) {
  * evaluating expressions that we know for sure will fail.
  *
  * @param {AST} ast
- * @returns string[]
+ * @returns {string[]}
  */
 function getPartialNames(ast) {
-    if (ast.type === 5) {
+    if (ast.type === ASTType.Name) {
         return [ast.value];
     }
-    if (ast.type === 6) {
+    if (ast.type === ASTType.UnaryOperator) {
         return getPartialNames(ast.right);
     }
-    if (ast.type === 14 || ast.type === 7) {
+    if (ast.type === ASTType.BooleanOperator || ast.type === ASTType.BinaryOperator) {
         return [...getPartialNames(ast.left), ...getPartialNames(ast.right)];
     }
-    if (ast.type === 15) {
+    if (ast.type === ASTType.ObjLookup) {
         return getPartialNames(ast.obj);
     }
     return [];
@@ -77,6 +78,7 @@ function getPartialNames(ast) {
 export function evalPartialContext(_context, evaluationContext = {}) {
     /** @type {any} */
     const ast = parseExpr(_context);
+    /** @type {Record<string, any>} */
     const context = {};
     for (const key in ast.value) {
         const value = ast.value[key];

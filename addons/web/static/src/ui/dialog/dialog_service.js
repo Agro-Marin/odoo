@@ -54,8 +54,13 @@ class DialogWrapper extends Component {
  */
 export const dialogService = {
     dependencies: ["overlay"],
-    /** @returns {DialogServiceInterface} */
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ overlay: any }} services
+     * @returns {DialogServiceInterface}
+     */
     start(env, { overlay }) {
+        /** @type {Array<{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }>} */
         const stack = [];
         let nextId = 0;
 
@@ -65,9 +70,13 @@ export const dialogService = {
             }
         };
 
-        const add = (dialogClass, props, options = {}) => {
+        const add = (
+            /** @type {import("@odoo/owl").ComponentConstructor} */ dialogClass,
+            /** @type {any} */ props,
+            /** @type {any} */ options = {},
+        ) => {
             const id = nextId++;
-            const close = (params) => remove(params);
+            const close = (/** @type {any} */ params) => remove(params);
             const subEnv = reactive(
                 /** @type {{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }} */ ({
                     id,
@@ -96,7 +105,7 @@ export const dialogService = {
                     subEnv,
                 },
                 {
-                    onRemove: async (closeParams) => {
+                    onRemove: async (/** @type {any} */ closeParams) => {
                         if (isBeingClosed) {
                             return;
                         }
@@ -120,7 +129,7 @@ export const dialogService = {
             return remove;
         };
 
-        function closeAll(params) {
+        function closeAll(/** @type {any} */ params) {
             for (const dialog of stack.toReversed()) {
                 dialog.close(params);
             }

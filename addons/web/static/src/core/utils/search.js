@@ -71,6 +71,7 @@ function _match(pattern, str) {
  * @returns {T[]}
  */
 export function fuzzyLookup(pattern, list, fn) {
+    /** @type {{ score: number, elem: T }[]} */
     const results = [];
     list.forEach((data) => {
         const score = match(pattern, fn(data));

@@ -15,7 +15,10 @@ import { Component } from "@odoo/owl";
  *   - get inputEl — returns the native input/textarea DOM element
  */
 export class TextInputFieldBase extends Component {
-    /** @abstract — override to return the native input/textarea element */
+    /**
+     * @abstract — override to return the native input/textarea element
+     * @returns {HTMLInputElement | HTMLTextAreaElement | null | undefined}
+     */
     get inputEl() {
         return null;
     }
@@ -37,7 +40,8 @@ export class TextInputFieldBase extends Component {
      */
     async onDynamicPlaceholderValidate(chain, defaultValue) {
         if (chain) {
-            const el = this.inputEl;
+            // `inputEl` is an abstract getter (null here, overridden by subclasses).
+            const el = /** @type {any} */ (this.inputEl);
             el.focus();
             const dynamicPlaceholder = ` {{object.${chain}${
                 defaultValue?.length ? ` ||| ${defaultValue}` : ""

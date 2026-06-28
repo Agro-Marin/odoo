@@ -11,10 +11,10 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
-import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { getFieldCodec } from "@web/core/field_codec";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import { getIntervalOptions } from "@web/search/utils/dates";
@@ -23,8 +23,6 @@ import { user } from "@web/services/user";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
-
-const formatters = registry.category("formatters");
 
 class PivotDropdown extends Dropdown {
     /**
@@ -110,25 +108,22 @@ export class PivotRenderer extends Component {
                 ? "integer"
                 : fieldType;
         }
-        /** @type {any} */
-        const formatter = formatters.get(formatType);
-        const formatOptions = { field };
-        if (formatter.extractOptions) {
-            Object.assign(formatOptions, formatter.extractOptions(fieldInfo));
-        }
+        const codec = getFieldCodec(formatType);
+        /** @type {Record<string, any>} */
+        const formatOptions = { field, ...codec.extractOptions(fieldInfo) };
         if (formatType === "monetary") {
             if (cell.currencyIds.length > 1) {
                 formatOptions.currencyId = user.activeCompany?.currency_id;
                 return /** @type {any} */ ({
                     rawValue: cell.value,
-                    value: formatter(cell.value, formatOptions),
+                    value: codec.format(cell.value, formatOptions),
                     currencies: cell.currencyIds,
                 });
             }
             formatOptions.currencyId = cell.currencyIds[0];
         }
         return /** @type {any} */ ({
-            value: formatter(cell.value, formatOptions),
+            value: codec.format(cell.value, formatOptions),
         });
     }
 

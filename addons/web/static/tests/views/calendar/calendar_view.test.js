@@ -35,7 +35,7 @@ import {
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
-    preloadBundle,
+    preloadFullCalendar,
     serverState,
     validateSearch,
 } from "@web/../tests/web_test_helpers";
@@ -278,7 +278,7 @@ class FilterPartner extends models.Model {
 }
 
 defineModels([Event, EventType, CalendarUsers, CalendarPartner, FilterPartner]);
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 beforeEach(() => {
     mockDate("2016-12-12T08:00:00", 1);
     const patchFullCalendarOptions = () => ({
@@ -3809,7 +3809,7 @@ test(`event over two days but lasting less than 24h`, async () => {
     // v7 dropped the ``.fc-day-<weekday>`` class hooks (sun/mon/tue/…)
     // from time-grid columns — the stable v7 selector per day is
     // ``[data-date="YYYY-MM-DD"]`` injected on the column gridcell
-    // (see ``fullcalendar.global.js:12141``).  2016-12-12 is Monday,
+    // (see ``fullcalendar.esm.js:12141``).  2016-12-12 is Monday,
     // 2016-12-13 is Tuesday.
     expect(`[data-date="2016-12-12"] .o_event`).toHaveCount(1);
     expect(`[data-date="2016-12-13"] .o_event`).toHaveCount(1);

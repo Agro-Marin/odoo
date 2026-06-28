@@ -142,6 +142,9 @@ export function getColor(index, colorScheme, paletteSizeOrName) {
 
 export const DEFAULT_BG = "#d3d3d3";
 
+/**
+ * @param {string} colorScheme - "dark" or "light"
+ */
 export function getBorderWhite(colorScheme) {
     return colorScheme === "dark" ? "rgba(38, 42, 54, .2)" : "rgba(249,250,251, .2)";
 }

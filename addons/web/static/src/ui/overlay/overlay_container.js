@@ -13,6 +13,7 @@ import {
 } from "@odoo/owl";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { ErrorHandler } from "@web/core/utils/components";
+/** @type {OverlayItem[]} */
 const OVERLAY_ITEMS = [];
 export const OVERLAY_SYMBOL = Symbol("Overlay");
 
@@ -47,7 +48,7 @@ class OverlayItem extends Component {
 
         useChildSubEnv({
             [OVERLAY_SYMBOL]: {
-                contains: (target) => this.contains(target),
+                contains: (/** @type {EventTarget} */ target) => this.contains(target),
             },
         });
     }
@@ -90,13 +91,13 @@ export class OverlayContainer extends Component {
     /** @returns {Object[]} overlays sorted by ascending sequence */
     get sortedOverlays() {
         return sortBy(
-            Object.values(this.props.overlays),
+            Object.values(/** @type {Record<string, any>} */ (this.props.overlays)),
             (overlay) => overlay.sequence,
         );
     }
 
     /**
-     * @param {Object} overlay
+     * @param {Record<string, any>} overlay
      * @returns {boolean} whether overlay belongs to this container's shadow root
      */
     isVisible(overlay) {
@@ -104,7 +105,7 @@ export class OverlayContainer extends Component {
     }
 
     /**
-     * @param {Object} overlay
+     * @param {Record<string, any>} overlay
      * @param {Error} error
      */
     handleError(overlay, error) {
