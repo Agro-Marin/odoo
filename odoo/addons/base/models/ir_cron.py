@@ -15,13 +15,13 @@ import psycopg.errors
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, db, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import LockError, UserError
 from odoo.http import serialize_exception
 from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
@@ -338,7 +338,7 @@ class IrCron(models.Model):
 
     @staticmethod
     def _check_modules_state(cr: BaseCursor, jobs: list[dict[str, Any]]) -> None:
-        """Ensure no module is installing or upgrading"""
+        """Ensure no module is installing, upgrading or removing"""
         cr.execute(
             """
             SELECT COUNT(*)
@@ -499,9 +499,8 @@ class IrCron(models.Model):
         """
         Notify ``message`` to some administrator.
 
-        The base implementation of this method does nothing. It is
-        supposed to be overridden with some actual communication
-        mechanism.
+        The base implementation only logs a warning; override it with an
+        actual communication mechanism.
         """
         _logger.warning(message)
 
@@ -777,7 +776,7 @@ class IrCron(models.Model):
 
     @api.model
     def _clear_schedule(self, job: dict[str, Any]) -> None:
-        """Remove triggers for the given job."""
+        """Remove the due triggers for the given job."""
         now = self.env.cr.now().replace(microsecond=0)
         self.env.cr.execute(
             """
@@ -837,7 +836,7 @@ class IrCron(models.Model):
         is the user calling this method."""
         self.ensure_one()
         try:
-            if self.pool != self.pool.check_signaling():
+            if self.pool is not self.pool.check_signaling():
                 # the registry has changed, reload self in the new registry
                 self.env.transaction.reset()
 

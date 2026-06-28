@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="bank_ing" model="res.bank">
+        <field name="name">ING</field>
+        <field name="bic">BBRUBEBB</field>
+    </record>
+
+    <record id="bank_bnp" model="res.bank">
+        <field name="name">BNP Paribas</field>
+        <field name="bic">GEBABEBB</field>
+    </record>
+
+</odoo>

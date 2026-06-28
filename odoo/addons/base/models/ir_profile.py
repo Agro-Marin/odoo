@@ -109,8 +109,9 @@ class IrProfile(models.Model):
 
     @api.depends("init_stack_trace")
     def _compute_speedscope(self) -> None:
-        # The params variable is done to control input from the user
-        # When expanding this, it should be select from an enum to input only the correct values
+        # params is parsed to control the user-provided input. When expanding
+        # it, values should be selected from an enum so only valid values are
+        # accepted.
         params = self._parse_params(self.env.context)
         for execution in self:
             execution.speedscope = base64.b64encode(

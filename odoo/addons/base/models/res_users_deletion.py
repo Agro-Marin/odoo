@@ -6,14 +6,7 @@ _logger = logging.getLogger(__name__)
 
 
 class ResUsersDeletion(models.Model):
-    """User deletion requests.
-
-    Those requests are logged in a different model to keep a trace of this action and the
-    deletion is done in a CRON. Indeed, removing a user can be a heavy operation on
-    large database (because of create_uid, write_uid on each model, which are not always
-    indexed). This model just remove the users added in the deletion queue, remaining code
-    must deal with other consideration (archiving, blacklist email...).
-    """
+    """Queue of user-deletion requests, processed by a CRON (deleting a user is costly on large databases; archiving and email blacklisting are handled elsewhere)."""
 
     _name = "res.users.deletion"
     _description = "Users Deletion Request"

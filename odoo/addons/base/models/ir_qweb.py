@@ -187,7 +187,7 @@ Only validate the **input**, the compilation if inside the ``t-if`` directive.
 **Values**: name of the allowed odoo user group, or preceded by ``!`` for
 prohibited groups
 
-The generated code uses ``has_group`` Odoo method from ``res.users`` model.
+The generated code uses ``has_groups`` Odoo method from ``res.users`` model.
 
 ``t-foreach``
 ~~~~~~~~~~~~~
@@ -196,7 +196,7 @@ The generated code uses ``has_group`` Odoo method from ``res.users`` model.
 This directive is used with ``t-as`` directive to defined the key name. The
 directive will be converted into a ``for`` loop. In this loop, different values
 are added to the dict (``values`` in the generated method) in addition to the
-key defined by ``t-name``, these are (``*_value``, ``*_index``, ``*_size``,
+key defined by ``t-as``, these are (``*_value``, ``*_index``, ``*_size``,
 ``*_first``, ``*_last``).
 
 ``t-as``
@@ -406,12 +406,12 @@ from odoo.libs.constants import (
     SUPPORTED_DEBUGGER,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.libs.esbuild import EsbuildCompiler, EsbuildResult
-from odoo.libs.esm_registry import esm_registry
 from odoo.libs.lru import LRU
 from odoo.modules import Manifest
 from odoo.modules.registry import _REGISTRY_CACHES
 from odoo.tools import OrderedSet, config, frozendict, json, safe_eval
+from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
+from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.image import FILETYPE_BASE64_MAGICWORD, image_data_uri
 from odoo.tools.misc import file_open, file_path, str2bool
 from odoo.tools.profiler import ExecutionContext, QwebTracker
@@ -440,7 +440,7 @@ _loader_log = get_asset_logger("loader")
 _lock_log = get_asset_logger("lock")
 
 
-# QWeb token usefull for generate expression used in `_compile_expr_tokens` method
+# QWeb token, useful to generate the expression used in `_compile_expr_tokens` method
 token.QWEB = token.NT_OFFSET - 1
 token.tok_name[token.QWEB] = "QWEB"
 
@@ -782,9 +782,8 @@ class IrQweb(models.AbstractModel):
             * ``minimal_qcontext``(bool) To use the minimum context and options
               from ``_prepare_environment``
 
-        :returns: bytes marked as markup-safe (decode to :class:`markupsafe.Markup`
-                  instead of `str`)
-        :rtype: MarkupSafe
+        :return: the rendered template, markup-safe
+        :rtype: markupsafe.Markup
         """
         # profiling code
         current_thread = threading.current_thread()
@@ -1374,7 +1373,7 @@ class IrQweb(models.AbstractModel):
     ) -> tuple[etree._Element, str, str | int]:
         """Retrieve the given template, and return it as a tuple ``(etree,
         xml, ref)``, where ``element`` is an etree, ``document`` is the
-        string document that contains ``element``, and ``ref`` if the uniq
+        string document that contains ``element``, and ``ref`` is the unique
         reference of the template (id, t-name or template).
 
         :param template: template identifier or etree
@@ -1550,12 +1549,11 @@ class IrQweb(models.AbstractModel):
         return image_data_uri(base64_source)
 
     def _prepare_environment(self, values: dict[str, Any]) -> Self:
-        """Prepare the values and context that will sent to the
-        compiled and evaluated function.
+        """Prepare the values and context sent to the compiled and evaluated
+        function.
 
         :param values: template values to be used for rendering
-
-        :returns self (with new context)
+        :return: self (with new context)
         """
         debug = (request and request.session.debug) or ""
         values.update(
@@ -1587,9 +1585,7 @@ class IrQweb(models.AbstractModel):
         return self.with_context(**context)
 
     def __prepare_globals(self) -> dict[str, Any]:
-        """Prepare the global context that will sent to eval the qweb
-        generated code.
-        """
+        """Prepare the global context sent to eval the qweb generated code."""
         return {
             "__name__": __name__,
             "Sized": Sized,
@@ -1631,13 +1627,11 @@ class IrQweb(models.AbstractModel):
     def _flush_text(
         self, compile_context: dict[str, Any], level: int, rstrip: bool = False
     ) -> list[str]:
-        """Concatenate all the textual chunks added by the `_append_text`
-        method into a single yield.
-        If no text to flush, return an empty list
+        """Concatenate all the textual chunks added by ``_append_text`` into a
+        single ``yield`` line. Return an empty list if there is no text to flush.
 
-        If rstrip the text is right stripped.
-
-        @returns list(str)
+        :param bool rstrip: if set, right-strip the concatenated text.
+        :rtype: list[str]
         """
         text_concat = compile_context["_text_concat"]
         if not text_concat:
@@ -1690,8 +1684,8 @@ class IrQweb(models.AbstractModel):
         argument_names: list[str] | None = None,
         raise_on_missing: bool = False,
     ) -> str:
-        """Transform the list of token coming into a python instruction in
-        textual form by adding the namepaces for the dynamic values.
+        """Transform the list of tokens into a python instruction in textual
+        form by namespacing the dynamic values.
 
         Example: `5 + a + b.c` to be `5 + values.get('a') + values['b'].c`
         Unknown values are considered to be None, but using `values['b']`
@@ -1699,7 +1693,7 @@ class IrQweb(models.AbstractModel):
         example (have a `KeyError: 'b'`, instead of `AttributeError: 'NoneType'
         object has no attribute 'c'`).
 
-        @returns str
+        :rtype: str
         """
         # Finds and extracts the current "scope"'s "allowed values": values
         # which should not be accessed through the environment's namespace:
@@ -1894,12 +1888,11 @@ class IrQweb(models.AbstractModel):
     _compile_expr_cache = LRU(8192)
 
     def _compile_expr(self, expr: str, raise_on_missing: bool = False) -> str:
-        """Transform string coming into a python instruction in textual form by
-        adding the namepaces for the dynamic values.
-        This method tokenize the string and call ``_compile_expr_tokens``
-        method.
+        """Transform a string into a python instruction in textual form by
+        namespacing the dynamic values.
+        Tokenizes the string and calls ``_compile_expr_tokens``.
 
-        :param expr: string: python expression
+        :param str expr: python expression
         :param bool raise_on_missing:
             Compile has `values['product'].price` instead of
             `values.get('product').price` to raise an error when get the
@@ -1944,9 +1937,7 @@ class IrQweb(models.AbstractModel):
         return bool(default)
 
     def _compile_to_str(self, expr: Any) -> str:
-        """Generates a text value (an instance of text_type) from an arbitrary
-        source.
-        """
+        """Generate a string from an arbitrary source."""
         if expr is None or expr is False:
             return ""
 
@@ -2009,14 +2000,12 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         """Compile the given element into python code.
 
-            The t-* attributes (directives) will be converted to a python instruction. If there
-            are no t-* attributes, the element will be considered static.
+        The t-* attributes (directives) are converted to python instructions. If
+        there are no t-* attributes, the element is considered static.
 
-            Directives are compiled using the order provided by the
-            ``_directives_eval_order`` method (an create the
-            ``compile_context['iter_directives']`` iterator).
-            For compilation, the directives supported are those with a
-            compilation method ``_compile_directive_*``
+        Directives are compiled in the order given by ``_directives_eval_order``
+        (which creates the ``compile_context['iter_directives']`` iterator). Only
+        directives with a ``_compile_directive_*`` method are supported.
 
         :return: list of string
         """
@@ -2146,8 +2135,8 @@ class IrQweb(models.AbstractModel):
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
         """Compile the given element, following the directives given in the
-        iterator ``compile_context['iter_directives']`` create by
-        `_compile_node`` method.
+        iterator ``compile_context['iter_directives']`` created by
+        ``_compile_node``.
 
         :return: list of code lines
         """
@@ -2251,9 +2240,8 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_options(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """
-        compile t-options and add to the dict the t-options-xxx. Will create
-        the dictionary ``values['__qweb_options__']`` in compiled code.
+        """Compile ``t-options`` and the ``t-options-*`` attributes, creating
+        the ``values['__qweb_options__']`` dictionary in the compiled code.
         """
         code = []
         dict_options = []
@@ -2301,24 +2289,18 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_att(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the attributes of the given elements.
+        """Compile the attributes of the given element.
 
-        The compiled function will create the ``values['__qweb_attrs__']``
-        dictionary. Then the dictionary will be output.
+        The compiled function creates and fills the ``values['__qweb_attrs__']``
+        dictionary (output later by the ``t-tag-open`` directive) with, in order:
 
+        - the new namespaces introduced by the current element;
+        - the static attributes (not prefixed by ``t-``);
+        - the dynamic attributes:
 
-        The new namespaces of the current element.
-
-        The static attributes (not prefixed by ``t-``) are add to the
-        dictionary in first.
-
-        The dynamic attributes values will be add after. The dynamic
-        attributes has different origins.
-
-        - value from key equal to ``t-att``: python dictionary expression;
-        - value from keys that start with ``t-att-``: python expression;
-        - value from keys that start with ``t-attf-``: format string
-            expression.
+          - ``t-att``: python dictionary expression;
+          - ``t-att-*``: python expression;
+          - ``t-attf-*``: format string expression.
         """
         code = [indent_code("attrs = values['__qweb_attrs__'] = {}", level)]
 
@@ -2398,22 +2380,11 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_tag_open(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the opening tag with attributes of the given element into
-        a list of python code line.
+        """Compile the opening tag of the given element into python code.
 
-        The compiled function will fill the ``attrs`` dictionary. Then the
-        ``attrs`` dictionary will be output and reset the value of ``attrs``.
-
-        The static attributes (not prefixed by ``t-``) are add to the
-        ``attrs`` dictionary in first.
-
-        The dynamic attributes values will be add after. The dynamic
-        attributes has different origins.
-
-        - value from key equal to ``t-att``: python dictionary expression;
-        - value from keys that start with ``t-att-``: python expression;
-        - value from keys that start with ``t-attf-``: format string
-            expression.
+        The compiled function outputs the open tag, then post-processes and
+        outputs the attributes from the ``attrs`` dictionary (built by the
+        ``t-att`` directive), consuming and resetting it.
         """
 
         el_tag = el.attrib.pop("t-tag-open", None)
@@ -2458,7 +2429,7 @@ class IrQweb(models.AbstractModel):
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
         """Compile the closing tag of the given element into string.
-        Returns an empty list because it's use only `_append_text`.
+        Returns an empty list because it only uses ``_append_text``.
         """
         el_tag = el.attrib.pop("t-tag-close", None)
         if el_tag:
@@ -2471,7 +2442,7 @@ class IrQweb(models.AbstractModel):
         """Compile `t-set` expressions into a python code as a list of
         strings.
 
-        There are 3 kinds of `t-set`:
+        There are different kinds of `t-set`:
         * `t-value` containing python code;
         * `t-valuef` containing strings to format;
         * `t-valuef.translate` containing translated strings to format;
@@ -2577,8 +2548,8 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         """Compile `t-value` expressions into a python code as a list of strings.
 
-        This method only check if this attributes is on the same node of a
-         `t-set` attribute.
+        This method only checks that this attribute is on the same node as a
+        `t-set` attribute.
         """
         msg = "t-value must be on the same node of t-set"
         raise SyntaxError(msg)
@@ -2588,8 +2559,8 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         """Compile `t-valuef` expressions into a python code as a list of strings.
 
-        This method only check if this attributes is on the same node of a
-         `t-set` attribute.
+        This method only checks that this attribute is on the same node as a
+        `t-set` attribute.
         """
         msg = "t-valuef must be on the same node of t-set"
         raise SyntaxError(msg)
@@ -2597,12 +2568,11 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_inner_content(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compiles the content of the element (is the technical `t-inner-content`
-        directive created by QWeb) into a python code as a list of
-        strings.
+        """Compile the content of the element (the technical ``t-inner-content``
+        directive created by QWeb) into python code as a list of strings.
 
-        The code will contains the text content of the node or the compliled
-        code from the recursive call of ``_compile_node``.
+        The code contains the text content of the node and the compiled code
+        from the recursive ``_compile_node`` calls on its children.
         """
         el.attrib.pop("t-inner-content", None)
 
@@ -2738,8 +2708,8 @@ class IrQweb(models.AbstractModel):
         """Compile `t-elif` expressions into a python code as a list of
         strings. This method is linked with the `t-if` directive.
 
-        Check if this directive is valide, the t-qweb-skip flag and call
-        `t-if` directive
+        Validate that this node follows a `t-if`/`t-elif` (the t-else-valid
+        flag) and delegate to the `t-if` compilation.
         """
         if not el.attrib.pop("t-else-valid", None):
             msg = "t-elif directive must be preceded by t-if or t-elif directive"
@@ -2753,7 +2723,8 @@ class IrQweb(models.AbstractModel):
         """Compile `t-else` expressions into a python code as a list of strings.
         This method is linked with the `t-if` directive.
 
-        Check if this directive is valide and add the t-qweb-skip flag.
+        Validate that this node follows a `t-if`/`t-elif` (the t-else-valid
+        flag); produces no code of its own.
         """
         if not el.attrib.pop("t-else-valid", None):
             msg = "t-else directive must be preceded by t-if or t-elif directive"
@@ -2793,13 +2764,13 @@ class IrQweb(models.AbstractModel):
         strings.
 
         * ``t-as`` is used to define the key name.
-        * ``t-foreach`` compiled value can be an iterable, an dictionary or a
+        * ``t-foreach`` compiled value can be an iterable, a dictionary or a
           number.
 
-        The code will contain loop ``for`` that wrap the rest of the compiled
+        The code will contain a ``for`` loop that wraps the rest of the compiled
         code of this element.
 
-        Some key into values dictionary are create automatically::
+        Some keys in the values dictionary are created automatically::
 
             *_size, *_index, *_value, *_first, *_last, *_odd, *_even, *_parity
         """
@@ -2889,8 +2860,8 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         """Compile `t-as` expressions into a python code as a list of strings.
 
-        This method only check if this attributes is on the same node of a
-         `t-foreach` attribute.
+        This method only checks that this attribute is on the same node as a
+        `t-foreach` attribute.
         """
         if "t-foreach" not in el.attrib:
             msg = "t-as must be on the same node of t-foreach"
@@ -2903,7 +2874,7 @@ class IrQweb(models.AbstractModel):
         """Compile `t-out` expressions into a python code as a list of
         strings.
 
-        The code will contain evalution and rendering of the compiled value. If
+        The code will contain evaluation and rendering of the compiled value. If
         the compiled value is None or False, the tag is not added to the render
         (Except if the widget forces rendering or there is default content).
         (eg: `<t t-out="my_value">Default content if falsy</t>`)
@@ -3100,8 +3071,8 @@ class IrQweb(models.AbstractModel):
         using the type of value supplied by the field. This behavior can be
         changed with ``t-options-widget`` or ``t-options={'widget': ...}``.
 
-        The code will contain evalution and rendering of the compiled value
-        value from the record field. If the compiled value is None or False,
+        The code will contain evaluation and rendering of the compiled value
+        from the record field. If the compiled value is None or False,
         the tag is not added to the render
         (Except if the widget forces rendering or there is default content.).
         """
@@ -3427,14 +3398,13 @@ class IrQweb(models.AbstractModel):
     def _post_processing_att(
         self, tagName: str, atts: dict[str, Any]
     ) -> dict[str, Any]:
-        """Method called at compile time for the static node and called at
-        runing time for the dynamic attributes.
+        """Method called at compile time for static nodes and at running time
+        for dynamic attributes.
 
-        This method may be overwrited to filter or modify the attributes
-        (during compilation for static node or after they compilation in
-        the case of dynamic elements).
+        May be overridden to filter or modify the attributes (during compilation
+        for static nodes, or after compilation for dynamic elements).
 
-        @returns dict
+        :rtype: dict
         """
         if not atts.pop("__is_static_node", False):
             for attr in ("href", "src", "action", "formaction"):
@@ -3453,7 +3423,7 @@ class IrQweb(models.AbstractModel):
         field_options: dict[str, Any],
         values: dict[str, Any],
     ) -> tuple[dict[str, Any], str | Markup | bool | None, bool]:
-        """Method called at compile time to return the field value.
+        """Method called at rendering time to return the field value.
 
         :returns: tuple:
             * dict: attributes
@@ -3498,7 +3468,7 @@ class IrQweb(models.AbstractModel):
         field_options: dict[str, Any],
         values: dict[str, Any],
     ) -> tuple[dict[str, Any], str | Markup | bool | None, bool | None]:
-        """Method called at compile time to return the widget value.
+        """Method called at rendering time to return the widget value.
 
         :returns: tuple:
             * dict: attributes
@@ -4740,7 +4710,9 @@ class IrQweb(models.AbstractModel):
             # the asset's native module_path and key it under
             # the alias too, so the satellite reads from
             # ``odoo.loader.modules`` instead of re-fetching.
-            from odoo.libs.esm_graph import _parse_odoo_module_header as _parse_hdr
+            from odoo.tools.assets.esm_graph import (
+                _parse_odoo_module_header as _parse_hdr,
+            )
 
             for asset in asset_bundle.native_modules:
                 header = _parse_hdr(asset.raw_content)
@@ -5508,14 +5480,11 @@ class IrQweb(models.AbstractModel):
         return [node[1]["href"] for node in asset_nodes if node[0] == "link"]
 
     def _pregenerate_assets_bundles(self) -> list[str]:
-        """
-        Pregenerates all assets that may be used in web pages to speedup first loading.
-        This may is mainly usefull for tests.
+        """Pregenerate all assets that may be used in web pages to speed up first loading.
+        Mainly useful for tests.
 
-        The current version is looking for all t-call-assets in view to generate the minimal
-        set of bundles to generate.
-
-        Current version only generate assets without extra, not taking care of rtl.
+        Looks for all ``t-call-assets`` in views to build the minimal set of
+        bundles. Only generates assets without extras, ignoring rtl.
         """
         _logger.runbot("Pregenerating assets bundles")
 
@@ -5567,9 +5536,8 @@ def render(
         from the given template name (from initial rendering or template
         `t-call`).
     :param options: used to compile the template
-    :returns: bytes marked as markup-safe (decode to :class:`markupsafe.Markup`
-                instead of `str`)
-    :rtype: MarkupSafe
+    :return: the rendered template, markup-safe
+    :rtype: markupsafe.Markup
     """
 
     class MockPool:
@@ -5648,8 +5616,8 @@ def render(
             context: dict[str, Any] | None = None,
             su: Any = None,
         ) -> MockEnv:
-            """Return an mocked environment based and update the sent context.
-            Allow to use `ir_qweb.with_context` with sand boxed qweb.
+            """Return a mocked environment, updating it with the given context.
+            Allows using `ir_qweb.with_context` with sandboxed qweb.
             """
             env = MockEnv()
             env.context.update(self.context if context is None else context)

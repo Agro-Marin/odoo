@@ -3,6 +3,8 @@ import itertools
 from datetime import datetime
 from typing import Any, NamedTuple
 
+import psycopg
+
 from odoo import Command, api, fields, models
 from odoo.libs.datetime import utc
 from odoo.libs.json import loads as json_loads
@@ -88,7 +90,7 @@ class IrFieldsConverter(models.AbstractModel):
             - path_field for 'childA_1' is ['partner_id']
 
         So, by retrieving the correct field_path for each value to import, if errors are raised for those fields,
-        we can the link the errors to the correct header-field couple in the import UI.
+        we can link the errors to the correct header-field couple in the import UI.
         """
         field_path = [field]
         if parent_fields_hierarchy := self.env.context.get("parent_fields_hierarchy"):
@@ -109,7 +111,7 @@ class IrFieldsConverter(models.AbstractModel):
         """Returns a converter object for the model. A converter is a
         callable taking a record-ish (a dictionary representing an odoo
         record with values of typetag ``fromtype``) and returning a converted
-        records matching what :meth:`odoo.models.Model.write` expects.
+        record matching what :meth:`odoo.models.Model.write` expects.
 
         :param model: :class:`odoo.models.Model` for the conversion base
         :param fromtype:
@@ -143,6 +145,12 @@ class IrFieldsConverter(models.AbstractModel):
                             w = OdooImportWarning(w)
                         log(field, w)
                 except (UnicodeEncodeError, UnicodeDecodeError) as e:
+                    log(field, ValueError(str(e)))
+                except psycopg.DataError as e:
+                    # psycopg3 rejects bad bytes (e.g. NUL 0x00) at adaptation
+                    # time, client-side, as DataError (psycopg2 raised
+                    # ValueError). No server round-trip happened, so the cursor
+                    # is intact; surface it as a per-field import error.
                     log(field, ValueError(str(e)))
                 except ValueError as e:
                     if import_file_context:
@@ -181,7 +189,7 @@ class IrFieldsConverter(models.AbstractModel):
         """Fetches a converter for the provided field object, from the
         specified type.
 
-        A converter is simply a callable taking a value of type ``fromtype``
+        A converter is a callable taking a value of type ``fromtype``
         (or a composite of ``fromtype``, e.g. list or dict) and returning a
         value acceptable for a write() on the field ``field``.
 
@@ -277,7 +285,10 @@ class IrFieldsConverter(models.AbstractModel):
                 )
 
             val = property_dict.get("value")
-            if val is None:
+            # An empty imported cell means "no value": skip coercion so it isn't
+            # rejected as an invalid selection/tag, nor unpacked as an empty
+            # m2o/m2m. Matches None / "" / [] / () but not falsy 0 / False.
+            if val in (None, "", [], ()):
                 continue
 
             property_type = property_dict["type"]

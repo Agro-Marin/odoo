@@ -2,7 +2,7 @@ import re
 from typing import Any, Self
 
 from odoo import api, fields, models
-from odoo.orm._typing import ValuesType
+from odoo.api import ValuesType
 from odoo.tools import _
 
 

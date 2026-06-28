@@ -1,21 +1,15 @@
-"""
-Store database-specific configuration parameters
-"""
-
 import logging
 import uuid
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
-from odoo.orm._typing import ValuesType
 from odoo.tools import config, mute_logger, ormcache
 
 _logger = logging.getLogger(__name__)
 
-"""
-A dictionary holding some configuration parameters to be initialized when the database is created.
-"""
+
 _default_parameters = {
     "database.secret": lambda: str(uuid.uuid4()),
     "database.uuid": lambda: str(uuid.uuid4()),
@@ -27,8 +21,6 @@ _default_parameters = {
 
 
 class IrConfig_Parameter(models.Model):
-    """Per-database storage of configuration key-value pairs."""
-
     _name = "ir.config_parameter"
     _description = "System Parameter"
     _rec_name = "key"

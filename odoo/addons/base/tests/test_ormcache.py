@@ -1,6 +1,27 @@
 from threading import Barrier, Thread
 
-from odoo.tests.common import TransactionCase, get_cache_key_counter, tagged
+from odoo.tests.common import BaseCase, TransactionCase, get_cache_key_counter, tagged
+from odoo.tools.cache import get_cache_size
+
+
+class TestCacheSize(BaseCase):
+    def test_get_cache_size_traverses_instance_dict(self):
+        """``get_cache_size`` must descend into instance ``__dict__`` values.
+
+        Regression: it previously appended ``object.__dict__`` (the builtin
+        type's empty mappingproxy) instead of ``cur_obj.__dict__``, so every
+        ``__dict__``-based cached object was reported as a few hundred bytes
+        regardless of payload — making the SIGUSR2 memory report blind.
+        """
+
+        class Holder:  # no __slots__ -> has __dict__
+            pass
+
+        holder = Holder()
+        holder.payload = b"x" * 1_000_000
+
+        # The 1 MB payload must be reflected in the reported size.
+        self.assertGreater(get_cache_size(holder), 1_000_000)
 
 
 @tagged("-at_install", "post_install")

@@ -2,8 +2,8 @@ import logging
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 

@@ -2,8 +2,8 @@ from collections.abc import Iterable
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.fields import Domain
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 
 

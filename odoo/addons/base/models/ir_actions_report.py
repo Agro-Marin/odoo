@@ -1447,9 +1447,8 @@ class IrActionsReport(models.Model):
     def get_available_barcode_masks(self) -> dict[str, Callable]:
         """Hook for extension.
 
-        This function returns the available QR-code masks, in the form of a
-        list of (code, mask_function) elements, where code is a string identifying
-        the mask uniquely, and mask_function is a function returning a reportlab
+        Returns the available QR-code masks as a dict mapping each code (a string
+        uniquely identifying the mask) to a mask_function returning a reportlab
         Drawing object with the result of the mask, and taking as parameters:
 
             - width of the QR-code, in pixels

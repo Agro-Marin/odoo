@@ -440,8 +440,8 @@ class TestCompanyDependent(TransactionCase):
 
         # Reproduce the stale-flat-entry shape: a scalar value keyed directly by
         # record id, with no nested ``{(company_id,): {id: value}}`` entry.
-        core.field_data(field).clear()
-        core.set_value(field, partner.id, "BC-1")
+        core.get_field_data(field).clear()
+        core.cache.set_value(field, partner.id, "BC-1")
 
         col_val = field.get_column_update(partner)
         self.assertIsNotNone(

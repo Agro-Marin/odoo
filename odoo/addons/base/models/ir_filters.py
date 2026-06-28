@@ -2,8 +2,8 @@ import ast
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 
 
@@ -14,6 +14,11 @@ class IrFilters(models.Model):
 
     name = fields.Char(string="Filter Name", required=True)
     active = fields.Boolean(default=True)
+    model_id = fields.Selection(
+        selection="_list_all_models",
+        string="Model",
+        required=True,
+    )
     user_ids = fields.Many2many(
         "res.users",
         string="Users",
@@ -23,9 +28,6 @@ class IrFilters(models.Model):
     domain = fields.Text(default="[]", required=True)
     context = fields.Text(default="{}", required=True)
     sort = fields.Char(default="[]", required=True)
-    model_id = fields.Selection(
-        selection="_list_all_models", string="Model", required=True
-    )
     is_default = fields.Boolean(string="Default Filter")
     action_id = fields.Many2one(
         "ir.actions.actions",
@@ -35,9 +37,9 @@ class IrFilters(models.Model):
     )
     embedded_action_id = fields.Many2one(
         "ir.embedded.actions",
-        help="The embedded action this filter is applied to",
         ondelete="cascade",
         index="btree_not_null",
+        help="The embedded action this filter is applied to",
     )
     embedded_parent_res_id = fields.Integer(
         help="id of the record the filter should be applied to. Only used in combination with embedded actions"
@@ -57,6 +59,34 @@ class IrFilters(models.Model):
         "CHECK(sort IS NULL OR jsonb_typeof(sort::jsonb) = 'array')",
         "Invalid sort definition",
     )
+
+    @api.constrains("domain", "context", "sort")
+    def _check_serialized_fields(self) -> None:
+        """Validate serialized blobs on every write path, not only ``create_filter``.
+
+        ``create_filter`` is the documented RPC entry point, but raw ORM
+        ``create``/``write`` (server code, data files, future RPC) must validate
+        too so the IRF-L1 guarantee holds at the actual write boundary (IRF-L2).
+        """
+        for filter_ in self:
+            self._validate_serialized_fields(
+                {
+                    "domain": filter_.domain,
+                    "context": filter_.context,
+                    "sort": filter_.sort,
+                }
+            )
+
+    @api.model
+    def create_filter(self, vals: dict[str, Any]) -> Self:
+        embedded_action_id = vals.get("embedded_action_id")
+        if not embedded_action_id and "embedded_parent_res_id" in vals:
+            del vals["embedded_parent_res_id"]
+        # _validate_serialized_fields raises ValidationError before the DB hit,
+        # preserving the contract the RPC tests assert; the @api.constrains
+        # backstop (IRF-L2) re-validates on the underlying create anyway.
+        self._validate_serialized_fields(vals)
+        return self.create(vals)
 
     @api.model
     def _list_all_models(self) -> list[tuple[str, str]]:
@@ -141,7 +171,7 @@ class IrFilters(models.Model):
         :param embedded_parent_res_id: optional id of the parent record the
             embedded-action filter applies to; only meaningful when
             ``embedded_action_id`` is set.
-        :return: list of :meth:`~osv.read`-like dicts containing the
+        :return: list of dicts containing the
             ``name``, ``is_default``, ``domain``, ``context``, ``user_ids`` (m2m),
             ``sort``, ``embedded_action_id`` (m2o tuple) and
             ``embedded_parent_res_id`` of the matching ``ir.filters``.
@@ -224,31 +254,3 @@ class IrFilters(models.Model):
                     raise ValidationError(
                         self.env._("Filter sort must be a list of strings.")
                     )
-
-    @api.constrains("domain", "context", "sort")
-    def _check_serialized_fields(self) -> None:
-        """Validate serialized blobs on every write path, not only ``create_filter``.
-
-        ``create_filter`` is the documented RPC entry point, but raw ORM
-        ``create``/``write`` (server code, data files, future RPC) must validate
-        too so the IRF-L1 guarantee holds at the actual write boundary (IRF-L2).
-        """
-        for filter_ in self:
-            self._validate_serialized_fields(
-                {
-                    "domain": filter_.domain,
-                    "context": filter_.context,
-                    "sort": filter_.sort,
-                }
-            )
-
-    @api.model
-    def create_filter(self, vals: dict[str, Any]) -> Self:
-        embedded_action_id = vals.get("embedded_action_id")
-        if not embedded_action_id and "embedded_parent_res_id" in vals:
-            del vals["embedded_parent_res_id"]
-        # _validate_serialized_fields raises ValidationError before the DB hit,
-        # preserving the contract the RPC tests assert; the @api.constrains
-        # backstop (IRF-L2) re-validates on the underlying create anyway.
-        self._validate_serialized_fields(vals)
-        return self.create(vals)

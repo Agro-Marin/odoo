@@ -1,5 +1,6 @@
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import call, patch
 
 import odoo
@@ -138,6 +139,11 @@ class TestConfigManager(TransactionCase):
                 "db_minconn": 0,
                 "db_maxconn": 64,
                 "db_maxconn_gevent": None,
+                "db_borrow_timeout": 30.0,
+                "db_conn_max_lifetime": 3600,
+                "db_conn_max_idle": 600,
+                "db_pool_reap_idle": 300.0,
+                "db_discard_on_return": False,
                 "db_template": "template0",
                 "db_replica_host": None,
                 "db_replica_port": None,
@@ -251,6 +257,11 @@ class TestConfigManager(TransactionCase):
                 "db_template": "backup1706",
                 "db_replica_host": "db2.localhost",
                 "db_replica_port": 2038,
+                "db_borrow_timeout": 30.0,
+                "db_conn_max_lifetime": 3600,
+                "db_conn_max_idle": 600,
+                "db_pool_reap_idle": 300.0,
+                "db_discard_on_return": False,
                 "db_app_name": "odoo-{pid}",
                 # i18n
                 "load_language": "fr_FR",  # blacklist for save, read from the config file
@@ -308,6 +319,29 @@ class TestConfigManager(TransactionCase):
                     pid="{pid}",
                 )
                 self.assertEqual(config_content.splitlines(), save_content.splitlines())
+
+    def test_03b_save_tightens_permissions_on_resave(self):
+        """``save()`` must keep the config at 0o600 even on re-save.
+
+        The file holds db / admin / smtp passwords; restricting perms only on
+        first creation left a re-save over a previously world-readable config
+        exposing those secrets.
+        """
+        with file_open_temporary_directory(self.env) as temp_dir:
+            config_path = f"{temp_dir}/save_perms.conf"
+            cfg = Path(config_path)
+            # First save creates the file restricted.
+            self.config._parse_config(["--config", config_path, "--save"])
+            self.assertEqual(cfg.stat().st_mode & 0o777, 0o600)
+            # Simulate a permissive umask / external edit loosening the file.
+            cfg.chmod(0o644)
+            # Re-save must re-tighten (this is the regression guard).
+            self.config._parse_config(["--config", config_path, "--save"])
+            self.assertEqual(
+                cfg.stat().st_mode & 0o777,
+                0o600,
+                "re-save left the config readable by group/other",
+            )
 
     def test_04_odoo16_config_file(self):
         # test that loading the Odoo 16.0 generated default config works
@@ -408,6 +442,11 @@ class TestConfigManager(TransactionCase):
                 "limit_request": 1 << 16,
                 # new options since 14.0
                 "db_maxconn_gevent": None,
+                "db_borrow_timeout": 30.0,
+                "db_conn_max_lifetime": 3600,
+                "db_conn_max_idle": 600,
+                "db_pool_reap_idle": 300.0,
+                "db_discard_on_return": False,
                 "db_replica_host": None,
                 "db_replica_port": None,
                 "db_app_name": "odoo-{pid}",
@@ -568,6 +607,11 @@ class TestConfigManager(TransactionCase):
                 "db_template": "backup1706",
                 "db_replica_host": "db2.localhost",
                 "db_replica_port": 2038,
+                "db_borrow_timeout": 30.0,
+                "db_conn_max_lifetime": 3600,
+                "db_conn_max_idle": 600,
+                "db_pool_reap_idle": 300.0,
+                "db_discard_on_return": False,
                 "db_app_name": "myapp{pid}",
                 # i18n
                 "load_language": "fr_FR",
@@ -690,6 +734,11 @@ class TestConfigManager(TransactionCase):
                 "db_template": "backup1706",
                 "db_replica_host": "db2.localhost",
                 "db_replica_port": 2038,
+                "db_borrow_timeout": 30.0,
+                "db_conn_max_lifetime": 3600,
+                "db_conn_max_idle": 600,
+                "db_pool_reap_idle": 300.0,
+                "db_discard_on_return": False,
                 "db_app_name": "envapp",
                 # i18n (not loaded)
                 "load_language": None,

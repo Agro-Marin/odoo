@@ -14,7 +14,7 @@ from lxml import etree
 from markupsafe import Markup
 
 from odoo import _, api, fields, models, tools
-from odoo.api import SUPERUSER_ID
+from odoo.api import SUPERUSER_ID, DomainType, ValuesType
 from odoo.exceptions import (
     AccessDenied,
     AccessError,
@@ -26,7 +26,6 @@ from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime.tz import all_timezones
 from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.libs.json import dumps as json_dumps
-from odoo.orm._typing import DomainType, ValuesType
 from odoo.tools import (
     SQL,
     email_domain_extract,
@@ -113,13 +112,7 @@ def check_identity(
 
 
 class ResUsers(models.Model):
-    """User class. A res.users record models an Odoo user and is different
-    from an employee.
-
-    res.users class now inherits from res.partner. The partner model is
-    used to store the data related to the partner: lang, name, address,
-    avatar, ... The user model is now dedicated to technical data.
-    """
+    """An Odoo user account (not an employee); login/technical data delegating partner data to a linked res.partner."""
 
     _name = "res.users"
     _description = "User"
@@ -183,7 +176,7 @@ class ResUsers(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _self_accessible_fields(self) -> tuple[frozenset[str], frozenset[str]]:
-        """Readable and writable fields by portal users."""
+        """Readable and writable fields on a user's own record."""
         readable = frozenset(self.SELF_READABLE_FIELDS)
         writeable = frozenset(self.SELF_WRITEABLE_FIELDS)
         return readable, writeable
@@ -273,7 +266,7 @@ class ResUsers(models.Model):
     def _get_group_ids(self) -> tuple[int, ...]:
         """Return ``self``'s group ids (as a tuple)."""
         self.ensure_one()
-        # `with_context({})` because this method is decorated with `@ormcache('self._ids')`,
+        # `with_context({})` because this method is decorated with `@ormcache('self.id')`,
         # it cannot depend on the context (e.g. `active_test`, `lang`, ...)
         return self.with_context({}).all_group_ids._ids
 
@@ -701,7 +694,7 @@ class ResUsers(models.Model):
                 }
 
         if not interactive:
-            # 'rpc' scope does not really exist, we basically require a global key (scope NULL)
+            # 'rpc' scope does not really exist, we require a global key (scope NULL)
             if (
                 self.env["res.users.apikeys"]._check_credentials(
                     scope="rpc", key=credential["password"]
@@ -1123,8 +1116,8 @@ class ResUsers(models.Model):
     def authenticate(
         self, credential: dict[str, Any], user_agent_env: dict[str, Any]
     ) -> dict[str, Any]:
-        """Verifies and returns the user ID corresponding to the given
-        ``credential``, or False if there was no matching user.
+        """Verify ``credential`` and return the authentication info for the
+        matching user.
 
         :param dict[str, Any] credential: a dictionary where the `type` key defines the authentication method and
             additional keys are passed as required per authentication method.
@@ -1279,12 +1272,8 @@ class ResUsers(models.Model):
     def _deactivate_portal_user(self, **post: Any) -> None:
         """Try to remove the current portal user.
 
-        This is used to give the opportunity to portal users to de-activate their accounts.
-        Indeed, as the portal users can easily create accounts, they will sometimes wish
-        it removed because they don't use this Odoo portal anymore.
-
-        Before this feature, they would have to contact the website or the support to get
-        their account removed, which could be tedious.
+        Portal users can self-create accounts, so this lets them delete their
+        own account instead of contacting the website or support.
         """
         non_portal_users = self.filtered(lambda user: not user.share)
         if non_portal_users:
@@ -1385,8 +1374,8 @@ class ResUsers(models.Model):
         ``group_spec``, i.e., whether it is member of at least one of the groups,
         and is not a member of any of the groups preceded by ``!``.
 
-        Note that the group ``"base.group_no_one"`` is only effective in debug
-        mode, just like method :meth:`~.has_group` does.
+        The group ``"base.group_no_one"`` is only effective in debug mode,
+        like :meth:`~.has_group`.
 
         :param str group_spec: comma-separated list of fully-qualified group
             external IDs, optionally preceded by ``!``.
@@ -1434,9 +1423,9 @@ class ResUsers(models.Model):
         """Return whether user ``self`` belongs to the given group (given by its
         fully-qualified external ID).
 
-        Note that the group ``"base.group_no_one"`` is only effective in debug
-        mode: the method returns ``True`` if the user belongs to the group and
-        the current request is in debug mode.
+        The group ``"base.group_no_one"`` is only effective in debug mode: it
+        returns ``True`` only if the user belongs to the group and the current
+        request is in debug mode.
         """
         self.ensure_one()
         if not (
@@ -1460,7 +1449,7 @@ class ResUsers(models.Model):
 
         :param str group_ext_id: external ID (XML ID) of the group.
            Must be provided in fully-qualified form (``module.ext_id``), as there
-           is no implicit module to use..
+           is no implicit module to use.
         :return: True if user ``self`` is a member of the group with the
            given external ID (XML ID), else False.
         """

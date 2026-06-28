@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from typing import Any, Self
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -130,13 +130,7 @@ def _predict_nextval(self: Any, seq_id: str) -> int:
 
 
 class IrSequence(models.Model):
-    """Sequence model.
-
-    The sequence model allows to define and use so-called sequence objects.
-    Such objects are used to generate unique identifiers in a transaction-safe
-    way.
-
-    """
+    """Sequence objects that generate unique identifiers in a transaction-safe way."""
 
     _name = "ir.sequence"
     _description = "Sequence"
@@ -393,7 +387,7 @@ class IrSequence(models.Model):
         )
 
     def _next(self, sequence_date: Any = None) -> str:
-        """Returns the next number in the preferred sequence in all the ones given in self."""
+        """Return the next interpolated value for this sequence."""
         if not self.use_date_range:
             return self._next_do()
         # date mode

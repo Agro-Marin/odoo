@@ -4,7 +4,8 @@ from textwrap import dedent
 from odoo import Command
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import mute_logger
-from odoo.tools.safe_eval import const_eval, expr_eval, safe_eval
+from odoo.tools import safe_eval as safe_eval_mod
+from odoo.tools.safe_eval import const_eval, expr_eval, safe_eval, test_python_expr
 
 
 class TestSafeEval(BaseCase):
@@ -101,6 +102,42 @@ class TestSafeEval(BaseCase):
     def test_safe_eval_ctx_no_builtins(self):
         ctx = {"__builtins__": {"max": min}}
         self.assertEqual(safe_eval("max(1, 2)", ctx), 2)
+
+    def test_safe_eval_nested_lambda_not_cache_poisonable(self):
+        """A validated benign expression must not let a same-shaped malicious
+        one bypass the nested-lambda dunder check via the bytecode cache.
+
+        Regression: the validation cache was keyed on the parent
+        ``(co_code, co_names)`` only, which does not capture nested code
+        objects. Priming with ``[(lambda v: v.real)(x) for x in xs]`` then let
+        ``[(lambda v: v.__class__)(x) for x in xs]`` — byte-identical parent —
+        reuse the "validated" verdict and skip the nested ``__class__`` check,
+        reaching ``object`` (a sandbox escape).
+        """
+        benign = "[(lambda v: v.real)(x) for x in [5]]"
+        malicious = "[(lambda v: v.__class__)(x) for x in [5]]"
+        escape = "[(lambda v: v.__class__.__bases__)(x) for x in [()]]"
+
+        safe_eval_mod._validated_bytecode_cache.clear()
+        # Prime the cache with the benign expression (identical parent bytecode).
+        self.assertEqual(safe_eval(benign), [5])
+
+        # The malicious twins must still be rejected, not served from cache.
+        with self.assertRaises(NameError):
+            safe_eval(malicious)
+        with self.assertRaises(NameError):
+            safe_eval(escape)
+        # test_python_expr shares the same cache: it must also report invalid.
+        self.assertTrue(test_python_expr(malicious))
+        # The malicious lambda's forbidden name must never be in a cached key
+        # (key = (co_code, co_names, allowed_id); co_names holds the attr names).
+        self.assertFalse(
+            any(
+                "__class__" in name
+                for key in safe_eval_mod._validated_bytecode_cache
+                for name in key[1]
+            ),
+        )
 
     def test_01_safe_eval(self):
         """Try a few common expressions to verify they work with safe_eval"""

@@ -7,9 +7,9 @@ from typing import Any, Self
 from urllib.parse import urlsplit
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.libs.constants import ASSET_EXTENSIONS, EXTERNAL_ASSET
 from odoo.modules import Manifest
-from odoo.orm._typing import ValuesType
 from odoo.tools import misc
 
 _logger = getLogger(__name__)
@@ -77,14 +77,7 @@ def _glob_static_file(pattern: str) -> list[tuple[str, float]]:
 
 
 class IrAsset(models.Model):
-    """This model contributes to two things:
-
-    1. It provides a function returning a list of all file paths declared
-    in a given list of addons (see ``_get_asset_paths``);
-
-    2. It allows to create 'ir.asset' records to add additional directives
-    to certain bundles.
-    """
+    """Resolve asset bundle file paths, and store directives that customize bundle contents."""
 
     _name = "ir.asset"
     _description = "Asset"

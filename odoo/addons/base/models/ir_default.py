@@ -3,10 +3,9 @@ from datetime import date
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
-from odoo.api import SUPERUSER_ID
+from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
-from odoo.orm._typing import ValuesType
 
 
 class IrDefault(models.Model):
@@ -39,7 +38,8 @@ class IrDefault(models.Model):
         help="If set, action binding only applies for this company",
     )
     condition = fields.Char(
-        "Condition", help="If set, applies the default upon condition."
+        "Condition",
+        help="If set, applies the default upon condition.",
     )
     json_value = fields.Char("Default Value (JSON format)", required=True)
 

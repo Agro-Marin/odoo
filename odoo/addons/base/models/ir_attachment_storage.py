@@ -1,32 +1,3 @@
-"""Storage backends for ir.attachment content.
-
-Formalizes the storage strategy that was previously implicit in scattered
-``_storage() != "db"`` checks (see plan
-``2026-06-10-storage-backend-formalization-plan.md``). Two dispatch axes:
-
-- **Write side** — ``ir_attachment.location`` decides where NEW content
-  goes: :meth:`IrAttachment._storage_backend` resolves it from
-  ``STORAGE_BACKENDS`` by location name.
-- **Read side** — existing content follows the record's store key, NOT the
-  configured location (switching the location does not migrate rows):
-  :func:`backend_for_key` resolves the owning backend from the key's URI
-  scheme (``s3://...``); plain sharded fnames belong to :class:`FileStorage`.
-
-Custom backends subclass :class:`AttachmentStorage` and register with
-``@register_storage``. The local-filestore I/O primitives stay on the model
-(``_file_read`` / ``_file_write`` / ``_full_path`` / ...): they are a stable
-*cross-module API* — other addons call ``attachment._full_path`` /
-``_file_read`` directly (``cloud_storage_migration``, ``l10n_mx_edi_payslip``,
-``l10n_mx_partner_blocklist``) and ~6 test sites patch them — so
-:class:`FileStorage` delegates DOWN to them instead of hosting the I/O itself.
-The dependency direction is always backend -> model primitive, never the
-reverse (no circularity). Relocating the primitives into this class would
-break those consumers; keeping them on the model is a deliberate decision
-(2026-06-10 storage-backend-formalization plan, decisions 1 & 3). A *new*
-backend needs none of them — see ``MemoryStorage`` in the tests, which
-implements the contract self-contained.
-"""
-
 import contextlib
 import logging
 from pathlib import Path

@@ -1,7 +1,7 @@
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import common
-from odoo.tools import SetDefinitions
+from odoo.tools import SetDefinitions, SetExpressionError
 
 
 @common.tagged("at_install", "groups")
@@ -226,6 +226,30 @@ class TestGroupsObject(common.BaseCase):
         self.assertEqual(str(~((A & B) | A1)), "~'A' | (~'A1' & ~'B')")
         self.assertEqual(str(~(~A | (~A1 & ~B))), "('A' & 'B') | 'A1'")
         self.assertEqual(str(~~((A & B) | A1)), "('A' & 'B') | 'A1'")
+
+    def test_groups_invert_blowup_is_guarded(self):
+        """Inverting a large disjunction must fail fast, not hang the worker.
+
+        ``~((A1 & A2) | (B1 & B2) | ...)`` expands via De Morgan to a product of
+        the per-intersection leaf counts, i.e. ``2**N`` for N two-leaf
+        disjuncts.  A pathological expression must raise ``SetExpressionError``
+        (a ``ValueError``) immediately instead of materializing millions of
+        terms.
+        """
+        # 40 independent groups -> 20 two-leaf intersections OR'd together;
+        # inverting expands to 2**20 ~ 1.05M terms, well over the guard limit.
+        defs = SetDefinitions({i: {"ref": f"g{i}"} for i in range(1, 41)})
+        groups = [defs.parse(f"g{i}") for i in range(1, 41)]
+        expr = defs.empty
+        for i in range(0, 40, 2):
+            expr = expr | (groups[i] & groups[i + 1])
+
+        with self.assertRaises(SetExpressionError):
+            _ = ~expr
+
+        # A small inversion of the same shape must still succeed.
+        small = (groups[0] & groups[1]) | (groups[2] & groups[3])
+        self.assertTrue(str(~small))
 
     def test_groups_6_invert_gt_lt(self):
         A = self.definitions.parse("A")

@@ -6,10 +6,10 @@ from collections import defaultdict
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.orm._typing import ValuesType
-from odoo.orm.registration import pop_field
+from odoo.models import pop_field
 from odoo.tools import SQL, OrderedSet, frozendict, sql, unique
 from odoo.tools.safe_eval import safe_eval
 from odoo.tools.translate import FIELD_TRANSLATE, _
@@ -1169,12 +1169,12 @@ class IrModelFields(models.Model):
 
     @api.model
     def _is_manual_name(self, name: str) -> bool:
-        return name.startswith("x_")
+        return models.is_manual_name(name)
 
     @api.model
     def get_field_string(self, model_name: str) -> dict[str, str]:
         """Return the translation of fields strings in the context's language.
-        Note that the result contains the available translations only.
+        The result contains the available translations only.
 
         :param model_name: the name of a model
         :return: the model's fields' strings as a dictionary `{field_name: field_string}`
@@ -1187,7 +1187,7 @@ class IrModelFields(models.Model):
     @api.model
     def get_field_help(self, model_name: str) -> dict[str, str | None]:
         """Return the translation of fields help in the context's language.
-        Note that the result contains the available translations only.
+        The result contains the available translations only.
 
         :param model_name: the name of a model
         :return: the model's fields' help as a dictionary `{field_name: field_help}`
@@ -1202,7 +1202,7 @@ class IrModelFields(models.Model):
         self, model_name: str, field_name: str
     ) -> list[tuple[str, str]]:
         """Return the translation of a field's selection in the context's language.
-        Note that the result contains the available translations only.
+        The result contains the available translations only.
 
         :param model_name: the name of the field's model
         :param field_name: the name of the field
@@ -1216,7 +1216,7 @@ class IrModelFields(models.Model):
     @tools.ormcache("model_name", "self.env.lang", cache="stable")
     def _get_fields_cached(self, model_name: str) -> dict[str, dict[str, Any]]:
         """Return the translated information of all model field's in the context's language.
-        Note that the result contains the available translations only.
+        The result contains the available translations only.
 
         :param model_name: the name of the field's model
         :return: {field_name: {id, help, field_description, [selection]}}

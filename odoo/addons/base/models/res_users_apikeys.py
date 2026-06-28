@@ -6,9 +6,9 @@ from hashlib import sha256
 from typing import Any, Self
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 from odoo.tools.password import CryptContext
 
@@ -89,8 +89,10 @@ class ResUsersApikeys(models.Model):
         return self._remove()
 
     def _remove(self) -> dict[str, str]:
-        """Use the remove() method to remove an API Key. This method implement logic,
-        but won't check the identity (mainly used to remove trusted devices)"""
+        """Remove the API key(s) without an identity check.
+
+        Use :meth:`remove` for the identity-checked path; this variant skips the
+        check (mainly to remove trusted devices)."""
         if not self:
             return {"type": "ir.actions.act_window_close"}
         if self.env.is_system() or self.mapped("user_id") == self.env.user:

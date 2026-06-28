@@ -11,6 +11,7 @@ from odoo.exceptions import UserError
 from odoo.tests.common import BaseCase, TransactionCase, tagged
 from odoo.tools import sql
 from odoo.tools.translate import (
+    PoFileReader,
     TranslationImporter,
     TranslationModuleReader,
     html_translate,
@@ -48,6 +49,39 @@ SPECIAL_CHARACTERS = " ¥®°²Æçéðπ⁉€∇⓵▲☑♂♥✓➔『に�
 class TranslationToolsTestCase(BaseCase):
     def assertItemsEqual(self, a, b, msg=None):
         self.assertEqual(sorted(a), sorted(b), msg)
+
+    def test_po_reader_tolerates_missing_module_comment(self):
+        """PoFileReader must not crash on a .po entry whose translator comment is
+        absent or not the Odoo ``module: X`` form.
+
+        Regression: ``re.match(...).groups()`` raised ``AttributeError`` on an
+        empty/non-matching comment, aborting the whole translation import. The
+        comment only supplies a default module for ``code`` rows (ignored on
+        import); model/model_terms rows take their module from the occurrence.
+        """
+        from types import SimpleNamespace
+
+        def entry(comment, xmlid):
+            return SimpleNamespace(
+                obsolete=False,
+                comment=comment,
+                msgid="Hello",
+                msgstr="Bonjour",
+                occurrences=[(f"model_terms:ir.ui.view,arch_db:base.{xmlid}", "0")],
+            )
+
+        reader = PoFileReader.__new__(PoFileReader)  # bypass polib parsing
+        reader.pofile = [
+            entry("module: base", "v_ok"),  # well-formed Odoo comment
+            entry("", "v_empty"),  # no translator comment (polib default)
+            entry("a free-form note", "v_note"),  # non-"module:" comment
+        ]
+
+        rows = [r for r in reader if r.get("type") == "model_terms"]  # must not raise
+
+        self.assertEqual({r["imd_name"] for r in rows}, {"v_ok", "v_empty", "v_note"})
+        # module comes from the occurrence, so it is set even when the comment is not
+        self.assertTrue(all(r["module"] == "base" for r in rows))
 
     def test_quote_unquote(self):
 
@@ -873,8 +907,8 @@ class TestTranslationWrite(TransactionCase):
 
         # Reproduce the stale-flat-entry shape: a scalar value keyed directly
         # by record id, with no nested ``{(lang,): {id: value}}`` entry.
-        core.field_data(field).clear()
-        core.set_value(field, category.id, "Reblochon")
+        core.get_field_data(field).clear()
+        core.cache.set_value(field, category.id, "Reblochon")
 
         col_val = field.get_column_update(category)
         self.assertIsNotNone(
@@ -2524,3 +2558,69 @@ class TestTranslationTrigramIndexPatterns(BaseCase):
                 escaped_pattern,
                 message,
             )
+
+
+class TestReconcileObsoleteTerms(TransactionCase):
+    """Unit tests for ``BaseString._reconcile_obsolete_terms``.
+
+    This is the fuzzy term re-keying that ``mark_dirty`` uses to carry a
+    translation across an edit of its source term. It was previously buried
+    inside the ~170-line ``mark_dirty`` and untestable in isolation; now a named
+    method, it is exercised directly on the ``xml_translate`` field
+    ``ir.ui.view.arch_db`` (``get_trans_terms`` / ``_reconcile_obsolete_terms``
+    are pure, so no view record is needed).
+    """
+
+    def _field(self):
+        return self.env["ir.ui.view"]._fields["arch_db"]
+
+    def test_edited_term_carries_translation_over(self):
+        """A term edited but still >=0.9 similar keeps its translation, re-keyed
+        onto the surviving term."""
+        field = self._field()
+        old_terms = field.get_trans_terms("<div>Hello world</div>")
+        new_terms = field.get_trans_terms("<div>Hello world!</div>")
+        self.assertTrue(old_terms and new_terms)
+        old_term, new_term = old_terms[0], new_terms[0]
+        self.assertNotEqual(old_term, new_term)  # the edit changed the term
+        td = {old_term: {"fr_FR": "Bonjour le monde"}}
+        field._reconcile_obsolete_terms(td, set(new_terms), "fr_FR", self.env)
+        self.assertNotIn(old_term, td, "obsolete term should be re-keyed away")
+        self.assertEqual(td.get(new_term), {"fr_FR": "Bonjour le monde"})
+
+    def test_unchanged_term_is_left_in_place(self):
+        """A term still present in the new value is not touched."""
+        field = self._field()
+        terms = field.get_trans_terms("<div>Stable sentence here</div>")
+        self.assertTrue(terms)
+        term = terms[0]
+        td = {term: {"fr_FR": "Phrase stable"}}
+        field._reconcile_obsolete_terms(td, set(terms), "fr_FR", self.env)
+        self.assertEqual(td, {term: {"fr_FR": "Phrase stable"}})
+
+    def test_removed_term_without_close_match_is_untouched(self):
+        """A term with no >=0.9 match in the new value is left as-is (it is
+        dropped later by the translate() pass, not re-keyed onto an unrelated
+        term)."""
+        field = self._field()
+        old_terms = field.get_trans_terms("<div>Completely unrelated paragraph</div>")
+        new_terms = field.get_trans_terms("<div>Short note</div>")
+        self.assertTrue(old_terms and new_terms)
+        old_term = old_terms[0]
+        td = {old_term: {"fr_FR": "translation"}}
+        field._reconcile_obsolete_terms(td, set(new_terms), "fr_FR", self.env)
+        self.assertIn(old_term, td, "no close match -> must not be re-keyed")
+
+    def test_closest_term_already_translated_is_not_overwritten(self):
+        """When the closest surviving term already carries a translation, the
+        obsolete term is skipped rather than clobbering it."""
+        field = self._field()
+        old_term = field.get_trans_terms("<div>Hello world</div>")[0]
+        new_term = field.get_trans_terms("<div>Hello world!</div>")[0]
+        self.assertNotEqual(old_term, new_term)
+        td = {
+            old_term: {"fr_FR": "obsolete-trans"},
+            new_term: {"fr_FR": "existing-trans"},
+        }
+        field._reconcile_obsolete_terms(td, {new_term}, "fr_FR", self.env)
+        self.assertEqual(td[new_term], {"fr_FR": "existing-trans"})

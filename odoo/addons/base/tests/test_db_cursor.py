@@ -28,7 +28,11 @@ from odoo.db.ddl import (
     _find_value_markers,
     _inline_ddl_params,
 )
-from odoo.db.lifecycle import _HEALTHCHECK_GRACE_PERIOD, _IDLE_SINCE_ATTR
+from odoo.db.lifecycle import (
+    _HEALTHCHECK_GRACE_PERIOD,
+    _IDLE_SINCE_ATTR,
+    _RESET_SESSION_STATE_SQL,
+)
 from odoo.db.pool import (
     Connection,
     ConnectionPool,
@@ -995,7 +999,9 @@ class TestCopyFrom(BaseCase):
         pre-generate ids, and insert every row with its id prepended.
         """
         with registry().cursor() as cr:
-            cr.execute("CREATE TEMP TABLE _test_cpgen (id serial PRIMARY KEY, val text)")
+            cr.execute(
+                "CREATE TEMP TABLE _test_cpgen (id serial PRIMARY KEY, val text)"
+            )
             try:
                 rows = ((f"v{i}",) for i in range(5))  # generator: no __len__
                 ids = cr.copy_from("_test_cpgen", ["val"], rows, returning_ids=True)
@@ -1329,11 +1335,15 @@ class TestPoolBasics(BaseCase):
                 return self._stats
 
         self.assertEqual(
-            ConnectionPool._checked_out(_StubPool({"pool_size": 5, "pool_available": 2})),
+            ConnectionPool._checked_out(
+                _StubPool({"pool_size": 5, "pool_available": 2})
+            ),
             3,
         )
         self.assertEqual(
-            ConnectionPool._checked_out(_StubPool({"pool_size": 4, "pool_available": 4})),
+            ConnectionPool._checked_out(
+                _StubPool({"pool_size": 4, "pool_available": 4})
+            ),
             0,
         )
         self.assertEqual(ConnectionPool._checked_out(_StubPool({})), 0)
@@ -1515,6 +1525,83 @@ class TestPoolSemaphoreAccounting(BaseCase):
         self.assertEqual(pool._pool_sem._value, 2)
 
 
+class TestConnectionStateReset(BaseCase):
+    """``_reset_connection`` must not leak a borrower's session-scoped state to
+    the *next* borrower of the same physical connection — a multi-tenant
+    isolation hazard.  Needs a live database (opens a real connection).
+    """
+
+    def _raw_conn(self):
+        info = connection_info_for(common.get_db_name())[1]
+        conn = psycopg.connect(
+            **{k: v for k, v in info.items() if k != "dsn"}, autocommit=True
+        )
+        self.addCleanup(conn.close)
+        return conn
+
+    @staticmethod
+    def _dirty(conn):
+        conn.execute("SET application_name = 'tenant_leak_probe'")
+        conn.execute("SET search_path = 'leak_schema, public'")
+        conn.execute("CREATE TEMP TABLE _leak_probe (x int)")
+        conn.execute("LISTEN leak_channel")
+        conn.execute("SELECT pg_advisory_lock(987654321)")
+
+    def _assert_clean(self, conn):
+        get = lambda q: conn.execute(q).fetchone()[0]  # noqa: E731
+        self.assertNotEqual(get("SHOW application_name"), "tenant_leak_probe")
+        self.assertNotIn("leak_schema", get("SHOW search_path"))
+        self.assertFalse(get("SELECT to_regclass('pg_temp._leak_probe') IS NOT NULL"))
+        self.assertEqual(get("SELECT count(*) FROM pg_listening_channels()"), 0)
+        self.assertEqual(
+            get("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'"), 0
+        )
+
+    def test_reset_sql_resets_role(self):
+        # RESET ALL does NOT clear SET ROLE / SET SESSION AUTHORIZATION; only
+        # RESET SESSION AUTHORIZATION does, so it must be in the cheap reset.
+        self.assertIn("RESET SESSION AUTHORIZATION", _RESET_SESSION_STATE_SQL)
+
+    @staticmethod
+    def _override_discard(value):
+        from odoo.tools import config
+
+        return patch.object(
+            config, "options", config.options.new_child({"db_discard_on_return": value})
+        )
+
+    def test_default_mode_closes_leaks(self):
+        conn = self._raw_conn()
+        self._dirty(conn)
+        with self._override_discard(False):
+            _reset_connection(conn)
+        conn.autocommit = True
+        self._assert_clean(conn)
+
+    def test_discard_mode_closes_leaks(self):
+        conn = self._raw_conn()
+        self._dirty(conn)
+        with self._override_discard(True):
+            _reset_connection(conn)
+        conn.autocommit = True
+        self._assert_clean(conn)
+
+    def test_no_prepared_statement_crash_across_returns(self):
+        # The reset is a multi-statement command (unpreparable) and DISCARD ALL
+        # deallocates server-side prepared statements; reusing an auto-prepared
+        # shape across many returns must not raise (prepare=False + cache clear).
+        for discard in (False, True):
+            conn = self._raw_conn()
+            conn.prepare_threshold = 2
+            with self._override_discard(discard):
+                for _ in range(6):
+                    conn.execute("SELECT 1 WHERE %s::int = 1", (1,))
+                    self._dirty(conn)
+                    _reset_connection(conn)
+                    conn.autocommit = True
+            self._assert_clean(conn)
+
+
 class TestIdlePoolReaper(BaseCase):
     """Per-DSN pools left idle are reaped when a new pool is created, so a
     process that serves many databases over time does not accumulate pool
@@ -1568,6 +1655,40 @@ class TestIdlePoolReaper(BaseCase):
         survivors = self._dbset(pool)
         self.assertIn("held", survivors, "pool with a held connection must stay")
         self.assertNotIn("idle", survivors, "idle pool with nothing held is reaped")
+
+    def test_give_back_refreshes_activity_stamp(self):
+        # Returning a connection is activity: give_back must re-stamp the pool so
+        # a connection held longer than the TTL (stamp gone stale) and then
+        # returned does not leave its pool eligible for reaping on the next
+        # sweep.  Regression for the stamp being written on borrow only.
+        pool = ConnectionPool(maxconn=4, reap_idle_ttl=300.0)
+        self.addCleanup(pool.close_all)
+        conn = pool.borrow(self._info("returned"))
+        (key,) = list(pool._pools)
+        pool._pools[key]._odoo_last_borrow = 0.0  # simulate a long (>TTL) hold
+        pool.give_back(conn)
+        self.assertGreater(
+            pool._pools[key]._odoo_last_borrow,
+            0.0,
+            "give_back must refresh the pool's activity stamp",
+        )
+
+    def test_long_held_then_returned_pool_survives_sweep(self):
+        # End-to-end: borrow, simulate a >TTL hold, return, then trigger the
+        # cold-path reaper by creating another pool.  The just-returned pool is
+        # active (give_back re-stamped it) and must survive.
+        pool = ConnectionPool(maxconn=4, reap_idle_ttl=300.0)
+        self.addCleanup(pool.close_all)
+        conn = pool.borrow(self._info("returned"))
+        (key,) = list(pool._pools)
+        pool._pools[key]._odoo_last_borrow = 0.0  # long hold
+        pool.give_back(conn)  # re-stamps the pool fresh
+        pool.give_back(pool.borrow(self._info("trigger")))  # cold-path sweep
+        self.assertIn(
+            "returned",
+            self._dbset(pool),
+            "a pool that just returned a connection is active, not idle",
+        )
 
     def test_reaper_disabled_keeps_all_pools(self):
         pool = ConnectionPool(maxconn=4, reap_idle_ttl=0.0)
@@ -2266,7 +2387,9 @@ class TestHealthCheckGracePeriod(BaseCase):
 
     def test_idle_connection_is_probed(self):
         conn = self._Bare()
-        setattr(conn, _IDLE_SINCE_ATTR, time.monotonic() - _HEALTHCHECK_GRACE_PERIOD - 1)
+        setattr(
+            conn, _IDLE_SINCE_ATTR, time.monotonic() - _HEALTHCHECK_GRACE_PERIOD - 1
+        )
         with patch("odoo.db.pool._PsycopgPool.check_connection") as probe:
             _check_connection(conn)
         probe.assert_called_once_with(conn)
@@ -3619,9 +3742,13 @@ class TestCopyFromMetricsQueryLazy(BaseCase):
         captured = {}
         orig = Cursor._record_metrics
 
-        def spy(self, delay, count=1, *, query=None, params=None, start=0.0):
+        def spy(
+            self, delay, count=1, *, query=None, params=None, start=0.0, hooks=None
+        ):
             captured["query"] = query
-            return orig(self, delay, count, query=query, params=params, start=start)
+            return orig(
+                self, delay, count, query=query, params=params, start=start, hooks=hooks
+            )
 
         with patch.object(Cursor, "_record_metrics", spy):
             with registry().cursor() as cr:
@@ -3855,7 +3982,7 @@ class TestCopyFromRecoverableErrorLogLevel(BaseCase):
     Reproduced deterministically (no mocks): a second connection holds an
     ACCESS EXCLUSIVE lock on the target table, so COPY's RowExclusiveLock
     acquisition blocks and trips ``lock_timeout`` → LockNotAvailable (55P03),
-    a member of _RECOVERABLE_SQL_ERRORS.
+    a member of PG_RECOVERABLE_EXCEPTIONS.
     """
 
     def setUp(self):
@@ -3891,6 +4018,40 @@ class TestCopyFromRecoverableErrorLogLevel(BaseCase):
         self.assertTrue(
             any("recoverable SQL error" in r.getMessage() for r in cm.records)
         )
+
+
+class TestConcurrencyErrorTaxonomy(BaseCase):
+    """The PG concurrency-retry vocabulary lives once in ``odoo.db.errors``;
+    ``odoo.service.transaction`` aliases it as the public ``PG_CONCURRENCY_*``
+    names that addons import.  These guards stop the SQLSTATE list, the exception
+    list, and the log-level (RECOVERABLE) set from drifting apart again.
+    """
+
+    def test_sqlstates_match_exception_classes(self):
+        from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
+
+        # each retry exception's own .sqlstate must equal the string list, in order
+        self.assertEqual(
+            tuple(exc.sqlstate for exc in PG_RETRY_EXCEPTIONS),
+            PG_RETRY_SQLSTATES,
+        )
+
+    def test_recoverable_is_retryable_plus_read_only(self):
+        from odoo.db.errors import PG_RECOVERABLE_EXCEPTIONS, PG_RETRY_EXCEPTIONS
+
+        # RECOVERABLE (logged at WARNING) = retryable + read-only-transaction (25006)
+        extra = set(PG_RECOVERABLE_EXCEPTIONS) - set(PG_RETRY_EXCEPTIONS)
+        self.assertEqual(extra, {psycopg.errors.ReadOnlySqlTransaction})
+
+    def test_public_aliases_are_the_canonical_objects(self):
+        from odoo.db import errors as db_errors
+        from odoo.service import transaction as svc
+
+        # the names addons import resolve to the single source of truth
+        self.assertIs(
+            svc.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY, db_errors.PG_RETRY_EXCEPTIONS
+        )
+        self.assertIs(svc.PG_CONCURRENCY_ERRORS_TO_RETRY, db_errors.PG_RETRY_SQLSTATES)
 
 
 class TestExecutemanyLogExceptions(BaseCase):
@@ -4044,9 +4205,7 @@ class TestPoolCleanupIsolatesFailures(BaseCase):
 
     def _make_pool_with(self, *fakes):
         cp = ConnectionPool(maxconn=8)
-        cp._pools = {
-            frozenset([("database", fp.name)]): fp for fp in fakes
-        }
+        cp._pools = {frozenset([("database", fp.name)]): fp for fp in fakes}
         return cp
 
     def test_close_all_closes_survivors_despite_failure(self):
@@ -4117,7 +4276,9 @@ class TestDdlKeyword(BaseCase):
 
     def test_schema_changing_set(self):
         # CREATE/ALTER/DROP/DO change shape; COMMENT/GRANT/REVOKE never do.
-        self.assertEqual(_SCHEMA_CHANGING_DDL, frozenset({"CREATE", "ALTER", "DROP", "DO"}))
+        self.assertEqual(
+            _SCHEMA_CHANGING_DDL, frozenset({"CREATE", "ALTER", "DROP", "DO"})
+        )
         for kw in ("CREATE", "ALTER", "DROP", "DO"):
             self.assertIn(kw, _SCHEMA_CHANGING_DDL)
         for kw in ("COMMENT", "GRANT", "REVOKE"):
@@ -4226,8 +4387,13 @@ class TestReplicaConnectionInfo(BaseCase):
         from odoo.tools import config
 
         keys = (
-            "db_host", "db_port", "db_user", "db_password", "db_sslmode",
-            "db_replica_host", "db_replica_port",
+            "db_host",
+            "db_port",
+            "db_user",
+            "db_password",
+            "db_sslmode",
+            "db_replica_host",
+            "db_replica_port",
         )
         saved = {k: config[k] for k in keys}
         try:

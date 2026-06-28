@@ -4,8 +4,8 @@ from typing import Any, Self
 from psycopg.types.json import Json
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, OrderedSet, sql
 from odoo.tools.translate import _
 
@@ -149,8 +149,8 @@ class IrModelConstraint(models.Model):
         """Reflect the given constraint, and return its corresponding record
         if a record is created or modified; returns ``None`` otherwise.
         The reflection makes it possible to remove a constraint when its
-        corresponding module is uninstalled. ``type`` is either 'f', 'i', or 'u'
-        depending on the constraint being a foreign key or not.
+        corresponding module is uninstalled. ``type`` is 'f' for a foreign key,
+        'i' for an index, or 'u' for any other constraint.
         """
         if not module:
             # no need to save constraints for custom models as they're not part

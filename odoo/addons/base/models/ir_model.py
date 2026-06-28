@@ -8,9 +8,9 @@ from typing import Any, Self
 from psycopg.types.json import Jsonb
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
-from odoo.orm._typing import ValuesType
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -136,7 +136,7 @@ def query_update(
 def select_en(
     model: Any, fnames: list[str], model_names: list[str]
 ) -> list[tuple[Any, ...]]:
-    """Select the given columns from the given model's table, with the given WHERE clause.
+    """Select the given columns from the given model's table, for the given model names.
     Translated fields are returned in 'en_US'.
     """
     if not model_names:
@@ -734,7 +734,7 @@ class IrModel(models.Model):
 
     @api.model
     def _is_manual_name(self, name: str) -> bool:
-        return name.startswith("x_")
+        return models.is_manual_name(name)
 
     @api.model
     def _check_manual_name(self, name: str) -> None:
