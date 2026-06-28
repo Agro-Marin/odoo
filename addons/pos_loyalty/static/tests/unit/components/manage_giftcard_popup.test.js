@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { test, expect } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";

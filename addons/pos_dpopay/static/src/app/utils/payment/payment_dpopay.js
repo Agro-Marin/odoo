@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 import {
     handleRPCError,

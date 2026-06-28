@@ -1,6 +1,7 @@
 /** @odoo-module native */
 /* global waitForWebfonts */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { markRaw, reactive } from "@odoo/owl";
 import { CashMovePopup } from "@point_of_sale/app/components/popups/cash_move_popup/cash_move_popup";
 import { ClosePosPopup } from "@point_of_sale/app/components/popups/closing_popup/closing_popup";

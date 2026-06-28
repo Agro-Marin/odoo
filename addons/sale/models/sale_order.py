@@ -525,7 +525,6 @@ class SaleOrder(models.Model):
         column1="order_id",
         column2="tag_id",
         string="Tags",
-        groups="sales_team.group_sale_salesman",
     )
     duplicated_order_ids = fields.Many2many(
         comodel_name="sale.order",

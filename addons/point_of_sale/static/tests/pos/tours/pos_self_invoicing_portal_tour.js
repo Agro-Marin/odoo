@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("invoicePoSOrderWithSelfInvocing", {

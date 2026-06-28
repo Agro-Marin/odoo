@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { loyaltyIdsGenerator } from "@pos_loyalty/app/services/pos_store";
 import { _t } from "@web/core/l10n/translation";

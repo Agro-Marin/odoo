@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";

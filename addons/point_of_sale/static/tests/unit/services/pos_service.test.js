@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { test, expect, describe } from "@odoo/hoot";
 import { getFilledOrder, setupPosEnv } from "../utils.js";
 import { definePosModels } from "../data/generate_model_definitions.js";

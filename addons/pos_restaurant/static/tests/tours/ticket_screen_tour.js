@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import * as ProductScreenPos from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 import * as ProductScreenResto from "@pos_restaurant/../tests/tours/utils/product_screen_util";
 

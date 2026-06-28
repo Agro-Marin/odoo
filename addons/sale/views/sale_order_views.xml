@@ -38,8 +38,6 @@
                         context="{'group_by': 'user_id'}" />
                     <filter name="order_month" string="Order Date"
                         context="{'group_by': 'date_order'}" />
-                    <filter name="preferred_payment_method_line_groupby" string="Payment Method"
-                        context="{'group_by': 'preferred_payment_method_line_id'}" />
                 </group>
             </search>
         </field>
@@ -131,8 +129,8 @@
             <graph string="Sales Orders" sample="1" type="bar" stacked="1">
                 <field name="date_order" />
                 <field name="state" />
-                <field name="amount_total" type="measure" />
                 <field name="amount_untaxed" type="measure" />
+                <field name="amount_total" type="measure" />
             </graph>
         </field>
     </record>
@@ -141,7 +139,10 @@
         <field name="name">sale.order.kanban</field>
         <field name="model">sale.order</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" sample="1" quick_create="false">
+            <kanban
+                class="o_kanban_mobile"
+                sample="1"
+                quick_create="false">
                 <field name="currency_id" />
                 <progressbar field="activity_state"
                     colors='{"planned": "success", "today": "warning", "overdue": "danger"}' />
@@ -156,7 +157,8 @@
                         <footer class="align-items-end">
                             <div class="d-flex flex-wrap gap-1 text-muted text-nowrap">
                                 <field name="name" />
-                                <field name="date_order" options="{'show_time': false}" />
+                                <field name="date_order"
+                                    options="{'show_time': false}" />
                                 <field name="activity_ids" widget="kanban_activity" />
                             </div>
                             <field name="state"
@@ -214,16 +216,26 @@
                 <field name="message_needaction" column_invisible="True" />
                 <field name="currency_id" column_invisible="True" />
 
-                <field name="priority" widget="priority" nolabel="1" optional="show" />
-                <field name="name" string="Reference" readonly="1" decoration-bf="1"
+                <field name="priority"
+                    widget="priority"
+                    nolabel="1"
+                    optional="show" />
+                <field name="name" string="Reference"
+                    readonly="1"
+                    decoration-bf="1"
                     decoration-info="state == 'draft'" />
-                <field name="date_order" optional="show" readonly="state in ['done', 'cancel']" />
-                <field name="date_commitment" optional="hide" />
+                <field name="date_order"
+                    readonly="state in ['done', 'cancel']"
+                    optional="show" />
+                <field name="date_commitment"
+                    optional="hide" />
                 <field name="date_planned" optional="hide" />
+                <field name="date_validity" optional="hide" />
                 <field name="partner_id" readonly="1" />
-                <field name="user_id" widget="many2one_avatar_user" optional="show" />
+                <field name="client_order_ref" optional="hide" />
                 <field name="activity_ids" widget="list_activity" optional="show" />
                 <field name="activity_exception_decoration" widget="activity_exception" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="team_id" optional="hide" />
                 <field name="amount_untaxed"
                     sum="Total Tax Excluded"
@@ -239,10 +251,6 @@
                     decoration-bf="1"
                     decoration-info="invoice_state == 'to do'"
                     optional="show" />
-                <field name="tag_ids"
-                    widget="many2many_tags"
-                    options="{'color_field': 'color'}"
-                    optional="hide" />
                 <field name="state"
                     decoration-success="state == 'done'"
                     decoration-info="state == 'draft'"
@@ -256,16 +264,19 @@
                     decoration-danger="invoice_state == 'over done'"
                     optional="show" />
                 <field name="has_upsell_opportunity"
-                    decoration-warning="has_upsell_opportunity == True"
                     widget="boolean"
+                    decoration-warning="has_upsell_opportunity == True"
                     optional="hide" />
-                <field name="client_order_ref" optional="hide" />
-                <field name="date_validity" optional="hide" />
-                <field name="company_id" groups="!base.group_multi_company" column_invisible="True" />
+                <field name="tag_ids"
+                    widget="many2many_tags"
+                    options="{'color_field': 'color'}"
+                    optional="hide" />
                 <field name="company_id"
+                    groups="!base.group_multi_company" column_invisible="True" />
+                <field name="company_id"
+                    readonly="1"
                     groups="base.group_multi_company"
-                    optional="show"
-                    readonly="1" />
+                    optional="show" />
             </list>
         </field>
     </record>
