@@ -1,6 +1,7 @@
 /** @odoo-module native */
 // @ts-check
 
+import { luxon } from "@web/core/l10n/luxon";
 import { registries, helpers, constants, EvaluationError } from "@odoo/o-spreadsheet";
 import { deserializeDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";

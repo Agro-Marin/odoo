@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Component } from "@odoo/owl";
 
 import { evaluateBooleanExpr } from "@web/core/py_js/py";

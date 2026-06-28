@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { FormActionFieldsOption } from "./form_action_fields_option.js";

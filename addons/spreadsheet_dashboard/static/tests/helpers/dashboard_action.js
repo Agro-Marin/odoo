@@ -9,7 +9,7 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { loadBundle } from "@web/core/assets";
+import { loadChartJS } from "@web/core/lib/chartjs";
 import { WebClient } from "@web/webclient/webclient";
 /**
  * @param {object} params
@@ -28,7 +28,7 @@ export async function createSpreadsheetDashboard(params = {}) {
     });
 
     await makeSpreadsheetMockEnv(params);
-    await loadBundle("web.chartjs_lib");
+    await loadChartJS();
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         type: "ir.actions.client",

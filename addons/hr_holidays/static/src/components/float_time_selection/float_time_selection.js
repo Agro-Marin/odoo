@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { usePopover } from "@web/ui/popover/popover_hook";

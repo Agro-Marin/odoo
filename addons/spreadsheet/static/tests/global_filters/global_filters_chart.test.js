@@ -1,4 +1,5 @@
 /** @ts-check */
+import { luxon } from "@web/core/l10n/luxon";
 import { mockDate } from "@odoo/hoot-mock";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { describe, expect, test } from "@odoo/hoot";

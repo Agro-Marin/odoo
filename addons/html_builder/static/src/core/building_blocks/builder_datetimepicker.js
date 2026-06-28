@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { Component, useState } from "@odoo/owl";
 import { effect } from "@web/core/utils/reactive";

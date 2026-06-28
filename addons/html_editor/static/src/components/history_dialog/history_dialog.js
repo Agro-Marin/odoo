@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { Notebook } from "@web/components/notebook/notebook";
 import { formatDateTime } from "@web/core/l10n/dates";

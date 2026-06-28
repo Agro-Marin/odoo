@@ -124,8 +124,6 @@ This addon provides an extensible, maintainable editor.
     },
     'license': 'LGPL-3',
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'html_editor._assets_editor',
             'html_editor.assets_history_diff',

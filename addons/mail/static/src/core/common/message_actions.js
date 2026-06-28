@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
 import { toRaw, useComponent, useState } from "@odoo/owl";

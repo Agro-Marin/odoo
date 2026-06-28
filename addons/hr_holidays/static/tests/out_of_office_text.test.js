@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { describe, test } from "@odoo/hoot";
 
 import {

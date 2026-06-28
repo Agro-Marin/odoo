@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, markup } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { rpc } from "@web/core/network/rpc";

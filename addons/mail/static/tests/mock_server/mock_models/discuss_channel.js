@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { convertBrToLineBreak } from "@mail/utils/common/format";
 

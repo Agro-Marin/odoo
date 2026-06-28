@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { defineMailModels, start as start2 } from "@mail/../tests/mail_test_helpers";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { markup, reactive, toRaw } from "@odoo/owl";

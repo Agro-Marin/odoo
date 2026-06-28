@@ -1,6 +1,7 @@
 /** @odoo-module native */
 /** @ts-check */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { Domain } from "@web/core/domain";

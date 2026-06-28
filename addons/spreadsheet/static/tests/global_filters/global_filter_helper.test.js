@@ -1,4 +1,5 @@
 /** @ts-check */
+import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test, beforeEach } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import {

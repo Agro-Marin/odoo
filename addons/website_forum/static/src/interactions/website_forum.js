@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { scrollTo, closestScrollable } from "@html_builder/utils/scrolling";
 import { Tooltip, Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";

@@ -7,7 +7,7 @@ import {
     MockServer,
     mountView,
     onRpc,
-    preloadBundle,
+    preloadFullCalendar,
     serverState,
 } from "@web/../tests/web_test_helpers";
 import {
@@ -19,7 +19,7 @@ import {
 } from "@web/../tests/views/calendar/calendar_test_helpers";
 
 defineCalendarModels();
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 const serverData = {};
 

@@ -13,10 +13,6 @@
         'views/public_readonly_spreadsheet_templates.xml',
     ],
     'assets': {
-        'web.chartjs_lib' : [
-            'spreadsheet/static/lib/chartjs-chart-geo/chartjs-chart-geo.js',
-            'spreadsheet/static/lib/chart_js_treemap.js',
-        ],
         'spreadsheet.o_spreadsheet': [
             'web/static/src/views/graph/graph_model.js',
             'web/static/src/views/pivot/pivot_group_tree.js',
@@ -26,7 +22,7 @@
             'web/static/src/views/pivot/pivot_export.js',
             'web/static/src/views/pivot/pivot_model.js',
             'web/static/src/polyfills/clipboard.js',
-            ('include', 'web.chartjs_lib'),
+            'spreadsheet/static/src/o_spreadsheet/chartjs_setup.js',
             'spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js',
             'spreadsheet/static/src/**/*.js',
             # Load all o_spreadsheet templates first to allow to inherit them
@@ -52,7 +48,6 @@
             'web/static/src/libs/fontawesome7/css/solid.css',
             'web/static/src/libs/fontawesome7/css/regular.css',
             'web/static/src/libs/fontawesome7/css/brands.css',
-            'web/static/lib/luxon/luxon.js',
             'web/static/src/core/utils/**/*.js',
             'web/static/src/core/browser/browser.js',
             'web/static/src/core/browser/feature_detection.js',
@@ -63,7 +58,7 @@
             'web/static/src/session.js',
             'web/static/src/env.js',
             'web/static/src/core/**/*.js',
-            ('include', 'web.chartjs_lib'),
+            'spreadsheet/static/src/o_spreadsheet/chartjs_setup.js',
             'spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js',
             'spreadsheet/static/src/o_spreadsheet/o_spreadsheet.xml',
             'spreadsheet/static/src/o_spreadsheet/o_spreadsheet_variables.scss',
@@ -100,8 +95,6 @@
         ],
     },
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'spreadsheet.assets_print',
             'spreadsheet.o_spreadsheet',

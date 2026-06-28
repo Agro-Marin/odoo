@@ -2,6 +2,7 @@
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */
 
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 export const modelRegistry = registry.category("discuss.model");
 

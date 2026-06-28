@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { markup } from "@odoo/owl";
 import {
     authenticate,

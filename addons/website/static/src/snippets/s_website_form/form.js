@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { Popover } from "@web/libs/bootstrap";
 import { scrollTo } from "@html_builder/utils/scrolling";
 import { Interaction } from "@web/public/interaction";

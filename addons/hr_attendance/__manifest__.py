@@ -99,8 +99,6 @@ actions(Check in/Check out) performed by them.
     'post_init_hook': 'post_init_hook',
     'uninstall_hook': 'uninstall_hook',
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'hr_attendance.assets_public_attendance',
         ],

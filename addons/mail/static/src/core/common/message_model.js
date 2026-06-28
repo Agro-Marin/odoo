@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { fields, Record } from "@mail/core/common/record";
 import {

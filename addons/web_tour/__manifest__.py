@@ -78,8 +78,6 @@ Odoo Web tours.
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'web_tour.automatic',
             'web_tour.interactive',

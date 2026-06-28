@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { Domain } from "@web/core/domain";
 import { expect } from "@odoo/hoot";
 

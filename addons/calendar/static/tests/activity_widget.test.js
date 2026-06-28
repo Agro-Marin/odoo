@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
 import {
     click,
@@ -7,13 +8,13 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { test } from "@odoo/hoot";
-import { preloadBundle, serverState } from "@web/../tests/web_test_helpers";
+import { preloadFullCalendar, serverState } from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";
 
 const { DateTime } = luxon;
 
 defineCalendarModels();
-preloadBundle("web.fullcalendar_lib");
+preloadFullCalendar();
 
 test("list activity widget: reschedule button in dropdown", async () => {
     const pyEnv = await startServer();

@@ -1,3 +1,4 @@
+import { luxon } from "@web/core/l10n/luxon";
 import { expect, test, beforeEach, describe } from "@odoo/hoot";
 import { mockDate, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { click, queryAllTexts, queryFirst, queryOne, waitFor } from "@odoo/hoot-dom";

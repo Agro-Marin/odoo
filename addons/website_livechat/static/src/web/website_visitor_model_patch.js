@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { patch } from "@web/core/utils/patch";
 
