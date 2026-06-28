@@ -5,7 +5,7 @@
 
 import { markRaw } from "@odoo/owl";
 import { intersection } from "@web/core/utils/collections/arrays";
-import { omit } from "@web/core/utils/collections/objects";
+import { deepEqual, omit } from "@web/core/utils/collections/objects";
 import { x2ManyCommands } from "./commands.js";
 
 import { serializeCommands } from "./command_builder.js";
@@ -893,6 +893,40 @@ export class StaticList extends DataPoint {
     }
 
     _updateContext(context) {
+        // This runs from the parent record's ``_setEvalContext`` for EVERY
+        // x2many field on EVERY committed parent edit. Recomputing the eval
+        // context of every cached sub-record is O(rows × fields) per keystroke
+        // and is wasted work when the field context did not actually change:
+        //
+        //   - A sub-record's eval context derives from its OWN data (unchanged
+        //     here — its own edits trigger its own ``_setEvalContext``), the
+        //     list ``context`` (only relevant when it changes — guarded below),
+        //     and the parent record, which sub-records observe LIVE through the
+        //     ``parent`` getter on their eval context (record.js). Cross-record
+        //     modifiers (e.g. ``invisible="parent.state == 'done'"``) re-render
+        //     because the sub-record reads ``parent.evalContext`` during its own
+        //     render and the parent mutates that object in place — not because
+        //     of this recompute.
+        //   - When the field context is unchanged, a recompute produces
+        //     identical values, which OWL's same-value optimization drops with
+        //     no notification. So skipping it is behavior-preserving.
+        //
+        // Compare by VALUE, not reference: the base eval context always carries
+        // array-valued keys (e.g. ``allowed_company_ids``) that are freshly
+        // allocated on each ``getFieldContext`` call, so a strict ``!==`` would
+        // report a change every time and never skip. ``deepEqual`` over the
+        // handful of context keys is cheap (run once per x2many per edit, not
+        // per row).
+        let changed = false;
+        for (const key of Object.keys(context)) {
+            if (!deepEqual(this.context[key], context[key])) {
+                changed = true;
+                break;
+            }
+        }
+        if (!changed) {
+            return;
+        }
         Object.assign(this.context, context);
         for (const record of Object.values(this._cache)) {
             record._setEvalContext();
