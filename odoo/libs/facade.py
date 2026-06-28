@@ -21,9 +21,11 @@ class ProxyAttr:
     """
 
     def __init__(self, cast: Callable[..., Any] | bool = False) -> None:
+        """Store the optional ``cast`` applied to the attribute on read."""
         self._cast__ = cast
 
     def __set_name__(self, owner: type, name: str) -> None:
+        """Install a property on ``owner`` proxying ``name`` to the wrapped instance."""
         cast = self._cast__
         if cast:
 
@@ -50,9 +52,11 @@ class ProxyFunc:
     """
 
     def __init__(self, cast: Callable[..., Any] | bool = False) -> None:
+        """Store the optional ``cast`` applied to the function's return value."""
         self._cast__ = cast
 
     def __set_name__(self, owner: type, name: str) -> None:
+        """Install a wrapper on ``owner`` forwarding ``name`` to the wrapped instance."""
         func = getattr(owner._wrapped__, name)
         descriptor = inspect.getattr_static(owner._wrapped__, name)
         cast = self._cast__
@@ -120,20 +124,33 @@ class ProxyFunc:
 
 
 class ProxyMeta(type):
+    """Metaclass for :class:`Proxy` subclasses.
+
+    Auto-installs ``__repr__``/``__str__`` proxies and links the proxy class to
+    its wrapped class so docstring and signature introspection see through it.
+    """
+
     def __new__(
         cls,
         clsname: str,
         bases: tuple[type, ...],
         attrs: dict[str, Any],
     ) -> ProxyMeta:
+        """Build the proxy class, defaulting ``__repr__``/``__str__`` to proxies."""
         attrs.update(
             {func: ProxyFunc() for func in ("__repr__", "__str__") if func not in attrs}
         )
         proxy_class = super().__new__(cls, clsname, bases, attrs)
-        # To preserve the docstring, signature, code of the wrapped class
-        # `updated` to an emtpy list so it doesn't copy the `__dict__`
-        # See `functools.WRAPPER_ASSIGNMENTS` and `functools.WRAPPER_UPDATES`
-        functools.update_wrapper(proxy_class, proxy_class._wrapped__, updated=[])
+        # Copy ONLY the wrapped class's docstring (and, via update_wrapper's
+        # unconditional ``__wrapped__`` assignment, keep ``inspect.signature``
+        # following through to it). The default ``assigned`` would also copy
+        # ``__name__``/``__qualname__``/``__module__``, shadowing the proxy's own
+        # identity — that made e.g. ``type(http.Response).__name__`` report
+        # ``'_Response'`` and mislabel the class in reprs and tracebacks.
+        # ``updated=[]`` prevents merging the wrapped ``__dict__``.
+        functools.update_wrapper(
+            proxy_class, proxy_class._wrapped__, assigned=("__doc__",), updated=[]
+        )
         return proxy_class
 
 
@@ -147,7 +164,7 @@ class Proxy(metaclass=ProxyMeta):
     _wrapped__: type = object
 
     def __init__(self, instance: Any) -> None:
-        """Initializes the proxy by setting the wrapped instance.
+        """Initialize the proxy by setting the wrapped instance.
 
         :param instance: The instance of the class to be wrapped.
         """
@@ -155,4 +172,5 @@ class Proxy(metaclass=ProxyMeta):
 
     @property
     def __class__(self) -> type:
+        """Report the wrapped class so ``isinstance`` checks see through the proxy."""
         return type(self)._wrapped__

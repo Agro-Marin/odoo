@@ -61,8 +61,10 @@ EXTENSION_TO_WEB_MIMETYPES = {
 #
 # Lives here (not on IrQweb) so ``assetsbundle`` can read it without a
 # deferred import of ``ir_qweb`` — the two used to form a cycle.  Kept in
-# sync with ``EsbuildCompiler._LIB_CANDIDATES`` by
-# ``AssetsBundle._validate_external_libs`` at import time.
+# sync with ``EsbuildCompiler`` by ``AssetsBundle._validate_external_libs``
+# at import time: every key here must resolve via the ``@odoo/*`` prefix,
+# ``EXTERNAL_BARE_SPECIFIERS`` (externalized, shared through this map), or a
+# ``_LIB_CANDIDATES`` alias (inlined into the bundle).
 ODOO_EXTERNAL_LIBS = MappingProxyType(
     {
         "@odoo/owl": "/web/static/lib/owl/owl.es.js",
@@ -85,13 +87,39 @@ ODOO_EXTERNAL_LIBS = MappingProxyType(
         # Modal/etc as undefined on the re-export, and downstream code
         # (``web/libs/bootstrap.js:33``) crashes reading ``Tooltip.Default``.
         "@popperjs/core": "/web/static/lib/popper/popper.esm.js",
-        # luxon is shipped as a UMD IIFE that assigns window.luxon. The
-        # adapter at lib/luxon/luxon.esm.js re-exports each public class
-        # from that global so native ESM callers can
-        # ``import { DateTime } from "luxon"`` transparently. Required
-        # because several enterprise modules import luxon as ESM even
-        # though the vendored build is UMD.
-        "luxon": "/web/static/lib/luxon/luxon.esm.js",
+        # luxon is now a real ES module (``lib/luxon/luxon.js`` — the upstream
+        # 3.7.2 ESM build plus the fork's ``Symbol.toStringTag`` patch for OWL
+        # reactivity).  Resolved here as an EXTERNAL bare specifier (see
+        # ``EsbuildCompiler.EXTERNAL_BARE_SPECIFIERS``) so every bundle and the
+        # Chart date adapter share ONE instance via this URL — replacing the
+        # old UMD IIFE + ``window.luxon`` global + ``luxon.esm.js`` shim.
+        "luxon": "/web/static/lib/luxon/luxon.js",
+        # Chart.js v4 (auto-registering ESM bundle) and its luxon date
+        # adapter.  Lazily pulled in by ``@web/core/lib/chartjs.loadChartJS``;
+        # the adapter's internal ``import { _adapters } from "chart.js"`` and
+        # ``import { DateTime } from "luxon"`` resolve to the SAME instances
+        # the wrapper loaded through these import-map URLs.
+        "chart.js": "/web/static/lib/Chart/Chart.js",
+        "chart.js/helpers": "/web/static/lib/Chart/helpers.js",
+        "chartjs-adapter-luxon": (
+            "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js"
+        ),
+        # Spreadsheet-only Chart.js plugins (served from spreadsheet/static/lib),
+        # registered onto the shared Chart by the spreadsheet chart installer.
+        "chartjs-chart-geo": (
+            "/spreadsheet/static/lib/chartjs-chart-geo/chartjs-chart-geo.js"
+        ),
+        "chartjs-chart-treemap": "/spreadsheet/static/lib/chart_js_treemap.js",
+        "chartjs-plugin-datalabels": (
+            "/survey/static/lib/chartjs-plugin-datalabels.js"
+        ),
+        # FullCalendar v7 (fork-patched vanilla bundle, re-exported as ESM)
+        # and its locale registry.  Lazily pulled in by
+        # ``@web/core/lib/fullcalendar_lib.loadFullCalendar``.
+        "@fullcalendar/core": "/web/static/lib/fullcalendar/fullcalendar.esm.js",
+        "@fullcalendar/core/locales-all": (
+            "/web/static/lib/fullcalendar/locales-all.esm.js"
+        ),
     }
 )
 """Import-map entries for esbuild-externalized libraries (spec -> URL)."""

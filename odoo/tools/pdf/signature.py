@@ -49,11 +49,7 @@ _logger = logging.getLogger(__name__)
 
 
 class PdfSigner:
-    """Class that defines methods uses in the signing process of pdf documents
-
-    The PdfSigner will perform the following operations on a PDF document:
-        - Modifiying the document by adding a signature field via a form,
-        - Performing a cryptographic signature of the document.
+    """Add a signature field and a cryptographic signature to a PDF document.
 
     This implementation follows the Adobe PDF Reference (v1.7) (https://ia601001.us.archive.org/1/items/pdf1.7/pdf_reference_1-7.pdf)
     for the structure of the PDF document,
@@ -82,10 +78,10 @@ class PdfSigner:
         field_name: str = "Odoo Signature",
         signer: ResUsers | None = None,
     ) -> io.BytesIO | None:
-        """Signs the pdf document using a PdfWriter object
+        """Sign the PDF document.
 
-        Returns:
-            io.BytesIO | None: the resulting output stream after the signature has been performed, or None in case of error
+        :return: the resulting output stream, or None in case of error.
+        :rtype: io.BytesIO | None
         """
         if not self.company or not load_pem_x509_certificate:
             return None
@@ -104,10 +100,10 @@ class PdfSigner:
     def _load_key_and_certificate(
         self,
     ) -> tuple[PrivateKeyTypes | None, Certificate | None]:
-        """Loads the private key
+        """Load the private key and certificate.
 
-        Returns:
-            PrivateKeyTypes | None: a private key object, or None if the key couldn't be loaded.
+        :return: a (private key, certificate) tuple, or (None, None) if they couldn't be loaded.
+        :rtype: tuple[PrivateKeyTypes | None, Certificate | None]
         """
         if (
             "signing_certificate_id" not in self.company._fields
@@ -128,15 +124,13 @@ class PdfSigner:
         field_name: str,
         signer: ResUsers | None = None,
     ) -> tuple[DictionaryObject, DictionaryObject] | None:
-        """Creates the /AcroForm and populates it with the appropriate field for the signature
+        """Create the /AcroForm and populate it with the signature field.
 
-        Args:
-            visible_signature (bool): boolean value that determines if the signature should be visible on the document
-            field_name (str): the name of the signature field
-            signer (ResUsers | None): user that will be used in the visuals of the signature field
-
-        Returns:
-            tuple[DictionaryObject, DictionaryObject]: a tuple containing the signature field and the signature content
+        :param visible_signature: whether the signature should be visible on the document.
+        :param field_name: the name of the signature field.
+        :param signer: user shown in the visuals of the signature field.
+        :return: a (signature field, signature field value) tuple.
+        :rtype: tuple[DictionaryObject, DictionaryObject]
         """
         if "/AcroForm" not in self.writer._root_object:
             form = DictionaryObject()
@@ -325,15 +319,13 @@ class PdfSigner:
         return signature_field, signature_field_value
 
     def _get_cms_object(self, digest: bytes) -> cms.ContentInfo | None:
-        """Creates an object that follows the Cryptographic Message Syntax(CMS)
+        """Create an object that follows the Cryptographic Message Syntax (CMS).
 
         RFC: https://datatracker.ietf.org/doc/html/rfc5652
 
-        Args:
-            digest (bytes): the digest of the document in bytes
-
-        Returns:
-            cms.ContentInfo: a CMS object containing the information of the signature
+        :param digest: the digest of the document in bytes.
+        :return: a CMS object containing the signature information, or None if the key or certificate is missing.
+        :rtype: cms.ContentInfo | None
         """
         private_key, certificate = self._load_key_and_certificate()
         if private_key is None or certificate is None:
@@ -434,10 +426,11 @@ class PdfSigner:
         )
 
     def _perform_signature(self, sig_field_value: DictionaryObject) -> bool:
-        """Creates the actual signature content and populate /ByteRange and /Contents properties with meaningful content.
+        """Create the signature content and fill the /ByteRange and /Contents properties.
 
-        Args:
-            sig_field_value (DictionaryObject): the value (/V) of the signature field which needs to be modified
+        :param sig_field_value: the value (/V) of the signature field to modify.
+        :return: True on success, False if the signature could not be created.
+        :rtype: bool
         """
         pdf_data = self._get_document_data()
 
@@ -498,20 +491,17 @@ class PdfSigner:
     def _correct_byte_range(
         self, old_range: list[int], new_range: list[int], base_pdf_len: int
     ) -> list[int]:
-        """Corrects the last value of the new byte range
+        """Correct the last value of the new byte range.
 
-        This function corrects the initial byte range (old_range) which was computed for document containing
-        the placeholder values for the /ByteRange and /Contents fields. This is needed because when updating
-        /ByteRange, the length of the document will change as the byte range will take more bytes of the
-        document, resulting in an invalid byte range.
+        The initial byte range (old_range) was computed for a document still containing the
+        placeholder values for the /ByteRange and /Contents fields. Updating /ByteRange changes
+        the document length, so the range must be recomputed to stay valid.
 
-        Args:
-            old_range (list[int]): the previous byte range
-            new_range (list[int]): the new byte range
-            base_pdf_len (int): the base length of the pdf, before insertion of the actual byte range
-
-        Returns:
-            list[int]: the corrected byte range
+        :param old_range: the previous byte range.
+        :param new_range: the new byte range.
+        :param base_pdf_len: the length of the pdf before insertion of the actual byte range.
+        :return: the corrected byte range.
+        :rtype: list[int]
         """
         # Computing the difference of length of the strings of the old and new byte ranges.
         # Used to determine if a re-computation of the range is needed or not
@@ -529,20 +519,16 @@ class PdfSigner:
     def _compute_digest_from_byte_range(
         self, data: bytes, byte_range: list[int]
     ) -> bytes:
-        """Computes the digest of the data from a byte range. Uses SHA256 algorithm to compute the hash.
+        """Compute the SHA256 digest of the data selected by a byte range.
 
-        The byte range is defined as an array [offset, length, offset, length, ...] which corresponds to the bytes from the document
-        that will be used in the computation of the hash.
+        The byte range is an array [offset, length, offset, length, ...] selecting the bytes
+        of the document used to compute the hash. E.g. for data = b'example' and
+        byte_range = [0, 1, 6, 1], the hash is computed from b'ee'.
 
-        i.e. for document = b'example' and byte_range = [0, 1, 6, 1],
-        the hash will be computed from b'ee'
-
-        Args:
-            document (bytes): the data in bytes
-            byte_range (list[int]): the byte range used to compute the digest.
-
-        Returns:
-            bytes: the computed digest
+        :param data: the data in bytes.
+        :param byte_range: the byte range used to compute the digest.
+        :return: the computed digest.
+        :rtype: bytes
         """
         hashed = hashlib.sha256()
         for i in range(0, len(byte_range), 2):

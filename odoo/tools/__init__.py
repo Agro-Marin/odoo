@@ -18,7 +18,7 @@ from odoo.libs.numbers.float_utils import (
     float_split_str,
 )
 from odoo.libs.parse_version import parse_version
-from odoo.libs.set_expression import SetDefinitions
+from odoo.libs.set_expression import SetDefinitions, SetExpressionError
 from odoo.libs.web import urls
 
 from .cache import ormcache, ormcache_context

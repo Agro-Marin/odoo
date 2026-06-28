@@ -1,3 +1,5 @@
+"""Algebra over collections of ordered disjoint intervals."""
+
 __all__ = ["Intervals", "intervals_overlap", "invert_intervals"]
 
 import itertools
@@ -22,13 +24,13 @@ def _boundaries[T](
 
 class Intervals[T]:
     """Collection of ordered disjoint intervals with some associated records.
+
     Each interval is a triple ``(start, stop, records)``, where ``records``
     is a recordset.
 
     By default, adjacent intervals are merged (1, 3, a) and (3, 5, b) become
     (1, 5, a | b). This behaviour can be prevented by setting
     `keep_distinct=True`.
-
     """
 
     def __init__(
@@ -37,6 +39,12 @@ class Intervals[T]:
         *,
         keep_distinct: bool = False,
     ) -> None:
+        """Build the collection from `intervals`, normalizing their representation.
+
+        :param intervals: triples ``(start, stop, records)`` to store
+        :param keep_distinct: if True, keep adjacent intervals separate
+            instead of merging them
+        """
         self._items: list[tuple[T, T, AbstractSet]] = []
         self._keep_distinct = keep_distinct
         if intervals:
@@ -65,15 +73,19 @@ class Intervals[T]:
                         items = None
 
     def __bool__(self) -> bool:
+        """Return whether the collection contains any interval."""
         return bool(self._items)
 
     def __len__(self) -> int:
+        """Return the number of intervals in the collection."""
         return len(self._items)
 
     def __iter__(self) -> Iterator[tuple[T, T, AbstractSet]]:
+        """Iterate over the intervals as ``(start, stop, records)`` triples."""
         return iter(self._items)
 
     def __reversed__(self) -> Iterator[tuple[T, T, AbstractSet]]:
+        """Iterate over the intervals in reverse order."""
         return reversed(self._items)
 
     def __or__(self, other: Intervals[T]) -> Intervals[T]:

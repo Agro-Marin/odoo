@@ -70,6 +70,7 @@ def add_stripped_items_before(
     spec: etree._Element,
     extract: Callable[[etree._Element], etree._Element],
 ) -> None:
+    """Insert the children of ``spec`` before ``node``, preserving stripped whitespace."""
     text = spec.text or ""
 
     before_text = ""
@@ -196,9 +197,7 @@ def apply_inheritance_specs(
     pre_locate = pre_locate or (lambda _: True)
 
     def extract(spec: etree._Element) -> etree._Element:
-        """Utility function that locates a node given a specification, remove
-        it from the source and returns it.
-        """
+        """Locate the node matching ``spec``, remove it from the source and return it."""
         if len(spec):
             raise ValueError(
                 f'Invalid specification for moved nodes: "{etree.tostring(spec, encoding="unicode")}"'

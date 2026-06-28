@@ -46,13 +46,13 @@ def _generate_table_alias(src_table_alias: str, link: str) -> str:
 
 
 class Query:
-    """Simple implementation of a query object, managing tables with aliases,
-    join clauses (with aliases, condition and parameters), where clauses (with
-    parameters), order, limit and offset.
+    """A query object managing tables with aliases, join clauses (with aliases,
+    condition and parameters), where clauses (with parameters), order, limit
+    and offset.
 
     :param env: model environment (for lazy evaluation)
     :param alias: name or alias of the table
-    :param table: a table expression (``str`` or ``SQL`` object), optional
+    :param table: a table expression (``SQL`` object), optional
     """
 
     __slots__ = (
@@ -72,7 +72,7 @@ class Query:
     )
 
     def __init__(self, env: object, alias: str, table: SQL | None = None) -> None:
-        # database cursor
+        # model environment
         self._env = env
 
         self._tables: dict[str, SQL] = {
@@ -151,9 +151,8 @@ class Query:
         rhs_column: str,
         link: str,
     ) -> str:
-        """
-        Perform a join between a table already present in the current Query object and
-        another table.  This method is essentially a shortcut for methods :meth:`~.make_alias`
+        """Perform a join between a table already present in the current Query object and
+        another table.  It is a shortcut for :meth:`~.make_alias`
         and :meth:`~.add_join`.
 
         :param str lhs_alias: alias of a table already defined in the current Query object.
@@ -190,8 +189,7 @@ class Query:
         """Add a LEFT JOIN to the current table (if necessary), and return the
         alias corresponding to ``rhs_table``.
 
-        See the documentation of :meth:`join` for a better overview of the
-        arguments and what they do.
+        See :meth:`join` for a description of the arguments.
         """
         assert lhs_alias in self._tables or lhs_alias in self._joins, (
             "Alias %r not in %s"

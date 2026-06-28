@@ -19,8 +19,8 @@ def keep_query(*keep_params: str, **additional_params: object) -> str:
     in ``keep_params`` and also adds the parameters specified in
     ``additional_params``.
 
-    Multiple values query string params will be merged into a single
-    one with comma separated values.
+    Query-string parameters with multiple values are kept as repeated
+    parameters.
 
     The ``keep_params`` arguments can use wildcards too, eg::
 

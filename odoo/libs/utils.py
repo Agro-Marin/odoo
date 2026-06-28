@@ -145,6 +145,7 @@ class replace_exceptions(ContextDecorator):
     def __init__(
         self, *exceptions: type[Exception], by: Exception | type[Exception]
     ) -> None:
+        """Validate and store the exceptions to catch and their replacement."""
         if not exceptions:
             msg = "Missing exceptions"
             raise ValueError(msg)
@@ -159,6 +160,7 @@ class replace_exceptions(ContextDecorator):
         self.by: Exception | type[Exception] = by
 
     def __enter__(self) -> Self:
+        """Enter the context manager and return self."""
         return self
 
     def __exit__(
@@ -167,6 +169,7 @@ class replace_exceptions(ContextDecorator):
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
     ) -> None:
+        """Raise the replacement when one of the caught exceptions occurred."""
         if exc_type is not None and issubclass(exc_type, self.exceptions):
             if isinstance(self.by, type) and exc_value.args:
                 # copy the message

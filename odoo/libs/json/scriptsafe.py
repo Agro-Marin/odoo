@@ -35,6 +35,8 @@ class ScriptSafe(str):
     could break out of script contexts or cause XSS vulnerabilities.
     """
 
+    __slots__ = ()
+
     def __html__(self) -> markupsafe.Markup:
         """Return HTML-safe version of the JSON string.
 

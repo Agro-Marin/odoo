@@ -97,7 +97,7 @@ def formatLang(
     :param rounding_method: The rounding method to be used:
         **'HALF-UP'** will round to the closest number with ties going away from zero,
         **'HALF-DOWN'** will round to the closest number with ties going towards zero,
-        **'HALF_EVEN'** will round to the closest number with ties going to the closest
+        **'HALF-EVEN'** will round to the closest number with ties going to the closest
         even number,
         **'UP'** will always round away from 0,
         **'DOWN'** will always round towards 0.
@@ -204,7 +204,7 @@ def parse_date(
     locale = babel_locale_parse(lang.code)
     try:
         return babel.dates.parse_date(value, locale=locale)
-    except:
+    except Exception:
         return value
 
 
@@ -219,7 +219,7 @@ def format_datetime(
 
     :param env:
     :param str|datetime value: naive datetime to format either in string or in datetime
-    :param str tz: name of the timezone  in which the given datetime should be localized
+    :param str tz: name of the timezone in which the given datetime should be localized
     :param str dt_format: one of "full", "long", "medium", or "short", or a custom date/time pattern compatible with `babel` lib
     :param str lang_code: ISO code of the language to use to render the given datetime
     :rtype: str
@@ -355,8 +355,7 @@ def format_decimalized_number(number: float, decimal: int = 1) -> str:
 
 
 def format_decimalized_amount(amount: float, currency: typing.Any = None) -> str:
-    """Format an amount to display the currency and also display the metric unit
-    of the amount.
+    """Format an amount with its currency symbol and metric unit.
 
     ::
 
@@ -405,9 +404,7 @@ def format_amount(
 
 
 def format_duration(value: float) -> str:
-    """Format a float: used to display integral or fractional values as
-    human-readable time spans (e.g. 1.5 as "01:30").
-    """
+    """Format a float as a human-readable time span (e.g. 1.5 as "01:30")."""
     hours, minutes = divmod(abs(value) * 60, 60)
     minutes = round(minutes)
     if minutes == 60:

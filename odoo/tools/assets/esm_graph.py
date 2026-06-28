@@ -163,9 +163,9 @@ def _cached_module_classification(
     return is_native_module(content) or is_odoo_module(url, content)
 
 
-# Lazily-compiled regex set shared between ``_build_parent_self_bridge``
+# Regex set shared between ``_build_parent_self_bridge``
 # and ``_build_native_to_legacy_bridge``: both need to enumerate the
-# named exports of a JS source file so the bridge ``data:`` URI can
+# named exports of a JS source file so the bridge shim can
 # re-export them via ``odoo.loader.modules.get(...)``.  Consolidating
 # the regexes in one helper lets us add new patterns (e.g. destructured
 # ``export const { Tooltip, Modal } = obj;``) without drift between the
@@ -184,7 +184,7 @@ _ESM_EXPORT_PATTERNS: tuple[tuple[str, str], ...] = (
     # bulk — the bridge shim MUST declare these as named exports, otherwise
     # ``import { Tooltip } from "@web/libs/bootstrap"`` raises SyntaxError
     # ("does not provide an export named ...") when resolved through a
-    # data: URI shim.
+    # bridge shim.
     #
     # NOTE on ordering: each pattern below runs as an INDEPENDENT
     # ``finditer`` pass over the full source — nothing is "consumed", and
@@ -206,8 +206,8 @@ _ESM_EXPORT_PATTERNS: tuple[tuple[str, str], ...] = (
     # export of the target module (default is NOT re-exported per ESM
     # spec).  Resolution requires reading the target's source, so
     # callers MUST pass a non-empty ``source_map`` if they want the
-    # transitive names; otherwise the wildcard is silently skipped (with
-    # a debug log) and the caller will end up with an incomplete bridge
+    # transitive names; otherwise the wildcard is silently skipped and
+    # the caller will end up with an incomplete bridge
     # — see ``_build_parent_self_bridge`` for the wiring.  Group 1 is
     # the source specifier.
     ("star_from", r'export\s*\*\s*from\s*["\']([^"\']+)["\']'),
@@ -262,7 +262,8 @@ def _resolve_export_specifier(
     """Resolve a re-export's ``from "X"`` specifier to a module key.
 
     Bare specifiers (``@web/core/l10n/utils/format_list``) pass through
-    unchanged — the source map is keyed by them directly.
+    with any trailing ``.js`` stripped — the source map is keyed by the
+    result.
 
     Relative specifiers (``./foo``, ``../bar/baz``) need joining against
     the importing file's specifier.  The result is a normalized bare
@@ -275,7 +276,7 @@ def _resolve_export_specifier(
     if not target_path.startswith("."):
         # Normalize bare specifier — strip trailing ``.js`` so the result
         # matches ``url_to_module_path``'s output (which strips it too,
-        # see line 150).  Without this, ``export * from "@mail/foo.js"``
+        # see line 87).  Without this, ``export * from "@mail/foo.js"``
         # would resolve to ``@mail/foo.js`` and miss the source-map entry
         # keyed under ``@mail/foo``.
         return target_path.removesuffix(".js")
@@ -407,7 +408,7 @@ def _extract_esm_exports(
 class _BridgeExportResolver:
     """Resolve ``@addon`` specifiers to source and extract their export surface.
 
-    Per-build helper for ``AssetsBundle._build_native_to_legacy_bridge``: reads
+    Per-build helper for ``BridgeShimManager._build_native_to_legacy_bridge``: reads
     the source file of each discovered specifier (with a disk-read cache) and
     extracts its export surface, recursively following ``export * from``.  The
     object doubles as the ``source_map`` passed to ``_extract_esm_exports`` —

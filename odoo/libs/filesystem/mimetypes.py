@@ -114,9 +114,10 @@ _ppt_pattern = re.compile(
 
 
 def _check_olecf(data: bytes) -> str | bool:
-    """Pre-OOXML Office formats are OLE Compound Files which all use the same
-    file signature ("magic bytes") and should have a subheader at offset 512
-    (0x200).
+    """Discriminate pre-OOXML Office formats stored as OLE Compound Files.
+
+    Such files all use the same file signature ("magic bytes") and should have
+    a subheader at offset 512 (0x200).
 
     Subheaders taken from http://www.garykessler.net/library/file_sigs.html
     according to which Mac office files *may* have different subheaders. We'll
@@ -135,14 +136,14 @@ def _check_olecf(data: bytes) -> str | bool:
 
 
 def _check_svg(data: bytes) -> str | None:
-    """This simply checks the existence of the opening and ending SVG tags."""
+    """Check for the opening and ending SVG tags in the data."""
     if b"<svg" in data and b"/svg" in data:
         return "image/svg+xml"
     return None
 
 
 def _check_webp(data: bytes) -> str | None:
-    """This checks the presence of the WEBP and VP8 in the RIFF."""
+    """Check for the WEBP and VP8 markers in the RIFF container."""
     if data[8:15] == b"WEBPVP8":
         return "image/webp"
     return None
@@ -204,8 +205,9 @@ _mime_mappings = (
 def _odoo_guess_mimetype(
     bin_data: bytes, default: str = "application/octet-stream"
 ) -> str:
-    """Attempts to guess the mime type of the provided binary data, similar
-    to but significantly more limited than libmagic.
+    """Guess the mime type of the provided binary data.
+
+    Similar to but significantly more limited than libmagic.
 
     :param bin_data: binary data to try and guess a mime type for
     :returns: matched mimetype or ``application/octet-stream`` if none matched
@@ -242,7 +244,7 @@ def _odoo_guess_mimetype(
 
 
 try:
-    import magic  # noqa: E402  # imported after fallback definitions; see use in guess_mimetype
+    import magic  # imported after fallback definitions; see use in guess_mimetype
 except ImportError:
     # python-magic / libmagic is an optional dependency: when it is missing,
     # fall back to the signature-based guesser (_odoo_guess_mimetype) so that
@@ -308,6 +310,7 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> s
 
 
 def neuter_mimetype(mimetype: str, user: object) -> str:
+    """Downgrade risky markup mimetypes to ``text/plain`` for non-system users."""
     wrong_type = "ht" in mimetype or "xml" in mimetype or "svg" in mimetype
     if wrong_type and not user._is_system():
         return "text/plain"
@@ -318,6 +321,7 @@ _extension_pattern = re.compile(r"\w+")
 
 
 def get_extension(filename: str) -> str:
+    """Return the extension of the filename, or an empty string if it has none."""
     # A file has no extension if it has no dot (ignoring the leading one
     # of hidden files) or that what follow the last dot is not a single
     # word, e.g. "Mr. Doe"

@@ -1,3 +1,5 @@
+"""HTML text utilities: sanitization, normalization, and conversion to/from plaintext."""
+
 import html as htmllib
 import itertools
 import logging
@@ -325,6 +327,8 @@ class _Cleaner(clean.Cleaner):
 
 
 def tag_quote(el: etree._Element) -> None:
+    """Mark email quote and signature parts of ``el`` with ``data-o-mail-quote`` attributes."""
+
     def _create_new_node(
         tag: str,
         text: str | None,
@@ -458,9 +462,10 @@ def fromstring(
     parser: Any = None,
     **kw: Any,
 ) -> tuple[etree._Element, bool]:
-    """This function mimics lxml.html.fromstring. It not only returns the parsed
-    element/document but also a flag indicating whether the input is for a
-    a single body element or not.
+    """Mimic lxml.html.fromstring, returning the parsed element and a flag.
+
+    Besides the parsed element/document, return a flag indicating whether the
+    input is a single body element or not.
 
     This tries to minimally parse the chunk of text, without knowing if it
     is a fragment or a document.
@@ -634,6 +639,7 @@ def html_sanitize(
     strip_classes: bool = False,
     output_method: str = "html",
 ) -> markupsafe.Markup | None:
+    """Sanitize ``src`` HTML and return it as safe Markup."""
     if not src:
         return src
 
@@ -725,6 +731,13 @@ _LINK_TAGS_RE = re.compile(
     r"""(?<!["'])((ftp|http|https):\/\/(\w+:{0,1}\w*@)?([^\s<"']+)(:[0-9]+)?(\/|\/([^\s<"']))?)(?![^\s<"']*["']|[^\s<"']*</a>)"""
 )
 
+# A bare HTML tag name, e.g. ``div`` — used to validate plaintext2html's
+# ``container_tag`` so it cannot smuggle attributes or extra markup.
+_SIMPLE_TAG_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
+
+# Pre-compiled regex for plaintext2html paragraph splitting (was compiled per call)
+_BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
+
 
 def validate_url(url: str) -> str:
     """Validate and normalize URL, adding http:// if no valid scheme present."""
@@ -736,9 +749,11 @@ def validate_url(url: str) -> str:
 def is_html_empty(
     html_content: str | markupsafe.Markup | Literal[False] | None,
 ) -> bool:
-    """Check if a html content is empty. If there are only formatting tags with style
-    attributes or a void content  return True. Famous use case if a
-    '<p style="..."><br></p>' added by some web editor.
+    """Check whether an HTML content is empty.
+
+    Return True if there are only formatting tags with style attributes or a
+    void content. Famous use case is a '<p style="..."><br></p>' added by some
+    web editor.
 
     :param html_content: html content, coming from example from an HTML field
     :returns: True if no content found or if containing only void formatting tags
@@ -762,8 +777,9 @@ def html_keep_url(text: str) -> str:
 
 
 def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
-    """Returns unformatted text after removing html tags and excessive whitespace from a
-    string/Markup. Passed strings will first be sanitized.
+    """Return unformatted text from a string/Markup.
+
+    Remove html tags and excessive whitespace; passed strings are first sanitized.
     """
     if is_html_empty(html):
         return ""
@@ -777,8 +793,17 @@ def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
     return processed.strip()
 
 
-def create_link(url: str, label: str) -> str:
-    return f'<a href="{url}" target="_blank" rel="noreferrer noopener">{label}</a>'
+def create_link(url: str, label: str) -> Markup:
+    """Return an HTML anchor tag linking ``label`` to ``url``.
+
+    ``url`` and ``label`` are HTML-escaped, so this is safe to call with
+    untrusted input: a quote in ``url`` can no longer break out of the ``href``
+    attribute (XSS). Values already marked safe (``markupsafe.Markup``) pass
+    through unchanged, since ``Markup.format`` does not re-escape them.
+    """
+    return Markup(
+        '<a href="{}" target="_blank" rel="noreferrer noopener">{}</a>'
+    ).format(url, label)
 
 
 def html2plaintext(
@@ -788,8 +813,10 @@ def html2plaintext(
     include_references: bool = True,
 ) -> str:
     """From an HTML text, convert the HTML to plain text.
+
     If @param body_id is provided then this is the tag where the
     body (not necessarily <body>) starts.
+
     :param include_references: If False, numbered references and
         URLs for links and images will not be included.
     """
@@ -809,7 +836,11 @@ def html2plaintext(
     tree = etree.fromstring(html_content, parser=etree.HTMLParser())
 
     if body_id is not None:
-        source = tree.xpath(f"//*[@id={body_id}]")
+        # Bind ``body_id`` as an XPath variable rather than interpolating it: an
+        # f-string both opens an XPath-injection surface and silently produces a
+        # wrong query for an unquoted value (``@id=content`` is a node-test, not
+        # a string match).
+        source = tree.xpath("//*[@id=$body_id]", body_id=body_id)
     else:
         source = tree.xpath("//body")
     if len(source):
@@ -869,8 +900,10 @@ def html2plaintext(
 def plaintext2html(
     text: str, container_tag: str | None = None, with_paragraph: bool = True
 ) -> markupsafe.Markup:
-    r"""Convert plaintext into html. Content of the text is escaped to manage
-    html entities, using markupsafe.escape.
+    r"""Convert plaintext into html.
+
+    Content of the text is escaped to manage html entities, using
+    markupsafe.escape.
 
     - all ``\n``, ``\r`` are replaced by ``<br/>``
     - convert url into clickable link
@@ -895,14 +928,18 @@ def plaintext2html(
     if with_paragraph:
         idx = 0
         final = "<p>"
-        br_tags = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
-        for item in re.finditer(br_tags, text):
+        for item in _BR_TAGS_RE.finditer(text):
             final += text[idx : item.start()] + "</p><p>"
             idx = item.end()
         final += text[idx:] + "</p>"
 
     # 5. container
-    if container_tag:  # FIXME: validate that container_tag is just a simple tag?
+    if container_tag:
+        # Reject anything that is not a bare tag name; a value like
+        # ``div onclick="…"`` would otherwise inject raw attributes/markup.
+        if not _SIMPLE_TAG_RE.match(container_tag):
+            e = f"Invalid container_tag: {container_tag!r}"
+            raise ValueError(e)
         final = f"<{container_tag}>{final}</{container_tag}>"
     return markupsafe.Markup(final)
 
@@ -914,9 +951,10 @@ def append_content_to_html(
     preserve: bool = False,
     container_tag: str | None = None,
 ) -> markupsafe.Markup:
-    """Append extra content at the end of an HTML snippet, trying
-    to locate the end of the HTML document (</body>, </html>, or
-    EOF), and converting the provided content in html unless ``plaintext``
+    """Append extra content at the end of an HTML snippet.
+
+    Try to locate the end of the HTML document (</body>, </html>, or
+    EOF), and convert the provided content to html unless ``plaintext``
     is ``False``.
 
     Content conversion can be done in two ways:

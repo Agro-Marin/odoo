@@ -1,3 +1,5 @@
+"""Color conversion helpers between RGB, hexadecimal and HSL representations."""
+
 from hashlib import sha512
 from typing import TYPE_CHECKING
 
@@ -55,7 +57,7 @@ def hex_to_rgb(hx: str) -> tuple[int, int, int]:
         >>> hex_to_rgb('#00FF00')
         (0, 255, 0)
     """
-    return tuple(int(hx[i : i + 2], 16) for i in range(1, 6, 2))  # type: ignore
+    return tuple(int(hx[i : i + 2], 16) for i in range(1, 6, 2))  # type: ignore[return-value]
 
 
 def rgb_to_hex(rgb: Sequence[int]) -> str:

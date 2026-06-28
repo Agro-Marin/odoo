@@ -86,7 +86,7 @@ REGEX_SUBTYPE_FORMATED = re.compile(r"^/\w+#2F[\w-]+$")
 
 
 # Disable linter warning: this import is needed to make sure a PDF stream can be saved in Image.
-PdfImagePlugin.__name__
+PdfImagePlugin.__name__  # noqa: B018  # touch the import so PIL registers the PDF plugin (see comment above)
 
 
 # make sure values are unwrapped by calling the specialized __getitem__
@@ -131,7 +131,7 @@ PdfFileWriter = BrandedFileWriter
 def merge_pdf(pdf_data: list[bytes]) -> bytes:
     """Merge a collection of PDF documents in one.
 
-    Note that the attachments are not merged.
+    Attachments are not merged.
 
     :param pdf_data: a list of PDF datastrings
     :return: a unique merged PDF datastring
@@ -166,7 +166,7 @@ def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None
 def rotate_pdf(pdf: bytes) -> bytes:
     """Rotate clockwise PDF (90°) into a new PDF.
 
-    Note that the attachments are not copied.
+    Attachments are not copied.
 
     :param pdf: a PDF to rotate
     :return: a PDF rotated
@@ -202,7 +202,7 @@ def to_pdf_stream(attachment) -> io.BytesIO | None:
 
 
 def extract_page(attachment, num_page=0) -> io.BytesIO | None:
-    """Exctract a specific page form an attachement pdf"""
+    """Extract a specific page from an attachment PDF."""
     pdf_stream = to_pdf_stream(attachment)
     if not pdf_stream:
         return None
@@ -223,11 +223,11 @@ def add_banner(
 ) -> io.BytesIO:
     """Add a banner on a PDF in the upper right corner, with Odoo's logo (optionally).
 
-    :param pdf_stream (BytesIO):    The PDF stream where the banner will be applied.
-    :param text (str):              The text to be displayed.
-    :param logo (bool):             Whether to display Odoo's logo in the banner.
-    :param thickness (float):       The thickness of the banner in pixels (default: 2cm).
-    :return (BytesIO):              The modified PDF stream.
+    :param pdf_stream: The PDF stream where the banner will be applied.
+    :param text: The text to be displayed.
+    :param logo: Whether to display Odoo's logo in the banner.
+    :param thickness: The thickness of the banner (default: 2cm).
+    :return: The modified PDF stream.
     """
     from reportlab.lib import colors
     from reportlab.lib.utils import ImageReader
@@ -301,23 +301,11 @@ def add_banner(
 
 
 def reshape_text(text: str) -> str:
-    """
-    Display the text based on his first character unicode name to choose Right-to-left or Left-to-right
-    This is just a hotfix to make things work
-    In the future the clean way be to use arabic-reshaper and python3-bidi libraries
+    """Reshape and reverse text when it is entirely right-to-left (e.g. Arabic).
 
-
-    Here we want to check the text is in a right-to-left language and if then, flip before returning it.
-    Depending on the language, the type should be Left-to-Right, Right-to-Left, or Right-to-Left Arabic
-    (Refer to this https://www.unicode.org/reports/tr9/#Bidirectional_Character_Types)
-    The base module ```unicodedata``` with his function ```bidirectional(str)``` helps us by taking a character in
-    argument and returns his type:
-    - 'L' for Left-to-Right character
-    - 'R' or 'AL' for Right-to-Left character
-
-    So we have to check if the first character of the text is of type 'R' or 'AL', and check that there is no
-    character in the rest of the text that is of type 'L'. Based on that we can confirm we have a fully Right-to-Left language,
-    then we can flip the text before returning it.
+    Direction is detected from Unicode bidirectional classes: the text is treated as
+    right-to-left when its first character is 'R' or 'AL' and no other character is 'L'.
+    See https://www.unicode.org/reports/tr9/#Bidirectional_Character_Types.
     """
     if not text:
         return ""
@@ -373,10 +361,7 @@ class OdooPdfFileWriter(PdfFileWriter):
     """Extended PdfFileWriter with Odoo-specific attachment and PDF/A support."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Override init to initialise additional variables.
-
-        :param pdf_content: if given, will initialise the reader with the pdf content.
-        """
+        """Initialise the writer with Odoo-specific attributes."""
         super().__init__(*args, **kwargs)
         self._reader: PdfReader | None = None
         self.is_pdfa: bool = False
@@ -637,7 +622,7 @@ class OdooPdfFileWriter(PdfFileWriter):
             * filename: The name of the file to embed (required)
             * content:  The bytes of the file to embed (required)
             * subtype: The mime-type of the file to embed (optional)
-        :return:
+        :return: a reference to the created filespec object.
         """
         file_entry = DecodedStreamObject()
         file_entry.set_data(attachment["content"])

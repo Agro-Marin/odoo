@@ -1,3 +1,5 @@
+"""Filesystem and OS helper utilities."""
+
 __all__ = [
     "WINDOWS_RESERVED",
     "clean_filename",
@@ -29,11 +31,12 @@ _CLEAN_FILENAME_RE = re.compile(r"[^\w_.()\[\] -]+")
 
 
 def clean_filename(name: str, replacement: str = "") -> str:
-    """Strips or replaces possibly problematic or annoying characters our of
-    the input string, in order to make it a valid filename in most operating
+    """Strip or replace characters that are problematic in a filename.
+
+    Sanitize the input string to make it a valid filename in most operating
     systems (including dropping reserved Windows filenames).
 
-    If this results in an empty string, results in "Untitled" (localized).
+    If this results in an empty string, return "Untitled".
 
     Allows:
 
@@ -66,9 +69,10 @@ def zip_dir(
     include_dir: bool = True,
     fnct_sort: Callable | None = None,
 ) -> None:  # TODO add ignore list
-    """: param fnct_sort : Function to be passed to "key" parameter of built-in
-    python sorted() to provide flexibility of sorting files
-    inside ZIP archive according to specific requirements.
+    """Write the files under ``path`` into ``stream`` as a ZIP archive.
+
+    :param fnct_sort: function passed to the ``key`` parameter of the built-in
+        python ``sorted()`` to control the order of files inside the ZIP archive
     """
     path = str(Path(path))
     len_prefix = len(str(Path(path).parent)) if include_dir else len(path)
@@ -91,7 +95,13 @@ def zip_dir(
 
 if os.name != "nt":
 
-    def is_running_as_nt_service() -> bool:
+    def is_running_as_nt_service(service_name: str) -> bool:
+        """Return whether this process runs as the named Windows NT service.
+
+        Always ``False`` off Windows. ``service_name`` is accepted for a uniform
+        signature and is supplied by the caller (e.g. ``odoo.release``), keeping
+        this module dependency-free.
+        """
         return False
 else:
     from contextlib import contextmanager
@@ -99,9 +109,13 @@ else:
     import win32service as ws
     import win32serviceutil as wsu
 
-    from odoo.release import nt_service_name
+    def is_running_as_nt_service(service_name: str) -> bool:
+        """Return whether this process runs as the named Windows NT service.
 
-    def is_running_as_nt_service() -> bool:
+        Queries the Service Control Manager for ``service_name`` and compares its
+        process id to this process's parent. ``service_name`` is supplied by the
+        caller (e.g. ``odoo.release``), keeping this module dependency-free.
+        """
         @contextmanager
         def close_srv(srv: Any) -> Iterator[Any]:
             try:
@@ -114,7 +128,7 @@ else:
                 ws.OpenSCManager(None, None, ws.SC_MANAGER_ALL_ACCESS)
             ) as hscm:
                 with close_srv(
-                    wsu.SmartOpenService(hscm, nt_service_name, ws.SERVICE_ALL_ACCESS)
+                    wsu.SmartOpenService(hscm, service_name, ws.SERVICE_ALL_ACCESS)
                 ) as hs:
                     info = ws.QueryServiceStatusEx(hs)
                     return info["ProcessId"] == os.getppid()

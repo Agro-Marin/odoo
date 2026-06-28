@@ -1,3 +1,11 @@
+"""Set-algebra expressions over named sets.
+
+This module models combinations of named sets using union, intersection and
+complement.  :class:`SetDefinitions` builds :class:`SetExpression` objects
+(implemented by :class:`Union`, :class:`Inter` and :class:`Leaf`), notably to
+express group membership rules.
+"""
+
 import ast
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Literal
@@ -6,20 +14,36 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
 
+# Backstop against the exponential blow-up of intersecting (and hence inverting,
+# which expands ``~(A | B | ...)`` to ``~A & ~B & ...`` via De Morgan) large
+# disjunctive normal forms: a Union of N intersections of m leaves inverts to
+# m**N terms.  A real ``res.groups`` expression is far smaller; a value this
+# large means a pathological input, so raise a clear error instead of hanging a
+# worker.  Mirrors the ``MAX_OPTIMIZE_ITERATIONS`` backstop in the domain
+# optimizer.
+MAX_INTERSECTION_TERMS = 100_000
+
+
+class SetExpressionError(ValueError):
+    """Raised when a set expression cannot be evaluated within safe bounds."""
+
+
 class SetDefinitions:
-    """A collection of set definitions, where each set is defined by an id, a
-    name, its supersets, and the sets that are disjoint with it.  This object
-    is used as a factory to create set expressions, which are combinations of
-    named sets with union, intersection and complement.
+    """A collection of set definitions, used as a factory for set expressions.
+
+    Each set is defined by an id, a name, its supersets, and the sets that are
+    disjoint with it.  Set expressions are combinations of named sets with
+    union, intersection and complement.
     """
 
     __slots__ = ("__leaves",)
 
     def __init__(self, definitions: dict[int, dict[str, object]]) -> None:
-        r"""Initialize the object with ``definitions``, a dict which maps each
-        set id to a dict with optional keys ``"ref"`` (value is the set's name),
-        ``"supersets"`` (value is a collection of set ids), and ``"disjoints"``
-        (value is a collection of set ids).
+        r"""Initialize the object from the given set ``definitions``.
+
+        ``definitions`` maps each set id to a dict with optional keys ``"ref"``
+        (value is the set's name), ``"supersets"`` (value is a collection of set
+        ids), and ``"disjoints"`` (value is a collection of set ids).
 
         Here is an example of set definitions, with natural numbers (N), integer
         numbers (Z), rational numbers (Q), irrational numbers (R\\Q), real
@@ -90,10 +114,12 @@ class SetDefinitions:
 
     @property
     def empty(self) -> SetExpression:
+        """Return the empty set expression, that contains nothing."""
         return EMPTY_UNION
 
     @property
     def universe(self) -> SetExpression:
+        """Return the universal set expression, that contains every element."""
         return UNIVERSAL_UNION
 
     def parse(self, refs: str, raise_if_not_found: bool = True) -> SetExpression:
@@ -169,7 +195,7 @@ class SetDefinitions:
         return self.__leaves[ref]
 
     def get_superset_ids(self, ids: Iterable[int]) -> list[int]:
-        """Returns the supersets matching the provided list of ids.
+        """Return the supersets matching the provided list of ids.
 
         Following example defined in this set definitions constructor::
         The supersets of "Q" (id 3) is "R" and "C" with ids [4, 6]
@@ -185,7 +211,7 @@ class SetDefinitions:
         )
 
     def get_subset_ids(self, ids: Iterable[int]) -> list[int]:
-        """Returns the subsets matching the provided list of ids.
+        """Return the subsets matching the provided list of ids.
 
         Following example defined in this set definitions constructor::
         The subsets of "Q" (id 3) is "Z" and "N" with ids [1, 2]
@@ -201,7 +227,7 @@ class SetDefinitions:
         )
 
     def get_disjoint_ids(self, ids: Iterable[int]) -> list[int]:
-        r"""Returns the disjoints set matching the provided list of ids.
+        r"""Return the disjoints set matching the provided list of ids.
 
         Following example defined in this set definitions constructor::
         The disjoint set of "Q" (id 3) is "R\\Q" and "I" with ids [7, 5]
@@ -217,25 +243,21 @@ class SetDefinitions:
 
 
 class SetExpression(ABC):
-    """An object that represents a combination of named sets with union,
-    intersection and complement.
-    """
+    """A combination of named sets with union, intersection and complement."""
 
     @abstractmethod
     def is_empty(self) -> bool:
-        """Returns whether ``self`` is the empty set, that contains nothing."""
+        """Return whether ``self`` is the empty set, that contains nothing."""
         raise NotImplementedError
 
     @abstractmethod
     def is_universal(self) -> bool:
-        """Returns whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set, that contains all possible elements."""
         raise NotImplementedError
 
     @abstractmethod
     def invert_intersect(self, factor: SetExpression) -> SetExpression | None:
-        """Performs the inverse operation of intersection (a sort of factorization)
-        such that: ``self == result & factor``.
-        """
+        """Return ``result`` such that ``self == result & factor`` (factorization)."""
         raise NotImplementedError
 
     @abstractmethod
@@ -251,39 +273,52 @@ class SetExpression(ABC):
 
     @abstractmethod
     def __and__(self, other: SetExpression) -> SetExpression:
+        """Return the intersection of ``self`` and ``other``."""
         raise NotImplementedError
 
     @abstractmethod
     def __or__(self, other: SetExpression) -> SetExpression:
+        """Return the union of ``self`` and ``other``."""
         raise NotImplementedError
 
     @abstractmethod
     def __invert__(self) -> SetExpression:
+        """Return the complement of ``self``."""
         raise NotImplementedError
 
     @abstractmethod
     def __eq__(self, other: object) -> bool:
+        """Return whether ``self`` and ``other`` represent the same set."""
         raise NotImplementedError
 
     @abstractmethod
     def __le__(self, other: SetExpression) -> bool:
+        """Return whether ``self`` is a subset of ``other``."""
         raise NotImplementedError
 
     @abstractmethod
     def __lt__(self, other: SetExpression) -> bool:
+        """Return whether ``self`` is a strict subset of ``other``."""
         raise NotImplementedError
 
     @abstractmethod
     def __hash__(self) -> int:
+        """Return the hash of ``self``."""
         raise NotImplementedError
 
 
 class Union(SetExpression):
-    """Implementation of a set expression, that represents it as a union of
-    intersections of named sets or their complement.
+    """A set expression represented as a union of intersections.
+
+    Each intersection combines named sets or their complement.
     """
 
     def __init__(self, inters: Iterable[Inter] = (), optimal: bool = False) -> None:
+        """Build a union from the given intersections.
+
+        When ``optimal`` is false, the intersections are first combined into a
+        canonical, non-redundant form.
+        """
         if inters and not optimal:
             inters = self.__combine((), inters)
         self.__inters = sorted(inters, key=lambda inter: inter.key)
@@ -292,6 +327,7 @@ class Union(SetExpression):
 
     @property
     def key(self) -> str:
+        """Return a unique identifier for the expression."""
         return self.__key
 
     @staticmethod
@@ -321,17 +357,15 @@ class Union(SetExpression):
         return result
 
     def is_empty(self) -> bool:
-        """Returns whether ``self`` is the empty set, that contains nothing."""
+        """Return whether ``self`` is the empty set, that contains nothing."""
         return not self.__inters
 
     def is_universal(self) -> bool:
-        """Returns whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set, that contains all possible elements."""
         return any(item.is_universal() for item in self.__inters)
 
     def invert_intersect(self, factor: SetExpression) -> Union | None:
-        """Performs the inverse operation of intersection (a sort of factorization)
-        such that: ``self == result & factor``.
-        """
+        """Return ``result`` such that ``self == result & factor`` (factorization)."""
         if factor == self:
             return UNIVERSAL_UNION
 
@@ -351,6 +385,7 @@ class Union(SetExpression):
         return ~rself_value
 
     def __and__(self, other: SetExpression) -> Union:
+        """Return the intersection of ``self`` and ``other``."""
         if not isinstance(other, Union):
             raise TypeError(f"Expected Union, got {type(other).__name__}")
         if self.is_universal():
@@ -361,6 +396,15 @@ class Union(SetExpression):
             return EMPTY_UNION
         if self == other:
             return self
+        # The product below has len(self) * len(other) terms; guard before
+        # materializing it so a runaway inversion fails fast (and bounds the
+        # repeated ``&`` in ``__invert__``) instead of exhausting time/memory.
+        if len(self.__inters) * len(other.__inters) > MAX_INTERSECTION_TERMS:
+            raise SetExpressionError(
+                f"set expression intersection too large "
+                f"({len(self.__inters)} x {len(other.__inters)} terms exceeds "
+                f"{MAX_INTERSECTION_TERMS}); the input expression is pathological"
+            )
         return Union(
             self_inter & other_inter
             for self_inter in self.__inters
@@ -368,6 +412,7 @@ class Union(SetExpression):
         )
 
     def __or__(self, other: SetExpression) -> Union:
+        """Return the union of ``self`` and ``other``."""
         if not isinstance(other, Union):
             raise TypeError(f"Expected Union, got {type(other).__name__}")
         if self.is_empty():
@@ -382,10 +427,24 @@ class Union(SetExpression):
         return Union(inters, optimal=True)
 
     def __invert__(self) -> Union:
+        """Return the complement of ``self``."""
         if self.is_empty():
             return UNIVERSAL_UNION
         if self.is_universal():
             return EMPTY_UNION
+
+        # De Morgan expands ``~(A1 & ...) & ~(B1 & ...) & ...`` to a product of
+        # the per-intersection leaf counts.  Estimate that product upfront
+        # (O(number of intersections)) and refuse a pathological blow-up before
+        # building millions of terms, instead of discovering it mid-expansion.
+        estimate = 1
+        for inter in self.__inters:
+            estimate *= max(1, len(inter.leaves))
+            if estimate > MAX_INTERSECTION_TERMS:
+                raise SetExpressionError(
+                    f"cannot invert set expression: De Morgan expansion exceeds "
+                    f"{MAX_INTERSECTION_TERMS} terms; the input is pathological"
+                )
 
         # apply De Morgan's laws
         inverses_of_inters = [
@@ -401,6 +460,7 @@ class Union(SetExpression):
         return result
 
     def matches(self, user_group_ids: Iterable[int]) -> bool:
+        """Return whether the given group ids match ``self``."""
         if self.is_empty() or not user_group_ids:
             return False
         if self.is_universal():
@@ -409,12 +469,15 @@ class Union(SetExpression):
         return any(inter.matches(user_group_ids) for inter in self.__inters)
 
     def __bool__(self) -> bool:
+        """Raise ``NotImplementedError``; set expressions are not truth-testable."""
         raise NotImplementedError
 
     def __eq__(self, other: object) -> bool:
+        """Return whether ``self`` and ``other`` represent the same set."""
         return isinstance(other, Union) and self.__key == other.__key
 
     def __le__(self, other: SetExpression) -> bool:
+        """Return whether ``self`` is a subset of ``other``."""
         if not isinstance(other, Union):
             return False
         if self.__key == other.__key:
@@ -429,10 +492,11 @@ class Union(SetExpression):
         )
 
     def __lt__(self, other: SetExpression) -> bool:
+        """Return whether ``self`` is a strict subset of ``other``."""
         return self != other and self.__le__(other)
 
     def __str__(self) -> str:
-        """Returns an intersection union representation of groups using user-readable references.
+        """Return an intersection union representation of groups using user-readable references.
 
         e.g. ('base.group_user' & 'base.group_multi_company') | ('base.group_portal' & ~'base.group_multi_company') | 'base.group_public'
         """
@@ -450,20 +514,28 @@ class Union(SetExpression):
         return " | ".join(inter_to_str(inter, wrapped) for inter in self.__inters)
 
     def __repr__(self) -> str:
+        """Return the string representation of ``self``."""
         return repr(self.__str__())
 
     def __hash__(self) -> int:
+        """Return the hash of ``self``."""
         return self.__hash
 
 
 class Inter:
-    """Part of the implementation of a set expression, that represents an
-    intersection of named sets or their complement.
+    """An intersection of named sets or their complement.
+
+    Part of the implementation of a :class:`Union` set expression.
     """
 
     __slots__ = ("key", "leaves")
 
     def __init__(self, leaves: Iterable[Leaf] = (), optimal: bool = False) -> None:
+        """Build an intersection from the given leaves.
+
+        When ``optimal`` is false, the leaves are first combined into a
+        canonical, non-redundant form.
+        """
         if leaves and not optimal:
             leaves = self.__combine((), leaves)
         self.leaves: list[Leaf] = sorted(leaves, key=lambda leaf: leaf.key)
@@ -490,18 +562,22 @@ class Inter:
         return result
 
     def is_empty(self) -> bool:
+        """Return whether ``self`` is the empty set, that contains nothing."""
         return any(item.is_empty() for item in self.leaves)
 
     def is_universal(self) -> bool:
-        """Returns whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set, that contains all possible elements."""
         return not self.leaves
 
     def matches(self, user_group_ids: Collection[int]) -> bool:
+        """Return whether the given group ids match every leaf of ``self``."""
         return all(leaf.matches(user_group_ids) for leaf in self.leaves)
 
     def _union_merge(self, other: Inter) -> Inter | None:
-        """Return the union of ``self`` with another intersection, if it can be
-        represented as an intersection. Otherwise return ``None``.
+        """Return the union of ``self`` with ``other`` as a single intersection.
+
+        Return ``None`` when that union cannot be represented as an
+        intersection.
         """
         # the following covers cases like (A & B) | A -> A
         if self.is_universal() or other <= self:
@@ -529,6 +605,7 @@ class Inter:
         return None
 
     def __and__(self, other: Inter) -> Inter:
+        """Return the intersection of ``self`` and ``other``."""
         if self.is_empty() or other.is_empty():
             return EMPTY_INTER
         if self.is_universal():
@@ -539,24 +616,29 @@ class Inter:
         return Inter(leaves, optimal=True)
 
     def __eq__(self, other: object) -> bool:
+        """Return whether ``self`` and ``other`` are the same intersection."""
         return isinstance(other, Inter) and self.key == other.key
 
     def __le__(self, other: Inter) -> bool:
+        """Return whether ``self`` is a subset of ``other``."""
         return self.key == other.key or all(
             any(self_leaf <= other_leaf for self_leaf in self.leaves)
             for other_leaf in other.leaves
         )
 
     def __lt__(self, other: Inter) -> bool:
+        """Return whether ``self`` is a strict subset of ``other``."""
         return self != other and self <= other
 
     def __hash__(self) -> int:
+        """Return the hash of ``self``."""
         return hash(self.key)
 
 
 class Leaf:
-    """Part of the implementation of a set expression, that represents a named
-    set or its complement.
+    """A named set or its complement.
+
+    Part of the implementation of a :class:`Union` set expression.
     """
 
     __slots__ = (
@@ -576,6 +658,11 @@ class Leaf:
         ref: str | int | None = None,
         negative: bool = False,
     ) -> None:
+        """Build a leaf for the set ``leaf_id``.
+
+        :param ref: the human-readable reference; defaults to ``str(leaf_id)``
+        :param negative: whether the leaf denotes the set's complement
+        """
         self.id = leaf_id
         self.ref = ref or str(leaf_id)
         self.negative = bool(negative)
@@ -587,6 +674,7 @@ class Leaf:
         self.inverse: Leaf | None = None
 
     def __invert__(self) -> Leaf:
+        """Return the complement of ``self``."""
         if self.inverse is None:
             self.inverse = Leaf(self.id, self.ref, negative=not self.negative)
             self.inverse.inverse = self
@@ -596,12 +684,15 @@ class Leaf:
         return self.inverse
 
     def is_empty(self) -> bool:
+        """Return whether ``self`` is the empty set, that contains nothing."""
         return self.ref == "*" and self.negative
 
     def is_universal(self) -> bool:
+        """Return whether ``self`` is the universal set, that contains all possible elements."""
         return self.ref == "*" and not self.negative
 
     def isdisjoint(self, other: Leaf) -> bool:
+        """Return whether ``self`` and ``other`` have no element in common."""
         if self.negative:
             return other <= ~self
         elif other.negative:
@@ -610,6 +701,7 @@ class Leaf:
             return self.id in other.disjoints
 
     def matches(self, user_group_ids: Collection[int]) -> bool:
+        """Return whether the given group ids match ``self``."""
         return (
             (self.id not in user_group_ids)
             if self.negative
@@ -617,9 +709,11 @@ class Leaf:
         )
 
     def __eq__(self, other: object) -> bool:
+        """Return whether ``self`` and ``other`` are the same leaf."""
         return isinstance(other, Leaf) and self.key == other.key
 
     def __le__(self, other: Leaf) -> bool:
+        """Return whether ``self`` is a subset of ``other``."""
         if self.is_empty() or other.is_universal():
             return True
         elif self.is_universal() or other.is_empty():
@@ -632,25 +726,30 @@ class Leaf:
             return self.id in other.subsets
 
     def __lt__(self, other: Leaf) -> bool:
+        """Return whether ``self`` is a strict subset of ``other``."""
         return self != other and self <= other
 
     def __hash__(self) -> int:
+        """Return the hash of ``self``."""
         return hash(self.key)
 
 
 class UnknownId(str):
-    """Special id object for unknown leaves.  It behaves as being strictly
-    greater than any other kind of id.
+    """Special id object for unknown leaves.
+
+    It compares as strictly greater than any other kind of id.
     """
 
     __slots__ = ()
 
     def __lt__(self, other: object) -> bool:
+        """Return whether ``self`` sorts before ``other``."""
         if isinstance(other, UnknownId):
             return super().__lt__(other)
         return False
 
     def __gt__(self, other: object) -> bool:
+        """Return whether ``self`` sorts after ``other``."""
         if isinstance(other, UnknownId):
             return super().__gt__(other)
         return True

@@ -1,3 +1,5 @@
+"""Safe URL joining utilities."""
+
 import re
 import urllib.parse
 

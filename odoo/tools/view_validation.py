@@ -52,7 +52,7 @@ DOMAIN_OPERATORS = {
 
 
 def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
-    """Return all field name used by this domain
+    """Return the field names and contextual value names used by this domain.
     eg: [
             ('id', 'in', [1, 2, 3]),
             ('field_a', 'in', parent.truc),
@@ -181,7 +181,7 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
 
 
 def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
-    """Return all contextual value this ast
+    """Return the contextual value names referenced in this AST node.
 
     eg: ast from '''(
             id in [1, 2, 3]
@@ -268,9 +268,6 @@ def get_expression_field_names(expression: str) -> set[str]:
         returns {'parent', 'parent.truc', 'parent.truc.id', 'context', 'context.get'}
 
     :param expression: str
-    :param ignored: set contains the value name to ignore.
-                    Add '.' to ignore attributes (eg: {'parent.'} will
-                    ignore 'parent.truc' and 'parent.truc.id')
     :return: set(str)
     """
     if not expression:

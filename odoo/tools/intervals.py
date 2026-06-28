@@ -17,4 +17,6 @@ warnings.warn(
 )
 
 from odoo.libs.intervals import *  # noqa: F403, E402  # deprecation warning must fire before re-exports
-from odoo.libs.intervals import _boundaries  # noqa: F401, E402  # re-export underscore name (not covered by `import *`)
+from odoo.libs.intervals import (  # noqa: E402  # deprecation warning must fire before re-exports
+    _boundaries,  # noqa: F401  # re-export underscore name (not covered by `import *`)
+)

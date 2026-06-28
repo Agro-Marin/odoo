@@ -39,6 +39,43 @@ _esbuild_log = get_asset_logger("esbuild")
 # parallel hand-maintained lists).
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
+# Third-party libraries shipped as real ES modules under ``static/lib`` and
+# resolved through the browser import map (``ODOO_EXTERNAL_LIBS``) rather than
+# inlined by esbuild.  Unlike the ``@odoo/*`` prefix these are bare npm-style
+# specifiers with no shared prefix, so ``compile`` emits one explicit
+# ``--external:<spec>`` per entry.  Marking them external (instead of aliasing
+# them through ``_LIB_CANDIDATES``) means each lib is fetched ONCE via the
+# import map and shared across every bundle — a single ``luxon`` instance
+# whose ``Settings`` the whole app (and the Chart date adapter) agree on,
+# instead of a 260 KB copy inlined into every esbuild bundle.  Eager libs
+# (loaded at module-eval) and lazy libs (pulled in by a dynamic ``import()``
+# in a loader wrapper) are handled identically — the import map resolves both;
+# the laziness comes from the call site, not the externalization.
+#
+# Kept in sync with ``ODOO_EXTERNAL_LIBS`` (the import-map URLs) by
+# ``AssetsBundle._validate_external_libs`` at startup: every entry here must
+# have an import-map URL, and every non-``@odoo/*`` import-map key that isn't
+# inlined via ``_LIB_CANDIDATES`` must appear here.
+EXTERNAL_BARE_SPECIFIERS = frozenset(
+    {
+        "luxon",
+        "chart.js",
+        # Stateless Chart.js helper utilities, shared by the geo/treemap
+        # chart plugins (kept external so there is one copy, not one per
+        # plugin bundle).
+        "chart.js/helpers",
+        "chartjs-adapter-luxon",
+        # Spreadsheet's extra Chart.js plugins (geo maps, treemaps) and
+        # survey's data-labels plugin.  They register onto the shared external
+        # Chart and are pulled in by the spreadsheet / survey chart installers.
+        "chartjs-chart-geo",
+        "chartjs-chart-treemap",
+        "chartjs-plugin-datalabels",
+        "@fullcalendar/core",
+        "@fullcalendar/core/locales-all",
+    }
+)
+
 
 class EsbuildResult(NamedTuple):
     """Outcome of one esbuild compilation."""
@@ -211,14 +248,19 @@ class EsbuildCompiler:
     def resolves_specifier(cls, spec: str) -> bool:
         """Whether a production build resolves the bare specifier *spec*.
 
-        True when the specifier is covered by the pattern-level external
-        flag (left verbatim for the browser's import map) or has a
-        per-lib alias in :attr:`_LIB_CANDIDATES` (inlined at build time).
+        True when the specifier is covered by the pattern-level ``@odoo/*``
+        external flag, listed in :data:`EXTERNAL_BARE_SPECIFIERS` (left
+        verbatim for the browser's import map), or has a per-lib alias in
+        :attr:`_LIB_CANDIDATES` (inlined at build time).
 
         :param spec: bare import specifier (e.g. ``@odoo/owl``)
         :rtype: bool
         """
-        return spec.startswith(EXTERNAL_SPECIFIER_PREFIX) or spec in cls._LIB_CANDIDATES
+        return (
+            spec.startswith(EXTERNAL_SPECIFIER_PREFIX)
+            or spec in EXTERNAL_BARE_SPECIFIERS
+            or spec in cls._LIB_CANDIDATES
+        )
 
     # Canonical source of vendored @odoo/* library paths.  Promoted from
     # a local in _get_esbuild_addon_flags so that ``_validate_external_libs``
@@ -282,13 +324,13 @@ class EsbuildCompiler:
             "o_spreadsheet",
             "o_spreadsheet.js",
         ),
-        # Enterprise code imports ``luxon`` as an ESM bare specifier
-        # (e.g. ``import { DateTime } from "luxon"``); the vendored
-        # luxon.js is UMD, so the adapter at
-        # web/static/lib/luxon/luxon.esm.js re-exports the classes
-        # from window.luxon so esbuild can bundle the imports inline
-        # without resolution errors.
-        "luxon": ("web", "static", "lib", "luxon", "luxon.esm.js"),
+        # NOTE: ``luxon`` used to live here as an esbuild alias onto a tiny
+        # ``luxon.esm.js`` shim that re-exported ``window.luxon`` (set by the
+        # vendored UMD IIFE).  It is now a real ES module
+        # (``lib/luxon/luxon.js``) resolved through the import map as an
+        # EXTERNAL bare specifier — see :data:`EXTERNAL_BARE_SPECIFIERS`.  The
+        # same move retired the eager ``luxon.js`` ``<script>`` from every
+        # manifest bundle and the ``globalThis.luxon`` global it installed.
     }
 
     @classmethod
@@ -431,16 +473,17 @@ class EsbuildCompiler:
         :param target: esbuild ``--target=<value>``.  Defaults to
             ``_ESBUILD_TARGET``.  Allows admins to tighten or relax the
             browser-support floor without a code change.
-        :param source_maps: ``"external"`` to emit a sidecar ``.js.map``
-            (esbuild adds a ``//# sourceMappingURL=`` comment pointing
-            at it; the bytes get persisted to ``self._last_sourcemap``
-            for the caller to write as a sibling attachment),
-            ``"inline"`` to embed the source map as a base64 data URL
-            at the end of the bundle (no sidecar but ~2x bundle size),
-            or ``""`` (default) to skip source maps entirely.  Unknown
-            modes silently fall back to ``""`` — the wrong mode would
-            crash esbuild and we'd rather lose debugging info than
-            lose the bundle.
+        :param source_maps: ``"linked"`` to emit a sidecar ``.js.map``
+            plus a ``//# sourceMappingURL=`` comment in the bundle
+            pointing at it; ``"external"`` to emit the same sidecar
+            without that comment.  Both persist the map bytes to
+            ``self._last_sourcemap`` for the caller to write as a
+            sibling attachment.  ``"inline"`` embeds the source map as a
+            base64 data URL at the end of the bundle (no sidecar but
+            ~2x bundle size); ``""`` (default) skips source maps
+            entirely.  Unknown modes silently fall back to ``""`` — the
+            wrong mode would crash esbuild and we'd rather lose
+            debugging info than lose the bundle.
         :param dynamic_child_specs: bare specifiers that ship with a
             dynamic child bundle (e.g. lazy ``@web/views/...`` modules
             loaded by an import-map bridge).  Each is added as a
@@ -520,11 +563,12 @@ class EsbuildCompiler:
             externals=len(external_flags) + 1,
             tmp=tmp_dir,
         )
-        # Source-map output flag.  esbuild's ``--sourcemap=external``
-        # writes the map to ``<outfile>.map`` and appends a
-        # ``//# sourceMappingURL=<basename>.map`` comment to the
-        # bundle, so the browser knows where to look when devtools
-        # opens.  ``--sourcemap=inline`` embeds the map as a base64
+        # Source-map output flag.  ``--sourcemap=linked`` writes the map
+        # to ``<outfile>.map`` and appends a
+        # ``//# sourceMappingURL=<basename>.map`` comment to the bundle,
+        # so the browser knows where to look when devtools opens;
+        # ``--sourcemap=external`` writes the same sidecar without the
+        # comment.  ``--sourcemap=inline`` embeds the map as a base64
         # data URL.  An empty ``source_maps`` skips the flag entirely.
         sourcemap_flags = [f"--sourcemap={source_maps}"] if source_maps else []
         sourcemap_path = f"{out_path}.map"
@@ -543,6 +587,12 @@ class EsbuildCompiler:
             # exists and the build fails. Mark them external so esbuild emits
             # the import verbatim for the browser to resolve at request time.
             "--external:/web/static/lib/*",
+            # Real-ESM third-party libs resolved through the import map and
+            # shared across bundles (luxon, Chart.js + its luxon date adapter,
+            # FullCalendar + locales).  Emitted verbatim so the browser
+            # resolves them once via ``ODOO_EXTERNAL_LIBS`` instead of esbuild
+            # inlining a copy into every bundle.  See EXTERNAL_BARE_SPECIFIERS.
+            *(f"--external:{spec}" for spec in sorted(EXTERNAL_BARE_SPECIFIERS)),
             *external_flags,
             f"--target={target}",
             "--resolve-extensions=.js,.mjs,.json",

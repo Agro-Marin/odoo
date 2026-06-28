@@ -429,7 +429,7 @@ form: module.record_id""" % (xml_id,)
                 if self.noupdate and not nodeattr2bool(rec, "forcecreate", True):
                     # if it doesn't exist and we shouldn't create it, skip it
                     return None
-                raise Exception("Cannot update missing record %r" % xid)
+                raise ValueError("Cannot update missing record %r" % xid)
 
         from odoo.fields import Command
 
@@ -851,7 +851,7 @@ def convert_csv_import(
     if any(msg["type"] == "error" for msg in result["messages"]):
         # Report failed import and abort module install
         warning_msg = "\n".join(msg["message"] for msg in result["messages"])
-        raise Exception(
+        raise ValueError(
             env._(
                 "Module loading %(module)s failed: file %(file)s could not be processed:\n%(message)s",
                 module=module,
@@ -880,7 +880,9 @@ def convert_xml_import(
             "The XML file '%s' does not fit the required schema!", xmlfile.name
         )
         if jingtrang:
-            p = subprocess.run(["pyjing", schema, xmlfile.name], stdout=subprocess.PIPE)
+            p = subprocess.run(
+                ["pyjing", schema, xmlfile.name], stdout=subprocess.PIPE, check=False
+            )
             _logger.warning(p.stdout.decode())
         else:
             for e in relaxng.error_log:

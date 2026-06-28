@@ -1,3 +1,5 @@
+"""Insertion-order-preserving set collections."""
+
 __all__ = ["LastOrderedSet", "OrderedSet"]
 
 import itertools
@@ -12,36 +14,46 @@ class OrderedSet[T](MutableSet[T]):
     __slots__ = ["_map"]
 
     def __init__(self, elems: Iterable[T] = ()) -> None:
+        """Initialize the set from an iterable of elements."""
         self._map: dict[T, None] = dict.fromkeys(elems)
 
     def __contains__(self, elem: object) -> bool:
+        """Return whether the set contains ``elem``."""
         return elem in self._map
 
     def __iter__(self) -> Iterator[T]:
+        """Return an iterator over the elements in insertion order."""
         return iter(self._map)
 
     def __len__(self) -> int:
+        """Return the number of elements in the set."""
         return len(self._map)
 
     def add(self, elem: T) -> None:
+        """Add ``elem`` to the set, keeping its original insertion order."""
         self._map[elem] = None
 
     def discard(self, elem: T) -> None:
+        """Remove ``elem`` from the set if it is present."""
         self._map.pop(elem, None)
 
     def update(self, elems: Iterable[T]) -> None:
+        """Add all elements of ``elems`` to the set."""
         self._map.update(zip(elems, itertools.repeat(None)))
 
     def difference_update(self, elems: Iterable[T]) -> None:
+        """Remove all elements of ``elems`` from the set."""
         # inline discard to avoid method dispatch per element
         _pop = self._map.pop
         for elem in elems:
             _pop(elem, None)
 
     def __repr__(self) -> str:
+        """Return a string representation of the set."""
         return f"{type(self).__name__}({list(self)!r})"
 
     def intersection(self, *others: Iterable[T]) -> OrderedSet[T]:
+        """Return a new set with the elements common to this set and all ``others``."""
         return reduce(OrderedSet.__and__, others, self)
 
     def copy(self) -> Self:
@@ -66,5 +78,6 @@ class LastOrderedSet[T](OrderedSet[T]):
     """A set collection that remembers the elements last insertion order."""
 
     def add(self, elem: T) -> None:
+        """Add ``elem`` to the set, moving it to the last insertion position."""
         self.discard(elem)
         super().add(elem)

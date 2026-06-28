@@ -436,9 +436,9 @@ class QwebTracker:
                 if "t-valuef" in attrib:
                     directive_info["t-valuef"] = repr(attrib["t-valuef"])
 
-                for key in attrib:
+                for key, value in attrib.items():
                     if key.startswith(("t-set-", "t-setf-")):
-                        directive_info[key] = repr(attrib[key])
+                        directive_info[key] = repr(value)
             elif directive == "foreach":
                 directive_info["t-as"] = repr(attrib["t-as"])
             elif (
@@ -448,13 +448,13 @@ class QwebTracker:
             ):
                 directive_info["t-groups"] = repr(attrib["groups"])
             elif directive == "att":
-                for key in attrib:
+                for key, value in attrib.items():
                     if key.startswith(("t-att-", "t-attf-")):
-                        directive_info[key] = repr(attrib[key])
+                        directive_info[key] = repr(value)
             elif directive == "options":
-                for key in attrib:
+                for key, value in attrib.items():
                     if key.startswith("t-options-"):
-                        directive_info[key] = repr(attrib[key])
+                        directive_info[key] = repr(value)
             elif ("t-" + directive) not in attrib:
                 directive_info["t-" + directive] = None
 
@@ -492,9 +492,7 @@ class QwebTracker:
 
 
 class QwebCollector(Collector):
-    """
-    Record qweb execution with directive trace.
-    """
+    """Record qweb execution with directive trace."""
 
     name = "qweb"
 
@@ -557,7 +555,7 @@ class QwebCollector(Collector):
         stack = []
         results = []
         archs = {}
-        for event, kwargs, sql_count, time in self.events:
+        for event, kwargs, sql_count, event_time in self.events:
             if event == "render":
                 archs[kwargs["view_id"]] = kwargs["arch"]
                 continue
@@ -565,9 +563,9 @@ class QwebCollector(Collector):
             # update the active directive with the elapsed time and queries
             if stack:
                 top = stack[-1]
-                top["delay"] += time - last_event_time
+                top["delay"] += event_time - last_event_time
                 top["query"] += sql_count - last_event_query
-            last_event_time = time
+            last_event_time = event_time
             last_event_query = sql_count
 
             directive = self._get_directive_profiling_name(
@@ -616,10 +614,7 @@ class ExecutionContext:
 
 
 class Profiler:
-    """
-    Context manager to use to start the recording of some execution.
-    Will save sql and async stack trace by default.
-    """
+    """Context manager that records execution; saves SQL and async stack traces by default."""
 
     def __init__(
         self,
@@ -636,9 +631,9 @@ class Profiler:
             Will try to define database automatically by default.
             Use value ``None`` to not save results in a database.
         :param collectors: list of string and Collector object Ex: ['sql', PeriodicCollector(interval=0.2)]. Use `None` for default collectors
-        :param profile_session: session description to use to reproup multiple profile. use make_session(name) for default format.
+        :param profile_session: session description to use to regroup multiple profiles. use make_session(name) for default format.
         :param description: description of the current profiler Suggestion: (route name/test method/loading module, ...)
-        :param disable_gc: flag to disable gc durring profiling (usefull to avoid gc while profiling, especially during sql execution)
+        :param disable_gc: flag to disable gc during profiling (useful to avoid gc while profiling, especially during sql execution)
         :param params: parameters usable by collectors (like frame interval)
         """
         self.start_time: float = 0
@@ -671,9 +666,7 @@ class Profiler:
             if not db:
                 # only raise if path is not given and db is not explicitely disabled
                 msg = "Database name cannot be defined automaticaly. \n Please provide a valid/falsy dbname or path parameter"
-                raise Exception(
-                    msg
-                )
+                raise ValueError(msg)
         self.db: str | None = db
 
         # collectors
@@ -825,10 +818,7 @@ class Profiler:
         return sum(len(collector.entries) for collector in self.collectors)
 
     def format_path(self, path: str) -> str:
-        """
-        Utility function to format a path for this profiler.
-        This is mainly useful to uniquify a path between executions.
-        """
+        """Format a path for this profiler, mainly to uniquify it between executions."""
         return path.format(
             time=real_datetime_now().strftime("%Y%m%d-%H%M%S"),
             len=self.entry_count(),
@@ -836,14 +826,14 @@ class Profiler:
         )
 
     def json(self) -> str:
-        """
-        Utility function to generate a json version of this profiler.
-        This is useful to write profiling entries into a file, such as::
+        """Return a JSON representation of this profiler.
+
+        Useful to write profiling entries to a file, such as::
 
             with Profiler(db=None) as profiler:
                 do_stuff()
 
-            filename = p.format_path("/home/foo/{desc}_{len}.json")
+            filename = profiler.format_path("/home/foo/{desc}_{len}.json")
             with open(filename, "w") as f:
                 f.write(profiler.json())
         """

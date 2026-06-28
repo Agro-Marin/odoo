@@ -1,3 +1,5 @@
+"""Export collected profiling data to the speedscope.app file format."""
+
 __all__ = ["Speedscope"]
 
 import reprlib
@@ -16,9 +18,12 @@ type _Event = dict[str, Any]
 
 
 class Speedscope:
+    """Collect profiler entries and render them as a speedscope JSON document."""
+
     def __init__(
         self, name: str = "Speedscope", init_stack_trace: list[_Frame] | None = None
     ) -> None:
+        """Build a Speedscope document named ``name`` rooted at ``init_stack_trace``."""
         self.init_stack_trace: list[_Frame] = init_stack_trace or []
         self.init_stack_trace_level: int = len(self.init_stack_trace)
         self.caller_frame: _Frame | None = None
@@ -34,6 +39,7 @@ class Speedscope:
         self.profiles: list[dict[str, Any]] = []
 
     def add(self, key: str, profile: list[_Entry]) -> None:
+        """Register ``profile`` under ``key``, normalizing stacks and sql frames."""
         for entry in profile:
             self.caller_frame = self.init_caller_frame
             self.convert_stack(entry["stack"] or [])
@@ -44,6 +50,7 @@ class Speedscope:
         self.profiles_raw[key] = profile
 
     def convert_stack(self, stack: list[_Frame]) -> None:
+        """Rewrite each frame of ``stack`` in place to a ``(method, line, number)`` tuple."""
         for index, frame in enumerate(stack):
             method = frame[2]
             line = ""
@@ -70,7 +77,8 @@ class Speedscope:
         context_per_name: dict[str, Any] | None = None,
         **params: Any,
     ) -> Self:
-        """Add a profile output to the list of profiles
+        """Add a profile output to the list of profiles.
+
         :param names: list of keys to combine in this output. Keys corresponds to the one used in add
         :param display_name: name of the tab for this output
         :param complete: display the complete stack. If False, don't display the stack bellow the profiler.
@@ -125,6 +133,7 @@ class Speedscope:
         return self
 
     def add_default(self, **params: Any) -> Self:
+        """Add the default set of outputs for the collected profiles per ``params``."""
         if len(self.profiles_raw) > 1:
             if params["combined_profile"]:
                 self.add_output(self.profiles_raw, display_name="Combined", **params)
@@ -152,6 +161,7 @@ class Speedscope:
         return self
 
     def make(self, **params: Any) -> dict[str, Any]:
+        """Build and return the complete speedscope document as a dict."""
         if not self.profiles:
             self.add_default(**params)
         return {
@@ -168,6 +178,7 @@ class Speedscope:
         }
 
     def get_frame_id(self, frame: _Frame) -> int:
+        """Return the id of ``frame``, registering it on first use."""
         if frame not in self.frames_indexes:
             self.frames_indexes[frame] = self.frame_count
             self.frame_count += 1
@@ -180,13 +191,13 @@ class Speedscope:
         aggregate_sql: bool = False,
         stack_offset: int = 0,
     ) -> list[int]:
-        """:param stack: A list of hashable frame
+        """Assemble stack and context into a list of frame ids.
+
+        Add each corresponding context at the corresponding level.
+
+        :param stack: A list of hashable frame
         :param context: an iterable of (level, value) ordered by level
         :param stack_offset: offset level for stack
-
-        Assemble stack and context and return a list of ids representing
-        this stack, adding each corresponding context at the corresponding
-        level.
         """
         stack_ids = []
         context_iterator = iter(context or ())
@@ -218,6 +229,7 @@ class Speedscope:
         aggregate_sql: bool = False,
         **params: Any,
     ) -> list[_Event]:
+        """Turn ``entries`` into a list of speedscope open/close events."""
         # constant_time parameters is mainly useful to hide temporality when focussing on sql determinism
         entry_end = previous_end = None
         if not entries:

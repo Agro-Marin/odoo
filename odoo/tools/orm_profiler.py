@@ -7,9 +7,10 @@ summary at flush time.
 
 Activation: ``ODOO_ORM_PROFILE=1`` environment variable (opt-in).
 
-When enabled, lightweight recording hooks in the ORM mixins (crud.py,
-read.py, search.py, cache.py) call ``record_*()`` methods on the
-``OrmProfiler`` instance attached to the current ``Transaction``.
+When enabled, lightweight recording hooks in the ORM mixins (create.py,
+write.py, unlink.py, read.py, search.py, cache.py) call ``record_*()``
+methods on the ``OrmProfiler`` instance attached to the current
+``Transaction``.
 At the end of the request (``Transaction.flush()``), the profiler
 emits a summary to the ``odoo.orm.profile`` logger.
 
@@ -26,11 +27,12 @@ See Also
 
 import logging
 import os
+import time
 
 _logger = logging.getLogger("odoo.orm.profile")
 
 # ---------------------------------------------------------------------------
-# Module-level fast flag – one LOAD_GLOBAL + branch per ORM call when off.
+# Module-level fast flag - one LOAD_GLOBAL + branch per ORM call when off.
 # ---------------------------------------------------------------------------
 _orm_profiling_enabled: bool = os.environ.get("ODOO_ORM_PROFILE", "").lower() in (
     "1",
@@ -40,6 +42,56 @@ _orm_profiling_enabled: bool = os.environ.get("ODOO_ORM_PROFILE", "").lower() in
 
 if _orm_profiling_enabled:
     _logger.info("ORM aggregate profiling enabled (ODOO_ORM_PROFILE=1)")
+
+
+# ---------------------------------------------------------------------------
+# Phase timer for the CRUD/read mixins
+# ---------------------------------------------------------------------------
+
+
+class _OrmProfile:
+    """Lightweight phase timer for ORM operation instrumentation.
+
+    Replaces the interleaved ``if _debug: _tN = time.perf_counter()`` checkpoints
+    in the create/write/read/search/cache mixins with a single object: construct
+    it at the start of the operation, call :meth:`mark` at each phase boundary,
+    :meth:`stop` at the end, then read :meth:`ms` / :attr:`elapsed` for the
+    operation-specific debug line and profiler hook.
+
+    Active only when the operation's *logger* has DEBUG enabled or aggregate
+    profiling is on; otherwise every method is a cheap no-op (no
+    ``perf_counter`` calls). ``debug`` guards the per-phase debug line (phase
+    marks are taken only then, matching the original behaviour); ``agg`` guards
+    the aggregate-profiler hook. Both share the start/stop bounds.
+    """
+
+    __slots__ = ("_marks", "agg", "debug")
+
+    def __init__(self, logger: logging.Logger) -> None:
+        self.debug = logger.isEnabledFor(logging.DEBUG)
+        self.agg = _orm_profiling_enabled
+        self._marks: dict[str, float] = {}
+        if self.debug or self.agg:
+            self._marks["start"] = time.perf_counter()
+
+    def mark(self, name: str) -> None:
+        """Record a phase boundary (debug-only, like the original checkpoints)."""
+        if self.debug:
+            self._marks[name] = time.perf_counter()
+
+    def stop(self) -> None:
+        """Record the end bound (taken whenever debug or profiling is active)."""
+        if self.debug or self.agg:
+            self._marks["end"] = time.perf_counter()
+
+    def ms(self, start: str, end: str) -> float:
+        """Return the elapsed milliseconds between two recorded marks."""
+        return (self._marks[end] - self._marks[start]) * 1000.0
+
+    @property
+    def elapsed(self) -> float:
+        """Total seconds between ``start`` and ``stop`` (for the profiler hook)."""
+        return self._marks["end"] - self._marks["start"]
 
 
 # ---------------------------------------------------------------------------

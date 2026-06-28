@@ -59,11 +59,7 @@ _lt = LazyTranslate("base")
 
 
 class ImageProcess(_ImageProcessBase):
-    """Odoo-specific ImageProcess that raises UserError instead of ValueError.
-
-    This provides better user experience in Odoo by showing translated
-    error messages to users.
-    """
+    """Odoo-specific ImageProcess that raises UserError instead of ValueError."""
 
     def __init__(self, source: bytes | None, verify_resolution: bool = True) -> None:
         """Initialize the ``source`` image for processing.

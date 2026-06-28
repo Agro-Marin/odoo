@@ -1,3 +1,5 @@
+"""XML helpers: control-character stripping and node construction."""
+
 import re
 from typing import TYPE_CHECKING
 

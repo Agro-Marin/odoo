@@ -156,8 +156,7 @@ class ImageProcess:
                 )
 
     def image_quality(self, quality: int = 0, output_format: str = "") -> bytes | bool:
-        """Return the image resulting of all the image processing
-        operations that have been applied previously.
+        """Return the image resulting from all processing operations applied so far.
 
         The source is returned as-is if it's an SVG, or if no operations have
         been applied, the `output_format` is the same as the original format,
@@ -381,9 +380,7 @@ def image_process(
     output_format: str = "",
     padding: int | bool = False,
 ) -> bytes | bool | None:
-    """Process the `source` image by executing the given operations and
-    return the result image.
-    """
+    """Process the `source` image with the given operations and return the result."""
     if not source or (
         (not size or (not size[0] and not size[1]))
         and not verify_resolution
@@ -431,7 +428,7 @@ def average_dominant_color(
     mitigate: int = 175,
     max_margin: int = 140,
 ) -> tuple[tuple[int, int, int], list[tuple[int, tuple[int, int, int, int]]]]:
-    """This function is used to calculate the dominant colors when given a list of colors.
+    """Calculate the dominant colors from the given list of colors.
 
     There are 5 steps:
 
@@ -531,8 +528,9 @@ def base64_to_image(base64_source: str | bytes) -> Image:
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:
-    """Returns the size of the provided webp binary source for VP8, VP8X and
-    VP8L, otherwise returns None.
+    """Return the size of the provided webp binary source.
+
+    Supports VP8, VP8X and VP8L, otherwise returns None.
     See https://developers.google.com/speed/webp/docs/riff_container.
 
     :param source: binary source
@@ -578,9 +576,7 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
 def is_image_size_above(
     base64_source_1: bytes | str | None, base64_source_2: bytes | str | None
 ) -> bool:
-    """Return whether or not the size of the given image `base64_source_1` is
-    above the size of the given image `base64_source_2`.
-    """
+    """Return whether the size of image `base64_source_1` is above that of `base64_source_2`."""
     if not base64_source_1 or not base64_source_2:
         return False
     if base64_source_1[:1] in (b"P", "P") or base64_source_2[:1] in (b"P", "P"):

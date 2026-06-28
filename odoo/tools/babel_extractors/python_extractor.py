@@ -16,7 +16,7 @@ type _SimpleKeyword = tuple[int | tuple[int, int] | tuple[int, str], ...] | None
 # A `_SimpleKeyword` or a `dict` mapping the expected number of function arguments against the `_SimpleKeyword`
 type _Keyword = dict[int | None, _SimpleKeyword] | _SimpleKeyword
 # The result of extracting terms, a 4-tuple containing:
-# (lineno: int, messages: str | tuple[str, ...], comments: list[str], context: str | None)
+# (lineno: int, funcname: str, messages: str | tuple[str, ...], comments: list[str])
 #   - `lineno`: The line number of the extracted term(s)
 #   - `funcname`: The translation function name
 #   - `messages`: The extracted term(s). A single one or multiple in case of e.g. `ngettext`

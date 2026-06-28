@@ -403,6 +403,7 @@ class AppDirs:
         roaming: bool = False,
         multipath: bool = False,
     ) -> None:
+        """Store the application identity and platform options for the lookups."""
         self.appname: str = appname
         self.appauthor: str | None = appauthor
         self.version: str | None = version
@@ -411,6 +412,7 @@ class AppDirs:
 
     @property
     def user_data_dir(self) -> str:
+        """Return full path to the user-specific data dir for this application."""
         return user_data_dir(
             self.appname,
             self.appauthor,
@@ -420,6 +422,7 @@ class AppDirs:
 
     @property
     def site_data_dir(self) -> str:
+        """Return full path to the user-shared data dir for this application."""
         return site_data_dir(
             self.appname,
             self.appauthor,
@@ -429,6 +432,7 @@ class AppDirs:
 
     @property
     def user_config_dir(self) -> str:
+        """Return full path to the user-specific config dir for this application."""
         return user_config_dir(
             self.appname,
             self.appauthor,
@@ -438,6 +442,7 @@ class AppDirs:
 
     @property
     def site_config_dir(self) -> str:
+        """Return full path to the user-shared data dir for this application."""
         return site_data_dir(
             self.appname,
             self.appauthor,
@@ -447,10 +452,12 @@ class AppDirs:
 
     @property
     def user_cache_dir(self) -> str:
+        """Return full path to the user-specific cache dir for this application."""
         return user_cache_dir(self.appname, self.appauthor, version=self.version)
 
     @property
     def user_log_dir(self) -> str:
+        """Return full path to the user-specific log dir for this application."""
         return user_log_dir(self.appname, self.appauthor, version=self.version)
 
 
@@ -458,9 +465,10 @@ class AppDirs:
 
 
 def _get_win_folder_from_registry(csidl_name: str) -> str:
-    """This is a fallback technique at best. I'm not sure if using the
-    registry for this guarantees us the correct answer for all CSIDL_*
-    names.
+    """Read the shell folder for ``csidl_name`` from the Windows registry.
+
+    A fallback technique at best; using the registry may not guarantee the
+    correct answer for all CSIDL_* names.
     """
     import winreg as _winreg
 
@@ -474,24 +482,24 @@ def _get_win_folder_from_registry(csidl_name: str) -> str:
         _winreg.HKEY_CURRENT_USER,
         r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
     )
-    dir, _type = _winreg.QueryValueEx(key, shell_folder_name)
-    return dir
+    folder, _type = _winreg.QueryValueEx(key, shell_folder_name)
+    return folder
 
 
 def _get_win_folder_with_pywin32(csidl_name: str) -> str:
     from win32com.shell import shell, shellcon
 
-    dir = shell.SHGetFolderPath(0, getattr(shellcon, csidl_name), 0, 0)
+    folder = shell.SHGetFolderPath(0, getattr(shellcon, csidl_name), 0, 0)
     # Try to make this a unicode path because SHGetFolderPath does
     # not return unicode strings when there is unicode data in the
     # path.
     try:
-        dir = str(dir)
+        folder = str(folder)
 
         # Downgrade to short path name if have highbit chars. See
         # <http://bugs.activestate.com/show_bug.cgi?id=85099>.
         has_high_char = False
-        for c in dir:
+        for c in folder:
             if ord(c) > 255:
                 has_high_char = True
                 break
@@ -499,12 +507,12 @@ def _get_win_folder_with_pywin32(csidl_name: str) -> str:
             try:
                 import win32api
 
-                dir = win32api.GetShortPathName(dir)
+                folder = win32api.GetShortPathName(folder)
             except ImportError:
                 pass
     except UnicodeError:
         pass
-    return dir
+    return folder
 
 
 def _get_win_folder_with_ctypes(csidl_name: str) -> str:

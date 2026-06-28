@@ -2,9 +2,8 @@ import collections
 import configparser
 import errno
 import functools
-import glob
 import logging
-import optparse
+import optparse  # noqa: TID251  # Odoo's config parser is built on optparse; argparse migration is out of scope
 import os
 import sys
 import tempfile
@@ -855,7 +854,12 @@ class configmanager:
             env_name="ODOO_DB_POOL_REAP_IDLE",
             help="seconds a per-database pool may sit idle (nothing checked out) "
             "before it is reaped, freeing its worker threads on hosts that serve "
-            "many databases over time. 0 disables reaping (default 300)",
+            "many databases over time. When below db_conn_max_idle (default 600) "
+            "a quiet pool is reaped — discarding its still-warm idle connections "
+            "— before they reach their own idle timeout, so the next access to "
+            "that database pays a reconnect; raise to db_conn_max_idle or above "
+            "to let connections idle out first. Single-database hosts are "
+            "unaffected. 0 disables reaping (default 300)",
         )
         group.add_option(
             "--db_discard_on_return",
@@ -1407,8 +1411,7 @@ class configmanager:
 
     @classmethod
     def _is_addons_path(cls, path: str) -> bool:
-        for f in os.listdir(path):
-            modpath = Path(path, f)
+        for modpath in Path(path).iterdir():
 
             def hasfile(filename, _mp=modpath):
                 return Path(_mp, filename).is_file()
@@ -1490,7 +1493,7 @@ class configmanager:
         module = "*"
         version = "*"
         return any(
-            glob.glob(str(Path(path, f"{module}/{version}/{prefix}-*.py")))
+            any(Path(path).glob(f"{module}/{version}/{prefix}-*.py"))
             for prefix in ["pre", "post", "end"]
         )
 
@@ -1637,10 +1640,14 @@ class configmanager:
             if not rc_exists and not Path(self["config"]).parent.exists():
                 Path(str(Path(self["config"]).parent)).mkdir(parents=True)
             try:
-                with Path(self["config"]).open("w", encoding="utf-8") as file:
+                cfg_path = Path(self["config"])
+                with cfg_path.open("w", encoding="utf-8") as file:
+                    # Restrict perms before writing secrets (the file holds db /
+                    # admin / smtp passwords).  Doing it on every save — not just
+                    # on first creation — stops a re-save from leaving a
+                    # previously world-readable config exposed.
+                    cfg_path.chmod(0o600)
                     p.write(file)
-                if not rc_exists:
-                    Path(self["config"]).chmod(0o600)
             except OSError:
                 sys.stderr.write("ERROR: couldn't write the config file\n")
 
