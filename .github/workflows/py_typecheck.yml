@@ -1,0 +1,118 @@
+name: Python Type Check
+
+# Python counterpart to typecheck.yml (TypeScript). Runs mypy over the modern
+# framework packages (config: mypy.ini) and enforces a DRIFT-ZERO RATCHET via
+# tooling/ratchet: the committed floor is tooling/ratchet/baselines/mypy.json.
+#
+# This gate BLOCKS (no continue-on-error). The ratchet only moves one way:
+#   * more errors than the baseline  -> fail (regression).
+#   * fewer errors than the baseline -> fail too, asking you to commit the lower
+#     baseline in the same PR, so every improvement is locked in and the floor
+#     can never silently slip back. See tooling/ratchet/ratchet.py.
+#
+# To change the floor, run locally (clean, deterministic) and commit the result:
+#   python -m mypy --no-incremental --config-file mypy.ini -p odoo.orm -p odoo.db \
+#     -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules 2>&1 | tee /tmp/mypy.log
+#   N=$(grep -cE ": error:" /tmp/mypy.log)
+#   python tooling/ratchet/ratchet.py mypy --count "$N" --update
+#
+# mypy is pinned in requirements-dev.txt (1.19.1).
+
+on:
+  # Mainline re-verification: re-run the ratchet on every push to a protected
+  # branch so direct commits / merge-skew cannot silently drift the floor.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'odoo/orm/**/*.py'
+      - 'odoo/db/**/*.py'
+      - 'odoo/libs/**/*.py'
+      - 'odoo/http/**/*.py'
+      - 'odoo/service/**/*.py'
+      - 'odoo/modules/**/*.py'
+      - 'mypy.ini'
+      - 'requirements*.txt'
+      - 'tooling/ratchet/**'
+      - '.github/workflows/py_typecheck.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mypy:
+    name: mypy (ratchet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install mypy
+        run: pip install "mypy==1.19.1"
+
+      - name: Self-test the ratchet
+        # Prove the enforcement tool is sound before trusting its verdict —
+        # mirrors how architecture.yml self-tests the layer checker.
+        run: python tooling/ratchet/test_ratchet.py
+
+      - name: Run mypy
+        id: mypy
+        # Module mode (`-p`), not path mode: passing directories makes mypy see
+        # the same file under both `orm.*` and `odoo.orm.*` ("found twice").
+        # mypy does static analysis only — ignore_missing_imports (mypy.ini)
+        # means the heavy runtime deps (lxml, …) need NOT be installed here.
+        run: |
+          set +e
+          # --no-incremental: the count must be deterministic for an exact-match
+          # ratchet. mypy's incremental cache yields slightly different totals
+          # depending on cache state; a clean run is stable.
+          python -m mypy --no-incremental --config-file mypy.ini \
+            -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules \
+            2>&1 | tee /tmp/mypy.log
+          set -e
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy.log || echo 0)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet
+        id: ratchet
+        # Single source of truth for the verdict; exits non-zero on any drift.
+        run: |
+          python tooling/ratchet/ratchet.py mypy \
+            --count "${{ steps.mypy.outputs.error_count }}" --json | tee /tmp/verdict.json
+          python tooling/ratchet/ratchet.py mypy --count "${{ steps.mypy.outputs.error_count }}"
+
+      - name: Summarise
+        if: always()
+        run: |
+          ERR_COUNT="${{ steps.mypy.outputs.error_count }}"
+          BASELINE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/mypy.json'))['count'])")
+          {
+            echo "## Python type check (mypy ratchet)"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|------:|"
+            echo "| Errors found | ${ERR_COUNT} |"
+            echo "| Committed floor | ${BASELINE} |"
+            echo "| Drift | $((ERR_COUNT - BASELINE)) |"
+            echo ""
+            if [ "${ERR_COUNT}" -gt "${BASELINE}" ]; then
+              echo "> :x: Regression: lower the count or raise the floor in this PR."
+            elif [ "${ERR_COUNT}" -lt "${BASELINE}" ]; then
+              echo "> :arrow_down: Improvement: commit the lower floor —"
+              echo "> \`python tooling/ratchet/ratchet.py mypy --count ${ERR_COUNT} --update\`"
+            else
+              echo "> :white_check_mark: No drift."
+            fi
+            echo ""
+            echo "Config: \`mypy.ini\` · Floor: \`tooling/ratchet/baselines/mypy.json\` · Scope: orm, db, libs, http, service, modules"
+          } >> "$GITHUB_STEP_SUMMARY"

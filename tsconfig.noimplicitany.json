@@ -1,0 +1,33 @@
+{
+  // Incremental noImplicitAny enforcement — FULL-PROGRAM run + post-filter.
+  //
+  // The base tsconfig.json runs with noImplicitAny OFF, so every un-annotated
+  // parameter / variable / member silently becomes `any`. Because `any` is
+  // null-safe by fiat, implicit-any ALSO silently defeats the strictNullChecks
+  // gate (tsconfig.strict.json): a value typed `any` passes the strict
+  // allowlist trivially, so a file locked as "null-safe" can still harbor
+  // null bugs through any-typed values. Measured 2026-06-27: 528 implicit-any
+  // sites sit inside 58 of the 131 strictNullChecks-locked files.
+  //
+  // This config is the base config with ONLY noImplicitAny flipped on, over the
+  // SAME full program (so all ambients resolve exactly as in the real build and
+  // the reported errors are REAL — the TS70xx family plus the base errors).
+  //
+  // It is NOT expected to reach zero project-wide yet. Enforcement is by
+  // POST-FILTER against tooling/noimplicitany_allowlist.txt: CI runs
+  //
+  //     npx tsc -p tsconfig.noimplicitany.json --noEmit
+  //
+  // and fails iff any ALLOWLISTED file appears in the error output. The
+  // allowlist is the set of files already implicit-any-clean; it only grows.
+  // Adding a file requires it to be clean in this full run first.
+  //
+  // Sibling of tsconfig.strict.json (strictNullChecks); same full-program +
+  // post-filter rationale (see that file's header). The two locks advance the
+  // same foundation together: noImplicitAny makes the strictNullChecks
+  // guarantee REAL on a file, so prefer locking a file in BOTH.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": true
+  }
+}

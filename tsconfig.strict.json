@@ -1,0 +1,31 @@
+{
+  // Incremental strictNullChecks enforcement — FULL-PROGRAM run + post-filter.
+  //
+  // The base tsconfig.json runs with strictNullChecks OFF, so the project-wide
+  // gate cannot catch null/undefined bugs (TS18047/18048/2532/2531 — ~4500
+  // latent across the project). This config is the base config with ONLY
+  // strictNullChecks flipped on, over the SAME full program — so every ambient
+  // (`@odoo/owl`, the `odoo` global, registries.d.ts / services.d.ts / models/)
+  // resolves exactly as in the real build, and the errors reported are REAL.
+  //
+  // It is NOT expected to reach zero project-wide yet. Enforcement is by
+  // POST-FILTER against tooling/strict_allowlist.txt: CI runs
+  //
+  //     npx tsc -p tsconfig.strict.json --noEmit
+  //
+  // and fails iff any ALLOWLISTED file appears in the error output. The
+  // allowlist is the set of files already proven null-safe; it only grows.
+  // Adding a file requires it to be strict-clean in this full run first.
+  //
+  // Why full-program + post-filter instead of an isolated `files` allowlist:
+  // an isolated program can only include the two self-contained ambients
+  // (owl.d.ts, odoo.d.ts) without dragging hundreds of source files in via the
+  // type-importing .d.ts (registries/services/models). That under-resolves the
+  // framework types, so any file using `useService`/registry/view types shows
+  // *artifact* errors. The full program resolves them correctly, so the
+  // allowlist can lock real framework-integrated files, not just pure leaves.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}

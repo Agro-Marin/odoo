@@ -1,0 +1,122 @@
+name: Architecture Boundaries
+
+# Enforces the framework-core layering contracts (ADR-0001..0008, documented in
+# odoo/ARCHITECTURE.md) via the dependency-free checker
+# tooling/architecture/layer_check.py. ADR-0008's facade-boundary contract
+# governs BOTH addon trees (odoo/addons/ and the sibling addons/).
+#
+# BLOCKING by design. Unlike the typecheck/lint gates, this gate has no
+# "tolerated baseline" to ramp down: the checker already reports zero NEW
+# violations, and the pre-existing debt is pinned in the checker's
+# KNOWN_VIOLATIONS allowlist. A *new* layering crossing is a real regression
+# (a re-introduced import cycle, or framework code leaking into a
+# dependency-free module), so it should block the merge that introduces it.
+#
+# To soften to warn-only during a transition, set `continue-on-error: true`.
+
+on:
+  # Mainline re-verification. Every push to a protected branch re-runs the gate
+  # so direct commits and merge-skew cannot silently drift past it. No path
+  # filter here on purpose: mainline is always re-checked in full.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      # The checker's contract source roots: the framework layers it inspects
+      # AND both addon trees governed by the facade-boundary contract (ADR-0008).
+      - 'odoo/orm/**/*.py'
+      - 'odoo/db/**/*.py'
+      - 'odoo/libs/**/*.py'
+      - 'odoo/addons/**/*.py'
+      - 'addons/**/*.py'
+      # The JS Feature-Sliced layering gate (js_layer_check.py) governs the
+      # web addon's client source; re-run it when that source changes.
+      - 'addons/web/static/src/**/*.js'
+      - 'tooling/architecture/**'
+      - '.github/workflows/architecture.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  layers:
+    name: layer_check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Stdlib-only script; any modern Python works. 3.12 chosen to share
+          # the image/cache with the doc-link and service-types gates.
+          python-version: '3.12'
+
+      - name: Test the checker
+        # The checker is load-bearing CI infrastructure; verify its own logic
+        # (relative-import resolution, TYPE_CHECKING skipping, contract matching)
+        # before trusting its verdict. Stdlib-only suite, fast.
+        run: |
+          pip install --quiet "pytest==9.0.2"
+          python -m pytest tooling/architecture/ -q
+
+      - name: Run layer check
+        id: layers
+        run: |
+          set +e
+          python tooling/architecture/layer_check.py | tee /tmp/layers.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+          python tooling/architecture/layer_check.py --check
+        # The second invocation sets the job's pass/fail status (exit 1 on any
+        # new violation). The first produces the readable report for the log.
+
+      - name: Run JS layer check
+        id: js_layers
+        # Same drift-zero contract as the Python gate, for the web addon's
+        # Feature-Sliced JS layers (shared < entity < feature < widget < page).
+        # Blocking by design: a new upward import is a real regression.
+        run: |
+          set +e
+          python tooling/architecture/js_layer_check.py | tee /tmp/js_layers.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+          python tooling/architecture/js_layer_check.py --check
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Architecture boundaries"
+            echo ""
+            echo "### Python (framework core)"
+            echo '```'
+            cat /tmp/layers.log
+            echo '```'
+            echo ""
+            echo "### JavaScript (web addon, Feature-Sliced Design)"
+            echo '```'
+            cat /tmp/js_layers.log
+            echo '```'
+            echo ""
+            echo "Contracts: \`odoo/ARCHITECTURE.md\` · Decisions: \`doc/adr/\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Annotate PR on failure
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.error(
+              'New architecture-layering violation(s) introduced. ' +
+              'A lower layer now imports a higher one at runtime, or a ' +
+              'dependency-free module now imports the framework. ' +
+              'See the workflow Summary and odoo/ARCHITECTURE.md.'
+            );

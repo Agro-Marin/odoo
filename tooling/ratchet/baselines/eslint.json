@@ -1,0 +1,4 @@
+{
+  "count": 122843,
+  "note": "npx eslint . --format=json; sum errorCount. Vendored libs now ignored STRUCTURALLY via **/static/lib/** (eslint.config.mjs) \u2014 no per-lib allowlist. Remaining floor is fork code: ~76k src + ~46k tests (the test count is largely missing test globals \u2014 separate follow-up). Measured 2026-06-25 clean HEAD. Warnings: 13."
+}

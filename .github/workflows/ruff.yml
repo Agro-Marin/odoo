@@ -1,0 +1,87 @@
+name: Python Lint (ruff)
+
+# Python lint gate. CLAUDE.md / doc/coding_guidelines.rst require new Python to
+# pass `ruff check`, but no CI gate enforced it — this closes that gap.
+#
+# Enforced as a DRIFT-ZERO RATCHET (tooling/ratchet): the committed floor is
+# tooling/ratchet/baselines/ruff.json. This gate BLOCKS. The floor only moves
+# one way — see tooling/ratchet/README.md. To change it, run locally and commit:
+#   N=$(ruff check odoo/ --no-cache --statistics | awk '{s+=$1} END {print s}')
+#   python tooling/ratchet/ratchet.py ruff --count "$N" --update
+#
+# ruff is pinned in requirements-dev.txt (0.15.2); the floor must be measured
+# with that pin so local and CI agree.
+
+on:
+  # Mainline re-verification: re-run the ratchet on every push to a protected
+  # branch so direct commits / merge-skew cannot silently drift the floor.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'odoo/**/*.py'
+      - 'ruff.toml'
+      - 'requirements*.txt'
+      - 'tooling/ratchet/**'
+      - '.github/workflows/ruff.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    name: ruff (ratchet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install ruff (pinned)
+        run: pip install "ruff==0.15.2"
+
+      - name: Self-test the ratchet
+        run: python tooling/ratchet/test_ratchet.py
+
+      - name: Run ruff
+        id: ruff
+        run: |
+          set +e
+          # --no-cache: keep the count deterministic for the exact-match ratchet
+          # (a stale/partial ruff cache yields a slightly different total).
+          ruff check odoo/ --no-cache --output-format=concise | tee /tmp/ruff.log
+          set -e
+          # --statistics gives the authoritative per-rule totals; sum them.
+          ERR_COUNT=$(ruff check odoo/ --no-cache --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet
+        run: |
+          python tooling/ratchet/ratchet.py ruff --count "${{ steps.ruff.outputs.error_count }}" --json | tee /tmp/verdict.json
+          python tooling/ratchet/ratchet.py ruff --count "${{ steps.ruff.outputs.error_count }}"
+
+      - name: Summarise
+        if: always()
+        run: |
+          ERR_COUNT="${{ steps.ruff.outputs.error_count }}"
+          BASELINE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/ruff.json'))['count'])")
+          {
+            echo "## Python lint (ruff ratchet)"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|------:|"
+            echo "| Findings | ${ERR_COUNT} |"
+            echo "| Committed floor | ${BASELINE} |"
+            echo "| Drift | $((ERR_COUNT - BASELINE)) |"
+            echo ""
+            echo "Config: \`ruff.toml\` · Floor: \`tooling/ratchet/baselines/ruff.json\` · Scope: \`odoo/\`"
+          } >> "$GITHUB_STEP_SUMMARY"

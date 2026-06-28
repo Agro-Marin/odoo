@@ -1,0 +1,4 @@
+{
+  "count": 632,
+  "note": "ruff check odoo/ --no-cache --statistics (sum); ruff 0.15.2. 636 -> 632: fixed the 4 pre-existing nits the orm-audit commits (581442d/a2922f3/c27a98a) introduced in test_orm_invariants.py::_fastpath_cache_to_record (ANN001/ANN202/D205/D209). Drift fully addressed; now 1 BELOW the original 633 floor (the extra -1 is the modules/db.py dead import removed in af60bd9)."
+}
