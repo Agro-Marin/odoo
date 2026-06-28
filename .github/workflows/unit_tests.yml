@@ -1,0 +1,103 @@
+name: Unit Tests (DB-free)
+
+# Runs the standalone, database-free unit suites that make up the fast feedback
+# tiers documented in doc/coding_guidelines.rst §6 ("Test infrastructure
+# tiers"). None of these touch PostgreSQL or load Odoo modules.
+#
+# Why this gate exists: these suites broke silently once already. The shared
+# bootstrap odoo/_testing_bootstrap.py was removed while two suites still
+# imported it; only stale local .pyc files kept them "passing", so the breakage
+# was invisible until a clean checkout. CI always runs on a clean checkout, so
+# this workflow turns that class of regression into a hard failure.
+#
+# Two jobs, split by dependency weight:
+#   * fast-stdlib  — orm/components: pure stdlib, no Rust, no framework. Seconds.
+#                    This is the primary guard for the bootstrap regression.
+#   * full-import  — _field_access (needs the odoo_rust extension) and the
+#                    Tier-2 model_test_env self-tests (need a real `import odoo`).
+#
+# The Tier-1 stubbed suites register process-global sys.modules stubs, so the
+# Tier-2 real-import suite MUST run in a SEPARATE pytest invocation (see the
+# note in pytest.ini). The full-import job keeps them in distinct steps.
+
+on:
+  # Mainline re-verification: re-run the DB-free suites on every push to a
+  # protected branch so direct commits / merge-skew cannot silently regress them.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'odoo/orm/components/**'
+      - 'odoo/libs/_field_access/**'
+      - 'odoo/orm/model_test_env.py'
+      - 'odoo/orm/tests/**'
+      - 'odoo/_testing_bootstrap.py'
+      - 'pytest.ini'
+      - 'crates/odoo_rust/**'
+      - '.github/workflows/unit_tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fast-stdlib:
+    name: components (pure stdlib)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install pytest
+        run: pip install --quiet "pytest==9.0.2"
+
+      - name: Run orm/components (Tier-1, no Rust, no framework)
+        # A clean checkout missing odoo/_testing_bootstrap.py fails HERE at
+        # collection — exactly the regression this gate guards against.
+        run: python -m pytest odoo/orm/components/tests -q
+
+  full-import:
+    name: _field_access + model_test_env
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        # _field_access hard-imports odoo_rust (no graceful fallback), and the
+        # Tier-2 `import odoo` pulls it in transitively.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install runtime requirements
+        run: pip install --quiet -r requirements.txt "pytest==9.0.2"
+
+      - name: Run _field_access (Tier-1, Rust-backed)
+        run: python -m pytest odoo/libs/_field_access/tests -q
+
+      - name: Run model_test_env self-tests (Tier-2, real import — separate run)
+        # MUST be a separate invocation: the Tier-1 conftests above register
+        # process-global sys.modules stubs that would shadow `import odoo`.
+        run: python -m pytest odoo/orm/tests -q

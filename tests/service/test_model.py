@@ -3,7 +3,7 @@
 Covers the mockable, database-free portions of the service layer:
   - ``Params.__str__()``
   - ``get_public_method()`` — RPC access-control gate
-  - ``_traverse_containers()`` — recursive lazy-value harvester
+  - ``_force_lazy_values()`` — recursive lazy-value forcing
   - ``retrying()`` — PostgreSQL serialization-retry loop
 
 NOT covered here (require a live cursor / registry / ORM):
@@ -36,6 +36,14 @@ def mod():
     import odoo.service.model as m  # noqa: PLC0415
 
     return m
+
+
+@pytest.fixture(scope="module")
+def tx():
+    """Return ``odoo.service.transaction`` (home of ``retrying`` + its constants)."""
+    import odoo.service.transaction as t  # noqa: PLC0415
+
+    return t
 
 
 # ---------------------------------------------------------------------------
@@ -154,11 +162,15 @@ class TestGetPublicMethod:
         assert method.__name__ == "public_method"
 
     def test_api_private_blocked_when_defined_in_base_class(self, mod) -> None:
-        """``_api_private`` on a base-class method must still block a subclass.
+        """_api_private on a BASE class method must still block a subclass instance.
 
-        The MRO loop checks ``mro_cls.__dict__`` (the defining class only) for
-        speed, so it must still find ``_api_private`` defined deep in the
-        hierarchy.
+        This is the regression test for the __dict__ optimisation: the MRO loop
+        uses mro_cls.__dict__.get(name) which only returns non-None for the class
+        that DIRECTLY DEFINES the method.  With the old getattr() approach every
+        ancestor class returned non-None via inheritance, causing O(MRO depth)
+        redundant checks on the same function object.  With __dict__ the check is
+        O(definitions) — but it must still find _api_private even when the
+        definition lives deep in the hierarchy.
         """
         from odoo.exceptions import AccessError  # noqa: PLC0415
 
@@ -182,55 +194,141 @@ class TestGetPublicMethod:
 
 
 # ---------------------------------------------------------------------------
-# TestTraverseContainers
+# TestForceLazyValues
 # ---------------------------------------------------------------------------
 
 
-class _Marker:
-    """Sentinel type for traverse tests."""
+def _tracked_lazy():
+    """Return ``(lazy_obj, was_forced)`` where ``was_forced()`` reports whether
+    the lazy has been evaluated.
+
+    ``lazy(fn)._value`` triggers ``fn`` exactly once, so the closure flag flips
+    iff ``_force_lazy_values`` reached and forced the lazy.
+    """
+    from odoo.tools import lazy
+
+    state = {"forced": False}
+
+    def fn():
+        state["forced"] = True
+        return 99
+
+    return lazy(fn), (lambda: state["forced"])
 
 
-class TestTraverseContainers:
-    """_traverse_containers() yields matching atoms, traverses standard containers."""
+class TestForceLazyValues:
+    """``_force_lazy_values()`` forces every ``lazy`` reachable in an RPC result,
+    across all container shapes, before the cursor closes — and never descends
+    into strings/bytes (which would recurse forever) or recordsets.
+    """
 
-    def test_atom_match_yielded(self, mod) -> None:
-        m = _Marker()
-        assert list(mod._traverse_containers(m, _Marker)) == [m]
+    def test_top_level_lazy_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values(lz)
+        assert forced()
 
-    def test_str_stops_traversal(self, mod) -> None:
-        # str is a Sequence but must not be descended into
-        assert list(mod._traverse_containers("hello", str)) == ["hello"]
+    def test_lazy_in_list_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values([1, lz, 3])
+        assert forced()
 
-    def test_bytes_stops_traversal(self, mod) -> None:
-        assert list(mod._traverse_containers(b"data", bytes)) == [b"data"]
+    def test_lazy_in_nested_list_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values([[lz]])
+        assert forced()
 
-    def test_non_matching_atom_skipped(self, mod) -> None:
-        assert list(mod._traverse_containers(42, _Marker)) == []
+    def test_lazy_in_tuple_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values((lz,))
+        assert forced()
 
-    def test_list_traversed(self, mod) -> None:
-        m1, m2 = _Marker(), _Marker()
-        result = list(mod._traverse_containers([m1, "skip", m2], _Marker))
-        assert result == [m1, m2]
+    def test_lazy_as_dict_value_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values({"key": lz})
+        assert forced()
 
-    def test_nested_list(self, mod) -> None:
-        m = _Marker()
-        result = list(mod._traverse_containers([[m]], _Marker))
-        assert result == [m]
+    def test_lazy_as_dict_key_forced(self, mod) -> None:
+        # Dict keys are traversed too — a lazy can legitimately be a key.
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values({lz: "value"})
+        assert forced()
 
-    def test_mapping_values_traversed(self, mod) -> None:
-        m = _Marker()
-        result = list(mod._traverse_containers({"key": m}, _Marker))
-        assert result == [m]
+    def test_lazy_in_set_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values({lz})
+        assert forced()
 
-    def test_mapping_keys_traversed(self, mod) -> None:
-        """Dict keys are also traversed — important for lazy values in keys."""
-        m = _Marker()
-        result = list(mod._traverse_containers({m: "value"}, _Marker))
-        assert result == [m]
+    def test_lazy_in_frozenset_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values(frozenset({lz}))
+        assert forced()
 
-    def test_str_in_sequence_not_descended(self, mod) -> None:
-        # "abc" treated as atom, not recursed into as Sequence[str]
-        assert list(mod._traverse_containers(["abc"], str)) == ["abc"]
+    def test_lazy_in_dict_values_view_forced(self, mod) -> None:
+        # ``dict_values`` is neither Sequence nor Set — exercises the generic
+        # Iterable fallback that the previous design once mishandled.
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values({"k": lz}.values())
+        assert forced()
+
+    def test_deeply_nested_lazy_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values({"a": [{"b": (lz,)}]})
+        assert forced()
+
+    def test_top_level_generator_materialized_and_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        out = mod._force_lazy_values(x for x in [lz, 2])
+        # One-shot iterators are materialized so the marshaller gets a real list.
+        assert isinstance(out, list)
+        assert forced()
+
+    def test_nested_generator_forced(self, mod) -> None:
+        lz, forced = _tracked_lazy()
+        mod._force_lazy_values([(x for x in [lz])])
+        assert forced()
+
+    def test_lazy_free_result_returned_unchanged(self, mod) -> None:
+        data = [{"id": i, "name": f"r{i}", "active": True, "x": None} for i in range(5)]
+        assert mod._force_lazy_values(data) == data
+
+    def test_str_not_descended(self, mod) -> None:
+        # A str is a Sequence; descending it would recurse char-by-char forever.
+        assert mod._force_lazy_values(["abc"]) == ["abc"]
+
+    def test_str_subclass_does_not_infinite_recurse(self, mod) -> None:
+        class MyStr(str):
+            __slots__ = ()
+
+        # Exact-class fast path misses a str *subclass*; the isinstance(str)
+        # guard after it must still stop the char-by-char recursion.
+        mod._force_lazy_values({"k": MyStr("abcdef")})  # must not RecursionError
+
+    def test_real_lazy_in_odoo_containers_forced(self, mod) -> None:
+        """Real ``lazy`` values inside odoo's frozendict / OrderedSet are forced.
+
+        Pins the scalar fast-path: the short-circuit must never swallow a lazy
+        held in an exotic container.
+        """
+        from odoo.tools import OrderedSet, frozendict, lazy
+
+        seen = []
+        s1, s2, s3 = (lazy(lambda i=i: seen.append(i)) for i in (1, 2, 3))
+        result = [
+            frozendict({"a": s1, "b": 2, "c": [s2]}),
+            OrderedSet([10, 20]),  # scalars only — nothing to force
+            {"k": (s3, "txt", 99)},
+        ]
+        mod._force_lazy_values(result)
+        assert sorted(seen) == [1, 2, 3]
+
+    def test_scalar_heavy_collection_still_forces_lazy(self, mod) -> None:
+        # The exact-scalar fast path skips the ABC walk for ints/floats/bools/
+        # None/str/bytes; a lazy mixed in with those (and nested in a dict) must
+        # still be forced.
+        lz1, f1 = _tracked_lazy()
+        lz2, f2 = _tracked_lazy()
+        mod._force_lazy_values([1, 2.0, True, None, "s", b"b", lz1, {"x": 3, "y": lz2}])
+        assert f1() and f2()
 
 
 # ---------------------------------------------------------------------------
@@ -250,10 +348,18 @@ class TestRetrying:
         mock_env.registry.signal_changes.assert_called_once()
 
     def test_closed_cursor_skips_flush_and_commit(self, mod, mock_env) -> None:
-        """A closed cursor after func() skips both flush and commit.
+        """When cr.closed is True after func(), both flush and commit are skipped.
 
-        ``cr.closed`` ORs the wrapper's ``_closed`` with ``_cnx.closed``, so it
-        covers wrapper close, connection death, and both.
+        ``closed`` is the property that ORs the wrapper-only ``_closed`` with the
+        underlying connection's ``_cnx.closed``, so this covers wrapper close,
+        connection death, and both.
+
+        ``signal_changes()`` is ALSO skipped on this path: the fork guards
+        rollback/reset/commit with ``if not env.cr.closed`` but historically
+        left the trailing ``signal_changes()`` ungated, so a transaction whose
+        commit was skipped (dead cursor) still broadcast a cache/registry
+        invalidation to the whole cluster — a spurious cross-worker reload for a
+        change that never committed.  The guard now matches the commit's.
         """
         mock_env.cr._closed = True
         mock_env.cr.closed = True
@@ -263,6 +369,7 @@ class TestRetrying:
         assert result == "done"
         mock_env.cr.flush.assert_not_called()
         mock_env.cr.commit.assert_not_called()
+        mock_env.registry.signal_changes.assert_not_called()
 
     def test_plain_operational_error_not_retried(self, mod, mock_env) -> None:
         """A bare OperationalError (not a concurrency subtype) re-raises immediately."""
@@ -366,11 +473,11 @@ class TestRetrying:
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
-    def test_sleep_called_between_retries_not_on_last(self, mod, mock_env) -> None:
+    def test_sleep_called_between_retries_not_on_last(self, mod, tx, mock_env) -> None:
         """time.sleep is called N-1 times for N attempts (no sleep after last failure)."""
         exc = psycopg.errors.SerializationFailure()
         exc.sqlstate = "40001"
-        max_tries = mod.MAX_TRIES_ON_CONCURRENCY_FAILURE
+        max_tries = tx.MAX_TRIES_ON_CONCURRENCY_FAILURE
 
         def func():
             raise exc
@@ -409,10 +516,11 @@ class TestRetrying:
                 mod.retrying(func, mock_env)
 
     def test_integrity_error_with_closed_connection_reraises(self, mod, mock_env) -> None:
-        """IntegrityError + closed cursor re-raises, no ValidationError conversion.
+        """IntegrityError + closed cursor re-raises without ValidationError conversion.
 
-        The unusable-cursor check short-circuits before the constraint-name
-        lookup, which would itself need a live connection.
+        With ``closed=True`` the inner-except short-circuits at the unusable-cursor
+        check (model.py line 241) before ever reaching the IntegrityError-specific
+        constraint-name lookup, which would itself need a live connection.
         """
         exc = _FakeIntegrityError()
         mock_env.cr._closed = False
@@ -437,13 +545,17 @@ class TestRetrying:
     def test_closed_cursor_in_inner_except_reraises_immediately(
         self, mod, mock_env, wrapper_closed, conn_dead
     ) -> None:
-        """An unusable cursor when catching a concurrency error re-raises, no retry.
+        """If the cursor is unusable when catching a concurrency error, re-raise without retry.
 
-        Checking ``cr.closed`` (wrapper-close OR ``_cnx.closed``) rather than
-        just ``cr._closed`` means a dead connection also short-circuits the
-        retry loop instead of burning the backoff budget.
+        Regression: the prior implementation checked ``cr._closed`` (the wrapper-only flag)
+        which missed the case where the underlying psycopg connection had died (e.g. after
+        DB drop, idle timeout, network partition).  The fix checks ``cr.closed`` (the
+        property that ORs wrapper-close with ``_cnx.closed``), so connection death also
+        short-circuits the retry loop instead of burning the random-backoff budget on
+        a connection that will never recover.
         """
-        # cursor.closed == _closed or bool(_cnx.closed); drive both inputs.
+        # The cursor.closed property is `_closed or bool(_cnx.closed)`.  Reproduce
+        # both inputs so the parametrized cases cover the full truth table.
         mock_env.cr._closed = wrapper_closed
         mock_env.cr.closed = wrapper_closed or conn_dead
         exc = psycopg.errors.SerializationFailure()
@@ -565,3 +677,175 @@ class TestRetrying:
             mock_random.uniform.return_value = 0.0
             with pytest.raises(RuntimeError, match="Cannot retry request on input file 'upload'"):
                 mod.retrying(func, mock_env)
+
+    # -- commit-time failures: the final commit() runs in its own guarded
+    # block, so a failure there (deferred constraint, post-commit hook) is
+    # NOT retried but DOES get the same cleanup/translation as an in-loop one.
+
+    def test_commit_time_failure_runs_cleanup_without_retry(self, mod, mock_env) -> None:
+        """A SerializationFailure raised by commit() (not by the in-loop flush)
+        is NOT retried, but transaction.reset()/registry.reset_changes() still
+        run and signal_changes() does not."""
+        exc = psycopg.errors.SerializationFailure()
+        exc.sqlstate = "40001"
+        mock_env.cr.commit.side_effect = exc
+        calls = 0
+
+        def func():
+            nonlocal calls
+            calls += 1
+            return "ok"
+
+        with patch("odoo.http") as mock_http:
+            mock_http.request = None
+            with pytest.raises(psycopg.errors.SerializationFailure):
+                mod.retrying(func, mock_env)
+
+        assert calls == 1  # commit-time failure was NOT retried
+        mock_env.transaction.reset.assert_called()  # cleanup ran
+        mock_env.registry.reset_changes.assert_called()
+        mock_env.registry.signal_changes.assert_not_called()
+
+    def test_commit_time_integrity_error_translated_to_validation_error(
+        self, mod, mock_env
+    ) -> None:
+        """A deferred-constraint IntegrityError that fires at COMMIT gets the
+        same friendly ValidationError translation as the in-loop path."""
+        from odoo.exceptions import ValidationError
+
+        exc = _FakeIntegrityError(table_name="some_table")
+        mock_env.cr.commit.side_effect = exc
+
+        matching_model = MagicMock()
+        matching_model._name = "some.model"
+        matching_model._table = "some_table"
+        matching_model._sql_error_to_message.return_value = "Unique constraint"
+        mock_env.registry.values.return_value = [matching_model]
+        mock_env.__getitem__ = MagicMock(return_value=matching_model)
+
+        with patch("odoo.http") as mock_http:
+            mock_http.request = None
+            with pytest.raises(ValidationError, match="The operation cannot be completed"):
+                mod.retrying(lambda: "ok", mock_env)
+
+        mock_env.transaction.reset.assert_called()
+        mock_env.registry.reset_changes.assert_called()
+
+    def test_commit_time_integrity_translation_failure_falls_back_to_raw(
+        self, mod, mock_env
+    ) -> None:
+        """If translating a commit-time IntegrityError itself fails, the raw
+        IntegrityError surfaces — the error path never masks one crash with
+        another."""
+        exc = _FakeIntegrityError(table_name="some_table")
+        mock_env.cr.commit.side_effect = exc
+
+        broken_model = MagicMock()
+        broken_model._table = "some_table"
+        broken_model._sql_error_to_message.side_effect = RuntimeError("dead cursor")
+        mock_env.registry.values.return_value = [broken_model]
+        mock_env.__getitem__ = MagicMock(return_value=broken_model)
+
+        with patch("odoo.http") as mock_http:
+            mock_http.request = None
+            with pytest.raises(_FakeIntegrityError):  # raw, not ValidationError
+                mod.retrying(lambda: "ok", mock_env)
+
+
+# ---------------------------------------------------------------------------
+# TestCallKw — result shaping + access-control, no live DB
+# ---------------------------------------------------------------------------
+
+
+class TestCallKw:
+    """``call_kw`` shapes the result (create -> id / ids, recordset -> ids) and
+    rejects malformed argument lists.  These paths were previously untested
+    because they were assumed to need a live Environment; they don't — the
+    ORM method is supplied via ``get_public_method``, which we patch."""
+
+    def _model(self):
+        model = MagicMock()
+        model._name = "res.partner"
+        model.with_context.return_value = model
+        return model
+
+    def test_create_with_dict_vals_returns_scalar_id(self, mod):
+        method = MagicMock(__name__="create", _api_model=True)
+        method.return_value = MagicMock(id=42, ids=[42])
+        with patch.object(mod, "get_public_method", return_value=method):
+            out = mod.call_kw(self._model(), "create", [{"name": "x"}], {})
+        assert out == 42
+
+    def test_create_with_list_vals_returns_ids_list(self, mod):
+        method = MagicMock(__name__="create", _api_model=True)
+        method.return_value = MagicMock(id=1, ids=[1, 2])
+        with patch.object(mod, "get_public_method", return_value=method):
+            out = mod.call_kw(self._model(), "create", [[{"a": 1}, {"a": 2}]], {})
+        assert out == [1, 2]
+
+    def test_recordset_result_is_reduced_to_ids(self, mod):
+        # A non-create method returning a BaseModel must be marshalled to .ids.
+        rs = MagicMock(spec=mod.BaseModel)
+        rs.ids = [7, 8]
+        method = MagicMock(__name__="search", _api_model=False, return_value=rs)
+        with patch.object(mod, "get_public_method", return_value=method):
+            out = mod.call_kw(self._model(), "search", [[1, 2]], {})
+        assert out == [7, 8]
+
+    def test_non_model_method_without_ids_raises_accesserror(self, mod):
+        from odoo.exceptions import AccessError  # noqa: PLC0415
+
+        method = MagicMock(__name__="write")
+        del method._api_model  # getattr(..., "_api_model", False) -> False
+        model = MagicMock()
+        model._name = "res.partner"
+        with patch.object(mod, "get_public_method", return_value=method):
+            with pytest.raises(AccessError):
+                mod.call_kw(model, "write", [], {})  # no ids in args
+
+
+# ---------------------------------------------------------------------------
+# TestDispatchValidation — the object-service RPC gateway, no live DB
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchValidation:
+    """``dispatch`` validates the RPC envelope *before* touching the registry,
+    so these hardening branches are reachable without a database:
+    unknown verb -> AttributeError, too-few params -> TypeError, and the
+    ``int(True) == 1`` admin-binding guard -> TypeError on a bool uid."""
+
+    def test_unknown_verb_raises_attributeerror(self, mod):
+        with pytest.raises(AttributeError):
+            mod.dispatch("not_a_verb", ["db", 1, "pw", "res.partner", "read"])
+
+    def test_too_few_params_raises_typeerror(self, mod):
+        with pytest.raises(TypeError):
+            mod.dispatch("execute", ["db", 1, "pw"])  # < 5 positional args
+
+    def test_bool_uid_rejected_before_registry(self, mod):
+        # int(True) == 1 would silently bind uid to admin; reject it with a
+        # typed error. This fires before Registry(db), so no DB is needed.
+        with pytest.raises(TypeError):
+            mod.dispatch(
+                "execute", ["db", True, "pw", "res.partner", "read", [1]]
+            )
+
+    def test_empty_password_raises_accessdenied(self, mod):
+        from odoo.exceptions import AccessDenied  # noqa: PLC0415
+
+        with pytest.raises(AccessDenied):
+            mod.dispatch(
+                "execute", ["db", 1, "", "res.partner", "read", [1]]
+            )
+
+    def test_execute_kw_bad_arg_shape_raises_typeerror(self, mod):
+        # execute_kw accepts (args, [kw]); 3 trailing positionals is malformed.
+        # Patch Registry so we exercise the arg-shape guard, not DB access.
+        with patch.object(mod, "Registry") as reg:
+            reg.return_value.check_signaling.return_value = reg.return_value
+            with pytest.raises(TypeError):
+                mod.dispatch(
+                    "execute_kw",
+                    ["db", 1, "pw", "res.partner", "read", [1], {}, "extra"],
+                )

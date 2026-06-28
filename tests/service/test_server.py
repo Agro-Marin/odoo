@@ -17,15 +17,17 @@ import errno
 import http.server
 import os
 import signal
+import threading
 import time
 from collections import deque
 from io import BytesIO
-from unittest.mock import MagicMock, patch, patch as _patch
+from unittest.mock import MagicMock, patch
 
 import psycopg
 import pytest
 import werkzeug.serving
 
+from odoo.service import _base_server, _helpers, _prefork, _threaded
 
 # ---------------------------------------------------------------------------
 # Module-scope import (heavy import chain — paid once per session)
@@ -40,18 +42,6 @@ def srv():
     return mod
 
 
-@pytest.fixture(scope="module")
-def helpers():
-    """Return ``odoo.service._helpers`` — the home of the process-control helpers.
-
-    ``memory_info`` / ``empty_pipe`` / ``cron_database_list`` are deliberately
-    not re-exported from the ``server`` facade, so reach them here directly.
-    """
-    import odoo.service._helpers as mod  # noqa: PLC0415
-
-    return mod
-
-
 # ---------------------------------------------------------------------------
 # Infrastructure fixtures
 # ---------------------------------------------------------------------------
@@ -59,10 +49,11 @@ def helpers():
 
 @pytest.fixture()
 def multi():
-    """Minimal PreforkServer stub for Worker / WorkerCron construction.
+    """Minimal PreforkServer stub sufficient for Worker / WorkerCron construction.
 
-    ``Worker.__init__`` unpacks ``multi.pipe_new()`` as ``(r, w)`` twice, so it
-    must return real OS pipe pairs — a bare ``MagicMock`` can't be unpacked.
+    ``Worker.__init__`` calls ``multi.pipe_new()`` **twice** and immediately
+    unpacks each result as ``(r, w)``, so we must provide real OS pipe pairs —
+    a plain ``MagicMock()`` return value cannot be unpacked by position.
     """
     m = MagicMock()
     pipes = [os.pipe(), os.pipe()]
@@ -83,10 +74,12 @@ def multi():
 
 @pytest.fixture()
 def worker_cron(srv, multi):
-    """WorkerCron with ``pid`` and ``dbcursor`` pre-set for unit testing.
+    """WorkerCron with ``pid`` and ``dbcursor`` pre-set, ready for unit testing.
 
-    ``dbcursor.connection`` and ``dbcursor._cnx`` share one mock, mirroring the
-    real ``Cursor.connection`` property so tests can stub either handle.
+    ``dbcursor.connection`` is aliased to ``dbcursor._cnx`` so tests can set
+    side-effects on either handle: the real fork's ``Cursor.connection``
+    property returns ``self._cnx``, so these two attributes point at the
+    same object in production.
     """
     wc = srv.WorkerCron(multi)
     wc.pid = os.getpid()
@@ -118,33 +111,33 @@ def prefork_server(srv):
 class TestEmptyPipe:
     """``empty_pipe(fd)``: drains all bytes from a non-blocking readable fd."""
 
-    def test_drains_all_data(self, helpers):
+    def test_drains_all_data(self, srv):
         r, w = os.pipe()
         try:
             os.set_blocking(r, False)
             os.write(w, b"hello world")
-            helpers.empty_pipe(r)
+            _helpers.empty_pipe(r)
             with pytest.raises(BlockingIOError):
                 os.read(r, 1)  # pipe must be empty
         finally:
             os.close(r)
             os.close(w)
 
-    def test_already_empty_does_not_raise(self, helpers):
+    def test_already_empty_does_not_raise(self, srv):
         r, w = os.pipe()
         try:
             os.set_blocking(r, False)
-            helpers.empty_pipe(r)  # no data written — must not block or raise
+            _helpers.empty_pipe(r)  # no data written — must not block or raise
         finally:
             os.close(r)
             os.close(w)
 
-    def test_drains_multiple_bytes(self, helpers):
+    def test_drains_multiple_bytes(self, srv):
         r, w = os.pipe()
         try:
             os.set_blocking(r, False)
             os.write(w, b"a" * 512)
-            helpers.empty_pipe(r)
+            _helpers.empty_pipe(r)
             with pytest.raises(BlockingIOError):
                 os.read(r, 1)
         finally:
@@ -167,8 +160,9 @@ class TestFSWatcherBase:
     def test_valid_py_triggers_restart(self, srv, watcher, tmp_path):
         py = tmp_path / "good.py"
         py.write_text("x = 1 + 1\n")
-        # handle_file lazy-imports server_phoenix/restart from lifecycle, so
-        # patch there — a server.py re-export patch would be shadowed.
+        # ``handle_file`` and ``_trigger_restart`` lazy-import
+        # ``server_phoenix`` and ``restart`` from ``odoo.service.lifecycle``
+        # (the single source of truth), so the patch must target that module.
         with (
             patch("odoo.service.lifecycle.server_phoenix", False),
             patch("odoo.service.lifecycle.restart") as mock_restart,
@@ -241,15 +235,19 @@ class TestPreforkServerProcessSignals:
             prefork_server.process_signals()
 
     def test_sighup_sets_phoenix_flag_and_raises(self, prefork_server):
-        """SIGHUP must set ``server_phoenix`` before raising ``KeyboardInterrupt``."""
+        """SIGHUP must set ``server_phoenix`` before raising ``KeyboardInterrupt``.
+
+        ``server_phoenix`` lives in ``lifecycle`` (single source of truth); the
+        ``patch`` context restores it on exit so the test leaves no global
+        residue — and there is no ``server.server_phoenix`` forwarder to shadow.
+        """
         from odoo.service import lifecycle  # noqa: PLC0415
 
         prefork_server.queue.append(signal.SIGHUP)
-        with pytest.raises(KeyboardInterrupt):
-            prefork_server.process_signals()
-        # The flag lives on lifecycle (single source of truth), not the facade.
-        assert lifecycle.server_phoenix is True
-        lifecycle.server_phoenix = False  # reset for subsequent tests
+        with patch.object(lifecycle, "server_phoenix", False):
+            with pytest.raises(KeyboardInterrupt):
+                prefork_server.process_signals()
+            assert lifecycle.server_phoenix is True
 
     def test_sigttin_increments_population(self, prefork_server):
         prefork_server.queue.append(signal.SIGTTIN)
@@ -271,6 +269,38 @@ class TestPreforkServerProcessSignals:
     def test_empty_queue_is_noop(self, prefork_server):
         prefork_server.process_signals()  # must not raise
         assert prefork_server.population == 4
+
+
+# ---------------------------------------------------------------------------
+# server_phoenix / server — single source of truth (lifecycle)
+# ---------------------------------------------------------------------------
+
+
+class TestServerPhoenixSingleSourceOfTruth:
+    """``server`` and ``server_phoenix`` live only in ``lifecycle``.
+
+    Regression: ``server.py`` used to expose them via a module ``__getattr__``
+    forwarding to ``lifecycle``.  Because module ``__getattr__`` only fires for
+    *absent* names, a single ``server.server_phoenix = X`` assignment created a
+    real attribute that shadowed the forwarder permanently, silently desyncing
+    later reads from ``lifecycle``.  The shim was removed; these tests pin that.
+    """
+
+    def test_lifecycle_is_the_canonical_holder(self):
+        from odoo.service import lifecycle  # noqa: PLC0415
+
+        assert hasattr(lifecycle, "server")
+        assert hasattr(lifecycle, "server_phoenix")
+
+    def test_server_module_does_not_forward_phoenix(self, srv):
+        # No forwarding ``__getattr__`` -> the name is simply absent here, so a
+        # stray ``server.server_phoenix = X`` can never masquerade as canonical.
+        with pytest.raises(AttributeError):
+            srv.server_phoenix  # noqa: B018
+
+    def test_server_module_does_not_forward_server(self, srv):
+        with pytest.raises(AttributeError):
+            srv.server  # noqa: B018
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +351,50 @@ class TestWorkerCronConnectPostgres:
         """Must connect to the ``postgres`` maintenance database, not a tenant db."""
         _, _, mock_connect = self._connect(worker_cron, in_recovery=False)
         mock_connect.assert_called_once_with("postgres")
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron.sleep() — idle select must not outlast the master watchdog
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerCronSleepWatchdog:
+    """``sleep()``: the idle select timeout is capped by ``watchdog_timeout``.
+
+    ``_runloop`` pings the master watchdog once per cycle, before ``sleep()``.
+    If the idle select blocks for ``SLEEP_INTERVAL`` (60-69s) while the cron
+    watchdog (``limit_time_real_cron``) is shorter, the master SIGKILLs the
+    idle worker and re-forks it in a loop.
+    """
+
+    def _select_timeout(self, worker_cron):
+        """Run sleep() with an empty queue and capture the select() timeout."""
+        worker_cron.db_queue.clear()
+        worker_cron._pg_selector = MagicMock()
+        with (
+            patch("odoo.service._worker.time.sleep"),
+            patch("odoo.service._worker.empty_pipe"),
+        ):
+            worker_cron.sleep()
+        return worker_cron._pg_selector.select.call_args.kwargs["timeout"]
+
+    def test_idle_sleep_capped_below_tight_watchdog(self, worker_cron):
+        worker_cron.watchdog_timeout = 30  # e.g. limit_time_real_cron=30
+        timeout = self._select_timeout(worker_cron)
+        assert timeout <= 15, timeout  # half the watchdog, leaves ping headroom
+
+    def test_idle_sleep_uncapped_when_watchdog_disabled(self, worker_cron):
+        worker_cron.watchdog_timeout = None  # limit_time_real_cron=0
+        timeout = self._select_timeout(worker_cron)
+        # SLEEP_INTERVAL (60) + pid % 10 — full interval, no cap.
+        assert timeout >= 60, timeout
+
+    def test_default_watchdog_does_not_shorten_idle_sleep_below_interval(
+        self, worker_cron
+    ):
+        worker_cron.watchdog_timeout = 120  # default (-1 -> limit_time_real)
+        timeout = self._select_timeout(worker_cron)
+        assert timeout >= 60, timeout  # 120/2 == 60 >= 60-69 floor
 
 
 # ---------------------------------------------------------------------------
@@ -386,11 +460,16 @@ class TestWorkerCronProcessWorkReconnect:
         mock_reconnect.assert_called_once()
 
     def test_reconnect_failure_does_not_propagate(self, worker_cron):
-        """A failing ``_connect_postgres()`` must not kill the worker.
+        """If ``_connect_postgres()`` itself fails, the worker stays alive.
 
-        Killing it would forfeit the ``_reconnect_attempts`` counter (a fresh
-        fork restarts at 0 and dies again). Staying alive lets the backoff
-        escalate within one process, up to the 60s cap.
+        Previously this raised the error to ``_runloop``, which killed the
+        worker and forced master to fork a replacement.  Master forks at
+        ~master.beat (4s) intervals, the new worker starts with attempts=0,
+        sleeps 2s, and dies again — escalation never happens.
+
+        The fix keeps the worker alive so the ``_reconnect_attempts``
+        counter actually escalates within one process.  The next cycle
+        sees the bumped counter and waits longer, up to the 60s cap.
         """
         worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError("SSL")
         with (
@@ -402,14 +481,19 @@ class TestWorkerCronProcessWorkReconnect:
             ),
             patch("odoo.service._worker.time.sleep"),
         ):
-            worker_cron.process_work()  # must not raise
+            # Must NOT raise — the worker survives so the next cycle can
+            # retry with an elevated backoff counter.
+            worker_cron.process_work()
         assert worker_cron._reconnect_attempts == 1
 
     def test_reconnect_attempts_escalate_across_cycles(self, worker_cron):
-        """Repeated reconnect failures grow the backoff within one worker.
+        """Within one worker, repeated reconnect failures grow the backoff.
 
-        Assert the per-cycle sum of sleeps (not the chunk count), so retuning
-        ``_sleep_with_watchdog``'s chunk size won't break the test.
+        ``_sleep_with_watchdog`` chunks the wait into ``master.beat / 2``
+        slices (default 2s) so the master watchdog sees fresh pipe pings
+        every half-beat.  We assert the per-cycle SUM of sleeps matches
+        the expected backoff, not the chunk count, so future tweaks to the
+        chunk size don't break the test.
         """
         worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError("SSL")
         per_cycle_sleeps: list[list[float]] = []
@@ -433,14 +517,81 @@ class TestWorkerCronProcessWorkReconnect:
         cycle_totals = [sum(c) for c in per_cycle_sleeps]
         # 2, 4, 8, 16, 32, 60, 60 — capped at 60
         assert cycle_totals == [2, 4, 8, 16, 32, 60, 60]
-        # Each sleep chunk must be ≤ master.beat/2 so the watchdog sees a
-        # ping within every beat window.
+        # Pings during sleep must keep watchdog fresh: every chunk is at
+        # most master.beat / 2 (default 2s) so the master sees a ping
+        # within every beat window.
         max_chunk = worker_cron.multi.beat / 2
         for cycle in per_cycle_sleeps:
             for chunk in cycle:
                 assert chunk <= max_chunk + 1e-6, (
                     f"chunk {chunk} exceeds master.beat/2 = {max_chunk}"
                 )
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron.start() — boot-time PG-connect backoff must yield to a stop signal
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerCronStartGracefulShutdown:
+    """During a PG outage at worker boot, every connect attempt fails and the
+    worker sleeps with an escalating backoff.  A graceful stop
+    (``PreforkServer.stop_workers_gracefully`` sends SIGINT → ``signal_handler``
+    sets ``alive = False``) must end the retry loop so ``start()`` returns and
+    the worker exits cleanly via ``run()``'s already-dead ``_runloop``.
+
+    Before the fix the loop was ``while True``: a cron worker stuck connecting
+    during a PG outage ignored SIGINT and kept pinging its watchdog, so the
+    master's ``while self.workers`` drain loop hung until a second, forced
+    signal.
+    """
+
+    def test_start_stops_retrying_when_alive_cleared(self, worker_cron):
+        worker_cron._selector = MagicMock()  # Worker.start is patched out below
+        worker_cron.multi.socket = None
+        sleep_calls = []
+
+        def stop_after_first(secs):
+            # Emulate the SIGINT handler firing mid-backoff.
+            sleep_calls.append(secs)
+            worker_cron.alive = False
+            if len(sleep_calls) > 1:
+                raise AssertionError(
+                    "start() kept retrying PG after alive was cleared "
+                    "(boot-time connect loop ignores graceful stop)"
+                )
+
+        with (
+            patch.object(
+                worker_cron, "_connect_postgres",
+                side_effect=Exception("PG unreachable"),
+            ),
+            patch.object(
+                worker_cron, "_sleep_with_watchdog", side_effect=stop_after_first,
+            ),
+            patch("odoo.service._worker.Worker.start"),
+            patch("odoo.service._worker.os.nice"),
+        ):
+            worker_cron.start()  # must return promptly, not loop forever
+
+        assert sleep_calls == [2]  # one failed attempt (2 ** 1), then loop yielded
+        assert worker_cron.alive is False
+
+    def test_sleep_with_watchdog_breaks_when_alive_cleared(self, worker_cron):
+        """A multi-second backoff sleep must abort once the worker is no longer
+        alive, so a 60s boot/reconnect backoff cannot delay graceful shutdown."""
+        slept = []
+
+        def fake_sleep(chunk):
+            slept.append(chunk)
+            worker_cron.alive = False  # stop signal lands during the first chunk
+
+        with patch("odoo.service._worker.time.sleep", side_effect=fake_sleep):
+            worker_cron._sleep_with_watchdog(60)
+
+        # Only the first half-beat chunk elapsed; the remaining ~58s were skipped.
+        assert slept == [worker_cron.multi.beat / 2]
+        assert sum(slept) < 60
 
 
 # ---------------------------------------------------------------------------
@@ -590,7 +741,7 @@ _RESOURCE_ATTRS = {"ru_utime": 0.0, "ru_stime": 0.0}
 
 
 def _worker_check_limits_patches(memory_bytes=0, config_override=None):
-    """Return the context managers that stub every syscall in check_limits."""
+    """Return a list of context managers that stub all syscalls in check_limits."""
     cfg = {**_WORKER_CONFIG, **(config_override or {})}
     mock_resource = MagicMock()
     mock_resource.getrusage.return_value.ru_utime = 0.0
@@ -598,9 +749,10 @@ def _worker_check_limits_patches(memory_bytes=0, config_override=None):
     mock_resource.getrlimit.return_value = (0, 9999)
     mock_resource.RLIMIT_CPU = 0
     mock_resource.RUSAGE_SELF = 0
-    # check_limits lives in _worker, so config/memory_info/resource resolve
-    # against that module's namespace, not the server facade's.
     return [
+        # Worker.check_limits lives in odoo.service._worker after the extraction;
+        # its references to ``config`` / ``memory_info`` / ``resource`` resolve
+        # against ``_worker``'s module namespace, not ``server``'s.
         patch("odoo.service._worker.config", cfg),
         patch("odoo.service._worker.memory_info", return_value=memory_bytes),
         patch("odoo.service._worker.resource", mock_resource),
@@ -611,18 +763,21 @@ def _worker_check_limits_patches(memory_bytes=0, config_override=None):
 def bare_worker(srv, multi):
     """Worker (base class) with minimal state, bypassing start().
 
-    ``ppid = os.getppid()`` matches how a real child sees its parent after the
-    fork, so the parent-PID liveness check passes.
+    In a real forked worker, ``ppid`` is set to ``os.getpid()`` *before*
+    the fork, so it stores the *parent's* PID.  Inside the child process
+    ``os.getppid()`` returns that same parent PID, so the check passes.
+    We replicate that by setting ``ppid = os.getppid()`` in the test.
     """
     w = object.__new__(srv.Worker)
-    w.ppid = os.getppid()
+    w.ppid = os.getppid()  # mirrors child-process state: ppid == actual parent
     w.pid = os.getpid()
     w.alive = True
     w.request_count = 0
     w.request_max = 100
     w.logger = MagicMock()
-    # Normally cached in Worker.start() as psutil.Process(self.pid); stubbed
-    # here because start() is bypassed and memory_info is mocked anyway.
+    # ``_process_handle`` is normally set in ``Worker.start()`` (cached
+    # ``psutil.Process(self.pid)``); bypassing start() in tests requires a
+    # stub. ``memory_info`` is mocked anyway so the value is not consulted.
     w._process_handle = MagicMock()
     return w
 
@@ -651,6 +806,20 @@ class TestWorkerCheckLimits:
             bare_worker.check_limits()
         assert bare_worker.alive is False
 
+    def test_request_max_zero_means_unlimited(self, bare_worker):
+        """``limit_request=0`` (gunicorn's "unlimited") must NOT kill the worker.
+
+        Without the guard, ``request_count(0) >= request_max(0)`` is True on the
+        very first check, so the worker dies before serving anything and the
+        master respawns it in a fork loop.
+        """
+        bare_worker.request_count = 0
+        bare_worker.request_max = 0
+        patches, _ = _worker_check_limits_patches()
+        with patches[0], patches[1], patches[2]:
+            bare_worker.check_limits()
+        assert bare_worker.alive is True
+
     def test_memory_soft_exceeded_sets_alive_false(self, bare_worker):
         patches, _ = _worker_check_limits_patches(
             memory_bytes=500,
@@ -673,6 +842,111 @@ class TestWorkerCheckLimits:
         # int(8.0 + 30) = 38
         mock_resource.setrlimit.assert_called_once_with(0, (38, 9999))
 
+    def test_cpu_rlimit_not_armed_when_disabled(self, bare_worker):
+        """limit_time_cpu=0 must NOT arm RLIMIT_CPU.
+
+        Arming it to ``int(cpu_already_consumed + 0)`` sets the soft limit at
+        or below the CPU the worker has already used, so the kernel raises
+        SIGXCPU immediately and the worker dies in a fork loop.  0 means
+        "disabled", consistent with every other limit in this module.
+        """
+        patches, mock_resource = _worker_check_limits_patches(
+            config_override={"limit_time_cpu": 0}
+        )
+        mock_resource.getrusage.return_value.ru_utime = 8.0
+        mock_resource.getrusage.return_value.ru_stime = 0.0
+        with patches[0], patches[1], patches[2]:
+            bare_worker.check_limits()
+        mock_resource.setrlimit.assert_not_called()
+        assert bare_worker.alive is True
+
+    def _resource_stub(self):
+        mock_resource = MagicMock()
+        mock_resource.getrusage.return_value.ru_utime = 0.0
+        mock_resource.getrusage.return_value.ru_stime = 0.0
+        mock_resource.getrlimit.return_value = (0, 9999)
+        mock_resource.RLIMIT_CPU = 0
+        mock_resource.RUSAGE_SELF = 0
+        return mock_resource
+
+    def test_rss_not_read_when_soft_limit_disabled(self, bare_worker):
+        """The RSS ``/proc`` read is skipped entirely when ``limit_memory_soft``
+        is 0 (disabled) — it was previously paid on every cycle for nothing."""
+        mem = MagicMock(return_value=0)
+        with patch("odoo.service._worker.config",
+                   {"limit_memory_soft": 0, "limit_time_cpu": 60}), \
+             patch("odoo.service._worker.memory_info", mem), \
+             patch("odoo.service._worker.resource", self._resource_stub()):
+            bare_worker.check_limits()
+        mem.assert_not_called()
+        assert bare_worker.alive is True
+
+    def test_rss_read_when_soft_limit_enabled(self, bare_worker):
+        """With the soft limit set, RSS is read exactly once and a value under
+        the limit keeps the worker alive."""
+        mem = MagicMock(return_value=50)
+        with patch("odoo.service._worker.config",
+                   {"limit_memory_soft": 100, "limit_time_cpu": 60}), \
+             patch("odoo.service._worker.memory_info", mem), \
+             patch("odoo.service._worker.resource", self._resource_stub()):
+            bare_worker.check_limits()
+        mem.assert_called_once()
+        assert bare_worker.alive is True
+
+
+# ---------------------------------------------------------------------------
+# Worker.run() — fault propagation
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerRunFaultExit:
+    """``Worker.run()``: a fault in the daemon ``_runloop`` must surface as
+    ``SystemExit(1)`` on the main thread so ``worker_spawn`` records a non-zero
+    exit — not be mislabeled as a clean exit.
+
+    Regression: ``raise SystemExit`` inside the daemon ``_runloop`` is inert
+    (it is delivered to ``threading.excepthook``, whose default ignores
+    SystemExit, and never reaches the joiner), so a crashed worker used to log
+    "Exiting cleanly" and exit 0.
+    """
+
+    def _make_worker(self, srv):
+        w = object.__new__(srv.Worker)
+        w.alive = True
+        w.pid = os.getpid()
+        w.request_count = 0
+        w.watchdog_pipe = (0, 0)
+        w.multi = MagicMock()
+        w.logger = MagicMock()
+        w.start = MagicMock()
+        w.stop = MagicMock()
+        w.check_limits = MagicMock()
+        w.sleep = MagicMock()
+        return w
+
+    def test_work_fault_propagates_as_systemexit_1(self, srv):
+        w = self._make_worker(srv)
+        w.process_work = MagicMock(side_effect=ValueError("boom"))
+        with pytest.raises(SystemExit) as exc_info:
+            w.run()
+        assert exc_info.value.code == 1
+        w.stop.assert_called_once()  # finally: cleanup still runs
+        logged = " ".join(str(c) for c in w.logger.info.call_args_list)
+        assert "Exiting cleanly" not in logged, "crash mislabeled as clean exit"
+
+    def test_clean_exit_returns_none_and_logs(self, srv):
+        w = self._make_worker(srv)
+
+        def stop_loop():
+            w.alive = False  # next ``while self.alive`` ends the loop cleanly
+
+        w.process_work = MagicMock(side_effect=stop_loop)
+        result = w.run()
+        assert result is None
+        logged = " ".join(str(c) for c in w.logger.info.call_args_list)
+        assert "Exiting cleanly" in logged
+        w.stop.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # CommonServer.on_stop() / stop()
@@ -682,8 +956,10 @@ class TestWorkerCheckLimits:
 class TestCommonServerCallbacks:
     """``on_stop()`` registers cleanup callbacks; ``stop()`` calls them all.
 
-    Callbacks live on the module-level ``_ON_STOP_FUNCS`` list (the removed
-    ``CommonServer._on_stop_funcs`` class alias could silently desync).
+    Callbacks live on the module-level ``_ON_STOP_FUNCS`` list. The previous
+    ``CommonServer._on_stop_funcs`` class alias was removed — reassignment
+    would silently desync it from the module list while ``on_stop`` kept
+    appending to the original.
     """
 
     @pytest.fixture(autouse=True)
@@ -719,6 +995,35 @@ class TestCommonServerCallbacks:
         server.stop()  # must not raise
         cb2.assert_called_once()
 
+    def test_stop_survives_partial_hook_without_name(self, srv):
+        """A raising ``functools.partial`` hook (no ``__name__``) must not crash stop().
+
+        Hooks are arbitrary callables; ``functools.partial`` is a legal one and
+        has no ``__name__``.  Before the fix, ``stop()``'s error handler did a
+        bare ``func.__name__`` which raised ``AttributeError`` *inside* the
+        ``except`` — masking the real cleanup failure and aborting every
+        remaining hook.  The handler now falls back to ``repr(func)``.
+        """
+        import functools  # noqa: PLC0415
+
+        server = object.__new__(srv.CommonServer)
+        server.logger = MagicMock()
+
+        def _boom(_tag):
+            raise RuntimeError("cleanup failed")
+
+        raising_partial = functools.partial(_boom, "x")  # no __name__
+        assert not hasattr(raising_partial, "__name__")
+        later = MagicMock()
+        later.__name__ = "later"
+        srv._ON_STOP_FUNCS.extend([raising_partial, later])
+
+        server.stop()  # must NOT raise AttributeError
+
+        # The partial's failure was logged (not propagated) and the next hook ran.
+        server.logger.warning.assert_called_once()
+        later.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # cron_database_list()
@@ -728,21 +1033,21 @@ class TestCommonServerCallbacks:
 class TestCronDatabaseList:
     """``cron_database_list()``: config override vs list_dbs fallback."""
 
-    def test_returns_config_db_name_when_set(self, helpers):
+    def test_returns_config_db_name_when_set(self, srv):
         with (
             patch("odoo.service._helpers.config", {"db_name": "mydb"}),
             patch("odoo.service._helpers.list_dbs") as mock_list,
         ):
-            result = helpers.cron_database_list()
+            result = _helpers.cron_database_list()
         assert result == "mydb"
         mock_list.assert_not_called()
 
-    def test_falls_back_to_list_dbs_when_empty(self, helpers):
+    def test_falls_back_to_list_dbs_when_empty(self, srv):
         with (
             patch("odoo.service._helpers.config", {"db_name": None}),
             patch("odoo.service._helpers.list_dbs", return_value=["db1", "db2"]) as mock_list,
         ):
-            result = helpers.cron_database_list()
+            result = _helpers.cron_database_list()
         mock_list.assert_called_once_with(True)
         assert result == ["db1", "db2"]
 
@@ -763,13 +1068,18 @@ class TestPreforkProcessZombie:
         prefork_server.worker_pop.assert_called_once_with(1234)
 
     def test_exit_code_3_does_not_raise(self, prefork_server):
-        """Exit code 3 is reaped like any other worker (no special abort branch).
+        """Fork explicitly removed the historical exit-code-3 abort branch.
 
-        The old ``status >> 8 == 3`` sentinel was dead (nothing exits 3) and
-        wrong for signal-killed workers, where ``status >> 8`` is undefined.
+        The ``status >> 8 == 3`` check was an ad-hoc sentinel inherited
+        from a 2014 commit; no path in the fork produces exit code 3, and
+        the comparison was incorrect for signal-killed workers (``status
+        >> 8`` is undefined when ``WIFSIGNALED``).  Confirm that
+        ``process_zombie`` now treats exit code 3 like any other reaped
+        worker — pops it from bookkeeping and continues.
         """
         prefork_server.worker_pop = MagicMock()
-        # Dead pid with exit code 3, then (0, 0) to break the reap loop.
+        # First call returns the dead pid with exit code 3; second returns
+        # (0, 0) to break out of the loop (the function's own sentinel).
         with patch("os.waitpid", side_effect=[(5678, 3 << 8), (0, 0)]):
             prefork_server.process_zombie()
         prefork_server.worker_pop.assert_called_once_with(5678)
@@ -784,6 +1094,45 @@ class TestPreforkProcessZombie:
         with patch("os.waitpid", side_effect=OSError(errno.EINTR, "interrupted")):
             with pytest.raises(OSError):
                 prefork_server.process_zombie()
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer.process_timeout()
+# ---------------------------------------------------------------------------
+
+
+class TestPreforkInitTimeout:
+    """``__init__``: ``limit_time_real``/``limit_time_real_cron`` -> watchdog timeouts."""
+
+    @staticmethod
+    def _make(srv, **overrides):
+        cfg = {
+            "http_interface": "",
+            "http_port": 8069,
+            "workers": 2,
+            "limit_time_real": 120,
+            "limit_request": 100,
+            "limit_time_real_cron": -1,
+            **overrides,
+        }
+        # __init__ reads ``config`` in both _prefork (PreforkServer) and
+        # _base_server (CommonServer); patch both. No socket is opened in
+        # __init__ (that happens in start()), so this is safe.
+        with patch.object(_prefork, "config", cfg), \
+             patch.object(_base_server, "config", cfg):
+            return srv.PreforkServer(MagicMock())
+
+    def test_limit_time_real_zero_disables_http_watchdog(self, srv):
+        """0 must become None so process_timeout never kills a fresh worker."""
+        s = self._make(srv, limit_time_real=0)
+        assert s.timeout is None
+        # cron inherits via the -1 default -> also disabled, not 0
+        assert s.cron_timeout is None
+
+    def test_default_limit_time_real_kept(self, srv):
+        s = self._make(srv, limit_time_real=120)
+        assert s.timeout == 120
+        assert s.cron_timeout == 120  # -1 inherits limit_time_real
 
 
 # ---------------------------------------------------------------------------
@@ -898,8 +1247,10 @@ class TestCommonRequestHandlerLogError:
 class TestCommonRequestHandlerLogRequest:
     """``log_request()``: ANSI colour dispatch per HTTP status code.
 
-    Tests force ``_ANSI_ENABLED=True`` because pytest's non-TTY stderr
-    otherwise gates colour off (covered by ``...LogRequestNoTTY``).
+    All tests force ``_ANSI_ENABLED=True`` because pytest captures stderr to
+    a non-TTY pipe, which (correctly) gates the colour codes off in the
+    runtime — that gating is exercised separately in
+    ``TestCommonRequestHandlerLogRequestNoTTY``.
     """
 
     def _captured_styles(self, log_handler, code):
@@ -1033,7 +1384,10 @@ def threaded_server(srv):
     s = object.__new__(srv.ThreadedWSGIServerReloadable)
     s.max_http_threads = 4
     s.http_threads_sem = MagicMock()
-    # Set in real __init__; shutdown_request uses it to dedupe double-release.
+    # Set in real ``__init__`` next to the semaphore; required by
+    # ``shutdown_request`` to dedupe double-release on the inline +
+    # SystemExit path.  Mirror it here for the unit tests that bypass
+    # ``__init__``.
     s._sem_released_requests = weakref.WeakSet()
     return s
 
@@ -1073,8 +1427,13 @@ class TestThreadedWSGIServerSemaphore:
     def test_shutdown_idempotent_for_same_request(self, threaded_server):
         """Two ``shutdown_request`` calls for the same socket release once.
 
-        A failed request can reach shutdown_request twice (thread ``finally`` +
-        outer ``except``); without dedup each one leaks a semaphore unit.
+        Regression: an inline-fail + ``SystemExit`` propagation path inside
+        ``process_request`` reaches ``shutdown_request`` twice (once from
+        ``process_request_thread``'s ``finally``, once from
+        ``socketserver.BaseServer._handle_request_noblock``'s outer bare
+        ``except:`` handler).  Without dedup, every such request would
+        leak one Semaphore unit, slowly inflating the configured
+        ``max_http_threads`` cap.
         """
         request = MagicMock()
         with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
@@ -1085,8 +1444,9 @@ class TestThreadedWSGIServerSemaphore:
     def test_shutdown_distinct_requests_release_independently(self, threaded_server):
         """Different request sockets each get exactly one release.
 
-        The dedup key is request identity, not a global flag, so concurrent
-        requests each balance their own acquire/release.
+        The dedup key is the request object identity, not a global "we
+        released once" flag — concurrent requests must each balance their
+        own acquire/release.
         """
         with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
             threaded_server.shutdown_request(MagicMock())
@@ -1196,8 +1556,11 @@ def tserver(srv):
     s.limits_reached_threads = set()
     s.limit_reached_time = None
     s.logger = MagicMock()
-    # Normally set in __init__ as psutil.Process(os.getpid()); stubbed here
-    # because __init__ is bypassed and memory_info is patched anyway.
+    # ``_process_handle`` is set in ``__init__`` (psutil.Process(os.getpid()))
+    # so that ``check_limits`` can reuse it across ticks instead of paying the
+    # /proc/<pid>/stat read on every call.  Bypassing __init__ in tests means
+    # we have to stub it; the patched ``memory_info`` ignores the argument
+    # anyway.
     s._process_handle = MagicMock()
     return s
 
@@ -1341,9 +1704,14 @@ class TestThreadedServerProcessLimit:
 class TestSocketActivationIPv6:
     """The systemd socket-activation path must not lose the IPv6 family.
 
-    ``socket.socket(fileno=fd)`` auto-detects the kernel family via SO_DOMAIN,
-    so an IPv6 listener stays AF_INET6 when wrapped — unlike the old
-    ``socket.fromfd(fd, AF_INET, ...)``, which mis-read v6 addresses as v4.
+    Regression: replacing ``socket.fromfd(fd, AF_INET, SOCK_STREAM)`` with
+    ``socket.socket(fileno=fd)`` — the latter auto-detects the kernel-assigned
+    family via SO_DOMAIN, so an IPv6 listener stays AF_INET6 across wrapping.
+
+    Before the fix: ``getsockname()`` and ``accept()`` returned ``sockaddr_in``
+    structs unpacked from ``sockaddr_in6`` memory, producing garbage addresses
+    like ``('::900:0:0:0', port, 0, <random>)`` and corrupting every access
+    log line from an IPv6 client.
     """
 
     def test_wrapped_ipv6_socket_preserves_family(self):
@@ -1353,12 +1721,13 @@ class TestSocketActivationIPv6:
         real.bind(("::1", 0))
         real.listen(1)
         try:
-            # How the server wraps an inherited (systemd-activated) socket fd.
+            # The call used by server.py:297 and server.py:1182 after the fix.
             wrapped = socket.socket(fileno=real.fileno())
             try:
                 assert wrapped.family == socket.AF_INET6
-                # Must be a real v6 loopback, not the v4-misread garbage
-                # ('::900:0:0:0', ...) with a random scope_id.
+                # getsockname() must return a valid v6 loopback address —
+                # the IPv4-misinterpretation sentinel '::900:0:0:0' must NOT
+                # appear, and the scope_id slot must be 0 (not random bytes).
                 bound = wrapped.getsockname()
                 assert bound[0] == "::1"
                 assert bound[3] == 0
@@ -1391,10 +1760,11 @@ class TestSocketActivationIPv6:
 
 
 class TestForkAndReloadTimeout:
-    """``fork_and_reload()`` signals readiness via its return value.
+    """``fork_and_reload()`` must signal readiness via its return value.
 
-    Without it, ``stop()`` would shut down the old workers even on a reload
-    timeout, leaving the listening port unbound.
+    Regression: without the return value, ``stop()`` unconditionally called
+    ``stop_workers_gracefully()`` even when ``phoenix_hatched`` was False —
+    leaving the listening port unbound after the 60-second timeout.
     """
 
     def test_fork_and_reload_returns_true_on_sighup(self, srv):
@@ -1405,11 +1775,11 @@ class TestForkAndReloadTimeout:
         ps.socket.fileno.return_value = 99
 
         with (
-            patch("odoo.service._prefork.os.fork", return_value=0),  # child branch
-            patch("odoo.service._prefork.fcntl.fcntl", return_value=0),
-            patch("odoo.service._prefork.signal.signal") as mock_sig,
-            patch("odoo.service._prefork.time.monotonic", side_effect=[0.0, 0.1, 0.2]),
-            patch("odoo.service._prefork.time.sleep"),
+            patch.object(os, "fork", return_value=0),  # child branch
+            patch.object(_prefork.fcntl, "fcntl", return_value=0),
+            patch.object(signal, "signal") as mock_sig,
+            patch.object(time, "monotonic", side_effect=[0.0, 0.1, 0.2]),
+            patch.object(time, "sleep"),
         ):
             # Capture the handler so we can fire SIGHUP manually before timeout.
             handlers = {}
@@ -1443,11 +1813,11 @@ class TestForkAndReloadTimeout:
         times = iter([0.0, 70.0, 70.1, 70.2, 70.3])
 
         with (
-            patch("odoo.service._prefork.os.fork", return_value=0),
-            patch("odoo.service._prefork.fcntl.fcntl", return_value=0),
-            patch("odoo.service._prefork.signal.signal"),
-            patch("odoo.service._prefork.time.monotonic", side_effect=lambda: next(times)),
-            patch("odoo.service._prefork.time.sleep"),
+            patch.object(os, "fork", return_value=0),
+            patch.object(_prefork.fcntl, "fcntl", return_value=0),
+            patch.object(signal, "signal"),
+            patch.object(time, "monotonic", side_effect=lambda: next(times)),
+            patch.object(time, "sleep"),
         ):
             result = ps.fork_and_reload()
 
@@ -1457,8 +1827,8 @@ class TestForkAndReloadTimeout:
     def test_stop_preserves_old_workers_when_reload_fails(self, srv):
         """stop() must NOT call stop_workers_gracefully() on reload timeout.
 
-        ``PreforkServer.stop`` reads ``lifecycle.server_phoenix`` (the canonical
-        binding), so patch it there, not on the server facade.
+        ``PreforkServer.stop`` reads ``lifecycle.server_phoenix`` (the single
+        source of truth), so the patch must target ``lifecycle`` directly.
         """
         from odoo.service import lifecycle
         ps = object.__new__(srv.PreforkServer)
@@ -1496,6 +1866,47 @@ class TestForkAndReloadTimeout:
 
 
 # ---------------------------------------------------------------------------
+# lifecycle.start() — watcher cleanup on the error path
+# ---------------------------------------------------------------------------
+
+
+class TestLifecycleStartWatcherCleanup:
+    """``lifecycle.start`` must stop the autoreload watcher even when the
+    server's ``run()`` raises (e.g. a port-bind ``OSError`` surfacing from
+    ``http_spawn``).
+
+    Without a ``try/finally`` around ``server.run`` the watcher thread and its
+    inotify kernel watches leak, and ``FSWatcherInotify.stop``'s
+    ``del self.watcher`` — documented as freeing the watches before a reexec —
+    never runs.
+    """
+
+    def test_watcher_stopped_when_server_run_raises(self):
+        import odoo  # noqa: PLC0415
+        from odoo.service import lifecycle  # noqa: PLC0415
+
+        mock_server = MagicMock()
+        mock_server.run.side_effect = OSError(errno.EADDRINUSE, "address in use")
+        mock_watcher = MagicMock()
+        fake_config = {"workers": 0, "dev_mode": ["reload"], "server_wide_modules": []}
+
+        with (
+            patch.object(lifecycle, "load_server_wide_modules"),
+            patch.object(lifecycle, "config", fake_config),
+            patch.object(odoo, "evented", False),
+            patch("odoo.service.server.ThreadedServer", return_value=mock_server),
+            patch.object(lifecycle, "inotify", True),
+            patch.object(lifecycle, "FSWatcherInotify", return_value=mock_watcher),
+            patch.object(lifecycle, "server_phoenix", False),
+            pytest.raises(OSError),
+        ):
+            lifecycle.start()
+
+        mock_watcher.start.assert_called_once()
+        mock_watcher.stop.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # restart() — guard against pre-start invocation
 # ---------------------------------------------------------------------------
 
@@ -1503,17 +1914,20 @@ class TestForkAndReloadTimeout:
 class TestRestartGuard:
     """``restart()`` must no-op when ``server`` has not been assigned yet.
 
-    Otherwise an addon calling ``restart()`` before ``start()`` runs would hit
-    ``AttributeError`` on ``None.pid``.
+    Regression: previously raised ``AttributeError: 'NoneType' has no
+    attribute 'pid'`` if an addon triggered ``restart()`` during
+    ``load_server_wide_modules()`` before ``start()`` set the module global.
     """
 
     def test_restart_with_none_server_is_noop(self, srv, caplog):
         """If ``server`` is None, restart() must log a warning and return."""
         with (
+            # restart() reads ``server`` from lifecycle, not from the
+            # server-module re-export — see test_restart_with_real_server.
             patch("odoo.service.lifecycle.server", None),
-            patch("odoo.service.lifecycle.os.kill") as mock_kill,
-            patch("odoo.service.lifecycle.threading.Thread") as mock_thread,
-            caplog.at_level("WARNING", logger="odoo.service.lifecycle"),
+            patch.object(os, "kill") as mock_kill,
+            patch.object(threading, "Thread") as mock_thread,
+            caplog.at_level("WARNING", logger="odoo.service.server"),
         ):
             srv.restart()
 
@@ -1526,12 +1940,14 @@ class TestRestartGuard:
         fake_server = MagicMock()
         fake_server.pid = 12345
 
-        # ``restart()`` lives in lifecycle and reads ``server`` from there, so
-        # patch os/server on lifecycle, not the server facade.
+        # ``restart()`` reads ``server`` from ``odoo.service.lifecycle`` directly
+        # (server.py forwards via ``__getattr__``).  Patching the server-module
+        # re-export sets a shadowing attribute that the lifecycle-side
+        # function never reads.
         with (
             patch("odoo.service.lifecycle.server", fake_server),
-            patch("odoo.service.lifecycle.os.name", "posix"),
-            patch("odoo.service.lifecycle.os.kill") as mock_kill,
+            patch.object(os, "name", "posix"),
+            patch.object(os, "kill") as mock_kill,
         ):
             srv.restart()
 
@@ -1540,9 +1956,11 @@ class TestRestartGuard:
     def test_threaded_server_reload_delegates_to_lifecycle(self, srv):
         """``ThreadedServer.reload`` must route through ``lifecycle.restart``.
 
-        ``lifecycle.restart`` handles both platforms (SIGHUP on POSIX, a
-        background ``_reexec`` thread on Windows); a direct
-        ``os.kill(..., SIGHUP)`` would ``AttributeError`` on Windows.
+        Regression: previously called ``os.kill(self.pid, signal.SIGHUP)``
+        directly, which raises ``AttributeError`` on Windows (no
+        ``signal.SIGHUP``).  ``lifecycle.restart`` already handles both
+        branches: SIGHUP on POSIX, a background ``_reexec`` thread on
+        Windows.
         """
         ts = object.__new__(srv.ThreadedServer)
         ts.pid = 12345
@@ -1551,10 +1969,11 @@ class TestRestartGuard:
         mock_restart.assert_called_once_with()
 
     def test_threaded_server_reload_is_windows_safe(self, srv):
-        """On Windows (no signal.SIGHUP), ``reload`` must not crash.
+        """Simulating Windows (no signal.SIGHUP), ``reload`` must not crash.
 
-        It routes through ``lifecycle.restart``'s ``os.name == 'nt'`` branch,
-        which spawns a background ``_reexec`` thread.
+        Goes through ``lifecycle.restart``'s ``os.name == 'nt'`` branch,
+        which spawns a background ``_reexec`` thread.  ``reload`` itself
+        must reference no Windows-incompatible signal constants.
         """
         ts = object.__new__(srv.ThreadedServer)
         ts.pid = 12345
@@ -1568,7 +1987,8 @@ class TestRestartGuard:
             patch.object(lifecycle.threading, "Thread") as mock_thread,
         ):
             ts.reload()
-        # The Windows branch spawns a Thread targeting _reexec.
+        # The Windows branch spawns a Thread targeting _reexec; assert
+        # neither raised and the indirection is the one we expect.
         mock_thread.assert_called_once()
         kwargs = mock_thread.call_args.kwargs
         assert kwargs.get("target") is mock_reexec or mock_thread.call_args.args
@@ -1583,15 +2003,17 @@ class TestRestartGuard:
 class TestThreadedServerSignalSetup:
     """``ThreadedServer.start()`` does NOT install SIGCHLD.
 
-    A SIGCHLD handler woke the main loop on every subprocess exit (pg_dump,
-    etc.). ThreadedServer forks no workers, so subprocess.run's own waitpid
-    handles reaping.
+    Regression: a handler was registered but had no code branch for SIGCHLD,
+    causing spurious wakeups of the main loop whenever a subprocess (pg_dump,
+    etc.) exited. ThreadedServer does not fork worker children, so reaping
+    is handled by subprocess.run's internal waitpid.
     """
 
     def test_threaded_server_does_not_install_sigchld(self, srv):
-        """No ``signal.signal(signal.SIGCHLD, ...)`` call.
+        """Regression guard: no ``signal.signal(signal.SIGCHLD, ...)`` call.
 
-        AST-checked, so SIGCHLD mentions in comments don't false-match.
+        AST-based: comments referring to SIGCHLD in the source are fine.
+        Only an actual ``signal.signal(SIGCHLD, ...)`` call is a regression.
         """
         import ast  # noqa: PLC0415
         import inspect  # noqa: PLC0415
@@ -1624,10 +2046,12 @@ class TestThreadedServerSignalSetup:
 
 
 class TestCronThreadMonotonic:
-    """``ThreadedServer.cron_thread`` schedules on ``time.monotonic()``.
+    """``ThreadedServer.cron_thread`` must not mix ``time.time()`` and
+    ``time.monotonic()`` for the same scheduling decision.
 
-    Comparing ``check_all_time`` to wall-clock ``time.time()`` would
-    mis-schedule the full-scan pass on an NTP slew or manual clock change.
+    Regression: ``check_all_time`` was compared to ``time.time()`` (wall
+    clock). An NTP slew or manual clock correction would mis-schedule the
+    full-scan pass.
     """
 
     def test_cron_thread_uses_monotonic_for_check_all_time(self, srv):
@@ -1650,8 +2074,11 @@ class TestCronThreadMonotonic:
 class TestOnStopFuncsModuleLevel:
     """``_ON_STOP_FUNCS`` is the single, module-level store for stop hooks.
 
-    The old ``CommonServer._on_stop_funcs`` class alias was removed because
-    reassigning it would silently desync from the module list.
+    The previous ``CommonServer._on_stop_funcs`` class-level alias was
+    intentionally removed: reassigning it (``CommonServer._on_stop_funcs = [...]``)
+    would desync from ``_ON_STOP_FUNCS`` silently, while ``on_stop`` kept
+    appending to the original module list. Removing the alias collapses
+    the state surface to one canonical location.
     """
 
     @pytest.fixture(autouse=True)
@@ -1673,6 +2100,24 @@ class TestOnStopFuncsModuleLevel:
         srv.CommonServer.on_stop(cb)
         assert cb in srv._ON_STOP_FUNCS
 
+    def test_on_stop_is_idempotent(self, srv):
+        """Registering the same callable twice records (and fires) it once.
+
+        Without dedup, a server stopped and restarted in-process (tests, embedded
+        use) — or a module imported twice — accumulates duplicate hooks in the
+        append-only ``_ON_STOP_FUNCS`` and ``stop()`` fires each one N times.
+        """
+        cb = MagicMock()
+        before = len(srv._ON_STOP_FUNCS)
+        srv.CommonServer.on_stop(cb)
+        srv.CommonServer.on_stop(cb)
+        assert len(srv._ON_STOP_FUNCS) == before + 1
+
+        instance = object.__new__(srv.CommonServer)
+        instance.logger = MagicMock()
+        instance.stop()
+        cb.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # SIGHUP — local sentinel, no signal-module monkey-patch
@@ -1680,10 +2125,9 @@ class TestOnStopFuncsModuleLevel:
 
 
 class TestSigHupSentinel:
-    """A local ``_SIGHUP_AVAILABLE`` boolean guards SIGHUP use on Windows.
-
-    The alternative — assigning ``signal.SIGHUP = -1`` — would monkey-patch a
-    stdlib module globally.
+    """server.py must not install ``signal.SIGHUP = -1`` on Windows — that
+    monkey-patches a stdlib module globally. The fix exposes a local
+    ``_SIGHUP_AVAILABLE`` boolean instead and guards call sites with it.
     """
 
     def test_local_sentinel_exported(self, srv):
@@ -1755,7 +2199,9 @@ class TestParamsStr:
     def test_deterministic_across_dict_orderings(self):
         from odoo.service.model import Params  # noqa: PLC0415
 
-        # Same keys, different insertion order — stringification must match.
+        # Python dicts preserve insertion order — build two dicts with
+        # the same keys in different orders and verify the stringification
+        # is identical.
         p1 = Params([], dict.fromkeys(["x", "y", "z"], 0))
         p2 = Params([], dict.fromkeys(["z", "x", "y"], 0))
         assert str(p1) == str(p2)
@@ -1767,14 +2213,19 @@ class TestParamsStr:
 
 
 class TestStopWorkersGracefullyDictRace:
-    """``stop_workers_gracefully`` snapshots ``self.workers`` with ``list(...)``.
+    """``stop_workers_gracefully`` iterates ``self.workers`` while
+    ``worker_kill`` may pop entries (on ESRCH for an already-dead worker).
+    The fix snapshots the keys with ``list(...)`` to avoid
+    ``RuntimeError: dictionary changed size during iteration``.
 
-    ``worker_kill`` can pop an already-dead worker (ESRCH) mid-iteration;
-    iterating the live dict would raise ``dictionary changed size``.
+    Regression: this race only fires under load (an HTTP worker dying right
+    when graceful shutdown begins), so the pure-pytest test exercises the
+    pattern in isolation rather than relying on a live prefork server.
     """
 
     def test_pop_during_iteration_does_not_raise(self, srv, prefork_server):
         """A worker_kill that ESRCH-pops mid-iteration must not crash."""
+        # Stand up a multi-worker dict
         prefork_server.workers = {1: MagicMock(), 2: MagicMock(), 3: MagicMock()}
         prefork_server.workers_http = {}
         prefork_server.workers_cron = {}
@@ -1782,28 +2233,34 @@ class TestStopWorkersGracefullyDictRace:
         prefork_server.beat = 0.1
         prefork_server.pid = os.getpid()
 
-        # worker_kill pops pid=2 mid-iteration, simulating ESRCH on a dead worker.
+        # Make worker_kill pop pid=2 (simulating ESRCH on a dead worker)
         original_workers = prefork_server.workers
 
         def fake_kill(pid, sig):
+            # Pop pid=2 mid-iteration to provoke the race
             if pid == 2:
                 original_workers.pop(2, None)
 
         prefork_server.worker_kill = fake_kill
 
-        # Stub the loop's other deps so we exit right after the kill loop.
+        # Patch the rest of stop_workers_gracefully's loop dependencies so we
+        # exit after the kill loop without entering the watchdog while-loop.
         with patch.object(prefork_server, "process_signals", side_effect=KeyboardInterrupt), \
              patch.object(prefork_server, "process_zombie"), \
              patch.object(prefork_server, "sleep"), \
              patch.object(prefork_server, "process_timeout"):
-            prefork_server.stop_workers_gracefully()  # must not raise
+            # Must NOT raise "dictionary changed size during iteration"
+            prefork_server.stop_workers_gracefully()
 
+        # Confirm the popped entry is actually gone
         assert 2 not in prefork_server.workers
 
     def test_uses_list_snapshot_pattern(self, srv):
-        """Pin the ``list(self.workers)`` snapshot in the kill loop.
+        """Pin the implementation: ``stop_workers_gracefully`` must use
+        ``list(self.workers)``, not ``self.workers`` directly, in its kill loop.
 
-        Dropping it reintroduces the dict-mutation crash under load.
+        A future refactor that drops the ``list(...)`` reintroduces the
+        crash under load.
         """
         import inspect  # noqa: PLC0415
 
@@ -1845,10 +2302,139 @@ class TestMemoryLogStrings:
             "EventServer.process_limits still uses misleading 'Virtual memory' label"
         )
 
-    def test_memory_info_returns_rss(self, helpers):
+    def test_memory_info_returns_rss(self, srv):
         """Belt-and-suspenders: confirm the helper actually returns RSS."""
         import psutil  # noqa: PLC0415
         proc = psutil.Process(os.getpid())
         info = proc.memory_info()
-        assert helpers.memory_info(proc) == info.rss
-        assert helpers.memory_info(proc) != info.vms or info.vms == info.rss
+        assert _helpers.memory_info(proc) == info.rss
+        # And explicitly NOT vms
+        assert _helpers.memory_info(proc) != info.vms or info.vms == info.rss
+
+
+# ---------------------------------------------------------------------------
+# EventServer — SIGTERM graceful shutdown (on_stop hooks must run)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def event_server(srv):
+    """EventServer that bypasses ``__init__`` (which reads config + psutil).
+
+    Only the attributes consumed by ``start``/``stop``/``run`` are populated.
+    """
+    obj = object.__new__(srv.EventServer)
+    obj.interface = "127.0.0.1"
+    obj.port = 0
+    obj.app = MagicMock()
+    obj.logger = MagicMock()
+    obj.httpd = None
+    obj.pid = os.getpid()
+    return obj
+
+
+class TestEventServerGracefulStop:
+    """Regression: ``EventServer`` must handle SIGINT/SIGTERM so ``stop()`` —
+    and therefore the ``on_stop`` cleanup hooks (bus ``_kick_all``,
+    ``_close_notify_conn``, the sass compiler) — runs.
+
+    Before the fix ``start()`` installed only SIGQUIT/USR1/USR2, so SIGTERM
+    (the signal systemd/docker/k8s send, and the one this server's own
+    ``watchdog`` sends via ``os.kill`` to recycle) hit the default
+    disposition and hard-killed the process, skipping every ``on_stop`` hook.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _restore_callbacks(self, srv):
+        original = list(srv._ON_STOP_FUNCS)
+        yield
+        srv._ON_STOP_FUNCS[:] = original
+
+    @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
+    def test_quit_handler_raises_keyboard_interrupt(self, event_server, sig):
+        # The whole mechanism: werkzeug's serve_forever() catches
+        # KeyboardInterrupt and returns, so start() returns and run() reaches
+        # stop().  Calling httpd.shutdown() from the handler would deadlock
+        # (same thread as serve_forever), so it MUST raise instead.
+        with pytest.raises(KeyboardInterrupt):
+            event_server._quit_signal_handler(sig, None)
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX signal handlers")
+    def test_start_installs_sigint_and_sigterm(self, srv, event_server):
+        with patch.object(signal, "signal") as mock_signal, \
+             patch.object(werkzeug.serving, "make_server",
+                          return_value=MagicMock()), \
+             patch.object(threading, "Thread"):
+            event_server.start()  # mock httpd.serve_forever() returns at once
+
+        wired = {
+            c.args[0]: c.args[1]
+            for c in mock_signal.call_args_list
+            if c.args[0] in (signal.SIGINT, signal.SIGTERM)
+        }
+        assert signal.SIGINT in wired, "SIGINT handler not installed"
+        assert signal.SIGTERM in wired, "SIGTERM handler not installed"
+        assert wired[signal.SIGINT] == event_server._quit_signal_handler
+        assert wired[signal.SIGTERM] == event_server._quit_signal_handler
+
+    def test_stop_tolerates_unstarted_httpd_and_runs_hooks(self, srv, event_server):
+        sentinel = MagicMock()
+        sentinel.__name__ = "sentinel"
+        srv.CommonServer.on_stop(sentinel)
+        event_server.httpd = None  # start() never ran
+        event_server.stop()  # must not AttributeError
+        sentinel.assert_called_once()
+
+    def test_run_runs_stop_even_when_start_raises(self, srv, event_server):
+        # The try/finally in run() guarantees on_stop cleanup on the error
+        # path too, not only the lucky one where serve_forever() returns.
+        sentinel = MagicMock()
+        sentinel.__name__ = "sentinel"
+        srv.CommonServer.on_stop(sentinel)
+        event_server.httpd = MagicMock()
+        with patch.object(event_server, "start", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError, match="boom"):
+                event_server.run()
+        sentinel.assert_called_once()
+        event_server.httpd.shutdown.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# ThreadedServer.process_limit — real-time-limit log formatting
+# ---------------------------------------------------------------------------
+
+
+class TestProcessLimitRealTimeLog:
+    """Regression: the overrun warning logged ``%d`` of a float duration,
+    flooring it (a 12.7s overrun printed as ``12``), and mislabeled wall time
+    as 'virtual real time'.  Pin ``%.1f`` and the corrected wording.
+    """
+
+    def test_overrun_logs_fractional_seconds(self, srv):
+        ts = object.__new__(srv.ThreadedServer)
+        ts.logger = MagicMock()
+        ts.limits_reached_threads = set()
+        ts.limit_reached_time = None
+        ts._process_handle = MagicMock()
+
+        fake_thread = MagicMock()
+        fake_thread.type = "http"
+        fake_thread.start_time = time.monotonic() - 12.7  # overran the 1s limit
+        fake_thread.is_alive.return_value = True
+
+        cfg = {
+            "limit_memory_soft": 0,
+            "limit_time_real": 1,
+            "limit_time_real_cron": 0,
+        }
+        with patch.object(_threaded, "config", cfg), \
+             patch.object(_threaded, "memory_info", return_value=0), \
+             patch.object(threading, "enumerate", return_value=[fake_thread]):
+            ts.process_limit()
+
+        ts.logger.warning.assert_called_once()
+        fmt = ts.logger.warning.call_args.args[0]
+        assert "%.1f" in fmt, "elapsed time must use %.1f (not %d, which floors)"
+        assert "virtual" not in fmt, "wall time must not be mislabeled 'virtual'"
+        rendered = fmt % ts.logger.warning.call_args.args[1:]
+        assert "12.7" in rendered, f"fractional seconds must survive; got {rendered!r}"

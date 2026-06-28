@@ -1,13 +1,21 @@
 name: TypeScript Check
 
-# Phase 1 of the type-check CI gate (plan: 2026-04-28-typecheck-ci-gate-plan.md).
+# TypeScript type-check gate, enforced as a DRIFT-ZERO RATCHET (tooling/ratchet):
+# the committed floor is tooling/ratchet/baselines/tsc.json. This gate BLOCKS
+# (no continue-on-error). The floor only moves one way — see
+# tooling/ratchet/README.md. To change it, run locally and commit:
+#   npx tsc --project tsconfig.json --noEmit 2>&1 | tee /tmp/tsc.log
+#   N=$(grep -c "error TS" /tmp/tsc.log)
+#   python tooling/ratchet/ratchet.py tsc --count "$N" --update
 #
-# WARN-ONLY MODE. The job uses `continue-on-error: true` so type errors
-# surface in the PR summary and as workflow notices, but do NOT block
-# merges yet. The gate flips to blocking in Phase 3 once the baseline
-# (~6,575 errors as of 2026-04-29) has been driven to zero in Phase 2.
+# (Floor 2002 as of 2026-06-25 — well below the stale 6,575 from 2026-04-29,
+# which the old warn-only gate hardcoded and never enforced.)
 
 on:
+  # Mainline re-verification: re-run the ratchet on every push to a protected
+  # branch so direct commits / merge-skew cannot silently drift the floor.
+  push:
+    branches: ['19.0-marin', '19.0']
   pull_request:
     branches: ['*']
     paths:
@@ -15,20 +23,24 @@ on:
       - '**/*.ts'
       - '**/*.d.ts'
       - 'tsconfig.json'
+      - 'tsconfig.strict.json'
+      - 'tooling/strict_allowlist.txt'
+      - 'tsconfig.noimplicitany.json'
+      - 'tooling/noimplicitany_allowlist.txt'
       - 'jsconfig.json'
       - 'package.json'
       - 'package-lock.json'
+      - 'tooling/ratchet/**'
+      - '.github/workflows/typecheck.yml'
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   typecheck:
-    name: tsc --noEmit
+    name: tsc --noEmit (ratchet)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true  # Phase 1 warn-only — flip to false in Phase 3
 
     steps:
       - name: Checkout
@@ -43,6 +55,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Self-test the ratchet
+        run: python tooling/ratchet/test_ratchet.py
+
       - name: Install dependencies
         run: npm ci
 
@@ -51,60 +71,80 @@ jobs:
         run: |
           set +e
           npx tsc --project tsconfig.json --noEmit 2>&1 | tee /tmp/tsc-output.log
-          TSC_EXIT=${PIPESTATUS[0]}
           set -e
           ERR_COUNT=$(grep -c "error TS" /tmp/tsc-output.log || echo 0)
           echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
-          echo "exit_code=${TSC_EXIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet
+        run: |
+          python tooling/ratchet/ratchet.py tsc --count "${{ steps.tsc.outputs.error_count }}" --json | tee /tmp/verdict.json
+          python tooling/ratchet/ratchet.py tsc --count "${{ steps.tsc.outputs.error_count }}"
+
+      - name: strictNullChecks gate (allowlist post-filter, drift-zero)
+        # Full-program strictNullChecks run; FAIL iff a file on
+        # tooling/strict_allowlist.txt appears in the error output. The project
+        # is not strict-clean overall yet (that's the grind), so we post-filter
+        # to the locked set rather than requiring a global zero. The allowlist
+        # only grows; a regression on any locked file fails here. See the
+        # tsconfig.strict.json header for why this is full-program, not isolated.
+        run: |
+          set +e
+          npx tsc --project tsconfig.strict.json --noEmit 2>&1 | tee /tmp/tsc-strict.log
+          set -e
+          # Distinct files that produced strict errors:
+          grep -oE 'addons/[^(]+\.(js|ts)' /tmp/tsc-strict.log | sort -u > /tmp/strict-errored.txt
+          # Allowlist without comments/blanks:
+          grep -vE '^[[:space:]]*#|^[[:space:]]*$' tooling/strict_allowlist.txt > /tmp/strict-allow.txt
+          # Violations = exact-line intersection (grep -Fxf: locale/sort-independent):
+          grep -Fxf /tmp/strict-allow.txt /tmp/strict-errored.txt > /tmp/strict-violations.txt || true
+          N=$(grep -c . /tmp/strict-violations.txt || true)
+          LOCKED=$(grep -c . /tmp/strict-allow.txt)
+          if [ "$N" -ne 0 ]; then
+            echo "::error::strictNullChecks: $N of $LOCKED locked file(s) regressed (must stay 0):"
+            cat /tmp/strict-violations.txt
+            exit 1
+          fi
+          echo "strictNullChecks allowlist clean: $LOCKED files locked at zero."
+
+      - name: noImplicitAny gate (allowlist post-filter, drift-zero)
+        # Full-program noImplicitAny run; FAIL iff a file on
+        # tooling/noimplicitany_allowlist.txt appears in the error output.
+        # Implicit-any silently defeats the strictNullChecks gate (`any` is
+        # null-safe by fiat), so locking a file here makes its strict lock real.
+        # Same full-program + post-filter design as the strictNullChecks gate
+        # above; the allowlist only grows, a regression on any locked file fails.
+        run: |
+          set +e
+          npx tsc --project tsconfig.noimplicitany.json --noEmit 2>&1 | tee /tmp/tsc-nia.log
+          set -e
+          # Distinct files that produced any error under base+noImplicitAny:
+          grep -oE 'addons/[^(]+\.(js|ts)' /tmp/tsc-nia.log | sort -u > /tmp/nia-errored.txt
+          # Allowlist without comments/blanks:
+          grep -vE '^[[:space:]]*#|^[[:space:]]*$' tooling/noimplicitany_allowlist.txt > /tmp/nia-allow.txt
+          # Violations = exact-line intersection (grep -Fxf: locale/sort-independent):
+          grep -Fxf /tmp/nia-allow.txt /tmp/nia-errored.txt > /tmp/nia-violations.txt || true
+          N=$(grep -c . /tmp/nia-violations.txt || true)
+          LOCKED=$(grep -c . /tmp/nia-allow.txt)
+          if [ "$N" -ne 0 ]; then
+            echo "::error::noImplicitAny: $N of $LOCKED locked file(s) regressed (must stay 0):"
+            cat /tmp/nia-violations.txt
+            exit 1
+          fi
+          echo "noImplicitAny allowlist clean: $LOCKED files locked at zero."
 
       - name: Summarise
         if: always()
         run: |
           ERR_COUNT="${{ steps.tsc.outputs.error_count }}"
-          BASELINE=6575
-          DRIFT=$((ERR_COUNT - BASELINE))
-          if [ "$DRIFT" -ge 0 ]; then
-            DRIFT_STR="+${DRIFT}"
-          else
-            DRIFT_STR="${DRIFT}"
-          fi
+          BASELINE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/tsc.json'))['count'])")
           {
-            echo "## TypeScript check"
+            echo "## TypeScript check (tsc ratchet)"
             echo ""
             echo "| Metric | Value |"
             echo "|--------|------:|"
             echo "| Errors found | ${ERR_COUNT} |"
-            echo "| Phase 0 baseline | ${BASELINE} |"
-            echo "| Drift vs baseline | ${DRIFT_STR} |"
+            echo "| Committed floor | ${BASELINE} |"
+            echo "| Drift | $((ERR_COUNT - BASELINE)) |"
             echo ""
-            if [ "$DRIFT" -gt 0 ]; then
-              echo "> :warning: Error count **increased** by ${DRIFT} since the Phase 0 baseline."
-              echo "> This PR may introduce new type errors. Check the workflow log for details."
-            elif [ "$DRIFT" -lt 0 ]; then
-              echo "> :white_check_mark: Error count **decreased** by $((-DRIFT)) — thanks for the cleanup."
-            else
-              echo "> :information_source: Error count unchanged — within the expected baseline."
-            fi
-            echo ""
-            echo "Plan: \`knowledge/agromarin-knowledge/plans/2026-04-28-typecheck-ci-gate-plan.md\`"
+            echo "Floor: \`tooling/ratchet/baselines/tsc.json\` · Config: \`tsconfig.json\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Annotate PR (warn-only)
-        if: always() && steps.tsc.outputs.exit_code != '0'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const errorCount = parseInt('${{ steps.tsc.outputs.error_count }}', 10) || 0;
-            const baseline = 6575;
-            const drift = errorCount - baseline;
-            const sign = drift >= 0 ? '+' : '';
-            core.notice(
-              `TypeScript: ${errorCount} errors (${sign}${drift} vs Phase 0 baseline ${baseline}). ` +
-              `Warn-only mode — does not block merge. See workflow Summary tab.`
-            );
-            if (drift > 0) {
-              core.warning(
-                `Type error count increased by ${drift} compared to baseline. ` +
-                `Review the workflow log to verify no new errors were introduced.`
-              );
-            }

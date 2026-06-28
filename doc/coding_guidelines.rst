@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 =============================
 
-:Version: 4.0
-:Date: 2026-06-22
+:Version: 4.1
+:Date: 2026-06-23
 :Language: English
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_ + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -191,7 +191,7 @@ Standard Odoo/OCA structure. All directories are optional except ``__manifest__.
    ├── i18n/                       # Translation files (.po / .pot)
    ├── migrations/                 # Pre/post migration scripts
    ├── models/                     # Model classes
-   ├── report/                     # QWeb report templates
+   ├── reports/                    # QWeb report templates
    ├── security/                   # Access rights and record rules
    ├── static/                     # Web assets
    │   ├── description/
@@ -272,10 +272,10 @@ Key rules:
      - ``ir.model.access.csv``
      - Always CSV
    * - Groups
-     - ``res_groups_security.xml``
+     - ``res_groups.xml``
      - Group definitions
    * - Record rules
-     - ``ir_rule_security.xml``
+     - ``ir_rule.xml``
      - All ``ir.rule`` records in one file
    * - Wizards
      - ``wizards/{model_name}.py`` + ``_views.xml``
@@ -300,8 +300,8 @@ Key rules:
        res_config_settings_views.xml
      security/
        ir.model.access.csv
-       res_groups_security.xml          # groups
-       ir_rule_security.xml             # record rules (ir.rule)
+       res_groups.xml                   # groups
+       ir_rule.xml                      # record rules (ir.rule)
 
 ----
 
@@ -361,23 +361,23 @@ Private attributes first, then section-organized code.
      - ``# CONSTRAINTS``
      - ``models.Constraint()`` declarations
    * - 4
-     - ``# CRUD METHODS``
-     - ``create``\ , ``write``\ , ``unlink``\ , ``copy``\ , ``copy_data``
-   * - 5
-     - ``# COMPUTE METHODS``
-     - ``_compute_*`` methods
-   * - 6
-     - ``# SEARCH METHODS``
-     - ``_search_*`` methods
-   * - 7
-     - ``# INVERSE METHODS``
-     - ``_inverse_*`` methods
-   * - 8
-     - ``# ONCHANGE METHODS``
-     - ``_onchange_*`` methods
-   * - 9
      - ``# CONSTRAINT METHODS``
      - ``_check_*``\ , ``_validate_*`` methods
+   * - 5
+     - ``# CRUD METHODS``
+     - ``create``\ , ``write``\ , ``unlink``\ , ``copy``\ , ``copy_data``
+   * - 6
+     - ``# COMPUTE METHODS``
+     - ``_compute_*`` methods
+   * - 7
+     - ``# SEARCH METHODS``
+     - ``_search_*`` methods
+   * - 8
+     - ``# INVERSE METHODS``
+     - ``_inverse_*`` methods
+   * - 9
+     - ``# ONCHANGE METHODS``
+     - ``_onchange_*`` methods
    * - 10
      - ``# ACTION METHODS``
      - ``action_*`` methods (UI-triggered)
@@ -565,8 +565,8 @@ reviewers apply judgement rather than rejecting every ungrouped field.)
      - ``amount_`` prefix
      - ``total_amount`` -> ``amount_total``
    * - Counters
-     - ``_count`` suffix
-     - ``picking_count`` (matches Odoo core: ``sale_order_count``, ``invoice_count``)
+     - ``_count`` prefix
+     - ``picking_count`` -> ``count_picking``
    * - Quantities
      - ``qty_`` prefix
      - ``delivered_qty`` -> ``qty_transferred`` (note: core also uses the
@@ -587,6 +587,11 @@ Default functions: use ``lambda self:`` (allows inheritance).
 
 2.4 Method Naming
 ^^^^^^^^^^^^^^^^^^^^^^
+
+These naming rules are **review-only** 👁 — no ``ruff`` code enforces them. A
+method's name is not just cosmetic: the prefix fixes the method's *role*, which
+in turn fixes the §2.2 section it belongs to (see *Naming determines section*
+below). Name and placement are two views of the same decision.
 
 .. list-table::
    :header-rows: 1
@@ -624,9 +629,15 @@ Default functions: use ``lambda self:`` (allows inheritance).
    * - Search
      - ``_search_``
      - ``_search_display_name(self, operator, value)`` (API hook, see below)
+   * - Mail
+     - ``_message_*`` / ``_notify_*`` / ``_track_*``
+     - ``_track_subtype``, ``_notify_get_recipients``
    * - Default
      - ``_default_``
      - ``get_default_warehouse`` -> ``_default_warehouse_id``
+   * - Framework hooks
+     - ``_auto_init`` / ``init`` (raw schema/registry setup)
+     - keep core signatures; rarely overridden
 
 
 **Inheritance safety** 👁: these naming rules apply to **new** methods you
@@ -639,6 +650,53 @@ Override core methods under their **original** name.
 ``_search_display_name`` is not a cosmetic rename — it is the Odoo 19 **API hook**
 (signature ``_search_display_name(self, operator, value)``) that backs
 ``name_search``; override it, not the removed ``_name_search``.
+
+**Naming determines section** 👁: because the prefix fixes the method's role, it
+also fixes which §2.2 section the method belongs to. Use this mapping both
+ways — when naming a new method, and when deciding where to place it:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Name / decorator
+     - §2.2 section
+   * - ``create`` / ``write`` / ``unlink`` / ``copy_data`` / ``default_get``;
+       ``@api.model_create_multi``; ``@api.ondelete``
+     - ``# CRUD METHODS``
+   * - ``_compute_*``; ``@api.depends``
+     - ``# COMPUTE METHODS``
+   * - ``_search_*``
+     - ``# SEARCH METHODS``
+   * - ``_inverse_*``
+     - ``# INVERSE METHODS``
+   * - ``_onchange_*``; ``@api.onchange``
+     - ``# ONCHANGE METHODS``
+   * - ``_check_*`` / ``_validate_*``; ``@api.constrains``
+     - ``# CONSTRAINT METHODS``
+   * - ``action_*``
+     - ``# ACTION METHODS``
+   * - ``_message_*`` / ``_notify_*`` / ``_track_*``
+     - ``# MAIL METHODS``
+   * - ``_prepare_*`` / ``_get_*`` and other internals
+     - ``# HELPER METHODS``
+   * - ``_auto_init`` / ``init``
+     - ``# HOOKS``
+
+The **field wiring is authoritative** when it disagrees with the name: a method
+referenced by ``inverse="..."`` *is* an inverse even if it is named ``_write_*``
+or ``set_*``, and ``compute="..."`` / ``search="..."`` likewise pin their target's
+section regardless of prefix.
+
+A method used as a field ``default=`` (e.g. ``default=_default_category``) is
+evaluated at **class-creation time**, so it must be defined *above* the field
+block; it stays pinned there rather than moving into a method section.
+
+This mapping is mechanized by the standalone fixer
+``odoo/addons/test_lint/tests/_sort_model_methods.py``, which regroups a model's
+methods under the correct ``# UPPERCASE`` banners (run ``ruff format`` after). It
+is behaviour-preserving — it only moves methods and refuses any change that would
+alter a method body — and is **not** a blocking lint, since upstream ``base``
+predates this ordering.
 
 
 2.5 Docstrings
@@ -672,6 +730,24 @@ code under ``addons/**`` it is suppressed in ``ruff.toml``, so this is a
 * Method docstring: brief description, then `:param`, `:return:`, `:rtype:` if non-trivial
 * Use ``"""triple double quotes"""`` — never ``'''single'''``
 * No verbose field listings inside model docstrings (keep them in field ``help=`` attributes)
+
+**Accuracy and concision** 👁: a docstring or comment that contradicts the code
+is worse than none — it misleads the reader and outlives the code it described.
+When you change a signature, return type, or behavior, update its docstring in
+the *same* edit.
+
+* **Be correct.** Verify every claim — parameters, return type, raised
+  exceptions, referenced methods/fields — against the actual code. Delete stale
+  references to renamed or removed code instead of letting them rot.
+* **Be direct.** Cut filler: ``Basically``, ``Essentially``, ``In other words``,
+  ``Note that``, ``Obviously``, ``This method simply…``. Describe behavior in the
+  imperative — "Return…", "Raise…", "Compute…".
+* **Don't restate the obvious.** A docstring that only echoes the method name, or
+  re-types the signature already on the ``def`` line, is noise — omit it or say
+  something the signature cannot.
+* **Comments explain why, not what.** The code already states what it does;
+  reserve comments for non-obvious rationale, an invariant, or an edge case. A
+  comment that merely narrates the next line has earned its deletion.
 
 2.6 ORM Best Practices
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -1888,11 +1964,11 @@ framework), which is what most addon tests use.
      - Entry point
      - Use when
    * - **1 — Component**
-     - ``InMemoryEnvironment`` (``odoo/orm/components/in_memory.py``)
+     - Component unit tests (``odoo/orm/components/tests/`` — ``FieldCache``,
+       ``ComputeEngine``, ``ModelGraph``, ``UnitOfWork``)
      - Exercising ORM *algorithms* in isolation — cache, compute scheduling,
-       flush convergence, trigger graph — with plain-Python ``FieldDef`` /
-       ``ModelDef`` callables. No real fields, no ``@api.depends``, zero ``odoo``
-       imports. ~3 ms.
+       flush convergence, trigger graph — directly against the real component
+       objects. No real fields, no ``@api.depends``, zero ``odoo`` imports. ~3 ms.
    * - **2 — ORM, DB-free**
      - ``model_test_env`` / ``ModelRegistry`` (``odoo/orm/model_test_env.py``)
      - Testing real model methods, real ``@api.depends`` computes and real
@@ -3152,6 +3228,14 @@ Appendix D — Document History
    * - Version
      - Date
      - Summary
+   * - 4.1
+     - 2026-06-23
+     - Expanded §2.4 (Method Naming): added Mail and Framework-hooks rows; added a
+       *Naming determines section* mapping tying each prefix/decorator to its §2.2
+       section; documented the field-wiring authority rule
+       (``inverse=``/``compute=``/``search=`` override the method name) and the
+       class-eval ``default=`` pinning note; referenced the new
+       ``test_lint/_sort_model_methods.py`` method-grouping fixer.
    * - 4.0
      - 2026-06-22
      - Reconciled every "linter-enforced" claim with ``ruff.toml`` (B904, ERA001,

@@ -155,12 +155,18 @@ export default [
     // =========================================================================
     {
         ignores: [
-            // Libraries (vendored, not our code)
-            "addons/web/static/lib/**",
+            // Vendored third-party libraries (not our code) live under
+            // <module>/static/lib/ and are ignored wholesale — by convention,
+            // vendored code goes in static/lib and nowhere else, so it is
+            // excluded structurally rather than via a per-library allowlist
+            // (which always drifts). Putting a third-party file anywhere else is
+            // the bug; fix it by relocating into static/lib, not by listing it.
+            "**/static/lib/**",
+            // hoot is first-party despite living under web/static/lib (historical).
             "!addons/web/static/lib/hoot/**",
-            "addons/html_editor/static/lib/diff2html/*.js",
+            // Vendored bundle that predates the convention. TODO: relocate under
+            // static/lib so this special case can go away too.
             "addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js",
-            "voip/static/lib/**",
 
             // Legacy code (only top-level adapters are linted)
             "addons/web/static/src/legacy/**",

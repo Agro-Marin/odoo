@@ -1,0 +1,89 @@
+name: Free-threading (PEP 703)
+
+# Exercises the process-shared ORM data structures under a FREE-THREADED
+# CPython build (python3.14t, GIL disabled). The fork's per-cursor Transaction
+# isolation means almost no hot state is shared between request threads — the
+# notable exception was ModelGraph, whose derived caches were filled lazily on
+# first read. On free-threaded CPython that is not corruption (its dicts are
+# thread-safe) but it causes N threads to redundantly rebuild the same trees on
+# a cold cache. ModelGraph.freeze() now precomputes them at registry-build time
+# so reads are pure lookups; this lane proves the frozen read path mutates no
+# shared state under real parallelism, and guards against new mutation-on-read
+# creeping back in.
+#
+# Scope: the PURE-PYTHON odoo/orm/components suites only. They need neither the
+# odoo_rust extension nor a real `import odoo`, so they run on a stock 3.14t
+# wheel with no extra build. The concurrency-critical case is
+# test_model_graph_freethreading.py, which hammers a frozen graph from 16
+# threads — under the GIL it checks read-consistency, here it checks the race
+# is genuinely gone.
+#
+# WARN-ONLY (Phase 1): continue-on-error keeps this informational while the
+# free-threaded toolchain/ecosystem stabilises. Flip to blocking (remove
+# continue-on-error) once it has been green for a few runs — mirrors the
+# phased rollout of py_typecheck.yml / typecheck.yml.
+
+on:
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'odoo/orm/components/**'
+      - 'odoo/orm/runtime/_registry_fields.py'
+      - 'odoo/_testing_bootstrap.py'
+      - 'pytest.ini'
+      - '.github/workflows/freethreading.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  free-threaded:
+    name: components under no-GIL (3.14t)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true  # Phase 1 warn-only — remove once consistently green
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up free-threaded Python
+        uses: actions/setup-python@v5
+        with:
+          # The 't' suffix selects the free-threaded (GIL-disabled) build.
+          python-version: '3.14t'
+
+      - name: Confirm the interpreter is actually free-threaded
+        env:
+          PYTHON_GIL: '0'
+        run: |
+          python -c "import sys; \
+            assert hasattr(sys, '_is_gil_enabled'), 'not a 3.13+ interpreter'; \
+            assert not sys._is_gil_enabled(), 'GIL is still enabled — not a free-threaded build'; \
+            print('free-threaded build confirmed:', sys.version)"
+
+      - name: Install pytest
+        run: pip install --quiet "pytest==9.0.2"
+
+      - name: Run orm/components under PYTHON_GIL=0
+        # Pure-stdlib suites — no Rust, no framework, no DB. The 16-thread
+        # stress test in test_model_graph_freethreading.py is the one that
+        # actually races the shared ModelGraph here.
+        env:
+          PYTHON_GIL: '0'
+        run: python -m pytest odoo/orm/components/tests -q
+
+      - name: Re-run the concurrency stress test under pressure
+        # Repeat the racey case to widen the window for a regression to surface
+        # (a single pass can get unlucky and miss an intermittent race).
+        env:
+          PYTHON_GIL: '0'
+        run: |
+          for i in 1 2 3 4 5; do
+            echo "::group::stress run $i"
+            python -m pytest -q \
+              odoo/orm/components/tests/test_model_graph_freethreading.py
+            echo "::endgroup::"
+          done

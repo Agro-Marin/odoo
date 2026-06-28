@@ -1,0 +1,129 @@
+name: Integration Tests (DB-backed)
+
+# THE missing gate. Before this, no workflow ran a single TransactionCase or
+# HttpCase: only the DB-free unit tiers (unit_tests.yml) executed in CI, so a
+# regression anywhere in odoo/orm/runtime, odoo/orm/models, odoo/modules or
+# odoo/http could merge green. This lane boots a real PostgreSQL 18, installs
+# the framework, and runs the `base` module's test suite against it.
+#
+# Scope: a framework SMOKE, not the whole suite — `base` exercises the ORM
+# (registry, environment, fields, domains), module loading and access rules
+# end-to-end against real SQL. It is the highest-value-per-minute coverage of
+# the decomposed core. Broaden via the TEST_TAGS / INSTALL env below
+# (e.g. add `test_orm`, `test_http`) once this is stable and timing is known.
+#
+# Why template0 + C collation: Odoo creates its database with
+# `ENCODING 'unicode' LC_COLLATE 'C'` only when db_template is template0
+# (odoo/service/db.py). PostgreSQL 18's default template1 locale would
+# otherwise take the non-C path and give non-deterministic ordering. So we
+# pass --db-template=template0 and let Odoo create the DB itself.
+
+on:
+  # Mainline re-verification: boot PG18 and run the base smoke on every push to a
+  # protected branch, so a behavioural regression cannot land via a direct commit
+  # or merge-skew without CI catching it post-merge.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'odoo/orm/**'
+      - 'odoo/db/**'
+      - 'odoo/http/**'
+      - 'odoo/service/**'
+      - 'odoo/modules/**'
+      - 'odoo/fields/**'
+      - 'odoo/models/**'
+      - 'odoo/api/**'
+      - 'odoo/addons/base/**'
+      - 'crates/odoo_rust/**'
+      - 'requirements*.txt'
+      - '.github/workflows/integration_tests.yml'
+
+permissions:
+  contents: read
+
+env:
+  INSTALL: base
+  # The base suite. The genuine fork-bug failures (stale tests left behind by the
+  # db/ decomposition) were fixed at the root, not excluded — see 162cea6
+  # (TestConfigManager pool options, TestCopyFromMetricsQueryLazy hooks kwarg,
+  # TestProfiling metrics.py frame).
+  #
+  # Two classes remain excluded for non-code reasons (documented, not silent):
+  #   * TestReportsRendering — exercises PDF rendering via wkhtmltopdf, which this
+  #     fork has DROPPED. The tests are obsolete; TODO remove them outright rather
+  #     than carry the exclusion.
+  #   * TestIrModelFieldsTranslation — a browser tour; deferred pending a
+  #     confirmed headless-browser setup in CI (web auto-installs with base, so it
+  #     should run once the runner has Chrome). Re-include after the first green run.
+  TEST_TAGS: /base,-:TestReportsRendering,-:TestIrModelFieldsTranslation
+
+jobs:
+  base-smoke:
+    name: base suite (PostgreSQL 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        # Wait until PG accepts connections before the job's steps run.
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        # The ORM hot paths (_field_access) hard-import odoo_rust — no fallback.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install system + Python dependencies
+        run: |
+          sudo apt-get update
+          # lxml / Pillow / python-ldap build deps; most wheels are prebuilt but
+          # these cover the source-build fallbacks.
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+          pip install --quiet -r requirements.txt
+
+      - name: Run base test suite
+        # odoo-bin exits non-zero when any test fails (cli/server.py propagates
+        # the assertion report's result as the process exit code), so this step
+        # fails the job on a single test failure — no log-grepping needed.
+        run: |
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_smoke \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${INSTALL}" \
+            --test-enable --test-tags "${TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout

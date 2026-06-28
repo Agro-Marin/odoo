@@ -8,6 +8,10 @@ name: Rust Extension (odoo_rust)
 # BLOCK the merge, not warn — so this gate is intentionally NOT continue-on-error.
 
 on:
+  # Mainline re-verification: re-check the native crate on every push to a
+  # protected branch so a direct commit / merge-skew cannot break it unnoticed.
+  push:
+    branches: ['19.0-marin', '19.0']
   pull_request:
     branches: ['*']
     paths:
