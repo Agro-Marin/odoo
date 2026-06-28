@@ -68,6 +68,7 @@ if TYPE_CHECKING:
             query: Any = None,
             params: Any = None,
             start: float = 0.0,
+            hooks: Any = None,
         ) -> None: ...
         def _record_sql_log(
             self, query_type: str, table: str | None, delay: float
@@ -334,7 +335,7 @@ class _BulkAccessMixin:
         # Render copy_stmt to text only when a profiler hook will read it
         # (``have_hooks``); None is harmless when none are installed.
         metrics_query = copy_stmt.as_string(self._obj) if have_hooks else None
-        self._record_metrics(delay, query=metrics_query, start=start)
+        self._record_metrics(delay, query=metrics_query, start=start, hooks=have_hooks)
 
         if _logger.isEnabledFor(logging.DEBUG):
             self._record_sql_log("into", table, delay)

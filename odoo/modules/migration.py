@@ -141,7 +141,7 @@ def _resolve_addon_path(path: str) -> str:
 class MigrationManager:
     """Manages the migration of modules.
 
-    Migrations files must be python files containing a ``migrate(cr, installed_version)``
+    Migrations files must be python files containing a ``migrate(cr, version)``
     function. These files must respect a directory tree structure: A 'migrations' folder
     which contains a folder by version. Version can be 'module' version or 'server.module'
     version (in this case, the files will only be processed by this version of the server).

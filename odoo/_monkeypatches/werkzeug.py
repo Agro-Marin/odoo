@@ -7,6 +7,10 @@ from werkzeug.wrappers import Request, Response
 
 
 def patch_module() -> None:
+    # NOTE: a second set of werkzeug patches lives in ``odoo/http/wrappers.py``
+    # (``HTTPException.get_response`` / ``abort`` wrapping into ``odoo.http``
+    # Response objects). They cannot move here: this hook runs when ``werkzeug``
+    # is first imported, before ``odoo.http`` exists. See that module's note.
     from odoo.tools.json import scriptsafe
 
     Request.json_module = Response.json_module = scriptsafe

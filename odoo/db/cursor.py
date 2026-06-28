@@ -126,7 +126,7 @@ class BaseCursor(_CursorProtocol):
         self.precommit.clear()
 
     def reset(self) -> None:
-        """Reset the current transaction (this invalidates more that clear()).
+        """Reset the current transaction (this invalidates more than clear()).
         This method should be called only right after commit() or rollback().
         """
         if self.transaction is not None:
@@ -150,7 +150,7 @@ class BaseCursor(_CursorProtocol):
         raise NotImplementedError
 
     def savepoint(self, flush: bool = True) -> Savepoint:
-        """context manager entering in a new savepoint
+        """Open a new savepoint, returned as a context manager.
 
         With ``flush`` (the default), will automatically run (or clear) the
         relevant hooks.  The flushing variant is resolved via
@@ -158,7 +158,19 @@ class BaseCursor(_CursorProtocol):
         cache/env-restoring subclass without the db layer importing it.
         """
         if flush:
-            return self._flushing_savepoint_cls(self)
+            cls = self._flushing_savepoint_cls
+            # Fail loudly instead of silently corrupting the cache: a cursor with
+            # an ORM transaction MUST use a savepoint that restores ORM state on
+            # rollback.  If it doesn't, the ORM injection seam (set as an import
+            # side effect of ``odoo.orm.runtime``) was not wired — a broken import
+            # order — and ``ROLLBACK TO SAVEPOINT`` would leave a stale cache.
+            if self.transaction is not None and not cls._restores_orm_state:
+                raise RuntimeError(
+                    f"cursor has an ORM transaction but {cls.__name__} does not "
+                    "restore ORM state on rollback; the odoo.orm.runtime savepoint "
+                    "seam was not installed (import-order bug)."
+                )
+            return cls(self)
         return Savepoint(self)
 
     def __enter__(self) -> Self:
@@ -221,11 +233,8 @@ class BaseCursor(_CursorProtocol):
         """Return the transaction's timestamp ``NOW() AT TIME ZONE 'UTC'``."""
         if self._now is None:
             self.execute("SELECT (now() AT TIME ZONE 'UTC')")
-            row = self.fetchone()
-            # Explicit check survives ``python -O`` where ``assert`` is stripped.
-            if row is None:
-                raise RuntimeError("SELECT now() returned no row — connection broken?")
-            self._now = row[0]
+            # A SELECT always yields exactly one row, so fetchone() is never None.
+            self._now = self.fetchone()[0]
         return self._now
 
 
@@ -239,8 +248,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
      .. rubric:: Transaction Isolation
 
-     All Odoo cursors default to ``REPEATABLE READ`` (requires PostgreSQL 18+),
-     which PostgreSQL implements as
+     All Odoo cursors default to ``REPEATABLE READ``, which PostgreSQL
+     implements as
      `snapshot isolation <http://en.wikipedia.org/wiki/Snapshot_isolation>`_.
      This gives the consistency Odoo needs without ``SERIALIZABLE``'s overhead
      (predicate locking, serialization-anomaly rollbacks); high-contention paths
@@ -339,24 +348,19 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         row = self._obj.fetchone()
         if row is None:
             return None
-        desc = self._obj.description
-        # Explicit check survives ``python -O`` where ``assert`` is stripped.
-        if not desc:
-            raise RuntimeError(
-                "dictfetchone: cursor has no result description "
-                "(query did not produce a result set)"
-            )
+        # A returned row guarantees a result set — a result-less statement makes
+        # fetchone() raise, not return a row — hence a non-empty description.
         # strict=True: psycopg guarantees len(row) == len(description), so a
         # mismatch is a driver bug that should raise, not drop columns.
-        return {col.name: val for col, val in zip(desc, row, strict=True)}
+        return {
+            col.name: val for col, val in zip(self._obj.description, row, strict=True)
+        }
 
     def _col_names(self) -> tuple[str, ...]:
         """Extract column names from the last query's description as a tuple."""
         return tuple(col.name for col in self._obj.description)
 
-    def _rows_to_dict_list(
-        self, rows: list[tuple[Any, ...]]
-    ) -> list[dict[str, Any]]:
+    def _rows_to_dict_list(self, rows: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
         """Zip *rows* against the last query's column names into dicts.
 
         Shared by :meth:`dictfetchmany`/:meth:`dictfetchall`.  Callers must
@@ -456,14 +460,18 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             query, params = query.code, query.params
         elif params:
             if not isinstance(params, (tuple, list, dict)):
-                raise ValueError(  # noqa: TRY004 — legacy contract, exercised by tests
+                raise ValueError(
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
         # Detect DDL once.  It drives two decisions: every DDL keyword needs
         # client-side param inlining ($N is rejected in DDL positions), but only
         # schema-changing DDL (CREATE/ALTER/DROP/DO) invalidates the caches.
-        qs = query if isinstance(query, str) else str(query)
+        # ``query`` is always a str here: an SQL object was unwrapped to its str
+        # ``.code`` above and the public contract is ``str | SQL``, so there is
+        # nothing to coerce — a ``str(query)`` fallback would only mask a
+        # contract violation (and mangle a stray bytes query into its repr).
+        qs = query
         ddl_kw = _ddl_keyword(qs)  # uppercase keyword, or None when not DDL
         is_ddl = ddl_kw is not None
 
@@ -475,10 +483,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         # Resolve the DEBUG gate once, before ``start``, so isEnabledFor stays
         # out of the measured window.
         debug = _logger.isEnabledFor(logging.DEBUG)
-        # start (wall-clock) is only for the profiler's query_hooks; skip the
-        # read when none are installed.  t0 (monotonic) always times the query —
+        # Read the thread's query_hooks once: it gates the wall-clock ``start``
+        # (skipped when no profiler is installed) and is handed to
+        # ``_record_metrics`` below, so this hot path touches the thread attribute
+        # once instead of twice.  t0 (monotonic) always times the query —
         # wall-clock could step back under NTP and make ``delay`` negative.
-        start = real_time() if getattr(self._thread, "query_hooks", None) else 0.0
+        hooks = getattr(self._thread, "query_hooks", None)
+        start = real_time() if hooks else 0.0
         t0 = monotonic()
         try:
             self._obj.execute(query, params)
@@ -502,7 +513,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             # COMMENT/GRANT/REVOKE are DDL but don't change shape, so they skip this.
             self._invalidate_caches_after_ddl()
 
-        self._record_metrics(delay, query=query, params=params, start=start)
+        self._record_metrics(
+            delay, query=query, params=params, start=start, hooks=hooks
+        )
 
         # Advanced stats (DEBUG only).  Categorize on ``qs`` (already built for
         # DDL detection) — same table, one fewer str() than re-stringifying query.
@@ -519,8 +532,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         1. psycopg's auto-prepared-statement cache on this connection: CREATE/
            ALTER make cached ``SELECT *`` plans stale ("cached plan must not
            change result type").  ``_prepared.clear()`` (private API) queues a
-           ``DEALLOCATE ALL``; if a future psycopg drops it, fall back to
-           disabling auto-prepare on the connection.
+           ``DEALLOCATE ALL``; if a future psycopg drops it, the fallback both
+           disables auto-prepare AND issues ``DEALLOCATE ALL`` itself —
+           ``prepare_threshold = None`` alone only stops preparing NEW
+           statements, leaving the already-cached stale plans in place.
         2. The process-global ``schema_cache`` ``copy_from`` populates: ALTER/
            DROP make cached column types/sequences stale.  Other workers are
            cleared via registry signalling, but not the one that ran the DDL, so
@@ -530,7 +545,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         try:
             self._cnx._prepared.clear()
         except AttributeError:
+            # Private API gone: disabling auto-prepare stops NEW prepares but
+            # leaves the existing stale plans, so drop them explicitly too.  Safe
+            # here — we only reach this after a *successful* DDL, so the
+            # transaction is healthy and DEALLOCATE ALL can run inside it.
             self._cnx.prepare_threshold = None
+            self._cnx.execute("DEALLOCATE ALL")
         schema_cache.clear(self.dbname)
 
     def executemany(
@@ -575,8 +595,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         # ``start`` is consumed only by query_hooks (profiler); skip the
         # wall-clock read when none are installed.  t0 (monotonic) is always
-        # needed for the duration.  See execute() for the NTP rationale.
-        start = real_time() if getattr(self._thread, "query_hooks", None) else 0.0
+        # needed for the duration.  See execute() for the NTP rationale and the
+        # single-read-of-query_hooks rationale.
+        hooks = getattr(self._thread, "query_hooks", None)
+        start = real_time() if hooks else 0.0
         t0 = monotonic()
         try:
             self._obj.executemany(query, params_seq, returning=returning)
@@ -594,7 +616,16 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     query,
                 )
 
-        self._record_metrics(delay, len(params_seq), query=query, start=start)
+        self._record_metrics(
+            delay, len(params_seq), query=query, start=start, hooks=hooks
+        )
+
+        # Advanced per-table stats (DEBUG only), mirroring execute() so batched
+        # writes aren't invisible in the SQL log.  ``query`` is always a str here
+        # (SQL unwrapped above) and executemany is never DDL.
+        if _logger.isEnabledFor(logging.DEBUG):
+            query_type, table = categorize_query(query)
+            self._record_sql_log(query_type, table, delay)
 
     @contextmanager
     def pipeline(self) -> Generator[None]:

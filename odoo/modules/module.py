@@ -26,7 +26,7 @@ except ImportError:
     # The Error-suffix lint is suppressed on the class below: the name must
     # mirror packaging.requirements.InvalidRequirement, which this shadows when
     # `packaging` is unavailable.
-    class InvalidRequirement(Exception):  # type: ignore[no-redef]  # noqa: N818
+    class InvalidRequirement(Exception):  # type: ignore[no-redef]
         ...
 
     class Requirement:  # type: ignore[no-redef]
@@ -143,7 +143,7 @@ require --workers=0 (single-threaded).  Replacing with ContextVar would break
 
 
 class UpgradeHook:
-    """Makes the legacy `migrations` package being `odoo.upgrade`.
+    """Make the legacy `migrations` package resolve to `odoo.upgrade`.
 
     Reviewed 2026-03: uses PEP 451 loader protocol (create_module/exec_module)
     instead of the deprecated load_module (DeprecationWarning since 3.12,
@@ -398,7 +398,7 @@ class Manifest(Mapping[str, typing.Any]):
     def for_addon(module_name: str, *, display_warning: bool = True) -> Manifest | None:
         """Get the module's manifest from a name.
 
-        :param module: module's name
+        :param module_name: module's name
         :param display_warning: log a warning if the module is not found
         """
         if not MODULE_NAME_RE.match(module_name):
@@ -462,9 +462,7 @@ def get_module_path(module: str, display_warning: bool = True) -> str | None:
     """Return the path of the given module.
 
     Search the addons paths and return the first path where the given
-    module is found. If downloaded is True, return the default addons
-    path if nothing else is found.
-
+    module is found.
     """
     # TODO deprecate
     mod = Manifest.for_addon(module, display_warning=display_warning)
@@ -644,10 +642,9 @@ def get_manifest(module: str, mod_path: str | None = None) -> Mapping[str, typin
 def load_odoo_module(module_name: str) -> None:
     """Load an Odoo module, if not already loaded.
 
-    This loads the module and register all of its models, thanks to either
-    the MetaModel metaclass, or the explicit instantiation of the model.
-    This is also used to load server-wide module (i.e. it is also used
-    when there is no model to register).
+    Import the module and register its models, via either the MetaModel
+    metaclass or explicit model instantiation. Also used for server-wide
+    modules, which may register no models.
     """
 
     qualname = f"odoo.addons.{module_name}"
@@ -657,7 +654,7 @@ def load_odoo_module(module_name: str) -> None:
     try:
         __import__(qualname)
 
-        # Call the module's post-load hook. This can done before any model or
+        # Call the module's post-load hook. This can be done before any model or
         # data has been initialized. This is ok as the post-load hook is for
         # server-wide (instead of registry-specific) functionalities.
         manifest = Manifest.for_addon(module_name)

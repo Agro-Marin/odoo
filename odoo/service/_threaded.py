@@ -35,7 +35,7 @@ from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
     cron_database_list,
-    memory_info,
+    over_memory_soft_limit,
 )
 from .lifecycle import preload_registries
 from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
@@ -81,8 +81,10 @@ class ThreadedServer(CommonServer):
             raise KeyboardInterrupt
 
     def process_limit(self) -> None:
-        memory = memory_info(self._process_handle)
-        if config["limit_memory_soft"] and memory > config["limit_memory_soft"]:
+        memory = over_memory_soft_limit(
+            self._process_handle, config["limit_memory_soft"]
+        )
+        if memory is not None:
             self.logger.warning("Server memory limit (%s) reached.", memory)
             self.limits_reached_threads.add(threading.current_thread())
 
@@ -94,11 +96,18 @@ class ThreadedServer(CommonServer):
             # ``not daemon`` filter would drop them and make ``limit_time_real``
             # inert.
             if thread_type in ("http", "cron"):
-                if getattr(thread, "start_time", None):
-                    thread_execution_time = now - thread.start_time
+                # Snapshot start_time once: the worker sets it to None between
+                # units of work, so reading it twice (guard + subtraction) can
+                # race into ``now - None`` -> TypeError, which would crash the
+                # monitor loop (and the whole --workers=0 server) since it only
+                # catches KeyboardInterrupt.  The race window is wide on the
+                # free-threaded build this fork targets.
+                start_time = getattr(thread, "start_time", None)
+                if start_time:
+                    thread_execution_time = now - start_time
                     thread_limit_time_real = config["limit_time_real"]
                     if (
-                        getattr(thread, "type", None) == "cron"
+                        thread_type == "cron"
                         and config["limit_time_real_cron"]
                         and config["limit_time_real_cron"] > 0
                     ):
@@ -239,13 +248,7 @@ class ThreadedServer(CommonServer):
                 time.sleep(5)
 
     def cron_spawn(self) -> None:
-        """Start the above runner function in a daemon thread.
-
-        The thread is a typical daemon thread: it will never quit and must be
-        terminated when the main process exits - with no consequence (the processing
-        threads it spawns are not marked daemon).
-
-        """
+        """Start ``max_cron_threads`` daemon threads, each running ``cron_thread``."""
         for i in range(config["max_cron_threads"]):
             t = threading.Thread(
                 target=self.cron_thread,
@@ -437,7 +440,6 @@ class ThreadedServer(CommonServer):
         lifecycle.restart()
 
 
-
 class EventServer(CommonServer):
     def __init__(self, app: Any) -> None:
         super().__init__(app)
@@ -454,11 +456,11 @@ class EventServer(CommonServer):
         if self.ppid != os.getppid():
             self.logger.warning("Parent changed: %s", self.pid)
             restart = True
-        memory = memory_info(self._process_handle)
         limit_memory_soft = (
             config["limit_memory_soft_gevent"] or config["limit_memory_soft"]
         )
-        if limit_memory_soft and memory > limit_memory_soft:
+        memory = over_memory_soft_limit(self._process_handle, limit_memory_soft)
+        if memory is not None:
             # RSS not VMS: see the ``memory_info`` docstring.
             self.logger.warning("RSS memory soft-limit reached: %s bytes", memory)
             restart = True
@@ -478,11 +480,13 @@ class EventServer(CommonServer):
         ``serve_forever()`` runs on the main thread, so the handler must NOT
         call ``self.httpd.shutdown()`` directly — it would block waiting for
         ``serve_forever``, which is suspended in this handler (deadlock).
-        Instead raise ``KeyboardInterrupt``, which ``serve_forever`` catches so
-        ``run()`` reaches ``stop()`` and the ``on_stop`` hooks run (the bus
-        websocket ``_kick_all`` / ``_close_notify_conn``, the dart-sass
-        compiler).  Without this, the SIGTERM that systemd and the watchdog send
-        would hard-kill the process and skip every hook.
+        Instead raise ``KeyboardInterrupt``.  ``serve_forever()`` does NOT catch
+        it (verified) — it propagates out and ``start()`` handles it as a clean
+        shutdown, so ``run()``'s ``finally`` reaches ``stop()`` and the
+        ``on_stop`` hooks run (the bus websocket ``_kick_all`` /
+        ``_close_notify_conn``, the dart-sass compiler).  Without that handling,
+        the SIGTERM that systemd and the watchdog send would be logged as a
+        fatal crash (CRITICAL + ``exit(1)``) instead of a graceful stop.
         """
         raise KeyboardInterrupt
 
@@ -516,6 +520,14 @@ class EventServer(CommonServer):
             self.httpd.serve_forever()
         except SystemExit:
             raise
+        except KeyboardInterrupt:
+            # SIGINT/SIGTERM via ``_quit_signal_handler`` — a graceful shutdown,
+            # NOT a crash.  ``serve_forever()`` does not catch KeyboardInterrupt,
+            # so without this arm it would fall through to ``except BaseException``
+            # and every normal stop (systemd, watchdog recycle) would log CRITICAL
+            # and ``exit(1)`` — restart flapping and false alerts.  ``run()``'s
+            # ``finally`` still calls ``stop()``, so the on_stop hooks run.
+            self.logger.info("Evented/WebSocket service stopped")
         except BaseException as exc:
             self.logger.critical("Uncaught error in main loop", exc_info=True)
             raise SystemExit(1) from exc
@@ -537,5 +549,3 @@ class EventServer(CommonServer):
         finally:
             self.stop()
         return None
-
-

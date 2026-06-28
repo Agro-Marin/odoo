@@ -54,7 +54,7 @@ from odoo.db import PoolError
 from odoo.modules.registry import Registry
 from odoo.tools import OrderedSet, config
 
-# Process-control helpers and cron timing constants (see ``_helpers``).
+# Process-control helpers and cron timing constants (see ``_cron`` and ``_helpers``).
 from ._cron import arm_cron_listen, drain_cron_notifies, order_notified_first
 from ._env import env_float
 from ._helpers import (
@@ -62,7 +62,7 @@ from ._helpers import (
     SLEEP_INTERVAL,
     cron_database_list,
     empty_pipe,
-    memory_info,
+    over_memory_soft_limit,
 )
 
 # No-bind werkzeug server used by ``WorkerHTTP`` to serve one accepted connection.
@@ -76,7 +76,7 @@ _logger = logging.getLogger("odoo.service.server")  # preserve operator log filt
 
 
 
-class CpuTimeLimitExceeded(Exception):  # noqa: N818 — class name re-exported from ``service.server``; renaming would break external catchers
+class CpuTimeLimitExceeded(Exception):
     """Raised by ``Worker.signal_time_expired_handler`` on SIGXCPU.
 
     A distinct class so log filters can discriminate it from a generic failure.
@@ -159,12 +159,11 @@ class Worker:
         if self.request_max > 0 and self.request_count >= self.request_max:
             self.logger.info("Max request (%s) reached.", self.request_count)
             self.alive = False
-        # Recycle a worker that leaked memory.  Read RSS only when the soft
-        # limit is enabled — ``memory_info`` is a per-cycle ``/proc`` read,
-        # wasted when ``limit_memory_soft`` is 0 (a common config).  RSS not
-        # VMS: see the ``memory_info`` docstring.
-        soft_limit = config["limit_memory_soft"]
-        if soft_limit and (memory := memory_info(self._process_handle)) > soft_limit:
+        # Recycle a worker that leaked memory.  ``over_memory_soft_limit`` reads
+        # RSS only when the soft limit is enabled (a per-cycle ``/proc`` read,
+        # wasted when ``limit_memory_soft`` is 0 — a common config).
+        memory = over_memory_soft_limit(self._process_handle, config["limit_memory_soft"])
+        if memory is not None:
             self.logger.info("RSS memory soft-limit reached: %s bytes.", memory)
             self.alive = False  # Commit suicide after the request.
 
@@ -509,6 +508,8 @@ class WorkerCron(Worker):
         del self._selector
         if self.multi.socket:
             self.multi.socket.close()
+        if registries_size := os.environ.get("ODOO_REGISTRY_LRU_SIZE_CRON"):
+            Registry.registries.count = int(registries_size)
 
         # Retry the initial PG connect with exponential backoff: booting while
         # PG is down would otherwise raise straight out of ``Worker.run()`` and

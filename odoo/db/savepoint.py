@@ -26,7 +26,7 @@ _savepoint_counter = itertools.count()
 
 
 class Savepoint:
-    """Reifies an active breakpoint, allows :meth:`BaseCursor.savepoint` users
+    """Reifies an active savepoint, allows :meth:`BaseCursor.savepoint` users
     to internally rollback the savepoint (as many times as they want) without
     having to implement their own savepointing, or triggering exceptions.
 
@@ -97,16 +97,29 @@ class Savepoint:
 class _FlushingSavepoint(Savepoint):
     """Savepoint that flushes precommit work.
 
-    On creation runs ``cr.flush()`` so queued precommit work lands *inside* the
-    savepoint; on successful close it flushes again.  ORM cache/environment
-    restoration on rollback is layered on by the ORM's
-    :class:`~odoo.orm.runtime.savepoint._OrmFlushingSavepoint` via the
+    On creation runs ``cr.flush()`` *before* opening the savepoint, so work
+    already pending from before it is persisted into the OUTER transaction and
+    is therefore NOT undone by a later ``ROLLBACK TO SAVEPOINT``.  On successful
+    close it flushes again — that second flush runs while the savepoint is still
+    open (before ``RELEASE``), so work done inside the block does land inside the
+    savepoint.  ORM cache/environment restoration on rollback is layered on by
+    the ORM's :class:`~odoo.orm.runtime.savepoint._OrmFlushingSavepoint` via the
     :meth:`_save_orm_state` / :meth:`_restore_orm_state` hooks (no-ops here).
     """
 
     __slots__ = ()
 
+    # Whether ``_restore_orm_state`` actually restores the ORM cache/env on
+    # rollback.  False here (the hooks are no-ops); the ORM subclass sets it
+    # True.  ``BaseCursor.savepoint`` asserts on it so a transaction-bearing
+    # cursor can never silently use this non-restoring base (see that method).
+    _restores_orm_state: bool = False
+
     def __init__(self, cr: BaseCursor) -> None:
+        # Flush BEFORE the SAVEPOINT is opened (super().__init__ below): this
+        # drains pre-existing pending work into the outer transaction so the
+        # savepoint captures only work done inside the block.  The in-block work
+        # is kept by the second flush in _close().
         cr.flush()
         # ORM hook: snapshot any state that must be restored on rollback.
         self._save_orm_state(cr)

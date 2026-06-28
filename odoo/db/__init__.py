@@ -104,8 +104,6 @@ def _get_pool(readonly: bool) -> ConnectionPool:
 def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Connection:
     """Connect to a PostgreSQL database.
 
-    Returns a Connection object that can be used to create cursors.
-
     :param to: Database name or PostgreSQL URI
     :param allow_uri: If True, allows PostgreSQL URI connections
     :param readonly: If True, use the read-only replica pool

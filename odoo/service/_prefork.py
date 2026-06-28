@@ -45,7 +45,7 @@ class PreforkServer(CommonServer):
     """Multiprocessing inspired by (g)unicorn.
     PreforkServer (aka Multicorn) currently uses accept(2) as dispatching
     method between workers but we plan to replace it by a more intelligent
-    dispatcher to will parse the first HTTP request line.
+    dispatcher to parse the first HTTP request line.
     """
 
     def __init__(self, app: Any) -> None:
@@ -478,11 +478,19 @@ class PreforkServer(CommonServer):
             lifecycle.server_phoenix = False
 
             if not self.fork_and_reload():
-                # New server never signalled readiness; keep the old workers
-                # serving rather than leaving zero listeners on the port.
+                # New server never signalled readiness within the timeout.  Do
+                # NOT kill the old workers — that would leave zero listeners on
+                # the port.  End state to be aware of: this process is the old
+                # master running as the ``fork_and_reload`` child, so it returns
+                # here and then exits via ``run()``'s loop break.  The workers
+                # are children of the re-exec'd new master (same PID as the
+                # original), so they keep serving under its supervision if it
+                # eventually binds the socket; if the new master never came up
+                # they are orphaned (reparented to init) until the service
+                # manager restarts the unit on the dead MAINPID.
                 self.logger.error(
                     "Reload aborted: new server failed to come up within timeout. "
-                    "Keeping old workers alive."
+                    "Old workers kept alive; this (old) master is exiting."
                 )
                 return
             self.stop_workers_gracefully()

@@ -53,10 +53,8 @@ def exp_authenticate(
     """
     # Reject malformed inputs upfront so the no-leak invariant holds without
     # a blanket ``except Exception`` (which would mask programming errors).
-    # Each rejected case maps to a leak that the previous implementation
-    # produced:
-    #   * empty/non-string ``db``       — leaked AssertionError from db_connect
-    #   * non-dict ``user_agent_env``   — leaked TypeError from {**env, ...}
+    # Without these guards: empty/non-string ``db`` leaks AssertionError from
+    # db_connect; non-dict ``user_agent_env`` leaks TypeError from {**env, ...}.
     if not isinstance(db, str) or not db:
         return False
     if user_agent_env is None:

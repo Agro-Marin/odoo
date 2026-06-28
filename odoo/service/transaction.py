@@ -1,27 +1,10 @@
-"""SQL serialization-retry primitive.
+"""Project-wide SQL serialization-retry primitive.
 
-``retrying()`` was historically defined in ``service.model`` because it
-was used internally by ``execute_cr``.  But seven call sites across the
-codebase reach for it — six of them HTTP- or websocket-related — so the
-``service.model`` location both understated the function's reach and
-made the import path misleading (``from odoo.service.model import retrying``
-suggested a model-dispatch concern, when the function is the project-wide
-SQL-retry primitive).
-
-The function is HTTP-aware (it rewinds uploaded files and refreshes
-the session/dbname when called from inside a request) but the core
-mechanism — exponential-backoff retry on PostgreSQL serialization
-failures and lock-not-available errors — is general.
-
-Callers:
-
-* ``odoo.service.model.execute_cr`` (RPC dispatch, the historical caller)
-* ``odoo.http.__init__`` (root WSGI dispatch and ir.http fallback)
-* ``odoo.http._serve`` (Request.serve)
-* ``odoo.addons.bus.websocket`` (websocket message + dispatch wrappers)
-
-``service.model`` re-exports ``retrying`` so existing
-``from odoo.service.model import retrying`` keeps working.
+``retrying()`` runs a callable in a loop, retrying on PostgreSQL serialization
+/ lock-not-available failures with exponential backoff.  It is HTTP-aware
+(rewinds uploaded files and refreshes the session/dbname when called inside a
+request) but the core mechanism is general; callers live in ``service.model``
+(RPC dispatch), ``odoo.http``, and ``bus.websocket``.
 """
 
 from __future__ import annotations
@@ -34,16 +17,13 @@ from contextlib import suppress
 
 from psycopg import IntegrityError, OperationalError, errors
 
+from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 from odoo.exceptions import ConcurrencyError, ValidationError
 
-# ``odoo.http`` is imported LAZILY inside ``retrying`` (not at module top)
-# because ``odoo.http._serve`` imports ``retrying`` from this module — a
-# top-level ``from odoo import http`` here would form a circular import
-# during ``odoo.http`` package initialisation:
-#   http/__init__ → http.routing → http.dispatcher → http.request_class
-#       → http._serve → service.transaction → odoo.http (partial!) → fail.
-# The lazy import is fine — ``retrying`` is only called at request time,
-# long after all packages have loaded.
+# ``odoo.http`` is imported lazily inside ``retrying`` (not at module top):
+# ``odoo.http._serve`` imports ``retrying`` from here, so a top-level import
+# would cycle during ``odoo.http`` package init.  ``retrying`` only runs at
+# request time, so the per-call lookup is free.
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -52,17 +32,12 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.service.model")  # preserve operator log filters
 
-# PG SQLSTATEs that warrant a retry. Documented at
-# https://www.postgresql.org/docs/current/errcodes-appendix.html
-#   55P03 lock_not_available
-#   40001 serialization_failure
-#   40P01 deadlock_detected
-PG_CONCURRENCY_ERRORS_TO_RETRY = ("55P03", "40001", "40P01")
-PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = (
-    errors.LockNotAvailable,
-    errors.SerializationFailure,
-    errors.DeadlockDetected,
-)
+# The retry vocabulary is defined once in ``odoo.db.errors`` (the lowest layer
+# the cursor and this loop share) so the SQLSTATE list and the exception list
+# cannot drift apart.  These public aliases are kept because addons catch the
+# same set, importing them via ``odoo.service.model``.
+PG_CONCURRENCY_ERRORS_TO_RETRY = PG_RETRY_SQLSTATES
+PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
 
 
@@ -106,6 +81,29 @@ def _rewind_request_for_retry(request: typing.Any, exc: BaseException) -> None:
             raise RuntimeError(
                 f"Cannot retry request on input file {filename!r} after serialization failure"
             ) from exc
+
+
+def _reset_env_state(env: Environment) -> None:
+    """Roll back the process-global registry/transaction bookkeeping after a
+    failed attempt, so its stale invalidation flags don't leak into the next
+    request.
+
+    No-op when the cursor is closed: a dead connection (e.g. after the DB was
+    dropped) can't open the fresh cursor ``transaction.reset`` /
+    ``registry.reset_changes`` need — attempting it would block on a 30s
+    ``PoolTimeout`` against a non-existent database.  Each reset is suppressed
+    independently so a failure in one still runs the other and neither masks
+    the exception being handled.
+
+    Single source of truth: :func:`retrying` resets on the in-loop failure, the
+    outer failure, and the commit-time failure, and the three must not drift.
+    """
+    if env.cr.closed:
+        return
+    with suppress(Exception):
+        env.transaction.reset()
+    with suppress(Exception):
+        env.registry.reset_changes()
 
 
 def retrying[T](func: Callable[[], T], env: Environment) -> T:
@@ -152,15 +150,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     raise
                 with suppress(Exception):
                     env.cr.rollback()
-                # Skip expensive reset if the connection is dead (e.g. after
-                # DB drop): transaction.reset() would try to create a new
-                # Registry which opens a cursor → 30s PoolTimeout on a
-                # non-existent database.
-                if not env.cr.closed:
-                    with suppress(Exception):
-                        env.transaction.reset()
-                    with suppress(Exception):
-                        env.registry.reset_changes()
+                _reset_env_state(env)
                 request = http.request
                 if request:
                     _rewind_request_for_retry(request, exc)
@@ -198,17 +188,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     wait_time,
                 )
                 time.sleep(wait_time)
-        else:
-            # handled in the "if not tryleft" case
-            msg = "unreachable"
-            raise RuntimeError(msg)
-
     except Exception:
-        if not env.cr.closed:
-            with suppress(Exception):
-                env.transaction.reset()
-            with suppress(Exception):
-                env.registry.reset_changes()
+        _reset_env_state(env)
         raise
 
     # The commit runs in its OWN guarded block, deliberately NOT inside the
@@ -224,22 +205,25 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         if not env.cr.closed:
             env.cr.commit()  # effectively commits and execute post-commits
     except Exception as exc:
-        if not env.cr.closed:
+        _reset_env_state(env)
+        if not env.cr.closed and isinstance(exc, IntegrityError):
+            # Best-effort: build the translation under ``suppress`` so a
+            # failure inside it (dead cursor, missing diag) falls through
+            # to the raw error instead of masking it with a second crash.
+            translated = None
             with suppress(Exception):
-                env.transaction.reset()
-            with suppress(Exception):
-                env.registry.reset_changes()
-            if isinstance(exc, IntegrityError):
-                # Best-effort: build the translation under ``suppress`` so a
-                # failure inside it (dead cursor, missing diag) falls through
-                # to the raw error instead of masking it with a second crash.
-                translated = None
-                with suppress(Exception):
-                    translated = _integrity_error_to_validation(env, exc)
-                if translated is not None:
-                    raise translated from exc
+                translated = _integrity_error_to_validation(env, exc)
+            if translated is not None:
+                raise translated from exc
         raise
-    env.registry.signal_changes()
+    # Same ``if not env.cr.closed`` guard the commit (and the in-loop
+    # rollback/reset) carry: when the cursor is closed the commit above was
+    # skipped, so the transaction never landed.  Signalling cache/registry
+    # invalidation here would broadcast a cluster-wide reload for a change that
+    # was never committed — spurious work, and an inconsistency with the very
+    # guard this function applies everywhere else.
+    if not env.cr.closed:
+        env.registry.signal_changes()
     return result
 
 
