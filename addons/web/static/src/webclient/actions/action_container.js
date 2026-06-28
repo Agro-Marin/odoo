@@ -4,6 +4,7 @@
 /** @module @web/webclient/actions/action_container - Thin OWL wrapper rendering the current action's component inside the action manager div */
 
 import { Component, onWillDestroy, xml } from "@odoo/owl";
+import { AppEvent } from "@web/core/events";
 
 // -----------------------------------------------------------------------------
 // ActionContainer (Component)
@@ -36,12 +37,12 @@ export class ActionContainer extends Component {
             this._renderWithViewTransition();
         };
         this.env.bus.addEventListener(
-            "ACTION_MANAGER:UPDATE",
+            AppEvent.ACTION_MANAGER_UPDATE,
             this.onActionManagerUpdate,
         );
         onWillDestroy(() => {
             this.env.bus.removeEventListener(
-                "ACTION_MANAGER:UPDATE",
+                AppEvent.ACTION_MANAGER_UPDATE,
                 this.onActionManagerUpdate,
             );
         });

@@ -4,7 +4,7 @@
 /** @module @web/core/network/rpc_cache - Encrypted RAM/IndexedDB cache for RPC responses */
 
 import { ConnectionLostError } from "@web/core/network/rpc";
-import { deepCopy } from "@web/core/utils/collections/objects";
+import { deepCopy, deepEqual } from "@web/core/utils/collections/objects";
 import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
@@ -23,13 +23,9 @@ import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
  * every key. Callers pass ``params.model`` from the JSON-RPC payload.
  */
 
-function jsonEqual(/** @type {any} */ v1, /** @type {any} */ v2) {
-    return JSON.stringify(v1) === JSON.stringify(v2);
-}
-
 /**
- * Server-emitted content-hash field that the cache uses to skip ``jsonEqual``
- * on stale-while-revalidate refreshes (``update: "always"`` consumers).
+ * Server-emitted content-hash field that the cache uses to skip the deep
+ * compare on stale-while-revalidate refreshes (``update: "always"`` consumers).
  * Endpoints that opt in inject this field into their dict return value; the
  * cache compares versions in O(1) instead of deep-serializing both payloads.
  *
@@ -47,7 +43,7 @@ const VERSION_FIELD = "__version";
  * Catches the common "row appended / row removed" case in
  * list-returning cached endpoints (``web_read``, template dropdowns,
  * m2o special data) without serializing.  Benchmark: ~400× faster than
- * ``jsonEqual`` on a 200-record list when length differs by one.
+ * a full deep compare on a 200-record list when length differs by one.
  */
 function shapeDiffers(/** @type {any} */ a, /** @type {any} */ b) {
     if (Array.isArray(a)) {
@@ -69,7 +65,12 @@ function shapeDiffers(/** @type {any} */ a, /** @type {any} */ b) {
  *   2. Version-hash compare when both sides carry ``__version`` (Plan C —
  *      endpoints opted in via the ``versioned`` decorator).
  *   3. Structural shape disqualifier (``Array.length`` / ``Object.keys.length``).
- *   4. Full deep compare via ``jsonEqual``.
+ *   4. Full order-independent deep compare via ``deepEqual``. (A previous
+ *      ``JSON.stringify`` byte-compare was key-order-fragile: the server can
+ *      emit dict keys in a different insertion order across two runs of the
+ *      same query — the reason ``__version`` hashing uses ``sort_keys=True`` —
+ *      which made it report a spurious change and needlessly re-deliver +
+ *      re-persist identical payloads on every refresh.)
  *
  * @param {any} fromCacheValue prior cached value (may be null/undefined)
  * @param {any} result freshly-fetched server value
@@ -92,7 +93,7 @@ function payloadChanged(fromCacheValue, result) {
     if (shapeDiffers(fromCacheValue, result)) {
         return true;
     }
-    return !jsonEqual(fromCacheValue, result);
+    return !deepEqual(fromCacheValue, result);
 }
 
 function validateSettings(/** @type {{ type: string, update: string }} */ { type, update }) {

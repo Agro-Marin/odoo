@@ -69,7 +69,7 @@ export class WebClient extends Component {
         });
         useBus(
             this.env.bus,
-            "ACTION_MANAGER:UI-UPDATED",
+            AppEvent.ACTION_MANAGER_UI_UPDATED,
             /** @type {any} */ (
                 ({ detail: mode }) => {
                     if (mode !== "new") {

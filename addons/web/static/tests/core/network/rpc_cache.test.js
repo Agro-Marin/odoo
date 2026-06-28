@@ -322,6 +322,45 @@ test("update callback - Ram Value", async () => {
     });
 });
 
+test("update callback - reordered keys are not a change (order-independent compare)", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+
+    // Seed the cache with {a, b}.
+    await rpcCache.read("table", "key", () => Promise.resolve({ a: 1, b: 2 }));
+
+    const def = new Deferred();
+    let observedHasChanged;
+    await rpcCache.read(
+        "table",
+        "key",
+        () => {
+            expect.step("Fallback");
+            return def;
+        },
+        {
+            update: "always",
+            callback: (result, hasChanged) => {
+                expect.step("Callback");
+                observedHasChanged = hasChanged;
+            },
+        },
+    );
+    expect.verifySteps(["Fallback"]);
+
+    // The server returns the SAME values with keys in a different insertion
+    // order. A byte-compare (JSON.stringify) would report a spurious change; the
+    // deep compare must treat it as unchanged so we don't needlessly re-deliver
+    // and re-persist identical payloads on every `update: "always"` refresh.
+    def.resolve({ b: 2, a: 1 });
+    await microTick();
+    expect.verifySteps(["Callback"]);
+    expect(observedHasChanged).toBe(false);
+});
+
 test("update callback - Disk Value", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",

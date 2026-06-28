@@ -9,11 +9,13 @@ import {
     defineModels,
     fieldInput,
     fields,
+    findComponent,
     models,
     mountView,
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { Field } from "@web/fields/field";
 
 class Currency extends models.Model {
     digits = fields.Integer();
@@ -855,6 +857,32 @@ test("char field with placeholder", async () => {
             message: "placeholder attribute should be set",
         },
     );
+});
+
+test("placeholder is passed to the widget without mutating the shared arch node", async () => {
+    const view = await mountView({
+        type: "form",
+        resModel: "res.partner",
+        arch: `
+        <form>
+            <sheet>
+                <group>
+                    <field name="name" placeholder="Placeholder" />
+                </group>
+            </sheet>
+        </form>`,
+    });
+    // The widget must still receive the placeholder...
+    expect(".o_field_widget[name='name'] input").toHaveAttribute(
+        "placeholder",
+        "Placeholder",
+    );
+    // ...but `fieldInfo` is the parsed arch node, shared by every Field instance
+    // for this node (e.g. all rows of a list column). Field.fieldComponentProps
+    // must NOT assign `placeholder` onto it (which would pollute the shared node
+    // across records and risk render loops if it were ever made reactive).
+    const field = findComponent(view, (c) => c instanceof Field);
+    expect("placeholder" in field.props.fieldInfo).toBe(false);
 });
 
 test("Form: placeholder_field shows as placeholder", async () => {

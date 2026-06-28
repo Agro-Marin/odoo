@@ -370,9 +370,20 @@ export class Field extends Component {
                     fieldInfo.attrs.placeholder ||
                     fieldInfo.options.placeholder_field
                 ) {
-                    fieldInfo.placeholder =
-                        record.data[fieldInfo.options.placeholder_field] ||
-                        fieldInfo.attrs.placeholder;
+                    // ``fieldInfo`` is the parsed arch node, cached and shared by
+                    // every Field instance for this node (e.g. all rows of a list
+                    // column). The placeholder is record-specific
+                    // (``record.data[placeholder_field]``), so assigning
+                    // ``fieldInfo.placeholder`` in place would pollute the shared
+                    // node across records (and would trigger render loops if the
+                    // arch node were ever made reactive). Shallow-copy instead —
+                    // only when a placeholder is actually in play.
+                    fieldInfo = {
+                        ...fieldInfo,
+                        placeholder:
+                            record.data[fieldInfo.options.placeholder_field] ||
+                            fieldInfo.attrs.placeholder,
+                    };
                 }
 
                 const dynamicInfo = {

@@ -167,7 +167,7 @@ test(`width computation: no record, lot of fields`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 80, 89, 102, 99, 188, 114, 100]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 188, 149, 100]);
 });
 
 test(`width computation: no record, few fields`, async () => {
@@ -182,7 +182,7 @@ test(`width computation: no record, few fields`, async () => {
                 <field name="int_field"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 109, 559, 91]);
+    expect(getColumnWidths()).toEqual([40, 109, 450, 201]);
 });
 
 test(`width computation: no record, all fields with a max width`, async () => {
@@ -197,7 +197,7 @@ test(`width computation: no record, all fields with a max width`, async () => {
                 <field name="qux"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 262, 233, 266]);
+    expect(getColumnWidths()).toEqual([40, 189, 270, 301]);
 });
 
 test(`width computation: no record, sample data`, async () => {
@@ -214,7 +214,7 @@ test(`width computation: no record, sample data`, async () => {
                 <field name="int_field"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 109, 186, 186, 186, 91]);
+    expect(getColumnWidths()).toEqual([40, 109, 160, 160, 160, 172]);
 });
 
 test(`width computation: with records, lot of fields`, async () => {
@@ -234,7 +234,7 @@ test(`width computation: with records, lot of fields`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 80, 89, 102, 99, 188, 114, 100]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 188, 149, 100]);
 });
 
 test(`width computation: with records, lot of fields, grouped`, async () => {
@@ -257,7 +257,7 @@ test(`width computation: with records, lot of fields, grouped`, async () => {
         groupBy: ["int_field"],
     });
     expect(`.o_resize`).toHaveCount(9);
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 80, 89, 102, 99, 188, 114, 34, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 188, 149, 34, 32]);
 });
 
 test(`width computation: with records, few fields`, async () => {
@@ -271,7 +271,7 @@ test(`width computation: with records, few fields`, async () => {
                 <field name="int_field"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 109, 559, 91]);
+    expect(getColumnWidths()).toEqual([40, 109, 450, 201]);
 });
 
 test(`width computation: with records, no relative fields`, async () => {
@@ -286,7 +286,7 @@ test(`width computation: with records, no relative fields`, async () => {
                 <field name="date"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 199, 170, 192, 200]);
+    expect(getColumnWidths()).toEqual([40, 145, 225, 245, 146]);
 });
 
 test(`width computation: with records, very long text field`, async () => {
@@ -308,7 +308,7 @@ test(`width computation: with records, very long text field`, async () => {
                 <field name="qux"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 29, 618, 113]);
+    expect(getColumnWidths()).toEqual([40, 29, 590, 140]);
 });
 
 test(`width computation: with records, lot of fields, long texts`, async () => {
@@ -333,7 +333,7 @@ test(`width computation: with records, lot of fields, long texts`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 80, 102, 99, 89, 188, 114, 100]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 129, 99, 89, 188, 149, 100]);
 });
 
 test(`width computation: editable list, overflowing table`, async () => {
@@ -467,7 +467,7 @@ test(`width computation: list with width attribute in arch`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expect(getColumnWidths()).toEqual([40, 61, 72, 102, 524]);
+    expect(getColumnWidths()).toEqual([40, 61, 72, 210, 417]);
 });
 
 test(`width computation: datetime in numeric, am/pm format`, async () => {
@@ -561,7 +561,7 @@ test(`width computation: x2many`, async () => {
     });
 
     const columnWidths = getColumnWidths();
-    expect(columnWidths[1]).toBeGreaterThan(380);
+    expect(columnWidths[1]).toBeGreaterThan(340);
 });
 
 test(`width computation: x2many, column_invisible`, async () => {
@@ -586,12 +586,12 @@ test(`width computation: x2many, column_invisible`, async () => {
 
     let columnWidths = getColumnWidths();
     const fooWidth = columnWidths[1];
-    expect(fooWidth).toBeGreaterThan(380);
+    expect(fooWidth).toBeGreaterThan(340);
 
     await contains(".o_field_widget[name=bar] input").click();
     columnWidths = getColumnWidths();
     expect(columnWidths[2]).toBeLessThan(fooWidth);
-    expect(columnWidths[2]).toBeGreaterThan(220);
+    expect(columnWidths[2]).toBeGreaterThan(180);
 });
 
 test(`width computation: x2many, editable list, initially invisible, overflowing`, async () => {
@@ -708,11 +708,11 @@ test(`width computation: widths are re-computed on window resize`, async () => {
         `,
     });
 
-    expect(getColumnWidths()).toEqual([40, 80, 680]);
+    expect(getColumnWidths()).toEqual([40, 109, 651]);
 
     resize({ width: queryRect(getFixture()).width * 1.2 });
     await runAllTimers();
-    expect(getColumnWidths()).toEqual([40, 80, 840]);
+    expect(getColumnWidths()).toEqual([40, 109, 811]);
 });
 
 test(`width computation: widths are re-computed on parent resize`, async () => {
@@ -732,11 +732,11 @@ test(`width computation: widths are re-computed on parent resize`, async () => {
         `,
     });
 
-    expect(getColumnWidths()).toEqual([40, 80, 680]);
+    expect(getColumnWidths()).toEqual([40, 109, 651]);
 
     queryOne(".o_list_renderer").style.width = "600px";
     await runAllTimers();
-    expect(getColumnWidths()).toEqual([40, 80, 480]);
+    expect(getColumnWidths()).toEqual([40, 109, 451]);
 });
 
 test(`width computation: button columns don't have a max width`, async () => {
@@ -1215,16 +1215,16 @@ test(`freeze widths: toggle optional fields`, async () => {
 
     await contains(".o_optional_columns_dropdown_toggle").click();
     await contains(".dropdown-item input:eq(0)").click();
-    expectedColumnWidthsToBeCloseTo([40, 99, 337, 102, 189, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 99, 230, 210, 189, 32]);
 
     await contains(".dropdown-item input:eq(1)").click();
-    expect(getColumnWidths()).toEqual([40, 99, 526, 102, 32]);
+    expect(getColumnWidths()).toEqual([40, 99, 419, 210, 32]);
 
     await contains(".dropdown-item input:eq(2)").click();
-    expect(getColumnWidths()).toEqual([40, 99, 89, 102, 437, 32]);
+    expect(getColumnWidths()).toEqual([40, 99, 89, 129, 410, 32]);
 
     await contains(".dropdown-item input:eq(1)").click();
-    expectedColumnWidthsToBeCloseTo([40, 99, 89, 103, 189, 247, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 99, 89, 130, 189, 220, 32]);
 });
 
 test(`freeze widths: x2many, add first record`, async () => {
@@ -1328,7 +1328,7 @@ test(`freeze widths: x2many, toggle optional field`, async () => {
 
     await contains(".o_optional_columns_dropdown_toggle").click();
     await contains(".dropdown-item input").click();
-    expect(getColumnWidths()).toEqual([110, 545, 80, 32]);
+    expect(getColumnWidths()).toEqual([110, 436, 190, 32]);
 });
 
 // manually resize columns
@@ -1404,27 +1404,27 @@ test(`resize column, then resize window`, async () => {
         `,
     });
 
-    expect(getColumnWidths()).toEqual([40, 80, 680]);
+    expect(getColumnWidths()).toEqual([40, 189, 571]);
 
     // Resize column foo to middle of column int_field.
     await contains(`th:eq(1) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
-    expect(getColumnWidths()).toEqual([40, 520, 679]);
+    expect(getColumnWidths()).toEqual([40, 574, 570]);
 
     // Resize the window
     resize({ width: 1200 });
     await runAllTimers();
     await animationFrame();
-    expect(getColumnWidths()).toEqual([40, 80, 1080]); // all available space should be used again
+    expect(getColumnWidths()).toEqual([40, 189, 971]); // all available space should be used again
 
     // Reduce size of column foo
     await contains(`th:eq(2) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
-    expect(getColumnWidths()).toEqual([40, 80, 591]);
+    expect(getColumnWidths()).toEqual([40, 189, 536]);
 
     // Resize the window
     resize({ width: 1000 });
     await runAllTimers();
     await animationFrame();
-    expect(getColumnWidths()).toEqual([40, 80, 880]); // all available space should be used again
+    expect(getColumnWidths()).toEqual([40, 189, 771]); // all available space should be used again
 });
 
 test(`resize column and toggle check all`, async () => {
