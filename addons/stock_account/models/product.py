@@ -135,18 +135,44 @@ class ProductProduct(models.Model):
         help="Technical field to correctly show the currently selected company's currency that corresponds "
              "to the totaled value of the product's valuation layers")
 
-    @api.depends_context('to_date', 'company', 'warehouse_id')
+    @api.depends_context('to_date', 'company', 'allowed_company_ids', 'warehouse_id')
     @api.depends('cost_method', 'stock_move_ids.value', 'standard_price')
     def _compute_value(self):
-        company_id = self.env.company
-        self.company_currency_id = company_id.currency_id
-        products = self._with_valuation_context()
+        main_currency = self.env.company.currency_id
+        self.company_currency_id = main_currency
 
         at_date = fields.Datetime.to_datetime(self.env.context.get('to_date'))
         if at_date:
             at_date = at_date.replace(hour=23, minute=59, second=59)
-            products = self.with_context(at_date=at_date)
 
+        # `compute_sudo=True` bypasses the company record rules, so the valuation cannot
+        # rely on them to stay isolated per company. Value each selected company on its
+        # own scope (own quantities/moves/prices), then aggregate converting every
+        # company's value into the main company's currency (adapts odoo/odoo#270575).
+        std_price_by_company_id = {}
+        total_value_by_company_id = {}
+        for company in self.env.companies:
+            products = self.with_company(company).with_context(allowed_company_ids=company.ids)
+            products = products._with_valuation_context()
+            if at_date:
+                products = products.with_context(at_date=at_date)
+            std_price_by_company_id[company.id], total_value_by_company_id[company.id] = (
+                self._run_valuation_batches(products, at_date)
+            )
+
+        for product in self:
+            product.total_value = sum(
+                company.currency_id._convert(
+                    total_value_by_company_id[company.id].get(product.id, 0), main_currency
+                )
+                for company in self.env.companies
+            )
+            product.avg_cost = std_price_by_company_id[self.env.company.id].get(product.id, product.standard_price)
+
+    def _run_valuation_batches(self, products, at_date):
+        """Value ``products`` (already in their valuation context/scope) and return
+        ``(std_price_by_product_id, total_value_by_product_id)``, the total value having
+        the warehouse ratio already applied."""
         # PERF: Pre-compute:the sum of 'total_value' of lots per product in go
         std_price_by_product_id = {}
         total_value_by_product_id = {}
@@ -155,13 +181,13 @@ class ProductProduct(models.Model):
             domain = Domain([('product_id', 'in', lot_valuated_products_ids)])
             if not self.env.context.get('warehouse_id'):
                 domain &= Domain([('product_qty', '!=', 0)])
-            lots_by_product = self.env['stock.lot']._read_group(
+            lots_by_product = products.env['stock.lot']._read_group(
                 domain,
                 groupby=['product_id'],
                 aggregates=['id:recordset']
             )
             # Collect all lots and trigger batch computation of total_value
-            self.env['stock.lot'].browse(
+            products.env['stock.lot'].browse(
                     lot.id
                     for _, lots in lots_by_product
                     for lot in lots
@@ -177,7 +203,13 @@ class ProductProduct(models.Model):
             if product.lot_valuated:
                 continue
             product_whole_company_context = product.with_context(warehouse_id=False)
-            if product.uom_id.is_zero(product.qty_available):
+            # A negative owned on-hand that is fully offset by non-owned consignment
+            # stock is not a real oversold position: it has no cost basis, so value it
+            # like an empty valued quantity instead of `qty * standard_price`.
+            if product.uom_id.is_zero(product.qty_available) or (
+                product.uom_id.compare(product.qty_available, 0) < 0
+                and product._is_negative_owned_offset_by_consignment(at_date)
+            ):
                 total_value_by_product_id[product.id] = 0
                 std_price_by_product_id[product.id] = product.standard_price
                 continue
@@ -197,21 +229,20 @@ class ProductProduct(models.Model):
                 product_ids_grouped_by_cost_method['fifo'].add(product.id)
 
         for cost_method, product_ids in product_ids_grouped_by_cost_method.items():
-            products = products.env['product.product'].browse(product_ids).with_context(warehouse_id=False)
+            valued_products = products.env['product.product'].browse(product_ids).with_context(warehouse_id=False)
             # To remove once price_unit isn't truncate in sql anymore (no need of force_recompute)
             if cost_method == 'standard':
-                std_prices, total_values = products._run_standard_batch(at_date=at_date)
+                std_prices, total_values = valued_products._run_standard_batch(at_date=at_date)
             elif cost_method == 'average':
-                std_prices, total_values = products._run_average_batch(at_date=at_date, force_recompute=True)
+                std_prices, total_values = valued_products._run_average_batch(at_date=at_date, force_recompute=True)
             else:
-                std_prices, total_values = products._run_fifo_batch(at_date=at_date)
+                std_prices, total_values = valued_products._run_fifo_batch(at_date=at_date)
 
             std_price_by_product_id.update(std_prices)
-            total_value_by_product_id.update(total_values)
+            for product_id, total_value in total_values.items():
+                total_value_by_product_id[product_id] = total_value * ratio_by_product_id.get(product_id, 1)
 
-        for product in self:
-            product.avg_cost = std_price_by_product_id.get(product.id, product.standard_price)
-            product.total_value = total_value_by_product_id.get(product.id, 0) * ratio_by_product_id.get(product.id, 1)
+        return std_price_by_product_id, total_value_by_product_id
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -288,8 +319,30 @@ class ProductProduct(models.Model):
         last_in = self.env['stock.move'].search(last_in_domain, order='date desc, id desc', limit=1)
         return last_in
 
+    def _is_negative_owned_offset_by_consignment(self, at_date=None):
+        """Whether the product's negative owned on-hand is fully covered by non-owned
+        consignment stock in the valuation scope, i.e. there is no real short position
+        to value (vs. a genuine oversold position, which must be valued negatively).
+
+        Read straight from quants to bypass the owner-insensitive ``qty_available``
+        cache; only meaningful at the current date, hence skipped when ``at_date`` is
+        set (a historical short position is valued normally)."""
+        self.ensure_one()
+        if at_date:
+            return False
+        # Same location/warehouse scope as qty_available, but without the owner filter.
+        domain = Domain([('product_id', '=', self.id)]) & self._get_domain_locations()[0]
+        physical_qty = sum(self.env['stock.quant'].sudo().search(domain).mapped('quantity'))
+        return self.uom_id.compare(physical_qty, 0) >= 0
+
     def _with_valuation_context(self):
-        valued_locations = self.env['stock.location'].search([('is_valued_internal', '=', True)])
+        # Scope valued locations to the selected companies explicitly: valuation is
+        # computed sudo (compute_sudo=True), which bypasses the company record rules,
+        # so without this filter quantities would leak across companies.
+        valued_locations = self.env['stock.location'].search([
+            ('is_valued_internal', '=', True),
+            ('company_id', 'in', [*self.env.companies.ids, False]),
+        ])
         return self.with_context(location=valued_locations.ids, owners=[False, self.env.company.partner_id.id])
 
     def _get_remaining_moves(self):
@@ -525,7 +578,13 @@ class ProductProduct(models.Model):
                 continue
             products_by_cost_method[product.cost_method].add(product.id)
         for cost_method, product_ids in products_by_cost_method.items():
-            products = self.env['product.product'].browse(product_ids)
+            # `total_value`/`avg_cost` are computed in sudo (compute_sudo=True) and
+            # are thus global, while `qty_available` follows the user's record rules
+            # (e.g. a rule restricting access to specific warehouses/locations).
+            # Computing `total_value / qty_available` with a partial `qty_available`
+            # yields an aberrant standard price, so update the price in sudo to keep
+            # both terms global. See odoo/odoo#270559.
+            products = self.env['product.product'].sudo().browse(product_ids)
             if cost_method == 'standard':
                 continue
             if cost_method == 'fifo':
@@ -538,7 +597,7 @@ class ProductProduct(models.Model):
                             product.sudo().with_context(disable_auto_revaluation=True).standard_price = last_in_price_unit
                 continue
             if cost_method == 'average':
-                new_standard_price_by_product = self._run_average_batch(force_recompute=True)[0]
+                new_standard_price_by_product = products._run_average_batch(force_recompute=True)[0]
                 for product in products:
                     if product.id in new_standard_price_by_product:
                         product.with_context(disable_auto_revaluation=True).sudo().standard_price = new_standard_price_by_product[product.id]

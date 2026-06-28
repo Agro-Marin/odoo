@@ -59,7 +59,6 @@
             'web/static/src/scss/rtl_icon_flip.scss',
             'web/static/src/session.js',
 
-            'web/static/lib/luxon/luxon.js',
             'web/static/src/libs/bootstrap.js',
 
             ('include', 'web._assets_bootstrap'),
@@ -112,8 +111,6 @@
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
     'esm': {
-        # ESM/esbuild bundle taxonomy — aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         'bundles': [
             'mrp_subcontracting.webclient',
         ],

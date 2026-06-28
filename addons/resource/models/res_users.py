@@ -1,5 +1,5 @@
 from odoo import fields, models
-from odoo.orm._typing import ValuesType
+from odoo.models import ValuesType
 
 
 class ResUsers(models.Model):

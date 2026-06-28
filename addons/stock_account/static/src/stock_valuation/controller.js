@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { luxon } from "@web/core/l10n/luxon";
 import { reactive } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";

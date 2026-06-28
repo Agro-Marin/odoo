@@ -7,7 +7,7 @@ from pytz import timezone
 
 from odoo import api, fields, models
 from odoo.libs.intervals import Intervals
-from odoo.orm._typing import ValuesType
+from odoo.models import ValuesType
 from odoo.tools import babel_locale_parse, get_lang
 from odoo.tools.date_utils import (
     localized,

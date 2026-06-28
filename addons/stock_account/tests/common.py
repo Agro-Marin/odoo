@@ -136,7 +136,9 @@ class TestStockValuationCommon(BaseCommon):
             ''picking_type_id: picking type
             ''uom_id: Unit of measure
             ''owner_id: Consignment owner
+            ''user: User performing the move
         """
+        env = self.env(user=kwargs['user']) if kwargs.get('user') else self.env
         product_qty = quantity
         if kwargs.get('uom_id'):
             uom = self.env['uom.uom'].browse(kwargs.get('uom_id'))
@@ -154,10 +156,10 @@ class TestStockValuationCommon(BaseCommon):
             move_vals['price_unit'] = unit_cost
         else:
             move_vals['value_manual'] = product.standard_price * product_qty
-        in_move = self.env['stock.move'].create(move_vals)
+        in_move = env['stock.move'].create(move_vals)
 
         if create_picking:
-            picking = self.env['stock.picking'].create({
+            picking = env['stock.picking'].create({
                 'picking_type_id': in_move.picking_type_id.id,
                 'location_id': in_move.location_id.id,
                 'location_dest_id': in_move.location_dest_id.id,
@@ -211,8 +213,10 @@ class TestStockValuationCommon(BaseCommon):
             ''picking_type_id: picking type
             ''uom_id: Unit of measure
             ''owner_id: Consignment owner
+            ''user: User performing the move
         """
-        out_move = self.env['stock.move'].create({
+        env = self.env(user=kwargs['user']) if kwargs.get('user') else self.env
+        out_move = env['stock.move'].create({
             'product_id': product.id,
             'location_id': kwargs.get('location_id', self.stock_location.id),
             'location_dest_id': kwargs.get('location_dest_id', self.customer_location.id),
@@ -222,7 +226,7 @@ class TestStockValuationCommon(BaseCommon):
         })
 
         if create_picking:
-            picking = self.env['stock.picking'].create({
+            picking = env['stock.picking'].create({
                 'picking_type_id': out_move.picking_type_id.id,
                 'location_id': out_move.location_id.id,
                 'location_dest_id': out_move.location_dest_id.id,

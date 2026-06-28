@@ -12,6 +12,7 @@
                 <field name="partner_id" operator="child_of" />
                 <field name="user_id" />
                 <field name="product_id" />
+                <field name="tag_ids" />
                 <field name="activity_user_id" string="Activities of" />
                 <field name="activity_type_id" string="Activity type" />
                 <filter name="filter_activities_my" string="My Activities"
@@ -35,6 +36,8 @@
                         context="{'group_by': 'partner_id'}" />
                     <filter name="representative" string="Buyer"
                         context="{'group_by': 'user_id'}" />
+                    <filter name="tags" string="Tags"
+                        context="{'group_by': 'tag_ids'}" />
                     <filter name="order_month" string="Order Date"
                         context="{'group_by': 'date_order'}" />
                 </group>
@@ -145,8 +148,8 @@
             <graph string="Purchase Orders" sample="1" type="bar" stacked="1">
                 <field name="date_order" />
                 <field name="state" />
-                <field name="amount_total" type="measure" />
                 <field name="amount_untaxed" type="measure" />
+                <field name="amount_total" type="measure" />
             </graph>
         </field>
     </record>
@@ -155,9 +158,11 @@
         <field name="name">purchase.order.kanban</field>
         <field name="model">purchase.order</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" js_class="purchase_dashboard_kanban" sample="1"
+            <kanban
+                class="o_kanban_mobile"
+                js_class="purchase_dashboard_kanban"
+                sample="1"
                 quick_create="false">
-                <field name="date_order" />
                 <field name="currency_id" />
                 <progressbar field="activity_state"
                     colors='{"planned": "success", "today": "warning", "overdue": "danger"}' />
@@ -172,7 +177,8 @@
                         <footer class="align-items-end">
                             <div class="d-flex flex-wrap gap-1 text-muted text-nowrap">
                                 <field name="name" />
-                                <field name="date_order" options="{'show_time': false}" />
+                                <field name="date_order"
+                                    options="{'show_time': false}" />
                                 <field name="activity_ids" widget="kanban_activity" />
                             </div>
                             <field name="state"
@@ -205,19 +211,28 @@
         <field name="priority" eval="1" />
         <field name="arch" type="xml">
             <list string="Purchase Orders"
-                sample="1" decoration-muted="state=='cancel'">
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
-                <field name="name" string="Reference" readonly="1"
+                sample="1"
+                decoration-muted="state=='cancel'">
+
+                <field name="priority"
+                    widget="priority"
+                    nolabel="1"
+                    optional="show" />
+                <field name="name" string="Reference"
+                    readonly="1"
                     decoration-info="state == 'draft'" />
-                <field name="date_order" column_invisible="not context.get('quotation_only', False)"
+                <field name="date_order"
+                    column_invisible="not context.get('quotation_only', False)"
                     readonly="state in ['done', 'cancel']" optional="show" />
-                <field name="date_confirmed" column_invisible="context.get('quotation_only', False)"
+                <field name="date_confirmed"
+                    column_invisible="context.get('quotation_only', False)"
                     optional="show" />
                 <field name="partner_id" readonly="1" />
+                <field name="origin" optional="hide" />
                 <field name="partner_ref" optional="hide" />
                 <field name="activity_ids" string="Next Activity" widget="list_activity" />
+                <field name="activity_exception_decoration" widget="activity_exception" />
                 <field name="user_id" optional="show" />
-                <field name="origin" optional="hide" />
                 <field name="amount_untaxed" sum="Total Untaxed amount" string="Untaxed"
                     widget="monetary" optional="hide" />
                 <field name="amount_total" sum="Total amount" widget="monetary" optional="show" />
@@ -239,7 +254,8 @@
                     decoration-danger="invoice_state == 'over done'"
                     column_invisible="context.get('quotation_only', False)"
                     optional="hide" />
-                <field name="activity_exception_decoration" widget="activity_exception" />
+                <field name="tag_ids" widget="many2many_tags"
+                    options="{'color_field': 'color'}" optional="hide" />
                 <field name="company_id" readonly="1" options="{'no_create': True}"
                     groups="base.group_multi_company" optional="show" />
             </list>
@@ -254,44 +270,63 @@
         <field name="model">purchase.order</field>
         <field name="priority" eval="10" />
         <field name="arch" type="xml">
-            <list string="Purchase Orders" decoration-info="state == 'draft'"
-                decoration-muted="state == 'cancel'"
+            <list string="Purchase Orders"
+                class="o_purchase_order"
+                js_class="purchase_dashboard_list"
+                sample="1"
                 multi_edit="1"
-                class="o_purchase_order" js_class="purchase_dashboard_list" sample="1">
+                decoration-info="state == 'draft'"
+                decoration-muted="state == 'cancel'">
                 <header>
-                    <button name="action_cancel" type="object" string="Cancel"
+                    <button
+                        name="action_cancel"
+                        string="Cancel"
+                        type="object"
                         confirm="Are you sure you want to cancel the selected RFQs/Orders?" />
                 </header>
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
-                <field name="partner_ref" optional="hide" />
-                <field name="name" string="Reference" readonly="1" decoration-bf="1" />
-                <field name="date_confirmed" column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
-                <field name="partner_id" readonly="1" />
-                <field name="company_id" readonly="1" options="{'no_create': True}"
-                    groups="base.group_multi_company" optional="show" />
-                <field name="company_id" groups="!base.group_multi_company" column_invisible="True"
+                <field name="currency_id" column_invisible="True"
                     readonly="state in ['done', 'cancel']" />
-                <field name="date_planned" column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
-                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+
+                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field name="name" string="Reference" readonly="1" decoration-bf="1" />
                 <field name="date_order"
                     invisible="state == 'done' or state == 'cancel'"
                     column_invisible="not context.get('quotation_only', False)"
                     readonly="state in ['done', 'cancel']" widget="remaining_days"
                     optional="show" />
-                <field name="activity_ids" widget="list_activity" optional="show" />
+                <field name="date_confirmed" column_invisible="context.get('quotation_only', False)"
+                    optional="show" />
+                <field name="date_planned" column_invisible="context.get('quotation_only', False)"
+                    optional="show" />
+                <field name="partner_id" readonly="1" />
                 <field name="origin" optional="hide" />
-                <field name="amount_untaxed" sum="Total Untaxed amount" string="Untaxed"
-                    widget="monetary" optional="hide" />
-                <field name="amount_total" sum="Total amount" widget="monetary" optional="show"
-                    decoration-bf="state == 'done'" />
-                <field name="currency_id" column_invisible="True"
-                    readonly="state in ['done', 'cancel']" />
-                <field name="state" optional="show" widget="badge"
+                <field name="partner_ref" optional="hide" />
+                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+                <field name="activity_ids" widget="list_activity" optional="show" />
+                <field name="amount_untaxed" string="Untaxed"
+                    widget="monetary"
+                    sum="Total Untaxed amount"
+                    optional="hide" />
+                <field name="amount_total"
+                    widget="monetary"
+                    sum="Total amount"
+                    decoration-bf="state == 'done'"
+                    optional="show" />
+                <field name="state"
+                    widget="badge"
                     decoration-success="state == 'done'"
-                    decoration-info="state == 'draft'" />
-                <field name="invoice_state" optional="hide" />
+                    decoration-info="state == 'draft'"
+                    optional="show" />
+                <field name="invoice_state"
+                    optional="hide" />
+                <field name="company_id"
+                    readonly="1"
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" optional="show" />
+                <field name="company_id"
+                    groups="!base.group_multi_company"
+                    readonly="state in ['done', 'cancel']"
+                    column_invisible="True" />
             </list>
         </field>
     </record>
@@ -806,6 +841,8 @@
                                 <group name="responsible_info" string="Purchasing">
                                     <field name="user_id" domain="[('share', '=', False)]"
                                         widget="many2one_avatar_user" />
+                                    <field name="tag_ids" widget="many2many_tags"
+                                        options="{'color_field': 'color'}" />
                                     <field name="company_id" groups="base.group_multi_company"
                                         options="{'no_create': True}"
                                         readonly="state in ['done', 'cancel']" />

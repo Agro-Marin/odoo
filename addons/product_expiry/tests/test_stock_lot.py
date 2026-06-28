@@ -726,3 +726,30 @@ class TestStockLot(TestStockCommon):
         wizard = self.env['expiry.picking.confirmation'].with_context(context).create({})
         self.assertFalse(wizard.picking_ids.move_line_ids.removal_date)
         wizard.process_no_expired()
+
+    def test_reordering_rule_for_expiring_product(self):
+        """Test that products with future expiration dates are excluded from
+        forecasted quantities in reordering rules."""
+        receipt = self.env['stock.picking'].create({
+            'location_id': self.supplier_location.id,
+            'location_dest_id': self.stock_location.id,
+            'partner_id': self.partner_1.id,
+            'picking_type_id': self.picking_type_in.id,
+            'move_ids': [Command.create({
+                'product_id': self.apple_product.id,
+                'product_uom_qty': 10.0,
+            })],
+        })
+        receipt.action_confirm()
+        receipt.move_ids.lot_ids = self.LotObj.create({
+            'name': 'Lot1',
+            'product_id': self.apple_product.id,
+        })
+        receipt.button_validate()
+        reordering_rule = self.env['stock.warehouse.orderpoint'].create({
+            'product_id': self.apple_product.id,
+            'product_max_qty': 10,
+            'product_min_qty': 5,
+        })
+        self.assertEqual(self.env.company.horizon_days, 365)
+        self.assertRecordValues(reordering_rule, [{'qty_forecast': 10, 'qty_to_order': 0}])

@@ -5,7 +5,7 @@ from typing import Self
 from pytz import utc
 
 from odoo import api, fields, models
-from odoo.orm._typing import ValuesType
+from odoo.models import ValuesType
 from odoo.tools.date_utils import localized
 
 
