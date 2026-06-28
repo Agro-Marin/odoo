@@ -35,10 +35,10 @@ class IrBinary(models.AbstractModel):
         field: str | None = None,
     ) -> Any:
         """
-        Find and return a record either using an xmlid either a model+id
-        pair. This method is an helper for the ``/web/content`` and
+        Find and return a record using either an xmlid or a model+id
+        pair. This method is a helper for the ``/web/content`` and
         ``/web/image`` controllers and should not be used in other
-        contextes.
+        contexts.
 
         :param str | None xmlid: xmlid of the record
         :param str res_model: model of the record,
@@ -76,7 +76,7 @@ class IrBinary(models.AbstractModel):
         Low level method responsible for the actual conversion from a
         model record to a stream. This method is an extensible hook for
         other modules. It is not meant to be directly called from
-        outside or the ir.binary model.
+        outside the ir.binary model.
 
         :param record: the record where to load the data from.
         :param str field_name: the binary field where to load the data
@@ -129,7 +129,7 @@ class IrBinary(models.AbstractModel):
             from.
         :param str | None filename: when the stream is downloaded by
             a browser, what filename it should have on disk. By default
-            it is ``{model}-{id}-{field}.{extension}``, the extension is
+            it is ``{table}-{id}-{field}.{extension}``, the extension is
             determined thanks to mimetype.
         :param str filename_field: like ``filename`` but use
             one of the record's char field as filename.

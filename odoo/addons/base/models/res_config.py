@@ -4,8 +4,8 @@ from ast import literal_eval
 from typing import Any, Self
 
 from odoo import _, api, models
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, RedirectWarning, UserError
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 
@@ -62,20 +62,16 @@ class ResConfig(models.TransientModel):
     def action_next(self) -> dict[str, Any] | None:
         """Action handler for the ``next`` event.
 
-        Sets the status of the todo the event was sent from to
-        ``done``, calls ``execute`` and -- unless ``execute`` returned
-        an action dictionary -- executes the action provided by calling
-        ``next``.
+        Call ``execute`` and, unless it returns an action dictionary,
+        return ``_next_todo_action``.
         """
         return self.execute() or self._next_todo_action()
 
     def action_skip(self) -> dict[str, Any] | None:
         """Action handler for the ``skip`` event.
 
-        Sets the status of the todo the event was sent from to
-        ``skip``, calls ``cancel`` and -- unless ``cancel`` returned
-        an action dictionary -- executes the action provided by calling
-        ``next``.
+        Call ``cancel`` and, unless it returns an action dictionary,
+        return ``_next_todo_action``.
         """
         return self.cancel() or self._next_todo_action()
 
@@ -85,10 +81,8 @@ class ResConfig(models.TransientModel):
         inherited view has to overload one of the buttons (or add one
         more).
 
-        Sets the status of the todo the event was sent from to
-        ``cancel``, calls ``cancel`` and -- unless ``cancel`` returned
-        an action dictionary -- executes the action provided by calling
-        ``next``.
+        Call ``cancel`` and, unless it returns an action dictionary,
+        return ``_next_todo_action``.
         """
         return self.cancel() or self._next_todo_action()
 
@@ -102,13 +96,13 @@ class ResConfigSettings(models.TransientModel):
             _name = "my.settings"
             _inherit = ["res.config.settings"]
 
-            default_foo = (fields.type(..., default_model="my.model"),)
-            group_bar = (
-                fields.Boolean(..., group="base.group_user", implied_group="my.group"),
+            default_foo = fields.type(..., default_model="my.model")
+            group_bar = fields.Boolean(
+                ..., group="base.group_user", implied_group="my.group"
             )
-            module_baz = (fields.Boolean(...),)
+            module_baz = fields.Boolean(...)
             config_qux = fields.Char(..., config_parameter="my.parameter")
-            other_field = (fields.type(...),)
+            other_field = fields.type(...)
 
     The method ``execute`` provides some support based on a naming convention:
 
@@ -134,7 +128,7 @@ class ResConfigSettings(models.TransientModel):
         if the field has the value ``'1'``.
 
     *   For a field with no specific prefix BUT an attribute 'config_parameter',
-        ``execute``` will save its value in an ir.config.parameter (global setting for the
+        ``execute`` will save its value in an ir.config.parameter (global setting for the
         database).
 
     *   For the other fields, the method ``execute`` invokes `set_values`.
@@ -142,8 +136,7 @@ class ResConfigSettings(models.TransientModel):
 
     The method ``default_get`` retrieves values that reflect the current status of the
     fields like 'default_XXX', 'group_XXX', 'module_XXX' and config_XXX.
-    It also invokes all methods with a name that starts with 'get_default_';
-    such methods can be defined to provide current values for other fields.
+    It also invokes ``get_values`` to provide current values for the other fields.
     """
 
     _name = "res.config.settings"
@@ -188,7 +181,7 @@ class ResConfigSettings(models.TransientModel):
             {
                 "default": [("default_foo", "model", "foo"), ...],
                 "group": [("group_bar", [browse_group], browse_implied_group), ...],
-                "module": [("module_baz", browse_module), ...],
+                "module": browse_modules,  # recordset of ir.module.module
                 "config": [("config_qux", "my.parameter"), ...],
                 "other": ["other_field", ...],
             }
@@ -264,7 +257,7 @@ class ResConfigSettings(models.TransientModel):
     @api.model
     def get_values(self) -> dict[str, Any]:
         """
-        Return values for the fields other that `default`, `group` and `module`
+        Return values for the fields other than `default`, `group` and `module`
         """
         return {}
 
@@ -345,7 +338,7 @@ class ResConfigSettings(models.TransientModel):
 
     def set_values(self) -> None:
         """
-        Set values for the fields other that `default`, `group` and `module`
+        Set values for the fields other than `default`, `group` and `module`
         """
         # RCFG-L1: intrinsic admin gate. set_values performs sudo'd, ACL-bypassing
         # writes (ir.default, res.groups.implied_ids, ir.config_parameter); unlike
@@ -420,7 +413,7 @@ class ResConfigSettings(models.TransientModel):
         .. warning::
 
             This method **SHOULD NOT** be overridden, in most cases what you want to override is
-            `~set_values()` since `~execute()` does little more than simply call `~set_values()`.
+            `~set_values()` since `~execute()` does little more than call `~set_values()`.
 
             The part that installs/uninstalls modules **MUST ALWAYS** be at the end of the
             transaction, otherwise there's a big risk of registry <-> database desynchronisation.
@@ -503,7 +496,7 @@ class ResConfigSettings(models.TransientModel):
         :return: a 2-value tuple where
 
           - t[0]: string: full path to the menuitem (e.g.: "Settings/Configuration/Sales")
-          - t[1]: int or long: id of the menuitem's action
+          - t[1]: int: id of the menuitem's action
         """
         ir_ui_menu = self.env.ref(menu_xml_id)
         return (ir_ui_menu.complete_name, ir_ui_menu.action.id)
@@ -539,7 +532,7 @@ class ResConfigSettings(models.TransientModel):
 
         .. code-block:: python
 
-            raise env["ir..config.settings"](
+            raise self.get_config_warning(
                 _(
                     "Error: this action is prohibited. You should check the "
                     "field %(field:sale.config.settings.fetchmail_lead)s in "

@@ -8,14 +8,7 @@ from odoo.libs.json import loads as json_loads
 
 
 class ResUsersIdentitycheck(models.TransientModel):
-    """Wizard used to re-check the user's credentials (password) and eventually
-    revoke access to his account to every device he has an active session on.
-
-    Might be useful before the more security-sensitive operations, users might be
-    leaving their computer unlocked & unattended. Re-checking credentials mitigates
-    some of the risk of a third party using such an unattended device to manipulate
-    the account.
-    """
+    """Wizard that re-checks the user's password before running a security-sensitive (``check_identity``) action."""
 
     _name = "res.users.identitycheck"
     _description = "Password Check Wizard"

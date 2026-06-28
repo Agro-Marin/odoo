@@ -9,9 +9,9 @@ from typing import Any, Self
 import psycopg
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError
-from odoo.orm._typing import ValuesType
-from odoo.orm.registration import add_field
+from odoo.models import add_field
 from odoo.tools import OrderedSet, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
 
@@ -21,16 +21,7 @@ _logger = logging.getLogger(__name__)
 
 
 class IrModelData(models.Model):
-    """Holds external identifier keys for records in the database.
-    This has two main uses:
-
-        * allows easy data integration with third-party systems,
-          making import/export/sync of data possible, as records
-          can be uniquely identified across multiple systems
-        * allows tracking the origin of data installed by Odoo
-          modules themselves, thus making it possible to later
-          update them seamlessly.
-    """
+    """External identifier keys (XML ids) for records, enabling third-party data integration and tracking of module-installed data."""
 
     _name = "ir.model.data"
     _description = "Model Data"
@@ -131,8 +122,9 @@ class IrModelData(models.Model):
     def check_object_reference(
         self, module: str, xml_id: str, raise_on_access_error: bool = False
     ) -> tuple[str, int | bool]:
-        """Returns (model, res_id) corresponding to a given module and xml_id (cached), if and only if the user has the necessary access rights
-        to see that object, otherwise raise a ValueError if raise_on_access_error is True or returns a tuple (model found, False)
+        """Return (model, res_id) for the given module and xml_id, but only if the
+        current user has read access to that record. Otherwise raise an AccessError
+        if ``raise_on_access_error`` is True, or return (model, False).
         """
         model, res_id = self._xmlid_lookup(f"{module}.{xml_id}")
         # search on id found in result to check if current user has read access right
@@ -182,7 +174,7 @@ class IrModelData(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """Regular unlink method, but make sure to clear the caches."""
+        """Unlink, clearing the _xmlid_lookup cache and the groups cache for res.groups rows."""
         self.env.registry.clear_cache()  # _xmlid_lookup
         if self and any(data.model == "res.groups" for data in self.exists()):
             self.env.registry.clear_cache("groups")
@@ -309,9 +301,7 @@ class IrModelData(models.Model):
 
     @api.model
     def _load_xmlid(self, xml_id: str) -> Any:
-        """Simply mark the given XML id as being loaded, and return the
-        corresponding record.
-        """
+        """Mark the given XML id as loaded, and return the corresponding record."""
         record = self.env.ref(xml_id, raise_if_not_found=False)
         if record:
             self.pool.loaded_xmlids.add(xml_id)
@@ -319,14 +309,12 @@ class IrModelData(models.Model):
 
     @api.model
     def _module_data_uninstall(self, modules_to_remove: list[str]) -> None:
-        """Deletes all the records referenced by the ir.model.data entries
-        ``ids`` along with their corresponding database backed (including
-        dropping tables, columns, FKs, etc, as long as there is no other
-        ir.model.data entry holding a reference to them (which indicates that
-        they are still owned by another module).
-        Attempts to perform the deletion in an appropriate order to maximize
-        the chance of gracefully deleting all records.
-        This step is performed as part of the full uninstallation of a module.
+        """Delete all records referenced by the ir.model.data entries of the
+        given modules, along with their database schema (dropping tables,
+        columns, FKs, etc.), unless another ir.model.data entry still references
+        them (which indicates they are still owned by another module).
+        Deletion is ordered to maximise the chance of removing every record
+        gracefully. Run as part of a module's full uninstallation.
         """
         if not self.env.is_system():
             raise AccessError(
@@ -526,11 +514,11 @@ class IrModelData(models.Model):
     @api.model
     def _process_end(self, modules: list[str]) -> None:
         """Clear records removed from updated module data.
-        This method is called at the end of the module loading process.
-        It is meant to removed records that are no longer present in the
-        updated data. Such records are recognised as the one with an xml id
-        and a module in ir_model_data and noupdate set to false, but not
-        present in self.pool.loaded_xmlids.
+
+        Called at the end of the module loading process to remove records no
+        longer present in the updated data: those with an xml id and a module in
+        ir_model_data and noupdate set to false, but not in
+        self.pool.loaded_xmlids.
         """
         if not modules or tools.config.get("import_partial"):
             return

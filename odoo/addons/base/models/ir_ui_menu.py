@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.http import request
-from odoo.orm._typing import ValuesType
 
 MENU_ITEM_SEPARATOR = "/"
 NUMBER_PARENS = re.compile(r"\(([0-9]+)\)")
@@ -23,11 +23,11 @@ class IrUiMenu(models.Model):
     name = fields.Char(string="Menu", required=True, translate=True)
     active = fields.Boolean(default=True)
     sequence = fields.Integer(default=10)
-    child_id = fields.One2many("ir.ui.menu", "parent_id", string="Child IDs")
     parent_id = fields.Many2one(
         "ir.ui.menu", string="Parent Menu", index=True, ondelete="restrict"
     )
     parent_path = fields.Char(index=True)
+    child_id = fields.One2many("ir.ui.menu", "parent_id", string="Child IDs")
     group_ids = fields.Many2many(
         "res.groups",
         "ir_ui_menu_group_rel",

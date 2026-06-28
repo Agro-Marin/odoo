@@ -1,8 +1,14 @@
 """Tests for the N+1 CRUD detection system (odoo.tools.nplusone)."""
 
-from odoo.orm.models.mixins import crud as _crud_mod
+from odoo.orm.models.mixins import create as _create_mod
+from odoo.orm.models.mixins import unlink as _unlink_mod
+from odoo.orm.models.mixins import write as _write_mod
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import nplusone
+
+# CRUD was split into create/write/unlink mixin modules; each imports the
+# _n1_enabled flag as a local name, so all three must be patched.
+_CRUD_MODS = (_create_mod, _write_mod, _unlink_mod)
 
 
 @tagged("-standard", "nplusone")
@@ -13,11 +19,12 @@ class TestNplusOneDetection(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         # Enable detection for tests — must patch both the source module and
-        # the consuming module (crud.py imports the flag as a local name).
+        # the consuming modules (each imports the flag as a local name).
         cls._original_enabled = nplusone._n1_enabled
         nplusone._n1_enabled = True
-        cls._original_crud_enabled = _crud_mod._n1_enabled
-        _crud_mod._n1_enabled = True
+        cls._original_crud_enabled = [m._n1_enabled for m in _CRUD_MODS]
+        for _mod in _CRUD_MODS:
+            _mod._n1_enabled = True
         # Create a fresh tracker on the transaction
         cls._original_tracker = cls.env.transaction._n1_tracker
         cls.env.transaction._n1_tracker = nplusone.NplusOneTracker()
@@ -25,7 +32,8 @@ class TestNplusOneDetection(TransactionCase):
     @classmethod
     def tearDownClass(cls):
         nplusone._n1_enabled = cls._original_enabled
-        _crud_mod._n1_enabled = cls._original_crud_enabled
+        for _mod, _orig in zip(_CRUD_MODS, cls._original_crud_enabled, strict=True):
+            _mod._n1_enabled = _orig
         cls.env.transaction._n1_tracker = cls._original_tracker
         super().tearDownClass()
 

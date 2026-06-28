@@ -8,10 +8,10 @@ from typing import Any, Self
 from urllib.parse import urlsplit, urlunsplit
 
 from odoo import Command, _, api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.libs.datetime.tz import all_timezones
 from odoo.libs.datetime.tz import timezone as get_timezone
-from odoo.orm._typing import ValuesType
 
 if typing.TYPE_CHECKING:
     from .res_users import ResUsers
@@ -798,11 +798,7 @@ class ResPartner(models.Model):
 
     @api.constrains("company_id")
     def _check_partner_company(self) -> None:
-        """
-        Check that for every partner which has a company,
-        if there exists a company linked to that partner,
-        the company_id set on the partner is that company
-        """
+        """Ensure a partner representing a company has that company as its ``company_id``."""
         partners = self.filtered(lambda p: p.is_company and p.company_id)
         companies = self.env["res.company"].search_fetch(
             [("partner_id", "in", partners.ids)], ["partner_id"]
@@ -1047,7 +1043,7 @@ class ResPartner(models.Model):
 
     def _fields_sync(self, values: dict[str, Any]) -> None:
         """Sync commercial fields and address fields from company and to children.
-        Also synchronize address to parent. This somehow mimics related fields
+        Also synchronize address to parent. This mimics related fields
         to the parent, with more control. This method should be called after
         updating values in cache e.g. self should contain new values.
 
@@ -1480,12 +1476,10 @@ class ResPartner(models.Model):
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
-        """Override of orm's name_create method for partners. The purpose is
-        to handle some basic formats to create partners using the
-        name_create.
-        If only an email address is received and that the regex cannot find
-        a name, the name will have the email value.
-        If 'force_email' key in context: must find the email address."""
+        """Override of name_create to handle some basic formats when creating
+        partners. If only an email address is received and no name can be
+        parsed from it, the name is set to the email value. With the
+        ``force_email`` context key, an email address must be found."""
         default_type = self.env.context.get("default_type")
         if default_type and default_type not in self._fields["type"].get_values(
             self.env
@@ -1505,13 +1499,12 @@ class ResPartner(models.Model):
 
     @api.model
     def find_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
-        """Find a partner with the given ``email`` or use :meth:`name_create`
-        to create a new one.
+        """Find a partner with the given ``email`` or create a new one.
 
         :param str email: email-like string, which should contain at least one email,
             e.g. ``"Raoul Grosbedon <r.g@grosbedon.fr>"``
         :param bool assert_valid_email: raise if no valid email is found
-        :return: newly created record
+        :return: the matching partner, or a newly created one
         """
         if not email:
             raise ValueError(_("An email is required for find_or_create to work"))
@@ -1538,8 +1531,8 @@ class ResPartner(models.Model):
         """Find contacts/addresses of the right type(s) by doing a depth-first-search
         through descendants within company boundaries (stop at entities flagged ``is_company``)
         then continuing the search at the ancestors that are within the same company boundaries.
-        Defaults to partners of type ``'default'`` when the exact type is not found, or to the
-        provided partner itself if no type ``'default'`` is found either."""
+        Defaults to the ``'contact'`` address when the requested type is not found, or to the
+        provided partner itself if no ``'contact'`` address is found either."""
         adr_pref = set(adr_pref or [])
         if "contact" not in adr_pref:
             adr_pref.add("contact")
@@ -1624,13 +1617,11 @@ class ResPartner(models.Model):
         return address_format, args
 
     def _display_address(self, without_company: bool = False) -> str:
-        """
-        The purpose of this function is to build and return an address formatted accordingly to the
-        standards of the country where it belongs.
+        """Build the address formatted according to the standards of its country.
 
-        :param without_company: if address contains company
-        :returns: the address formatted in a display that fit its country habits (or the default ones
-            if not country is specified)
+        :param bool without_company: omit the company name from the address
+        :return: the address formatted to fit its country's conventions (or the
+            default format if no country is specified)
         :rtype: str
         """
         address_format, args = self._prepare_display_address(without_company)

@@ -42,8 +42,6 @@ class Base(models.AbstractModel):
     def get_empty_list_help(self, help_message: str) -> str:
         """Hook method to customize the help message in empty list/kanban views.
 
-        By default, it returns the help received as parameter.
-
         :param help_message: ir.actions.act_window help content
         :return: help message displayed when there is no result to display
           in a list/kanban view (by default, it returns the action help)
@@ -389,7 +387,7 @@ class Base(models.AbstractModel):
         fields used across the view and its subviews.
 
         :param view: an ``ir.ui.view`` record
-        :param arch: the view architecture as a string
+        :param arch: the view architecture as an etree node
         :param options: bool options to return additional features:
                         ``mobile`` (bool): true if the web client is currently using
                         the responsive mobile view (to use kanban views instead of

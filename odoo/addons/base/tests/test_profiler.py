@@ -875,7 +875,10 @@ class TestProfiling(TransactionCase):
 
         self.assertGreater(first_query["time"], 0)
         self.assertEqual(first_query["stack"][-1][2], "_record_metrics")
-        self.assertEqual(first_query["stack"][-1][0].split("/")[-1], "cursor.py")
+        # _record_metrics moved from cursor.py to db/metrics.py when sql_db was
+        # decomposed into the db/ package (ADR-0003); the profiler correctly
+        # captures its new home.
+        self.assertEqual(first_query["stack"][-1][0].split("/")[-1], "metrics.py")
 
     def test_profiler_return(self):
         # Enter test mode to avoid the profiler to commit the result

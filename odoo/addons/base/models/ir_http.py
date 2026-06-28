@@ -235,7 +235,7 @@ class IrHttp(models.AbstractModel):
             )
 
         if token := get_http_authorization_bearer_token():
-            # 'rpc' scope does not really exist, we basically require a global key (scope NULL)
+            # 'rpc' scope does not really exist, we require a global key (scope NULL)
             uid = request.env["res.users.apikeys"]._check_credentials(
                 scope="rpc", key=token
             )

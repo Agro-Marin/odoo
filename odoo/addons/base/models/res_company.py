@@ -1,17 +1,13 @@
 import base64
 import functools
-import logging
 from typing import Any, Self
 
 from odoo import api, fields, models, modules, tools
-from odoo.api import SUPERUSER_ID
+from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.orm._typing import ValuesType
 from odoo.tools import file_open, html2plaintext, ormcache
 from odoo.tools.image import image_process
-
-_logger = logging.getLogger(__name__)
 
 
 @functools.cache
@@ -231,12 +227,211 @@ class ResCompany(models.Model):
         "The company name must be unique!",
     )
 
+    @api.constrains("parent_id")
+    def _check_parent_id(self) -> None:
+        if self._has_cycle():
+            raise ValidationError(self.env._("You cannot create recursive companies."))
+
+    @api.constrains("active")
+    def _check_active(self) -> None:
+        inactive_companies = self.filtered(lambda c: not c.active)
+        if not inactive_companies:
+            return
+        user_counts = dict(
+            self.env["res.users"]._read_group(
+                [
+                    ("company_id", "in", inactive_companies.ids),
+                    ("active", "=", True),
+                ],
+                groupby=["company_id"],
+                aggregates=["__count"],
+            )
+        )
+        for company, count in user_counts.items():
+            if count:
+                raise ValidationError(
+                    self.env._(
+                        "The company %(company_name)s cannot be archived because it is still used "
+                        "as the default company of %(active_users)s users.",
+                        company_name=company.name,
+                        active_users=count,
+                    )
+                )
+
+    @api.constrains(
+        lambda self: self._get_company_root_delegated_field_names() + ["parent_id"]
+    )
+    def _check_root_delegated_fields(self) -> None:
+        for company in self:
+            if company.parent_id:
+                for fname in company._get_company_root_delegated_field_names():
+                    if company[fname] != company.parent_id[fname]:
+                        description = (
+                            self.env["ir.model.fields"]
+                            ._get("res.company", fname)
+                            .field_description
+                        )
+                        raise ValidationError(
+                            self.env._(
+                                "The %s of a subsidiary must be the same as its root company.",
+                                description,
+                            )
+                        )
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+
+        # create missing partners
+        no_partner_vals_list = [
+            vals
+            for vals in vals_list
+            if vals.get("name") and not vals.get("partner_id")
+        ]
+        if no_partner_vals_list:
+            partners = (
+                self.env["res.partner"]
+                .with_context(default_parent_id=False)
+                .create(
+                    [
+                        {
+                            "name": vals["name"],
+                            "is_company": True,
+                            "image_1920": vals.get("logo"),
+                            "email": vals.get("email"),
+                            "phone": vals.get("phone"),
+                            "website": vals.get("website"),
+                            "vat": vals.get("vat"),
+                            "country_id": vals.get("country_id"),
+                        }
+                        for vals in no_partner_vals_list
+                    ]
+                )
+            )
+            # compute stored fields, for example address dependent fields
+            partners.flush_model()
+            for vals, partner in zip(no_partner_vals_list, partners, strict=True):
+                vals["partner_id"] = partner.id
+
+        for vals in vals_list:
+            # Copy delegated fields from root to branches
+            if parent := self.browse(vals.get("parent_id")):
+                for fname in self._get_company_root_delegated_field_names():
+                    vals.setdefault(
+                        fname,
+                        self._fields[fname].convert_to_write(parent[fname], parent),
+                    )
+
+        self.env.registry.clear_cache()
+        companies = super().create(vals_list)
+
+        # The write is made on the user to set it automatically in the multi company group.
+        if companies:
+            (self.env.user | self.env["res.users"].browse(SUPERUSER_ID)).write(
+                {
+                    "company_ids": [Command.link(company.id) for company in companies],
+                }
+            )
+
+        # Sudo required: writing res.currency.active is restricted to group_system;
+        # company creation can happen under group_erp_manager which lacks write access.
+        companies.currency_id.sudo().filtered(lambda c: not c.active).active = True
+
+        companies_needs_l10n = companies.filtered("country_id")
+        if companies_needs_l10n:
+            companies_needs_l10n.install_l10n_modules()
+
+        return companies
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        if "parent_id" in vals and any(
+            c.parent_id.id != vals["parent_id"] for c in self
+        ):
+            raise UserError(self.env._("The company hierarchy cannot be changed."))
+
+        if vals.get("currency_id"):
+            currency = self.env["res.currency"].browse(vals["currency_id"])
+            if not currency.active:
+                currency.write({"active": True})
+
+        # Capture companies gaining their first country BEFORE the write
+        # (after super().write(), country_id is already set so the filter
+        # would always be empty).
+        companies_needs_l10n = (
+            vals.get("country_id")
+            and self.filtered(lambda company: not company.country_id)
+        ) or self.browse()
+
+        res = super().write(vals)
+        invalidation_fields = self.cache_invalidation_fields()
+        asset_invalidation_fields = {
+            "font",
+            "primary_color",
+            "secondary_color",
+            "external_report_layout_id",
+        }
+        if not invalidation_fields.isdisjoint(vals):
+            self.env.registry.clear_cache()
+
+        if not asset_invalidation_fields.isdisjoint(vals):
+            # this is used in the content of an asset (see asset_styles_company_report)
+            # and thus needs to invalidate the assets cache when this is changed
+            self.env.registry.clear_cache(
+                "assets"
+            )  # not 100% it is useful a test is missing if it is the case
+
+        # Archiving a company should also archive all of its branches
+        if vals.get("active") is False:
+            self.child_ids.active = False
+
+        delegated_changed = set(vals) & set(
+            self._get_company_root_delegated_field_names()
+        )
+        for company in self:
+            # Copy modified delegated fields from root to branches
+            if delegated_changed and not company.parent_id:
+                # Perf: one child_of search + one write per root in self. self is
+                # almost always a single company; a bulk-company migration that
+                # writes a delegated field on many roots at once would run N
+                # searches + N writes and should batch instead.
+                # Sudo: branches may include companies outside the user's scope.
+                # Delegated field sync must reach ALL branches of the root company.
+                branches = self.sudo().search(  # noqa: E8507 — bounded: only root companies (typically 1)
+                    [
+                        ("id", "child_of", company.id),
+                        ("id", "!=", company.id),
+                    ]
+                )
+                changed_vals = {
+                    fname: self._fields[fname].convert_to_write(
+                        company[fname], branches
+                    )
+                    for fname in sorted(delegated_changed)
+                }
+                branches.write(changed_vals)
+
+        if companies_needs_l10n:
+            companies_needs_l10n.install_l10n_modules()
+
+        # invalidate company cache to recompute address based on updated partner
+        company_address_fields = self._get_company_address_field_names()
+        company_address_fields_upd = set(company_address_fields) & set(vals.keys())
+        if company_address_fields_upd:
+            self.invalidate_model(company_address_fields)
+        return res
+
+    def unlink(self) -> bool:
+        """Unlink, then clear the cache so res.users._get_company_ids returns only existing company ids."""
+        res = super().unlink()
+        self.env.registry.clear_cache()
+        return res
+
     def _get_company_root_delegated_field_names(self) -> list[str]:
         """Get the set of fields delegated to the root company.
 
         Some fields need to be identical on all branches of the company. All
         fields listed by this function will be copied from the root company and
         appear as readonly in the form view.
+
         :rtype: list[str]
         """
         return ["currency_id"]
@@ -448,213 +643,12 @@ class ResCompany(models.Model):
                 record.company_details or ""
             )
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-
-        # create missing partners
-        no_partner_vals_list = [
-            vals
-            for vals in vals_list
-            if vals.get("name") and not vals.get("partner_id")
-        ]
-        if no_partner_vals_list:
-            partners = (
-                self.env["res.partner"]
-                .with_context(default_parent_id=False)
-                .create(
-                    [
-                        {
-                            "name": vals["name"],
-                            "is_company": True,
-                            "image_1920": vals.get("logo"),
-                            "email": vals.get("email"),
-                            "phone": vals.get("phone"),
-                            "website": vals.get("website"),
-                            "vat": vals.get("vat"),
-                            "country_id": vals.get("country_id"),
-                        }
-                        for vals in no_partner_vals_list
-                    ]
-                )
-            )
-            # compute stored fields, for example address dependent fields
-            partners.flush_model()
-            for vals, partner in zip(no_partner_vals_list, partners, strict=True):
-                vals["partner_id"] = partner.id
-
-        for vals in vals_list:
-            # Copy delegated fields from root to branches
-            if parent := self.browse(vals.get("parent_id")):
-                for fname in self._get_company_root_delegated_field_names():
-                    vals.setdefault(
-                        fname,
-                        self._fields[fname].convert_to_write(parent[fname], parent),
-                    )
-
-        self.env.registry.clear_cache()
-        companies = super().create(vals_list)
-
-        # The write is made on the user to set it automatically in the multi company group.
-        if companies:
-            (self.env.user | self.env["res.users"].browse(SUPERUSER_ID)).write(
-                {
-                    "company_ids": [Command.link(company.id) for company in companies],
-                }
-            )
-
-        # Sudo required: writing res.currency.active is restricted to group_system;
-        # company creation can happen under group_erp_manager which lacks write access.
-        companies.currency_id.sudo().filtered(lambda c: not c.active).active = True
-
-        companies_needs_l10n = companies.filtered("country_id")
-        if companies_needs_l10n:
-            companies_needs_l10n.install_l10n_modules()
-
-        return companies
-
     def cache_invalidation_fields(self) -> set[str]:
         # This list is not well defined and tests should be improved
         return {
             "active",  # user._get_company_ids and other potential cached search
             "sequence",  # user._get_company_ids and other potential cached search
         }
-
-    @api.constrains("parent_id")
-    def _check_parent_id(self) -> None:
-        if self._has_cycle():
-            raise ValidationError(self.env._("You cannot create recursive companies."))
-
-    def unlink(self) -> bool:
-        """
-        Unlink the companies and clear the cache to make sure that
-        _get_company_ids of res.users gets only existing company ids.
-        """
-        res = super().unlink()
-        self.env.registry.clear_cache()
-        return res
-
-    def write(self, vals: dict[str, Any]) -> bool:
-        if "parent_id" in vals and any(
-            c.parent_id.id != vals["parent_id"] for c in self
-        ):
-            raise UserError(self.env._("The company hierarchy cannot be changed."))
-
-        if vals.get("currency_id"):
-            currency = self.env["res.currency"].browse(vals["currency_id"])
-            if not currency.active:
-                currency.write({"active": True})
-
-        # Capture companies gaining their first country BEFORE the write
-        # (after super().write(), country_id is already set so the filter
-        # would always be empty).
-        companies_needs_l10n = (
-            vals.get("country_id")
-            and self.filtered(lambda company: not company.country_id)
-        ) or self.browse()
-
-        res = super().write(vals)
-        invalidation_fields = self.cache_invalidation_fields()
-        asset_invalidation_fields = {
-            "font",
-            "primary_color",
-            "secondary_color",
-            "external_report_layout_id",
-        }
-        if not invalidation_fields.isdisjoint(vals):
-            self.env.registry.clear_cache()
-
-        if not asset_invalidation_fields.isdisjoint(vals):
-            # this is used in the content of an asset (see asset_styles_company_report)
-            # and thus needs to invalidate the assets cache when this is changed
-            self.env.registry.clear_cache(
-                "assets"
-            )  # not 100% it is useful a test is missing if it is the case
-
-        # Archiving a company should also archive all of its branches
-        if vals.get("active") is False:
-            self.child_ids.active = False
-
-        delegated_changed = set(vals) & set(
-            self._get_company_root_delegated_field_names()
-        )
-        for company in self:
-            # Copy modified delegated fields from root to branches
-            if delegated_changed and not company.parent_id:
-                # Perf: one child_of search + one write per root in self. self is
-                # almost always a single company; a bulk-company migration that
-                # writes a delegated field on many roots at once would run N
-                # searches + N writes and should batch instead.
-                # Sudo: branches may include companies outside the user's scope.
-                # Delegated field sync must reach ALL branches of the root company.
-                branches = self.sudo().search(  # noqa: E8507 — bounded: only root companies (typically 1)
-                    [
-                        ("id", "child_of", company.id),
-                        ("id", "!=", company.id),
-                    ]
-                )
-                changed_vals = {
-                    fname: self._fields[fname].convert_to_write(
-                        company[fname], branches
-                    )
-                    for fname in sorted(delegated_changed)
-                }
-                branches.write(changed_vals)
-
-        if companies_needs_l10n:
-            companies_needs_l10n.install_l10n_modules()
-
-        # invalidate company cache to recompute address based on updated partner
-        company_address_fields = self._get_company_address_field_names()
-        company_address_fields_upd = set(company_address_fields) & set(vals.keys())
-        if company_address_fields_upd:
-            self.invalidate_model(company_address_fields)
-        return res
-
-    @api.constrains("active")
-    def _check_active(self) -> None:
-        inactive_companies = self.filtered(lambda c: not c.active)
-        if not inactive_companies:
-            return
-        user_counts = dict(
-            self.env["res.users"]._read_group(
-                [
-                    ("company_id", "in", inactive_companies.ids),
-                    ("active", "=", True),
-                ],
-                groupby=["company_id"],
-                aggregates=["__count"],
-            )
-        )
-        for company, count in user_counts.items():
-            if count:
-                raise ValidationError(
-                    self.env._(
-                        "The company %(company_name)s cannot be archived because it is still used "
-                        "as the default company of %(active_users)s users.",
-                        company_name=company.name,
-                        active_users=count,
-                    )
-                )
-
-    @api.constrains(
-        lambda self: self._get_company_root_delegated_field_names() + ["parent_id"]
-    )
-    def _check_root_delegated_fields(self) -> None:
-        for company in self:
-            if company.parent_id:
-                for fname in company._get_company_root_delegated_field_names():
-                    if company[fname] != company.parent_id[fname]:
-                        description = (
-                            self.env["ir.model.fields"]
-                            ._get("res.company", fname)
-                            .field_description
-                        )
-                        raise ValidationError(
-                            self.env._(
-                                "The %s of a subsidiary must be the same as its root company.",
-                                description,
-                            )
-                        )
 
     @api.model
     def _get_main_company(self) -> Self:
@@ -700,7 +694,7 @@ class ResCompany(models.Model):
         return self.browse(self.__accessible_branches())
 
     def _all_branches_selected(self) -> bool:
-        """Return whether or all the branches of the companies in self are selected.
+        """Return whether all the branches of the companies in self are selected.
 
         Is ``True`` if all the branches, and only those, are selected.
         Can be used when some actions only make sense for whole companies regardless of the

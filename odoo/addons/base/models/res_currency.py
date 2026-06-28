@@ -9,8 +9,8 @@ if TYPE_CHECKING:
     from lxml import etree
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, ormcache, parse_date
 
 _logger = logging.getLogger(__name__)
@@ -315,14 +315,14 @@ class ResCurrency(models.Model):
 
         Also take care of removing the minus sign when 0.0 is negative
 
-        :param float amount: the amount to round
+        :param float amount: the amount to format
         :return: formatted str
         """
         self.ensure_one()
         return tools.format_amount(self.env, amount + 0.0, self)
 
     def round(self, amount: float) -> float:
-        """Return ``amount`` rounded  according to ``self``'s rounding rules.
+        """Return ``amount`` rounded according to ``self``'s rounding rules.
 
         :param float amount: the amount to round
         :return: rounded float
@@ -332,7 +332,7 @@ class ResCurrency(models.Model):
 
     def compare_amounts(self, amount1: float, amount2: float) -> int:
         """Compare ``amount1`` and ``amount2`` after rounding them according to the
-        given currency's precision..
+        given currency's precision.
         An amount is considered lower/greater than another amount if their rounded
         value is different. This is not the same as having a non-zero difference!
 
@@ -347,8 +347,6 @@ class ResCurrency(models.Model):
         :return: (resp.) -1, 0 or 1, if ``amount1`` is (resp.) lower than,
                  equal to, or greater than ``amount2``, according to
                  ``currency``'s rounding.
-
-        With the new API, call it like: ``currency.compare_amounts(amount1, amount2)``.
         """
         self.ensure_one()
         return tools.float_compare(amount1, amount2, precision_rounding=self.rounding)
@@ -362,8 +360,6 @@ class ResCurrency(models.Model):
         different results for e.g. 0.006 and 0.002 at 2 digits precision.
 
         :param float amount: amount to compare with currency's zero
-
-        With the new API, call it like: ``currency.is_zero(amount)``.
         """
         self.ensure_one()
         return tools.float_is_zero(amount, precision_rounding=self.rounding)

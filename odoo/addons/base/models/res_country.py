@@ -3,9 +3,9 @@ import re
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import DomainType, ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.orm._typing import DomainType, ValuesType
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
@@ -159,7 +159,7 @@ class ResCountry(models.Model):
             vals["code"] = vals["code"].upper()
         res = super().write(vals)
         if "code" in vals or "phone_code" in vals:
-            # Intentionally simplified by not clearing the cache in create and unlink.
+            # _phone_code_for caches code -> phone_code; bust it when either changes.
             self.env.registry.clear_cache("stable")
         if "address_view_id" in vals or "vat_label" in vals:
             # Changing the address view of the company must invalidate the view cached for res.partner

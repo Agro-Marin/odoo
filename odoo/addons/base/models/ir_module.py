@@ -17,12 +17,12 @@ from docutils.writers.html4css1 import Writer
 from markupsafe import Markup
 
 from odoo import _, api, fields, models, modules, tools
+from odoo.api import ValuesType
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.parse_version import parse_version
 from odoo.modules.module import Manifest, MissingDependencyError
-from odoo.orm._typing import ValuesType
 from odoo.tools import config
 from odoo.tools.misc import get_flag, topological_sort
 from odoo.tools.translate import (
@@ -57,7 +57,7 @@ def assert_log_admin_access[T](method: T, /) -> T:
     """Decorator checking that the calling user is an administrator, and logging the call.
 
     Raises an AccessDenied error if the user does not have administrator privileges, according
-    to `user._is_admin()`.
+    to ``env.is_admin()``.
     """
 
     @functools.wraps(method)
@@ -127,13 +127,11 @@ class IrModuleCategory(models.Model):
 
 
 class MyFilterMessages(Transform):
-    """
-    Custom docutils transform to remove `system message` for a document and
-    generate warnings.
+    """Custom docutils transform that removes ``system_message`` nodes from a
+    document, logging each at DEBUG level.
 
-    (The standard filter removes them based on some `report_level` passed in
-    the `settings_override` dictionary, but if we use it, we can't see them
-    and generate warnings.)
+    The standard filter removes them based on the ``report_level`` passed in
+    ``settings_overrides``, but that would prevent us from logging them.
     """
 
     default_priority = 870
@@ -146,10 +144,7 @@ class MyFilterMessages(Transform):
 
 
 class MyWriter(Writer):
-    """
-    Custom docutils html4ccs1 writer that doesn't add the warnings to the
-    output document.
-    """
+    """Custom docutils html4css1 writer that keeps warnings out of the output document."""
 
     def get_transforms(self) -> list[type[Transform]]:
         return [MyFilterMessages, writer_aux.Admonitions]
@@ -722,10 +717,9 @@ class IrModuleModule(models.Model):
 
     @assert_log_admin_access
     def button_immediate_install(self) -> dict[str, Any]:
-        """Installs the selected module(s) immediately and fully,
-        returns the next res.config action to execute
+        """Install the selected modules immediately and fully.
 
-        :returns: next res.config item to execute
+        :return: the next res.config action to execute
         :rtype: dict[str, Any]
         """
         _logger.info("User #%d triggered module installation", self.env.uid)
@@ -761,9 +755,8 @@ class IrModuleModule(models.Model):
 
     @assert_log_admin_access
     def module_uninstall(self) -> bool:
-        """Perform the various steps required to uninstall a module completely
-        including the deletion of all database structures created by the module:
-        tables, columns, constraints, etc.
+        """Uninstall the modules completely, deleting all database structures
+        they created: tables, columns, constraints, etc.
         """
         modules_to_remove = self.mapped("name")
         self.env["ir.model.data"]._module_data_uninstall(modules_to_remove)
@@ -1585,7 +1578,7 @@ class IrModuleModuleExclusion(models.Model):
         names = {excl.name for excl in self}
         mods = self.env["ir.module.module"].search([("name", "in", names)])
 
-        # index modules by name, and assign dependencies
+        # index modules by name, and assign exclusions
         name_mod = {mod.name: mod for mod in mods}
         for excl in self:
             excl.exclusion_id = name_mod.get(excl.name)

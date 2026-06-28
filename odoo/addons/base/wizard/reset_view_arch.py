@@ -53,9 +53,8 @@ class ResetViewArchWizard(models.TransientModel):
 
     @api.depends("reset_mode", "view_id", "compare_view_id")
     def _compute_arch_diff(self) -> None:
-        """Depending of `reset_mode`, return the differences between the
-        current view arch and either its previous arch, its initial arch or
-        another view arch.
+        """Compute the diff between the current view arch and, depending on
+        ``reset_mode``, its previous arch, its file arch, or another view's arch.
         """
 
         def get_table_name(view_id):

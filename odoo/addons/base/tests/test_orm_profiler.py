@@ -1,24 +1,7 @@
 """Tests for the aggregate ORM profiler (odoo.tools.orm_profiler)."""
 
-from odoo.orm.models.mixins import (
-    cache as _cache_mod,
-)
-
-# The consuming modules import _orm_profiling_enabled as a local name,
-# so we must patch them directly (changing the source module alone is not enough).
-from odoo.orm.models.mixins import (
-    crud as _crud_mod,
-)
-from odoo.orm.models.mixins import (
-    read as _read_mod,
-)
-from odoo.orm.models.mixins import (
-    search as _search_mod,
-)
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import orm_profiler
-
-_CONSUMER_MODULES = (_crud_mod, _read_mod, _search_mod, _cache_mod)
 
 
 @tagged("-standard", "profiler")
@@ -28,22 +11,18 @@ class TestOrmProfiler(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Save and enable the flag on the source module + all consumers
-        cls._originals = [
-            (orm_profiler, orm_profiler._orm_profiling_enabled),
-            *((mod, mod._orm_profiling_enabled) for mod in _CONSUMER_MODULES),
-        ]
+        # The CRUD/read mixins read the profiling flag via orm_profiler._OrmProfile
+        # (the orm_profiler module global), so enabling it here is sufficient —
+        # no per-consumer-module patching needed.
+        cls._original_enabled = orm_profiler._orm_profiling_enabled
         orm_profiler._orm_profiling_enabled = True
-        for mod in _CONSUMER_MODULES:
-            mod._orm_profiling_enabled = True
         # Create a fresh profiler on the transaction
         cls._original_profiler = cls.env.transaction._orm_profiler
         cls.env.transaction._orm_profiler = orm_profiler.OrmProfiler()
 
     @classmethod
     def tearDownClass(cls):
-        for mod, val in cls._originals:
-            mod._orm_profiling_enabled = val
+        orm_profiler._orm_profiling_enabled = cls._original_enabled
         cls.env.transaction._orm_profiler = cls._original_profiler
         super().tearDownClass()
 
@@ -181,18 +160,12 @@ class TestOrmProfilerDisabled(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls._originals = [
-            (orm_profiler, orm_profiler._orm_profiling_enabled),
-            *((mod, mod._orm_profiling_enabled) for mod in _CONSUMER_MODULES),
-        ]
+        cls._original_enabled = orm_profiler._orm_profiling_enabled
         orm_profiler._orm_profiling_enabled = False
-        for mod in _CONSUMER_MODULES:
-            mod._orm_profiling_enabled = False
 
     @classmethod
     def tearDownClass(cls):
-        for mod, val in cls._originals:
-            mod._orm_profiling_enabled = val
+        orm_profiler._orm_profiling_enabled = cls._original_enabled
         super().tearDownClass()
 
     def test_no_profiler_when_disabled(self):

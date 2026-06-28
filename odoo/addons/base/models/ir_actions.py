@@ -6,11 +6,11 @@ from contextlib import suppress
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.libs.datetime.tz import timezone
 from odoo.libs.numbers.float_utils import float_compare
-from odoo.orm._typing import ValuesType
 from odoo.tools import _, frozendict
 from odoo.tools.safe_eval import safe_eval
 
@@ -253,8 +253,8 @@ class IrActionsActions(models.Model):
     def _for_xml_id(self, full_xml_id: str) -> dict[str, Any]:
         """Returns the action content for the provided xml_id
 
-        :param full_xml_id: the namespace-less id of the action (the @id
-            attribute from the XML file)
+        :param full_xml_id: the fully qualified external id of the action,
+            i.e. ``module.name``
         :return: A read() view of the ir.actions.action safe for web use
         """
         record = self.env.ref(full_xml_id)
@@ -277,7 +277,7 @@ class IrActionsActions(models.Model):
         return self.sudo().read(list(readable_fields))[0]
 
     def _get_readable_fields(self) -> set[str]:
-        """return the list of fields that are safe to read
+        """return the set of fields that are safe to read
 
         Fetched via /web/action/load or _for_xml_id method
         Only fields used by the web client should included
@@ -434,7 +434,7 @@ class IrActionsAct_Window(models.Model):
         ID of the specific view to use for each mode, if any were required.
 
         This function hides the logic of determining the precedence between
-        the view_modes string, the view_ids o2m, and the view_id m2o that
+        the view_mode string, the view_ids o2m, and the view_id m2o that
         can be set on the action.
         """
         for act in self:

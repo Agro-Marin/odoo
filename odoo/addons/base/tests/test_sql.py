@@ -124,14 +124,44 @@ class TestSQL(BaseCase):
         self.assertEqual(sql.code, '"foo"."bar"')
         self.assertEqual(sql.params, ())
 
-        with self.assertRaises(AssertionError):
+        # Invalid identifiers raise ValueError (not assert): this is an
+        # injection barrier and must hold under ``python -O``, which strips
+        # asserts.
+        with self.assertRaises(ValueError):
             sql = SQL.identifier('foo"')
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             sql = SQL.identifier("(SELECT 42)")
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             sql = SQL.identifier("foo", 'ba"r')
+
+    def test_sql_identifier_injection_barrier_under_O(self):
+        """The identifier check must reject a quote-breakout even under ``-O``.
+
+        ``python -O`` strips ``assert``\\ s, so the validation must be a real
+        ``raise``.  Run a subprocess with ``-O`` to prove a crafted identifier
+        cannot escape the double-quote wrapping into raw SQL.
+        """
+        import subprocess
+        import sys
+
+        snippet = (
+            "from odoo.tools import SQL\n"
+            "assert not __debug__, 'expected -O'\n"
+            "try:\n"
+            "    SQL.identifier('x\\\" FROM pg_user; DROP TABLE res_users; --')\n"
+            "    print('VULNERABLE')\n"
+            "except ValueError:\n"
+            "    print('SAFE')\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-O", "-c", snippet],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(out.stdout.strip(), "SAFE", out.stderr)
 
     def test_sql_with_sql_parameters(self):
         sql = SQL("SELECT id FROM table WHERE foo=%s AND %s", 1, SQL("bar=%s", 2))

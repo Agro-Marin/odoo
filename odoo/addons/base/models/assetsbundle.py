@@ -30,9 +30,11 @@ from odoo.libs.constants import (
 from odoo.libs.constants import (
     DOTTED_ASSET_EXTENSIONS as EXTENSIONS,
 )
-from odoo.libs.esbuild import EsbuildCompiler, EsbuildResult, minify_js
-from odoo.libs.esm_bridges import BridgeShimManager
-from odoo.libs.esm_graph import (
+from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
+from odoo.tools import SQL, OrderedSet, misc, profiler
+from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult, minify_js
+from odoo.tools.assets.esm_bridges import BridgeShimManager
+from odoo.tools.assets.esm_graph import (
     _bridge_shim_source,
     _cached_module_classification,
     _parse_odoo_module_header,
@@ -40,9 +42,7 @@ from odoo.libs.esm_graph import (
     is_odoo_module,
     url_to_module_path,
 )
-from odoo.libs.esm_registry import esm_registry, invalidate_esm_registry
-from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
-from odoo.tools import SQL, OrderedSet, misc, profiler
+from odoo.tools.assets.esm_registry import esm_registry, invalidate_esm_registry
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_open, file_path
 from odoo.tools.sass_embedded import SassCompileError, find_sass
@@ -66,7 +66,7 @@ _logger = logging.getLogger(__name__)
 # this namespace, so quieting the trace (``odoo.assets:WARNING``) cannot also
 # silence "a bundle was (re)built" or a Sass failure.  The sibling category
 # loggers (``odoo.assets.bridge`` / ``.esbuild``) are created on demand inside
-# ``odoo.libs.esm_bridges`` / ``odoo.libs.esbuild`` where they are actually
+# ``odoo.tools.assets.esm_bridges`` / ``odoo.tools.assets.esbuild`` where they are actually
 # emitted — this module only writes the ``bundle`` channel.
 _bundle_log = get_asset_logger("bundle")
 
@@ -472,12 +472,12 @@ class AssetAttachmentStore:
             attachments._storage_delete(fpath)
 
     def _clean_attachments(self, extension: str, keep_url: str) -> None:
-        """Takes care of deleting any outdated ir.attachment records associated to a bundle before
+        """Delete outdated ir.attachment records for this bundle before
         saving a fresh one.
 
         When `extension` is js we need to check that we are deleting a different version (and not *any*
         version) because, as one of the creates in `save_attachment` can trigger a rollback, the
-        call to `clean_attachments ` is made at the end of the method in order to avoid the rollback
+        call to `_clean_attachments` is made at the end of the method to avoid the rollback
         of an ir.attachment unlink (because we cannot rollback a removal on the filestore), thus we
         must exclude the current bundle.
         """
@@ -511,11 +511,11 @@ class AssetAttachmentStore:
     def get_attachments(
         self, extension: str, ignore_version: bool = False
     ) -> IrAttachment:
-        """Return the ir.attachment records for a given bundle. This method takes care of mitigating
-        an issue happening when parallel transactions generate the same bundle: while the file is not
+        """Return the ir.attachment records for a given bundle. Mitigates an issue where
+        parallel transactions generate the same bundle: while the file is not
         duplicated on the filestore (as it is stored according to its hash), there are multiple
         ir.attachment records referencing the same version of a bundle. As we don't want to source
-        multiple time the same bundle in our `to_html` function, we group our ir.attachment records
+        the same bundle several times when rendering, we group our ir.attachment records
         by file name and only return the one with the max id for each group.
 
         :param extension: file extension (js, min.js, css)
@@ -592,7 +592,7 @@ class AssetAttachmentStore:
         :param extension: extension of the bundle to be recorded
         :param content: bundle content to be recorded
 
-        :return the ir.attachment records for a given bundle.
+        :return: the created ir.attachment record.
         """
         mimetype = self._ATTACHMENT_MIMETYPES.get(extension)
         if mimetype is None:
@@ -1087,7 +1087,7 @@ class XmlTemplatePipeline:
         * `t-inherit`: inherited template name.
         * 't-inherit-mode':  'primary' or 'extension'.
 
-        :return a list of blocks
+        :return: a list of blocks
         """
         bundle = self._bundle
         blocks = []
@@ -1374,7 +1374,7 @@ class AssetsBundle:
     # relationships (dynamic lazy children, import-map satellites) — is
     # DECLARATIVE: each module lists its own bundles under the ``esm``
     # key of its ``__manifest__.py``.  The aggregate is built and
-    # validated by ``odoo.libs.esm_registry.esm_registry()`` (see its
+    # validated by ``odoo.tools.assets.esm_registry.esm_registry()`` (see its
     # module docstring for the schema and the three relationship axes)
     # and invalidated alongside the esbuild addon scan below.
 
@@ -1704,7 +1704,7 @@ class AssetsBundle:
             "bridge_import_map": bridge_import_map,
         }
 
-    # ── esbuild layer (moved to odoo.libs.esbuild, H2 Phase B) ──
+    # ── esbuild layer (moved to odoo.tools.assets.esbuild, H2 Phase B) ──
     # Only the production surface remains on this class:
     # ``esbuild_native_bundle`` (the entry ir_qweb calls),
     # ``_get_esbuild_addon_flags`` (the provider seam tests patch here),
@@ -1775,7 +1775,7 @@ class AssetsBundle:
             dynamic_child_specs=dynamic_child_specs,
         )
 
-    # ── bridge layer (moved to odoo.libs.esm_bridges, H3 split) ──
+    # ── bridge layer (moved to odoo.tools.assets.esm_bridges, H3 split) ──
     # ``_bridges`` is the explicit collaborator: ir_qweb and the test suite
     # call its methods directly (``bundle._bridges.<method>``), mirroring the
     # ``_store`` boundary, so AssetsBundle no longer carries a fan of same-named
@@ -1793,7 +1793,7 @@ class AssetsBundle:
         """
         return BridgeShimManager(self.env, self.name, self.native_modules)
 
-    # Moved to odoo.libs.esm_graph (H2 split); kept as a staticmethod
+    # Moved to odoo.tools.assets.esm_graph (H2 split); kept as a staticmethod
     # so internal call sites and the test suite keep their surface.
     _bridge_shim_source = staticmethod(_bridge_shim_source)
 
@@ -1921,10 +1921,10 @@ class AssetsBundle:
         return js_attachment[0]
 
     def js_with_sourcemap(self, template_bundle: str | None = None) -> IrAttachment:
-        """Create the ir.attachment representing the not-minified content of the bundleJS
-        and create/modify the ir.attachment representing the linked sourcemap.
+        """Create the ir.attachment for the un-minified JS bundle and
+        create/modify the ir.attachment for the linked sourcemap.
 
-        :return ir.attachment representing the un-minified content of the bundleJS
+        :return: the ir.attachment for the un-minified JS bundle
         """
         sourcemap_attachment = self.get_attachments("js.map") or self.save_attachment(
             "js.map", ""
@@ -1999,11 +1999,11 @@ class AssetsBundle:
         return self.css_with_sourcemap("\n".join(import_rules))
 
     def css_with_sourcemap(self, content_import_rules: str) -> IrAttachment:
-        """Create the ir.attachment representing the not-minified content of the bundleCSS
-        and create/modify the ir.attachment representing the linked sourcemap.
+        """Create the ir.attachment for the un-minified CSS bundle and
+        create/modify the ir.attachment for the linked sourcemap.
 
         :param content_import_rules: string containing all the @import rules to put at the beginning of the bundle
-        :return ir.attachment representing the un-minified content of the bundleCSS
+        :return: the ir.attachment for the un-minified CSS bundle
         """
         sourcemap_attachment = self.get_attachments("css.map") or self.save_attachment(
             "css.map", ""
@@ -2252,7 +2252,7 @@ class JavascriptAsset(WebAsset):
         Public alias of :attr:`content` kept for the call sites that read a
         JS asset's source explicitly (``ir_qweb``, the bridge builders). For
         JS the two are identical — there is no transpilation step — so
-        ``content`` simply inherits ``WebAsset.content`` rather than
+        ``content`` inherits ``WebAsset.content`` rather than
         round-tripping through this property.
         """
         return super().content
@@ -2695,6 +2695,6 @@ class ScssStylesheetAsset(PreprocessedCSS):
 
 # Cross-check the import-map external-libs registry against esbuild's
 # alias list.  Both declaration sites now live outside ir_qweb
-# (``odoo.libs.constants`` / ``odoo.libs.esbuild``), so the check runs
+# (``odoo.libs.constants`` / ``odoo.tools.assets.esbuild``), so the check runs
 # here instead of at the bottom of ir_qweb.
 AssetsBundle._validate_external_libs(set(ODOO_EXTERNAL_LIBS))

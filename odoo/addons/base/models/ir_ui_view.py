@@ -17,6 +17,7 @@ from lxml.etree import _Element
 from markupsafe import Markup
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import (
     AccessError,
     MissingError,
@@ -25,7 +26,6 @@ from odoo.exceptions import (
 )
 from odoo.fields import Domain
 from odoo.modules.module import get_resource_from_path
-from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, _, config, partition, unique
 from odoo.tools.convert import _fix_multiple_roots
 from odoo.tools.misc import ConstantMapping, file_path
@@ -905,7 +905,7 @@ class IrUiView(models.Model):
 
         :param str model:
         :param str view_type:
-        :return: id of the default view of False if none found
+        :return: id of the default view or False if none found
         :rtype: int | bool
         """
         return self.search(self._get_default_view_domain(model, view_type), limit=1).id
@@ -1087,7 +1087,7 @@ class IrUiView(models.Model):
     def _log_view_warning(self, message: str, node: _Element) -> None:
         """Handle a view issue by logging a warning.
 
-        :param str message: message to raise or log, augmented with contextual
+        :param str message: message to log, augmented with contextual
                             view information
         :param node: the lxml element where the error is located (if any)
         """
@@ -1204,8 +1204,6 @@ class IrUiView(models.Model):
         :return: a modified source where the specs are applied
         :rtype: _Element
         """
-        # Queue of specification nodes (i.e. nodes describing where and
-        # changes to apply to some parent architecture).
         try:
             source = apply_inheritance_specs(
                 source,
@@ -1304,7 +1302,7 @@ class IrUiView(models.Model):
         return self._get_combined_archs()[0]
 
     def _get_combined_archs(self) -> list[_Element]:
-        """Return the arch of ``self`` (as an etree) combined with its inherited views."""
+        """Return each record's arch (as an etree) combined with its inherited views."""
         parented = []
         roots = self.env["ir.ui.view"]
         for root in self:
@@ -1327,7 +1325,7 @@ class IrUiView(models.Model):
             views = views.with_context(check_view_ids=[])
         views.env.context["check_view_ids"].extend(views.ids)
 
-        # Map each node to its children nodes. Note that all children nodes are
+        # Map each node to its children nodes. All children nodes are
         # part of a single prefetch set, which is all views to combine.
         all_tree_views = views._get_inheriting_views()
 
@@ -1397,7 +1395,7 @@ class IrUiView(models.Model):
     def _get_cached_template_info(
         self, id_or_xmlid: int | str, _view: Self | None = None
     ) -> dict[str, Any]:
-        """Return the ir.ui.view id from the xml id, use `_preload_views`."""
+        """Return cached info for the view given by ``id_or_xmlid`` (the prefetched keys plus ``error``)."""
         view = None
         error = False
         if _view is not None:
@@ -1450,9 +1448,9 @@ class IrUiView(models.Model):
     def _fetch_template_views(
         self, ids_or_xmlids: Sequence[int | str]
     ) -> dict[int | str, Self | Exception]:
-        """Return the view corresponding to ``template``, which may be a
-        view ID or an XML ID. Note that this method may be overridden for other
-        kinds of template values.
+        """Return a mapping of each reference in ``ids_or_xmlids`` (a view ID or
+        XML ID) to its view, or to an exception if it was not found. May be
+        overridden for other kinds of template values.
         """
         IrUiView = (
             self.env["ir.ui.view"]
@@ -1543,7 +1541,7 @@ class IrUiView(models.Model):
         self, refs: Sequence[int | str]
     ) -> dict[int | str, dict[str, Any]]:
         """
-        Return self's arch combined with its inherited views archs.
+        Preload view information for the given references.
 
         :param refs: list of id or xmlid
         :return: dictionary of preloaded information {id or xmlid: {xmlid, ref, view, error}}
@@ -1599,7 +1597,7 @@ class IrUiView(models.Model):
         """Return an architecture and a description of all the fields.
 
         The field description combines the result of fields_get() and
-        postprocess().
+        _postprocess_view().
 
         :param self: the view to postprocess
         :param node: the architecture as an etree
@@ -1957,9 +1955,8 @@ class IrUiView(models.Model):
         self, field: Any, field_node: _Element, node_info: dict[str, Any]
     ) -> list[tuple[_Element, Self]]:
         """
-        For x2many fields that require to have some multi-record arch (kanban or list) to display the records
-        be available, this function fetches all arch that are needed and return them.
-        The caller function is responsible to do what it needs with them.
+        Return the multi-record view archs (kanban or list) needed to display
+        the records of an x2many field whose node does not already embed one.
         """
         current_view_types = [el.tag for el in _xpath_descendant_field(field_node)]
         missing_view_types = []
@@ -3282,9 +3279,9 @@ class IrUiView(models.Model):
                         )
 
     def is_node_branded(self, node: _Element) -> bool:
-        """Finds out whether a node is branded or qweb-active (bears a
-        @data-oe-model or a @t-* *which is not t-field* as t-field does not
-        section out views)
+        """Return whether a node is branded or qweb-active, i.e. it bears a
+        ``data-oe-model``, ``groups`` or ``t-*`` attribute, or is an
+        apply-inheritance-specs node-removal processing instruction.
 
         :param node: an etree-compatible element to test
         :type node: _Element
@@ -3401,7 +3398,7 @@ class IrUiView(models.Model):
     def _load_records_write(self, values: dict[str, Any]) -> None:
         """During module update, when updating a generic view, we should also
         update its specific views (COW'd).
-        Note that we will only update unmodified fields. That will mimic the
+        We only update unmodified fields, mimicking the
         noupdate behavior on views having an ir.model.data.
         """
         if self.type == "qweb":

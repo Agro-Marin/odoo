@@ -6,8 +6,8 @@ import re
 from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
-from odoo.orm._typing import ValuesType
 from odoo.tools import OrderedSet
 from odoo.tools.misc import ReadonlyDict
 
@@ -366,7 +366,7 @@ class ResLang(models.Model):
 
     def _get_data(self, **kwargs) -> LangData:
         """Get the language data for the given field value in kwargs
-        For example, get_data(code='en_US') will return the LangData
+        For example, _get_data(code='en_US') will return the LangData
         for the res.lang record whose 'code' field value is 'en_US'
 
         :param dict kwargs: ``{field_name: field_value}``
@@ -628,7 +628,10 @@ class ResLang(models.Model):
 
 
 def split(l: str, counts: list[int]) -> list[str]:
-    """
+    """Chop ``l`` left-to-right into chunks of the given ``counts``.
+
+    A count of ``0`` repeats the previous size until the string is consumed; a
+    count of ``-1`` stops splitting and keeps the rest as a single chunk.
 
     >>> split("hello world", [])
     ['hello world']
@@ -668,10 +671,15 @@ intersperse_pat = re.compile(r"([^0-9]*)([^ ]*)(.*)")
 
 
 def intersperse(string: str, counts: list[int], separator: str = "") -> tuple[str, int]:
-    """
+    """Group the number in ``string`` from the right and join the groups with ``separator``.
 
-    See the asserts below for examples.
+    Used to apply thousands separators. The leading non-space run (after any
+    non-digit prefix) is split into groups and rejoined; ``counts`` gives the
+    group sizes, interpreted by :func:`split` on the reversed run. The prefix
+    and everything from the first space on are left untouched.
 
+    :return: the grouped string and the number of separators inserted
+    :rtype: tuple[str, int]
     """
     left, rest, right = intersperse_pat.match(string).groups()
 

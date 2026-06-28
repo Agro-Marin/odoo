@@ -2,8 +2,8 @@ from ast import literal_eval
 from typing import Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
-from odoo.orm._typing import ValuesType
 
 
 class IrEmbeddedActions(models.Model):
@@ -15,8 +15,8 @@ class IrEmbeddedActions(models.Model):
     sequence = fields.Integer()
     parent_action_id = fields.Many2one(
         "ir.actions.act_window",
-        required=True,
         string="Parent Action",
+        required=True,
         ondelete="cascade",
     )
     parent_res_id = fields.Integer(string="Active Parent Id")
@@ -175,7 +175,7 @@ class IrEmbeddedActions(models.Model):
                 )
 
     def _get_readable_fields(self) -> set[str]:
-        """return the list of fields that are safe to read"""
+        """return the set of fields that are safe to read"""
         return {
             "name",
             "parent_action_id",

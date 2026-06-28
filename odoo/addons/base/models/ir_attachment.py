@@ -13,13 +13,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 from odoo import _, api, fields, models, modules
+from odoo.api import ValuesType
 from odoo.exceptions import (
     AccessError,
     MissingError,
     UserError,
     ValidationError,
 )
-from odoo.fields import Domain
+from odoo.fields import COLLECTION_TYPES, Domain
 from odoo.http import Stream, request, root
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.filesystem.mimetypes import (
@@ -28,8 +29,6 @@ from odoo.libs.filesystem.mimetypes import (
     fix_filename_extension,
     guess_mimetype,
 )
-from odoo.orm._typing import ValuesType
-from odoo.orm.primitives import COLLECTION_TYPES
 from odoo.tools import (
     OrderedSet,
     config,
@@ -735,7 +734,7 @@ class IrAttachment(models.Model):
 
     @api.model
     def _sanitize_store_path(self, path: str) -> str:
-        """Neutralize traversal vectors in a store path (dots, colons, leading separators)."""
+        """Neutralize traversal vectors in a store path (dots, colons, leading/trailing separators)."""
         return re.sub(r"[.:]", "", path).strip("/\\")
 
     @api.model
@@ -1886,7 +1885,7 @@ class IrAttachment(models.Model):
         pipeline, so it is used only when no transform rewrites the bytes. The
         one such transform is image autoresize (:meth:`_postprocess_contents`);
         everything else needs at most a prefix (mimetype sniff, ``_index``) or
-        just metadata. So buffer only for an image autoresize may shrink, and
+        just metadata. So buffer only an image that autoresize may shrink, and
         stream everything else.
 
         :param str mimetype: the resolved upload mimetype
@@ -1950,7 +1949,7 @@ class IrAttachment(models.Model):
         return record
 
     def _to_http_stream(self) -> Stream:
-        """Create a :class:`~Stream`: from an ir.attachment record."""
+        """Create a :class:`~Stream` from an ir.attachment record."""
         self.ensure_one()
 
         stream = Stream(

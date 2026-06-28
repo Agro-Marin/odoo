@@ -8,12 +8,12 @@ from typing import Any, Self
 import babel
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.datetime import utc
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
-from odoo.orm._typing import ValuesType
 from odoo.tools import _, get_lang
 from odoo.tools.misc import unquote
 from odoo.tools.safe_eval import safe_eval, test_python_expr
@@ -111,24 +111,7 @@ class ServerActionWithWarningsError(UserError):
 
 
 class IrActionsServer(models.Model):
-    """Server actions model. Server action work on a base model and offer various
-    type of actions that can be executed automatically, for example using base
-    action rules, of manually, by adding the action in the 'More' contextual
-    menu.
-
-    Since Odoo 8.0 a button 'Create Menu Action' button is available on the
-    action form view. It creates an entry in the More menu of the base model.
-    This allows to create server actions and run them in mass mode easily through
-    the interface.
-
-    The available actions are :
-
-    - 'Execute Python Code': a block of python code that will be executed
-    - 'Create a new Record': create a new record with new values
-    - 'Write on a Record': update the values of a record
-    - 'Execute several actions': define an action that triggers several other
-      server actions
-    """
+    """Server action run on a model, automatically (e.g. automation rules, cron) or manually."""
 
     _name = "ir.actions.server"
     _description = "Server Actions"
@@ -604,13 +587,13 @@ class IrActionsServer(models.Model):
         records. In the case of record creation, it is the same as the main model
         of the action. For record update, it will be the model linked to the last
         field in the update_path.
-        This is only used for object_create and object_write actions.
+        This is only used for object_create, object_copy and object_write actions.
         The update_field_id is the field at the end of the update_path that will
         be updated by the action - only used for object_write actions.
         """
         for action in self:
-            # Default: clear all crud-related fields.  Only the matching
-            # branch below will set them to meaningful values.
+            # Reset update_related_model_id unconditionally; the branches
+            # below set (or clear) the other crud fields.
             action.update_related_model_id = False
             if action.model_id and action.state in (
                 "object_write",
@@ -931,7 +914,7 @@ class IrActionsServer(models.Model):
 
         :param action: the current server action
         :type action: browse record
-        :returns: dict -- evaluation context given to (safe_)safe_eval"""
+        :returns: dict -- evaluation context given to safe_eval"""
 
         def log(message, level="info"):
             with self.pool.cursor() as cr:
@@ -1001,7 +984,7 @@ class IrActionsServer(models.Model):
            ids of the current records (mass mode). If ``active_ids`` and
            ``active_id`` are present, ``active_ids`` is given precedence.
 
-        :return: an ``action_id`` to be executed, or ``False`` is finished
+        :return: an ``action_id`` to be executed, or ``False`` if finished
                  correctly without return action
         """
         res = False

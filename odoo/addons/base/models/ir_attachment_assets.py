@@ -1,24 +1,3 @@
-"""ESM / web-asset lifecycle for ir.attachment.
-
-Extracted from the core ``ir_attachment`` model file so the storage,
-security and search concerns there are not interleaved with the
-asset-bundle bookkeeping (mirrors the earlier ``ir_attachment_storage``
-split). This is an ``_inherit`` extension within the SAME ``base`` module:
-the methods stay on the ``ir.attachment`` model and every caller and test
-keeps working unchanged.
-
-It lives in ``base`` (not the ``web`` module) on purpose — in this fork the
-whole asset pipeline (``ir_qweb``, ``assetsbundle``, the ESM save side) is a
-base-level subsystem, and ``test_assetsbundle`` (which depends only on
-``base``) drives :meth:`IrAttachment._gc_esm_assets` directly. Moving these
-to ``web`` would invert that dependency.
-
-The rows handled here are the server-generated ``/web/assets/`` artifacts:
-hashed ESM bundles, their sourcemaps/metadata sidecars, and content-addressed
-bridge shims. They are created by ``ir_qweb`` / ``assetsbundle`` and reaped
-here after a grace window so in-flight pages keep serving during a rebuild.
-"""
-
 import logging
 from datetime import timedelta
 

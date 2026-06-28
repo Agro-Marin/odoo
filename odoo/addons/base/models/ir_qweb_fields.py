@@ -34,14 +34,11 @@ _logger = logging.getLogger(__name__)
 
 
 class IrQwebField(models.AbstractModel):
-    """Used to convert a t-field specification into an output HTML field.
+    """Convert a ``t-field``/``t-out`` value into output HTML.
 
-    :meth:`~.to_html` is the entry point of this conversion from QWeb, it:
-
-    * converts the record value to html using :meth:`~.record_to_html`
-    * generates the metadata attributes (``data-oe-``) to set on the root
-      result node
-    * generates the root result node itself through :meth:`~.render_element`
+    :meth:`~.record_to_html` formats a field off a record (``t-field`` path)
+    and :meth:`~.value_to_html` formats a bare value (``t-out`` widget path);
+    :meth:`~.attributes` builds the ``data-oe-*`` metadata for inline editing.
     """
 
     _name = "ir.qweb.field"
@@ -107,9 +104,7 @@ class IrQwebField(models.AbstractModel):
         options: dict[str, Any],
         values: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """attributes(record, field_name, field, options, values)
-
-        Generates the metadata attributes (prefixed by ``data-oe-``) for the
+        """Generates the metadata attributes (prefixed by ``data-oe-``) for the
         root node of the field conversion.
 
         The default attributes are:
@@ -142,10 +137,9 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
-        """value_to_html(value, field, options=None)
+        """Converts a single value to its HTML version/output.
 
-        Converts a single value to its HTML version/output
-        :rtype: unicode
+        :rtype: str | Markup
         """
         if value is None or value is False:
             return ""
@@ -156,9 +150,7 @@ class IrQwebField(models.AbstractModel):
     def record_to_html(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
-        """record_to_html(record, field_name, options)
-
-        Converts the specified field of the ``record`` to HTML
+        """Converts the specified field of the ``record`` to HTML.
 
         :rtype: str | Markup | bool
         """
@@ -173,9 +165,7 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def user_lang(self) -> models.BaseModel:
-        """user_lang()
-
-        Fetches the res.lang record corresponding to the language code stored
+        """Fetches the res.lang record corresponding to the language code stored
         in the user's context.
 
         :returns: Model[res.lang]
@@ -550,10 +540,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
     The currency is used for formatting *and rounding* of the float value. It
     is assumed that the linked res_currency has a non-empty rounding value and
     res.currency's ``round`` method is used to perform rounding.
-
-    .. note:: the monetary converter internally adds the qweb context to its
-              options mapping, so that the context is available to callees.
-              It's set under the ``_values`` key.
     """
 
     _name = "ir.qweb.field.monetary"
@@ -744,8 +730,8 @@ class IrQwebFieldDuration(models.AbstractModel):
     Can be used on any numerical field.
 
     Has an option ``unit`` which can be one of ``second``, ``minute``,
-    ``hour``, ``day``, ``week`` or ``year``, used to interpret the numerical
-    field value before converting it. By default use ``second``.
+    ``hour``, ``day``, ``week``, ``month`` or ``year``, used to interpret the
+    numerical field value before converting it. By default use ``second``.
 
     Has an option ``round``. By default use ``second``.
 

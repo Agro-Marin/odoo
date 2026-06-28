@@ -28,11 +28,7 @@ class BasePartnerMergeLine(models.TransientModel):
 
 
 class BasePartnerMergeAutomaticWizard(models.TransientModel):
-    """
-    The idea behind this wizard is to create a list of potential partners to
-    merge. We use two objects, the first one is the wizard for the end-user.
-    And the second will contain the partner list to merge.
-    """
+    """Wizard to find and merge groups of potential duplicate partners."""
 
     _name = "base.partner.merge.automatic.wizard"
     _description = "Merge Partner Wizard"
@@ -86,9 +82,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     # ----------------------------------------
 
     def _get_fk_on(self, table: str) -> list[tuple[str, str]]:
-        """return a list of many2one relation with the given table.
-        :param table : the name of the sql table to return relations
-        :returns a list of tuple 'table name', 'column name'.
+        """Return the many2one relations pointing at the given table.
+
+        :param table: name of the SQL table to find relations for
+        :return: list of ``(table_name, column_name)`` tuples
+        :rtype: list
         """
         query = """
             SELECT cl1.relname as table, att1.attname as column
@@ -134,10 +132,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         src_records: models.BaseModel,
         dst_record: models.BaseModel,
     ) -> None:
-        """Update all foreign key from the src_records to dst_record for any model.
+        """Update all foreign keys from src_records to dst_record, for any model.
+
         :param model: model name as a string
         :param src_records: merge source recordset (does not include destination one)
-        :param dst_record: record of destination
+        :param dst_record: destination record
         """
         _logger.debug(
             "_update_foreign_keys_generic for dst_record: %s for src_records: %s",
@@ -277,11 +276,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         dst_record: models.BaseModel,
         additional_update_records: list[dict[str, str]] | None = None,
     ) -> None:
-        """Update all reference fields from the src_records to dst_record for any model.
+        """Update all reference fields from src_records to dst_record, for any model.
+
         :param referenced_model: model name as a string
         :param src_records: merge source recordset (does not include destination one)
-        :param dst_record: record of destination
-        :param additional_update_records: list of tuples (model, field_model, field_id)
+        :param dst_record: destination record
+        :param additional_update_records: list of dicts with keys ``model`` and ``field_model``
         """
         _logger.debug(
             "_update_reference_fields_generic for dst_record: %s for src_records: %r",
@@ -465,9 +465,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _update_foreign_keys(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
-        """Update all foreign key from the src_partner to dst_partner. All many2one fields will be updated.
-        :param src_partners : merge source res.partner recordset (does not include destination one)
-        :param dst_partner : record of destination res.partner
+        """Update all foreign keys from src_partners to dst_partner (every many2one).
+
+        :param src_partners: merge source res.partner recordset (does not include destination one)
+        :param dst_partner: destination res.partner record
         """
         self._update_foreign_keys_generic("res.partner", src_partners, dst_partner)
 
@@ -475,9 +476,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _update_reference_fields(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
-        """Update all reference fields from the src_partner to dst_partner.
-        :param src_partners : merge source res.partner recordset (does not include destination one)
-        :param dst_partner : record of destination res.partner
+        """Update all reference fields from src_partners to dst_partner.
+
+        :param src_partners: merge source res.partner recordset (does not include destination one)
+        :param dst_partner: destination res.partner record
         """
         additional_update_records = [
             {"model": "calendar.event", "field_model": "model_id.model"}
@@ -494,9 +496,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _update_values(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
-        """Update values of dst_partner with the ones from the src_partners.
-        :param src_partners : recordset of source res.partner
-        :param dst_partner : record of destination res.partner
+        """Update dst_partner's values with those from src_partners.
+
+        :param src_partners: recordset of source res.partner
+        :param dst_partner: destination res.partner record
         """
         _logger.debug(
             "_update_values for dst_partner: %s for src_partners: %r",
@@ -558,8 +561,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
         """Merge bank accounts of src_partners into dst_partner.
+
         :param src_partners: merge source res.partner recordset (does not include destination one)
-        :param dst_partner: record of destination res.partner
+        :param dst_partner: destination res.partner record
         """
         all_src_accounts = src_partners.bank_ids
 
@@ -586,10 +590,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         dst_partner: models.BaseModel | None = None,
         extra_checks: bool = True,
     ) -> None:
-        """private implementation of merge partner
-        :param partner_ids : ids of partner to merge
-        :param dst_partner : record of destination res.partner
-        :param extra_checks: pass False to bypass extra sanity check (e.g. email address)
+        """Merge the given partners (private implementation).
+
+        :param partner_ids: ids of the partners to merge
+        :param dst_partner: destination res.partner record
+        :param extra_checks: pass False to bypass extra sanity checks (e.g. email address)
         """
         # super-admin can be used to bypass extra checks
         if self.env.is_admin():
@@ -755,9 +760,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     @api.model
     def _partner_use_in(self, aggr_ids: list[int], models: dict[str, str]) -> bool:
-        """Check if there is no occurrence of this group of partner in the selected model
-        :param aggr_ids : stringified list of partner ids separated with a comma (sql array_agg)
-        :param models : dict mapping a model name with its foreign key with res_partner table
+        """Check whether this group of partners occurs in any of the given models.
+
+        :param aggr_ids: list of partner ids to look for
+        :param models: dict mapping model name to its res_partner foreign-key column
+        :return: ``True`` if at least one model references one of the partners
+        :rtype: bool
         """
         return any(
             self.env[model].search_count([(field, "in", aggr_ids)])
@@ -766,8 +774,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     @api.model
     def _get_ordered_partner(self, partner_ids: list[int]) -> models.BaseModel:
-        """Helper : returns a `res.partner` recordset ordered by create_date/active fields
-        :param partner_ids : list of partner ids to sort
+        """Return a res.partner recordset ordered by the active flag and create_date.
+
+        :param partner_ids: list of partner ids to sort
         """
         return (
             self.env["res.partner"]
@@ -782,7 +791,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
 
     def _compute_models(self) -> dict[str, str]:
-        """Compute the different models needed by the system if you want to exclude some partners."""
+        """Return the model-to-foreign-key mapping for the active exclude options."""
         model_mapping = {}
         if self.exclude_contact:
             model_mapping["res.users"] = "partner_id"
@@ -795,15 +804,16 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     # ----------------------------------------
 
     def action_skip(self) -> dict[str, Any]:
-        """Skip this wizard line. Don't compute any thing, and simply redirect to the new step."""
+        """Skip the current wizard line and move to the next step."""
         if self.current_line_id:
             self.current_line_id.unlink()
         return self._action_next_screen()
 
     def _action_next_screen(self) -> dict[str, Any]:
-        """return the action of the next screen ; this means the wizard is set to treat the
-        next wizard line. Each line is a subset of partner that can be merged together.
-        If no line left, the end screen will be displayed (but an action is still returned).
+        """Advance the wizard to the next line and return the action to reopen it.
+
+        Each line is a subset of partners that can be merged together. When no
+        line is left, the wizard switches to the finished state.
         """
         self.env.invalidate_all()  # FIXME: is this still necessary?
         values = {}
@@ -887,12 +897,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         _logger.info("counter: %s", counter)
 
     def action_start_manual_process(self) -> dict[str, Any]:
-        """Start the process 'Merge with Manual Check'. Fill the wizard according to the group_by and exclude
-        options, and redirect to the first step (treatment of first wizard line). After, for each subset of
-        partner to merge, the wizard will be actualized.
+        """Start the 'Merge with Manual Check' process.
 
-            - Compute the selected groups (with duplication)
-            - If the user has selected the ``exclude_xxx`` fields, avoid the partners
+        Fill the wizard from the group_by and exclude options, then redirect to
+        the first wizard line; each subsequent line is processed in turn.
         """
         self.ensure_one()
         groups = self._compute_selected_groupby()
@@ -901,9 +909,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return self._action_next_screen()
 
     def action_start_automatic_process(self) -> dict[str, Any]:
-        """Start the process 'Merge Automatically'. This will fill the wizard with the same mechanism as 'Merge
-        with Manual Check', but instead of refreshing wizard with the current line, it will automatically process
-        all lines by merging partner grouped according to the checked options.
+        """Start the 'Merge Automatically' process.
+
+        Fill the wizard like 'Merge with Manual Check', then merge every line
+        automatically instead of stepping through them.
         """
         self.ensure_one()
         self.action_start_manual_process()  # here we don't redirect to the next screen, since it is automatic process
@@ -1023,9 +1032,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return self._action_next_screen()
 
     def action_merge(self) -> dict[str, Any]:
-        """Merge Contact button. Merge the selected partners, and redirect to
-        the end screen (since there is no other wizard line to process.
-        """
+        """Merge the selected partners and advance to the next wizard screen."""
         if not self.partner_ids:
             self.write({"state": "finished"})
             return {

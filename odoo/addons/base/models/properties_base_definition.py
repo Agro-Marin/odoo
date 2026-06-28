@@ -6,7 +6,7 @@ from odoo.tools import ormcache
 
 
 class PropertiesBaseDefinition(models.Model):
-    """Models storing the properties definition of the record without parent."""
+    """Stores the properties definition for a ``properties`` field without a parent record."""
 
     _name = "properties.base.definition"
     _description = "Properties Base Definition"

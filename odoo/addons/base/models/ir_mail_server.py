@@ -92,10 +92,12 @@ def _verify_check_hostname_callback(
     *,
     hostname: str,
 ) -> bool:
-    """Callback used for pyOpenSSL.verify_mode, by default pyOpenSSL
-    only checkes :param:`err_no`, we enrich it to also verify that
-    the SMTP server :param:`hostname` matches the :param:`x509`'s
-    Common Name (CN) or Subject Alternative Name (SAN)."""
+    """Callback for pyOpenSSL's verify_mode.
+
+    By default pyOpenSSL only checks ``err_no``; we also verify that the SMTP
+    server ``hostname`` matches the ``x509`` certificate's Common Name (CN) or
+    Subject Alternative Name (SAN).
+    """
     if err_no:
         return False
 
@@ -314,11 +316,13 @@ class IrMail_Server(models.Model):
         )
 
     def _active_usages_compute(self) -> dict[int, list[str]]:
-        """Compute a dict server id to list of user-friendly outgoing mail servers usage of this record set.
+        """Map each server id to user-friendly descriptions of its active usages.
 
-        This method must be overridden by all modules that uses this class in order to complete the list with
-        user-friendly string describing the active elements that could send mail through the instance of this class.
-        :return dict: { ir_mail_server.id: usage_str_list }.
+        Override in modules that use this model to list the active elements that
+        could send mail through a server in this recordset.
+
+        :return: ``{ir_mail_server.id: usage_str_list}``
+        :rtype: dict[int, list[str]]
         """
         return {}
 
@@ -541,10 +545,10 @@ class IrMail_Server(models.Model):
         :param str | None encryption: optional, ``'none'`` | ``'ssl'`` | ``'ssl_strict'`` | ``'starttls'`` | ``'starttls_strict'``.
             The 'strict' variants verify the remote server's certificate against the operating system trust store.
         :param smtp_from: FROM SMTP envelop, used to find the best mail server
-        :param ssl_certificate: filename of the SSL certificate used for authentication
-            Used when no mail server is given and overwrite  the odoo-bin argument "smtp_ssl_certificate"
-        :param ssl_private_key: filename of the SSL private key used for authentication
-            Used when no mail server is given and overwrite  the odoo-bin argument "smtp_ssl_private_key"
+        :param ssl_certificate: filename of the SSL certificate used for authentication.
+            Used when no mail server is given; overrides the ``--smtp-ssl-certificate-filename`` odoo-bin argument
+        :param ssl_private_key: filename of the SSL private key used for authentication.
+            Used when no mail server is given; overrides the ``--smtp-ssl-private-key-filename`` odoo-bin argument
         :param bool smtp_debug: toggle debugging of SMTP sessions (all i/o
                            will be output in logs)
         :param mail_server_id: ID of specific mail server to use (overrides other parameters)
@@ -753,12 +757,12 @@ class IrMail_Server(models.Model):
     ) -> None:
         """Authenticate the SMTP connection.
 
-        Can be overridden in other module for different authentication methods.Can be
-        called on the model itself or on a singleton.
+        Can be overridden in other modules for different authentication methods.
+        Can be called on the model itself or on a singleton.
 
-        :param connection: The SMTP connection to authenticate
-        :param smtp_user: The user to used for the authentication
-        :param smtp_password: The password to used for the authentication
+        :param connection: the SMTP connection to authenticate
+        :param smtp_user: the user for the authentication
+        :param smtp_password: the password for the authentication
         """
         connection.login(smtp_user, smtp_password)
 
@@ -780,7 +784,7 @@ class IrMail_Server(models.Model):
         body_alternative: str | None = None,
         subtype_alternative: str = "plain",
     ) -> EmailMessage:
-        """Constructs an RFC2822 email.message.Message object based on the keyword arguments passed, and returns it.
+        """Construct an RFC2822 email message from the given arguments.
 
         :param str | None email_from: sender email address
         :param str | list[str] email_to: list of recipient addresses (to be joined with commas)
@@ -799,8 +803,7 @@ class IrMail_Server(models.Model):
                                making the content part of the mail "text/plain".
         :param str subtype_alternative: optional mime subtype of ``body_alternative`` (usually 'plain'
                                            or 'html'). Default is 'plain'.
-        :param list[tuple[str, bytes, str]] | None attachments: list of (filename, filecontents) pairs, where filecontents is a string
-                                 containing the bytes of the attachment
+        :param list[tuple[str, bytes, str]] | None attachments: list of (filename, content, mimetype) tuples
         :param str | None message_id: optional value for the Message-Id header; generated when omitted
         :param str | None references: optional value for the References header (parent message ids)
         :param list[str] | None email_cc: optional list of string values for CC header (to be joined with commas)
@@ -923,9 +926,9 @@ class IrMail_Server(models.Model):
         :param smtp_session: the opened SMTP session to use to authenticate the sender
 
         :return: smtp_from, smtp_to_list, message
-            smtp_from: email to used during the authentication to the mail server
-            smtp_to_list: list of email address which will receive the email
-            message: the email.message.Message to send
+            smtp_from: envelope sender (MAIL FROM) of the email
+            smtp_to_list: list of recipient email addresses
+            message: the email message to send
         """
         # Use the default bounce address **only if** no Return-Path was
         # provided by caller.  Caller may be using Variable Envelope Return
@@ -1247,10 +1250,10 @@ class IrMail_Server(models.Model):
     def _match_from_filter(
         self, email_from: str | None, from_filter: str | None
     ) -> bool:
-        """Return True is the given email address match the "from_filter" field.
+        """Return True if the given email address matches the "from_filter" field.
 
         The from filter can be Falsy (always match),
-        a domain name or an full email address.
+        a domain name or a full email address.
         """
         if not from_filter:
             return True
