@@ -1882,9 +1882,17 @@ class ProjectTask(models.Model):
                     vals["milestone_id"], vals["milestone_id"]
                 )
             if not default.get("child_ids") and task.child_ids:
+                whitelisted_fields = (
+                    self._get_template_default_context_whitelist()
+                    if self.env.context.get("copy_from_template")
+                    else []
+                )
                 default = {
-                    "parent_id": False,
+                    key: value
+                    for key, value in default.items()
+                    if key in whitelisted_fields
                 }
+                default["parent_id"] = False
                 current_task = task
                 if self.env.context.get("copy_from_template"):
                     current_task = current_task.with_context(active_test=True)
