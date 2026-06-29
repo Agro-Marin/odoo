@@ -24,9 +24,9 @@ class AccountTax(models.Model):
                 WHERE EXISTS(
                     SELECT 1
                     FROM account_tax_purchase_order_line_rel AS pur
-                    WHERE account_tax_id = ANY(%s)
-                    AND account_tax.id = pur.account_tax_id
+                    WHERE account_tax.id = pur.account_tax_id
                 )
+                AND id = ANY(%s)
                 """,
                 [list(taxes_to_compute)],
             )
