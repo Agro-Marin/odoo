@@ -151,10 +151,10 @@ class PortalChatter(ThreadController):
 
         Message = request.env["mail.message"]
         if kw.get("token"):
-            # Direct ThreadController call (not self.*) intentionally bypasses
-            # portal's HMAC fallback in mail_thread.py:_get_thread_with_access:
-            # token-only auth must validate strictly via the parent.
-            thread = ThreadController._get_thread_with_access(
+            # Token-only access check (no hash/pid): the model's portal override
+            # leaves its HMAC branch inert without hash+pid, so only the token is
+            # validated here.
+            thread = self._get_thread_with_access(
                 thread_model,
                 thread_id,
                 token=kw.get("token"),
