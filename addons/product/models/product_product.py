@@ -305,7 +305,7 @@ class ProductProduct(models.Model):
         existing_products = self.exists()
         product_ids_by_template_id = {
             template.id: set(ids)
-            for template, ids in self._read_group(
+            for template, ids in self.with_context(active_test=False)._read_group(
                 domain=[
                     ("product_tmpl_id", "in", existing_products.product_tmpl_id.ids),
                 ],
@@ -428,6 +428,7 @@ class ProductProduct(models.Model):
         works as intended :-)
         """
         now = self.env.cr.now()
+        self.fetch(["write_date"])
         for record in self:
             if not record.id:
                 record.write_date = record._origin.write_date
@@ -1067,8 +1068,11 @@ class ProductProduct(models.Model):
 
     def _prepare_sellers(self, params=False):
         # Use variant_seller_ids (unfiltered) to allow _get_filtered_supplier
-        # to handle company filtering based on params (e.g., order company)
-        all_sellers = self.variant_seller_ids or self.seller_ids
+        # to handle company filtering based on params (e.g., order company).
+        # Access via sudo so the cache is not polluted with cross-company
+        # sellers (the field is computed/stored with compute_sudo), which would
+        # otherwise raise a read access error on inactive-company suppliers.
+        all_sellers = self.sudo().variant_seller_ids or self.sudo().seller_ids
         sellers = all_sellers._get_filtered_supplier(self.env.company, self, params)
         return sellers.sorted(lambda s: (s.sequence, -s.min_qty, s.price, s.id))
 
