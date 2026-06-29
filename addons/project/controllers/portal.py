@@ -596,7 +596,7 @@ class ProjectCustomerPortal(CustomerPortal):
                 ),
                 "sequence": 10,
             },
-            "users": {
+            "user_ids": {
                 "input": "user_ids",
                 "label": _("Search in Assignees"),
                 "sequence": 20,
@@ -646,7 +646,7 @@ class ProjectCustomerPortal(CustomerPortal):
     ) -> list:
         if not search_in or search_in == "name":
             return ["|", ("name", "ilike", search), ("id", "ilike", search)]
-        elif search_in == "users":
+        elif search_in == "user_ids":
             user_ids = (
                 request.env["res.users"].sudo().search([("name", "ilike", search)])
             )
