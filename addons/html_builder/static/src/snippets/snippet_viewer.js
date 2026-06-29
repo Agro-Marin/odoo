@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, markup, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { InputConfirmationDialog } from "./input_confirmation_dialog.js";
@@ -21,6 +22,7 @@ export class SnippetViewer extends Component {
     setup() {
         this.dialog = useService("dialog");
         this.content = useRef("content");
+        this.backendDirection = localization.direction;
     }
 
     /**
