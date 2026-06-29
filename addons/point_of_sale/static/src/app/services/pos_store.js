@@ -49,6 +49,7 @@ import { ScaleScreen } from "../screens/scale_screen/scale_screen.js";
 import { DebugWidget } from "../utils/debug/debug_widget.js";
 import DevicesSynchronisation from "../utils/devices_synchronisation.js";
 import { initLNA } from "../utils/init_lna.js";
+import { Domain } from "@web/core/domain";
 import OrderPaymentValidation from "../utils/order_payment_validation.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 
@@ -1676,14 +1677,15 @@ export class PosStore extends WithLazyGetterTrap {
     }
     async getServerOrders() {
         await this.syncAllOrders();
-        return await this.data.loadServerOrders([
-            [
-                "config_id",
-                "in",
-                [...this.config.raw.trusted_config_ids, this.config.id],
-            ],
-            ["state", "=", "draft"],
+        const config_domain = new Domain([
+            ["config_id", "in", [...this.config.raw.trusted_config_ids, this.config.id]],
         ]);
+        return await this.data.loadServerOrders(
+            Domain.and([config_domain, this.getServerOrdersDomain()]).toList()
+        );
+    }
+    getServerOrdersDomain() {
+        return new Domain([["state", "=", "draft"]]);
     }
     async getProductInfo(
         productTemplate,
