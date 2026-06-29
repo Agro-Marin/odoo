@@ -1995,7 +1995,7 @@ class PurchaseOrderLine(models.Model):
         if not "accrual_entry_date" in self.env.context:
             return False
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
-        return accrual_date < fields.Date.today()
+        return accrual_date and accrual_date < fields.Date.today()
 
     def _has_discount_differences(self, invoice_lines):
         """Check if any invoice line has a different discount than the PO line."""
