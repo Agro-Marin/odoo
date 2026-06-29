@@ -26,6 +26,7 @@ import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
 import { withSequence } from "@html_editor/utils/resource";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
 import { isVisible } from "@html_builder/utils/utils";
+import { localization } from "@web/core/l10n/localization";
 
 /**
  * @typedef {(() => void)[]} on_mobile_preview_clicked
@@ -195,6 +196,7 @@ export class Builder extends Component {
                 cleanEmptyStructuralContainers: false,
                 isEditableRTL: false,
                 publicAttachments: true,
+                direction: localization.direction || "ltr",
             },
             this.env.services
         );
