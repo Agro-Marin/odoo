@@ -1118,6 +1118,10 @@ class ProjectTask(models.Model):
         if not self.project_id and not self.user_ids:
             self.user_ids = self.env.user
 
+        if not self.project_id and self.parent_id and self.parent_id.project_id:
+            self.project_id = self.parent_id.project_id.id
+            self.display_in_project = False
+
     def is_blocked_by_predecessors(self) -> bool:
         return any(
             blocking_task.state not in CLOSED_STATES
