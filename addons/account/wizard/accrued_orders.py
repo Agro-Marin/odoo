@@ -64,7 +64,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         required=True,
         string="Accrual Account",
         check_company=True,
-        domain="[('account_type', '=', 'liability_current')] if context.get('active_model') == 'purchase.order' else [('account_type', '=', 'asset_current')]",
+        domain="[('account_type', '=', 'liability_current')] if context.get('active_model') in ['purchase.order', 'purchase.order.line'] else [('account_type', '=', 'asset_current')]",
     )
     preview_data = fields.Text(compute="_compute_preview_data")
     display_amount = fields.Boolean(compute="_compute_display_amount")
@@ -80,7 +80,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     @api.depends("date")
     def _compute_reversal_date(self):
         for record in self:
-            if not record.reversal_date or record.reversal_date <= record.date:
+            if record.date and (
+                not record.reversal_date or record.reversal_date <= record.date
+            ):
                 record.reversal_date = record.date + relativedelta(days=1)
             else:
                 record.reversal_date = record.reversal_date
@@ -230,8 +232,11 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 )
                 move_lines.append(Command.create(values))
             else:
-                accrual_entry_date = self.env.context.get(
-                    "accrual_entry_date", self.date
+                accrual_entry_date = self.env.context.get("accrual_entry_date")
+                accrual_entry_date = (
+                    fields.Date.from_string(accrual_entry_date)
+                    if accrual_entry_date
+                    else self.date
                 )
                 order_lines = lines.with_context(
                     accrual_entry_date=accrual_entry_date
