@@ -1457,8 +1457,8 @@ class ProjectProject(models.Model):
         )
         # Hide/Show task waiting subtype when task dependencies feature is disabled/enabled
         if res or res is False:
-            self.env.ref("project.mt_task_waiting").hidden = not res
-            self.env.ref("project.mt_project_task_waiting").hidden = not res
+            self.env.ref("project.mt_task_waiting").sudo().hidden = not res
+            self.env.ref("project.mt_project_task_waiting").sudo().hidden = not res
 
     def _inverse_allow_milestones(self) -> None:
         self._check_project_group_with_field(
@@ -1954,7 +1954,7 @@ class ProjectProject(models.Model):
         group = self.env.ref(group_name)
         base_group_user = self.env.ref("base.group_user")
         has_project_field_set = bool(
-            self.env["project.project"].search_count([(field_name, "=", True)], limit=1)
+            self.env["project.project"].sudo().search_count([(field_name, "=", True)], limit=1)
         )
         res = None
 
