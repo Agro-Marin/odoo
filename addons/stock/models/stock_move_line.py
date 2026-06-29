@@ -1141,7 +1141,9 @@ class StockMoveLine(models.Model):
                 in_date=in_date,
             )
             if available_qty < 0:
-                ml.with_context(quants_cache=None)._free_reservation(
+                ml.with_context(
+                    quants_cache=None, bypass_entire_pack=True
+                )._free_reservation(
                     ml.product_id,
                     ml.location_id,
                     abs(available_qty),
@@ -1156,6 +1158,9 @@ class StockMoveLine(models.Model):
             mls_todo.result_package_id._apply_dest_to_package()
 
         # Reset the reserved quantity as we just moved it to the destination location.
+        affected_pickings = mls_todo.picking_id
+        if affected_pickings:
+            affected_pickings._check_entire_pack()
         mls_todo.write(
             {
                 "date": fields.Datetime.now(),
