@@ -1631,8 +1631,8 @@ class ProjectTask(models.Model):
 
     def _inverse_partner_phone(self) -> None:
         for task in self:
-            if task.partner_id:
-                task.partner_id.phone = task.partner_phone
+            if task.partner_id and task.partner_phone != task.partner_id.phone:
+                task.partner_id.sudo().phone = task.partner_phone
 
     @api.onchange("company_id")
     def _onchange_task_company(self) -> None:
