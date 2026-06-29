@@ -1115,6 +1115,8 @@ class ProjectTask(models.Model):
     def _onchange_project_id(self) -> None:
         if self.state != "blocked":
             self.state = "in_progress"
+        if not self.project_id and not self.user_ids:
+            self.user_ids = self.env.user
 
     def is_blocked_by_predecessors(self) -> bool:
         return any(
