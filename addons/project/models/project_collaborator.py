@@ -11,7 +11,7 @@ class ProjectCollaborator(models.Model):
         "project.project",
         "Project Shared",
         domain=[
-            ("privacy_visibility", "=", "portal"),
+            ("privacy_visibility", "in", ["portal", "invited_users"]),
             ("is_template", "=", False),
         ],
         required=True,
