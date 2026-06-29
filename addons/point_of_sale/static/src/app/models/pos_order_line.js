@@ -339,10 +339,6 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     hasValidProductLot() {
-        if (this.pack_lot_ids.length > 0) {
-            return true;
-        }
-
         const valid_product_lot = this.getValidLots();
         const lotsRequired =
             this.product_id.tracking == "serial" ? Math.abs(this.qty) : 1;
