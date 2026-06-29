@@ -390,7 +390,7 @@ export class PosOrder extends PosOrderAccounting {
         for (const cLine of pLine.combo_line_ids) {
             if (!(cLine.combo_item_id.combo_id.id in comboRemainingFree)) {
                 comboRemainingFree[cLine.combo_item_id.combo_id.id] =
-                    cLine.combo_item_id.combo_id.qty_free;
+                    cLine.combo_item_id.combo_id.qty_free * pLine.qty;
             }
             const newQty =
                 comboRemainingFree[cLine.combo_item_id.combo_id.id] - cLine.qty;
@@ -403,7 +403,7 @@ export class PosOrder extends PosOrderAccounting {
             if (cLine.qty) {
                 if (newQty >= 0) {
                     comboRemainingFree[cLine.combo_item_id.combo_id.id] = newQty;
-                    childLineFree.push({ ...baseData, qty: cLine.qty });
+                    childLineFree.push({ ...baseData, qty: cLine.qty, parentQty: pLine.qty });
                 } else {
                     childLineExtra.push({ ...baseData, qty: cLine.qty });
                 }
