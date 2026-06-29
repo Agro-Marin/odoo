@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from bisect import bisect
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime, time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -173,9 +173,15 @@ class ProductProduct(models.Model):
         main_currency = self.env.company.currency_id
         self.company_currency_id = main_currency
 
-        at_date = fields.Datetime.to_datetime(self.env.context.get('to_date'))
-        if at_date:
-            at_date = at_date.replace(hour=23, minute=59, second=59)
+        # A bare date (or 10-char date string) means "as of the end of that day";
+        # a full datetime is honoured as-is. Keeps value consistent with the
+        # quantity computation, which applies the same rule on the `to_date` context.
+        original_value = self.env.context.get('to_date')
+        at_date = fields.Datetime.to_datetime(original_value)
+        if (isinstance(original_value, date) and not isinstance(original_value, datetime)) or (
+            isinstance(original_value, str) and len(original_value) == 10
+        ):
+            at_date = datetime.combine(at_date.date(), time.max)
 
         # `compute_sudo=True` bypasses the company record rules, so the valuation cannot
         # rely on them to stay isolated per company. Value each selected company on its
@@ -187,7 +193,7 @@ class ProductProduct(models.Model):
             products = self.with_company(company).with_context(allowed_company_ids=company.ids)
             products = products._with_valuation_context()
             if at_date:
-                products = products.with_context(at_date=at_date)
+                products = products.with_context(at_date=at_date, to_date=at_date)
             std_price_by_company_id[company.id], total_value_by_company_id[company.id] = (
                 self._run_valuation_batches(products, at_date)
             )
