@@ -30,6 +30,7 @@ import { RemovePlugin } from "./remove_plugin.js";
 import { SavePlugin } from "./save_plugin.js";
 import { SaveSnippetPlugin } from "./save_snippet_plugin.js";
 import { SetupEditorPlugin } from "./setup_editor_plugin.js";
+import { SnippetPlugin } from "./snippet_plugin.js";
 import { CoreSetupEditorPlugin } from "./core_setup_editor_plugin.js";
 import { VisibilityPlugin } from "./visibility_plugin.js";
 import { FieldChangeReplicationPlugin } from "./field_change_replication_plugin.js";
@@ -84,6 +85,7 @@ export const CORE_PLUGINS = [
     DisableSnippetsPlugin,
     MediaWebsitePlugin,
     SetupEditorPlugin,
+    SnippetPlugin,
     CoreSetupEditorPlugin,
     SavePlugin,
     VisibilityPlugin,
