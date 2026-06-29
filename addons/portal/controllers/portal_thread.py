@@ -101,7 +101,7 @@ class PortalChatter(ThreadController):
                                 fields=[
                                     "active",
                                     "avatar_128",
-                                    Store.One("main_user_id", "share"),
+                                    Store.One("main_user_id", ["partner_id", "share"]),
                                     "name",
                                 ],
                             )
@@ -118,20 +118,26 @@ class PortalChatter(ThreadController):
                     # users with real read rights on the underlying record.
                     "hasReadAccess": thread.sudo(False).has_access("read"),
                 },
+                # display_name lets the frontend rebuild the prettified link of
+                # a posted message thread after a page refresh.
+                ["display_name"],
                 as_thread=True,
             )
         return store.get_result()
 
     @http.route("/mail/chatter_fetch", type="jsonrpc", auth="public", website=True)
     def portal_message_fetch(self, thread_model, thread_id, fetch_params=None, **kw):
-        """Fetch the comment messages displayed in the portal chatter.
+        """Fetch the messages displayed in the portal chatter.
 
         Builds the search domain from the thread model's ``website_message_ids``
-        field, filters to ``mail.mt_comment`` subtype, and drops empty messages.
+        field and restricts it to the share-safe subset of messages
+        (``_get_search_domain_share``) — i.e. non-internal messages of any
+        non-internal subtype, not only ``mail.mt_comment``. All portal viewers,
+        and internal users (who are meant to see the portal as portal users do),
+        get the same non-internal-only visibility. Empty messages are dropped.
         For token-based auth, validates the token and rebinds ``Message`` to
         a sudo recordset so the search returns the messages the validator
-        already authorised; non-internal users additionally see only the share-
-        safe subset of messages.
+        already authorised.
         """
         model = request.env[thread_model]
         field = model._fields["website_message_ids"]
@@ -139,7 +145,7 @@ class PortalChatter(ThreadController):
             Domain(self._setup_portal_message_fetch_extra_domain(kw))
             & Domain(field.get_comodel_domain(model))
             & Domain("res_id", "=", thread_id)
-            & Domain("subtype_id", "=", request.env.ref("mail.mt_comment").id)
+            & Domain(request.env["mail.message"]._get_search_domain_share())
             & self._get_non_empty_message_domain()
         )
 
@@ -167,9 +173,6 @@ class PortalChatter(ThreadController):
                         "portal_thread": thread,
                     },
                 )
-            # Non-employee see only messages without an internal subtype.
-            if not request.env.user._is_internal():
-                domain = Message._get_search_domain_share() & domain
             Message = request.env["mail.message"].sudo()
         res = Message._message_fetch(domain, **(fetch_params or {}))
         messages = res.pop("messages")

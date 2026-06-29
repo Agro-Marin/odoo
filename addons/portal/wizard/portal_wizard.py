@@ -144,15 +144,17 @@ class PortalWizardUser(models.TransientModel):
             ).user_ids
             portal_wizard_user.user_id = user[0] if user else False
 
-    @api.depends("user_id", "user_id.group_ids")
+    @api.depends("user_id", "user_id.active", "user_id.group_ids")
     def _compute_group_details(self):
         for portal_wizard_user in self:
             user = portal_wizard_user.user_id
 
+            # If a user was internal when archived, reusing
+            # their user for portal should be done via settings
             if user and user._is_internal():
                 portal_wizard_user.is_internal = True
                 portal_wizard_user.is_portal = False
-            elif user and user._is_portal():
+            elif user and user.active and user._is_portal():
                 portal_wizard_user.is_internal = False
                 portal_wizard_user.is_portal = True
             else:
@@ -188,25 +190,32 @@ class PortalWizardUser(models.TransientModel):
             company = self.partner_id.company_id or self.env.company
             user_sudo = self.sudo().with_company(company.id)._create_user()
 
-        if not user_sudo.active or not self.is_portal:
-            user_sudo.write(
-                {
-                    "active": True,
-                    "group_ids": [
-                        Command.link(group_portal.id),
-                        Command.unlink(group_public.id),
-                    ],
-                }
-            )
-            # prepare for the signup process
-            user_sudo.partner_id.signup_prepare()
+        # Users whose access was revoked are archived but kept in the portal
+        # group, so re-granting only needs to reactivate them.
+        user_sudo.write(
+            {
+                "active": True,
+                "group_ids": [
+                    Command.link(group_portal.id),
+                    Command.unlink(group_public.id),
+                ],
+            }
+        )
+        # prepare for the signup process
+        user_sudo.partner_id.signup_prepare()
 
         self.with_context(active_test=True)._send_email()
 
         return self.action_refresh_modal()
 
     def action_revoke_access(self):
-        """Revoke portal access: move the user from ``group_portal`` to ``group_public`` and archive."""
+        """Archive the portal user of the partner.
+
+        The user is kept in ``group_portal``: ``group_public`` should only be
+        used for automated tasks and guest interactions, never for a revoked
+        portal user (which could otherwise be picked as a website's default
+        public user).
+        """
         self.ensure_one()
         if not self.is_portal:
             raise UserError(
@@ -216,9 +225,6 @@ class PortalWizardUser(models.TransientModel):
                 )
             )
 
-        group_portal = self.env.ref("base.group_portal")
-        group_public = self.env.ref("base.group_public")
-
         self._update_partner_email()
 
         # Remove the sign up token, so it can not be used
@@ -226,17 +232,8 @@ class PortalWizardUser(models.TransientModel):
 
         user_sudo = self.user_id.sudo()
 
-        # remove the user from the portal group
         if user_sudo and user_sudo._is_portal():
-            user_sudo.write(
-                {
-                    "group_ids": [
-                        Command.unlink(group_portal.id),
-                        Command.link(group_public.id),
-                    ],
-                    "active": False,
-                }
-            )
+            user_sudo.write({"active": False})
 
         return self.action_refresh_modal()
 
