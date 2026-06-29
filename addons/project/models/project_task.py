@@ -2933,7 +2933,7 @@ class ProjectTask(models.Model):
                     partner_ids=user.partner_id.ids,
                     email_layout_xmlid="mail.mail_notification_layout",
                     model_description=task_model_description,
-                    mail_auto_delete=False,
+                    mail_auto_delete=True,
                 )
 
     def _message_auto_subscribe_followers(
