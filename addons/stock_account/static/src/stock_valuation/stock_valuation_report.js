@@ -13,6 +13,9 @@ import { StockValuationReportController } from "../stock_valuation/controller.js
 import { StockValuationReportFilters } from "../stock_valuation/filters/filters.js"
 import { StockValuationReportLine } from "../stock_valuation/line/line.js"
 import { StockValuationReportToggleLine } from "../stock_valuation/line/toggle_line.js"
+import { serializeDate } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+const { DateTime } = luxon;
 
 
 export class StockValuationReport extends Component {
@@ -80,20 +83,22 @@ export class StockValuationReport extends Component {
     }
 
     // On Click Methods --------------------------------------------------------
-    openAccountMoves(accountMoves=false) {
-        const additionalContext = {};
-        const domain = [];
-        if (accountMoves) {
-            const ids = accountMoves.map((am) => am.id);
-            const names = accountMoves.map((am) => am.name);
-            additionalContext.search_default_name = names;
-            additionalContext.search_default_ids = ids;
-            domain.push(["id", "in", ids])
+    async openAccountMoves(accountIds=false) {
+        const action = await this.actionService.loadAction("account.action_account_moves_all");
+        const domain = [...(action.domain || [])];
+        if (accountIds) {
+            domain.push(['account_id', 'in', accountIds]);
         }
-        return this.actionService.doAction(
-            "account.action_move_journal_line",
-            { additionalContext, domain }
-        );
+        if (serializeDate(this.controller.state.date) !== serializeDate(DateTime.now())) {
+            domain.push(['date', '<=', serializeDate(this.controller.state.date)]);
+        }
+        action.domain = domain;
+        action.context = {
+            ...action.context,
+            search_default_group_by_account: 1,
+            search_default_groupby_date: 'month',
+        };
+        return this.actionService.doAction(action);
     }
 
     openStockMoveView(title, usage) {

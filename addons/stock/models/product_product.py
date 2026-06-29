@@ -1,16 +1,17 @@
+import operator as py_operator
 from ast import literal_eval
 from collections import defaultdict
 from collections.abc import Iterable
-import operator as py_operator
+from datetime import date, datetime, time
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.tools import Query, SQL
 from odoo.libs.barcode import check_barcode_encoding
 from odoo.libs.numbers.float_utils import float_compare
+from odoo.tools import SQL, Query
 from odoo.tools.mail import html2plaintext, is_html_empty
 
 PY_OPERATORS = {
@@ -322,7 +323,12 @@ class ProductProduct(models.Model):
         domain_quant = product_domain & domain_quant_loc
         dates_in_the_past = False
         # only to_date as to_date will correspond to qty_available
+        original_value = to_date
         to_date = fields.Datetime.to_datetime(to_date)
+        if (isinstance(original_value, date) and not isinstance(original_value, datetime)) or (
+            isinstance(original_value, str) and len(original_value) == 10
+        ):
+            to_date = datetime.combine(to_date.date(), time.max)
         if to_date and to_date < fields.Datetime.now():
             dates_in_the_past = True
 
@@ -963,6 +969,13 @@ class ProductProduct(models.Model):
                     ~dest_loc_domain_in_progress,
                 ],
             )
+
+            if self.env.context.get("skip_in_progress"):
+                return (
+                    loc_domain,
+                    dest_loc_domain_done & ~loc_domain,
+                    loc_domain & ~dest_loc_domain_done,
+                )
 
         # returns: (domain_quant_loc, domain_move_in_loc, domain_move_out_loc)
         return (

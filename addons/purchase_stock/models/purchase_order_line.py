@@ -392,7 +392,8 @@ class PurchaseOrderLine(models.Model):
     def _hook_on_created_confirmed_lines(self):
         """Override hook to create/update pickings for lines in purchase state."""
         super()._hook_on_created_confirmed_lines()  # Post chatter messages first
-        self._update_or_create_picking()  # Then create/update pickings
+        if not self.env.context.get("bypass_move_update"):
+            self._update_or_create_picking()  # Then create/update pickings
 
     def _merge_po_line(self, rfq_line):
         super()._merge_po_line(rfq_line)
@@ -462,14 +463,12 @@ class PurchaseOrderLine(models.Model):
         if line_description and product_id.name != line_description:
             res["name"] = (res["name"] + "\n" + line_description).strip()
 
-        res["date_planned"] = values.get("date_planned")
+        res["date_planned"] = fields.Datetime.to_datetime(values.get("date_planned"))
         # The date must be day before or equal at the supplier target day
 
         if po.partner_id.group_rfq == "week" and po.partner_id.group_on != "default":
             delta_days = (7 + int(po.partner_id.group_on) - res["date_planned"].isoweekday()) % 7
-            res["date_planned"] = fields.Datetime.to_datetime(
-                res["date_planned"],
-            ) + relativedelta(days=delta_days)
+            res["date_planned"] = res["date_planned"] + relativedelta(days=delta_days)
 
             if not po.date_planned or po.date_planned >= res["date_planned"]:
                 # date_order was computed based on procurement date_planned. If the PO date_planned is
@@ -548,19 +547,19 @@ class PurchaseOrderLine(models.Model):
             lambda m: m.state != "cancel" and not m._is_purchase_return(),
         )
 
+        qty_to_push = self.product_qty - qty
+        move_dests_initial_demand = self._get_stock_move_dests_initial_demand(
+            move_dests,
+        )
         if not move_dests:
             qty_to_attach = 0
-            qty_to_push = self.product_qty - qty
         else:
-            move_dests_initial_demand = self._get_stock_move_dests_initial_demand(
-                move_dests,
-            )
             qty_to_attach = move_dests_initial_demand - qty
-            qty_to_push = self.product_qty - move_dests_initial_demand
 
         price_unit = self._get_price_unit()
 
         if self.product_uom_id.compare(qty_to_attach, 0.0) > 0:
+            qty_to_push = self.product_qty - move_dests_initial_demand
             product_uom_qty, product_uom = self.product_uom_id._adjust_uom_quantities(
                 qty_to_attach,
                 self.product_id.uom_id,

@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from odoo import api, models
+from odoo import api, fields, models
 from odoo.tools.misc import formatLang
 
 
@@ -41,7 +41,9 @@ class AccountMove(models.Model):
             )
             # if multiple sale order we take the bigger date_effective
             if date_effective_res:
-                move.delivery_date = date_effective_res
+                move.delivery_date = fields.Datetime.context_timestamp(
+                    move, date_effective_res
+                )
 
     # ------------------------------------------------------------
     # HELPER METHODS

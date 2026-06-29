@@ -424,7 +424,9 @@ class SaleOrder(models.Model):
                     )
                 )
 
-        self.picking_ids.filtered(lambda p: p.state != "done").action_cancel()
+        self.picking_ids.filtered(lambda p: p.state != "done").with_context(
+            skip_cancel_activity=True
+        ).action_cancel()
 
         if documents:
             filtered_documents = {}
@@ -526,7 +528,9 @@ class SaleOrder(models.Model):
     def _prepare_invoice_vals(self):
         invoice_vals = super()._prepare_invoice_vals()
         invoice_vals["invoice_incoterm_id"] = self.incoterm_id.id
-        invoice_vals["delivery_date"] = self.date_effective
+        invoice_vals["delivery_date"] = self.date_effective and (
+            fields.Datetime.context_timestamp(self, self.date_effective)
+        )
         return invoice_vals
 
     def _remove_reference(self, reference):

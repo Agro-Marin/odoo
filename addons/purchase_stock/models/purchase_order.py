@@ -217,9 +217,6 @@ class PurchaseOrder(models.Model):
                         ),
                     )
 
-            if order.reference_ids:
-                order.reference_ids.purchase_ids = [Command.unlink(order.id)]
-
         order_lines = self.env["purchase.order.line"].browse(order_lines_ids)
         moves_to_cancel_ids = OrderedSet()
         moves_to_recompute_ids = OrderedSet()
@@ -262,9 +259,6 @@ class PurchaseOrder(models.Model):
             pikings_to_cancel = self.env["stock.picking"].browse(pickings_to_cancel_ids)
             pikings_to_cancel.action_cancel()
 
-        if order_lines:
-            order_lines.write({"move_dest_ids": [Command.clear()]})
-
         return super()._action_cancel()
 
     def _action_confirm(self):
@@ -283,7 +277,7 @@ class PurchaseOrder(models.Model):
             domain = fields.Domain.AND([domain, ctx.get("suggest_domain")])
 
         products = self.env["product.product"].search(domain)
-        self.partner_id.write(
+        self.partner_id.sudo().write(
             {
                 "suggest_days": ctx.get("suggest_days"),
                 "suggest_based_on": ctx.get("suggest_based_on"),
@@ -368,7 +362,7 @@ class PurchaseOrder(models.Model):
             domain &= Domain.OR(
                 [
                     Domain("picking_ids", "=", False),
-                    Domain("picking_ids.state", "!=", "done"),
+                    Domain("picking_ids.state", "not in", ["done", "cancel"]),
                 ],
             )
         return domain
@@ -521,7 +515,13 @@ class PurchaseOrder(models.Model):
             if self.dest_address_id:
                 return self.dest_address_id.property_stock_customer
             return self.picking_type_id.default_location_dest_id
-        return self.picking_type_id.warehouse_id.lot_stock_id
+        wh_stock_loc = self.picking_type_id.warehouse_id.lot_stock_id
+        default_dest_loc = self.picking_type_id.default_location_dest_id
+        if default_dest_loc and (
+            not wh_stock_loc or default_dest_loc._child_of(wh_stock_loc)
+        ):
+            return default_dest_loc
+        return wh_stock_loc
 
     @api.model
     def _get_orders_to_remind(self):
@@ -611,7 +611,10 @@ class PurchaseOrder(models.Model):
             if po.user_id == self.env.user:
                 my_purchase_count += 1
 
-            if not po.date_effective or po.date_effective > po.date_planned:
+            if (
+                not po.date_effective
+                or po.date_effective.date() > po.date_planned.date()
+            ):
                 continue
 
             otd_purchase_count += 1
@@ -682,6 +685,10 @@ class PurchaseOrder(models.Model):
         """remove the given references from the list of references."""
         self.ensure_one()
         self.reference_ids = [Command.unlink(stock_reference.id) for stock_reference in reference]
+
+    def _merge_metadata(self, target, sources):
+        super()._merge_metadata(target, sources)
+        target.reference_ids += sources.reference_ids
 
     # ----------------------------------------------------------------------
     # VALIDATIONS

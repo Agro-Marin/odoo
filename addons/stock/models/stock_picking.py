@@ -679,36 +679,26 @@ class StockPicking(models.Model):
 
     @api.depends(
         "move_line_ids.result_package_id",
+        "move_line_ids.result_package_id.package_type_id",
         "move_line_ids.result_package_id.shipping_weight",
+        "move_line_ids.result_package_id.outermost_package_id",
+        "move_line_ids.result_package_id.outermost_package_id.package_type_id",
         "move_line_ids.result_package_id.outermost_package_id.shipping_weight",
         "weight_bulk",
     )
     def _compute_shipping_weight(self):
         for picking in self:
             # if shipping weight is not assigned => default to calculated product weight
-            packages_weight = (
-                picking.move_line_ids.result_package_id.sudo()._get_weight(picking.id)
-            )
-
             shipping_weight = picking.weight_bulk
             relevant_packages = (
                 picking.move_line_ids.result_package_id.outermost_package_id
             )
-            children_packages_by_pack = (
-                relevant_packages._get_all_children_package_dest_ids()[0]
-            )
+            packages_weight = relevant_packages.sudo()._get_weight(picking.id)
             for package in relevant_packages:
                 if package.shipping_weight:
                     shipping_weight += package.shipping_weight
                 else:
-                    shipping_weight += package.package_type_id.base_weight
-                    shipping_weight += sum(
-                        packages_weight.get(pack, 0)
-                        for pack in self.env["stock.package"].browse(
-                            children_packages_by_pack.get(package),
-                        )
-                    )
-
+                    shipping_weight += packages_weight.get(package, 0)
             picking.shipping_weight = shipping_weight
 
     def _compute_shipping_volume(self):
@@ -724,17 +714,20 @@ class StockPicking(models.Model):
                 )
             picking.shipping_volume = volume
 
-    @api.depends("move_ids.date_deadline", "move_type")
+    @api.depends("move_ids.date_deadline", "move_ids.state", "move_type")
     def _compute_date_deadline(self):
         for picking in self:
+            moves = picking.move_ids.filtered(
+                lambda m: m.state != "cancel" and m.date_deadline
+            )
             if picking.move_type == "direct":
                 picking.date_deadline = min(
-                    picking.move_ids.filtered("date_deadline").mapped("date_deadline"),
+                    moves.mapped("date_deadline"),
                     default=False,
                 )
             else:
                 picking.date_deadline = max(
-                    picking.move_ids.filtered("date_deadline").mapped("date_deadline"),
+                    moves.mapped("date_deadline"),
                     default=False,
                 )
 
@@ -1114,7 +1107,7 @@ class StockPicking(models.Model):
             "type": "ir.actions.act_window",
             "res_model": "stock.move.line",
             "views": [(view_id, "list")],
-            "domain": [("id", "in", self.move_line_ids.ids)],
+            "domain": [("picking_id", "=", self.id)],
             "context": {
                 "sml_specific_default": True,
                 "default_picking_id": self.id,
@@ -1806,6 +1799,7 @@ class StockPicking(models.Model):
                 "move_ids": [],
                 "move_line_ids": [],
                 "backorder_id": self.id,
+                "return_id": self.return_id.id,
             },
         )
 
@@ -2284,17 +2278,18 @@ class StockPicking(models.Model):
 
     def _check_entire_pack(self):
         """This function check if entire packs are moved in the picking"""
-        for package in self.move_line_ids.package_id:
-            pickings = self.move_line_ids.filtered(
-                lambda ml: ml.package_id == package,
-            ).picking_id
+        for package, package_move_lines in self.move_line_ids.grouped(
+            "package_id"
+        ).items():
+            if not package:
+                continue
+            pickings = package_move_lines.picking_id
             if (
                 pickings._is_single_transfer()
                 and pickings._check_move_lines_map_quant_package(package)
             ):
-                move_lines_to_pack = pickings.move_line_ids.filtered(
-                    lambda ml: ml.package_id == package
-                    and not ml.result_package_id
+                move_lines_to_pack = package_move_lines.filtered(
+                    lambda ml: not ml.result_package_id
                     and ml.state not in ("done", "cancel"),
                 )
                 if package.package_type_id.package_use != "reusable":

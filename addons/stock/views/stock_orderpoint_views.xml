@@ -101,8 +101,8 @@
                     groups="stock.group_stock_multi_locations" />
                 <field name="warehouse_id" options="{'no_create': True}"
                     groups="stock.group_stock_multi_warehouses" optional="hide" />
-                <field name="qty_on_hand" force_save="1" />
-                <field name="qty_forecast" force_save="1" />
+                <field name="qty_on_hand" force_save="1" width="60" />
+                <field name="qty_forecast" force_save="1" width="60" />
                 <button name="action_product_forecast_report" type="object" icon="fa-area-chart"
                     title="Forecast Report" invisible="not id or unwanted_replenish" />
                 <button name="action_product_forecast_report" type="object"
@@ -118,13 +118,13 @@
                     icon="fa-warning text-warning"
                     title="Your product is missing a way to be replenished (Route, Vendor, Bill of Materials)."
                     invisible="not id or not show_supply_warning" />
-                <field name="trigger" optional="hide" />
-                <field name="product_min_qty" string="Min" optional="show" />
-                <field name="product_max_qty" string="Max" optional="show" />
+                <field name="trigger" optional="hide" width="70" />
+                <field name="product_min_qty" string="Min" optional="show" width="50" />
+                <field name="product_max_qty" string="Max" optional="show" width="50" />
                 <field name="replenishment_uom_id" widget="stock.forced_placeholder"
                     options="{'no_create': True, 'placeholder_field': 'replenishment_uom_id_placeholder'}"
                     optional="hide" decoration-muted="not replenishment_uom_id" />
-                <field name="qty_to_order" readonly="trigger == 'auto'" />
+                <field name="qty_to_order" readonly="trigger == 'auto'" width="60" />
                 <field name="qty_to_order_manual" column_invisible="True" />
                 <button name="action_remove_manual_qty_to_order" type="object" icon="fa-undo"
                     title="Remove manually entered value and replace by the quantity to order based on the forecasted quantities"

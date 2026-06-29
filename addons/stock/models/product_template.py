@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 
 SERIAL_PREFIX_FORMAT_HELP_TEXT = """
     If multiple products share the same prefix, they will share the same sequence, otherwise the sequence will be dedicated to the product.
@@ -273,16 +274,66 @@ class ProductTemplate(models.Model):
                     )
 
         clean_inventory = False
+        templates_to_reset = self.env["product.template"]
         if "is_storable" in vals and any(
             vals["is_storable"] != prod_tmpl.is_storable and not prod_tmpl.is_storable
             for prod_tmpl in self
         ):
             clean_inventory = True
+            if vals["is_storable"]:
+                templates_to_reset = self.filtered(lambda tmpl: not tmpl.is_storable)
 
         res = super().write(vals)
         if clean_inventory:
             self.env["stock.quant"].sudo()._clean_reservations()
+            templates_to_reset._reset_inventory()
         return res
+
+    def _reset_inventory(self):
+        """
+        This method creates quants to match the move history of products that
+        become storable and makes inventory adjustments to reset their inventory
+        quantities.
+
+        These adjustments are necessary to ensure the integrity of the product
+        valuation.
+        """
+        move_line_domain = Domain(
+            [
+                ("product_id", "in", self.product_variant_ids.ids),
+                ("state", "=", "done"),
+                "|",
+                ("location_usage", "in", ("internal", "transit")),
+                ("location_dest_usage", "in", ("internal", "transit")),
+            ],
+        )
+        move_lines_to_match = self.env["stock.move.line"].search_fetch(
+            move_line_domain,
+            ["product_id", "location_id", "quantity_product_uom"],
+        )
+        inventory_ledger = defaultdict(float)
+        for move_line in move_lines_to_match:
+            if move_line.location_usage in ("internal", "transit"):
+                inventory_ledger[move_line.product_id, move_line.location_id] -= (
+                    move_line.quantity_product_uom
+                )
+            if move_line.location_dest_usage in ("internal", "transit"):
+                inventory_ledger[move_line.product_id, move_line.location_dest_id] += (
+                    move_line.quantity_product_uom
+                )
+        quants_to_reset = self.env["stock.quant"].create(
+            [
+                {
+                    "product_id": product.id,
+                    "location_id": location.id,
+                    "quantity": quantity,
+                    "inventory_quantity": 0.0,
+                }
+                for (product, location), quantity in inventory_ledger.items()
+                if not product.uom_id.is_zero(quantity)
+            ],
+        )
+        quants_to_reset._apply_inventory()
 
     def copy(self, default=None):
         new_products = super().copy(default=default)
@@ -380,7 +431,9 @@ class ProductTemplate(models.Model):
     def _compute_show_qty_status_button(self):
         for template in self:
             template.show_on_hand_qty_status_button = template.is_storable
-            template.show_forecasted_qty_status_button = template.is_storable
+            template.show_forecasted_qty_status_button = (
+                template.is_storable and template.product_variant_id
+            )
 
     @api.depends("is_storable")
     def _compute_has_available_route_ids(self):

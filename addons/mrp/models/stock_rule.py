@@ -135,6 +135,9 @@ class StockRule(models.Model):
                 mo = self.env["mrp.production"].sudo().search(domain, limit=1)
             is_batch_size = bom and bom.enable_batch_size
             if not mo or is_batch_size:
+                if not bom:
+                    # No BOM: skip MO creation, only replenishment rules should handle this
+                    continue
                 procurement_qty = procurement.product_qty
                 batch_size = (
                     bom.product_uom_id._compute_quantity(
@@ -152,9 +155,7 @@ class StockRule(models.Model):
                             **vals,
                             "product_qty": procurement.product_uom._compute_quantity(
                                 batch_size, bom.product_uom_id
-                            )
-                            if bom
-                            else procurement_qty,
+                            ),
                         }
                     )
                     new_productions_values_by_company[procurement.company_id.id][
@@ -273,6 +274,8 @@ class StockRule(models.Model):
                 ).ids,
             ),
         )
+        if production_group_id := procurement.values.get("production_group_id"):
+            domain += (("production_group_id.parent_ids", "=", production_group_id),)
         if procurement.values.get("orderpoint_id"):
             procurement_date = datetime.combine(
                 fields.Date.to_date(procurement.values["date_planned"])

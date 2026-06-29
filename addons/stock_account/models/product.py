@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from bisect import bisect
 from collections import defaultdict
+from datetime import datetime
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
@@ -46,6 +47,8 @@ class ProductTemplate(models.Model):
             raise UserError(self.env._("Only the value 'periodic' and 'real_time' are accepted to search on valuation field."))
         domain_categ = Domain([('categ_id.property_valuation', operator, value)])
         domain_company = Domain(['|', ('categ_id.property_valuation', '=', False), ('categ_id', '=', False), ('company_id.inventory_valuation', operator, value)])
+        if self.env.company.inventory_valuation and self.env.company.inventory_valuation == value:
+            domain_company = Domain(['|', ('categ_id.property_valuation', '=', False), ('categ_id', '=', False), '|', ('company_id.inventory_valuation', operator, value), ('company_id', '=', False)])
         return domain_company | domain_categ
 
     @api.depends('tracking')
@@ -73,20 +76,49 @@ class ProductTemplate(models.Model):
                 product_template.company_id).property_valuation or self.env.company.inventory_valuation
 
     def write(self, vals):
-        product_to_update = set()
+        product_ids_to_update = set()
+        lot_ids_to_update = set()
         if 'categ_id' in vals:
             category = self.env['product.category'].browse(vals['categ_id'])
-            valuation = category.property_valuation if category else self.env.company.inventory_valuation
+            cost_method = category.property_cost_method if category else self.env.company.cost_method
             for product in self:
-                if product.valuation != valuation:
-                    product_to_update.update(product.product_variant_ids.ids)
+                if product.cost_method != cost_method:
+                    product_ids_to_update.update(product.product_variant_ids.ids)
+
+        if 'lot_valuated' in vals:
+            if vals.get('lot_valuated'):
+                products_to_enable = self.filtered(lambda p: not p.lot_valuated)
+                if products_to_enable:
+                    problematic_quants = self.env['stock.quant'].search([
+                        ('product_id', 'in', products_to_enable.product_variant_ids.ids),
+                        ('lot_id', '=', False),
+                        ('quantity', '!=', 0),
+                        ('location_id.is_valued_internal', '=', True),
+                    ])
+                    if problematic_quants:
+                        raise UserError(self.env._(
+                            "You cannot enable lot valuation because the following products have"
+                            " on-hand quantities without a lot/serial number:\n%s",
+                            problematic_quants.product_id.mapped('display_name'),
+                        ))
+            for product in self:
+                if product.lot_valuated != vals.get('lot_valuated', product.lot_valuated):
+                    product_ids_to_update.update(product.product_variant_ids.ids)
+
+        products_to_update = self.env['product.product'].browse(product_ids_to_update)
+        lot_ids_to_update.update(self.env['stock.lot'].sudo().search([
+            ('product_id', 'in', products_to_update.filtered(lambda p: p.lot_valuated).ids),
+        ]).ids)
+
         res = super().write(vals)
         if 'lot_valuated' in vals:
-            self.env['stock.lot'].search([
+            lot_ids_to_update.update(self.env['stock.lot'].sudo().search([
                 ('product_id', 'in', self.product_variant_ids.ids),
-            ])._update_standard_price()
-        if 'product_to_update':
-            self.env['product.product'].browse(product_to_update)._update_standard_price()
+            ]).ids)
+        if product_ids_to_update:
+            self.env['product.product'].browse(product_ids_to_update)._update_standard_price()
+        if lot_ids_to_update:
+            self.env['stock.lot'].browse(lot_ids_to_update).sudo()._update_standard_price()
         return res
 
     # -------------------------------------------------------------------------
@@ -247,7 +279,7 @@ class ProductProduct(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         products = super().create(vals_list)
-        products._change_standard_price({product: 0 for product in products if product.standard_price})
+        products.with_context(valuation_date=datetime.min)._change_standard_price({product: 0 for product in products if product.standard_price})
         return products
 
     def write(self, vals):
@@ -268,18 +300,28 @@ class ProductProduct(models.Model):
 
     def _change_standard_price(self, old_price):
         product_values = []
+        product_ids_lot_valuated = set()
+        date = self.env.context.get('valuation_date') or fields.Datetime.now()
         for product in self:
             if product.cost_method == 'fifo' or product.standard_price == old_price.get(product):
                 continue
+
+            if product.lot_valuated:
+                product_ids_lot_valuated.add(product.id)
+
             product_values.append({
                 'product_id': product.id,
                 'value': product.standard_price,
                 'company_id': product.company_id.id or self.env.company.id,
-                'date': fields.Datetime.now(),
+                'date': date,
                 'description': _('Price update from %(old_price)s to %(new_price)s by %(user)s',
                     old_price=old_price.get(product), new_price=product.standard_price, user=self.env.user.name)
             })
         self.env['product.value'].sudo().create(product_values)
+        if product_ids_lot_valuated:
+            for (product, lots) in self.env['stock.lot']._read_group(
+                    [('product_id', 'in', product_ids_lot_valuated)], ['product_id'], ['id:recordset']):
+                lots.with_context(disable_auto_revaluation=True).standard_price = product.standard_price
         return
 
     def _get_standard_price_at_date(self, date=None):
@@ -339,11 +381,11 @@ class ProductProduct(models.Model):
         # Scope valued locations to the selected companies explicitly: valuation is
         # computed sudo (compute_sudo=True), which bypasses the company record rules,
         # so without this filter quantities would leak across companies.
-        valued_locations = self.env['stock.location'].search([
+        valued_locations = self.env['stock.location'].with_context(active_test=False).search([
             ('is_valued_internal', '=', True),
             ('company_id', 'in', [*self.env.companies.ids, False]),
         ])
-        return self.with_context(location=valued_locations.ids, owners=[False, self.env.company.partner_id.id])
+        return self.with_context(location=valued_locations.ids, owners=[False, self.env.company.partner_id.id], strict=True)
 
     def _get_remaining_moves(self):
         moves_qty_by_product = {}
@@ -468,6 +510,8 @@ class ProductProduct(models.Model):
         value_by_product_id = {}
         for product in self:
             quantity = product.qty_available
+            if lot:
+                quantity = lot.product_qty
             value = product._run_fifo(quantity, lot, at_date, location)
             std_price = value / quantity if quantity else 0
             std_price_by_product_id[product.id] = std_price
@@ -479,10 +523,11 @@ class ProductProduct(models.Model):
         """ Returns the value for the next outgoing product base on the qty give as argument."""
         self.ensure_one()
         if self.uom_id.compare(quantity, 0) <= 0:
+            std_price = lot.standard_price if lot else self.standard_price
             if at_date:
                 last_in = self._get_last_in(at_date)
-                return quantity * (last_in._get_price_unit() if last_in else self.standard_price)
-            return quantity * self.standard_price
+                return quantity * (last_in._get_price_unit() if last_in else std_price)
+            return quantity * std_price
         external_location = location and location.is_valued_external
 
         fifo_cost = 0
@@ -535,7 +580,7 @@ class ProductProduct(models.Model):
 
         moves_domain = Domain([
             ('product_id', '=', self.id),
-            ('company_id', '=', self.env.company.id)
+            ('company_id', 'in', self.env.companies.ids),
         ])
         if lot:
             moves_domain &= Domain([('move_line_ids.lot_id', 'in', lot.id)])
@@ -673,4 +718,7 @@ class ProductCategory(models.Model):
         res = super().write(vals)
         if products_to_update:
             products_to_update._update_standard_price()
+        products_lot_valuated = products_to_update.filtered(lambda p: p.lot_valuated)
+        if products_lot_valuated:
+            self.env['stock.lot'].sudo().search([('product_id', 'in', products_lot_valuated.ids)])._update_standard_price()
         return res

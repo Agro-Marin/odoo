@@ -35,14 +35,16 @@ class StockPicking(models.Model):
 
     def _is_date_in_lock_period(self):
         self.ensure_one()
-        lock = self.company_id._get_lock_date_violations(
-            self.date_planned.date(),
-            fiscalyear=True,
-            sale=False,
-            purchase=False,
-            tax=False,
-            hard=True,
-        )
+        lock = []
+        if self.state == "done":
+            lock += self.company_id._get_lock_date_violations(
+                self.date_planned.date(),
+                fiscalyear=True,
+                sale=False,
+                purchase=False,
+                tax=False,
+                hard=True,
+            )
         if self.date_done:
             lock += self.company_id._get_lock_date_violations(
                 self.date_done.date(),
