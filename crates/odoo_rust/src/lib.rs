@@ -44,6 +44,7 @@ fn odoo_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(web::csv_export, m)?)?;
     // sort + group (sorted() and grouped() fast paths)
     m.add_function(wrap_pyfunction!(sort::sort_ids_by_values, m)?)?;
+    m.add_function(wrap_pyfunction!(sort::sort_ids_by_cache, m)?)?;
     m.add_function(wrap_pyfunction!(sort::batch_group_ids, m)?)?;
     // scan (parallel file scanning for lint tests)
     m.add_function(wrap_pyfunction!(scan::scan_byte_patterns, m)?)?;

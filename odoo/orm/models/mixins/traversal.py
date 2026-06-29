@@ -13,7 +13,7 @@ from odoo.libs._field_access import batch_cache_filter as _batch_cache_filter
 from odoo.libs._field_access import batch_cache_get as _batch_cache_get
 from odoo.libs._field_access import batch_cache_values as _batch_cache_values
 from odoo.libs._field_access import batch_group_ids as _batch_group_ids
-from odoo.libs._field_access import sort_ids_by_values as _sort_ids_by_values
+from odoo.libs._field_access import sort_ids_by_cache as _sort_ids_by_cache
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import SQL
 from odoo.tools.misc import PENDING, SENTINEL
@@ -482,18 +482,16 @@ class TraversalMixin(_ModelStubs):
             sort_specs.append((field._get_cache(env), desc, nulls_first))
 
         if len(sort_specs) == 1:
-            # Single-field fast path
+            # Single-field fast path: one fused Rust call reads the field cache
+            # and sorts, returning None on any cache miss (→ general sort path).
+            # This avoids materializing an intermediate Python values list.
             field_cache, desc, nulls_first = sort_specs[0]
-            values = _batch_cache_values(field_cache, ids, _PENDING)
-            if values is None:
-                return None
-
             reverse_param = desc != reverse
-            # Pass null_high only when values contain None/False, else None to
-            # skip null checks in the Rust comparator.
-            has_nulls = any(v is None or v is False for v in values)
-            null_high = (nulls_first == desc) if has_nulls else None
-            return _sort_ids_by_values(ids, values, reverse_param, null_high)
+            # Always run the null-aware comparator: with no None/False present it
+            # yields an identical ordering, and Rust's per-element null check (two
+            # pointer compares) is far cheaper than an O(n) Python pre-scan.
+            null_high = nulls_first == desc
+            return _sort_ids_by_cache(field_cache, ids, _PENDING, reverse_param, null_high)
 
         # Multi-field path: only uniform direction (all ASC or all DESC).
         # Mixed-direction sorts need per-field negation — fall back instead.
