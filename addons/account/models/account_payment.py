@@ -214,6 +214,7 @@ class AccountPayment(models.Model):
         "account.move",
         string="Reconciled Bills",
         compute="_compute_stat_buttons_from_reconciliation",
+        search="_search_reconciled_invoice_ids",
         help="Invoices whose journal items have been reconciled with these payments.",
     )
     reconciled_bills_count = fields.Integer(
