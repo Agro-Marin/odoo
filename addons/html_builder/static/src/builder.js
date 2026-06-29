@@ -194,6 +194,7 @@ export class Builder extends Component {
                 baseContainers: ["P"],
                 cleanEmptyStructuralContainers: false,
                 isEditableRTL: false,
+                publicAttachments: true,
             },
             this.env.services
         );
