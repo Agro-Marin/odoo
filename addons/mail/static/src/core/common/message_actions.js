@@ -37,9 +37,9 @@ export function registerMessageAction(id, definition) {
 
 registerMessageAction("reaction", {
     component: QuickReactionMenu,
-    componentProps: ({ message, owner }) => ({
+    componentProps: ({ action, message, owner }) => ({
+        action,
         message,
-        action: messageActionsRegistry.get("reaction"),
         messageActive: owner.isActive,
     }),
     componentCondition: () => !isMobileOS(),
@@ -92,14 +92,15 @@ registerMessageAction("reply-to", {
         if (thread.model === "discuss.channel") {
             return;
         }
-        if (!message.isSelfAuthored && message.model !== "discuss.channel") {
-            const mentionText = `@${message.authorName} `;
-            if (!composer.composerText.includes(mentionText)) {
-                composer.mentionedPartners.add(message.author);
-                composer.insertText(mentionText, 0, { moveCursorToEnd: true });
-            }
+        if (
+            !message.isSelfAuthored &&
+            message.model !== "discuss.channel" &&
+            message.author
+        ) {
+            composer.insertReplyFromNote(message);
         }
         owner.env.inChatter?.toggleComposer("note", { force: true });
+        composer.restoredFromFullComposer = false;
         if (!composer.isFocused) {
             composer.autofocus++;
         }
@@ -144,7 +145,7 @@ registerMessageAction("edit", {
         message.enterEditMode(thread);
         owner.optionsDropdown?.close();
     },
-    sequence: ({ message }) => (message.isSelfAuthored ? 20 : 55),
+    sequence: ({ message }) => (message.isSelfAuthored ? 20 : 115),
 });
 registerMessageAction("delete", {
     condition: ({ message }) => message.editable,

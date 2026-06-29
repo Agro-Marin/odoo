@@ -1,14 +1,14 @@
 import io
 import logging
-import time
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from PIL import Image, ImageDraw, ImageFont
 from werkzeug.exceptions import NotFound
+from werkzeug.utils import send_file
 
 from odoo import _, http
 from odoo.exceptions import AccessError
-from odoo.http import Response, request
+from odoo.http import STATIC_CACHE, Response, request
 from odoo.tools import consteq
 from odoo.tools.misc import file_open
 
@@ -427,17 +427,16 @@ class MailController(http.Controller):
         # output image
         output = io.BytesIO()
         outimage.save(output, format="PNG")
-        response = Response()
-        response.mimetype = "image/png"
-        response.data = output.getvalue()
-        # 7-day public cache; keep Cache-Control and Expires in sync (RFC 7234)
-        max_age_seconds = 604800
-        response.headers["Cache-Control"] = f"public, max-age={max_age_seconds}"
+        output.seek(0)
+        response = send_file(
+            output,
+            request.httprequest.environ,
+            mimetype="image/png",
+            conditional=False,
+            etag=False,
+            max_age=STATIC_CACHE,
+            response_class=Response,
+        )
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST"
-        response.headers["Date"] = time.strftime("%a, %d-%b-%Y %T GMT", time.gmtime())
-        response.headers["Expires"] = time.strftime(
-            "%a, %d-%b-%Y %T GMT", time.gmtime(time.time() + max_age_seconds)
-        )
-
         return response

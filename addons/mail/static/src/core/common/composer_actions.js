@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Action, UseActions } from "@mail/core/common/action";
+import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { toRaw, useComponent, useEffect, useRef, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 import { _t } from "@web/core/l10n/translation";
@@ -132,11 +132,19 @@ registerComposerAction("open-full-composer", {
         composer.targetThread &&
         composer.targetThread.model !== "discuss.channel" &&
         !owner.env.inFrontendPortalChatter,
+    hasBtnBg: ({ composer, owner }) =>
+        (composer.restoredFromFullComposer && !owner.state.isFullComposerOpen) || undefined,
     hotkey: "shift+c",
     icon: "fa-solid fa-up-right-and-down-left-from-center",
+    isActive: ({ composer, owner }) =>
+        (composer.restoredFromFullComposer && !owner.state.isFullComposerOpen) || undefined,
     name: _t("Open Full Composer"),
     onSelected: ({ owner }) => owner.onClickFullComposer(),
     sequence: 30,
+    tags: ({ composer, owner }) =>
+        composer.restoredFromFullComposer && !owner.state.isFullComposerOpen
+            ? [ACTION_TAGS.PRIMARY]
+            : undefined,
 });
 registerComposerAction("add-canned-response", {
     condition: ({ composer, store }) =>
@@ -162,6 +170,17 @@ export class ComposerAction extends Action {
     constructor({ composer }) {
         super(...arguments);
         this.composerFn = typeof composer === "function" ? composer : () => composer;
+    }
+
+    /**
+     * @param {Object} param0
+     * @param {Composer|() => Composer} composer
+     */
+    _disabledCondition({ composer }) {
+        if (composer.restoredFromFullComposer && this.id !== "open-full-composer") {
+            return true;
+        }
+        return super._disabledCondition(...arguments);
     }
 
     get params() {

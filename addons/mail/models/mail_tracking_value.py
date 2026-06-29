@@ -241,6 +241,11 @@ class MailTrackingValue(models.Model):
             "selection": initial_value.get("selection"),
         }
 
+        if initial_value["type"] == "monetary" and "currency_field" not in col_info:
+            col_info = col_info | {
+                "currency_field": initial_value.get("currency_field")
+            }
+
         field_info = {
             "desc": f"{col_info['string']}: {initial_value['string']}",
             "name": col_name,

@@ -41,6 +41,12 @@ import { discussComponentRegistry } from "./discuss_component_registry.js";
 import { useMessageActions } from "./message_actions.js";
 import { NotificationMessage } from "./notification_message.js";
 
+class MessageDropdown extends Dropdown {
+    get isBottomSheet() {
+        return hasTouch() && this.props.bottomSheet;
+    }
+}
+
 /**
  * @typedef {Object} Props
  * @property {boolean} [hasActions=true]
@@ -63,7 +69,7 @@ export class Message extends Component {
         ActionSwiper,
         AttachmentList,
         Composer,
-        Dropdown,
+        Dropdown: MessageDropdown,
         ImStatus,
         MessageInReply,
         MessageLinkPreviewList,

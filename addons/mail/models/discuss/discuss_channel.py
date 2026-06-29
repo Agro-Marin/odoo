@@ -1595,8 +1595,6 @@ class DiscussChannel(models.Model):
         Store(bus_channel=target.channel, bus_subchannel=target.subchannel).add(
             all_members
         )
-        # sudo: bus.bus: reading non-sensitive last id
-        bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
         res = [
             Store.Attr("avatar_cache_key", predicate=is_channel_or_group),
             "channel_type",
@@ -1645,6 +1643,8 @@ class DiscussChannel(models.Model):
             "uuid",
         ]
         if target.is_current_user(self.env):
+            # sudo: bus.bus: reading non-sensitive last id
+            bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
             res = res + [
                 {"fetchChannelInfoState": "fetched"},
                 "is_editable",

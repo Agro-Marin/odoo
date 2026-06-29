@@ -32,7 +32,6 @@ export class MessagingMenu extends Component {
     setup() {
         super.setup();
         this.isIosPwa = isIOS() && isDisplayStandalone();
-        this.discussSystray = useDiscussSystray();
         this.store = useService("mail.store");
         this.hasTouch = hasTouch;
         this.ui = useService("ui");
@@ -41,6 +40,7 @@ export class MessagingMenu extends Component {
             adding: false,
         });
         this.dropdown = useDropdownState();
+        this.discussSystray = useDiscussSystray(this.dropdown);
         this.notificationList = useRef("notification-list");
         useSubEnv({ inMessagingMenu: { dropdown: this.dropdown } });
 

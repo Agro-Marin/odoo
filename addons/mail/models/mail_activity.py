@@ -859,6 +859,7 @@ class MailActivity(models.Model):
             Store.One("create_uid", Store.One("partner_id", "name"), sudo=True),
             "date_deadline",
             "date_done",
+            "display_name",
             "icon",
             "note",
             "res_id",

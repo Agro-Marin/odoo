@@ -31,7 +31,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
  * @param {any} node
  * @returns {HTMLElement | null}
  */
-function getFirstElementOfNode(node) {
+export function getFirstElementOfNode(node) {
     if (!node) {
         return null;
     }
