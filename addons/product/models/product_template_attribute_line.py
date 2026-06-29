@@ -124,7 +124,7 @@ class ProductTemplateAttributeLine(models.Model):
             else:
                 create_values.append(value)
         res = activated_lines + super().create(create_values)
-        if self.env.context.get("create_product_product", True):
+        if self.env.context.get("update_product_template_attribute_values", True):
             res._update_product_template_attribute_values()
         return res
 
@@ -276,7 +276,8 @@ class ProductTemplateAttributeLine(models.Model):
         if ptav_to_unlink:
             ptav_to_unlink.unlink()
         ProductTemplateAttributeValue.create(ptav_to_create)
-        self.product_tmpl_id._create_variant_ids()
+        if self.env.context.get("create_product_product", True):
+            self.product_tmpl_id._create_variant_ids()
 
     def _without_no_variant_attributes(self):
         return self.filtered(
