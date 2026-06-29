@@ -1113,7 +1113,7 @@ class ProjectTask(models.Model):
 
     @api.onchange("project_id")
     def _onchange_project_id(self) -> None:
-        if self.state != "blocked":
+        if self.state != "blocked" and self.state not in CLOSED_STATES:
             self.state = "in_progress"
         if not self.project_id and not self.user_ids:
             self.user_ids = self.env.user
@@ -2486,7 +2486,9 @@ class ProjectTask(models.Model):
                         task.state = "blocked"
                 task.date_last_status_change = now
         elif "project_id" in vals:
-            self.filtered(lambda t: t.state != "blocked").state = "in_progress"
+            self.filtered(
+                lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
+            ).state = "in_progress"
 
         # Do not recompute the state when changing the parent (to avoid resetting the state)
         if "parent_id" in vals:
