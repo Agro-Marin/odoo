@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { normalizeCSSColor } from "@web/core/utils/format/colors";
+import { normalizeCSSColor } from "@web/core/utils/colors";
 import { removeClass } from "./dom.js";
 import { isBold, isDirectionSwitched, isItalic, isStrikeThrough, isUnderline } from "./dom_info.js";
-import { closestElement, closestPath, findNode } from "./dom_traversal.js";
+import { closestElement, closestPath, findNode, findUpTo } from "./dom_traversal.js";
 import { closestBlock, isBlock } from "./blocks.js";
 
 /**
@@ -261,20 +261,18 @@ export function getHtmlStyle(document) {
  */
 export function getFontSizeDisplayValue(sel, document) {
     const tagNameRelatedToFontSize = ["h1", "h2", "h3", "h4", "h5", "h6"];
-    const styleClassesRelatedToFontSize = [
-        "display-1",
-        "display-2",
-        "display-3",
-        "display-4",
-        "lead",
-    ];
     const closestStartContainerEl = closestElement(sel.startContainer);
-    const closestFontSizedEl = closestStartContainerEl.closest(`
-        [style*='font-size'],
-        ${FONT_SIZE_CLASSES.map((className) => `.${className}`)},
-        ${styleClassesRelatedToFontSize.map((className) => `.${className}`)},
-        ${tagNameRelatedToFontSize}
-    `);
+    const closestFontSizedEl = findUpTo(
+        closestStartContainerEl,
+        closestStartContainerEl.closest(".o_default_font_size"),
+        (n) =>
+            n.matches(`
+                [style*='font-size'],
+                ${FONT_SIZE_CLASSES.map((className) => `.${className}`)},
+                ${TEXT_STYLE_CLASSES.map((className) => `.${className}`)},
+                ${tagNameRelatedToFontSize}
+            `)
+    );
     let remValue;
     const htmlStyle = getHtmlStyle(document);
     if (closestFontSizedEl) {
@@ -299,7 +297,7 @@ export function getFontSizeDisplayValue(sel, document) {
             fsName = fontSizeClass.substring(0, fontSizeClass.length - 3); // Without -fs
         } else {
             fsName =
-                styleClassesRelatedToFontSize.find((className) =>
+                TEXT_STYLE_CLASSES.find((className) =>
                     closestFontSizedEl.classList.contains(className)
                 ) || closestFontSizedEl.tagName.toLowerCase();
         }

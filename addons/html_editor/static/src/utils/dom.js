@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { closestBlock, isBlock } from "./blocks.js";
 import {
+    isElement,
     isEmptyTextNode,
     isParagraphRelatedElement,
     isShrunkBlock,
+    isTextNode,
     isVisible,
     nextLeaf,
     previousLeaf,
@@ -167,7 +169,7 @@ export function removeStyle(element, ...styleProperties) {
  */
 export function fillEmpty(el) {
     const document = el.ownerDocument;
-    if (!isBlock(el) && !isVisible(el) && !el.hasAttribute("data-oe-zws-empty-inline")) {
+    if (!isVisible(el) && !el.hasAttribute("data-oe-zws-empty-inline") && !isBlock(el)) {
         const zws = document.createTextNode("\u200B");
         el.appendChild(zws);
         el.setAttribute("data-oe-zws-empty-inline", "");
@@ -282,6 +284,23 @@ export function cleanTextNode(node, char, cursors) {
 }
 
 /**
+ * Remove all empty text nodes within the given root element
+ * and update cursors for later selection restore.
+ *
+ * This prevents the editor from keeping unnecessary empty text
+ * nodes that may create extra nodes during split operations.
+ *
+ * @param {HTMLElement} root
+ * @param {Cursors} [cursors]
+ */
+export function removeEmptyTextNodes(root, cursors) {
+    for (const node of childNodes(root).filter((n) => isEmptyTextNode(n))) {
+        cursors?.update(callbacksForCursorUpdate.remove(node));
+        node.remove();
+    }
+}
+
+/**
  * Splits a text node in two parts.
  * If the split occurs at the beginning or the end, the text node stays
  * untouched and unsplit. If a split actually occurs, the original text node
@@ -334,9 +353,11 @@ export function splitTextNode(textNode, offset, originalNodeSide = DIRECTIONS.RI
  * @param {import("@html_editor/core/selection_plugin").Cursors} [cursors]
  */
 export function removeInvisibleWhitespace(el, cursors) {
-    const [countLeadingWhitespace, countTrailingWhitespace] = [/^\s+/, /\s+$/].map(
-        (regex) => (node) => node?.textContent.match(regex)?.[0]?.length || 0
-    );
+    const whitespaceRegex = /[^\S\u00A0\uFEFF]/;
+    const [countLeadingWhitespace, countTrailingWhitespace] = [
+        new RegExp(`^${whitespaceRegex.source}+`),
+        new RegExp(`${whitespaceRegex.source}+$`),
+    ].map((regex) => (node) => node?.textContent.match(regex)?.[0]?.length || 0);
     const isInlineElement = (node) => node?.nodeType === Node.ELEMENT_NODE && !isBlock(node);
     const textChildren = descendants(el).filter((child) => child.nodeType === Node.TEXT_NODE);
     let removedTrailingSpaceBefore = false;
@@ -368,11 +389,44 @@ export function removeInvisibleWhitespace(el, cursors) {
                 leadingWhitespace,
                 child.textContent.length - trailingWhitespace || leadingWhitespace
             )
-            .replace(/^\s+/, " ")
-            .replace(/\s+$/, " ");
+            .replace(new RegExp(`^${whitespaceRegex.source}+`), " ")
+            .replace(new RegExp(`${whitespaceRegex.source}+$`), " ");
         if (!child.textContent) {
             child.remove();
         }
         index += 1;
+    }
+}
+
+/**
+ * This is used as a replacement for `node.normalize()` which in Safari
+ * incorrectly moves the selection to the parent element instead of
+ * restoring it to the correct offset in the merged text node.
+ *
+ * @param {HTMLElement} node
+ * @param {Cursors} cursor
+ */
+export function mergeAdjacentTextNodes(node, cursor) {
+    let child = node.firstChild;
+    while (child) {
+        if (isElement(child)) {
+            mergeAdjacentTextNodes(child, cursor);
+        }
+
+        const next = child.nextSibling;
+        if (isTextNode(child) && next && isTextNode(next)) {
+            if (cursor.anchor.node === next) {
+                cursor.anchor.node = child;
+                cursor.anchor.offset = child.textContent.length + cursor.anchor.offset;
+            }
+            if (cursor.focus.node === next) {
+                cursor.focus.node = child;
+                cursor.focus.offset = child.textContent.length + cursor.focus.offset;
+            }
+            child.textContent += next.textContent;
+            next.remove();
+        } else {
+            child = next;
+        }
     }
 }

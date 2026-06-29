@@ -166,7 +166,7 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  *      reverse: boolean,
  *    },
  *    options: { forNewStep: boolean }
- *  ) => void)[]} attribute_change_processors
+ *  ) => string)[]} attribute_change_processors
  * @typedef {((step: HistoryStep) => HistoryStep)[]} history_step_processors
  * @typedef {((node: Node, childTreesToSerialize: Tree[]) => Tree[])[]} serializable_descendants_processors
  * @typedef {((node: Node, attributeName: string, attributeValue: string) => boolean)[]} set_attribute_overrides

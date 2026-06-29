@@ -4,7 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 import { FontFamilySelector } from "@html_editor/main/font/font_family_selector";
 import { reactive } from "@odoo/owl";
 import { closestElement } from "../../utils/dom_traversal.js";
-import { withSequence } from "@html_editor/utils/resource";
+import { READ, withSequence } from "@html_editor/utils/resource";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 export const defaultFontFamily = {
@@ -57,7 +57,7 @@ export class FontFamilyPlugin extends Plugin {
             }),
         ],
         /** Handlers */
-        selectionchange_handlers: this.updateCurrentFontFamily.bind(this),
+        selectionchange_handlers: withSequence(READ, this.updateCurrentFontFamily.bind(this)),
         post_undo_handlers: this.updateCurrentFontFamily.bind(this),
         post_redo_handlers: this.updateCurrentFontFamily.bind(this),
     };
