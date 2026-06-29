@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
-import { initLNA } from "@point_of_sale/app/utils/init_lna";
+import { initLNA, getLNATargetAddressSpace } from "@point_of_sale/app/utils/init_lna";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -83,7 +83,7 @@ export class TestEPos extends Component {
                 signal: AbortSignal.timeout(15000),
             };
             if (odoo.use_lna) {
-                params.targetAddressSpace = "local";
+                params.targetAddressSpace = getLNATargetAddressSpace(this.address);
                 let lnaStatus = "pending";
                 await initLNA(this.notification, (status) => {
                     lnaStatus = status;
