@@ -24,7 +24,7 @@ export async function handleImagesIfDataset(toProcessEls, nodeEl, dataInfo, call
         return;
     }
     for (const toProcessEl of toProcessEls) {
-        if (!toProcessEl || !toProcessEl.tagName === "IMG") {
+        if (!toProcessEl || toProcessEl.tagName !== "IMG") {
             continue;
         }
         await callback(toProcessEl, nodeEl);
