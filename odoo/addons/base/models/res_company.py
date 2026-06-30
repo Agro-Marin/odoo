@@ -693,6 +693,16 @@ class ResCompany(models.Model):
     def _accessible_branches(self) -> Self:
         return self.browse(self.__accessible_branches())
 
+    @ormcache()
+    def _get_company_partner_ids(self):
+        return tuple(
+            self.env["res.company"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([])
+            .partner_id.ids
+        )
+
     def _all_branches_selected(self) -> bool:
         """Return whether all the branches of the companies in self are selected.
 
