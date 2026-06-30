@@ -239,6 +239,7 @@ class SaleOrder(models.Model):
         copy=False,
         index=True,
         tracking=True,
+        group_expand=True,
     )
     priority = fields.Selection(
         selection=[
@@ -789,6 +790,7 @@ class SaleOrder(models.Model):
             order.require_signature = order.company_id.portal_confirmation_sign
 
     @api.depends("state")
+    @api.depends_context("lang")
     def _compute_type_name(self):
         for order in self:
             if order.state in ("draft", "cancel"):
@@ -1478,6 +1480,8 @@ class SaleOrder(models.Model):
     @api.onchange("line_ids")
     def _onchange_line_ids(self):
         for _index, line in enumerate(self.line_ids):
+            if line.display_type == "line_subsection" and not line.parent_id:
+                line.display_type = "line_section"
             combo_item_lines = line._get_lines_linked().filtered("combo_item_id")
             if line.product_template_id.type != "combo":
                 if combo_item_lines:
@@ -2238,6 +2242,11 @@ class SaleOrder(models.Model):
             return self.env.ref("sale.mt_order_sent")
         return super()._track_subtype(init_values)
 
+    def _get_model_description(self, model_name):
+        if not self:
+            return super()._get_model_description(model_name)
+        return self.type_name
+
     # ------------------------------------------------------------
     # INVOICING METHODS
     # ------------------------------------------------------------
@@ -2948,6 +2957,7 @@ class SaleOrder(models.Model):
                         quantity=1.0,
                         currency_id=currency,
                         sign=1,
+                        special_mode="total_excluded",
                         special_type="early_payment",
                         tax_ids=line.tax_ids.flatten_taxes_hierarchy().filtered(
                             lambda tax: tax.amount_type != "fixed",
@@ -2961,6 +2971,7 @@ class SaleOrder(models.Model):
                         quantity=1.0,
                         currency_id=currency,
                         sign=1,
+                        special_mode="total_excluded",
                         special_type="early_payment",
                     ),
                 )
