@@ -30,13 +30,16 @@ import { RemovePlugin } from "./remove_plugin.js";
 import { SavePlugin } from "./save_plugin.js";
 import { SaveSnippetPlugin } from "./save_snippet_plugin.js";
 import { SetupEditorPlugin } from "./setup_editor_plugin.js";
+import { SnippetPlugin } from "./snippet_plugin.js";
 import { CoreSetupEditorPlugin } from "./core_setup_editor_plugin.js";
 import { VisibilityPlugin } from "./visibility_plugin.js";
 import { FieldChangeReplicationPlugin } from "./field_change_replication_plugin.js";
 import { BuilderContentEditablePlugin } from "./builder_content_editable_plugin.js";
 import { ImageFieldPlugin } from "@html_builder/plugins/image_field_plugin";
 import { MonetaryFieldPlugin } from "@html_builder/plugins/monetary_field_plugin";
+import { DateTimeFieldPlugin } from "@html_builder/plugins/date_time_field_plugin";
 import { Many2OneOptionPlugin } from "@html_builder/plugins/many2one_option_plugin";
+import { VersionErrorPlugin } from "./version_error_plugin.js";
 
 const mainEditorPluginsToRemove = [
     "PowerButtonsPlugin",
@@ -82,6 +85,7 @@ export const CORE_PLUGINS = [
     DisableSnippetsPlugin,
     MediaWebsitePlugin,
     SetupEditorPlugin,
+    SnippetPlugin,
     CoreSetupEditorPlugin,
     SavePlugin,
     VisibilityPlugin,
@@ -94,5 +98,7 @@ export const CORE_PLUGINS = [
     BuilderContentEditablePlugin,
     ImageFieldPlugin,
     MonetaryFieldPlugin,
+    DateTimeFieldPlugin,
     Many2OneOptionPlugin,
+    VersionErrorPlugin,
 ];
