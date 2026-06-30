@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
-import { Many2XAutocomplete } from "@web/views/fields/relational_utils";
-import { Many2One } from "@web/views/fields/many2one/many2one";
-import { Many2OneField, buildM2OFieldDescription } from "@web/views/fields/many2one/many2one_field";
+import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
+import { Many2One } from "@web/fields/relational/many2one/many2one";
+import { Many2OneField, buildM2OFieldDescription } from "@web/fields/relational/many2one/many2one_field";
 
 export class Many2XAccountAccountAutocomplete extends Many2XAutocomplete {
     addSearchMoreSuggestion(options) {
