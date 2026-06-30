@@ -206,6 +206,7 @@ class PurchaseOrderLine(models.Model):
         precompute=True,
         readonly=False,
     )
+    translated_product_name = fields.Text(compute="_compute_translated_product_name")
     price_unit = fields.Float(
         string="Unit Price",
         min_display_digits="Product Price",
@@ -799,6 +800,13 @@ class PurchaseOrderLine(models.Model):
             if not line.product_id:
                 continue
             line._set_product_description()
+
+    @api.depends("product_id")
+    def _compute_translated_product_name(self):
+        for line in self:
+            line.translated_product_name = line.product_id.with_context(
+                lang=line.partner_id.lang,
+            ).display_name
 
     @api.depends(
         "selected_seller_id",
