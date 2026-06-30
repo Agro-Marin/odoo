@@ -2019,7 +2019,7 @@ class PurchaseOrder(models.Model):
             if line.selected_seller_id:
                 supplierinfo["product_name"] = line.selected_seller_id.product_name
                 supplierinfo["product_code"] = line.selected_seller_id.product_code
-                supplierinfo["product_uom_id"] = line.product_uom.id
+                supplierinfo["product_uom_id"] = line.product_uom_id.id
             supplierinfo["product_tmpl_id"] = tmpl.id
             suppinfo_vals_list.append(supplierinfo)
 
@@ -2174,7 +2174,7 @@ class PurchaseOrder(models.Model):
         seller = product._select_seller(
             partner_id=self.partner_id,
             quantity=None,
-            date=self.date_order and self.date_order.date(),
+            date=fields.Date.context_today(self, timestamp=self.date_order),
             uom_id=product.uom_id,
             ordered_by="min_qty",
             params=params,
@@ -2372,20 +2372,17 @@ class PurchaseOrder(models.Model):
         """Prepare the dict of values to create the new invoice for a purchase order."""
         self.ensure_one()
         move_type = self.env.context.get("default_move_type", "in_invoice")
-        partner_invoice = self.env["res.partner"].browse(
-            self.partner_id.address_get(["invoice"])["invoice"],
-        )
         partner_bank_id = self.commercial_partner_id.bank_ids.filtered_domain(
             [("company_id", "in", (False, self.company_id.id))],
         )[:1]
         values = {
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,
-            "partner_id": partner_invoice.id,
+            "partner_id": self.partner_id.id,
             "invoice_payment_term_id": self.payment_term_id.id,
             "fiscal_position_id": (
                 self.fiscal_position_id
-                or self.fiscal_position_id._get_fiscal_position(partner_invoice)
+                or self.fiscal_position_id._get_fiscal_position(self.partner_id)
             ).id,
             "partner_bank_id": partner_bank_id.id,
             "invoice_user_id": self.user_id.id,

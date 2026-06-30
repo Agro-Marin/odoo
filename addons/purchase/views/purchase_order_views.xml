@@ -626,7 +626,7 @@
                                         force_save="1"
                                         context="{
                                             'company_id': parent.company_id,
-                                            'partner_id': parent.partner_id,
+                                            'partner_id': partner_id,
                                             'quantity': product_qty,
                                         }"
                                         options="{'show_label_warning': True}"

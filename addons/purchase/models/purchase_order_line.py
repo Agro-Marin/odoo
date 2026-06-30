@@ -7,7 +7,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero, float_round
+from odoo.libs.numbers.float_utils import float_compare, float_is_zero
 from odoo.tools.translate import _
 
 from odoo.addons.purchase import const
@@ -206,6 +206,7 @@ class PurchaseOrderLine(models.Model):
         precompute=True,
         readonly=False,
     )
+    translated_product_name = fields.Text(compute="_compute_translated_product_name")
     price_unit = fields.Float(
         string="Unit Price",
         min_display_digits="Product Price",
@@ -558,10 +559,11 @@ class PurchaseOrderLine(models.Model):
     )
     def _compute_allowed_uom_ids(self):
         for line in self:
+            seller_uom = line.product_id.seller_ids.filtered(
+                lambda s: s.product_id.id in {False, line.product_id.id},
+            ).product_uom_id
             line.allowed_uom_ids = (
-                line.product_id.uom_id
-                | line.product_id.uom_ids
-                | line.product_id.seller_ids.product_uom_id
+                line.product_id.uom_id | line.product_id.uom_ids | seller_uom
             )
 
     @api.depends("is_expense", "product_id")
@@ -681,9 +683,7 @@ class PurchaseOrderLine(models.Model):
                 )
             ):
                 # Get seller's minimum quantity using centralized helper
-                date = (
-                    line.date_order and line.date_order.date()
-                ) or fields.Date.context_today(line)
+                date = fields.Date.context_today(line, timestamp=line.date_order)
                 sellers = line._get_sellers_for_partner(date=date)
                 # Further filter by product variant if specified
                 sellers = sellers.filtered(
@@ -779,8 +779,9 @@ class PurchaseOrderLine(models.Model):
                 seller = line.product_id._select_seller(
                     partner_id=line.partner_id,
                     quantity=qty,
-                    date=(line.order_id.date_order and line.order_id.date_order.date())
-                    or fields.Date.context_today(line),
+                    date=fields.Date.context_today(
+                        line, timestamp=line.order_id.date_order
+                    ),
                     uom_id=line.product_uom_id,
                     params=params,
                 )
@@ -799,6 +800,13 @@ class PurchaseOrderLine(models.Model):
             if not line.product_id:
                 continue
             line._set_product_description()
+
+    @api.depends("product_id")
+    def _compute_translated_product_name(self):
+        for line in self:
+            line.translated_product_name = line.product_id.with_context(
+                lang=line.partner_id.lang,
+            ).display_name
 
     @api.depends(
         "selected_seller_id",
@@ -903,6 +911,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.price_unit_product_uom = (
                 not line.display_type
+                and not line.is_downpayment
                 and line.product_uom_id._compute_price(
                     line.price_unit,
                     line.product_id.uom_id,
@@ -1052,7 +1061,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.amount_to_invoice_at_date = (
                 line.qty_transferred_at_date - line.qty_invoiced_at_date
-            ) * line.price_unit
+            ) * line._get_price_unit_gross()
 
     @api.depends(
         "qty_to_invoice",
@@ -1243,6 +1252,16 @@ class PurchaseOrderLine(models.Model):
         name = product_lang.display_name
         if product_lang.description_purchase:
             name += "\n" + product_lang.description_purchase
+        no_variant_attribute_values = self.with_context(
+            product_lang.env.context,
+        ).product_no_variant_attribute_value_ids
+        for no_variant_attribute_value in no_variant_attribute_values:
+            name += (
+                "\n"
+                + no_variant_attribute_value.attribute_id.name
+                + ": "
+                + no_variant_attribute_value.name
+            )
         return name
 
     def _get_line_identifier(self, line):
@@ -1413,8 +1432,7 @@ class PurchaseOrderLine(models.Model):
             price_unit, self.product_uom_id
         )
 
-        # Round to precision
-        return float_round(price_unit, precision_digits=self._get_price_precision())
+        return price_unit
 
     def _get_price_from_product_cost(self):
         """Get price from product standard cost (fallback when no seller).
@@ -1452,8 +1470,7 @@ class PurchaseOrderLine(models.Model):
             False,
         )
 
-        # Round and return
-        return float_round(price_unit, precision_digits=self._get_price_precision())
+        return price_unit
 
     def _get_qty_to_consider_for_billing(self):
         """Get quantity to consider based on product's billing policy.
@@ -1616,6 +1633,8 @@ class PurchaseOrderLine(models.Model):
             "purchase_line_ids": [Command.link(self.id)],
             "is_downpayment": self.is_downpayment,
         }
+        if self.is_downpayment and self.invoice_line_ids:
+            res["account_id"] = self.invoice_line_ids.account_id[:1].id
         res.update(optional_values)
         return res
 
@@ -1712,11 +1731,11 @@ class PurchaseOrderLine(models.Model):
         )
         # _select_seller is used if the supplier have different price depending
         # the quantities ordered.
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         seller = product_id.with_company(company_id)._select_seller(
             partner_id=partner_id,
             quantity=product_qty if values.get("force_uom") else uom_po_qty,
-            date=po.date_order and max(po.date_order.date(), today) or today,
+            date=max(fields.Date.context_today(self, timestamp=po.date_order), today),
             uom_id=product_uom if values.get("force_uom") else product_id.uom_id,
             params={"force_uom": values.get("force_uom")},
         )
@@ -1891,6 +1910,32 @@ class PurchaseOrderLine(models.Model):
             self.name = new_default
             return
 
+        # Name was customized (differs from every default), but it may still start
+        # with a known vendor's display-name prefix (e.g. "[Code 1] Name 1\n<note>").
+        # In that case resync only the vendor code/name prefix to the currently
+        # selected vendor (or to the no-vendor name) so it stays correct when the
+        # partner/seller changes, while preserving the user's custom remainder.
+        for seller in self.product_id.seller_ids:
+            seller_display_name = self.product_id.with_context(
+                {"seller_id": seller.id, "lang": lang},
+            ).display_name
+            if self.name.startswith(seller_display_name):
+                if not self.selected_seller_id:
+                    self.name = (
+                        self.product_id.with_context(
+                            {"seller_id": None, "lang": lang},
+                        ).display_name
+                        + self.name[len(seller_display_name):]
+                    )
+                elif seller.id != self.selected_seller_id.id:
+                    self.name = (
+                        self.product_id.with_context(
+                            {"seller_id": self.selected_seller_id.id, "lang": lang},
+                        ).display_name
+                        + self.name[len(seller_display_name):]
+                    )
+                return
+
         # Name differs from all defaults - user customized it, preserve it
 
     def _sum_invoiced_amounts(self, invoice_lines):
@@ -1995,7 +2040,7 @@ class PurchaseOrderLine(models.Model):
         if not "accrual_entry_date" in self.env.context:
             return False
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
-        return accrual_date < fields.Date.today()
+        return accrual_date and accrual_date < fields.Date.today()
 
     def _has_discount_differences(self, invoice_lines):
         """Check if any invoice line has a different discount than the PO line."""
