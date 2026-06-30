@@ -1910,6 +1910,32 @@ class PurchaseOrderLine(models.Model):
             self.name = new_default
             return
 
+        # Name was customized (differs from every default), but it may still start
+        # with a known vendor's display-name prefix (e.g. "[Code 1] Name 1\n<note>").
+        # In that case resync only the vendor code/name prefix to the currently
+        # selected vendor (or to the no-vendor name) so it stays correct when the
+        # partner/seller changes, while preserving the user's custom remainder.
+        for seller in self.product_id.seller_ids:
+            seller_display_name = self.product_id.with_context(
+                {"seller_id": seller.id, "lang": lang},
+            ).display_name
+            if self.name.startswith(seller_display_name):
+                if not self.selected_seller_id:
+                    self.name = (
+                        self.product_id.with_context(
+                            {"seller_id": None, "lang": lang},
+                        ).display_name
+                        + self.name[len(seller_display_name):]
+                    )
+                elif seller.id != self.selected_seller_id.id:
+                    self.name = (
+                        self.product_id.with_context(
+                            {"seller_id": self.selected_seller_id.id, "lang": lang},
+                        ).display_name
+                        + self.name[len(seller_display_name):]
+                    )
+                return
+
         # Name differs from all defaults - user customized it, preserve it
 
     def _sum_invoiced_amounts(self, invoice_lines):
