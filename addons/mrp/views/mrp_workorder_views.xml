@@ -157,7 +157,7 @@
             </header>
             <sheet>
                 <div class="oe_button_box" name="button_box">
-                    <button class="oe_stat_button" name="action_see_move_scrap" type="object" icon="oi-arrows-v" invisible="scrap_count == 0">
+                    <button class="oe_stat_button" name="action_view_move_scrap" type="object" icon="oi-arrows-v" invisible="scrap_count == 0">
                         <div class="o_field_widget o_stat_info">
                             <span class="o_stat_value"><field name="scrap_count"/></span>
                             <span class="o_stat_text">Scraps</span>
@@ -351,6 +351,7 @@
                 <field name="last_working_user_id"/>
                 <field name="workcenter_id" invisible="True"/>
                 <field name="product_uom_id" invisible="True" force_save="True"/>
+                <field name="operation_id" invisible="True"/>
                 <field name="working_user_ids"/>
                 <field name="working_state"/>
                 <field name="date_start"/>

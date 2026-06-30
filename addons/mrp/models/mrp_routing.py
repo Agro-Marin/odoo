@@ -172,19 +172,16 @@ class MrpRoutingWorkcenter(models.Model):
         for operation in self:
             workcenter = self.env.context.get("workcenter", operation.workcenter_id)
             product = self.env.context.get(
-                "product",
-                operation.bom_id.product_id
-                or operation.bom_id.product_tmpl_id.product_variant_ids,
+                "product", operation.bom_id.product_id
+            ) or self.env.context.get(
+                "action_button_product",
+                operation.bom_id.product_tmpl_id.product_variant_ids.filtered(
+                    lambda p: p.product_template_attribute_value_ids
+                    <= operation.bom_product_template_attribute_value_ids
+                ),
             )
             if len(product) > 1:
-                operation.cycle_number = 1
-                operation.time_total = (
-                    workcenter.time_start
-                    + workcenter.time_stop
-                    + operation.time_cycle_manual
-                )
-                operation.show_time_total = False
-                continue
+                product = product[0]
             quantity = self.env.context.get(
                 "quantity", operation.bom_id.product_qty or 1
             )
@@ -233,11 +230,11 @@ class MrpRoutingWorkcenter(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        res.bom_id._set_outdated_bom_in_productions()
+        res.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
         return res
 
     def write(self, vals):
-        self.bom_id._set_outdated_bom_in_productions()
+        self.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
         if "bom_id" in vals:
             for op in self:
                 op.bom_id.bom_line_ids.filtered(
@@ -259,12 +256,12 @@ class MrpRoutingWorkcenter(models.Model):
             [("operation_id", "in", self.ids)]
         )
         byproduct_lines.write({"operation_id": False})
-        self.bom_id._set_outdated_bom_in_productions()
+        self.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
         return res
 
     def action_unarchive(self):
         res = super().action_unarchive()
-        self.bom_id._set_outdated_bom_in_productions()
+        self.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
         return res
 
     def copy_to_bom(self):

@@ -6893,7 +6893,7 @@ class TestMrpOrder(TestMrpCommon):
         mo.action_confirm()
 
         # Verify that initially only one picking is created.
-        self.assertEqual(mo.delivery_count, 1.0)
+        self.assertEqual(mo.count_transfer_outgoing, 1.0)
         mo.picking_ids.button_validate()
 
         # Unlock MO and update the raw material quantity.
@@ -6904,7 +6904,7 @@ class TestMrpOrder(TestMrpCommon):
         mo = mo_form.save()
 
         # Verify that a new picking is created when mo is in confirmed state.
-        self.assertEqual(mo.delivery_count, 2.0)
+        self.assertEqual(mo.count_transfer_outgoing, 2.0)
         mo.picking_ids.filtered(
             lambda picking: picking.state != "done"
         ).button_validate()
@@ -6919,7 +6919,7 @@ class TestMrpOrder(TestMrpCommon):
         mo = mo_form.save()
 
         # Verify that new picking is also created when mo is in 'progress' state.
-        self.assertEqual(mo.delivery_count, 3.0)
+        self.assertEqual(mo.count_transfer_outgoing, 3.0)
 
         # Update the raw material quantity again but now quantity updates in exiting moves of picking.
         mo_form = Form(mo)
@@ -6928,7 +6928,7 @@ class TestMrpOrder(TestMrpCommon):
         mo = mo_form.save()
 
         # For that new picking is not created.
-        self.assertEqual(mo.delivery_count, 3.0)
+        self.assertEqual(mo.count_transfer_outgoing, 3.0)
 
         # Now check the latest not-done picking's quantity.
         not_done_picking = mo.picking_ids.filtered(
@@ -6948,7 +6948,7 @@ class TestMrpOrder(TestMrpCommon):
         mo = mo_form.save()
 
         # Now check the latest not-done picking's quantity.
-        self.assertEqual(mo.delivery_count, 4.0)
+        self.assertEqual(mo.count_transfer_outgoing, 4.0)
         not_done_picking = mo.picking_ids.filtered(
             lambda picking: picking.state != "done"
         )
