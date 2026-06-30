@@ -76,8 +76,9 @@
                     </thead>
                     <tbody>
                         <t t-set="current_subtotal" t-value="0" />
+                        <t t-set="filtered_lines" t-value="o.line_ids.filtered(lambda l: l.display_type or l.product_qty != 0)" />
                         <t
-                            t-foreach="o.line_ids.filtered(lambda l: l.display_type or l.product_qty != 0)"
+                            t-foreach="filtered_lines"
                             t-as="line">
                             <t t-set="current_subtotal"
                                 t-value="current_subtotal + line.price_subtotal" />
@@ -130,7 +131,7 @@
                                 </t>
                             </tr>
                             <t
-                                t-if="current_section and (line_last or o.line_ids[line_index+1].display_type in ('line_section', 'line_subsection'))">
+                                t-if="current_section and (line_last or filtered_lines[line_index+1].display_type in ('line_section', 'line_subsection'))">
                                 <tr class="is-subtotal text-end">
                                     <td colspan="99" id="subtotal">
                                         <strong class="me-3">Subtotal</strong>
