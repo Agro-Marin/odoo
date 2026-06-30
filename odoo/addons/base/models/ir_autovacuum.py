@@ -34,7 +34,7 @@ class IrAutovacuum(models.AbstractModel):
           context; otherwise raises ``AccessDenied``. This prevents ad-hoc
           invocation outside the autovacuum cron.
         - **Per-method isolation**: each method is committed on success
-          (``_commit_progress(1)``) and, on failure, the cursor is rolled back
+          (``_commit_progress()``) and, on failure, the cursor is rolled back
           and the ORM cache invalidated *in isolation* before the loop
           continues. One failing ``@api.autovacuum`` method must NOT abort the
           rest, nor roll back already-committed work.
@@ -54,17 +54,16 @@ class IrAutovacuum(models.AbstractModel):
         # starving the following ones
         random.shuffle(all_methods)
         queue = collections.deque(all_methods)
-        # IAVAC-C1: _commit_progress is evaluated before the pop below, so
-        # ``remaining`` counts the about-to-be-processed item (queued incl.
-        # current). This is a cosmetic off-by-one in ir.cron.progress reporting
-        # only; it has no effect on which methods run.
-        while queue and self.env["ir.cron"]._commit_progress(remaining=len(queue)):
+        # Non-queue job: process every method in one pass. We commit per method
+        # for isolation but do NOT report progress counts -- partial progress
+        # would let the scheduler retry, re-running all methods (see odoo#265091).
+        while queue:
             model, attr, func = queue.pop()
             _logger.debug("Calling %s.%s()", model, attr)
             try:
                 start_time = time.monotonic()
                 result = func(model)
-                self.env["ir.cron"]._commit_progress(1)
+                self.env["ir.cron"]._commit_progress()
                 if isinstance(result, tuple) and len(result) == 2:
                     func_done, func_remaining = result
                     _logger.debug(

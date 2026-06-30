@@ -468,7 +468,9 @@ def sum_intervals(intervals: Iterable[tuple[datetime, datetime, ...]]) -> float:
     )
 
 
-def weeknumber(locale: babel.Locale, date: date) -> tuple[int, int]:
+def weeknumber(
+    locale: babel.Locale, date: date, first_week_day: int | None = None
+) -> tuple[int, int]:
     """Compute the year and week number of a date.
 
     The week number is 1-indexed (first week is week number 1).
@@ -481,20 +483,21 @@ def weeknumber(locale: babel.Locale, date: date) -> tuple[int, int]:
 
     :param locale: Babel locale object
     :param date: The date to compute week number for
+    :param first_week_day: Optional override for the first day of the week
+        (0 = Monday, ..., 6 = Sunday). If None, derived from the locale.
     :returns: Tuple of (year, week_number)
     """
-    if locale.first_week_day == 0 and locale.min_week_days == 4:
+    if not first_week_day:
+        first_week_day = locale.first_week_day
+    if first_week_day == 0 and locale.min_week_days == 4:
         return date.isocalendar()[:2]
 
-    fdny = date.replace(year=date.year + 1, month=1, day=1) - relativedelta(
-        weekday=weekdays[locale.first_week_day](-1)
-    )
+    delta = relativedelta(weekday=weekdays[first_week_day](-1))
+    fdny = date.replace(year=date.year + 1, month=1, day=1) - delta
     if date >= fdny:
         return date.year + 1, 1
 
-    fdow = date.replace(month=1, day=1) - relativedelta(
-        weekday=weekdays[locale.first_week_day](-1)
-    )
+    fdow = date.replace(month=1, day=1) - delta
     doy = (date - fdow).days
 
     return date.year, (doy // 7 + 1)

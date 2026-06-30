@@ -24,10 +24,9 @@ import base64
 import gc
 import json
 import logging
-import time
+from collections import deque
 from datetime import date, datetime
 
-from odoo import Command
 from odoo.orm.domain import Domain
 from odoo.tests.benchmark import PerfTimer
 from odoo.tests.common import TransactionCase, tagged
@@ -1585,44 +1584,57 @@ class TestAccelFieldCache(TransactionCase):
         timer = _bench(bench)
         self._log(timer.stats("cache.set_value()", warmup=0))
 
+    # NOTE: FieldCache exposes no bulk insert/update method; that logic lives in
+    # Field._insert_cache / Field._update_cache, which operate directly on the
+    # per-field dict from get_field_data(). These benchmarks measure that same
+    # raw dict operation standalone (no ORM layer), mirroring the production code.
+
     def test_04_insert_if_absent_100(self):
         from odoo.orm.components.cache import FieldCache
 
         cache = FieldCache()
-        f = "test"
+        d = cache.get_field_data("test")
         ids = tuple(range(100))
         vals = tuple(range(100))
-        timer = _bench(lambda: cache.insert_if_absent(f, ids, vals))
-        self._log(timer.stats("cache.insert_if_absent(100)", warmup=0))
+        # Field._insert_cache: bulk setdefault driven through C via deque(map(...)).
+        timer = _bench(
+            lambda: deque(map(d.setdefault, ids, vals, strict=True), maxlen=0)
+        )
+        self._log(timer.stats("insert_if_absent(100)", warmup=0))
 
     def test_05_insert_if_absent_1000(self):
         from odoo.orm.components.cache import FieldCache
 
         cache = FieldCache()
-        f = "test"
+        d = cache.get_field_data("test")
         ids = tuple(range(1000))
         vals = tuple(range(1000))
-        timer = _bench(lambda: cache.insert_if_absent(f, ids, vals))
-        self._log(timer.stats("cache.insert_if_absent(1000)", warmup=0))
+        timer = _bench(
+            lambda: deque(map(d.setdefault, ids, vals, strict=True), maxlen=0)
+        )
+        self._log(timer.stats("insert_if_absent(1000)", warmup=0))
 
     def test_06_update_batch_1(self):
         cache, f, _ = self._make_cache(100)
-        timer = _bench(lambda: cache.update_batch(f, (42,), "x"))
-        self._log(timer.stats("cache.update_batch(1)", warmup=0))
+        d = cache.get_field_data(f)
+        # Field._update_cache batch path: dict.update(dict.fromkeys(ids, value)).
+        timer = _bench(lambda: d.update(dict.fromkeys((42,), "x")))
+        self._log(timer.stats("update_batch(1)", warmup=0))
 
     def test_07_update_batch_100(self):
         cache, f, ids = self._make_cache(100)
-        timer = _bench(lambda: cache.update_batch(f, ids, "x"))
-        self._log(timer.stats("cache.update_batch(100)", warmup=0))
+        d = cache.get_field_data(f)
+        timer = _bench(lambda: d.update(dict.fromkeys(ids, "x")))
+        self._log(timer.stats("update_batch(100)", warmup=0))
 
     def test_08_update_batch_1000(self):
         from odoo.orm.components.cache import FieldCache
 
         cache = FieldCache()
-        f = "test"
+        d = cache.get_field_data("test")
         ids = tuple(range(1000))
-        timer = _bench(lambda: cache.update_batch(f, ids, "x"))
-        self._log(timer.stats("cache.update_batch(1000)", warmup=0))
+        timer = _bench(lambda: d.update(dict.fromkeys(ids, "x")))
+        self._log(timer.stats("update_batch(1000)", warmup=0))
 
     def test_09_invalidate_100(self):
         cache, f, ids = self._make_cache(1000)
@@ -1655,7 +1667,7 @@ class TestAccelFieldCache(TransactionCase):
 
 @tagged("standard", "accel_baseline")
 class TestAccelPrimitives(TransactionCase):
-    """Baseline: NewId and OriginIds primitives."""
+    """Baseline: NewId primitive and origin-id extraction."""
 
     @classmethod
     def setUpClass(cls):
@@ -1697,46 +1709,33 @@ class TestAccelPrimitives(TransactionCase):
         timer = _bench(lambda: nid < 20)
         self._log(timer.stats("NewId.__lt__(int)", warmup=0))
 
+    # NOTE: the OriginIds iterable class was replaced by helpers._origin_ids(),
+    # which dispatches tuple inputs to the Rust origin_ids() accelerator and
+    # returns the materialized list. Benchmarking the call measures the same
+    # origin-extraction work the iterable used to perform lazily.
+
     def test_10_originids_int(self):
-        from odoo.orm.helpers import OriginIds
+        from odoo.orm.helpers import _origin_ids
 
         ids = tuple(range(1, 1001))
-        oid = OriginIds(ids)
-
-        def bench():
-            for _ in oid:
-                pass
-
-        timer = _bench(bench, n=ITERATIONS)
-        self._log(timer.stats("OriginIds(1000_int)", warmup=0))
+        timer = _bench(lambda: _origin_ids(ids), n=ITERATIONS)
+        self._log(timer.stats("origin_ids(1000_int)", warmup=0))
 
     def test_11_originids_mixed(self):
-        from odoo.orm.helpers import OriginIds
+        from odoo.orm.helpers import _origin_ids
         from odoo.orm.primitives import NewId
 
         ids = tuple(NewId(origin=i) if i % 3 == 0 else i for i in range(1, 501))
-        oid = OriginIds(ids)
-
-        def bench():
-            for _ in oid:
-                pass
-
-        timer = _bench(bench, n=ITERATIONS)
-        self._log(timer.stats("OriginIds(500_mixed)", warmup=0))
+        timer = _bench(lambda: _origin_ids(ids), n=ITERATIONS)
+        self._log(timer.stats("origin_ids(500_mixed)", warmup=0))
 
     def test_12_originids_all_newid(self):
-        from odoo.orm.helpers import OriginIds
+        from odoo.orm.helpers import _origin_ids
         from odoo.orm.primitives import NewId
 
         ids = tuple(NewId(origin=i) for i in range(1, 501))
-        oid = OriginIds(ids)
-
-        def bench():
-            for _ in oid:
-                pass
-
-        timer = _bench(bench, n=ITERATIONS)
-        self._log(timer.stats("OriginIds(500_newid)", warmup=0))
+        timer = _bench(lambda: _origin_ids(ids), n=ITERATIONS)
+        self._log(timer.stats("origin_ids(500_newid)", warmup=0))
 
     def test_99_summary(self):
         if not self.results:
