@@ -8,14 +8,14 @@ from odoo.fields import Command
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
-    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_incoming_picking_count')
+    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_count_transfer_incoming')
 
     @api.depends('picking_ids.is_dropship')
-    def _compute_incoming_picking_count(self):
-        super()._compute_incoming_picking_count()
+    def _compute_count_transfer_incoming(self):
+        super()._compute_count_transfer_incoming()
         for order in self:
             dropship_count = len(order.picking_ids.filtered(lambda p: p.is_dropship))
-            order.incoming_picking_count -= dropship_count
+            order.count_transfer_incoming -= dropship_count
             order.dropship_picking_count = dropship_count
 
     def action_view_picking(self):
@@ -34,6 +34,9 @@ class PurchaseOrder(models.Model):
     def _is_dropshipped(self):
         self.ensure_one()
         return self.picking_type_id and self.picking_type_id.code == 'dropship'
+
+    def _should_set_dest_address(self):
+        return super()._should_set_dest_address() or self._is_dropshipped()
 
 
 class PurchaseOrderLine(models.Model):

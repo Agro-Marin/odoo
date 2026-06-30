@@ -95,21 +95,21 @@
                 <header>
                     <button name="action_confirm" invisible="state != 'draft'" string="Confirm" type="object" class="oe_highlight" data-hotkey="q"/>
                     <button name="action_done" string="Validate" type="object" class="oe_highlight"
-                        invisible="state != 'in_progress' or show_check_availability" data-hotkey="v"/>
+                        invisible="not picking_ids or state != 'in_progress' or show_check_availability" data-hotkey="v"/>
                     <button name="action_assign" string="Check Availability" type="object" class="oe_highlight"
                         invisible="state != 'in_progress' or not show_check_availability" data-hotkey="w"/>
                     <button name="action_done" string="Validate" type="object"
-                        invisible="state != 'in_progress' or not show_check_availability" data-hotkey="v"/>
+                        invisible="not picking_ids or state != 'in_progress' or not show_check_availability" data-hotkey="v"/>
                     <button name="action_assign" string="Check Availability" type="object"
                         invisible="state != 'draft' or not show_check_availability" data-hotkey="w"/>
                     <button name="action_print" invisible="state not in ('in_progress', 'done')" string="Print" type="object" data-hotkey="o"/>
-                    <button string="Print Labels" type="object" name="action_open_label_layout" data-hotkey="shift+o"/>
+                    <button string="Print Labels" type="object" name="action_view_label_layout" data-hotkey="shift+o"/>
                     <button name="action_cancel" string="Cancel" type="object" invisible="state != 'in_progress'" data-hotkey="x"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,in_progress,done"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_see_packages" string="Packages" type="object"
+                        <button name="action_view_packages" string="Packages" type="object"
                             class="oe_stat_button" icon="fa-cubes"
                             groups="stock.group_tracking_lot">
                             <div class="o_stat_info">

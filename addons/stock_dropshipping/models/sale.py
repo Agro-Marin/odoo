@@ -7,14 +7,14 @@ from odoo import models, fields, api
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
-    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_picking_ids')
+    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_count_transfer_outgoing')
 
     @api.depends('picking_ids.is_dropship')
-    def _compute_picking_ids(self):
-        super()._compute_picking_ids()
+    def _compute_count_transfer_outgoing(self):
+        super()._compute_count_transfer_outgoing()
         for order in self:
             dropship_count = len(order.picking_ids.filtered(lambda p: p.is_dropship))
-            order.delivery_count -= dropship_count
+            order.count_transfer_outgoing -= dropship_count
             order.dropship_picking_count = dropship_count
 
     def action_view_delivery(self):
