@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, models, fields
-from odoo.libs.numbers.float_utils import float_is_zero, float_round
+from odoo import _, models
 from odoo.exceptions import UserError
 
 
@@ -14,8 +12,28 @@ class StockMove(models.Model):
         if self.bom_line_id.bom_id.type == "phantom":
             uom_quantity = self.product_uom._compute_quantity(self.quantity, self.product_id.uom_id)
             if not self.product_uom.is_zero(uom_quantity):
-                return (self.cost_share / 100) * quantity / uom_quantity
+                unit_kit_purchase = 1
+                if self.purchase_line_id:
+                    active_moves = self.purchase_line_id.move_ids.filtered(lambda m:
+                        m.state != 'cancel' and m.product_id == self.product_id and m.picking_id != self.picking_id,
+                    )
+                    active_quantity = quantity + sum(active_moves.mapped('quantity'))
+                    if active_quantity:
+                        unit_kit_purchase = (quantity / active_quantity) * self.purchase_line_id.product_qty
+                return (self.cost_share / 100) * (quantity / uom_quantity) * unit_kit_purchase
         return super()._get_cost_ratio(quantity)
+
+    def _get_value_from_bill(self, aml):
+        value = super()._get_value_from_bill(aml)
+        if self.bom_line_id.bom_id.type == "phantom":
+            value *= (self.cost_share / 100)
+        return value
+
+    def _get_quantity_from_bill(self, aml, quantity):
+        self.ensure_one()
+        if self.bom_line_id.bom_id.type == "phantom":
+            return aml.product_uom_id._compute_quantity(quantity, self.product_id.uom_id)
+        return super()._get_quantity_from_bill(aml, quantity)
 
     def _prepare_phantom_move_values(self, bom_line, product_qty, quantity_done):
         vals = super()._prepare_phantom_move_values(bom_line, product_qty, quantity_done)

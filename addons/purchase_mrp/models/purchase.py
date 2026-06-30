@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
@@ -21,7 +20,7 @@ class PurchaseOrder(models.Model):
             purchase.mrp_production_count = len(purchase._get_mrp_productions())
 
     def _get_mrp_productions(self, **kwargs):
-        return self.reference_ids.production_ids
+        return (self.line_ids.move_dest_ids | self.line_ids.move_ids.move_dest_ids).raw_material_production_id
 
     def action_view_mrp_productions(self):
         self.ensure_one()
