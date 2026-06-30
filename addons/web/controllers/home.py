@@ -147,12 +147,10 @@ class Home(http.Controller):
             request.update_context(lang=lang)
 
         menus = request.env["ir.ui.menu"].load_web_menus(request.session.debug)
-        return request.make_response(
-            json_dumps(menus),
+        return request.make_json_response(
+            menus,
             [
-                # Content-Type must be application/json: route type is HTTP but the client expects JSON
-                ("Content-Type", "application/json"),
-                ("Cache-Control", f"public, max-age={http.STATIC_CACHE_LONG}"),
+                ("Cache-Control", "no-store"),
             ],
         )
 

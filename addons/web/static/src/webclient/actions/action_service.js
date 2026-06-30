@@ -794,7 +794,9 @@ export class ActionManager {
             // Also, I guess we may need it when we have other monoRecord views
             index = this.controllerStack.findIndex(
                 (ct) =>
-                    ct.action.jsId === controller.action.jsId && !ct.view.multiRecord,
+                    ct.action.jsId === controller.action.jsId &&
+                    !ct.virtual &&
+                    !ct.view.multiRecord,
             );
             index = index > -1 ? index : this.controllerStack.length;
         }
@@ -862,7 +864,7 @@ export class ActionManager {
         return this._preprocessAction(action, context);
     }
 
-    pushState(cStack = this.controllerStack) {
+    pushState(cStack = this.controllerStack, options) {
         if (!cStack.length) {
             return;
         }
@@ -871,7 +873,7 @@ export class ActionManager {
         browser.sessionStorage.setItem("current_state", JSON.stringify(newState));
 
         cStack.at(-1).state = newState;
-        this.router.pushState(newState, { replace: true });
+        this.router.pushState(newState, Object.assign({ replace: true }, options));
     }
 
     get currentController() {

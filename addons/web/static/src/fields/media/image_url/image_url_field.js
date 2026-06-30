@@ -33,13 +33,10 @@ export class ImageUrlField extends Component {
     }
 
     get sizeStyle() {
-        let style = "";
-        if (this.props.width) {
-            style += `max-width: ${this.props.width}px;`;
-        }
-        if (this.props.height) {
-            style += `max-height: ${this.props.height}px;`;
-        }
+        const width = this.props.width;
+        const height = this.props.height;
+        let style = width ? `max-width: ${width}px;` : `width: auto;`;
+        style += height ? `max-height: ${height}px` : `height: auto`;
         return style;
     }
 

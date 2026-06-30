@@ -21,6 +21,7 @@
  * @property {Value} operator
  * @property {Value|Tree} value
  * @property {boolean} negate
+ * @property {boolean} [isProperty]
  */
 
 /**
@@ -105,10 +106,11 @@ export function complexCondition(value) {
  * @param {Value} operator
  * @param {Value|Tree} value
  * @param {boolean} [negate=false]
+ * @param {boolean} [isProperty=false]
  * @returns {Condition}
  */
-export function condition(path, operator, value, negate = false) {
-    return { type: "condition", path, operator, value, negate };
+export function condition(path, operator, value, negate = false, isProperty = false) {
+    return { type: "condition", path, operator, value, negate, isProperty };
 }
 
 export const TRUE_TREE = condition(1, "=", 1);

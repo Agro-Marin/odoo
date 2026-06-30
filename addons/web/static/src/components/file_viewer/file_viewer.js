@@ -59,6 +59,7 @@ export class FileViewer extends Component {
             imageLoaded: false,
             scale: 1,
             angle: 0,
+            isIframeLoaded: false,
         });
         this.ui = useService("ui");
         useEffect(
@@ -66,7 +67,6 @@ export class FileViewer extends Component {
                 if (el) {
                     hidePDFJSButtons(this.iframeViewerPdfRef.el, {
                         hideDownload: true,
-                        hidePrint: true,
                     });
                 }
             },
@@ -76,6 +76,13 @@ export class FileViewer extends Component {
 
     onImageLoaded() {
         this.state.imageLoaded = true;
+    }
+
+    onIframeLoaded(ev) {
+        const iFrameEl = ev.target;
+        iFrameEl.contentWindow.requestAnimationFrame(() => {
+            this.state.isIframeLoaded = true;
+        });
     }
 
     close() {
@@ -254,28 +261,14 @@ export class FileViewer extends Component {
     }
 
     onClickPrint() {
-        const printWindow = window.open("about:blank", "_new");
+        const printWindow = window.open();
         if (!printWindow) {
             return;
         }
-        printWindow.document.open();
-        printWindow.document.write(`
-                <html>
-                    <head>
-                        <script>
-                            function onloadImage() {
-                                setTimeout(printImage, 10);
-                            }
-                            function printImage() {
-                                window.print();
-                                window.close();
-                            }
-                        </script>
-                    </head>
-                    <body onload='onloadImage()'>
-                        <img src="${this.state.file.defaultSource}" alt=""/>
-                    </body>
-                </html>`);
-        printWindow.document.close();
+        const image = printWindow.document.createElement("img");
+        image.setAttribute("onload", "window.print(); setTimeout(window.close, 10)");
+        image.setAttribute("onerror", "window.print(); setTimeout(window.close, 10)");
+        image.src = this.state.file.defaultSource;
+        printWindow.document.body.appendChild(image);
     }
 }

@@ -6,6 +6,7 @@
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";
+import { Deferred } from "@web/core/utils/concurrency";
 /**
  * Top-level settings page with app tabs, swipe navigation, and scroll position memory.
  * Handles URL hash-based tab selection and anchor scrolling.
@@ -54,6 +55,7 @@ export class SettingsPage extends Component {
 
                 const { scrollTop } = this.scrollMap[currentTab] || { scrollTop: 0 };
                 settingsEl.scrollTop = scrollTop;
+                this.tabChangeProm?.resolve();
             },
             () => [this.settingsRef.el, this.state.selectedTab],
         );
@@ -79,14 +81,16 @@ export class SettingsPage extends Component {
             this.getCurrentIndex() !== this.props.modules.length - 1
         );
     }
-    async onRightSwipe(prom) {
+    async onRightSwipe() {
+        this.tabChangeProm = new Deferred();
         this.state.selectedTab = this.props.modules[this.getCurrentIndex() - 1].key;
-        await prom;
+        await this.tabChangeProm;
         this.scrollToSelectedTab();
     }
-    async onLeftSwipe(prom) {
+    async onLeftSwipe() {
+        this.tabChangeProm = new Deferred();
         this.state.selectedTab = this.props.modules[this.getCurrentIndex() + 1].key;
-        await prom;
+        await this.tabChangeProm;
         this.scrollToSelectedTab();
     }
 

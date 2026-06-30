@@ -243,10 +243,12 @@ export const listGroupRenderingMixin = {
      */
     getGroupPagerProps(group) {
         const list = group.list;
+        // For a single leveled group with a countLimit, we already have the full count.
+        const total = list.isGrouped ? list.count : group.count;
         return {
             offset: list.offset,
             limit: list.limit,
-            total: list.count,
+            total,
             onUpdate: async ({ offset, limit }) => {
                 await list.load({ limit, offset });
                 this.render(true);

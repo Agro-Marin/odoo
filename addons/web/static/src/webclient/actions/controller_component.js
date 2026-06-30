@@ -89,7 +89,7 @@ export function makeControllerComponent(am) {
                     if (controller.isMounted) {
                         return;
                     }
-                    am.pushState(nextStack);
+                    am.pushState(nextStack, { sync: true });
                 },
             });
             if (action.target !== "new") {

@@ -237,6 +237,9 @@ export function deactivateGroup(searchModel, groupId) {
  */
 export function toggleSearchItem(searchModel, searchItemId) {
     const searchItem = searchModel.searchItems[searchItemId];
+    if (searchItem.isInvalid) {
+        return;
+    }
     switch (searchItem.type) {
         case "dateFilter":
         case "dateGroupBy":
