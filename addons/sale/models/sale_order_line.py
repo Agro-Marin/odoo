@@ -1118,7 +1118,9 @@ class SaleOrderLine(models.Model):
                 line.discount = 0.0
                 continue
 
-            if not (line.order_id.pricelist_id and discount_enabled):
+            if not (
+                line.order_id.pricelist_id and discount_enabled and line.product_uom_id
+            ):
                 continue
 
             # Combo items inherit discount from their parent combo line
@@ -1425,13 +1427,34 @@ class SaleOrderLine(models.Model):
         for line in self:
             line.qty_invoiced_at_date = invoiced_quantities[line]
 
+    def _get_price_unit_gross(self):
+        """Mirroring method in purchase."""
+        self.ensure_one()
+        price_unit = self.price_unit
+        if self.discount:
+            price_unit = price_unit * (1 - self.discount / 100)
+        if self.tax_ids:
+            qty = self.product_qty or 1
+            price_unit = self.tax_ids.compute_all(
+                price_unit,
+                currency=self.order_id.currency_id,
+                quantity=qty,
+                rounding_method="round_globally",
+            )["total_void"]
+            price_unit = price_unit / qty
+        if self.product_uom_id.id != self.product_id.uom_id.id:
+            price_unit *= self.product_id.uom_id.factor / self.product_uom_id.factor
+        return price_unit
+
     @api.depends_context("accrual_entry_date")
-    @api.depends("price_unit", "qty_invoiced_at_date", "qty_transferred_at_date")
+    @api.depends(
+        "price_unit", "discount", "qty_invoiced_at_date", "qty_transferred_at_date"
+    )
     def _compute_amount_to_invoice_at_date(self):
         for line in self:
             line.amount_to_invoice_at_date = (
                 line.qty_transferred_at_date - line.qty_invoiced_at_date
-            ) * line.price_unit
+            ) * line._get_price_unit_gross()
 
     @api.depends(
         "qty_invoiced",
@@ -1775,7 +1798,10 @@ class SaleOrderLine(models.Model):
         """
         self.ensure_one()
 
-        section_lines = self.order_id.line_ids.filtered(self._is_line_in_section)
+        section_lines = self.order_id.line_ids.filtered(
+            lambda line: line.product_type != "combo"
+            and self._is_line_in_section(line)
+        )
 
         if display_taxes:
             res = [
@@ -2019,17 +2045,22 @@ class SaleOrderLine(models.Model):
             for combo_id in combo_line.product_template_id.sudo().combo_ids
         }
         total_combo_base_price = sum(combo_base_prices.values())
-        # Compute the prorated combo prices.
-        combo_prices = {
-            combo_id: self.currency_id.round(
-                # Don't divide by total_combo_base_price if it's 0. This will make the prorating
-                # wrong, but the delta will be fixed by combo_price_delta below.
-                base_price
-                * combo_product_price
-                / (total_combo_base_price or 1),
+        # Compute the prorated combo prices. When all combos have a zero base price, prorating by
+        # base price would assign the whole combo product's price to a single combo (via
+        # combo_price_delta below), making one combo item show the full price while the others
+        # show 0. Distribute the price evenly instead.
+        if total_combo_base_price:
+            combo_prices = {
+                combo_id: self.currency_id.round(
+                    base_price * combo_product_price / total_combo_base_price,
+                )
+                for (combo_id, base_price) in combo_base_prices.items()
+            }
+        else:
+            even_share = self.currency_id.round(
+                combo_product_price / len(combo_base_prices)
             )
-            for (combo_id, base_price) in combo_base_prices.items()
-        }
+            combo_prices = {combo_id: even_share for combo_id in combo_base_prices}
         # Compute the delta between the combo product's price and the sum of its combo prices.
         # Ideally, this should be 0, but division in python isn't perfect, so we may need to adjust
         # the combo prices to make the delta 0.
@@ -2039,14 +2070,17 @@ class SaleOrderLine(models.Model):
                 combo_line.product_template_id.sudo().combo_ids[-1]
             ] += combo_price_delta
         # Add the extra price of this combo item, as well as the extra prices of any `no_variant`
-        # attributes to the combo price.
-        return (
-            combo_prices[self.combo_item_id.combo_id]
-            + self.combo_item_id.extra_price
+        # attributes to the combo price, converted to the order's currency.
+        extra_price = self.combo_item_id.currency_id._convert(
+            from_amount=self.combo_item_id.extra_price
             + self.product_id._get_no_variant_attributes_price_extra(
                 self.product_no_variant_attribute_value_ids,
-            )
+            ),
+            to_currency=self.currency_id,
+            company=self.company_id,
+            date=self.order_id.date_order,
         )
+        return combo_prices[self.combo_item_id.combo_id] + extra_price
 
     def _get_price_display_regular_item(self):
         """This helper method allows to compute the display price of a SOL, while ignoring combo
@@ -2379,7 +2413,7 @@ class SaleOrderLine(models.Model):
                     or invoice_line.move_id.payment_state == "invoicing_legacy"
                 ):
                     invoice_qty = invoice_line.product_uom_id._compute_quantity(
-                        invoice_line.quantity, line.product_uom_id
+                        invoice_line.quantity, line.product_uom_id, round=False
                     )
                     if invoice_line.move_id.move_type == "out_invoice":
                         invoiced_qties[line] += invoice_qty
@@ -2525,7 +2559,11 @@ class SaleOrderLine(models.Model):
     # For `sale_management`, to control optional products on portal
     def _can_be_edited_on_portal(self):
         self.ensure_one()
-        return self.order_id._can_be_edited_on_portal() and not self.combo_item_id
+        return (
+            self.order_id._can_be_edited_on_portal()
+            and not self.combo_item_id
+            and self.product_id != self.company_id.sale_discount_product_id
+        )
 
     def _can_be_invoiced_alone(self):
         """Whether a given line is meaningful to invoice alone.
@@ -2556,7 +2594,7 @@ class SaleOrderLine(models.Model):
         if not "accrual_entry_date" in self.env.context:
             return False
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
-        return accrual_date < fields.Date.today()
+        return accrual_date and accrual_date < fields.Date.today()
 
     def _has_taxes(self):
         """Check if a line has taxes or not. For (sub)sections, check if any child line has taxes."""

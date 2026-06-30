@@ -232,6 +232,13 @@ class CustomerPortal(payment_portal.PaymentPortal):
     # Detail route
     # ------------------------------------------------------------------
 
+    def _sale_order_get_page_view_values(
+        self, order_sudo, access_token, values, history_session_key, **kwargs
+    ):
+        return self._get_page_view_values(
+            order_sudo, access_token, values, history_session_key, False, **kwargs
+        )
+
     @http.route(
         ["/my/orders/<int:order_id>"],
         type="http",
@@ -334,12 +341,11 @@ class CustomerPortal(payment_portal.PaymentPortal):
         else:
             values["payment_amount"] = None
 
-        values = self._get_page_view_values(
+        values = self._sale_order_get_page_view_values(
             order_sudo,
             access_token,
             values,
             self._sale_get_detail_history_session_key(order_sudo),
-            False,
             **kw,
         )
 
@@ -515,6 +521,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
         pdf = (
             request.env["ir.actions.report"]
             .sudo()
+            .with_context(sale_include_signature=True)
             ._render_qweb_pdf("sale.action_report_saleorder", [order_sudo.id])[0]
         )
 
