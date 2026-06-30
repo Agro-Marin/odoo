@@ -10,9 +10,9 @@ class ProductSupplierinfo(models.Model):
     # FIELDS
     # ------------------------------------------------------------
 
-    last_purchase_date = fields.Date(
+    date_last_purchase = fields.Date(
         string="Last Purchase",
-        compute="_compute_last_purchase_date",
+        compute="_compute_date_last_purchase",
     )
     show_set_supplier_button = fields.Boolean(
         string="Show Set Supplier Button",
@@ -23,8 +23,8 @@ class ProductSupplierinfo(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    def _compute_last_purchase_date(self):
-        self.last_purchase_date = False
+    def _compute_date_last_purchase(self):
+        self.date_last_purchase = False
         purchases = self.env["purchase.order"].search(
             [
                 ("state", "=", "done"),
@@ -44,7 +44,7 @@ class ProductSupplierinfo(models.Model):
                     continue
                 if not (products & purchase.line_ids.product_id):
                     continue
-                supplier.last_purchase_date = purchase.date_order
+                supplier.date_last_purchase = purchase.date_order
                 break
 
     def _compute_show_set_supplier_button(self):
