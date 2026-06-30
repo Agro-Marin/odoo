@@ -2,7 +2,7 @@
 import { baseContainerGlobalSelector } from "./base_container.js";
 import { closestBlock, isBlock } from "./blocks.js";
 import { childNodes, closestElement, firstLeaf, lastLeaf } from "./dom_traversal.js";
-import { DIRECTIONS, nodeSize } from "./position.js";
+import { childNodeIndex, DIRECTIONS, nodeSize } from "./position.js";
 
 export function isEmpty(el) {
     if (isProtecting(el) || isProtected(el)) {
@@ -287,7 +287,10 @@ export function isVisible(node) {
             isMediaElement(node) ||
             hasVisibleContent(node) ||
             isProtecting(node) ||
-            isEmbeddedComponent(node))
+            isEmbeddedComponent(node) ||
+            // Keep editor tables visible even when cells only contain
+            // placeholder ZWS content, as `.o_table` tables are always visible.
+            (node.nodeName === "TD" && !!closestElement(node, "table.o_table")))
     );
 }
 export function hasVisibleContent(node) {
@@ -328,7 +331,7 @@ export const ICON_SELECTOR = iconTags
     .map((tag) => iconClasses.map((cls) => `${tag}.${cls}`).join(", "))
     .join(", ");
 
-export const MEDIA_SELECTOR = `${ICON_SELECTOR} , .o_image, .media_iframe_video`;
+export const MEDIA_SELECTOR = `${ICON_SELECTOR}, .media_iframe_video, .o_file_box`;
 
 export const EDITABLE_MEDIA_CLASS = "o_editable_media";
 
@@ -351,10 +354,38 @@ export function isMediaElement(node) {
     return (
         isIconElement(node) ||
         (node.classList &&
-            (node.classList.contains("o_image") ||
+            (node.classList.contains("o_file_box") ||
                 node.classList.contains("media_iframe_video"))) ||
         node.nodeName === "CANVAS"
     );
+}
+
+/**
+ * Checks whether the content of mediaContainerEl is only made of "media"
+ * (image, video, icon, document) - or links around "media".
+ *
+ * @param {HTMLElement} mediaContainerEl element within which to check
+ * @param {boolean} [requiresSingleMedia=false] if true, limits the positive
+ *     result to situations where only a single media is present
+ * @returns {boolean}
+ */
+export function hasMediaOnly(mediaContainerEl, requiresSingleMedia = false) {
+    const nonEmptyContent = [...mediaContainerEl.childNodes].filter(
+        (node) =>
+            node.tagName !== "BR" &&
+            (node.nodeType !== Node.TEXT_NODE || node.textContent.replaceAll(/\s+/g, ""))
+    );
+    if (requiresSingleMedia && nonEmptyContent.length !== 1) {
+        return false;
+    }
+    return nonEmptyContent.every((el) => {
+        if (isMediaElement(el) || el.tagName === "IMG") {
+            return true;
+        }
+        if (el.tagName === "A") {
+            return hasMediaOnly(el, requiresSingleMedia);
+        }
+    });
 }
 
 // See https://developer.mozilla.org/en-US/docs/Web/HTML/Content_categories#phrasing_content
@@ -527,7 +558,7 @@ export const paragraphRelatedElements = ["P", "H1", "H2", "H3", "H4", "H5", "H6"
  * @returns {boolean}
  */
 export function allowsParagraphRelatedElements(node) {
-    return isBlock(node) && !isParagraphRelatedElement(node);
+    return !isParagraphRelatedElement(node) && isBlock(node);
 }
 
 export const phrasingContent = new Set(["#text", ...phrasingTagNames]);
@@ -651,7 +682,12 @@ export function isEmptyBlock(blockEl) {
  * @returns {boolean}
  */
 export function isShrunkBlock(blockEl) {
-    return isEmptyBlock(blockEl) && !blockEl.querySelector("br") && !isSelfClosingElement(blockEl);
+    return (
+        isElement(blockEl) &&
+        !blockEl.querySelector("br") &&
+        !isSelfClosingElement(blockEl) &&
+        isEmptyBlock(blockEl)
+    );
 }
 
 export function isEditorTab(node) {
@@ -683,6 +719,76 @@ export function getDeepestPosition(node, offset) {
         next = !isSelfClosingElement(next) && next;
     }
     return [node, offset];
+}
+
+/**
+ * Return the deepest editable position from a given DOM position.
+ *
+ * This resolves a [node, offset] pair to the deepest descendant that is
+ * allowed to contain the caret. If the resolved deepest position is inside
+ * a non-editable element, the function walks up the DOM until it reaches
+ * an editable ancestor and adjusts the offset so the caret sits just before
+ * or after the non-editable region.
+ *
+ * Example:
+ *   <div contenteditable="true">
+ *       <span contenteditable="false">X</span>
+ *   </div>
+ *   getDeepestEditablePosition(div, 1)
+ *   → [div, 1]
+ *
+ * @param {node} node   - Node in which the position is being resolved.
+ * @param {number} offset - Offset within node.
+ * @returns {[Node, number]} A corrected editable node and offset.
+ */
+export function getDeepestEditablePosition(node, offset) {
+    const [deepNode, deepOffset] = getDeepestPosition(node, offset);
+
+    // If deepest node is already editable, nothing to correct.
+    if (isContentEditable(deepNode)) {
+        return [deepNode, deepOffset];
+    }
+
+    // The direct child of root that contains the deepest resolved node.
+    const nodeLevelAncestor =
+        isTextNode(deepNode) && deepNode.parentElement === node
+            ? deepNode
+            : closestElement(deepNode, (el) => el.parentElement === node);
+
+    // The closest non-editable ancestor whose parent is editable.
+    const closestNonEditable = closestElement(
+        deepNode,
+        (el) => !isContentEditable(el) && isContentEditable(el.parentElement)
+    );
+
+    const nodeLevelAncestorIndex = childNodeIndex(nodeLevelAncestor);
+    const closestNonEditableIndex = childNodeIndex(closestNonEditable);
+
+    // Decide whether the caret should be placed before or after
+    // the non-editable element based on the requested offset.
+    const deepEditableNode = closestNonEditable.parentElement;
+    const deepEditableOffset =
+        nodeLevelAncestorIndex < offset ? closestNonEditableIndex + 1 : closestNonEditableIndex;
+
+    // If caret lands on non-editable, resolve it from previous sibling.
+    if (deepEditableOffset === closestNonEditableIndex) {
+        const previousSiblingOfNonEditable = closestNonEditable.previousSibling;
+        if (previousSiblingOfNonEditable) {
+            if (isTextNode(previousSiblingOfNonEditable)) {
+                return [previousSiblingOfNonEditable, nodeSize(previousSiblingOfNonEditable)];
+            } else if (
+                isElement(previousSiblingOfNonEditable) &&
+                previousSiblingOfNonEditable.childNodes.length
+            ) {
+                return getDeepestEditablePosition(
+                    previousSiblingOfNonEditable,
+                    nodeSize(previousSiblingOfNonEditable)
+                );
+            }
+        }
+    }
+
+    return [deepEditableNode, deepEditableOffset];
 }
 
 export function previousLeaf(node, editable, skipInvisible = false) {
@@ -896,3 +1002,6 @@ export function isRedundantElement(node) {
 
     return true;
 }
+
+// Selector for QWeb-specific attributes
+export const PROTECTED_QWEB_SELECTOR = "[t-esc], [t-raw], [t-out], [t-field]";

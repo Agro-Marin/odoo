@@ -618,3 +618,54 @@ describe("helper hint", () => {
         });
     });
 });
+
+describe("list", () => {
+    test("should split list at first item", async () => {
+        await testEditor({
+            contentBefore: "<ul><li>[]a</li><li>b</li><li>c</li></ul>",
+            stepFunction: async (editor) => columnize(2)(editor),
+            contentAfter:
+                "<ul><li>a</li></ul>" +
+                columnsContainer(column(6, "<p>[]<br></p>") + column(6, "<p><br></p>")) +
+                "<ul><li>b</li><li>c</li></ul>",
+        });
+    });
+
+    test("should split list at middle item", async () => {
+        await testEditor({
+            contentBefore: "<ul><li>a</li><li>b[]</li><li>c</li></ul>",
+            stepFunction: async (editor) => columnize(2)(editor),
+            contentAfter:
+                "<ul><li>a</li><li>b</li></ul>" +
+                columnsContainer(column(6, "<p>[]<br></p>") + column(6, "<p><br></p>")) +
+                "<ul><li>c</li></ul>",
+        });
+    });
+
+    test("should split list at last item and add paragraph after", async () => {
+        await testEditor({
+            contentBefore: "<ul><li>a</li><li>b</li><li>c[]</li></ul>",
+            stepFunction: async (editor) => columnize(2)(editor),
+            contentAfter:
+                "<ul><li>a</li><li>b</li><li>c</li></ul>" +
+                columnsContainer(column(6, "<p>[]<br></p>") + column(6, "<p><br></p>")),
+        });
+    });
+});
+
+describe("availability", () => {
+    test("columnize 2 should be available from p at root of editable", async () => {
+        const { editor } = await setupEditor("<p>ab[]</p>");
+        await insertText(editor, "/col");
+        await animationFrame();
+        expect(queryAllTexts(".o-we-command-name")).toInclude("2 columns");
+    });
+    test("columnize 2 should not be available from p which is the root of editable", async () => {
+        const { editor } = await setupEditor(
+            '<div contenteditable="false"><p contenteditable="true">ab[]</p></div>'
+        );
+        await insertText(editor, "/col");
+        await animationFrame();
+        expect(queryAllTexts(".o-we-command-name")).not.toInclude("2 columns");
+    });
+});

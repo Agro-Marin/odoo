@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { closestBlock, isBlock } from "@html_editor/utils/blocks";
+import { isProtecting } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
@@ -81,11 +82,18 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
         if (!anchorNode || !focusNode || !anchorNode.isConnected || !focusNode.isConnected) {
             return;
         }
-        const anchorBlock =
-            closestElement(anchorNode, (el) => isBlock(el) && el.parentElement === this.editable) ||
-            closestBlock(anchorNode);
+        let anchorBlock = closestBlock(anchorNode);
         if (!anchorBlock) {
             return;
+        }
+        if (isProtecting(anchorBlock)) {
+            const rootAnchorBlock = closestElement(
+                anchorNode,
+                (el) => isBlock(el) && el.parentElement === this.editable
+            );
+            if (rootAnchorBlock) {
+                anchorBlock = rootAnchorBlock;
+            }
         }
 
         const containerRect = this.avatarOverlay.getBoundingClientRect();
