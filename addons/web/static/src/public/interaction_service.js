@@ -287,7 +287,7 @@ class InteractionService {
             this.isActive = false;
         }
         for (const [interaction, error] of errors) {
-            throw new Error(`Could not destroy interaction ${interaction}`, error);
+            throw new Error(`Could not destroy interaction ${interaction}`, { cause: error });
         }
     }
 
