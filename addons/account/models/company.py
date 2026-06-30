@@ -247,7 +247,7 @@ class ResCompany(models.Model):
         comodel_name="account.account",
         string="Loss Exchange Rate Account",
         check_company=True,
-        domain="[('account_type', '=', 'expense')]",
+        domain="[('account_type', 'in', ('expense', 'expense_other'))]",
     )
     anglo_saxon_accounting = fields.Boolean(string="Use anglo-saxon accounting")
     bank_journal_ids = fields.One2many(
@@ -1168,6 +1168,7 @@ class ResCompany(models.Model):
         while (
             self.env["account.account"]
             .with_company(self)
+            .with_context(active_test=False)
             .search_count(
                 [
                     *self.env["account.account"]._check_company_domain(self),
@@ -1183,7 +1184,7 @@ class ResCompany(models.Model):
                     "xml_id": f"account.{str(self.id)}_unaffected_earnings_account",
                     "values": {
                         "code": str(code),
-                        "name": _("Undistributed Profits/Losses"),
+                        "name": _("Profit or Loss Appropriation"),
                         "account_type": unaffected_earnings_type,
                         "company_ids": [Command.link(self.id)],
                     },

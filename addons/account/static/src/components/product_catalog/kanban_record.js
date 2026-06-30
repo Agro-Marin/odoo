@@ -10,7 +10,7 @@ patch(ProductCatalogKanbanRecord.prototype, {
 
         useSubEnv({
             ...this.env,
-            selectedSectionId: this.env.searchModel.selectedSection?.sectionId,
+            selectedSectionId: this.env.searchModel.selectedSection.sectionId,
         });
     },
 
@@ -24,7 +24,7 @@ patch(ProductCatalogKanbanRecord.prototype, {
     _getUpdateQuantityAndGetPriceParams() {
         return {
             ...super._getUpdateQuantityAndGetPriceParams(),
-            section_id: this.env.searchModel.selectedSection.sectionId || false,
+            section_id: this.env.selectedSectionId ?? this.env.searchModel.selectedSection.sectionId,
         };
     },
 
