@@ -219,13 +219,16 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             Purchase that kit in a different currency than the company currency and validate the receipt.
             Check the generated account entries.
 
-            NOTE (fork gap): this is the test half of upstream odoo/odoo
-            3670c83f1e5 "[FIX] purchase_mrp: UoM category error on kit". Its
-            model fix (StockMove._get_qty_received_without_self) was NOT ported
-            because it depends on the unported stock_account "New inventory
-            valuation" refactor (08b62a4bbcc) - no such base hook exists in the
-            fork. This test is intentionally kept WITHOUT @skip so it fails
-            loudly until that valuation refactor (and the kit fix) is ported.
+            This is the test half of upstream odoo/odoo 3670c83f1e5
+            "[FIX] purchase_mrp: UoM category error on kit". The upstream model
+            fix (StockMove._get_qty_received_without_self, currency-convert date
+            from qty_invoiced vs qty_received) does NOT apply to this fork: the
+            fork already rewrote purchase valuation (_get_value_from_quotation/
+            _account_move/_bill) to convert at a fixed conversion_date=move.date,
+            so the upstream UoM-mismatch path does not exist here and the
+            multicurrency kit receipt validates correctly. The only fork
+            adaptation needed was the purchase confirm rename
+            (button_confirm -> action_confirm).
         """
         eur = self.env.ref('base.EUR')
 
@@ -269,7 +272,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 'price_unit': 100.0,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.button_validate()
