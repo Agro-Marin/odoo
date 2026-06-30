@@ -1,6 +1,5 @@
-import { after } from "@odoo/hoot";
-import { Deferred, mockWorker } from "@odoo/hoot-mock";
-import { MockServer } from "@web/../tests/web_test_helpers";
+import { after, Deferred, mockWorker } from "@odoo/hoot";
+import { MockServer, patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { WebsocketWorker } from "@bus/workers/websocket_worker";
 import { patch } from "@web/core/utils/patch";
@@ -14,9 +13,9 @@ function cleanupWebSocketCallbacks() {
     wsCallbacks = null;
 }
 
-function cleanupWekSocketWorker() {
+function cleanupWebSocketWorker() {
     // ``MockServer.prototype.start`` is patched (below) to ``setupWeb-
-    // SocketWorker()`` + ``after(cleanupWekSocketWorker)`` on every call.
+    // SocketWorker()`` + ``after(cleanupWebSocketWorker)`` on every call.
     // A test that legitimately starts the mock server twice (e.g. an
     // editor test that mounts WebClient inside its setup AND then calls
     // ``makeMockEnv`` again to switch contexts) registers two cleanups;
@@ -44,17 +43,12 @@ function getWebSocketCallbacks() {
     return wsCallbacks;
 }
 
-/**
- * @param {SharedWorker | Worker} worker
- */
-function onWorkerConnected(worker) {
-    currentWebSocketWorker.registerClient(worker._messageChannel.port2);
-}
-
 function setupWebSocketWorker() {
     currentWebSocketWorker = new WebsocketWorker();
 
-    mockWorker(onWorkerConnected);
+    mockWorker(function onWorkerConnected(worker) {
+        currentWebSocketWorker.registerClient(worker._messageChannel.port2);
+    });
 }
 
 /** @type {WebsocketWorker | null} */
@@ -90,11 +84,10 @@ export function onWebsocketEvent(eventName, callback) {
 // Setup
 //-----------------------------------------------------------------------------
 
-patch(MockServer.prototype, {
+patchWithCleanup(MockServer.prototype, {
     start() {
         setupWebSocketWorker();
-        after(cleanupWekSocketWorker);
-
+        after(cleanupWebSocketWorker);
         return super.start(...arguments);
     },
 });
