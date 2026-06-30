@@ -558,10 +558,11 @@ class PurchaseOrderLine(models.Model):
     )
     def _compute_allowed_uom_ids(self):
         for line in self:
+            seller_uom = line.product_id.seller_ids.filtered(
+                lambda s: s.product_id.id in {False, line.product_id.id},
+            ).product_uom_id
             line.allowed_uom_ids = (
-                line.product_id.uom_id
-                | line.product_id.uom_ids
-                | line.product_id.seller_ids.product_uom_id
+                line.product_id.uom_id | line.product_id.uom_ids | seller_uom
             )
 
     @api.depends("is_expense", "product_id")
@@ -681,9 +682,7 @@ class PurchaseOrderLine(models.Model):
                 )
             ):
                 # Get seller's minimum quantity using centralized helper
-                date = (
-                    line.date_order and line.date_order.date()
-                ) or fields.Date.context_today(line)
+                date = fields.Date.context_today(line, timestamp=line.date_order)
                 sellers = line._get_sellers_for_partner(date=date)
                 # Further filter by product variant if specified
                 sellers = sellers.filtered(
@@ -779,8 +778,9 @@ class PurchaseOrderLine(models.Model):
                 seller = line.product_id._select_seller(
                     partner_id=line.partner_id,
                     quantity=qty,
-                    date=(line.order_id.date_order and line.order_id.date_order.date())
-                    or fields.Date.context_today(line),
+                    date=fields.Date.context_today(
+                        line, timestamp=line.order_id.date_order
+                    ),
                     uom_id=line.product_uom_id,
                     params=params,
                 )
@@ -903,6 +903,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.price_unit_product_uom = (
                 not line.display_type
+                and not line.is_downpayment
                 and line.product_uom_id._compute_price(
                     line.price_unit,
                     line.product_id.uom_id,
@@ -1243,6 +1244,16 @@ class PurchaseOrderLine(models.Model):
         name = product_lang.display_name
         if product_lang.description_purchase:
             name += "\n" + product_lang.description_purchase
+        no_variant_attribute_values = self.with_context(
+            product_lang.env.context,
+        ).product_no_variant_attribute_value_ids
+        for no_variant_attribute_value in no_variant_attribute_values:
+            name += (
+                "\n"
+                + no_variant_attribute_value.attribute_id.name
+                + ": "
+                + no_variant_attribute_value.name
+            )
         return name
 
     def _get_line_identifier(self, line):
@@ -1616,6 +1627,8 @@ class PurchaseOrderLine(models.Model):
             "purchase_line_ids": [Command.link(self.id)],
             "is_downpayment": self.is_downpayment,
         }
+        if self.is_downpayment and self.invoice_line_ids:
+            res["account_id"] = self.invoice_line_ids.account_id[:1].id
         res.update(optional_values)
         return res
 
@@ -1712,11 +1725,11 @@ class PurchaseOrderLine(models.Model):
         )
         # _select_seller is used if the supplier have different price depending
         # the quantities ordered.
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         seller = product_id.with_company(company_id)._select_seller(
             partner_id=partner_id,
             quantity=product_qty if values.get("force_uom") else uom_po_qty,
-            date=po.date_order and max(po.date_order.date(), today) or today,
+            date=max(fields.Date.context_today(self, timestamp=po.date_order), today),
             uom_id=product_uom if values.get("force_uom") else product_id.uom_id,
             params={"force_uom": values.get("force_uom")},
         )

@@ -2019,7 +2019,7 @@ class PurchaseOrder(models.Model):
             if line.selected_seller_id:
                 supplierinfo["product_name"] = line.selected_seller_id.product_name
                 supplierinfo["product_code"] = line.selected_seller_id.product_code
-                supplierinfo["product_uom_id"] = line.product_uom.id
+                supplierinfo["product_uom_id"] = line.product_uom_id.id
             supplierinfo["product_tmpl_id"] = tmpl.id
             suppinfo_vals_list.append(supplierinfo)
 
@@ -2174,7 +2174,7 @@ class PurchaseOrder(models.Model):
         seller = product._select_seller(
             partner_id=self.partner_id,
             quantity=None,
-            date=self.date_order and self.date_order.date(),
+            date=fields.Date.context_today(self, timestamp=self.date_order),
             uom_id=product.uom_id,
             ordered_by="min_qty",
             params=params,
