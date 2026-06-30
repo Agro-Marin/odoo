@@ -207,7 +207,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
 
         po = Form(self.env['purchase.order'])
         po.partner_id = self.env['res.partner'].create({'name': 'Testy'})
-        with po.order_line.new() as line:
+        with po.line_ids.new() as line:
             line.product_id = self.kit_1
             line.product_qty = 120
             line.price_unit = 1260
@@ -258,7 +258,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po.partner_id = self.env['res.partner'].create({'name': 'Testy'})
         po.currency_id = mock_currency
 
-        with po.order_line.new() as line:
+        with po.line_ids.new() as line:
             line.product_id = kit
             line.product_qty = 1
             line.price_unit = 300.00
@@ -292,7 +292,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         partner = self.env['res.partner'].create({'name': 'My Test Partner'})
         f = Form(self.env['purchase.order'])
         f.partner_id = partner
-        with f.order_line.new() as line:
+        with f.line_ids.new() as line:
             line.product_id = self.kit_parent
             line.product_qty = 7.0
             line.price_unit = 10
@@ -304,7 +304,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         # only components. Also checks that the quantities are corresponding
         # to the PO
         self.assertEqual(len(po.picking_ids), 1)
-        order_line = po.order_line[0]
+        order_line = po.line_ids[0]
         picking_original = po.picking_ids[0]
         move_ids = picking_original.move_ids
         products = move_ids.mapped('product_id')
@@ -542,7 +542,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         ]).order_id
         self.assertTrue(purchase)
         self.assertEqual(len(purchase), 2)
-        self.assertEqual(sum(purchase.order_line.mapped('product_qty')), 5)
+        self.assertEqual(sum(purchase.line_ids.mapped('product_qty')), 5)
 
     def test_01_purchase_mrp_kit_qty_change(self):
         self.partner = self.env['res.partner'].create({'name': 'Test Partner'})
@@ -550,7 +550,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         # Create a PO with one unit of the kit product
         self.po = self.env['purchase.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [(0, 0, {'name': self.kit_1.name, 'product_id': self.kit_1.id, 'product_qty': 1, 'product_uom_id': self.kit_1.uom_id.id, 'price_unit': 60.0, 'date_planned': fields.Datetime.now()})],
+            'line_ids': [(0, 0, {'name': self.kit_1.name, 'product_id': self.kit_1.id, 'product_qty': 1, 'product_uom_id': self.kit_1.uom_id.id, 'price_unit': 60.0, 'date_planned': fields.Datetime.now()})],
         })
         # Validate the PO
         self.po.button_confirm()
@@ -561,7 +561,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         self.assertEqual(self.po.picking_ids.move_ids[2].product_uom_qty, 3, "The quantity of components must be created according to the BOM")
 
         # Update the kit quantity in the PO
-        self.po.order_line[0].product_qty = 2
+        self.po.line_ids[0].product_qty = 2
         # Check the component qty after the update
         self.assertEqual(self.po.picking_ids.move_ids[0].product_uom_qty, 4, "The amount of the kit components must be updated when changing the quantity of the kit.")
         self.assertEqual(self.po.picking_ids.move_ids[1].product_uom_qty, 2, "The amount of the kit components must be updated when changing the quantity of the kit.")
@@ -830,7 +830,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             f = Form(self.env['purchase.order'])
             f.partner_id = partner_id
             f.date_order = date_order
-            with f.order_line.new() as line:
+            with f.line_ids.new() as line:
                 line.product_id = product_id
                 line.product_qty = 3.0
                 line.price_unit = 10
@@ -877,7 +877,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         f = Form(self.env['purchase.order'])
         f.partner_id = partner
         f.date_order = fields.Datetime.now()
-        with f.order_line.new() as line:
+        with f.line_ids.new() as line:
             line.product_id = component_product
             line.product_qty = 6.0
             line.price_unit = 10
@@ -916,7 +916,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
 
         po = self.env['purchase.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': kit_prod.name,
                 'product_id': kit_prod.id,
                 'product_qty': 30,
@@ -929,14 +929,14 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         self.assertEqual(picking.move_line_ids.quantity_product_uom, 30 * 5 / 6)
 
         # Update the kit quantity in the PO
-        po.order_line[0].product_qty = 60
+        po.line_ids[0].product_qty = 60
         # Check the component qty after the update should be 50
         self.assertEqual(picking.move_line_ids.quantity_product_uom, 60 * 5 / 6)
 
         # Recieve half the quantity 25 component == 30 kit_prod
         picking.move_line_ids.quantity = 25
         picking.with_context(skip_backorder=True).button_validate()
-        self.assertEqual(po.order_line.qty_received, 25 / 5 * 6)
+        self.assertEqual(po.line_ids.qty_received, 25 / 5 * 6)
 
         # Return 10 components
         stock_return_picking_form = Form(self.env['stock.return.picking']
@@ -953,7 +953,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
 
         # Process all components and validate the return
         return_pick.button_validate()
-        self.assertEqual(po.order_line.qty_received, 15 / 5 * 6)
+        self.assertEqual(po.line_ids.qty_received, 15 / 5 * 6)
 
     def test_bom_report_vendor_quantities(self):
         """ Test bom overview with different vendor minimum quantities, see if it picks the right ones.
@@ -1062,7 +1062,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po_form = Form(self.env['purchase.order'])
         partner = self.env['res.partner'].create({'name': 'My Test Partner'})
         po_form.partner_id = partner
-        with po_form.order_line.new() as pol_form:
+        with po_form.line_ids.new() as pol_form:
             pol_form.product_id = kit
             pol_form.product_qty = 30
             pol_form.product_uom_id = self.uom_kg
@@ -1228,7 +1228,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po_form = Form(self.env['purchase.order'])
         partner = self.env['res.partner'].create({'name': 'Testy'})
         po_form.partner_id = partner
-        with po_form.order_line.new() as pol_form:
+        with po_form.line_ids.new() as pol_form:
             pol_form.product_id = prod
             pol_form.product_qty = 1
             pol_form.price_unit = 100
@@ -1263,7 +1263,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         })
         po = self.env['purchase.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.kit_1.id,
                 'product_uom_id': self.kit_1.uom_id.id,
                 'price_unit': 60.0,
@@ -1298,7 +1298,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         partner.property_stock_supplier = inter_comp_location
         po = self.env['purchase.order'].create({
             'partner_id': partner.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0,
                  {
                      'name': self.kit_1.name,
@@ -1310,14 +1310,14 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po.button_confirm()
 
         self.assertTrue(po.picking_ids)
-        self.assertEqual(po.order_line.qty_received, 0)
+        self.assertEqual(po.line_ids.qty_received, 0)
 
         picking = po.picking_ids
         for move in picking.move_ids:
             move.write({'quantity': move.product_uom_qty, 'picked': True})
         picking.button_validate()
 
-        self.assertEqual(po.order_line.qty_received, 1)
+        self.assertEqual(po.line_ids.qty_received, 1)
 
     def test_purchase_kit_bill_before_reception_component_cost_exactly_aligns_with_kit_product_cost(self):
         """ When a kit product is invoiced prior to delivery, we want to make sure to reconcile all
@@ -1357,7 +1357,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         ]})
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': components[0].id,
                     'product_qty': 1,
