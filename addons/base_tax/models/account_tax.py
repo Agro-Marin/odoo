@@ -552,7 +552,9 @@ class AccountTax(models.Model):
             ("price_include_override", "=", tax_value),
             "&",
             ("price_include_override", "=", False),
-            ("company_price_include", "=", tax_value),
+            # company_price_include is a non-stored mirror of the company field;
+            # search the stored underlying field so the domain is SQL-convertible.
+            ("company_id.account_price_include", "=", tax_value),
         ]
 
     @api.depends("company_id")
