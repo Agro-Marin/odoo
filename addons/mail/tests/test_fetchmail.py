@@ -125,3 +125,33 @@ class TestFetchmail(TransactionCase):
                 "WARNING:odoo.addons.base.models.ir_cron:Deactivating fetchmail imap server test deactivation server (too many failures)",
                 cron_log_catcher.output,
             )
+
+    def test_fetchmail_rotation_order(self):
+        """The cron processes servers by priority asc then date asc, so the
+        servers rotate across runs (C1c, upstream e02c26b6/c06428d6)."""
+        Server = self.env["fetchmail.server"]
+        Server.search([]).action_archive()
+        Server.create(
+            [
+                {"name": "p2", "priority": 2},
+                {"name": "p1", "priority": 1},
+                {"name": "p3", "priority": 3},
+            ]
+        ).button_confirm_login()
+
+        captured = []
+
+        def _fetch_mail(records, **kw):
+            captured.append(records.mapped("name"))
+
+        cron = self.env.ref("mail.ir_cron_mail_gateway_action")
+        with patch.object(
+            self.registry["fetchmail.server"], "_fetch_mail", _fetch_mail
+        ):
+            Server.with_context(
+                cron_id=cron.id, cron_end_time=0
+            )._fetch_mails()
+
+        # _fetch_mails calls _fetch_mail once on the whole priority-ordered
+        # recordset: assert the rotation order it would process.
+        self.assertEqual(captured, [["p1", "p2", "p3"]])

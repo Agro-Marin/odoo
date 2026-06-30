@@ -40,6 +40,28 @@ class TestTracking(MailCommon):
 
         self.assertEqual(self.record.message_ids.author_id, self.partner_admin)
 
+    def test_message_track_monetary_currency(self):
+        """Monetary field tracking must carry the field's currency (C1d,
+        upstream 30ec41fe: inject currency_field into col_info)."""
+        record = self.env['mail.test.track.monetary'].with_context(
+            self._test_context, mail_notrack=False,
+        ).create({
+            'company_id': self.env.company.id,
+            'revenue': 100.0,
+        })
+        self.flush_tracking()
+        with self.mock_mail_gateway():
+            record.write({'revenue': 250.0})
+            self.flush_tracking()
+
+        tracking = record.message_ids.sudo().tracking_value_ids.filtered(
+            lambda t: t.field_id.name == 'revenue'
+        )
+        self.assertEqual(len(tracking), 1)
+        self.assertEqual(tracking.currency_id, self.env.company.currency_id)
+        self.assertEqual(tracking.old_value_float, 100.0)
+        self.assertEqual(tracking.new_value_float, 250.0)
+
     @users('employee')
     def test_message_track_default_message(self):
         """Check that the default tracking log message defined on the model is used
