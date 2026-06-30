@@ -1,5 +1,5 @@
 {
-    "name": "Sales and Warehouse Management",
+    "name": "Sales Stock",
     "version": "1.0",
     "category": "Sales/Sales",
     "summary": "Quotation, Sales Orders, Delivery & Invoicing Control",
@@ -16,7 +16,7 @@ Preferences
 * Incoterms: International Commercial terms
 
 """,
-    "depends": ["sale", "stock_account"],
+    "depends": ["stock_account", "sale"],
     "data": [
         "security/sale_stock_security.xml",
         "security/ir.model.access.csv",
@@ -37,7 +37,9 @@ Preferences
         "wizard/stock_rules_report_views.xml",
         "wizard/res_config_settings_views.xml",
     ],
-    "demo": ["demo/sale_order_demo.xml"],
+    "demo": [
+        "demo/sale_order_demo.xml",
+    ],
     "installable": True,
     "auto_install": True,
     "assets": {

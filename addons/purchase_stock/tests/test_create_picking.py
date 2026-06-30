@@ -47,7 +47,7 @@ class TestCreatePicking(ProductVariantsCommon):
         # Purchase order confirm
         self.po.action_confirm()
         self.assertEqual(self.po.state, 'done', 'Purchase: PO state should be "Purchase')
-        self.assertEqual(self.po.incoming_picking_count, 1, 'Purchase: one picking should be created')
+        self.assertEqual(self.po.count_transfer_incoming, 1, 'Purchase: one picking should be created')
         self.assertEqual(len(self.po.line_ids.move_ids), 1, 'One move should be created')
         # Change purchase order line product quantity
         self.po.line_ids.write({'product_qty': 7.0})
@@ -68,7 +68,7 @@ class TestCreatePicking(ProductVariantsCommon):
                 'product_uom_id': self.product_id_2.uom_id.id,
                 'price_unit': 250.0,
                 })]})
-        self.assertEqual(self.po.incoming_picking_count, 2, 'New picking should be created')
+        self.assertEqual(self.po.count_transfer_incoming, 2, 'New picking should be created')
         moves = self.po.line_ids.mapped('move_ids').filtered(lambda x: x.state not in ('done', 'cancel'))
         self.assertEqual(len(moves), 1, 'One moves should have been created')
 
@@ -825,7 +825,7 @@ class TestCreatePicking(ProductVariantsCommon):
         return_picking_wizard.action_create_exchanges()
 
         self.assertEqual(
-            po.incoming_picking_count, 3,
+            po.count_transfer_incoming, 3,
             'All 3 transfers (orig, return, exchange) should be associated with the PO.'
         )
 

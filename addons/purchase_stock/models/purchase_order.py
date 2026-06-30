@@ -56,9 +56,9 @@ class PurchaseOrder(models.Model):
         string="Receptions",
         copy=False,
     )
-    incoming_picking_count = fields.Integer(
+    count_transfer_incoming = fields.Integer(
         string="Incoming Shipment count",
-        compute="_compute_incoming_picking_count",
+        compute="_compute_count_transfer_incoming",
     )
     is_shipped = fields.Boolean(
         compute="_compute_is_shipped",
@@ -99,6 +99,7 @@ class PurchaseOrder(models.Model):
     # ------------------------------------------------------------
 
     def write(self, vals):
+
         if vals.get("line_ids") and self.state == "done":
             for order in self:
                 pre_order_line_qty = {order_line: order_line.product_qty for order_line in order.mapped("line_ids")}
@@ -139,9 +140,9 @@ class PurchaseOrder(models.Model):
         ).dest_address_id = False
 
     @api.depends("picking_ids")
-    def _compute_incoming_picking_count(self):
+    def _compute_count_transfer_incoming(self):
         for order in self:
-            order.incoming_picking_count = len(order.picking_ids)
+            order.count_transfer_incoming = len(order.picking_ids)
 
     @api.depends("picking_ids.date_done")
     def _compute_date_effective(self):
@@ -553,6 +554,7 @@ class PurchaseOrder(models.Model):
         return res
 
     def _log_decrease_ordered_quantity(self, purchase_order_lines_quantities):
+
         def _keys_in_groupby(move):
             """group by picking and the responsible for the product the
             move.

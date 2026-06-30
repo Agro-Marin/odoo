@@ -272,28 +272,28 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            name="action_see_returns" type="object"
+                            name="action_view_returns" type="object"
                             class="oe_stat_button" icon="fa-rotate-left"
                             invisible="return_count == 0">
                             <field string="Returns" name="return_count" widget="statinfo" />
                         </button>
                         <button
-                            name="action_see_move_scrap" string="Scraps" type="object"
+                            name="action_view_move_scrap" string="Scraps" type="object"
                             class="oe_stat_button" icon="oi-arrows-v"
                             invisible="not has_scrap_move" />
                         <button
-                            name="action_see_packages" string="Packages" type="object"
+                            name="action_view_packages" string="Packages" type="object"
                             class="oe_stat_button" icon="fa-cubes"
-                            invisible="state == 'done' or not packages_count"
+                            invisible="state == 'done' or not count_packages"
                             groups="stock.group_tracking_lot">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Packages</span>
                             </div>
                         </button>
                         <button
-                            name="action_see_package_histories" string="Packages" type="object"
+                            name="action_view_package_histories" string="Packages" type="object"
                             class="oe_stat_button" icon="fa-cubes"
-                            invisible="state != 'done' or not packages_count"
+                            invisible="state != 'done' or not count_packages"
                             groups="stock.group_tracking_lot">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Packages</span>
@@ -320,7 +320,7 @@
                         </button>
                         <!-- Use the following button to avoid onchange on one2many -->
                         <button
-                            name="action_picking_move_tree"
+                            name="action_view_move_list"
                             class="oe_stat_button"
                             icon="oi-arrows-v"
                             type="object"
@@ -726,7 +726,7 @@
         <field name="state">code</field>
         <field name="code">
             if records:
-                action = records.action_open_label_type()
+                action = records.action_view_label_type()
         </field>
     </record>
 

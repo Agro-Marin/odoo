@@ -152,7 +152,7 @@ class TestMrpProductionBackorder(TestMrpCommon):
         backorder.save().action_backorder()
 
         mo_backorder = production.production_group_id.production_ids[-1]
-        self.assertEqual(mo_backorder.delivery_count, 1)
+        self.assertEqual(mo_backorder.count_transfer_outgoing, 1)
 
         pbm_move |= mo_backorder.move_raw_ids.move_orig_ids
         # Check that quantity is correct
@@ -239,7 +239,7 @@ class TestMrpProductionBackorder(TestMrpCommon):
         self.assertEqual(sum(sam_move.mapped("product_qty")), 1)
 
         mo_backorder = production.production_group_id.production_ids[-1]
-        self.assertEqual(mo_backorder.delivery_count, 2)
+        self.assertEqual(mo_backorder.count_transfer_outgoing, 2)
 
         pbm_move |= mo_backorder.move_raw_ids.move_orig_ids
         self.assertEqual(

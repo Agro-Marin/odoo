@@ -85,7 +85,7 @@ class StockLot(models.Model):
         string="Transfers",
         compute="_compute_delivery_ids",
     )
-    delivery_count = fields.Integer(
+    count_transfer_outgoing = fields.Integer(
         string="Delivery order count",
         compute="_compute_delivery_ids",
     )
@@ -303,7 +303,7 @@ class StockLot(models.Model):
         delivery_ids_by_lot = self._find_delivery_ids_by_lot_iterative()
         for lot in self:
             lot.delivery_ids = delivery_ids_by_lot.get(lot.id, [])
-            lot.delivery_count = len(lot.delivery_ids)
+            lot.count_transfer_outgoing = len(lot.delivery_ids)
 
     def _compute_partner_ids(self):
         delivery_ids_by_lot = self._find_delivery_ids_by_lot_iterative()

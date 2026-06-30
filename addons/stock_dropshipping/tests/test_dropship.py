@@ -60,8 +60,8 @@ class TestDropship(common.TransactionCase):
         po_line = po.order_line
 
         # Check dropship count on SO and PO
-        self.assertEqual(po.incoming_picking_count, 0)
-        self.assertEqual(so.delivery_count, 0)
+        self.assertEqual(po.count_transfer_incoming, 0)
+        self.assertEqual(so.count_transfer_outgoing, 0)
 
         # Check the qty on the P0
         self.assertAlmostEqual(po_line.product_qty, 1.00)
@@ -119,8 +119,8 @@ class TestDropship(common.TransactionCase):
         self.assertEqual(purchase.state, 'done', 'Purchase order should be in the approved state')
 
         # Check dropship count on SO and PO
-        self.assertEqual(purchase.incoming_picking_count, 0)
-        self.assertEqual(sale_order_drp_shpng.delivery_count, 0)
+        self.assertEqual(purchase.count_transfer_incoming, 0)
+        self.assertEqual(sale_order_drp_shpng.count_transfer_outgoing, 0)
         self.assertEqual(sale_order_drp_shpng.dropship_picking_count, 1)
         self.assertEqual(purchase.dropship_picking_count, 1)
 

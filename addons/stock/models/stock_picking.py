@@ -24,17 +24,6 @@ class StockPicking(models.Model):
     _description = "Transfer"
     _order = "priority desc, date_planned asc, id desc"
 
-    def _default_picking_type_id(self):
-        picking_type_code = self.env.context.get("restricted_picking_type_code")
-        if picking_type_code:
-            picking_types = self.env["stock.picking.type"].search(
-                [
-                    ("code", "=", picking_type_code),
-                    ("company_id", "=", self.env.company.id),
-                ],
-            )
-            return picking_types[:1].id
-
     name = fields.Char(
         string="Reference",
         default="/",
@@ -135,7 +124,7 @@ class StockPicking(models.Model):
         default=fields.Datetime.now,
         compute="_compute_date_planned",
         store=True,
-        inverse="_set_date_planned",
+        inverse="_inverse_date_planned",
         index=True,
         tracking=True,
         help="Scheduled time for the first part of the shipment to be processed. Setting manually a value here would set it as expected date for all the stock moves.",
@@ -202,7 +191,7 @@ class StockPicking(models.Model):
         comodel_name="stock.picking.type",
         string="Operation Type",
         required=True,
-        default=_default_picking_type_id,
+        default=lambda self: self._default_picking_type_id(),
         index=True,
         tracking=True,
     )
@@ -252,9 +241,9 @@ class StockPicking(models.Model):
         inverse_name="picking_id",
         string="Operations",
     )
-    packages_count = fields.Integer(
+    count_packages = fields.Integer(
         string="Packages Count",
-        compute="_compute_packages_count",
+        compute="_compute_count_packages",
     )
     package_history_ids = fields.Many2many(
         comodel_name="stock.package.history",
@@ -384,6 +373,96 @@ class StockPicking(models.Model):
         "Reference must be unique per company!",
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        date_planneds = []
+        for vals in vals_list:
+            defaults = self.default_get(["name", "picking_type_id"])
+            picking_type = self.env["stock.picking.type"].browse(
+                vals.get("picking_type_id", defaults.get("picking_type_id")),
+            )
+            if (
+                vals.get("name", "/") == "/"
+                and defaults.get("name", "/") == "/"
+                and vals.get("picking_type_id", defaults.get("picking_type_id"))
+            ):
+                if picking_type.sequence_id:
+                    vals["name"] = picking_type.sequence_id.next_by_id()
+
+            # make sure to write `schedule_date` *after* the `stock.move` creation in
+            # order to get a determinist execution of `_inverse_date_planned`
+            date_planneds.append(vals.pop("date_planned", False))
+
+        pickings = super().create(vals_list)
+
+        for picking, date_planned in zip(pickings, date_planneds):
+            if date_planned:
+                picking.with_context(mail_notrack=True).write(
+                    {"date_planned": date_planned},
+                )
+        pickings._autoconfirm_picking()
+
+        return pickings
+
+    def write(self, vals):
+        if vals.get("picking_type_id") and any(
+            picking.state in ("done", "cancel") for picking in self
+        ):
+            raise UserError(
+                _(
+                    "Changing the operation type of this record is forbidden at this point.",
+                ),
+            )
+        if vals.get("picking_type_id"):
+            picking_type = self.env["stock.picking.type"].browse(
+                vals.get("picking_type_id"),
+            )
+            for picking in self:
+                if picking.picking_type_id != picking_type:
+                    picking.name = picking_type.sequence_id.next_by_id()
+                    vals["location_id"] = picking_type.default_location_src_id.id
+                    vals["location_dest_id"] = picking_type.default_location_dest_id.id
+        res = super().write(vals)
+        if vals.get("date_done"):
+            self.filtered(lambda p: p.state == "done").move_ids.date = vals["date_done"]
+        if vals.get("signature"):
+            for picking in self:
+                picking._attach_sign()
+        # Change locations of moves if those of the picking change
+        after_vals = {}
+        if vals.get("location_id"):
+            after_vals["location_id"] = vals["location_id"]
+        if vals.get("location_dest_id"):
+            after_vals["location_dest_id"] = vals["location_dest_id"]
+        if "partner_id" in vals:
+            after_vals["partner_id"] = vals["partner_id"]
+        if after_vals:
+            self.move_ids.filtered(
+                lambda move: move.location_dest_usage != "inventory",
+            ).write(after_vals)
+        if vals.get("move_ids"):
+            self._autoconfirm_picking()
+
+        return res
+
+    def unlink(self):
+        self.move_ids._action_cancel()
+        self.with_context(
+            prefetch_fields=False,
+        ).move_ids.unlink()  # Checks if moves are not done
+        return super().unlink()
+
+    def _default_picking_type_id(self):
+        picking_type_code = self.env.context.get("restricted_picking_type_code")
+        if picking_type_code:
+            picking_types = self.env["stock.picking.type"].search(
+                [
+                    ("code", "=", picking_type_code),
+                    ("company_id", "=", self.env.company.id),
+                ],
+            )
+            return picking_types[:1].id
+
     def _compute_has_tracking(self):
         for picking in self:
             picking.has_tracking = any(
@@ -408,13 +487,6 @@ class StockPicking(models.Model):
             picking.has_deadline_issue = (
                 picking.date_deadline and picking.date_deadline < picking.date_planned
             ) or False
-
-    def _search_date_category(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-        return Domain.OR(
-            self.date_category_to_domain("date_planned", item) for item in value
-        )
 
     @api.depends("move_ids.date_delay_alert")
     def _compute_date_delay_alert(self):
@@ -731,31 +803,7 @@ class StockPicking(models.Model):
                     default=False,
                 )
 
-    def _set_date_planned(self):
-        for picking in self:
-            if picking.state == "cancel":
-                raise UserError(
-                    _("You cannot change the Scheduled Date on a cancelled transfer."),
-                )
-            if picking.state == "done":
-                continue
-            picking.move_ids.write({"date": picking.date_planned})
-
-    def _has_scrap_move(self):
-        result = {
-            picking
-            for [picking] in self.env["stock.move"]._read_group(
-                [
-                    ("picking_id", "in", self.ids),
-                    ("location_dest_usage", "=", "inventory"),
-                ],
-                ["picking_id"],
-            )
-        }
-        for picking in self:
-            picking.has_scrap_move = picking._origin in result
-
-    def _compute_packages_count(self):
+    def _compute_count_packages(self):
         done_pickings = self.filtered(lambda picking: picking.state == "done")
         other_pickings = self - done_pickings
 
@@ -776,9 +824,9 @@ class StockPicking(models.Model):
         histories_by_pick = dict(histories_by_pick)
 
         for picking in done_pickings:
-            picking.packages_count = histories_by_pick.get(picking, 0)
+            picking.count_packages = histories_by_pick.get(picking, 0)
         for picking in other_pickings:
-            picking.packages_count = packages_by_pick.get(picking, 0)
+            picking.count_packages = packages_by_pick.get(picking, 0)
 
     @api.depends("state", "move_ids.product_uom_qty", "picking_type_code")
     def _compute_show_check_availability(self):
@@ -844,13 +892,16 @@ class StockPicking(models.Model):
                 text += parent_msg + "\n"
             picking.picking_warning_text = text
 
-    def _get_next_transfers(self):
-        next_pickings = self.move_ids.move_dest_ids.picking_id
-        return next_pickings.filtered(lambda p: p not in self.return_ids)
-
     @api.depends("move_ids.move_dest_ids")
     def _compute_show_next_pickings(self):
         self.show_next_pickings = len(self._get_next_transfers()) != 0
+
+    def _search_date_category(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        return Domain.OR(
+            self.date_category_to_domain("date_planned", item) for item in value
+        )
 
     def _search_products_availability_state(self, operator, value):
         if operator != "in":
@@ -891,61 +942,21 @@ class StockPicking(models.Model):
         )
         return Domain("id", "in", pickings.ids)
 
-    def _get_show_allocation(self, picking_type_id):
-        """Helper method for computing "show_allocation" value.
-        Separated out from _compute function so it can be reused in other models (e.g. batch).
-        """
-        if not picking_type_id or picking_type_id.code == "outgoing":
-            return False
-        lines = self.move_ids.filtered(
-            lambda m: m.product_id.is_storable and m.state != "cancel",
-        )
-        if lines:
-            allowed_states = ["confirmed", "partially_available", "waiting"]
-            if self[0].state == "done":
-                allowed_states += ["assigned"]
-            wh_location_ids = self.env["stock.location"]._search(
-                [
-                    (
-                        "id",
-                        "child_of",
-                        picking_type_id.warehouse_id.view_location_id.id,
-                    ),
-                    ("usage", "!=", "supplier"),
-                ],
-            )
-            if self.env["stock.move"].search_count(
-                [
-                    ("state", "in", allowed_states),
-                    ("product_qty", ">", 0),
-                    ("location_id", "in", wh_location_ids),
-                    ("picking_id", "not in", self.ids),
-                    ("product_id", "in", lines.product_id.ids),
-                    "|",
-                    ("move_orig_ids", "=", False),
-                    ("move_orig_ids", "in", lines.ids),
-                ],
-                limit=1,
-            ):
-                return True
-
-    @api.model
-    def get_empty_list_help(self, help_message):
-        return self.env["ir.ui.view"]._render_template(
-            "stock.help_message_template",
-            {
-                "picking_type_code": self.env.context.get(
-                    "restricted_picking_type_code",
-                )
-                or self.picking_type_code,
-            },
-        )
-
     @api.model
     def _search_date_delay_alert(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
         return [("move_ids.date_delay_alert", operator, value)]
+
+    def _inverse_date_planned(self):
+        for picking in self:
+            if picking.state == "cancel":
+                raise UserError(
+                    _("You cannot change the Scheduled Date on a cancelled transfer."),
+                )
+            if picking.state == "done":
+                continue
+            picking.move_ids.write({"date": picking.date_planned})
 
     @api.onchange("picking_type_id", "partner_id")
     def _onchange_picking_type(self):
@@ -975,85 +986,6 @@ class StockPicking(models.Model):
                             ),
                         },
                     }
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        date_planneds = []
-        for vals in vals_list:
-            defaults = self.default_get(["name", "picking_type_id"])
-            picking_type = self.env["stock.picking.type"].browse(
-                vals.get("picking_type_id", defaults.get("picking_type_id")),
-            )
-            if (
-                vals.get("name", "/") == "/"
-                and defaults.get("name", "/") == "/"
-                and vals.get("picking_type_id", defaults.get("picking_type_id"))
-            ):
-                if picking_type.sequence_id:
-                    vals["name"] = picking_type.sequence_id.next_by_id()
-
-            # make sure to write `schedule_date` *after* the `stock.move` creation in
-            # order to get a determinist execution of `_set_date_planned`
-            date_planneds.append(vals.pop("date_planned", False))
-
-        pickings = super().create(vals_list)
-
-        for picking, date_planned in zip(pickings, date_planneds):
-            if date_planned:
-                picking.with_context(mail_notrack=True).write(
-                    {"date_planned": date_planned},
-                )
-        pickings._autoconfirm_picking()
-
-        return pickings
-
-    def write(self, vals):
-        if vals.get("picking_type_id") and any(
-            picking.state in ("done", "cancel") for picking in self
-        ):
-            raise UserError(
-                _(
-                    "Changing the operation type of this record is forbidden at this point.",
-                ),
-            )
-        if vals.get("picking_type_id"):
-            picking_type = self.env["stock.picking.type"].browse(
-                vals.get("picking_type_id"),
-            )
-            for picking in self:
-                if picking.picking_type_id != picking_type:
-                    picking.name = picking_type.sequence_id.next_by_id()
-                    vals["location_id"] = picking_type.default_location_src_id.id
-                    vals["location_dest_id"] = picking_type.default_location_dest_id.id
-        res = super().write(vals)
-        if vals.get("date_done"):
-            self.filtered(lambda p: p.state == "done").move_ids.date = vals["date_done"]
-        if vals.get("signature"):
-            for picking in self:
-                picking._attach_sign()
-        # Change locations of moves if those of the picking change
-        after_vals = {}
-        if vals.get("location_id"):
-            after_vals["location_id"] = vals["location_id"]
-        if vals.get("location_dest_id"):
-            after_vals["location_dest_id"] = vals["location_dest_id"]
-        if "partner_id" in vals:
-            after_vals["partner_id"] = vals["partner_id"]
-        if after_vals:
-            self.move_ids.filtered(
-                lambda move: move.location_dest_usage != "inventory",
-            ).write(after_vals)
-        if vals.get("move_ids"):
-            self._autoconfirm_picking()
-
-        return res
-
-    def unlink(self):
-        self.move_ids._action_cancel()
-        self.with_context(
-            prefetch_fields=False,
-        ).move_ids.unlink()  # Checks if moves are not done
-        return super().unlink()
 
     def do_print_picking(self):
         self.write({"printed": True})
@@ -1186,133 +1118,6 @@ class StockPicking(models.Model):
                 email_layout_xmlid="mail.mail_notification_light",
                 subtype_id=subtype_id,
             )
-
-    def _get_entire_pack_location_dest(self, move_line_ids):
-        location_dest_ids = move_line_ids.mapped("location_dest_id")
-        if len(location_dest_ids) > 1:
-            return False
-        return location_dest_ids.id
-
-    def _get_lot_move_lines_for_sanity_check(
-        self,
-        none_done_picking_ids,
-        separate_pickings=True,
-    ):
-        """Get all move_lines with tracked products that need to be checked over in the sanity check.
-        :param none_done_picking_ids: Set of all pickings ids that have no quantity set on any move_line.
-        :param separate_pickings: Indicates if pickings should be checked independently for lot/serial numbers or not.
-        """
-
-        def get_relevant_move_line_ids(none_done_picking_ids, picking):
-            # Get all move_lines if picking has no quantity set, otherwise only get the move_lines with some quantity set.
-            if picking.id in none_done_picking_ids:
-                return picking.move_line_ids.filtered(
-                    lambda ml: ml.product_id and ml.product_id.tracking != "none",
-                ).ids
-            return get_line_with_done_qty_ids(picking.move_line_ids)
-
-        def get_line_with_done_qty_ids(move_lines):
-            # Get only move_lines that has some quantity set.
-            return move_lines.filtered(
-                lambda ml: ml.product_id
-                and ml.product_id.tracking != "none"
-                and ml.picked
-                and ml.product_uom_id.compare(ml.quantity, 0),
-            ).ids
-
-        if separate_pickings:
-            # If pickings are checked independently, get full/partial move_lines depending if each picking has no quantity set.
-            lines_to_check_ids = [
-                line_id
-                for picking in self
-                for line_id in get_relevant_move_line_ids(
-                    none_done_picking_ids,
-                    picking,
-                )
-            ]
-        else:
-            # If pickings are checked as one (like in a batch), then get only the move_lines with quantity across all pickings if there is at least one.
-            if any(picking.id not in none_done_picking_ids for picking in self):
-                lines_to_check_ids = get_line_with_done_qty_ids(self.move_line_ids)
-            else:
-                lines_to_check_ids = self.move_line_ids.filtered(
-                    lambda ml: ml.product_id and ml.product_id.tracking != "none",
-                ).ids
-
-        return self.env["stock.move.line"].browse(lines_to_check_ids)
-
-    def _sanity_check(self, separate_pickings=True):
-        """Sanity check for `button_validate()`
-        :param separate_pickings: Indicates if pickings should be checked independently for lot/serial numbers or not.
-        """
-        pickings_without_lots = self.browse()
-        products_without_lots = self.env["product.product"]
-        pickings_without_moves = self.filtered(
-            lambda p: not p.move_ids and not p.move_line_ids,
-        )
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
-
-        no_quantities_done_ids = set()
-        pickings_without_quantities = self.env["stock.picking"]
-        for picking in self:
-            has_pick = any(
-                move.picked and move.state not in ("done", "cancel")
-                for move in picking.move_ids
-            )
-            if all(
-                float_is_zero(move.quantity, precision_digits=precision_digits)
-                for move in picking.move_ids.filtered(
-                    lambda m: m.state not in ("done", "cancel")
-                    and (not has_pick or m.picked),
-                )
-            ):
-                pickings_without_quantities |= picking
-
-        pickings_using_lots = self.filtered(
-            lambda p: p.picking_type_id.use_create_lots
-            or p.picking_type_id.use_existing_lots,
-        )
-        if pickings_using_lots:
-            lines_to_check = pickings_using_lots._get_lot_move_lines_for_sanity_check(
-                no_quantities_done_ids,
-                separate_pickings,
-            )
-            for line in lines_to_check:
-                if not line.lot_name and not line.lot_id:
-                    pickings_without_lots |= line.picking_id
-                    products_without_lots |= line.product_id
-
-        if not self._should_show_transfers():
-            if pickings_without_moves:
-                raise UserError(
-                    _(
-                        "You can’t validate an empty transfer. Please add some products to move before proceeding.",
-                    ),
-                )
-            if pickings_without_quantities:
-                raise UserError(self._get_without_quantities_error_message())
-            if pickings_without_lots:
-                raise UserError(
-                    _(
-                        "You need to supply a Lot/Serial number for products %s.",
-                        ", ".join(products_without_lots.mapped("display_name")),
-                    ),
-                )
-        else:
-            message = ""
-            if pickings_without_moves:
-                message += _(
-                    "Transfers %s: Please add some items to move.",
-                    ", ".join(pickings_without_moves.mapped("name")),
-                )
-            if pickings_without_lots:
-                message += _(
-                    "\n\nTransfers %(transfer_list)s: You need to supply a Lot/Serial number for products %(product_list)s.",
-                    transfer_list=pickings_without_lots.mapped("name"),
-                    product_list=products_without_lots.mapped("display_name"),
-                )
-            if message:
-                raise UserError(message.lstrip())
 
     def do_unreserve(self):
         self.move_ids._do_unreserve()
@@ -1507,55 +1312,6 @@ class StockPicking(models.Model):
                 package_name=package_name,
             )
 
-    @api.model
-    def date_category_to_domain(self, field_name, date_category):
-        """
-        Given a date category, returns a list of tuples of operator and value
-        that can be used in a domain to filter records based on their scheduled date.
-
-        Args:
-            date_category (str): The date category to use for the computation.
-                Allowed values are:
-                * "before"
-                * "yesterday"
-                * "today"
-                * "day_1"
-                * "day_2"
-                * "after"
-
-        Returns:
-            a list of tuples:
-                each tuple consists of an operator and a value that can be used in
-                a domain to filter records based on their scheduled date.
-                The operator can be "<" or ">=". The value is a datetime object.
-                If an incorrect date category is passed, this method returns None.
-        """
-        start_today = fields.Datetime.context_timestamp(
-            self.env.user,
-            fields.Datetime.now(),
-        ).replace(hour=0, minute=0, second=0, microsecond=0)
-
-        start_today = start_today.astimezone(pytz.UTC).replace(tzinfo=None)
-
-        start_yesterday = start_today + timedelta(days=-1)
-        start_day_1 = start_today + timedelta(days=1)
-        start_day_2 = start_today + timedelta(days=2)
-        start_day_3 = start_today + timedelta(days=3)
-
-        date_category_to_search_domain = {
-            "before": [(field_name, "<", start_yesterday)],
-            "yesterday": [
-                (field_name, ">=", start_yesterday),
-                (field_name, "<", start_today),
-            ],
-            "today": [(field_name, ">=", start_today), (field_name, "<", start_day_1)],
-            "day_1": [(field_name, ">=", start_day_1), (field_name, "<", start_day_2)],
-            "day_2": [(field_name, ">=", start_day_2), (field_name, "<", start_day_3)],
-            "after": [(field_name, ">=", start_day_3)],
-        }
-
-        return date_category_to_search_domain.get(date_category)
-
     def button_scrap(self):
         self.ensure_one()
         view = self.env.ref("stock.view_stock_scrap_form2")
@@ -1602,7 +1358,7 @@ class StockPicking(models.Model):
             return True
         return False
 
-    def action_see_move_scrap(self):
+    def action_view_move_scrap(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._for_xml_id("stock.action_stock_scrap")
         scraps = self.env["stock.scrap"].search([("picking_id", "=", self.id)])
@@ -1610,7 +1366,7 @@ class StockPicking(models.Model):
         action["context"] = dict(self.env.context, create=False)
         return action
 
-    def action_see_packages(self):
+    def action_view_packages(self):
         self.ensure_one()
         return {
             "name": self.env._("Packages"),
@@ -1631,7 +1387,7 @@ class StockPicking(models.Model):
             },
         }
 
-    def action_see_package_histories(self):
+    def action_view_package_histories(self):
         self.ensure_one()
         return {
             "name": self.env._("Packages"),
@@ -1645,7 +1401,7 @@ class StockPicking(models.Model):
             },
         }
 
-    def action_picking_move_tree(self):
+    def action_view_move_list(self):
         action = self.env["ir.actions.actions"]._for_xml_id("stock.stock_move_action")
         action["views"] = [
             (self.env.ref("stock.view_stock_move_list_picking").id, "list"),
@@ -1659,7 +1415,7 @@ class StockPicking(models.Model):
             "stock.stock_reception_action",
         )
 
-    def action_open_label_layout(self):
+    def action_view_label_layout(self):
         view = self.env.ref("stock.product_label_layout_form_picking")
         return {
             "name": _("Choose Labels Layout"),
@@ -1674,7 +1430,7 @@ class StockPicking(models.Model):
             },
         }
 
-    def action_open_label_type(self):
+    def action_view_label_type(self):
         if (
             self.env.user.has_group("stock.group_production_lot")
             and self.move_line_ids.lot_id
@@ -1688,9 +1444,9 @@ class StockPicking(models.Model):
                 "target": "new",
                 "context": {"default_picking_ids": self.ids},
             }
-        return self.action_open_label_layout()
+        return self.action_view_label_layout()
 
-    def action_see_returns(self):
+    def action_view_returns(self):
         self.ensure_one()
         if len(self.return_ids) == 1:
             return {
@@ -1746,6 +1502,55 @@ class StockPicking(models.Model):
                 picking.action_confirm()
         to_confirm = self.move_ids.filtered(lambda m: m.state == "draft" and m.quantity)
         to_confirm._action_confirm()
+
+    @api.model
+    def date_category_to_domain(self, field_name, date_category):
+        """
+        Given a date category, returns a list of tuples of operator and value
+        that can be used in a domain to filter records based on their scheduled date.
+
+        Args:
+            date_category (str): The date category to use for the computation.
+                Allowed values are:
+                * "before"
+                * "yesterday"
+                * "today"
+                * "day_1"
+                * "day_2"
+                * "after"
+
+        Returns:
+            a list of tuples:
+                each tuple consists of an operator and a value that can be used in
+                a domain to filter records based on their scheduled date.
+                The operator can be "<" or ">=". The value is a datetime object.
+                If an incorrect date category is passed, this method returns None.
+        """
+        start_today = fields.Datetime.context_timestamp(
+            self.env.user,
+            fields.Datetime.now(),
+        ).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        start_today = start_today.astimezone(pytz.UTC).replace(tzinfo=None)
+
+        start_yesterday = start_today + timedelta(days=-1)
+        start_day_1 = start_today + timedelta(days=1)
+        start_day_2 = start_today + timedelta(days=2)
+        start_day_3 = start_today + timedelta(days=3)
+
+        date_category_to_search_domain = {
+            "before": [(field_name, "<", start_yesterday)],
+            "yesterday": [
+                (field_name, ">=", start_yesterday),
+                (field_name, "<", start_today),
+            ],
+            "today": [(field_name, ">=", start_today), (field_name, "<", start_day_1)],
+            "day_1": [(field_name, ">=", start_day_1), (field_name, "<", start_day_2)],
+            "day_2": [(field_name, ">=", start_day_2), (field_name, "<", start_day_3)],
+            "after": [(field_name, ">=", start_day_3)],
+        }
+
+        return date_category_to_search_domain.get(date_category)
 
     @api.model
     def calculate_date_category(self, datetime):
@@ -1838,6 +1643,114 @@ class StockPicking(models.Model):
         if bo_to_assign:
             bo_to_assign.action_assign()
         return backorders
+
+    def _get_next_transfers(self):
+        next_pickings = self.move_ids.move_dest_ids.picking_id
+        return next_pickings.filtered(lambda p: p not in self.return_ids)
+
+    def _get_show_allocation(self, picking_type_id):
+        """Helper method for computing "show_allocation" value.
+        Separated out from _compute function so it can be reused in other models (e.g. batch).
+        """
+        if not picking_type_id or picking_type_id.code == "outgoing":
+            return False
+        lines = self.move_ids.filtered(
+            lambda m: m.product_id.is_storable and m.state != "cancel",
+        )
+        if lines:
+            allowed_states = ["confirmed", "partially_available", "waiting"]
+            if self[0].state == "done":
+                allowed_states += ["assigned"]
+            wh_location_ids = self.env["stock.location"]._search(
+                [
+                    (
+                        "id",
+                        "child_of",
+                        picking_type_id.warehouse_id.view_location_id.id,
+                    ),
+                    ("usage", "!=", "supplier"),
+                ],
+            )
+            if self.env["stock.move"].search_count(
+                [
+                    ("state", "in", allowed_states),
+                    ("product_qty", ">", 0),
+                    ("location_id", "in", wh_location_ids),
+                    ("picking_id", "not in", self.ids),
+                    ("product_id", "in", lines.product_id.ids),
+                    "|",
+                    ("move_orig_ids", "=", False),
+                    ("move_orig_ids", "in", lines.ids),
+                ],
+                limit=1,
+            ):
+                return True
+
+    @api.model
+    def get_empty_list_help(self, help_message):
+        return self.env["ir.ui.view"]._render_template(
+            "stock.help_message_template",
+            {
+                "picking_type_code": self.env.context.get(
+                    "restricted_picking_type_code",
+                )
+                or self.picking_type_code,
+            },
+        )
+
+    def _get_entire_pack_location_dest(self, move_line_ids):
+        location_dest_ids = move_line_ids.mapped("location_dest_id")
+        if len(location_dest_ids) > 1:
+            return False
+        return location_dest_ids.id
+
+    def _get_lot_move_lines_for_sanity_check(
+        self,
+        none_done_picking_ids,
+        separate_pickings=True,
+    ):
+        """Get all move_lines with tracked products that need to be checked over in the sanity check.
+        :param none_done_picking_ids: Set of all pickings ids that have no quantity set on any move_line.
+        :param separate_pickings: Indicates if pickings should be checked independently for lot/serial numbers or not.
+        """
+
+        def get_relevant_move_line_ids(none_done_picking_ids, picking):
+            # Get all move_lines if picking has no quantity set, otherwise only get the move_lines with some quantity set.
+            if picking.id in none_done_picking_ids:
+                return picking.move_line_ids.filtered(
+                    lambda ml: ml.product_id and ml.product_id.tracking != "none",
+                ).ids
+            return get_line_with_done_qty_ids(picking.move_line_ids)
+
+        def get_line_with_done_qty_ids(move_lines):
+            # Get only move_lines that has some quantity set.
+            return move_lines.filtered(
+                lambda ml: ml.product_id
+                and ml.product_id.tracking != "none"
+                and ml.picked
+                and ml.product_uom_id.compare(ml.quantity, 0),
+            ).ids
+
+        if separate_pickings:
+            # If pickings are checked independently, get full/partial move_lines depending if each picking has no quantity set.
+            lines_to_check_ids = [
+                line_id
+                for picking in self
+                for line_id in get_relevant_move_line_ids(
+                    none_done_picking_ids,
+                    picking,
+                )
+            ]
+        else:
+            # If pickings are checked as one (like in a batch), then get only the move_lines with quantity across all pickings if there is at least one.
+            if any(picking.id not in none_done_picking_ids for picking in self):
+                lines_to_check_ids = get_line_with_done_qty_ids(self.move_line_ids)
+            else:
+                lines_to_check_ids = self.move_line_ids.filtered(
+                    lambda ml: ml.product_id and ml.product_id.tracking != "none",
+                ).ids
+
+        return self.env["stock.move.line"].browse(lines_to_check_ids)
 
     @api.model
     def get_action_click_graph(self):
@@ -2313,6 +2226,20 @@ class StockPicking(models.Model):
             ),
         )
 
+    def _has_scrap_move(self):
+        result = {
+            picking
+            for [picking] in self.env["stock.move"]._read_group(
+                [
+                    ("picking_id", "in", self.ids),
+                    ("location_dest_usage", "=", "inventory"),
+                ],
+                ["picking_id"],
+            )
+        }
+        for picking in self:
+            picking.has_scrap_move = picking._origin in result
+
     def _is_single_transfer(self):
         # Overriden for batches.
         return len(self) == 1
@@ -2320,6 +2247,79 @@ class StockPicking(models.Model):
     def _is_to_external_location(self):
         self.ensure_one()
         return self.picking_type_code == "outgoing"
+
+    def _sanity_check(self, separate_pickings=True):
+        """Sanity check for `button_validate()`
+        :param separate_pickings: Indicates if pickings should be checked independently for lot/serial numbers or not.
+        """
+        pickings_without_lots = self.browse()
+        products_without_lots = self.env["product.product"]
+        pickings_without_moves = self.filtered(
+            lambda p: not p.move_ids and not p.move_line_ids,
+        )
+        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+
+        no_quantities_done_ids = set()
+        pickings_without_quantities = self.env["stock.picking"]
+        for picking in self:
+            has_pick = any(
+                move.picked and move.state not in ("done", "cancel")
+                for move in picking.move_ids
+            )
+            if all(
+                float_is_zero(move.quantity, precision_digits=precision_digits)
+                for move in picking.move_ids.filtered(
+                    lambda m: m.state not in ("done", "cancel")
+                    and (not has_pick or m.picked),
+                )
+            ):
+                pickings_without_quantities |= picking
+
+        pickings_using_lots = self.filtered(
+            lambda p: p.picking_type_id.use_create_lots
+            or p.picking_type_id.use_existing_lots,
+        )
+        if pickings_using_lots:
+            lines_to_check = pickings_using_lots._get_lot_move_lines_for_sanity_check(
+                no_quantities_done_ids,
+                separate_pickings,
+            )
+            for line in lines_to_check:
+                if not line.lot_name and not line.lot_id:
+                    pickings_without_lots |= line.picking_id
+                    products_without_lots |= line.product_id
+
+        if not self._should_show_transfers():
+            if pickings_without_moves:
+                raise UserError(
+                    _(
+                        "You can’t validate an empty transfer. Please add some products to move before proceeding.",
+                    ),
+                )
+            if pickings_without_quantities:
+                raise UserError(self._get_without_quantities_error_message())
+            if pickings_without_lots:
+                raise UserError(
+                    _(
+                        "You need to supply a Lot/Serial number for products %s.",
+                        ", ".join(products_without_lots.mapped("display_name")),
+                    ),
+                )
+        else:
+            message = ""
+            if pickings_without_moves:
+                message += _(
+                    "Transfers %s: Please add some items to move.",
+                    ", ".join(pickings_without_moves.mapped("name")),
+                )
+            if pickings_without_lots:
+                message += _(
+                    "\n\nTransfers %(transfer_list)s: You need to supply a Lot/Serial number for products %(product_list)s.",
+                    transfer_list=pickings_without_lots.mapped("name"),
+                    product_list=products_without_lots.mapped("display_name"),
+                )
+            if message:
+                raise UserError(message.lstrip())
 
     def _should_ignore_backorders(self):
         """Checks if the `create_backorder` setting from the picking type should be ignored."""

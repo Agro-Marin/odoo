@@ -468,7 +468,7 @@ class MrpProduction(models.Model):
         compute="_compute_picking_ids",
         string="Picking associated to this manufacturing order",
     )
-    delivery_count = fields.Integer(
+    count_transfer_outgoing = fields.Integer(
         string="Delivery Orders", compute="_compute_picking_ids"
     )
     consumption = fields.Selection(
@@ -919,7 +919,7 @@ class MrpProduction(models.Model):
             order.picking_ids = move_per_production.get(
                 order.production_group_id, False
             )
-            order.delivery_count = len(order.picking_ids)
+            order.count_transfer_outgoing = len(order.picking_ids)
 
     @api.depends("product_uom_id", "product_qty", "product_id.uom_id")
     def _compute_product_uom_qty(self):
@@ -3652,7 +3652,7 @@ class MrpProduction(models.Model):
             "target": "new",
         }
 
-    def action_see_move_scrap(self):
+    def action_view_move_scrap(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._for_xml_id("stock.action_stock_scrap")
         action["domain"] = [("production_id", "=", self.id)]
@@ -4508,7 +4508,7 @@ class MrpProduction(models.Model):
         self.ensure_one()
         return {}
 
-    def action_open_label_layout(self):
+    def action_view_label_layout(self):
         view = self.env.ref("stock.product_label_layout_form_picking")
         return {
             "name": _("Choose Labels Layout"),
@@ -4523,7 +4523,7 @@ class MrpProduction(models.Model):
             },
         }
 
-    def action_open_label_type(self):
+    def action_view_label_type(self):
         move_line_ids = self.move_finished_ids.mapped("move_line_ids")
         if (
             self.env.user.has_group("stock.group_production_lot")
@@ -4538,7 +4538,7 @@ class MrpProduction(models.Model):
                 "target": "new",
                 "context": {"default_production_ids": self.ids},
             }
-        return self.action_open_label_layout()
+        return self.action_view_label_layout()
 
     def action_start(self):
         self.ensure_one()

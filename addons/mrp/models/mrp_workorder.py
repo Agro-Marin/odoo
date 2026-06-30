@@ -1161,7 +1161,7 @@ class MrpWorkorder(models.Model):
             "target": "new",
         }
 
-    def action_see_move_scrap(self):
+    def action_view_move_scrap(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._for_xml_id("stock.action_stock_scrap")
         action["domain"] = [("workorder_id", "=", self.id)]

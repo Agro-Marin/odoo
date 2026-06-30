@@ -51,9 +51,17 @@ class SaleOrder(models.Model):
         inverse_name="sale_id",
         string="Transfers",
     )
-    delivery_count = fields.Integer(
+    count_transfer_outgoing = fields.Integer(
         string="Delivery Orders",
-        compute="_compute_picking_ids",
+        compute="_compute_count_transfer_outgoing",
+    )
+    stock_reference_ids = fields.Many2many(
+        comodel_name="stock.reference",
+        relation="stock_reference_sale_rel",
+        column1="sale_id",
+        column2="reference_id",
+        string="References",
+        copy=False,
     )
     transfer_state = fields.Selection(
         selection=[
@@ -75,14 +83,6 @@ class SaleOrder(models.Model):
         compute="_compute_late_availability",
         search="_search_late_availability",
         help="True if any related picking has late availability",
-    )
-    stock_reference_ids = fields.Many2many(
-        comodel_name="stock.reference",
-        relation="stock_reference_sale_rel",
-        column1="sale_id",
-        column2="reference_id",
-        string="References",
-        copy=False,
     )
     date_planned = fields.Datetime(
         help="Delivery date you can promise to the customer, computed from the minimum lead time of "
@@ -210,9 +210,11 @@ class SaleOrder(models.Model):
                     lambda x: x.state not in ("done", "cancel"),
                 )
                 message = _(
-                    """The delivery address has been changed on the Sales Order<br/>
-                        From <strong>"%(old_address)s"</strong> to <strong>"%(new_address)s"</strong>,
-                        You should probably update the partner on this document.""",
+                    """
+                    The delivery address has been changed on the Sales Order<br/>
+                    From <strong>"%(old_address)s"</strong> to <strong>"%(new_address)s"</strong>,
+                    You should probably update the partner on this document.
+                    """,
                     old_address=record.partner_shipping_id.display_name,
                     new_address=new_partner.display_name,
                 )
@@ -325,9 +327,9 @@ class SaleOrder(models.Model):
         super()._compute_date_planned()
 
     @api.depends("picking_ids")
-    def _compute_picking_ids(self):
+    def _compute_count_transfer_outgoing(self):
         for order in self:
-            order.delivery_count = len(order.picking_ids)
+            order.count_transfer_outgoing = len(order.picking_ids)
 
     @api.depends("picking_ids.date_done")
     def _compute_date_effective(self):
@@ -337,6 +339,14 @@ class SaleOrder(models.Model):
             )
             dates_list = [date for date in pickings.mapped("date_done") if date]
             order.date_effective = min(dates_list, default=False)
+
+    @api.depends("picking_ids.products_availability_state")
+    def _compute_late_availability(self):
+        for order in self:
+            order.late_availability = any(
+                picking.products_availability_state == "late"
+                for picking in order.picking_ids
+            )
 
     @api.depends("picking_ids", "picking_ids.state")
     def _compute_transfer_state(self):
@@ -355,14 +365,6 @@ class SaleOrder(models.Model):
                 order.transfer_state = "partial"
             else:
                 order.transfer_state = "to do"
-
-    @api.depends("picking_ids.products_availability_state")
-    def _compute_late_availability(self):
-        for order in self:
-            order.late_availability = any(
-                picking.products_availability_state == "late"
-                for picking in order.picking_ids
-            )
 
     # ------------------------------------------------------------
     # SEARCH METHODS

@@ -297,7 +297,7 @@ class StockPickingBatch(models.Model):
         action['context'] = {'default_picking_ids': self.picking_ids.ids}
         return action
 
-    def action_open_label_layout(self):
+    def action_view_label_layout(self):
         if self.env.user.has_group('stock.group_production_lot') and self.move_line_ids.lot_id:
             view = self.env.ref('stock.picking_label_type_form')
             return {
@@ -380,7 +380,7 @@ class StockPickingBatch(models.Model):
             }
         }
 
-    def action_see_packages(self):
+    def action_view_packages(self):
         self.ensure_one()
         if self.state == 'done':
             return {
