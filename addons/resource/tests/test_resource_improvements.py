@@ -577,3 +577,107 @@ class TestListWorkTimePerDay(TransactionCase):
         self.assertTrue(result.get("2025-01-12", False), "Sunday should be unusual")
         # Monday should not be unusual
         self.assertFalse(result.get("2025-01-06", True), "Monday should be normal")
+
+
+@tagged("post_install", "-at_install")
+class TestDurationBasedAverageHours(TransactionCase):
+    """`hours_per_week`/`hours_per_day` must use `duration_hours` when the
+    calendar is duration-based (upstream 41f3c9f108, b567716e79)."""
+
+    def test_duration_based_average_hours(self):
+        """3 full-day lines of 4h each => 12h/week, 4h/day average."""
+        calendar = self.env["resource.calendar"].create(
+            {
+                "name": "Duration based Calendar",
+                "attendance_ids": False,
+                "duration_based": True,
+            }
+        )
+        for dow, name in (("0", "Mon"), ("1", "Tue"), ("2", "Wed")):
+            self.env["resource.calendar.attendance"].create(
+                {
+                    "name": name,
+                    "calendar_id": calendar.id,
+                    "dayofweek": dow,
+                    "day_period": "full_day",
+                    "duration_hours": 4.0,
+                }
+            )
+        self.assertEqual(calendar.hours_per_week, 12)
+        self.assertEqual(calendar.hours_per_day, 4)
+
+    def test_non_duration_based_uses_hour_bounds(self):
+        """Without duration mode, weekly hours come from hour_from/hour_to."""
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Hour based Calendar", "attendance_ids": False}
+        )
+        for dow, name in (("0", "Mon"), ("1", "Tue"), ("2", "Wed")):
+            self.env["resource.calendar.attendance"].create(
+                {
+                    "name": name,
+                    "calendar_id": calendar.id,
+                    "dayofweek": dow,
+                    "day_period": "full_day",
+                    "hour_from": 8,
+                    "hour_to": 16,
+                }
+            )
+        self.assertEqual(calendar.hours_per_week, 24)
+        self.assertEqual(calendar.hours_per_day, 8)
+
+
+@tagged("post_install", "-at_install")
+class TestFullDayMidpointSplit(TransactionCase):
+    """A full-day attendance must split at its own midpoint, not a hard-coded
+    12:00 (upstream bc3b454123)."""
+
+    def test_full_day_split_uses_midpoint(self):
+        from datetime import date
+
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Late shift", "tz": "UTC", "attendance_ids": False}
+        )
+        self.env["resource.calendar.attendance"].create(
+            {
+                "name": "Mon",
+                "calendar_id": calendar.id,
+                "dayofweek": "0",
+                "day_period": "full_day",
+                "hour_from": 10,
+                "hour_to": 18,
+            }
+        )
+        monday = date(2025, 1, 6)
+        # midpoint of 10:00-18:00 is 14:00, not 12:00
+        self.assertEqual(
+            calendar._get_hours_for_date(monday, day_period="morning"),
+            (10.0, 14.0),
+        )
+        self.assertEqual(
+            calendar._get_hours_for_date(monday, day_period="afternoon"),
+            (14.0, 18.0),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestDurationHoursRecompute(TransactionCase):
+    """`duration_hours` must recompute when `day_period` changes, otherwise it
+    stays at 0 after leaving 'lunch' (upstream e9a38d68f1)."""
+
+    def test_duration_hours_recomputed_on_day_period_change(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Recompute calendar", "attendance_ids": False}
+        )
+        attendance = self.env["resource.calendar.attendance"].create(
+            {
+                "name": "Lunch then work",
+                "calendar_id": calendar.id,
+                "dayofweek": "0",
+                "day_period": "lunch",
+                "hour_from": 8,
+                "hour_to": 16,
+            }
+        )
+        self.assertEqual(attendance.duration_hours, 0)
+        attendance.day_period = "full_day"
+        self.assertEqual(attendance.duration_hours, 8)
