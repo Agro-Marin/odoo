@@ -130,7 +130,7 @@
                                     product + description + uom combinations
                                 2. If any packages are assigned => split products up by package (or non-package) and then apply use case 1 -->
                             <!-- If has destination packages => create sections of corresponding products -->
-                            <t t-if="o.packages_count" name="has_packages">
+                            <t t-if="o.count_packages" name="has_packages">
                                 <t t-set="packages" t-value="o.package_history_ids.filtered(lambda ph: not ph.parent_dest_id).package_id"/>
                                 <t t-foreach="packages" t-as="package">
                                     <t t-call="stock.stock_report_delivery_package_section_line"/>
@@ -258,6 +258,11 @@
         <td class="text-end" name="move_line_lot_quantity">
             <span t-out="format_number(move_line.quantity)"/>
             <span t-field="move_line.product_uom_id"/>
+            <t t-if="move_line.move_id.packaging_uom_id != move_line.product_uom_id" groups="uom.group_uom">
+                <br/>
+                <span class="text-muted" t-out="move_line.product_uom_id._compute_quantity(move_line.quantity, move_line.move_id.packaging_uom_id)">1.00</span>
+                <span class="text-muted" t-field="move_line.move_id.packaging_uom_id">Pack of 6</span>
+            </t>
         </td>
     </template>
     <template id="stock_report_delivery_aggregated_move_lines">
@@ -276,7 +281,7 @@
             </td>
             <td class="text-end" name="move_line_aggregated_qty_ordered">
                 <span t-out="format_number(aggregated_lines[line]['qty_ordered'])"/>
-                <span t-out="aggregated_lines[line]['product_uom'].name"/>
+                <span t-out="aggregated_lines[line]['product_uom'].name" groups="uom.group_uom"/>
                 <t t-if="aggregated_lines[line]['packaging_uom_id'] != aggregated_lines[line]['product_uom']" groups="uom.group_uom">
                     <br/>
                     <span class="text-muted" t-out="aggregated_lines[line]['packaging_qty_ordered']">1.00</span>
@@ -285,7 +290,7 @@
             </td>
             <td class="text-end" name="move_line_aggregated_quantity">
                 <span t-out="format_number(aggregated_lines[line]['quantity'])"/>
-                <span t-out="aggregated_lines[line]['product_uom'].name"/>
+                <span t-out="aggregated_lines[line]['product_uom'].name" groups="uom.group_uom"/>
                 <t t-if="aggregated_lines[line]['packaging_uom_id'] != aggregated_lines[line]['product_uom']" groups="uom.group_uom">
                     <br/>
                     <span class="text-muted" t-out="aggregated_lines[line]['packaging_quantity']">1.00</span>

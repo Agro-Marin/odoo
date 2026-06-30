@@ -17,7 +17,7 @@ class PickingLabelType(models.TransientModel):
         if not self.picking_ids:
             return
         if self.label_type == "products":
-            return self.picking_ids.action_open_label_layout()
+            return self.picking_ids.action_view_label_layout()
         view = self.env.ref("stock.lot_label_layout_form_picking")
         return {
             "name": _("Choose Labels Layout"),

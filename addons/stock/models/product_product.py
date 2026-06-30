@@ -1,16 +1,17 @@
+import operator as py_operator
 from ast import literal_eval
 from collections import defaultdict
 from collections.abc import Iterable
-import operator as py_operator
+from datetime import date, datetime, time
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.tools import Query, SQL
 from odoo.libs.barcode import check_barcode_encoding
 from odoo.libs.numbers.float_utils import float_compare
+from odoo.tools import SQL, Query
 from odoo.tools.mail import html2plaintext, is_html_empty
 
 PY_OPERATORS = {
@@ -322,7 +323,12 @@ class ProductProduct(models.Model):
         domain_quant = product_domain & domain_quant_loc
         dates_in_the_past = False
         # only to_date as to_date will correspond to qty_available
+        original_value = to_date
         to_date = fields.Datetime.to_datetime(to_date)
+        if (isinstance(original_value, date) and not isinstance(original_value, datetime)) or (
+            isinstance(original_value, str) and len(original_value) == 10
+        ):
+            to_date = datetime.combine(to_date.date(), time.max)
         if to_date and to_date < fields.Datetime.now():
             dates_in_the_past = True
 
@@ -912,33 +918,46 @@ class ProductProduct(models.Model):
             dest_loc_domain = Domain("location_dest_id", "in", locations.ids)
             dest_loc_domain_out = Domain("location_dest_id", "not in", locations.ids)
         elif locations:
-            alias = locations._table + "_inner"
-            paths_query = Query(locations.env, alias, SQL.identifier(locations._table))
-            paths_query.add_where(
+            # Resolve the location subtree with a recursive CTE instead of a
+            # `parent_path LIKE` scan: the LIKE form forces a sequential scan of
+            # stock_location (no usable index), which is costly with many moves.
+            descendants_query = Query(
+                locations.env,
+                "descendants",
                 SQL(
-                    """EXISTS (
-                    SELECT 1
-                      FROM stock_location parent
-                     WHERE parent.id = ANY(%s)
-                       AND %s LIKE parent.parent_path || '%%'
-                )""",
+                    """
+                    (
+                        WITH RECURSIVE descendants AS (
+                            SELECT id
+                            FROM stock_location
+                            WHERE id = ANY(%s)
+
+                            UNION
+
+                            SELECT sl.id
+                            FROM stock_location sl
+                            JOIN descendants d
+                                ON sl.location_id = d.id
+                        )
+                        SELECT id FROM descendants
+                    )
+                    """,
                     list(locations.ids),
-                    SQL.identifier(alias, "parent_path"),
-                )
+                ),
             )
-            loc_domain = Domain("location_id", "in", paths_query)
+            loc_domain = Domain("location_id", "in", descendants_query)
             # The condition should be split for done and not-done moves as the final_dest_id only make sense
             # for the part of the move chain that is not done yet.
-            dest_loc_domain_done = Domain("location_dest_id", "in", paths_query)
+            dest_loc_domain_done = Domain("location_dest_id", "in", descendants_query)
             dest_loc_domain_in_progress = Domain(
                 [
                     "|",
                     "&",
                     ("location_final_id", "!=", False),
-                    ("location_final_id", "in", paths_query),
+                    ("location_final_id", "in", descendants_query),
                     "&",
                     ("location_final_id", "=", False),
-                    ("location_dest_id", "in", paths_query),
+                    ("location_dest_id", "in", descendants_query),
                 ],
             )
             dest_loc_domain = Domain(
@@ -963,6 +982,13 @@ class ProductProduct(models.Model):
                     ~dest_loc_domain_in_progress,
                 ],
             )
+
+            if self.env.context.get("skip_in_progress"):
+                return (
+                    loc_domain,
+                    dest_loc_domain_done & ~loc_domain,
+                    loc_domain & ~dest_loc_domain_done,
+                )
 
         # returns: (domain_quant_loc, domain_move_in_loc, domain_move_out_loc)
         return (
