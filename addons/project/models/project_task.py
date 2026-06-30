@@ -1113,8 +1113,14 @@ class ProjectTask(models.Model):
 
     @api.onchange("project_id")
     def _onchange_project_id(self) -> None:
-        if self.state != "blocked":
+        if self.state != "blocked" and self.state not in CLOSED_STATES:
             self.state = "in_progress"
+        if not self.project_id and not self.user_ids:
+            self.user_ids = self.env.user
+
+        if not self.project_id and self.parent_id and self.parent_id.project_id:
+            self.project_id = self.parent_id.project_id.id
+            self.display_in_project = False
 
     def is_blocked_by_predecessors(self) -> bool:
         return any(
@@ -1631,8 +1637,8 @@ class ProjectTask(models.Model):
 
     def _inverse_partner_phone(self) -> None:
         for task in self:
-            if task.partner_id:
-                task.partner_id.phone = task.partner_phone
+            if task.partner_id and task.partner_phone != task.partner_id.phone:
+                task.partner_id.sudo().phone = task.partner_phone
 
     @api.onchange("company_id")
     def _onchange_task_company(self) -> None:
@@ -1880,16 +1886,24 @@ class ProjectTask(models.Model):
                     vals["milestone_id"], vals["milestone_id"]
                 )
             if not default.get("child_ids") and task.child_ids:
+                whitelisted_fields = (
+                    self._get_template_default_context_whitelist()
+                    if self.env.context.get("copy_from_template")
+                    else []
+                )
                 default = {
-                    "parent_id": False,
+                    key: value
+                    for key, value in default.items()
+                    if key in whitelisted_fields
                 }
+                default["parent_id"] = False
                 current_task = task
                 if self.env.context.get("copy_from_template"):
                     current_task = current_task.with_context(active_test=True)
                 child_ids = current_task.child_ids
                 vals["child_ids"] = [
                     Command.create(child_id.copy_data(default)[0])
-                    for child_id in child_ids
+                    for child_id in child_ids.filtered(lambda c: c.active)
                 ]
             if not has_default_users and vals["user_ids"]:
                 task_active_users = task.user_ids & active_users
@@ -1960,15 +1974,16 @@ class ProjectTask(models.Model):
             self.with_context(
                 mail_auto_subscribe_no_notify=True,
                 mail_create_nosubscribe=True,
-                mail_create_nolog=True,
+                mail_create_nolog=bool(not self.env.context.get("copy_from_template")),
             ),
         ).copy(default=default)
 
         self._resolve_copied_dependencies(copied_tasks)
-        log_message = _("Task Created")
-        copied_tasks._message_log_batch(
-            bodies={task.id: log_message for task in copied_tasks}
-        )
+        if not self.env.context.get("copy_from_template"):
+            log_message = _("Task Created")
+            copied_tasks._message_log_batch(
+                bodies={task.id: log_message for task in copied_tasks}
+            )
 
         return copied_tasks
 
@@ -2141,7 +2156,8 @@ class ProjectTask(models.Model):
     def _load_records_create(self, vals_list: list[dict[str, Any]]) -> Self:
         for vals in vals_list:
             if vals.get("recurring_task"):
-                if not vals.get("recurrence_id"):
+                rec_fields = vals.keys() & self._get_recurrence_fields()
+                if not vals.get("recurrence_id") and not rec_fields:
                     default_val = self.default_get(self._get_recurrence_fields())
                     vals.update(**default_val)
             project_id = vals.get("project_id")
@@ -2474,7 +2490,9 @@ class ProjectTask(models.Model):
                         task.state = "blocked"
                 task.date_last_status_change = now
         elif "project_id" in vals:
-            self.filtered(lambda t: t.state != "blocked").state = "in_progress"
+            self.filtered(
+                lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
+            ).state = "in_progress"
 
         # Do not recompute the state when changing the parent (to avoid resetting the state)
         if "parent_id" in vals:
@@ -2933,7 +2951,7 @@ class ProjectTask(models.Model):
                     partner_ids=user.partner_id.ids,
                     email_layout_xmlid="mail.mail_notification_layout",
                     model_description=task_model_description,
-                    mail_auto_delete=False,
+                    mail_auto_delete=True,
                 )
 
     def _message_auto_subscribe_followers(
@@ -3618,6 +3636,28 @@ class ProjectTask(models.Model):
         if child_tasks:
             child_tasks.action_archive()
         return super().action_archive()
+
+    def _get_access_action(self, access_uid=None, force_website=False):
+        self.ensure_one()
+        user = (
+            self.env["res.users"].sudo().browse(access_uid)
+            if access_uid
+            else self.env.user
+        )
+        if (
+            user
+            and user._is_portal()
+            and self.with_user(user).has_access("read")
+            and self.project_id
+            and self.project_id.with_user(user).has_access("read")
+            and self.project_id._check_project_sharing_access()
+        ):
+            return {
+                "type": "ir.actions.act_url",
+                "url": f"/my/projects/{self.project_id.id}/project_sharing/{self.id}",
+                "target": "self",
+            }
+        return super()._get_access_action(access_uid, force_website)
 
     # ---------------------------------------------------
     # Rating business
