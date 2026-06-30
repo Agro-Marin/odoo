@@ -44,6 +44,31 @@ class TestMailManagement(MailCommon, TestRecipients):
             'failure_type': None,
         })
 
+    def test_message_change_thread_subtype_description(self):
+        """Moving a message to a thread of a different model appends the
+        subtype description to its body (C1b, upstream ab7cb9d7)."""
+        subtype = self.env['mail.message.subtype'].create({
+            'name': 'C1b Subtype',
+            'res_model': 'mail.test.simple',
+            'description': 'C1B-SUBTYPE-DESCRIPTION',
+        })
+        message = self.test_record.message_post(
+            body='<p>C1B-ORIGINAL</p>',
+            subtype_id=subtype.id,
+            author_id=self.partner_employee.id,
+        )
+        target = self.env['mail.test.gateway'].with_context(
+            self._test_context
+        ).create({'name': 'C1b Target'})
+
+        self.test_record.message_change_thread(target)
+
+        moved = message.sudo()
+        self.assertEqual(moved.model, 'mail.test.gateway')
+        self.assertEqual(moved.res_id, target.id)
+        self.assertIn('C1B-SUBTYPE-DESCRIPTION', moved.body)
+        self.assertIn('C1B-ORIGINAL', moved.body)
+
     def test_mail_notify_cancel(self):
         self._reset_bus()
 

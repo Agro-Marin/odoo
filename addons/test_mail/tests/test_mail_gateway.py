@@ -2782,3 +2782,39 @@ class TestMailThreadCC(MailCommon):
                                 cc='cc2 <cc2@example.com>, cc3@example.com', target_model='mail.test.cc')
         cc = email_split_and_format(record.email_cc)
         self.assertEqual(sorted(cc), ['"cc2" <cc2@example.com>', 'cc3@example.com'], 'new cc should have been added on record (unique)')
+
+
+class TestMailgatewayDedup(MailGatewayCommon):
+    """C1a — duplicate Message-Id dedup (upstream d1e8df4a advisory lock).
+
+    Processing the same Message-Id twice must yield a single record: the
+    second processing detects the existing mail.message and bails out.
+    """
+
+    def test_message_process_duplicate_message_id(self):
+        mail = self.format(
+            MAIL_TEMPLATE,
+            to=f'groups@{self.alias_domain}',
+            subject='C1a Dedup',
+            email_from=self.email_from,
+            msg_id='<c1a-duplicate@test.example.com>',
+        )
+        thread = self.env['mail.thread'].sudo()
+        thread.message_process(None, mail)
+        second = thread.message_process(None, mail)
+
+        records = self.env['mail.test.gateway'].search([('name', '=', 'C1a Dedup')])
+        self.assertEqual(
+            len(records), 1,
+            'a duplicate Message-Id must not create a second record',
+        )
+        self.assertFalse(
+            second, 'processing a duplicate Message-Id must return False',
+        )
+        self.assertEqual(
+            self.env['mail.message'].search_count(
+                [('message_id', '=', '<c1a-duplicate@test.example.com>')]
+            ),
+            1,
+            'only one mail.message should carry the duplicated Message-Id',
+        )
