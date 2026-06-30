@@ -5,6 +5,8 @@ import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { useMessageScrolling } from "@mail/utils/common/hooks";
 import {
     Component,
+    onMounted,
+    onWillUnmount,
     useEffect,
     useExternalListener,
     useRef,
@@ -76,6 +78,13 @@ export class Discuss extends Component {
                 () => [this.thread, this.ui.isSmall],
             );
         }
+        onMounted(() => {
+            document.body.classList.add("o_mail_discuss");
+        });
+
+        onWillUnmount(() => {
+            document.body.classList.remove("o_mail_discuss");
+        });
     }
 
     get thread() {

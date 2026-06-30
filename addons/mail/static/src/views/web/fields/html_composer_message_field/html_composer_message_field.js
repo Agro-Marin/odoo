@@ -8,6 +8,7 @@ import { useBus } from "@web/core/utils/hooks";
 
 import { HtmlMailField, htmlMailField } from "../html_mail_field/html_mail_field.js";
 import { ContentExpandablePlugin } from "./content_expandable_plugin.js";
+import { DisableBannerCommandsPlugin } from "./disable_banner_commands_plugin.js";
 import { MentionPlugin } from "./mention_plugin.js";
 export class HtmlComposerMessageField extends HtmlMailField {
     setup() {
@@ -40,7 +41,9 @@ export class HtmlComposerMessageField extends HtmlMailField {
 
     getConfig() {
         const config = super.getConfig(...arguments);
-        config.Plugins = [...config.Plugins, MentionPlugin];
+        config.Plugins = config.Plugins
+            .filter((plugin) => !["video"].includes(plugin.id))
+            .concat([DisableBannerCommandsPlugin, MentionPlugin]);
         if (this.props.record.data.composition_comment_option === "reply_all") {
             config.Plugins.push(ContentExpandablePlugin);
         }

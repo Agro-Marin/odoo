@@ -182,7 +182,7 @@ test("[TECHNICAL] unfolded ellipsis button should not fold on message click besi
     });
     expect(".o-mail-Message-body span").toHaveCount(0);
     await click(".o-mail-ellipsis");
-    expect(".o-mail-Message-body span").toHaveText('--\nSystem')
+    expect(".o-mail-Message-body span").toHaveText("--\nSystem");
     await click(".o-mail-Message");
     expect(".o-mail-Message-body span").toHaveCount(1);
 });

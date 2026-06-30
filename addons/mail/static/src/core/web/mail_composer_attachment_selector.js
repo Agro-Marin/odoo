@@ -36,9 +36,10 @@ export class MailComposerAttachmentSelector extends Component {
             id: resIds[0],
         });
         const file = new File([dataUrlToBlob(data, type)], name, { type });
+        const isThreadComposer = this.props.record.context.is_thread_composer;
         const attachment = await this.attachmentUploadService.upload(
             thread,
-            thread.composer,
+            isThreadComposer ? thread.composer : undefined,
             file,
         );
         if (attachment) {

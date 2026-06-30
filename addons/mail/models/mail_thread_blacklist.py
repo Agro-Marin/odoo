@@ -104,6 +104,7 @@ class MailThreadBlacklist(models.AbstractModel):
         blacklist = set(
             self.env["mail.blacklist"]
             .sudo()
+            .with_context(active_test=True)
             .search([("email", "in", self.mapped("email_normalized"))])
             .mapped("email")
         )

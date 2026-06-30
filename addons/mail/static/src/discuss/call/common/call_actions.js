@@ -233,10 +233,7 @@ registerCallAction("fullscreen", {
 });
 registerCallAction("picture-in-picture", {
     condition: ({ owner, store, thread }) =>
-        !owner.env.inCallMenu &&
-        thread?.isSelfInCall &&
-        store.env.services["discuss.pip_service"] &&
-        !store.env?.isSmall,
+        thread?.isSelfInCall && !store.env?.isSmall,
     disabledCondition: ({ store }) => store.rtc?.isRemote,
     name: ({ store }) =>
         store.rtc?.state.isPipMode
