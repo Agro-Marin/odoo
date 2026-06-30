@@ -216,6 +216,14 @@ class ProductTemplate(models.Model):
         compute="_compute_valid_product_template_attribute_line_ids",
     )
 
+    import_attribute_values = fields.Char(
+        string="Product Values",
+        compute="_compute_import_attribute_values",
+        inverse="_inverse_import_attribute_values",
+        store=False,
+        copy=False,
+    )
+
     product_variant_ids = fields.One2many(
         comodel_name="product.product",
         inverse_name="product_tmpl_id",
@@ -757,6 +765,62 @@ class ProductTemplate(models.Model):
             "product_properties",
         ]
 
+    def _compute_import_attribute_values(self):
+        self.import_attribute_values = ""
+
+    def _inverse_import_attribute_values(self):
+        raise ValueError("This field can only be used to import products.")
+
+    @api.model
+    def load(self, fields, data):
+        """
+        Data import for products depends on the presence of variants.
+        If 'import_attribute_values' is present, then the product.template files
+        will be created, followed by the product.product files. Everything is
+        done from the same file.
+
+        The required fields are always imported; however, other fields are
+        imported when the product.product files are created.
+        """
+        if "import_attribute_values" not in fields:
+            return super().load(fields, data)
+
+        column_no = fields.index("import_attribute_values")
+
+        data_list_products = []
+        data_list_templates = []
+        for values in data:
+            if values[column_no].strip():
+                data_list_products.append(values)
+            else:
+                values = list(values)
+                values.pop(column_no)
+                data_list_templates.append(values)
+
+        if data_list_templates:
+            template_fields = list(fields)
+            template_fields.pop(column_no)
+            result = super().load(template_fields, data_list_templates)
+            if any(message["type"] == "error" for message in result["messages"]):
+                return result
+        else:
+            result = {"ids": [], "messages": [], "nextrow": 0}
+
+        if data_list_products:
+            ProductProduct = self.env["product.product"].with_context(
+                from_template_import=True
+            )
+            result_product = ProductProduct.load(fields, data_list_products)
+            if any(message["type"] == "error" for message in result_product["messages"]):
+                return result_product
+
+            product_templates = ProductProduct.browse(result_product["ids"]).product_tmpl_id
+            result["ids"].extend(product_templates.ids)
+            result["messages"].extend(result_product["messages"])
+            result["nextrow"] = result.get("nextrow", 0) + result_product.get("nextrow", 0)
+
+        return result
+
     @api.depends("name", "default_code")
     @api.depends_context("formatted_display_name", "display_default_code")
     def _compute_display_name(self):
@@ -823,13 +887,13 @@ class ProductTemplate(models.Model):
 
     # === ACTION METHODS ===#
 
-    def action_open_label_layout(self):
+    def action_view_label_layout(self):
         if any(product_tmpl.type == "service" for product_tmpl in self):
             raise ValidationError(
                 _("Labels cannot be printed for products of service type")
             )
         action = self.env["ir.actions.act_window"]._for_xml_id(
-            "product.action_open_label_layout"
+            "product.action_view_label_layout"
         )
         action["context"] = {"default_product_tmpl_ids": self.ids}
         return action
@@ -859,7 +923,7 @@ class ProductTemplate(models.Model):
                     %s
                 </p>
                 <p>
-                    <a class="oe_link" href="https://www.odoo.com/documentation/latest/_downloads/c2c6ce32294dfddffcfefcf2775f7a09/pdfquotebuilderexamples.zip">
+                    <a class="oe_link" href="https://www.odoo.com/documentation/latest/_downloads/eaa2883bd361273b475c9765f64e3e0c/pdfquotebuilderexamples.zip">
                     %s
                     </a>
                 </p>
@@ -1117,7 +1181,10 @@ class ProductTemplate(models.Model):
             variants_to_unlink += all_variants - current_variants_to_activate
 
         if variants_to_activate:
-            variants_to_activate.write({"active": True})
+            # Only activate variants whose template is active
+            variants_to_activate.filtered(lambda v: v.product_tmpl_id.active).write(
+                {"active": True}
+            )
         if variants_to_create:
             Product.create(variants_to_create)
         if variants_to_unlink:
@@ -1270,18 +1337,38 @@ class ProductTemplate(models.Model):
         product_template_attribute_values = (
             self.valid_product_template_attribute_line_ids.product_template_value_ids
         )
-        return {
-            ptav.id: [
-                value.id
-                for filter_line in ptav.exclude_for.filtered(
-                    lambda filter_line: filter_line.product_tmpl_id == self
-                )
-                for value in filter_line.value_ids
-                if value.ptav_active
-            ]
-            for ptav in product_template_attribute_values
-            if (ptav.ptav_active or (combination_ids and ptav.id in combination_ids))
-        }
+        result = {}
+
+        domain_ptav = [("ptav_active", "=", True)]
+
+        if combination_ids:
+            domain_ptav = Domain.OR([domain_ptav, [("id", "in", combination_ids)]])
+
+        domain_ptav = Domain.AND(
+            [domain_ptav, [("id", "in", product_template_attribute_values.ids)]]
+        )
+
+        exclusion_ids_by_ptav = dict(
+            self.env["product.template.attribute.exclusion"]._read_group(
+                domain=[
+                    ("product_template_attribute_value_id", "any", domain_ptav),
+                    ("product_tmpl_id", "=", self.id),
+                ],
+                groupby=["product_template_attribute_value_id"],
+                aggregates=["id:recordset"],
+            )
+        )
+
+        for ptav in product_template_attribute_values:
+            if ptav.ptav_active or (combination_ids and ptav.id in combination_ids):
+                if exclusions := exclusion_ids_by_ptav.get(ptav):
+                    result[ptav.id] = exclusions.value_ids.filtered(
+                        lambda x: x.ptav_active
+                    ).ids
+                else:
+                    result[ptav.id] = []
+
+        return result
 
     def _get_parent_attribute_exclusions(self, parent_combination):
         """Get exclusions coming from the parent combination.
@@ -1713,7 +1800,7 @@ class ProductTemplate(models.Model):
         return [
             {
                 "label": _("Import Template for Products"),
-                "template": "/product/static/xls/product_template.xls",
+                "template": "/product/static/xls/product_product.xls",
             }
         ]
 
