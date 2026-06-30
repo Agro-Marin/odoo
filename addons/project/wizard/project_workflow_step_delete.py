@@ -1,6 +1,5 @@
 """Wizard to archive or delete workflow steps from a project."""
 
-from ast import literal_eval
 from typing import Any
 
 from odoo import _, api, fields, models
@@ -93,31 +92,9 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
         return self._get_action()
 
     def _get_action(self) -> dict[str, Any]:
-        project_id = self.env.context.get("default_project_id")
-
-        if project_id:
-            action = self.env["ir.actions.actions"]._for_xml_id(
-                "project.action_view_task"
-            )
-            action["domain"] = [("project_id", "=", project_id)]
-            action["context"] = str(
-                {
-                    "pivot_row_groupby": ["user_ids"],
-                    "default_project_id": project_id,
-                }
-            )
-        elif self.env.context.get("stage_view"):
-            action = self.env["ir.actions.actions"]._for_xml_id(
-                "project.open_workflow_step_form"
-            )
-        else:
-            action = self.env["ir.actions.actions"]._for_xml_id(
-                "project.action_view_my_task"
-            )
-
-        context = action.get("context", "{}")
-        context = context.replace("uid", str(self.env.uid))
-        context = dict(literal_eval(context), active_test=True)
-        action["context"] = context
-        action["target"] = "main"
-        return action
+        return {
+            "type": "ir.actions.act_window_close",
+            "infos": {
+                "success": True,
+            },
+        }
