@@ -180,6 +180,41 @@ class TestFieldGetPending(TransactionCase):
         self.assertIsNot(value, PENDING)
         self.assertIsInstance(value, int)
 
+    def test_plain_m2o_never_caches_pending(self):
+        """Invariant behind the batch-read PENDING-guard (M5).
+
+        _RelationalMulti._get skips the per-record PENDING check unless the
+        field is_stored_computed; this is safe only if a plain (non-computed)
+        relational field never holds PENDING in its cache. Assert that
+        invariant: a plain many2one read through the batch path (mapped) never
+        materialises PENDING, and invalidation yields a clean miss, not PENDING.
+        """
+        Line = self.env["test_orm.move_line"]
+        field = Line._fields["move_id"]
+        # Precondition: the guard is skipped exactly because a plain relational
+        # field is not a stored computed field.
+        self.assertFalse(field.is_stored_computed)
+
+        move = self.Move.create({})
+        lines = Line.create([{"move_id": move.id, "quantity": q} for q in (1, 2, 3)])
+        self.env.flush_all()
+        lines.invalidate_recordset(["move_id"])
+
+        field_cache = field._get_cache(self.env)
+        # Batch read path (the one the optimisation touches): returns the real
+        # records and never leaks the sentinel.
+        self.assertEqual(lines.mapped("move_id"), move)
+        for line in lines:
+            self.assertIn(line.id, field_cache)
+            self.assertIsNot(field_cache[line.id], PENDING)
+
+        # Invalidation must produce a clean miss (entry removed), not PENDING.
+        lines.invalidate_recordset(["move_id"])
+        for line in lines:
+            self.assertNotIn(line.id, field_cache)
+        # Re-reading refetches correctly through the batch path.
+        self.assertEqual(lines.mapped("move_id"), move)
+
 
 @tagged("-standard", "hotpath_contracts")
 class TestReadFormatContracts(TransactionCase):
