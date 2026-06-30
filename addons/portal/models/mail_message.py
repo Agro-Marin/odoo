@@ -124,7 +124,15 @@ class MailMessage(models.Model):
             related_attachments = {
                 att_read_values["id"]: att_read_values
                 for att_read_values in attachments_sudo.read(
-                    ["checksum", "id", "mimetype", "name", "res_id", "res_model"]
+                    [
+                        "checksum",
+                        "has_thumbnail",
+                        "id",
+                        "mimetype",
+                        "name",
+                        "res_id",
+                        "res_model",
+                    ]
                 )
             }
             message_to_attachments = {
@@ -193,10 +201,37 @@ class MailMessage(models.Model):
                     "author_id": {
                         "id": message.author_id.id,
                         "name": message.author_id.name,
+                    }
+                    if message.author_id
+                    else False,
+                    "thread": {
+                        # The "add reaction" button must be hidden on messages
+                        # whose model does not inherit from mail.thread.
+                        "has_mail_thread": isinstance(
+                            self.env[values["model"]], self.pool["mail.thread"]
+                        ),
+                        "id": values["res_id"],
+                        "model": values["model"],
                     },
-                    "thread": {"model": values["model"], "id": values["res_id"]},
                 }
             )
+        # Linked messages (e.g. a message link posted in the chatter) carry the
+        # referenced thread's display_name so the frontend can rebuild the
+        # prettified link after a refresh.
+        linked_messages = self.linked_message_ids - self
+        linked_messages_vals_list = linked_messages._read_format(
+            {"id", "model", "res_id"}
+        )
+        record_by_linked_message = linked_messages._record_by_message()
+        for message, values in zip(
+            linked_messages, linked_messages_vals_list, strict=True
+        ):
+            record = record_by_linked_message.get(message)
+            # sudo: mail.thread - reading display_name of accessed thread is acceptable
+            values["thread"] = {
+                "display_name": record.sudo().display_name if record else False
+            }
+        vals_list.extend(linked_messages_vals_list)
         return vals_list
 
     def _portal_message_format_attachments(self, attachment_values):
@@ -224,6 +259,7 @@ class MailMessage(models.Model):
         )
         attachment = self.env["ir.attachment"].browse(attachment_values["id"])
         attachment_values["raw_access_token"] = attachment._get_raw_access_token()
+        attachment_values["thumbnail_access_token"] = attachment._get_thumbnail_token()
         if self.is_current_user_or_guest_author:
             attachment_values["ownership_token"] = attachment._get_ownership_token()
         return attachment_values
