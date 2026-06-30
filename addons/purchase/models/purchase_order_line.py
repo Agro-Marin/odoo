@@ -1061,7 +1061,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.amount_to_invoice_at_date = (
                 line.qty_transferred_at_date - line.qty_invoiced_at_date
-            ) * line.price_unit
+            ) * line._get_price_unit_gross()
 
     @api.depends(
         "qty_to_invoice",
