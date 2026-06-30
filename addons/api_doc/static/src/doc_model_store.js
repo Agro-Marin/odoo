@@ -194,10 +194,10 @@ export class ModelStore extends SignalStore {
             } else {
                 result.error = !json
                     ? body
-                    : [
-                        `<h3 class="mb-1">${json.message}</h3>`,
-                        `<pre class="p-2">${json.debug}</pre>`,
-                    ].join("\n");
+                    : {
+                        title: json.message,
+                        traceback: json.debug,
+                    };
             }
         } catch (error) {
             result.error = error;
