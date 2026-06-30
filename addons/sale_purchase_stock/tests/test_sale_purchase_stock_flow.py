@@ -226,7 +226,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             ],
         })
         so.action_confirm()
-        self.assertEqual(so.delivery_count, 1)
+        self.assertEqual(so.count_transfer_outgoing, 1)
         delivery = so.picking_ids
         # Both moves should have the procure_method set to 'make_to_order', as the products follow the MTO route
         self.assertEqual(delivery.move_ids.mapped('procure_method'), ['make_to_order', 'make_to_order'])
@@ -239,7 +239,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         line_2 = so.order_line.filtered(lambda sol: sol.product_id == product_2)
         # Updating the SO line should trigger another delivery, as the product in the first picking is in MTS and not in MTO
         line_2.product_uom_qty = 0
-        self.assertEqual(so.delivery_count, 2)
+        self.assertEqual(so.count_transfer_outgoing, 2)
         self.assertRecordValues(delivery.move_ids, [
             {'product_id': product_1.id, 'product_uom_qty': 1.0},
             {'product_id': product_2.id, 'product_uom_qty': 1.0},
