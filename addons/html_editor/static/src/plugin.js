@@ -39,6 +39,8 @@ export class Plugin {
         this.dispatchTo = context.dispatchTo;
         /** @type { EditorContext['delegateTo'] } **/
         this.delegateTo = context.delegateTo;
+        /** @type { EditorContext['checkPredicates'] } **/
+        this.checkPredicates = context.checkPredicates;
 
         this._cleanups = [];
         this.isDestroyed = false;
