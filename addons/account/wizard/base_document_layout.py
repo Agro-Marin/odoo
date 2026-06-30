@@ -1,4 +1,4 @@
-from odoo import api, Command, fields, models
+from odoo import api, fields, models
 
 
 class BaseDocumentLayout(models.TransientModel):
@@ -76,13 +76,15 @@ class BaseDocumentLayout(models.TransientModel):
             if record.partner_id.bank_ids and record.account_number:
                 bank = record.partner_id.bank_ids[0]
                 if bank.acc_number != record.account_number:
+                    bank.allow_out_payment = False
                     bank.acc_number = record.account_number
+                    bank.allow_out_payment = True
             elif record.account_number:
-                record.partner_id.bank_ids = [
-                    Command.create(
-                        {
-                            "acc_number": record.account_number,
-                            "partner_id": record.partner_id.id,
-                        }
-                    )
-                ]
+                record.partner_id.bank_ids += self.env[
+                    "res.partner.bank"
+                ]._find_or_create_bank_account(
+                    account_number=record.account_number,
+                    partner=record.partner_id,
+                    allow_company_account_creation=True,
+                    company=record.company_id,
+                )
