@@ -15,8 +15,8 @@ export const useRouterParamsChecker = () => {
             router.state.params.orderUuid,
         );
         if (!order || order.finalized !== params.orderFinalized) {
-            const params = pos.defaultPage;
-            router.navigate(params.page, params.params);
+            const defaultPage = pos.defaultPage;
+            pos.navigate(defaultPage.page, defaultPage.params);
         }
     }
 };

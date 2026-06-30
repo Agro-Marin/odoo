@@ -87,4 +87,8 @@ export class CategorySelector extends Component {
             selected.allParents.some((p) => p.id === category.id)
         );
     }
+
+    showCategoryImg(category) {
+        return this.pos.config.show_category_images && category.imgSrc && !this.ui.isSmall;
+    }
 }
