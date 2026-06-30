@@ -115,8 +115,15 @@ class IrConfig_Parameter(models.Model):
 
     def write(self, vals):
         if "value" in vals:
+            # Each record may carry a different key, so sanitize per record with
+            # its own copy of vals — mutating the shared dict in the loop would
+            # leak the last record's sanitized value onto every record (A2).
+            result = True
             for record in self:
                 # determine the key: from vals if changing, otherwise from the record
                 key = vals.get("key", record.key)
-                vals["value"] = self._sanitize_param_value(key, vals["value"])
+                record_vals = dict(vals)
+                record_vals["value"] = self._sanitize_param_value(key, record_vals["value"])
+                result = super(IrConfig_Parameter, record).write(record_vals) and result
+            return result
         return super().write(vals)
