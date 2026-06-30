@@ -6,6 +6,7 @@ dicts and sentinel objects — no Odoo ORM dependency.
 
 import enum
 import unittest
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 # odoo_rust is a hard dependency — import at module scope so a missing or broken
@@ -511,6 +512,74 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
         cls.sort_ids_by_values = staticmethod(_rust_sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(_rust_sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(_rust_batch_group_ids)
+
+
+class TestSortDifferential(unittest.TestCase):
+    """Differential: the Rust native sort must agree with the Python oracle on
+    edge cases the shared mixin does not exercise (NaN, -0.0, big ints beyond
+    i64, dates, datetimes, mixed/incomparable columns, non-ASCII strings).
+
+    Each case compares the *outcome* of both implementations — either the
+    returned ordering or the raised exception type — so a divergence in result
+    OR in error behaviour fails loudly.
+    """
+
+    @staticmethod
+    def _outcome(fn, *args, **kw):
+        try:
+            return ("ok", fn(*args, **kw))
+        except Exception as exc:
+            # Differential capture: any error type is part of the compared outcome.
+            return ("raise", type(exc).__name__)
+
+    def _assert_values_match(self, values, **kw) -> None:
+        ids = tuple(range(1, len(values) + 1))
+        for reverse in (False, True):
+            rust = self._outcome(_rust_sort_ids_by_values, ids, list(values), reverse, **kw)
+            py = self._outcome(sort_ids_by_values, ids, list(values), reverse, **kw)
+            self.assertEqual(rust, py, msg=f"values={values!r} reverse={reverse} kw={kw}")
+
+    def _assert_cache_match(self, values, **kw) -> None:
+        ids = tuple(range(1, len(values) + 1))
+        cache = dict(zip(ids, values, strict=True))
+        for reverse in (False, True):
+            rust = self._outcome(_rust_sort_ids_by_cache, cache, ids, PENDING, reverse, **kw)
+            py = self._outcome(sort_ids_by_cache, cache, ids, PENDING, reverse, **kw)
+            self.assertEqual(rust, py, msg=f"cache values={values!r} reverse={reverse} kw={kw}")
+
+    def test_diff_big_ints(self) -> None:
+        """Ints beyond i64 must not overflow the Rust path."""
+        self._assert_values_match([2**63, 2**63 + 1, 1, 2**70, -(2**63) - 5])
+        self._assert_cache_match([2**63, 2**63 + 1, 1, 2**70])
+
+    def test_diff_floats_signed_zero(self) -> None:
+        """-0.0 and 0.0 compare equal; stable order must be preserved."""
+        self._assert_values_match([1.0, -0.0, 0.0, 2.0, -1.5])
+        self._assert_cache_match([1.0, -0.0, 0.0, 2.0, -1.5])
+
+    def test_diff_floats_nan(self) -> None:
+        self._assert_values_match([1.0, float("nan"), 2.0, 0.0, float("nan")])
+
+    def test_diff_dates(self) -> None:
+        self._assert_values_match([date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)])
+        self._assert_cache_match([date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)])
+
+    def test_diff_datetimes(self) -> None:
+        self._assert_values_match(
+            [datetime(2021, 1, 1, 12, 0), datetime(2021, 1, 1, 9, 0), datetime(2020, 12, 31, 23, 59)]
+        )
+
+    def test_diff_mixed_date_datetime(self) -> None:
+        """date vs datetime is not orderable in Python; Rust must agree."""
+        self._assert_values_match([date(2021, 1, 2), datetime(2021, 1, 1, 12, 0), date(2021, 1, 1)])
+
+    def test_diff_mixed_int_str(self) -> None:
+        """int vs str is not orderable in Python; Rust must agree."""
+        self._assert_values_match([3, "a", 1])
+
+    def test_diff_non_ascii(self) -> None:
+        self._assert_values_match(["é", "a", "ñ", "z", "😀", "b", "Z"])
+        self._assert_cache_match(["é", "a", "ñ", "z", "😀", "b", "Z"])
 
 
 if __name__ == "__main__":
