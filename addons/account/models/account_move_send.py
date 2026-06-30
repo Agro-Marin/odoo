@@ -146,6 +146,10 @@ class AccountMoveSend(models.AbstractModel):
                             move, mail_template, mail_lang
                         ).ids,
                     ),
+                    "reply_to": get_setting("reply_to")
+                    or self._get_mail_default_field_value_from_template(
+                        mail_template, mail_lang, move, "reply_to"
+                    ),
                 }
             )
         # Add mail attachments if sending methods support them
@@ -179,7 +183,23 @@ class AccountMoveSend(models.AbstractModel):
         - action the action to run when the link is clicked
         """
         alerts = {}
-
+        send_cron = self.env.ref(
+            "account.ir_cron_account_move_send", raise_if_not_found=False
+        )
+        if len(moves) > 1 and send_cron and not send_cron.sudo().active:
+            has_cron_access = send_cron.has_access("write")
+            has_access_message = _(
+                "The scheduled action 'Send Invoices automatically' is archived. You won't be able to send invoices in batch."
+            )
+            no_access_addendum = _("\nPlease contact your administrator.")
+            alerts["account_send_cron_archived"] = {
+                "level": "warning",
+                "message": has_access_message
+                if has_cron_access
+                else has_access_message + no_access_addendum,
+                "action_text": _("Check") if has_cron_access else None,
+                "action": send_cron._get_records_action() if has_cron_access else None,
+            }
         # Filter moves that are trying to send via email
         email_moves = moves.filtered(
             lambda m: "email" in moves_data[m]["sending_methods"]
@@ -366,17 +386,24 @@ class AccountMoveSend(models.AbstractModel):
         pdf_report = pdf_report or self._get_default_pdf_report_id(move)
         invoice_template = pdf_report | self.env.ref("account.account_invoices")
         extra_mail_templates = mail_template.report_template_ids - invoice_template
-        filename = move._get_invoice_report_filename(report=pdf_report)
-        return [
-            {
-                "id": f"placeholder_{extra_mail_template.name.lower()}_{filename}",
-                "name": f"{extra_mail_template.name.lower()}_{filename}",
-                "mimetype": "application/pdf",
-                "placeholder": True,
-                "dynamic_report": extra_mail_template.report_name,
-            }
-            for extra_mail_template in extra_mail_templates
-        ]
+        attachments = []
+        for extra_mail_template in extra_mail_templates:
+            if extra_mail_template.print_report_name:
+                filename = move._get_invoice_mail_template_dynamic_report_filename(
+                    report=extra_mail_template
+                )
+            else:
+                filename = f"{extra_mail_template.name.lower()}_{move.name}.pdf"
+            attachments.append(
+                {
+                    "id": f"placeholder_{extra_mail_template.name.lower()}_{filename}",
+                    "name": filename,
+                    "mimetype": "application/pdf",
+                    "placeholder": True,
+                    "dynamic_report": extra_mail_template.report_name,
+                }
+            )
+        return attachments
 
     @api.model
     def _get_invoice_extra_attachments(self, move):
@@ -729,8 +756,8 @@ class AccountMoveSend(models.AbstractModel):
         )
         if new_message.attachment_ids.ids:
             self.env.cr.execute(
-                "UPDATE ir_attachment SET res_id = NULL WHERE id = ANY(%s)",
-                [list(new_message.attachment_ids.ids)],
+                "UPDATE ir_attachment SET res_id = NULL WHERE id IN %s",
+                [tuple(new_message.attachment_ids.ids)],
             )
         new_message.attachment_ids.write(
             {
@@ -772,13 +799,16 @@ class AccountMoveSend(models.AbstractModel):
             .exists()
         ]
 
-        return {
+        params = {
             "author_id": move_data["author_partner_id"],
             "body": move_data["mail_body"],
             "subject": move_data["mail_subject"],
             "partner_ids": move_data["mail_partner_ids"],
             "attachments": mail_attachments,
         }
+        if move_data.get("reply_to"):
+            params["reply_to"] = move_data["reply_to"]
+        return params
 
     @api.model
     def _generate_dynamic_reports(self, moves_data):
@@ -1083,9 +1113,9 @@ class AccountMoveSend(models.AbstractModel):
         # Return generated attachments.
         attachments = self.env["ir.attachment"]
         for move, move_data in success.items():
-            attachments += (
-                self._get_invoice_extra_attachments(move)
-                or move_data["proforma_pdf_attachment"]
+            extra_attachments = self._get_invoice_extra_attachments(move)
+            attachments += extra_attachments or move_data.get(
+                "proforma_pdf_attachment", self.env["ir.attachment"]
             )
 
         return attachments

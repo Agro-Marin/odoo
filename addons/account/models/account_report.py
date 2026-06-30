@@ -1083,7 +1083,7 @@ class AccountReportExpression(models.Model):
                     ):
                         # If we're changing the formula of all the expressions using that tag, rename the tag
                         former_tax_tags._update_field_translations(
-                            "name", {"en_US": vals["formula"]}
+                            "name", {"en_US": vals["formula"].lstrip("-")}
                         )
                     else:
                         # Else, create a new tag. Its the compute functions will make sure it is properly linked to the expressions
