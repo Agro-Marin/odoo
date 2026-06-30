@@ -214,6 +214,7 @@ class AccountPayment(models.Model):
         "account.move",
         string="Reconciled Bills",
         compute="_compute_stat_buttons_from_reconciliation",
+        search="_search_reconciled_invoice_ids",
         help="Invoices whose journal items have been reconciled with these payments.",
     )
     reconciled_bills_count = fields.Integer(
@@ -575,7 +576,9 @@ class AccountPayment(models.Model):
                 )._accessible_branches()[:1]
 
     @api.depends(
-        "reconciled_invoice_ids.payment_state", "move_id.line_ids.amount_residual"
+        "reconciled_invoice_ids.payment_state",
+        "reconciled_bill_ids.payment_state",
+        "move_id.line_ids.amount_residual",
     )
     def _compute_state(self):
         for payment in self:
@@ -594,11 +597,12 @@ class AccountPayment(models.Model):
                 )
             if (
                 payment.state == "in_process"
-                and payment.reconciled_invoice_ids
-                and all(
-                    invoice.payment_state == "paid"
-                    for invoice in payment.reconciled_invoice_ids
+                and (
+                    moves := (
+                        payment.reconciled_invoice_ids | payment.reconciled_bill_ids
+                    )
                 )
+                and all(invoice.payment_state == "paid" for invoice in moves)
             ):
                 payment.state = "paid"
 
