@@ -2893,7 +2893,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             "move_dest_ids": move_dest_ids,
             "partner_id": (
                 self._get_partner_id()
-                if self.rule_id.procure_method in ("make_to_order", "mts_else_mto")
+                if move_dest_ids or self.rule_id.procure_method == "mts_else_mto"
                 else False
             ),
             "route_ids": route,
