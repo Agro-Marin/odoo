@@ -84,7 +84,7 @@ class StockPickingBatch(models.Model):
             estimated_shipping_volume = 0
             done_package_ids = set()
             # packs
-            for pack in self.move_line_ids.result_package_id:
+            for pack in batch.move_line_ids.result_package_id:
                 p_type = pack.package_type_id
                 if pack.shipping_weight:
                     # shipping_weight was computed, so base_weight should be included.
@@ -94,7 +94,7 @@ class StockPickingBatch(models.Model):
                     estimated_shipping_weight += p_type.base_weight or 0
                     estimated_shipping_volume += (p_type.packaging_length * p_type.width * p_type.height) / 1000.0**3
             # move without packs
-            for move_line in self.picking_ids.move_ids.move_line_ids:
+            for move_line in batch.picking_ids.move_ids.move_line_ids:
                 if move_line.result_package_id.id in done_package_ids:
                     continue
                 estimated_shipping_weight += move_line.product_id.weight * move_line.quantity_product_uom
@@ -297,7 +297,7 @@ class StockPickingBatch(models.Model):
         action['context'] = {'default_picking_ids': self.picking_ids.ids}
         return action
 
-    def action_open_label_layout(self):
+    def action_view_label_layout(self):
         if self.env.user.has_group('stock.group_production_lot') and self.move_line_ids.lot_id:
             view = self.env.ref('stock.picking_label_type_form')
             return {
@@ -380,7 +380,7 @@ class StockPickingBatch(models.Model):
             }
         }
 
-    def action_see_packages(self):
+    def action_view_packages(self):
         self.ensure_one()
         if self.state == 'done':
             return {
@@ -415,7 +415,8 @@ class StockPickingBatch(models.Model):
     # -------------------------------------------------------------------------
     @api.model
     def _prepare_name(self, picking_type, sequence_code, company_id):
-        sequence_prefix, sequence_number = (self.env['ir.sequence'].with_company(company_id).next_by_code(sequence_code) or '/').split('/')
+        sequence = self.env['ir.sequence'].with_company(company_id).next_by_code(sequence_code) or '/'
+        sequence_prefix, sequence_number = sequence.rsplit('/', 1)
         return f"{sequence_prefix}/{picking_type.sequence_code}/{sequence_number}"
 
     def _sanity_check(self):
