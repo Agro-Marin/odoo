@@ -1294,7 +1294,7 @@ class StockWarehouseOrderpoint(models.Model):
             "date_order": dates_info["date_order"],
             "date_deadline": date or False,
             "warehouse_id": self.warehouse_id,
-            "orderpoint_id": self,
+            "orderpoint_id": self.trigger == "auto" and self,
         }
         reference = self.env.context.get("origins")
         if reference:
@@ -1453,7 +1453,7 @@ class StockWarehouseOrderpoint(models.Model):
             self.replenishment_uom_id
             or self._get_replenishment_multiple_alternative(qty_to_order)
         )
-        if replenishment_multiple and replenishment_multiple != self.product_id.uom_id:
+        if replenishment_multiple:
             # Replace the UP by DOWN if we don't want to order more quantity than product_max_qty
             qty_to_order = self.product_id.uom_id._compute_quantity(
                 qty_to_order,

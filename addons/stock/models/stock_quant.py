@@ -891,7 +891,8 @@ class StockQuant(models.Model):
         self.inventory_quantity = 0
         if self.env.context.get("inventory_report_mode"):
             self._apply_inventory()
-        self.user_id = self.env.user.id
+        else:
+            self.user_id = self.env.user.id
 
     def _run_least_packages_removal_strategy_astar(self, domain, qty):
         # Fetch the available packages and contents
@@ -1162,6 +1163,23 @@ class StockQuant(models.Model):
         # Consider the inventory_quantity as set => recompute the inventory_diff_quantity if needed
         self.inventory_quantity_set = True
         move_vals = []
+        default_loss_locations = {}
+        quants_with_missing_loss_locations = self.filtered(
+            lambda quant: not quant.product_id.with_company(
+                quant.company_id
+            ).property_stock_inventory
+        )
+        if quants_with_missing_loss_locations:
+            for company in quants_with_missing_loss_locations.mapped("company_id"):
+                loss_location_id = (
+                    self.env["ir.default"]
+                    .with_company(company)
+                    ._get_model_defaults("product.template")
+                    .get("property_stock_inventory")
+                )
+                default_loss_locations[company.id] = self.env[
+                    "stock.location"
+                ].browse(loss_location_id)
         for quant in self:
             # if inventory applied from product's inverse_qty and the inventory_diff_quantity is 0,
             # we skip creating a move with 0 quantity.
@@ -1170,14 +1188,17 @@ class StockQuant(models.Model):
                 and quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) == 0
             ):
                 continue
+            inventory_location = quant.product_id.with_company(
+                quant.company_id
+            ).property_stock_inventory or default_loss_locations.get(
+                quant.company_id.id
+            )
             # Create and validate a move so that the quant matches its `inventory_quantity`.
             if quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) > 0:
                 move_vals.append(
                     quant._get_inventory_move_values(
                         quant.inventory_diff_quantity,
-                        quant.product_id.with_company(
-                            quant.company_id
-                        ).property_stock_inventory,
+                        inventory_location,
                         quant.location_id,
                         package_dest_id=quant.package_id,
                     )
@@ -1187,9 +1208,7 @@ class StockQuant(models.Model):
                     quant._get_inventory_move_values(
                         -quant.inventory_diff_quantity,
                         quant.location_id,
-                        quant.product_id.with_company(
-                            quant.company_id
-                        ).property_stock_inventory,
+                        inventory_location,
                         package_id=quant.package_id,
                     )
                 )
@@ -1796,6 +1815,9 @@ class StockQuant(models.Model):
         action = self.env["ir.actions.act_window"]._for_xml_id(
             "stock.stock_quant_action"
         )
+        action["domain"] = [
+            ("product_id.company_id", "in", ctx.get("allowed_company_ids", []) + [False])
+        ]
 
         form_view = self.env.ref("stock.view_stock_quant_form_editable").id
         if self.env.context.get("inventory_mode") and self.env.user.has_group(
@@ -1920,7 +1942,7 @@ class StockQuant(models.Model):
             and product_id.product_tmpl_id.categ_id.packaging_reserve_method == "full"
         ):
             available_quantity = self.env.context.get("packaging_uom_id")._check_qty(
-                available_quantity, product_id.uom_id, "DOWN"
+                min(quantity, available_quantity), product_id.uom_id, "DOWN"
             )
 
         quantity = min(quantity, available_quantity)

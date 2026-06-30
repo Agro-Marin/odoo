@@ -475,12 +475,13 @@ class StockRule(models.Model):
         )
 
         # when create chained moves for inter-warehouse transfers, set the warehouses as partners
-        if not partner and move_dest_ids:
+        if move_dest_ids:
             move_dest = values["move_dest_ids"]
             if location_dest_id == company_id.internal_transit_location_id:
-                partners = move_dest.location_dest_id.warehouse_id.partner_id
-                if len(partners) == 1:
-                    partner = partners.id
+                if not partner:
+                    partners = move_dest.location_dest_id.warehouse_id.partner_id
+                    if len(partners) == 1:
+                        partner = partners.id
                 move_dest.partner_id = (
                     self.location_src_id.warehouse_id.partner_id
                     or self.company_id.partner_id

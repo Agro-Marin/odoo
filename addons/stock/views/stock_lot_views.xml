@@ -89,8 +89,8 @@
                         invisible="not display_complete">
                         <button class="oe_stat_button" name="action_lot_open_transfers"
                             type="object" icon="fa-truck" help="Transfers"
-                            invisible="delivery_count == 0">
-                            <field name="delivery_count" widget="statinfo" string="Transfers" />
+                            invisible="count_transfer_outgoing == 0">
+                            <field name="count_transfer_outgoing" widget="statinfo" string="Transfers" />
                         </button>
                         <button name="action_lot_open_quants"
                             groups="stock.group_stock_multi_locations" icon="fa-arrows"
