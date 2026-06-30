@@ -130,20 +130,25 @@ export class PosOrderlineAccounting extends Base {
     }
 
     get comboTotalPrice() {
-        const allLines = this.getAllLinesInCombo();
-        return allLines.reduce((total, line) => total + line.displayPrice, 0);
+        const childLines = this.getAllLinesInCombo().filter((line) => !line.combo_line_ids.length);
+        return childLines.reduce((total, line) => total + line.displayPrice, 0);
     }
 
     get comboTotalPriceWithoutTax() {
-        const allLines = this.getAllLinesInCombo();
-        return allLines.reduce((total, line) => total + line.displayPriceUnitExcl, 0);
+        const childLines = this.getAllLinesInCombo().filter((line) => !line.combo_line_ids.length);
+        return childLines.reduce((total, line) => total + line.displayPriceUnitExcl, 0);
     }
 
     get taxGroupLabels() {
-        return this.tax_ids
-            ?.map((tax) => tax.tax_group_id?.pos_receipt_label)
-            .filter((label) => label)
-            .join(" ");
+        let taxes_id = this.tax_ids;
+        if (this.order_id.fiscal_position_id) {
+            taxes_id = this.order_id.fiscal_position_id.getTaxesAfterFiscalPosition(this.tax_ids);
+        }
+        return [
+            ...new Set(
+                taxes_id?.map((tax) => tax.tax_group_id.pos_receipt_label).filter((label) => label)
+            ),
+        ].join(" ");
     }
 
     delete(record, opts = {}) {
