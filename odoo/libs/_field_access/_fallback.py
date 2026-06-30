@@ -164,6 +164,32 @@ def sort_ids_by_values(
     return tuple(p[0] for p in pairs)
 
 
+def sort_ids_by_cache(
+    field_cache: dict,
+    ids: tuple,
+    pending: object,
+    reverse: bool,
+    null_high: bool | None = None,
+) -> tuple | None:
+    """Fused cache-read + sort for the single-field ``sorted()`` fast path.
+
+    Reads ``field_cache[id]`` for each id directly instead of building an
+    intermediate values list. Returns ``None`` on the first cache miss or
+    ``pending`` value (caller falls back to the record-based sort); otherwise
+    the sorted id tuple. Semantically ``batch_cache_values`` + ``sort_ids_by_values``.
+    """
+    values = []
+    _get = field_cache.get
+    _MISSING = object()
+    _append = values.append
+    for id_ in ids:
+        value = _get(id_, _MISSING)
+        if value is _MISSING or value is pending:
+            return None
+        _append(value)
+    return sort_ids_by_values(ids, values, reverse, null_high)
+
+
 def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
     """Group record IDs by their corresponding values.
 

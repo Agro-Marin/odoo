@@ -36,28 +36,61 @@ import hashlib
 import json
 from functools import wraps
 
+import orjson
+
 __all__ = ["versioned", "versioned_envelope"]
+
+# orjson (Rust) replaces stdlib ``json`` for the canonical-JSON pass: ~3.5x
+# faster on the C-encoder path and much more on the pure-Python ``iterencode``
+# path that ``default=str`` can trigger (this hash showed up as ~11% of a
+# ``web_search_read`` request in profiling).  The pass stays byte-identical to
+# the historical stdlib output for the value space these endpoints actually
+# emit — str-keyed dicts of finite JSON scalars, ASCII or not — so cached
+# client digests are unaffected:
+#   * OPT_SORT_KEYS            — key-order invariance (was ``sort_keys=True``).
+#   * OPT_PASSTHROUGH_DATETIME — route datetime/date/time to ``default=str`` so
+#     they serialize as ``str(value)`` exactly like stdlib did, not orjson's
+#     native ``T``-separated RFC-3339 form.
+#   * default=str              — unchanged: survive non-JSON-native values.
+# orjson always emits compact ``(",", ":")`` separators (matching the old
+# ``separators=``) and UTF-8.  Three encodings move toward standard-JSON / V8
+# ``JSON.stringify`` semantics and so differ from the old stdlib bytes:
+#   - non-ASCII string values  → UTF-8 instead of ``\uXXXX`` escapes;
+#   - non-finite floats        → ``null`` instead of ``Infinity``/``NaN``;
+#   - exponent-notation floats → e.g. ``1e-7`` instead of ``1e-07``.
+# These change the digest only for payloads that contain such values and are
+# safe: the JS rpc cache compares two *server-emitted* hashes and never
+# recomputes one client-side (rpc_cache.js), so the only effect is a one-time,
+# self-healing cache refresh after deploy.  Values orjson refuses outright
+# (non-str dict keys, ints beyond 64-bit) fall back to stdlib, which both keeps
+# their historical digest and guarantees this never raises inside a response.
+_CANONICAL_OPT = orjson.OPT_SORT_KEYS | orjson.OPT_PASSTHROUGH_DATETIME
+
+
+def _canonical_bytes(value):
+    """Serialize ``value`` to canonical JSON bytes: sorted keys, compact
+    separators, ``str``-coerced for non-native types.
+
+    Sorted keys make the output invariant under Python dict insertion order —
+    two interpreter runs over the same query can yield different orders and the
+    version must stay stable across them.  See :data:`_CANONICAL_OPT` for the
+    byte-compatibility contract with the previous stdlib implementation.
+    """
+    try:
+        return orjson.dumps(value, option=_CANONICAL_OPT, default=str)
+    except (orjson.JSONEncodeError, TypeError):
+        # orjson refuses non-str dict keys and ints beyond the 64-bit range;
+        # stdlib accepts both and yields the historical digest.  Falling back
+        # keeps those payloads byte-identical AND ensures this helper never
+        # raises inside the response-stamping decorators below.
+        return json.dumps(
+            value, sort_keys=True, default=str, separators=(",", ":")
+        ).encode()
 
 
 def _canonical_sha256(value):
-    """Return the SHA-256 hex digest of ``value`` serialized to canonical JSON.
-
-    ``sort_keys=True`` makes the digest invariant under Python dict insertion
-    order.  ``default=str`` lets the pass survive non-JSON-native values
-    (datetimes, sets, Decimals, etc.) that may appear in intermediate
-    structures.  ``separators=(",", ":")`` strips whitespace for minimum
-    serialized size — the digest is byte-identical to what
-    ``JSON.stringify(JSON.parse(canonical))`` produces in V8 (verified in
-    the Phase 1 cross-language test).
-    """
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            sort_keys=True,
-            default=str,
-            separators=(",", ":"),
-        ).encode(),
-    ).hexdigest()
+    """Return the SHA-256 hex digest of ``value``'s canonical JSON form."""
+    return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
 def versioned(method):

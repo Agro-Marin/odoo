@@ -7,6 +7,7 @@ __all__ = [
     "batch_cache_values",
     "batch_group_ids",
     "scalar_cache_get",
+    "sort_ids_by_cache",
     "sort_ids_by_values",
 ]
 
@@ -16,6 +17,7 @@ from odoo_rust import (  # type: ignore[import-untyped]
     batch_cache_get,
     batch_cache_values,
     batch_group_ids,
+    sort_ids_by_cache,
     sort_ids_by_values,
 )
 

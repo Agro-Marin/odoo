@@ -110,15 +110,27 @@ class _Relational(Field["BaseModel"]):
         field_cache = self._get_cache(env)
 
         # retrieve values in cache, and fetch missing ones
-        _sentinel = SENTINEL
-        _get = field_cache.get
+        #
+        # Fast happy path: read each value with a plain subscript.  A genuine
+        # cache miss raises KeyError (handled below); zero-cost exceptions make
+        # the no-miss case as cheap as the bytecode subscript itself, with no
+        # per-record bound-method call.  The PENDING marker can only sit in cache
+        # for a *stored computed* field, so the identity guard short-circuits away
+        # entirely for the common non-computed relational field (e.g. a plain
+        # many2one) — this is the path exercised by ``records.mapped('partner_id')``.
+        check_pending = self.is_stored_computed
         vals = []
+        _append = vals.append
         for record_id in records._ids:
-            value = _get(record_id, _sentinel)
-            if value is not _sentinel and value is not PENDING:
-                vals.append(value)
-                continue
-            # cache miss
+            try:
+                value = field_cache[record_id]
+            except KeyError:
+                pass
+            else:
+                if not (check_pending and value is PENDING):
+                    _append(value)
+                    continue
+            # cache miss (or a PENDING value still awaiting recompute): fetch it
             if self.store and record_id and len(vals) < len(records) - PREFETCH_MAX:
                 # a lot of missing records, just fetch that field
                 remaining = records[len(vals) :]
@@ -144,7 +156,7 @@ class _Relational(Field["BaseModel"]):
                 remaining._prefetch_ids = records._prefetch_ids
                 super().__get__(remaining, owner)
             # we have the record now
-            vals.append(field_cache[record_id])
+            _append(field_cache[record_id])
 
         return self.convert_to_record_multi(vals, records)
 

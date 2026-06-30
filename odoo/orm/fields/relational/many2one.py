@@ -74,13 +74,15 @@ class Many2one(_Relational):
     ) -> BaseModel | typing.Self:
         if record is None:
             return self
+        ids = record._ids
+        if len(ids) != 1:
+            # multi-record or empty: delegate to the _Relational batch path,
+            # which performs the access check and pending guard itself — doing
+            # them here too would just repeat that work on every mapped() call.
+            return super().__get__(record, owner)
         env = record.env
         if not (not self.groups or env.su or record._has_field_access(self, "read")):
             record._check_field_access(self, "read")
-        ids = record._ids
-        if len(ids) != 1:
-            # multi-record or empty: delegate to _Relational batch path
-            return super().__get__(record, owner)
         if self.is_stored_computed and env._core.has_pending_field(self):
             self.recompute(record)
         value = _scalar_cache_get(env.__dict__, self, ids[0], PENDING, SENTINEL)

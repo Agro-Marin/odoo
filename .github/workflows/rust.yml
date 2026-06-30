@@ -96,6 +96,7 @@ jobs:
               "batch_cache_values",    # odoo/libs/_field_access
               "batch_group_ids",       # odoo/libs/_field_access
               "sort_ids_by_values",    # odoo/libs/_field_access
+              "sort_ids_by_cache",     # odoo/libs/_field_access, orm/models/mixins/traversal.py
           ]
           missing = [s for s in required if not hasattr(odoo_rust, s)]
           if missing:

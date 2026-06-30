@@ -26,6 +26,9 @@ from odoo_rust import (
     batch_group_ids as _rust_batch_group_ids,
 )
 from odoo_rust import (
+    sort_ids_by_cache as _rust_sort_ids_by_cache,
+)
+from odoo_rust import (
     sort_ids_by_values as _rust_sort_ids_by_values,
 )
 
@@ -36,6 +39,7 @@ from odoo.libs._field_access._fallback import (
     batch_cache_values,
     batch_group_ids,
     scalar_cache_get,
+    sort_ids_by_cache,
     sort_ids_by_values,
 )
 
@@ -61,6 +65,7 @@ class _FieldAccessTestMixin:
     batch_cache_values: Callable | None = None
     scalar_cache_get: Callable | None = None
     sort_ids_by_values: Callable | None = None
+    sort_ids_by_cache: Callable | None = None
     batch_group_ids: Callable | None = None
 
     # --- batch_cache_fill ---
@@ -384,6 +389,42 @@ class _FieldAccessTestMixin:
         result = self.sort_ids_by_values(ids, values, False, null_high=None)
         self.assertEqual(result, (2, 1))
 
+    # --- sort_ids_by_cache (fused cache-read + sort) ---
+
+    def test_sort_cache_basic_asc(self) -> None:
+        ids = (3, 1, 2)
+        cache = {3: "c", 1: "a", 2: "b"}
+        result = self.sort_ids_by_cache(cache, ids, PENDING, False)
+        self.assertEqual(result, (1, 2, 3))
+
+    def test_sort_cache_desc(self) -> None:
+        ids = (3, 1, 2)
+        cache = {3: "c", 1: "a", 2: "b"}
+        result = self.sort_ids_by_cache(cache, ids, PENDING, True)
+        self.assertEqual(result, (3, 2, 1))
+
+    def test_sort_cache_null_high_true(self) -> None:
+        ids = (1, 2, 3)
+        cache = {1: "b", 2: None, 3: "a"}
+        result = self.sort_ids_by_cache(cache, ids, PENDING, False, null_high=True)
+        self.assertEqual(result, (3, 1, 2))  # "a", "b", then None last
+
+    def test_sort_cache_single_and_empty(self) -> None:
+        self.assertEqual(self.sort_ids_by_cache({5: "z"}, (5,), PENDING, False), (5,))
+        self.assertEqual(self.sort_ids_by_cache({}, (), PENDING, False), ())
+
+    def test_sort_cache_miss_returns_none(self) -> None:
+        """A missing id abandons the fast path (caller does record-based sort)."""
+        ids = (1, 2, 3)
+        cache = {1: "a", 3: "c"}  # id 2 absent
+        self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False))
+
+    def test_sort_cache_pending_returns_none(self) -> None:
+        """A PENDING value is treated as a miss → None."""
+        ids = (1, 2, 3)
+        cache = {1: "a", 2: PENDING, 3: "c"}
+        self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False))
+
     # --- batch_group_ids ---
 
     def test_group_basic(self) -> None:
@@ -447,6 +488,7 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_values = staticmethod(batch_cache_values)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
         cls.sort_ids_by_values = staticmethod(sort_ids_by_values)
+        cls.sort_ids_by_cache = staticmethod(sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(batch_group_ids)
 
 
@@ -467,6 +509,7 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_values = staticmethod(_rust_batch_cache_values)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
         cls.sort_ids_by_values = staticmethod(_rust_sort_ids_by_values)
+        cls.sort_ids_by_cache = staticmethod(_rust_sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(_rust_batch_group_ids)
 
 
