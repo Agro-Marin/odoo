@@ -135,8 +135,6 @@ class ProductSupplierinfo(models.Model):
         for rec in self:
             if self.env.context.get("default_product_id"):
                 rec.product_id = self.env.context.get("default_product_id")
-            elif not rec.product_id and rec.product_variant_count == 1:
-                rec.product_id = rec.product_tmpl_id.product_variant_id
 
     @api.onchange("product_tmpl_id")
     def _onchange_product_tmpl_id(self):
@@ -177,6 +175,7 @@ class ProductSupplierinfo(models.Model):
         return self.filtered(
             lambda s: (not s.company_id or s.company_id.id == company_id.id)
             and (
-                s.partner_id.active and (not s.product_id or s.product_id == product_id)
+                s.partner_id.sudo().active
+                and (not s.product_id or s.product_id == product_id)
             )
         )

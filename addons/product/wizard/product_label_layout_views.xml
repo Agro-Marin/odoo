@@ -27,7 +27,7 @@
         </field>
     </record>
 
-    <record id="action_open_label_layout" model="ir.actions.act_window">
+    <record id="action_view_label_layout" model="ir.actions.act_window">
         <field name="name">Print Labels</field>
         <field name="res_model">product.label.layout</field>
         <field name="view_ids"
