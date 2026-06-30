@@ -1,5 +1,3 @@
-from markupsafe import Markup
-
 from odoo import models, _
 
 
