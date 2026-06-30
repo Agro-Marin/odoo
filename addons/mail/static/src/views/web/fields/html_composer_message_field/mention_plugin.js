@@ -1,9 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { makeMentionFromOption } from "@mail/core/common/suggestion_hook";
 import { MentionList } from "@mail/core/web/mention_list";
-import { router } from "@web/core/browser/router";
-import { renderToElement } from "@web/core/utils/render";
-import { url } from "@web/core/utils/urls";
 export class MentionPlugin extends Plugin {
     static id = "mention";
     static dependencies = ["overlay", "dom", "history", "input", "selection"];
@@ -21,19 +19,12 @@ export class MentionPlugin extends Plugin {
 
     onSelect(ev, option) {
         this.dependencies.selection.focusEditable();
-        const mentionBlock = renderToElement("mail.Wysiwyg.mentionLink", {
-            option,
-            href: url(
-                router.stateToUrl({
-                    model: option.partner ? "res.partner" : "discuss.channel",
-                    resId: option.partner ? option.partner.id : option.channel.id,
-                }),
-            ),
+        const mentionBlock = makeMentionFromOption(option, {
+            thread: this.config.thread,
         });
-        const nameNode = this.document.createTextNode(
-            `${option.partner ? "@" : "#"}${option.label}`,
-        );
-        mentionBlock.appendChild(nameNode);
+        if (!mentionBlock) {
+            return;
+        }
         this.historySavePointRestore();
         this.dependencies.dom.insert(mentionBlock);
         this.dependencies.history.addStep();
@@ -46,7 +37,7 @@ export class MentionPlugin extends Plugin {
                 props: {
                     onSelect: this.onSelect.bind(this),
                     thread: this.config.thread,
-                    type: ev.data === "@" ? "partner" : "channel",
+                    type: ev.data === "@" ? "Partner" : "Thread",
                     close: () => {
                         this.mentionList.close();
                     },

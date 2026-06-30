@@ -150,6 +150,7 @@ class TestChannelInternals(MailCommon, HttpCase):
                                 "mail.thread": self._filter_threads_fields(
                                     {
                                         "display_name": "Group",
+                                        "has_mail_thread": True,
                                         "id": test_group.id,
                                         "model": "discuss.channel",
                                         "module_icon": "/mail/static/description/icon.png",
@@ -168,7 +169,11 @@ class TestChannelInternals(MailCommon, HttpCase):
                                     },
                                 ),
                                 "res.users": self._filter_users_fields(
-                                    {"id": self.env.user.id, "share": False},
+                                    {
+                                        "id": self.env.user.id,
+                                        "partner_id": self.env.user.partner_id.id,
+                                        "share": False,
+                                    },
                                 ),
                             },
                             "id": test_group.id,
@@ -211,7 +216,11 @@ class TestChannelInternals(MailCommon, HttpCase):
                                 },
                             ),
                             "res.users": self._filter_users_fields(
-                                {"id": self.test_user.id, "share": False},
+                                {
+                                    "id": self.test_user.id,
+                                    "partner_id": self.test_partner.id,
+                                    "share": False,
+                                },
                             ),
                         },
                     },
@@ -271,6 +280,7 @@ class TestChannelInternals(MailCommon, HttpCase):
                                 {
                                     "id": self.test_user.id,
                                     "employee_ids": [],
+                                    "partner_id": self.test_partner.id,
                                     "share": False,
                                 },
                             ),

@@ -19,6 +19,7 @@ import {
     openFormView,
     pasteFiles,
     patchUiSize,
+    registerArchs,
     scroll,
     setupChatHub,
     start,
@@ -30,6 +31,7 @@ import { Deferred, animationFrame, tick } from "@odoo/hoot-mock";
 import {
     Command,
     getService,
+    makeDialogMockEnv,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -39,6 +41,8 @@ import {
 import { Composer } from "@mail/core/common/composer";
 import { edit, press, queryFirst } from "@odoo/hoot-dom";
 import { browser } from "@web/core/browser/browser";
+import { MailComposerFormController } from "@mail/chatter/web/mail_composer_form";
+import { useSubEnv } from "@odoo/owl";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -997,6 +1001,45 @@ test("Replying on a channel should focus composer initially", async () => {
     await contains(".o-mail-Composer-input:focus");
 });
 
+test("removing attachment from composer should not delete it from template", async () => {
+    patchWithCleanup(MailComposerFormController.prototype, {
+        setup() {
+            if (!this.env.dialogData) {
+                useSubEnv({ dialogData: {} });
+            }
+            super.setup();
+        },
+    });
+    const pyEnv = await startServer();
+    const attachmentId = pyEnv["ir.attachment"].create({
+        name: "TemplateAttachment",
+        res_model: "mail.template", // Attachment of mail.template
+    });
+    const templateId = pyEnv["mail.template"].create({
+        name: "TestTemplate",
+        attachment_ids: [attachmentId],
+    });
+    registerArchs({
+        "mail.compose.message,false,form": `
+            <form string="Compose Email" js_class="mail_composer_form">
+                <field name="attachment_ids" widget="mail_composer_attachment_list"/>
+            </form>`,
+    });
+    await start();
+    const composer = pyEnv["mail.compose.message"].create({
+        model: "res.partner",
+        attachment_ids: [attachmentId],
+    });
+    await openFormView("mail.compose.message", composer);
+    await contains(".o_field_mail_composer_attachment_list", { text: "TemplateAttachment" });
+    await click(".o_field_mail_composer_attachment_list button");
+    await contains(".o_field_mail_composer_attachment_list li", { count: 0 });
+    const [updatedTemplate] = pyEnv["mail.template"].read([templateId]);
+    expect(updatedTemplate.attachment_ids).toEqual([attachmentId], {
+        message: "The attachment must remain on the template after being removed from the composer",
+    });
+});
+
 test("remove an uploading attachment", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "test" });
@@ -1008,6 +1051,35 @@ test("remove an uploading attachment", async () => {
     await contains(".o-mail-AttachmentContainer.o-isUploading:contains(text.txt)");
     await click(".o-mail-Attachment-unlink");
     await contains(".o-mail-Composer .o-mail-AttachmentContainer", { count: 0 });
+});
+
+test("Can dismiss mail composer with 500+ active_ids", async () => {
+    // When there are more than 500 active_ids, _compute_res_ids
+    // short-circuits and leaves res_ids empty for performance reasons.
+    // In that case, the code must rely on active_ids and dismissing
+    // the dialog must not crash.
+    const pyEnv = await startServer();
+    const env = await makeDialogMockEnv();
+    const partnerId = pyEnv["res.partner"].create({ name: "Partner" });
+    registerArchs({
+        "mail.compose.message,false,form": `
+            <form string="Compose Email" js_class="mail_composer_form">
+                <field name="model"/>
+                <field name="partner_ids"/>
+            </form>`,
+    });
+    await start();
+    const composerId = pyEnv["mail.compose.message"].create({
+        model: "res.partner",
+        res_ids: "", // simulate >500 active_ids case
+        partner_ids: [],
+    });
+    await openFormView("mail.compose.message", composerId, {
+        context: { active_ids: [partnerId] },
+    });
+    expect(env.dialogData).not.toBeEmpty()
+    // Dialog is closed without errors
+    await env.dialogData.dismiss()
 });
 
 test("Uploading multiple files in the composer create multiple temporary attachments", async () => {
@@ -1666,6 +1738,31 @@ test("parse link correctly in html composer", async () => {
     await contains(editor.editable, { text: "www.google.com", count: 0 });
     await pasteText(editor, "www.baidu.com");
     await contains(editor.editable.querySelector("a[target='_blank']"), { text: "www.baidu.com" });
+});
+
+test.tags("html composer");
+test("mention insertion adds FEFF markers for safe cursor placement", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "channel",
+        name: "General",
+    });
+    await start();
+    await openDiscuss(channelId);
+    const composerService = getService("mail.composer");
+    composerService.setHtmlComposer();
+    await focus(".o-mail-Composer-html.odoo-editor-editable");
+    const editor = {
+        document,
+        editable: document.querySelector(".o-mail-Composer-html.odoo-editor-editable"),
+    };
+    await htmlInsertText(editor, "@admin");
+    await click(".o-mail-NavigableList-item:text('Mitchell Admin')");
+    await contains(".o-mail-Composer-html.odoo-editor-editable:text('@Mitchell Admin')");
+
+    const mention = editor.editable.querySelector("a.o_mail_redirect");
+    expect(mention?.previousSibling?.textContent).toBe("\uFEFF");
+    expect(mention?.nextSibling?.textContent).toBe("\uFEFF");
 });
 
 test.tags("html composer");

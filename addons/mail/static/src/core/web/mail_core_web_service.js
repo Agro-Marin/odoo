@@ -82,7 +82,8 @@ export class MailCoreWeb {
                     if (
                         thread &&
                         message.needaction &&
-                        notifId > thread.message_needaction_counter_bus_id
+                        notifId > thread.message_needaction_counter_bus_id &&
+                        thread.message_needaction_counter > 0
                     ) {
                         thread.message_needaction_counter--;
                     }

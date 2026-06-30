@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
 import { htmlReplace, htmlReplaceAll } from "@web/core/utils/dom/html";
+import { EMOJI_REGEX } from "@mail/utils/common/format";
 /**
  * Adds a span with a CSS class around chains of emojis in the message for styling purposes.
  *
@@ -16,10 +17,9 @@ import { htmlReplace, htmlReplaceAll } from "@web/core/utils/dom/html";
 export function formatText(message) {
     message = htmlReplaceAll(
         message,
-        /(\p{Emoji_Presentation}+)/gu,
-        (_, compoundEmoji) =>
+        EMOJI_REGEX,
+        (compoundEmoji) =>
             markup`<span class='o_mail_emoji'>${compoundEmoji}</span>`,
     );
-    message = htmlReplace(message, /(?:\r\n|\r|\n)/g, () => markup`<br>`);
-    return message;
+    return htmlReplace(message, /(?:\r\n|\r|\n)/g, () => markup`<br>`);
 }

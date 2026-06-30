@@ -930,12 +930,11 @@ class MailMessage(models.Model):
                                 "/web/image/%s?access_token=%s"
                                 % (attachment.id, attachment.access_token),
                                 name,
+                                attachment.id,
                             ]
-                    return '%s%s alt="%s"' % (
-                        data_to_url[key][0],
-                        match.group(3),
-                        data_to_url[key][1],
-                    )
+                    # data-attachment-id helps identify image attachments that are already inserted in the body
+                    # this is notably used to avoid displaying them twice in the chatter
+                    return f'{data_to_url[key][0]}{match.group(3)} alt="{data_to_url[key][1]}" data-attachment-id="{data_to_url[key][2]}"'
 
                 values["body"] = _image_dataurl.sub(
                     base64_to_boundary, values["body"] or ""
@@ -1266,6 +1265,7 @@ class MailMessage(models.Model):
                     "id", "in", accessible_tracking_value_ids.mail_message_id.ids
                 )
             domain &= message_domain
+        if search_term or is_notification is not None:
             res["count"] = self.search_count(domain)
         if around is not None:
             messages_before = self.search(
@@ -1409,7 +1409,11 @@ class MailMessage(models.Model):
             # sudo: mail.message: access to author_id is allowed
             Store.One(
                 "author_id",
-                ["avatar_128", "is_company", Store.One("main_user_id", "share")],
+                [
+                    "avatar_128",
+                    "is_company",
+                    Store.One("main_user_id", ["partner_id", "share"]),
+                ],
                 dynamic_fields=lambda m: m._get_store_partner_name_fields(),
                 sudo=True,
             ),
@@ -1539,6 +1543,10 @@ class MailMessage(models.Model):
         record_fields = [
             # sudo: mail.thread - if mentionned in a non accessible thread, name is allowed
             Store.Attr("display_name", sudo=True),
+            Store.Attr(
+                "has_mail_thread",
+                lambda record: isinstance(record, self.env.registry["mail.thread"]),
+            ),
             Store.Attr(
                 "module_icon",
                 lambda record: modules.module.get_module_icon(
