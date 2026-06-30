@@ -12,10 +12,10 @@
                     type="object"
                     class="oe_stat_button"
                     icon="fa-truck"
-                    invisible="delivery_count == 0"
+                    invisible="count_transfer_outgoing == 0"
                     groups="stock.group_stock_user"
                 >
-                    <field name="delivery_count" widget="statinfo" string="Delivery" />
+                    <field name="count_transfer_outgoing" widget="statinfo" string="Delivery" />
                 </button>
             </button>
             <group name="sale_shipping" position="attributes">

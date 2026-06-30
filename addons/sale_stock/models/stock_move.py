@@ -106,7 +106,9 @@ class StockMove(models.Model):
 
             so_line_vals = {
                 "move_ids": [Command.link(move.id)],
-                "name": product.display_name,
+                "name": product.with_context(
+                    lang=sale_order.partner_id.lang
+                ).get_product_multiline_description_sale(),
                 "order_id": sale_order.id,
                 "product_id": product.id,
                 "product_qty": 0,
@@ -229,6 +231,8 @@ class StockMove(models.Model):
         # to pass sale_line_id from SO to MO in mto
         if self.sale_line_id:
             res["sale_line_id"] = self.sale_line_id.id
+            if self.sale_line_id.analytic_distribution:
+                res["analytic_distribution"] = self.sale_line_id.analytic_distribution
         return res
 
     def _reassign_sale_lines(self, sale_order):
