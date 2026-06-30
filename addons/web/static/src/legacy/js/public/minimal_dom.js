@@ -109,13 +109,13 @@ export function makeButtonHandler(
     );
 
     return function (ev) {
-        const result = fct.apply(this, /** @type {any} */ (arguments));
+        const handlerResult = fct.apply(this, /** @type {any} */ (arguments));
 
         const buttonEl = /** @type {Element | null} */ (ev.target)?.closest(
             BUTTON_HANDLER_SELECTOR,
         );
         if (!(buttonEl instanceof HTMLElement)) {
-            return result;
+            return handlerResult;
         }
 
         // Disable the button for the duration of the handler's action
@@ -123,14 +123,23 @@ export function makeButtonHandler(
         // a 'real' debounce creation useless. Also, during the debouncing
         // part, the button is disabled without any visual effect.
         buttonEl.classList.add("pe-none");
-        new Promise((resolve) => setTimeout(resolve, DEBOUNCE)).then(() => {
+        let showDebouncedLoading = false;
+        const addLoadingIfPending = () => {
             buttonEl.classList.remove("pe-none");
-            const restore = /** @type {(value: any) => any} */ (
-                addLoadingEffect(/** @type {HTMLButtonElement} */ (buttonEl))
-            );
-            return Promise.resolve(result).then(restore, restore);
-        });
+            if (showDebouncedLoading) {
+                const restore = /** @type {(value: any) => any} */ (
+                    addLoadingEffect(/** @type {HTMLButtonElement} */ (buttonEl))
+                );
+                Promise.resolve(handlerResult).then(restore, restore);
+            }
+        };
+        Promise.race([
+            handlerResult,
+            new Promise((resolve) => setTimeout(resolve, DEBOUNCE)).then(() => {
+                showDebouncedLoading = true;
+            }),
+        ]).then(addLoadingIfPending, addLoadingIfPending);
 
-        return result;
+        return handlerResult;
     };
 }

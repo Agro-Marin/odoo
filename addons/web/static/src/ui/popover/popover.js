@@ -29,9 +29,10 @@ function useEarlyExternalListener(target, eventName, handler, eventParams) {
  *
  * This also handles the case where an iframe is clicked.
  *
+ * @param {Popover} popover
  * @param {(node?: Node) => any} callback
  */
-function useClickAway(callback) {
+function useClickAway(popover, callback) {
     function blurHandler(/** @type {Event} */ ev) {
         const target = /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
         if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
@@ -54,6 +55,25 @@ function useClickAway(callback) {
     useEarlyExternalListener(window, "popstate", navigationHandler, {
         capture: true,
     });
+    for (const iframeEl of document.querySelectorAll("iframe")) {
+        useEarlyExternalListener(
+            iframeEl.contentWindow,
+            "pointerdown",
+            () => {
+                const popupEl = popover.popoverRef.el;
+                let checkEl = iframeEl.parentElement;
+                while (checkEl) {
+                    if (checkEl === popupEl) {
+                        // Ignore iframes within popup
+                        return;
+                    }
+                    checkEl = checkEl.parentElement;
+                }
+                callback(iframeEl);
+            },
+            { capture: true, once: true },
+        );
+    }
 }
 
 const POPOVERS = new WeakMap();
@@ -170,7 +190,7 @@ export class Popover extends Component {
         });
 
         if (this.props.target.isConnected) {
-            useClickAway(this.onClickAway.bind(this));
+            useClickAway(this, this.onClickAway.bind(this));
 
             if (this.props.closeOnEscape) {
                 useHotkey("escape", () => this.props.close());
