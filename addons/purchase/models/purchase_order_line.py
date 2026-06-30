@@ -7,7 +7,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero, float_round
+from odoo.libs.numbers.float_utils import float_compare, float_is_zero
 from odoo.tools.translate import _
 
 from odoo.addons.purchase import const
@@ -1432,8 +1432,7 @@ class PurchaseOrderLine(models.Model):
             price_unit, self.product_uom_id
         )
 
-        # Round to precision
-        return float_round(price_unit, precision_digits=self._get_price_precision())
+        return price_unit
 
     def _get_price_from_product_cost(self):
         """Get price from product standard cost (fallback when no seller).
@@ -1471,8 +1470,7 @@ class PurchaseOrderLine(models.Model):
             False,
         )
 
-        # Round and return
-        return float_round(price_unit, precision_digits=self._get_price_precision())
+        return price_unit
 
     def _get_qty_to_consider_for_billing(self):
         """Get quantity to consider based on product's billing policy.
