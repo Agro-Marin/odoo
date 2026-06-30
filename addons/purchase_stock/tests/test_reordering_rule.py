@@ -794,7 +794,7 @@ class TestReorderingRule(TransactionCase):
         orderpoint.with_user(french_user).action_replenish()
         self.assertRecordValues(po_line, [{"name": "[A] produit en français", "product_qty": 9.0}])
         self.assertEqual(len(po_line.order_id.line_ids), 1)
-        self.assertRecordValues(po_line.move_dest_ids, [{"product_uom_qty": 9.0}])
+        self.assertRecordValues(po_line.move_dest_ids, [{"product_uom_qty": 5.0}, {"product_uom_qty": 4.0}])
         orderpoint.product_min_qty = 10.0
         orderpoint.product_max_qty = 20.0
         # run the scheduler to test the use case where the user is always the SUPERUSER
@@ -1279,11 +1279,11 @@ class TestReorderingRule(TransactionCase):
         with self.assertRaises(UserError):
             orderpoint.snoozed_until = add(Date.today(), days=1)
 
-    def test_supplierinfo_last_purchase_date(self):
+    def test_supplierinfo_date_last_purchase(self):
         """
-        Test that the last_purchase_date on the replenishment information is correctly computed
+        Test that the date_last_purchase on the replenishment information is correctly computed
         A user creates two purchase orders
-        The last_purchase_date on the supplier info should be computed as the most recent date_order from the purchase orders
+        The date_last_purchase on the supplier info should be computed as the most recent date_order from the purchase orders
         """
         res_partner = self.env['res.partner'].create({
             'name': 'Test Partner',
@@ -1323,7 +1323,7 @@ class TestReorderingRule(TransactionCase):
         po2.action_confirm()
         replenishment_info = self.env['stock.replenishment.info'].create({'orderpoint_id': orderpoint.id})
         supplier_info = replenishment_info.supplierinfo_ids
-        self.assertEqual(supplier_info.last_purchase_date, dt.today().date(), "The last_purhchase_date should be set to the most recent date_order from the purchase orders")
+        self.assertEqual(supplier_info.date_last_purchase, dt.today().date(), "The last_purhchase_date should be set to the most recent date_order from the purchase orders")
 
     def test_reordering_rule_multicurrency(self):
         """

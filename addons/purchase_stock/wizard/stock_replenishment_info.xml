@@ -10,7 +10,7 @@
         <field name="arch" type="xml">
             <field name="delay" position="after">
                 <field name="show_set_supplier_button" column_invisible="True" />
-                <field name="last_purchase_date" width="auto" />
+                <field name="date_last_purchase" width="auto" />
                 <button name="action_set_supplier" type="object" string="Set as Supplier"
                     class="btn btn-link"
                     invisible="not show_set_supplier_button" />

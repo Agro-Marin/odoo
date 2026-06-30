@@ -140,9 +140,10 @@ class ProductReplenish(models.TransientModel):
         buy_route = self.env["stock.rule"].search([
             ("action", "=", "buy"),
             ("company_id", "=", company.id),
+            ("picking_type_id.code", "=", "incoming"),
         ]).route_id
         if buy_route and product_tmpl_id.seller_ids:
-            domain = Domain.OR([domain, Domain("id", "=", buy_route.id)])
+            domain = Domain.OR([domain, Domain("id", "in", buy_route.ids)])
         return domain
 
     def _prepare_run_values(self):

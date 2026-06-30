@@ -9,16 +9,16 @@
             <xpath expr="//header/button[@name='action_send_rfq']" position="after">
                 <button name="action_view_picking"
                     string="Receive" class="oe_highlight" type="object"
-                    invisible="is_shipped or state != 'done' or incoming_picking_count == 0"
+                    invisible="is_shipped or state != 'done' or count_transfer_incoming == 0"
                     data-hotkey="y" groups="stock.group_stock_user" />
             </xpath>
             <button name="action_view_invoice" position="before">
                 <button type="object"
                     name="action_view_picking"
                     class="oe_stat_button"
-                    icon="fa-truck" invisible="incoming_picking_count == 0"
+                    icon="fa-truck" invisible="count_transfer_incoming == 0"
                     groups="stock.group_stock_user">
-                    <field name="incoming_picking_count" widget="statinfo" string="Receipt"
+                    <field name="count_transfer_incoming" widget="statinfo" string="Receipt"
                         help="Incoming Shipments" />
                 </button>
             </button>
