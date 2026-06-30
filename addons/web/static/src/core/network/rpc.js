@@ -184,6 +184,18 @@ export class ConnectionAbortedError extends NetworkError {
     name = "ConnectionAbortedError";
 }
 
+/**
+ * Raised when the request body exceeds the maximum size accepted by the
+ * server (or a reverse proxy in front of it, e.g. nginx's
+ * ``client_max_body_size``), which replies with an HTTP 413 response.
+ */
+export class RequestEntityTooLargeError extends NetworkError {
+    constructor() {
+        super("The request you sent exceeded the maximum size limit configured on the server");
+        this.name = "RequestEntityTooLargeError";
+    }
+}
+
 export class ConnectionTimeoutError extends NetworkError {
     /**
      * @param {string} url
@@ -540,6 +552,14 @@ function _rpcOnce(url, params, settings) {
             // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
             // — common when Odoo is behind a reverse proxy (nginx, etc.)
             const error = new ConnectionLostError(url);
+            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+            reject(error);
+            return;
+        }
+        if (response.status === 413) {
+            // If the request content size exceeds the limit set by a reverse
+            // proxy (e.g. nginx), it returns an HTTP 413 with a non-JSON body.
+            const error = new RequestEntityTooLargeError();
             rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
             reject(error);
             return;

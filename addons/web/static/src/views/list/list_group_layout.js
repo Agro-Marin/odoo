@@ -8,8 +8,6 @@
 
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
 
-const DEFAULT_GROUP_PAGER_COLSPAN = 1;
-
 /**
  * Find the index of the first column that has an aggregate value.
  *
@@ -71,12 +69,7 @@ export function getAggregateColumns(columns, fields, aggregates) {
  */
 export function getGroupNameCellColSpan(columns, fields, aggregates, { hasSelectors }) {
     const firstAggregateIndex = getFirstAggregateIndex(columns, fields, aggregates);
-    let colspan;
-    if (firstAggregateIndex > -1) {
-        colspan = firstAggregateIndex;
-    } else {
-        colspan = Math.max(1, columns.length - DEFAULT_GROUP_PAGER_COLSPAN);
-    }
+    let colspan = firstAggregateIndex > -1 ? firstAggregateIndex : columns.length;
     if (hasSelectors) {
         colspan++;
     }
@@ -89,26 +82,13 @@ export function getGroupNameCellColSpan(columns, fields, aggregates, { hasSelect
  * @param {Column[]} columns
  * @param {Object} fields
  * @param {Object} aggregates
- * @param {{ hasOpenFormViewColumn: boolean }} options
  * @returns {number}
  */
-export function getGroupPagerCellColspan(
-    columns,
-    fields,
-    aggregates,
-    { hasOpenFormViewColumn },
-) {
-    const lastAggregateIndex = getLastAggregateIndex(columns, fields, aggregates);
-    let colspan;
-    if (lastAggregateIndex > -1) {
-        colspan = columns.length - lastAggregateIndex - 1;
-    } else {
-        colspan = columns.length > 1 ? DEFAULT_GROUP_PAGER_COLSPAN : 0;
-    }
-    if (hasOpenFormViewColumn) {
-        colspan++;
-    }
-    return colspan;
+// TODO: rename in master
+export function getGroupPagerCellColspan(columns, fields, aggregates) {
+    // this colspan is the number of columns after the last column with aggregates
+    const lastIndex = getLastAggregateIndex(columns, fields, aggregates);
+    return lastIndex > -1 ? columns.length - lastIndex - 1 : 0;
 }
 
 /**

@@ -386,7 +386,9 @@ export class KanbanController extends MultiRecordController {
     /** @returns {Object[]} Field definitions eligible for data export (excludes properties). */
     getExportableFields() {
         return Object.keys(this.model.root.config.activeFields)
-            .map((e) => this.props.fields[e])
+            .map((e) => this.model.root.fields[e])
+            .filter(Boolean)
+            .filter((field) => field.exportable !== false)
             .filter((field) => field.type !== "properties");
     }
 

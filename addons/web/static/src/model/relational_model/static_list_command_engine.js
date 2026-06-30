@@ -63,6 +63,7 @@ export function applyCommands(
     // For performance reasons, we accumulate removed ids (commands DELETE and UNLINK), and at
     // the end, we filter once list.records and list._currentIds to remove them.
     const removedIds = {};
+    const currentIdsSet = new Set(list._currentIds);
     const recordsToLoad = [];
     for (const command of commands) {
         switch (command[0]) {
@@ -173,7 +174,7 @@ export function applyCommands(
                     });
                 }
                 if (
-                    list._currentIds.includes(record.resId) &&
+                    currentIdsSet.has(record.resId) &&
                     !removedIds[record.resId]
                 ) {
                     break;
@@ -198,6 +199,7 @@ export function applyCommands(
                     }
                 }
                 list._currentIds.push(record.resId);
+                currentIdsSet.add(record.resId);
                 addOwnCommand([command[0], command[1], false]);
                 list.count++;
                 break;

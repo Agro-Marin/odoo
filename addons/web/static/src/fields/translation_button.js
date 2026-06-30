@@ -4,9 +4,11 @@
 /** @module @web/fields/translation_button - Translation button component and useTranslationDialog hook for translatable fields */
 
 import { Component } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { localization } from "@web/core/l10n/localization";
 import { useOwnedDialogs } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
+import { RelationalRecord } from "@web/model/relational_model/record";
 
 import { TranslationDialog } from "./translation_dialog.js";
 
@@ -23,7 +25,11 @@ export function useTranslationDialog() {
     const addDialog = useOwnedDialogs();
 
     async function openTranslationDialog({ record, fieldName }) {
-        const saved = await record.save();
+        // in case of DynamicList list views model.root won't be a RelationalRecord but a DynamicList itself
+        const saved =
+            record.model.root instanceof RelationalRecord
+                ? await record.model.root.save()
+                : await record.save();
         if (!saved) {
             return;
         }
@@ -55,9 +61,25 @@ export class TranslationButton extends Component {
         this.translationDialog = useTranslationDialog();
     }
 
+    buttonClasses() {
+        return !this.isClickable ? { "text-muted": true } : undefined;
+    }
+    buttonTooltip() {
+        return !this.isClickable ? _t("Save this record and its parent to translate") : undefined;
+    }
+
     /** @returns {boolean} */
     get isMultiLang() {
         return localization.multiLang;
+    }
+    get isClickable() {
+        // a new record still created inside an x2many has no id of its own to translate
+        const { record } = this.props;
+        return !(
+            record.isNew &&
+            record.model.root instanceof RelationalRecord &&
+            record.model.root !== record
+        );
     }
     /** @returns {string} Uppercase language code (e.g. "EN") */
     get lang() {
@@ -65,6 +87,9 @@ export class TranslationButton extends Component {
     }
 
     onClick() {
+        if (!this.isClickable) {
+            return;
+        }
         const { fieldName, record } = this.props;
         this.translationDialog({ fieldName, record });
     }

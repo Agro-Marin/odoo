@@ -426,7 +426,10 @@ export class Navigator {
      */
     _updateActiveItemIndex(index) {
         if (this.items[index]) {
-            this.items[index].setActive();
+            const shouldFocus = !this.items.some(
+                (item) => item.target === document.activeElement,
+            );
+            this.items[index].setActive(shouldFocus);
         } else {
             // Route through _setActiveItem so the transition is consistent
             // (setInactive on the previous item + a single index-change path).

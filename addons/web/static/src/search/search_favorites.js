@@ -21,7 +21,14 @@ export function irFilterToFavorite(irFilter) {
     const userIds = irFilter.user_ids;
     const groupNumber =
         userIds.length === 1 ? FAVORITE_PRIVATE_GROUP : FAVORITE_SHARED_GROUP;
-    const context = evaluateExpr(irFilter.context, user.context);
+    let context;
+    let isInvalid = false;
+    try {
+        context = evaluateExpr(irFilter.context, user.context);
+    } catch {
+        context = {};
+        isInvalid = true;
+    }
     let groupBys = [];
     if (context.group_by) {
         groupBys = Array.isArray(context.group_by)
@@ -32,12 +39,9 @@ export function irFilterToFavorite(irFilter) {
     let sort;
     try {
         sort = JSON.parse(irFilter.sort);
-    } catch (err) {
-        if (err instanceof SyntaxError) {
-            sort = [];
-        } else {
-            throw err;
-        }
+    } catch {
+        isInvalid = true;
+        sort = [];
     }
     const orderBy = sort.map((order) => {
         let fieldName;
@@ -63,8 +67,9 @@ export function irFilterToFavorite(irFilter) {
         serverSideId: irFilter.id,
         type: "favorite",
         userIds,
+        isInvalid,
     };
-    if (irFilter.is_default) {
+    if (irFilter.is_default && !isInvalid) {
         favorite.isDefault = irFilter.is_default;
     }
     return favorite;

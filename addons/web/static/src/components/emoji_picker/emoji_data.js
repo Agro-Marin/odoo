@@ -3722,6 +3722,7 @@ const _getEmojisData1 = () =>
     _t("hundred points") +
     `",
     "shortcodes": [
+        ":100:",
         ":hundred_points:"
     ]
 },

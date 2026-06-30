@@ -6,7 +6,6 @@
 import { onWillPatch, onWillRender, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
-import { unique } from "@web/core/utils/collections/arrays";
 import { useModelWithSampleData } from "@web/model/model";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
@@ -264,18 +263,31 @@ export class ListController extends MultiRecordController {
      * @returns {any[]} unique exportable field objects
      */
     getExportableFields() {
-        return unique(
+        const { activeFields, fields } = this.model.root;
+        // Columns currently visible in the list (not invisible and, if optional, toggled on).
+        const visibleColumns = new Set(
             this.props.archInfo.columns
                 .filter((col) => col.type === "field")
-                .filter((col) => !col.optional || this.optionalActiveFields[col.name])
                 .filter(
                     (col) =>
                         !evaluateBooleanExpr(col.column_invisible, this.props.context),
                 )
-                .map((col) => this.props.fields[col.name])
-                .filter((field) => field.exportable !== false)
-                .filter((field) => field.type !== "properties"),
+                .filter((col) => !col.optional || this.optionalActiveFields[col.name])
+                .map((col) => col.name),
         );
+        return Object.keys(activeFields)
+            .map((fieldName) => fields[fieldName])
+            .filter(Boolean)
+            .filter((field) => {
+                // Export a sub-property only when its own optional
+                // column is currently shown.
+                if (field.relatedPropertyField) {
+                    return this.optionalActiveFields[field.name];
+                }
+                return visibleColumns.has(field.name);
+            })
+            .filter((field) => field.exportable !== false)
+            .filter((field) => field.type !== "properties");
     }
 
     /**

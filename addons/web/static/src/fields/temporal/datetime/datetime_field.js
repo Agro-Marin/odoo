@@ -194,7 +194,6 @@ export class DateTimeField extends Component {
             },
             onClose: () => {
                 this.picker.activeInput = "";
-                this.state.value = this.getRecordValue();
                 // pendingFocusField was already set (or kept "") by onApply.
             },
             onApply: async () => {

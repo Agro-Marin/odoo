@@ -95,7 +95,7 @@ export async function executeActionButton(
     params,
     { isEmbeddedAction, newWindow } = {},
 ) {
-    if (!params.name) {
+    if (!params.name && !params.special) {
         return;
     }
     // determine the action to execute according to the params

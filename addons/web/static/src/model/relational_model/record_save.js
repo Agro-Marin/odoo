@@ -11,6 +11,7 @@
 
 import { markRaw, markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { modelLog } from "@web/core/utils/asset_log";
 import { FetchRecordError } from "./errors.js";
 import { getBasicEvalContext } from "./field_context.js";
@@ -184,7 +185,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             kwargs,
         );
     } catch (e) {
-        if (onError) {
+        if (onError && !(e instanceof RequestEntityTooLargeError)) {
             return onError(e, {
                 discard: () => record._discard(),
                 retry: () => save(record, { reload, onError, nextId }),

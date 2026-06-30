@@ -85,12 +85,22 @@ export const resultSetCacheInvalidatorService = {
                 return;
             }
             const method = detail?.data?.params?.method;
+            const model = detail?.data?.params?.model;
+            // Installing a language is infrequent but invalidates virtually
+            // everything cached (selections, translated labels, formats). Rather
+            // than scope it, nuke the whole RPC cache so the freshly installed
+            // language shows up immediately (e.g. in the user preference form)
+            // without an extra reload.
+            if (method === "lang_install" && model === "base.language.install") {
+                rpcBus.trigger(RpcEvent.CLEAR_CACHES);
+                return;
+            }
             if (!RESULT_SET_REMOVING_METHODS.has(method)) {
                 return;
             }
             rpcBus.trigger(RpcEvent.CLEAR_CACHES, {
                 tables: RESULT_SET_TABLES,
-                model: detail.data.params.model,
+                model,
             });
         });
     },

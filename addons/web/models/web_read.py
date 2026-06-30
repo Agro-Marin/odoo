@@ -433,14 +433,28 @@ class Base(models.AbstractModel):
                 if field_spec.get("order"):
                     # Include the field's context when reapplying to preserve settings like active_test=False
                     field_context = field.context or {}
-                    co_records = (
-                        co_records.with_context(active_test=False)
-                        .search(
-                            [("id", "in", co_records.ids)],
-                            order=field_spec["order"],
+                    if not (
+                        co_records
+                        and co_records.env["ir.model.access"].check(
+                            co_records._name, "read", raise_exception=False
                         )
-                        .with_context(**co_records.env.context, **field_context)
-                    )
+                    ):
+                        # If the comodel is not readable, keep the x2many empty.
+                        co_records = co_records.browse()
+                    else:
+                        try:
+                            co_records = (
+                                co_records.with_context(active_test=False)
+                                .search(
+                                    [("id", "in", co_records.ids)],
+                                    order=field_spec["order"],
+                                )
+                                .with_context(**co_records.env.context, **field_context)
+                            )
+                        # Keep UserError if the model does not accept the search
+                        # (e.g. account.code.mapping).
+                        except (AccessError, UserError):
+                            co_records = co_records.browse()
                     order_key = {
                         co_record.id: index
                         for index, co_record in enumerate(co_records)

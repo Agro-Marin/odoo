@@ -4,7 +4,6 @@
 /** @module @web/core/utils/dom/autoresize - useAutoresize hook to auto-grow input/textarea elements on content change */
 
 import { useEffect } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 
 /**
  * This is used on text inputs or textareas to automatically resize it based on its
@@ -108,8 +107,6 @@ function resizeInput(input, options) {
     // This mesures the maximum width of the input which can get from the flex layout.
     input.style.width = "100%";
     const maxWidth = input.clientWidth;
-    // Somehow Safari 16 computes input sizes incorrectly. This is fixed in Safari 17
-    const isSafari16 = /Version\/16.+Safari/i.test(browser.navigator.userAgent);
     // Minimum width of the input
     input.style.width = "10px";
     if (input.value === "" && input.placeholder !== "") {
@@ -120,7 +117,7 @@ function resizeInput(input, options) {
     // Input scrollWidth can differ from span/block text rendering width by ~10px
     // in Chromium, causing visual jumping when toggling between readonly and edit.
     const textWidth = measureTextWidth(input);
-    const width = textWidth + (isSafari16 ? 8 : 0) + (options?.offset || 0);
+    const width = textWidth + (options?.offset || 0);
     if (width > maxWidth) {
         input.style.width = "100%";
         return;
