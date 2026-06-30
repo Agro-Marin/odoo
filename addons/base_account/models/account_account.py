@@ -295,6 +295,8 @@ class AccountAccount(models.Model):
 
     @api.constrains("company_ids")
     def _check_company_consistency(self):
+        # Need to invalidate the sudo cache as we might have just written on `company_ids`
+        self.invalidate_recordset(fnames=["company_ids"])
         if accounts_without_company := self.filtered(
             lambda a: not a.sudo().company_ids
         ):
@@ -334,6 +336,7 @@ class AccountAccount(models.Model):
                 "id",
                 "in",
                 self.with_company(self.env.company.root_id)
+                .with_context(active_test=False)
                 .sudo()
                 ._search([("code_store", operator, value)]),
             ),
@@ -633,7 +636,9 @@ class AccountAccount(models.Model):
             cache = {start_code}
 
         def code_is_available(new_code):
-            return new_code not in cache and not self.sudo().search_count(
+            return new_code not in cache and not self.with_context(
+                active_test=False
+            ).sudo().search_count(
                 [
                     ("code", "=", new_code),
                     "|",

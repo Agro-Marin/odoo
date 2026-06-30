@@ -134,7 +134,6 @@ class AccountTax(models.Model):
     tax_scope = fields.Selection(
         [("service", "Services"), ("consu", "Goods")],
         string="Tax Scope",
-        help="Restrict the use of taxes to a type of product.",
     )
     amount_type = fields.Selection(
         default="percent",
@@ -385,9 +384,7 @@ class AccountTax(models.Model):
             total_pos_factor = sum(
                 tax_reps.filtered(lambda tax_rep: tax_rep.factor > 0.0).mapped("factor")
             )
-            if total_pos_factor and float_compare(
-                total_pos_factor, 1.0, precision_digits=2
-            ):
+            if float_compare(total_pos_factor, 1.0, precision_digits=2):
                 raise ValidationError(
                     _(
                         "Invoice and credit note distribution should have a total factor (+) equals to 100."
@@ -686,11 +683,13 @@ class AccountTax(models.Model):
                 "mail_create_nosubscribe": True,
                 "mail_auto_subscribe_no_notify": True,
                 "mail_create_nolog": True,
+                "from_account_tax_creation": True,  # At create,
             }
         )
-        return super(AccountTax, self.with_context(context)).create(
+        taxes = super(AccountTax, self.with_context(context)).create(
             [self._sanitize_vals(vals) for vals in vals_list]
         )
+        return taxes.with_context(self.env.context)
 
     def write(self, vals):
         return super().write(self._sanitize_vals(vals))
@@ -1521,6 +1520,7 @@ class AccountTax(models.Model):
         manual_tax_amounts = (
             extra_tax_data.get("manual_tax_amounts") or {} if extra_tax_data else None
         )
+        extra_tax_data_tax_ids = set(manual_tax_amounts or {})
         sorted_taxes = base_line["tax_ids"]._flatten_taxes_and_sort_them()[0]
         if (
             extra_tax_data
@@ -1538,10 +1538,8 @@ class AccountTax(models.Model):
                 base_line["quantity"], extra_tax_data["quantity"]
             )
             == 0
-            and all(
-                str(tax.id) in extra_tax_data["manual_tax_amounts"]
-                for tax in sorted_taxes
-            )
+            and len(sorted_taxes) == len(extra_tax_data_tax_ids)
+            and all(str(tax.id) in extra_tax_data_tax_ids for tax in sorted_taxes)
         ):
             results["price_unit"] = extra_tax_data["price_unit"]
 
@@ -2176,8 +2174,17 @@ class AccountTax(models.Model):
             current_mode = mode
             if mode == "mixed":
                 current_mode = "included"
-                for _base_line, taxes_data in values["base_line_x_taxes_data"]:
-                    if any(not tax_data["price_include"] for tax_data in taxes_data):
+                for base_line, taxes_data in values["base_line_x_taxes_data"]:
+                    if any(
+                        not tax_data["price_include"]
+                        for tax_data in taxes_data
+                        if (
+                            not base_line["currency_id"].is_zero(
+                                tax_data["tax_amount_currency"]
+                            )
+                            or not company.currency_id.is_zero(tax_data["tax_amount"])
+                        )
+                    ):
                         current_mode = "excluded"
                         break
 
@@ -2187,6 +2194,7 @@ class AccountTax(models.Model):
                 ("", company.currency_id),
             ):
                 if current_mode == "excluded":
+                    # Price-excluded rounding.
                     raw_total_excluded = values[
                         f"target_total_excluded{delta_currency_indicator}"
                     ]
@@ -2208,6 +2216,7 @@ class AccountTax(models.Model):
                         for base_line, _taxes_data in values["base_line_x_taxes_data"]
                     ]
                 else:
+                    # Price-included rounding.
                     raw_total_included = (
                         values[f"target_total_excluded{delta_currency_indicator}"]
                         + values[f"target_tax_amount{delta_currency_indicator}"]
@@ -2239,7 +2248,7 @@ class AccountTax(models.Model):
                     target_factors=target_factors,
                 )
                 for target_factor, amount_to_distribute in zip(
-                    target_factors, amounts_to_distribute, strict=True
+                    target_factors, amounts_to_distribute
                 ):
                     base_line = target_factor["base_line"]
                     base_line["tax_details"][
@@ -3172,6 +3181,7 @@ class AccountTax(models.Model):
         self, price, prod_taxes, line_taxes, company_id
     ):
         if company_id:
+            # To keep the same behavior as in _compute_tax_id
             prod_taxes = prod_taxes.filtered(lambda tax: tax.company_id == company_id)
             line_taxes = line_taxes.filtered(lambda tax: tax.company_id == company_id)
         return self._fix_tax_included_price(price, prod_taxes, line_taxes)
@@ -3181,6 +3191,167 @@ class AccountTax(models.Model):
         if is_html_empty(self.description):
             return ""
         return html2plaintext(self.description)
+
+    @api.ondelete(at_uninstall=False)
+    def unlink_except_tax_used(self):
+        if any(self.mapped("is_used")):
+            raise ValidationError(
+                self.env._(
+                    "You cannot delete taxes that are currently in use. Consider archiving them instead."
+                )
+            )
+
+    @api.model
+    def _import_retrieve_tax_from_invoice_predictive(self, tax_values):
+        # Check if 'account_accountant' is installed.
+        if "payment_state_before_switch" not in self.env["account.move"]._fields:
+            return
+
+        invoice_predictive = tax_values.get("invoice_predictive")
+        if not invoice_predictive:
+            return
+
+        def search_predictive(values):
+            domain = values["static_domain"]
+            predicted_tax_ids = self.env["account.move.line"]._predict_specific_tax(
+                move=invoice_predictive["invoice"],
+                name=invoice_predictive["name"],
+                partner=invoice_predictive["partner"],
+                amount_type=tax_values["amount_type"],
+                amount=tax_values["amount"],
+                type_tax_use=tax_values["type_tax_use"],
+            )
+            return (
+                self.env["account.tax"]
+                .browse(predicted_tax_ids)
+                .filtered_domain(domain)[:1]
+            )
+
+        return {
+            "criteria": [
+                {
+                    "search_method": search_predictive,
+                    "cache_key": frozendict(invoice_predictive),
+                }
+            ],
+        }
+
+    @api.model
+    def _import_retrieve_tax_from_price_include_exclude(self, tax_values):
+        price_include = tax_values.get("price_include")
+        fiscal_position = tax_values.get("fiscal_position")
+
+        fpos_domain = []
+        if fiscal_position:
+            fpos_domain = Domain("fiscal_position_ids", "=", fiscal_position.id)
+            if fiscal_position.is_domestic:
+                fpos_domain |= Domain("fiscal_position_ids", "=", False)
+
+        criteria = []
+        if not price_include:
+            if fiscal_position:
+                criteria.append(
+                    {"domain": [("price_include", "=", False)] + fpos_domain}
+                )
+            criteria.append({"domain": [("price_include", "=", False)]})
+        if price_include is None or price_include:
+            if fiscal_position:
+                criteria.append(
+                    {"domain": [("price_include", "=", True)] + fpos_domain}
+                )
+            criteria.append({"domain": [("price_include", "=", True)]})
+
+        return {"criteria": criteria}
+
+    @api.model
+    def _import_retrieve_tax(self, search_plan, company, tax_values_list):
+        cache = self.env.cr.cache.setdefault("retrieved_tax_map", {}).setdefault(
+            company.id, {}
+        )
+
+        static_domain = Domain(self._check_company_domain(company))
+        for tax_values in tax_values_list:
+            tax_domain = (
+                Domain("amount_type", "=", tax_values["amount_type"])
+                & Domain("type_tax_use", "=", tax_values["type_tax_use"])
+                & Domain("amount", "=", tax_values["amount"])
+                & Domain(
+                    [
+                        *(
+                            [
+                                (
+                                    "country_id",
+                                    "=",
+                                    tax_values["invoice_predictive"][
+                                        "invoice"
+                                    ].tax_country_id.id,
+                                )
+                            ]
+                            if "invoice_predictive" in tax_values
+                            else []
+                        )
+                    ]
+                )
+            )
+            orders = ["sequence", "id"]
+            if name := tax_values.get("name"):
+                tax_domain &= Domain("name", "=", name)
+            if tax_exigibility := tax_values.get("tax_exigibility"):
+                tax_domain &= Domain("tax_exigibility", "=", tax_exigibility)
+            if (
+                ubl_cii_tax_category_code := tax_values.get("ubl_cii_tax_category_code")
+            ) and "ubl_cii_tax_category_code" in self._fields:
+                tax_domain &= Domain(
+                    "ubl_cii_tax_category_code",
+                    "in",
+                    (ubl_cii_tax_category_code, False),
+                )
+                orders.insert(0, "ubl_cii_tax_category_code")
+
+            for plan in search_plan:
+                tax = None
+                plan_values = plan(tax_values)
+                if not plan_values:
+                    continue
+
+                for criteria in plan_values["criteria"]:
+                    domain = criteria.get("domain")
+                    search_method = criteria.get("search_method")
+                    if domain:
+                        domain = tax_domain & Domain(domain)
+                        cache_key = repr(domain.optimize(self.env["account.tax"]))
+                    else:
+                        cache_key = criteria.get("cache_key")
+                        if cache_key:
+                            cache_key = (cache_key, str(tax_domain))
+
+                    # Look at the cache if the value has already been tested with this key.
+                    if cache_key and cache_key in cache:
+                        if tax := cache[cache_key]:
+                            tax_values["tax"] = tax
+                            break
+                        else:
+                            continue
+
+                    if domain:
+                        full_domain = static_domain & Domain(domain)
+                        tax = self.search(full_domain, order=",".join(orders), limit=1)
+                    elif search_method:
+                        tax = search_method(
+                            {
+                                **criteria,
+                                "static_domain": tax_domain & static_domain,
+                            }
+                        )
+
+                    if cache_key:
+                        cache[cache_key] = tax
+                    if tax:
+                        tax_values["tax"] = tax
+                        break
+
+                if tax:
+                    break
 
 
 # ════════════════════════════════════════════════════════════════════════
