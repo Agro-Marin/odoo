@@ -1457,8 +1457,8 @@ class ProjectProject(models.Model):
         )
         # Hide/Show task waiting subtype when task dependencies feature is disabled/enabled
         if res or res is False:
-            self.env.ref("project.mt_task_waiting").hidden = not res
-            self.env.ref("project.mt_project_task_waiting").hidden = not res
+            self.env.ref("project.mt_task_waiting").sudo().hidden = not res
+            self.env.ref("project.mt_project_task_waiting").sudo().hidden = not res
 
     def _inverse_allow_milestones(self) -> None:
         self._check_project_group_with_field(
@@ -1505,10 +1505,17 @@ class ProjectProject(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         copy_from_template = self.env.context.get("copy_from_template")
+        has_project_stage_feature = False
+        if copy_from_template and "phase_id" not in default:
+            has_project_stage_feature = self.env.user.has_group(
+                "project.group_project_stages"
+            )
         for project, vals in zip(self, vals_list, strict=True):
             if project.is_template and not copy_from_template:
                 vals["is_template"] = True
             if copy_from_template:
+                if has_project_stage_feature:
+                    vals["phase_id"] = project.phase_id.id
                 for field in self._get_template_field_blacklist():
                     if field in vals and field not in default:
                         del vals[field]
@@ -1954,7 +1961,7 @@ class ProjectProject(models.Model):
         group = self.env.ref(group_name)
         base_group_user = self.env.ref("base.group_user")
         has_project_field_set = bool(
-            self.env["project.project"].search_count([(field_name, "=", True)], limit=1)
+            self.env["project.project"].sudo().search_count([(field_name, "=", True)], limit=1)
         )
         res = None
 
@@ -2681,7 +2688,7 @@ class ProjectProject(models.Model):
         if request_list and "followers" in request_list:
             store.add(
                 self,
-                {"collaborator_ids": Store.Many(self.collaborator_ids.partner_id, [])},
+                {"collaborator_ids": Store.Many(self.sudo().collaborator_ids.partner_id, [])},
                 as_thread=True,
             )
 
@@ -2771,6 +2778,14 @@ class ProjectProject(models.Model):
             config["params"]["callback_data"] = {
                 "method": "create_template_from_project_undo_callback",
                 "args": [self.id, callbacks],
+                "post_action": {
+                    "type": "ir.actions.client",
+                    "tag": "display_notification",
+                    "params": {
+                        "type": "success",
+                        "message": self.env._("Template converted back to regular project."),
+                    },
+                },
             }
         return {
             "type": "ir.actions.client",
@@ -2787,6 +2802,7 @@ class ProjectProject(models.Model):
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
+                "type": "success",
                 "message": self.env._("Template converted back to regular project."),
                 "next": {
                     "type": "ir.actions.client",
