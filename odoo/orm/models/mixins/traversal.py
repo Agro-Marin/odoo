@@ -19,6 +19,7 @@ from odoo.tools import SQL
 from odoo.tools.misc import PENDING, SENTINEL
 
 from ... import decorators as api
+from ..._recordset import is_recordset
 from ..._typing import DomainType
 from ...domain import Domain
 from ...parsing import regex_order
@@ -178,20 +179,15 @@ class TraversalMixin(_ModelStubs):
             return result
 
         if self:
-            # Import here to avoid circular imports
-            from ..base import BaseModel
-
             vals = [func(rec) for rec in self]
-            if isinstance(vals[0], BaseModel):
+            if is_recordset(vals[0]):
                 return vals[0].union(*vals[1:])
             return vals
         else:
             # we want to follow-up the comodel from the function
             # so we pass an empty recordset
-            from ..base import BaseModel
-
             vals = func(self)
-            return vals if isinstance(vals, BaseModel) else []
+            return vals if is_recordset(vals) else []
 
     @api.private
     def filtered(self, func: str | Callable[[Self], bool] | Domain) -> Self:
@@ -234,6 +230,13 @@ class TraversalMixin(_ModelStubs):
             # Falls back to __get__ for missed indices (list(self) preserves
             # prefetch groups).
             field = self._fields[func]
+            if callable(getattr(field, "translate", None)):
+                # Per-term-translated fields cache ``{lang: value}`` dicts the
+                # C cache scanner cannot read; resolve per record via __get__.
+                _field_get = field.__get__
+                return self.browse(
+                    rec._ids[0] for rec in self if _field_get(rec)
+                )
             field.ensure_access(self[0:1])
             field.ensure_computed(self)
             field_cache = field._get_cache(self.env)
@@ -475,6 +478,11 @@ class TraversalMixin(_ModelStubs):
                 return None
             field = _fields.get(field_name)
             if field is None or field.type not in _SORTABLE:
+                return None
+            if callable(getattr(field, "translate", None)):
+                # Per-term-translated fields cache ``{lang: value}`` dicts (a
+                # LangProxyDict), not plain scalars; the Rust cache sorter needs
+                # scalar dict values. Same exclusion as mapped()/grouped().
                 return None
             desc = (match["direction"] or "").upper() == "DESC"
             nulls_raw = (match["nulls"] or "").upper()

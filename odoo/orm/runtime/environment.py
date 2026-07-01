@@ -40,7 +40,7 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, Field
     from ..components.core import OrmCore
     from ..primitives import IdType
-    from .backend import InMemoryBackend
+    from .backend import StorageBackend
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -291,7 +291,7 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.transaction.core
 
     @property
-    def backend(self) -> InMemoryBackend | None:
+    def backend(self) -> StorageBackend | None:
         """The active persistence backend, or ``None`` for the PostgreSQL path.
 
         Framework CRUD code dispatches row I/O through ``env.backend`` when it is

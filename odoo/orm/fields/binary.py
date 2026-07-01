@@ -23,6 +23,11 @@ if typing.TYPE_CHECKING:
 # Binary data is returned as memoryview by psycopg.
 _BINARY = memoryview
 
+# First byte of SVG-ish content: 'P' is the first 6 bits of '<' (0x3C) base64
+# encoded, '<' is a plaintext XML tag opening. Detected to restrict SVG upload
+# to system users. Module-level so it is not rebuilt on every conversion.
+_SVG_MAGIC_BYTES = frozenset({b"P", b"<"})
+
 
 class Binary(Field[bytes | typing.Literal[False]]):
     """Encapsulates a binary content (e.g. a file).
@@ -63,13 +68,9 @@ class Binary(Field[bytes | typing.Literal[False]]):
         if not value:
             return None
         # Detect SVG content to restrict its upload to system users.
-        magic_bytes = {
-            b"P",  # first 6 bits of '<' (0x3C) b64 encoded
-            b"<",  # plaintext XML tag opening
-        }
         if isinstance(value, str):
             value = value.encode()
-        if validate and value[:1] in magic_bytes:
+        if validate and value[:1] in _SVG_MAGIC_BYTES:
             try:
                 decoded_value = base64.b64decode(
                     value.translate(None, delete=b"\r\n"), validate=True

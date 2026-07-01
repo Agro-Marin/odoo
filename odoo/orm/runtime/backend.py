@@ -24,7 +24,10 @@ from __future__ import annotations
 import logging
 import typing
 
-from odoo.tools import Query
+from odoo.exceptions import LockError
+from odoo.tools import Query, partition
+
+from ..primitives import NewId
 
 if typing.TYPE_CHECKING:
     from ..components.storage import DictBackend
@@ -33,6 +36,78 @@ if typing.TYPE_CHECKING:
     from ..models.base import BaseModel
 
 _logger = logging.getLogger("odoo.orm.backend")
+
+
+@typing.runtime_checkable
+class StorageBackend(typing.Protocol):
+    """The persistence contract the CRUD mixins dispatch to.
+
+    ``Environment.backend`` is ``None`` for the PostgreSQL fast path (the mixins
+    then run SQL inline -- production never allocates a backend object) or a
+    concrete :class:`StorageBackend` for the in-memory test tier. Making the
+    contract explicit lets the type checker flag a backend that forgets a method,
+    and lets ``test_backend_protocol`` assert every method has a dispatch site --
+    the safeguard that turns "a new persistence op silently runs SQL against the
+    in-memory store" from a latent bug into a failed test (as it did for the
+    row-lock methods). ``supports_parent_store`` is an attribute, not a method.
+    """
+
+    supports_parent_store: bool
+
+    def create_rows(
+        self,
+        model: BaseModel,
+        stored_list: list[dict[str, typing.Any]],
+        columns: list[str],
+        col_fields: list[Field],
+    ) -> list[int]: ...
+
+    def update_rows(
+        self, model: BaseModel, fnames: tuple[str, ...], rows: list[tuple]
+    ) -> None: ...
+
+    def fetch(
+        self,
+        model: BaseModel,
+        query: Query,
+        column_fields: typing.Iterable[Field],
+        other_fields: typing.Iterable[Field],
+    ) -> BaseModel: ...
+
+    def search(
+        self,
+        model: BaseModel,
+        domain: Domain,
+        offset: int,
+        limit: int | None,
+        order: str | None,
+    ) -> Query: ...
+
+    def as_query(self, model: BaseModel, ordered: bool = True) -> Query: ...
+
+    def existing_ids(
+        self, model: BaseModel, ids: typing.Iterable[int]
+    ) -> set[int]: ...
+
+    def lock_for_update(
+        self, model: BaseModel, *, allow_referencing: bool = False
+    ) -> None: ...
+
+    def try_lock_for_update(
+        self,
+        model: BaseModel,
+        *,
+        allow_referencing: bool = False,
+        limit: int | None = None,
+    ) -> BaseModel: ...
+
+    def delete(
+        self,
+        model: BaseModel,
+        sub_ids: typing.Iterable[int],
+        Data: BaseModel,
+        Attachment: BaseModel,
+    ) -> tuple[BaseModel, BaseModel]: ...
 
 
 class InMemoryBackend:
@@ -246,6 +321,41 @@ class InMemoryBackend:
     def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
         """Return the subset of real ``ids`` that currently exist in storage."""
         return set(self.storage.contains_ids(model._table, ids))
+
+    # -- lock ---------------------------------------------------------------
+    def lock_for_update(
+        self, model: BaseModel, *, allow_referencing: bool = False
+    ) -> None:
+        """In-memory equivalent of ``SELECT ... FOR UPDATE``.
+
+        There are no concurrent transactions to contend with, so a row "locks"
+        iff it exists; mirror the SQL path's ``LockError`` when some requested
+        real id is absent.
+        """
+        ids = {id_ for id_ in model._ids if id_}
+        if not ids:
+            return
+        if len(self.storage.contains_ids(model._table, ids)) != len(ids):
+            raise LockError(model.env._("Cannot grab a lock on records"))
+
+    def try_lock_for_update(
+        self,
+        model: BaseModel,
+        *,
+        allow_referencing: bool = False,
+        limit: int | None = None,
+    ) -> BaseModel:
+        """In-memory equivalent of ``FOR UPDATE SKIP LOCKED``.
+
+        Every existing row is lockable (no concurrent lockers), so return the
+        requested records that exist, in id order, capped at ``limit``.
+        """
+        new_ids, real = partition(lambda i: isinstance(i, NewId), model._ids)
+        lockable = self.storage.contains_ids(model._table, real) | set(new_ids)
+        locked = [i for i in model._ids if i in lockable]
+        if limit is not None:
+            locked = locked[:limit]
+        return model.browse(locked)
 
     # -- unlink -------------------------------------------------------------
     def delete(

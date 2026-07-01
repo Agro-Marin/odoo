@@ -140,19 +140,21 @@ class Many2oneReference(Integer):
         model_ids = self._record_ids_per_res_model(records)
 
         for invf in records.pool.field_inverses[self]:
-            records = records.browse(model_ids[invf.model_name])
-            if not records:
+            # per-iteration subset; don't rebind the ``records`` parameter (the
+            # next iteration must re-derive from the full set, not this subset)
+            recs = records.browse(model_ids[invf.model_name])
+            if not recs:
                 continue
             corecord = records.env[invf.model_name].browse(value)
-            records = records.filtered_domain(invf.get_comodel_domain(corecord))
-            if not records:
+            recs = recs.filtered_domain(invf.get_comodel_domain(corecord))
+            if not recs:
                 continue
             ids0 = invf._get_cache(corecord.env).get(corecord.id)
             # if the value for the corecord is not in cache, but this is a new
             # record, assign it anyway, as you won't be able to fetch it from
             # database (see `test_sale_order`)
             if ids0 is not None or not corecord.id:
-                ids1 = tuple(unique((ids0 or ()) + records._ids))
+                ids1 = tuple(unique((ids0 or ()) + recs._ids))
                 invf._update_cache(corecord, ids1)
 
     def _record_ids_per_res_model(self, records: BaseModel) -> dict[str, OrderedSet]:

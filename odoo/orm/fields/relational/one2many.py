@@ -58,6 +58,9 @@ class One2many(_RelationalMulti):
 
     inverse_name: str | None = None  # name of the inverse field
     copy: bool = False  # o2m are not copied by default
+    # whether the inverse m2o is computed — resolved once at setup (registry
+    # static) so __get__ need not re-look-up the inverse field on every access
+    _inverse_is_computed: bool = False
 
     def __init__(
         self,
@@ -86,6 +89,7 @@ class One2many(_RelationalMulti):
                 raise ValueError(
                     f"{self.inverse_name!r} declared in {self!r} does not exist on {comodel._name!r}."
                 ) from None
+            self._inverse_is_computed = bool(field.compute)
 
     @override
     def setup_inverses(
@@ -148,12 +152,10 @@ class One2many(_RelationalMulti):
     def __get__(
         self, records: typing.Any, owner: typing.Any = None
     ) -> BaseModel | typing.Self:
-        if records is not None and self.inverse_name is not None:
-            # force the computation of the inverse field to ensure that the
-            # cache value of self is consistent
-            inverse_field = records.pool[self.comodel_name]._fields[self.inverse_name]
-            if inverse_field.compute:
-                records.env[self.comodel_name]._recompute_model([self.inverse_name])
+        if records is not None and self._inverse_is_computed:
+            # force the computation of the (computed) inverse field to ensure
+            # that the cache value of self is consistent
+            records.env[self.comodel_name]._recompute_model([self.inverse_name])
         return super().__get__(records, owner)
 
     @override

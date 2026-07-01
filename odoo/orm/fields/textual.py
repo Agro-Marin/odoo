@@ -386,7 +386,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                 field_data = env._core.get_field_data(self)
                 installed = [lang for lang, _ in env["res.lang"].get_installed()]
                 langs = OrderedSet[str](installed + ["en_US"])
-                for id_, val in zip(records._ids, values, strict=False):
+                for id_, val in zip(records._ids, values, strict=True):
                     if val is None:
                         for lang in langs:
                             sub = field_data.setdefault((lang,), {})
@@ -415,7 +415,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             u_langs: list[str] = (
                 [f"_{lang}" for lang in langs] if env._lang.startswith("_") else []
             )
-            for id_, val in zip(records._ids, values, strict=False):
+            for id_, val in zip(records._ids, values, strict=True):
                 if val is None:
                     field_cache.setdefault(id_, None)
                 else:
@@ -438,7 +438,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                     }
         else:
             lang = self.translation_lang(env)
-            for id_, val in zip(records._ids, values, strict=False):
+            for id_, val in zip(records._ids, values, strict=True):
                 if val is None:
                     field_cache.setdefault(id_, None)
                 else:
@@ -1000,16 +1000,14 @@ class Html(BaseString):
         if not validate or not self.sanitize:
             return value
 
-        # Fast path: a value identical to the cached one was already sanitized
-        # on a previous write. Not when sanitize_overridable: the cached value
-        # may have been written by a user who bypasses sanitization.
-        if record._ids and not self.sanitize_overridable:
-            field_cache = self._get_cache(record.env)
-            record_id = record._ids[0]
-            cached = field_cache.get(record_id)
-            if cached is not None and cached == value:
-                return value
-
+        # A validated write always sanitizes. There used to be a fast path here
+        # that skipped sanitization when the incoming value equalled the cached
+        # one ("already sanitized on a previous write"), but the cache is also
+        # populated from raw DB reads: a value stored before a sanitize-rule
+        # change, via SQL, or by a migration would be trusted forever, and on a
+        # multi-record write only the first record's cache was the witness for
+        # all. html_sanitize is idempotent, so re-sanitizing an already-clean
+        # value is a no-op — the safe default is to always run it.
         sanitize_vals = {
             "silent": True,
             "sanitize_tags": self.sanitize_tags,

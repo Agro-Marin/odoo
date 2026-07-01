@@ -984,7 +984,11 @@ class Property(abc.Mapping):
                 yield key
 
     def __len__(self) -> int:
-        return len(self._values)
+        # Count what __iter__ yields (stored keys that still exist in the
+        # definition), not the raw stored keys: a Mapping must satisfy
+        # ``len(m) == len(list(m))`` or keys()/items()/dict(m) disagree once a
+        # property has been removed from the container.
+        return sum(1 for _ in self)
 
     def __eq__(self, other: object) -> bool:
         return self._values == (other._values if isinstance(other, Property) else other)

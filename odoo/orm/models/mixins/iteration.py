@@ -14,6 +14,7 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import ReversedIterable
 
 from ... import decorators as api
+from ...helpers import _origin_ids
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -102,8 +103,6 @@ class IterationMixin(_ModelStubs):
     @property
     def ids(self) -> list[int]:
         """Return the list of actual record ids corresponding to ``self``."""
-        from ...helpers import _origin_ids
-
         if all(self._ids):
             return list(self._ids)  # already real records
         return list(_origin_ids(self._ids))
@@ -319,11 +318,17 @@ class IterationMixin(_ModelStubs):
             except AttributeError:
                 raise TypeError(f"unsupported operand types in: {self} | {arg!r}") from None
             if not arg._ids:
-                return self
+                # self may carry duplicates (from concat / +); union preserves
+                # first-occurrence order and dedups, so match the general path
+                # rather than returning self raw. Fast path keeps identity when
+                # self is already unique (the overwhelming common case).
+                if len(self._ids) == len(set(self._ids)):
+                    return self
+                return self.browse(OrderedSet(self._ids))
             if not self._ids:
                 # browse() to keep self's env; returning arg would leak arg's
                 # env (e.g. company context) into the result.
-                return self.browse(arg._ids)
+                return self.browse(OrderedSet(arg._ids))
             return self.browse(OrderedSet(self._ids + arg._ids))
 
         ids = list(self._ids)
