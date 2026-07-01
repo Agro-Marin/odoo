@@ -276,6 +276,26 @@ export function setupTestEnvironment() {
     if (pagerModule?.pagerBus) {
         trackTestListeners(pagerModule.pagerBus);
     }
+    // ``document.body`` is the other module-singleton target services bind
+    // to for event delegation.  With no service destroy hook, those
+    // capture-phase listeners persist across tests exactly like the bus
+    // handlers above.
+    //
+    // Concrete failure this fixes: ``tooltip_service`` attaches a
+    // ``mouseenter`` capture listener on ``document.body`` in ``whenReady``
+    // and never removes it. Each test's tooltip service closes over ITS
+    // env's ``popover`` service, so a test that mocks ``popover`` (e.g.
+    // copy_clipboard's "Display a tooltip on click", whose CopyButton
+    // triggers a real tooltip service start with the MOCK popover) leaves a
+    // live body listener wired to that mock. A LATER test that hovers a
+    // ``[data-tooltip]`` element (e.g. reference_field's "Product") fires the
+    // stale listener, which schedules a tooltip open against the dead mock —
+    // surfacing as an unexpected ``popover.add`` step in the wrong test.
+    // HOOT itself binds no ``document.body`` listeners (it only appends the
+    // fixture element), so tracking body is safe. Listeners attached at
+    // MODULE LOAD stay untracked (``trackedListeners === null``) as with the
+    // buses above.
+    trackTestListeners(document.body);
 
     // 1f. Seed `@web/services/currency`'s in-memory `currencies` map
     //     from `serverState.currencies` so monetary widgets format with

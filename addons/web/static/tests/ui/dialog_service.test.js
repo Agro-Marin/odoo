@@ -99,6 +99,17 @@ test("multiple dialogs can become the UI active element", async () => {
     );
 });
 
+// Desktop-only: this test asserts child-element focus that is intentionally
+// different on touch devices.  ``Dialog`` sets ``bodyTabIndex="0"`` when
+// ``hasTouch()`` (dialog.js), so on mobile the ``<main.modal-body>`` is the
+// FIRST tabbable element and ``useActiveElement`` focuses it instead of
+// ``.btn.test``; likewise ``useAutofocus`` suppresses focus on touch to avoid
+// popping the virtual keyboard, so ``.o_popover input`` is not auto-focused.
+// Both are correct mobile behaviours, so the focus assertions below only hold
+// on desktop.  (The sibling "multiple dialogs can become the UI active
+// element" test is untagged because it only checks the active element, not
+// which child is focused.)
+test.tags("desktop");
 test("a popover with an autofocus child can become the UI active element", async () => {
     class TestPopover extends Component {
         static template = xml`<input type="text" t-ref="autofocus" />`;

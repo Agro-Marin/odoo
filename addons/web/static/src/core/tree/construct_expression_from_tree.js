@@ -133,7 +133,7 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
 
     const pathAST = astFromValue(path);
     if (typeof path == "string" && isValidPath({ type: ASTType.Name, value: path }, options)) {
-        pathAST.type = 5;
+        pathAST.type = ASTType.Name;
     }
 
     if (value === false && ["=", "!="].includes(operator)) {

@@ -3,7 +3,7 @@
 
 /** @module @web/components/copy_button/copy_button - Clipboard copy button with success tooltip feedback */
 
-import { Component, useRef } from "@odoo/owl";
+import { Component, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
@@ -28,6 +28,9 @@ export class CopyButton extends Component {
         /** @type {import("@odoo/owl").Ref<HTMLButtonElement>} */
         this.button = useRef("button");
         this.popover = usePopover(Tooltip);
+        // Clear the auto-close timer on unmount so it can't fire (and touch
+        // the popover service) after the component is gone.
+        onWillUnmount(() => browser.clearTimeout(this.tooltipCloseTimer));
     }
 
     /** Show a temporary success tooltip on the button for 800ms. */
@@ -35,7 +38,8 @@ export class CopyButton extends Component {
         this.popover.open(/** @type {HTMLElement} */ (this.button.el), {
             tooltip: this.props.successText,
         });
-        browser.setTimeout(this.popover.close, 800);
+        browser.clearTimeout(this.tooltipCloseTimer);
+        this.tooltipCloseTimer = browser.setTimeout(this.popover.close, 800);
     }
 
     /** Copy content to the clipboard, resolving function props if needed. */
