@@ -3,7 +3,7 @@
 
 /** @module @web/views/list/list_controller - List view orchestrator: pagination, selection, inline editing, multi-edit, and export */
 
-import { onWillPatch, onWillRender, useEffect, useState } from "@odoo/owl";
+import { onWillRender, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { useModelWithSampleData } from "@web/model/model";
@@ -175,10 +175,6 @@ export class ListController extends MultiRecordController {
                         ? () => this.model.root.fetchCount()
                         : undefined,
             };
-        });
-
-        onWillPatch(() => {
-            this.firstLoad = false;
         });
     }
 

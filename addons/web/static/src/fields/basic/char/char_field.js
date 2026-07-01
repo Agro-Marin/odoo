@@ -3,13 +3,12 @@
 
 /** @module @web/fields/basic/char/char_field - Single-line text input field for Char columns */
 
-import { useEffect, useExternalListener, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
 import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 import { formatChar } from "@web/fields/formatters";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -45,21 +44,11 @@ export class CharField extends TextInputFieldBase {
     setup() {
         useRenderCounter("fields.CharField");
         this.input = useRef("input");
-        if (this.props.dynamicPlaceholder) {
-            this.dynamicPlaceholder = useDynamicPlaceholder(this.input);
-            useExternalListener(document, "keydown", this.dynamicPlaceholder.onKeydown);
-            useEffect(() =>
-                this.dynamicPlaceholder.updateModel(
-                    this.props.dynamicPlaceholderModelReferenceField,
-                ),
-            );
-        }
+        this.setupDynamicPlaceholder(this.input);
         useInputField({
             getValue: () => this.props.record.data[this.props.name] || "",
             parse: (v) => this.parse(v),
         });
-
-        this.selectionStart = this.props.record.data[this.props.name]?.length || 0;
     }
 
     /** @returns {boolean} Whether to trim whitespace (based on field `trim` attribute) */
@@ -90,12 +79,6 @@ export class CharField extends TextInputFieldBase {
             return value.trim();
         }
         return value;
-    }
-
-    onBlur() {
-        this.selectionStart = /** @type {HTMLInputElement} */ (
-            this.input.el
-        ).selectionStart;
     }
 }
 

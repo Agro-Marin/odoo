@@ -165,9 +165,11 @@ export class FormRenderer extends Component {
             !this.env.inDialog && !this.env.isSmall && ev.target.scrollTop !== 0;
     }
 
-    async onWillChangeNotebookPage() {
+    async onWillChangeNotebookPage(_notebookId, _page) {
         // Hack to force _askChanges
         await this.props.record.isDirty();
+        // Notebook.activatePage vetoes the switch only on an explicit `false`
+        // return (`canProceed !== false`); return true to allow the page change.
         return true;
     }
 }

@@ -37,7 +37,6 @@ export class StaticList extends DataPoint {
         this._savePoint = undefined;
         this._unknownRecordCommands = {}; // tracks update commands on records we haven't fetched yet
         this._currentIds = [...this.resIds];
-        this._initialCurrentIds = [...this.currentIds];
         this._needsReordering = false;
         this._tmpIncreaseLimit = 0;
         // In kanban and non editable list views, x2many records can be opened in a form view in
@@ -578,7 +577,6 @@ export class StaticList extends DataPoint {
     _applyInitialCommands(commands) {
         this._applyCommands(commands);
         this._initialCommands = [...commands];
-        this._initialCurrentIds = [...this._currentIds];
     }
 
     async _createNewRecordDatapoint(params = {}) {

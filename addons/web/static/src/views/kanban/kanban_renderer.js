@@ -87,7 +87,6 @@ export class KanbanRenderer extends Component {
     static defaultProps = {
         scrollTop: () => {},
         quickCreateState: { groupId: false },
-        tooltipInfo: {},
     };
 
     /** @type {any[]} */
@@ -393,10 +392,6 @@ export class KanbanRenderer extends Component {
             this.props.list.groupByField?.type === "many2one" &&
             this.props.list.groupByField?.name === defaultGroupBy?.[0]
         );
-    }
-
-    canQuickCreate() {
-        return this.props.canQuickCreate;
     }
 
     // ------------------------------------------------------------------------

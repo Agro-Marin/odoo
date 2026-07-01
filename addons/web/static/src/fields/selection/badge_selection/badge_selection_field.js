@@ -6,6 +6,7 @@
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -82,7 +83,7 @@ export const badgeSelectionField = {
             default: "md",
         },
     ],
-    isEmpty: (record, fieldName) => record.data[fieldName] === false,
+    isEmpty: isFalseEmpty,
     extractProps: (fieldInfo, dynamicInfo) => ({
         domain: dynamicInfo.domain,
         size: fieldInfo.options.size,

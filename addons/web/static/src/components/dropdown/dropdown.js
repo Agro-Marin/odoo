@@ -166,11 +166,10 @@ export class Dropdown extends Component {
         });
 
         // Expose the navigator to navigable children. Items rendered
-        // inside the popover (DropdownItem, AccordionItem, etc.) can
-        // call ``useNavigatorActive(this.env.navigation, …)`` to bind
-        // their focus class declaratively. The popover is mounted with
-        // the dropdown's ``childEnv``, so this key propagates through
-        // the portal to nested content.
+        // inside the popover (DropdownItem, AccordionItem, etc.) read
+        // ``this.env.navigation`` for keyboard navigation. The popover is
+        // mounted with the dropdown's ``childEnv``, so this key propagates
+        // through the portal to nested content.
         useChildSubEnv({ navigation: this.navigation });
 
         this.uiService = useService("ui");

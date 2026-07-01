@@ -40,11 +40,12 @@ export function getMeasureSpecs(config) {
  *
  * @param {Object} group
  * @param {Object} config
+ * @param {string[]} measureSpecs
  * @returns {Object}
  */
-export function getMeasurements(group, config) {
+export function getMeasurements(group, config, measureSpecs) {
     const { metaData } = config;
-    return getMeasureSpecs(config).reduce((measurements, measureName) => {
+    return measureSpecs.reduce((measurements, measureName) => {
         let measurement = group[measureName];
         const [fieldName, aggregator] = measureName.split(":");
         if (aggregator === "array_agg_distinct") {
@@ -75,11 +76,12 @@ export function getMeasurements(group, config) {
  *
  * @param {Object} group
  * @param {Object} config
+ * @param {string[]} measureSpecs
  * @returns {Object}
  */
-export function getCurrencyIds(group, config) {
+export function getCurrencyIds(group, config, measureSpecs) {
     const { metaData } = config;
-    return getMeasureSpecs(config).reduce((currencyIds, measureName) => {
+    return measureSpecs.reduce((currencyIds, measureName) => {
         const [fieldName, aggregator] = measureName.split(":");
         if (aggregator === "array_agg_distinct") {
             return currencyIds;

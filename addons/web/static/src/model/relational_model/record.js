@@ -176,7 +176,9 @@ export class RelationalRecord extends DataPoint {
             // ``keepChanges`` preserves ``_changes`` across a server reload
             // but resets the reactive ``dirty`` signal — callers that pass
             // ``keepChanges`` are expected to re-flag dirtiness explicitly
-            // if needed. See callers in ``relational_model._reload()``.
+            // if needed. See the ``keepChanges: true`` cache callbacks in
+            // ``relational_model.js`` (the mono-record ``root._setData``
+            // reload paths).
             this._resetDirty();
         }
         this.data = { ...this._values, ...this._changes };

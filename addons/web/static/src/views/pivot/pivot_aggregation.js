@@ -9,6 +9,7 @@ import { addGroup, findGroup } from "./pivot_group_tree.js";
 import {
     getCurrencyIds,
     getMeasurements,
+    getMeasureSpecs,
 } from "./pivot_measurements.js";
 import { getGroupLabels, getGroupValues } from "./pivot_value_utils.js";
 
@@ -65,6 +66,11 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
         groupColLabels = findGroup(data.colGroupTree, groupColValues).root.labels;
     }
 
+    // Compute the measure specs once for the whole pass rather than per
+    // sub-group; getMeasureSpecs also mutates the shared field descriptors
+    // (field.aggregator), so computing once reduces that churn.
+    const measureSpecs = getMeasureSpecs(config);
+
     groupSubdivisions.forEach((groupSubdivision) => {
         groupSubdivision.subGroups.forEach((subGroup) => {
             const rowValues = [
@@ -116,8 +122,8 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
 
             const key = JSON.stringify([rowValues, colValues]);
 
-            data.measurements[key] = getMeasurements(subGroup, config);
-            data.currencyIds[key] = getCurrencyIds(subGroup, config);
+            data.measurements[key] = getMeasurements(subGroup, config, measureSpecs);
+            data.currencyIds[key] = getCurrencyIds(subGroup, config, measureSpecs);
             data.counts[key] = subGroup.__count;
 
             data.groupDomains[key] = subGroup.__domain ?? Domain.FALSE.toList();

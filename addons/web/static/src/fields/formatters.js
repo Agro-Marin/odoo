@@ -374,10 +374,8 @@ formatPercentage.extractOptions = formatFloat.extractOptions;
  * or a properties definition field (see fields.py@Properties).
  *
  * @param {any[]|false} value
- * @param {Object} [field]
- *        a description of the field (note: this parameter is ignored)
  */
-function formatProperties(value, field) {
+function formatProperties(value) {
     if (!value || !value.length) {
         return "";
     }

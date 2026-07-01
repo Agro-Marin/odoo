@@ -153,7 +153,7 @@ export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
     if (widget) {
         const field = findInRegistry(widget);
         if (field) {
-            if (field.supportedTypes && !field.supportedTypes?.includes(fieldType)) {
+            if (field.supportedTypes && !field.supportedTypes.includes(fieldType)) {
                 console.warn(
                     `The widget: ${widget} don't support the type ${fieldType}`,
                 );

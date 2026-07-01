@@ -7,6 +7,7 @@ import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
@@ -111,7 +112,7 @@ export const radioField = {
         },
     ],
     supportedTypes: ["many2one", "selection"],
-    isEmpty: (record, fieldName) => record.data[fieldName] === false,
+    isEmpty: isFalseEmpty,
     extractProps: ({ options, string }, dynamicInfo) => ({
         orientation: options.horizontal ? "horizontal" : "vertical",
         label: string,
