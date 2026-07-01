@@ -304,7 +304,11 @@ export function deepMerge(target, extension) {
     const output = Object.assign({}, target);
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
-            if (key in target && isObject(extension[key])) {
+            // Recurse only when BOTH sides are plain objects. Guarding on
+            // ``key in target`` instead let an object-over-primitive merge
+            // (e.g. deepMerge({a:1}, {a:{b:2}})) recurse with a primitive
+            // ``target`` and throw ``Cannot use 'in' operator … in 1``.
+            if (isObject(target[key]) && isObject(extension[key])) {
                 output[key] = deepMerge(target[key], extension[key]);
             } else {
                 Object.assign(output, { [key]: extension[key] });

@@ -57,7 +57,9 @@ function sanitizeLabel(value, groupBy, config) {
         }
     }
     if (value === false) {
-        return metaData.fields[fieldName].falsy_value_label || _t("None");
+        // ``fieldName`` may be absent from metaData.fields (property / dynamic
+        // field, stale favorite) — the sibling branches above already guard it.
+        return metaData.fields[fieldName]?.falsy_value_label || _t("None");
     }
     if (Array.isArray(value)) {
         return getNumberedLabel(value, fieldName, config);

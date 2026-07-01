@@ -70,7 +70,13 @@ export const nameService = {
         function addDisplayNames(resModel, displayNames) {
             const mapping = getMapping(resModel);
             for (const resId of Object.keys(displayNames)) {
-                mapping[resId] = new Deferred();
+                // Reuse an existing Deferred (it may be in-flight, captured in a
+                // concurrent loadDisplayNames caller's `proms`): replacing it would
+                // leave that caller awaiting a Deferred nobody resolves. Resolving
+                // is idempotent, so an already-settled entry keeps its value.
+                if (!(resId in mapping)) {
+                    mapping[resId] = new Deferred();
+                }
                 mapping[resId].resolve(displayNames[resId]);
             }
         }
@@ -142,8 +148,14 @@ export const nameService = {
                         });
                 }
             }
+            // ``proms``/``names`` are aligned to ``unique(resIds)`` (see the loop
+            // above), so build the id→name map from the SAME deduped order, then
+            // project back onto the caller's ``resIds`` (which may contain dups).
+            // Zipping ``names`` against the raw ``resIds`` would truncate to the
+            // shorter array and mis-assign names whenever an id repeats.
             const names = await Promise.all(proms);
-            return Object.fromEntries(zip(resIds, names));
+            const namesById = Object.fromEntries(zip(unique(resIds), names));
+            return Object.fromEntries(resIds.map((resId) => [resId, namesById[resId]]));
         }
 
         return { addDisplayNames, clearCache, loadDisplayNames };

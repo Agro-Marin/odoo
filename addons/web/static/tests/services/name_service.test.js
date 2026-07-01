@@ -40,6 +40,15 @@ test("single loadDisplayNames", async () => {
     expect(displayNames).toEqual({ 1: "Julien", 2: "Pierre", 3: "Paul" });
 });
 
+test("loadDisplayNames maps every id when resIds contain duplicates", async () => {
+    await makeMockEnv();
+    // The leading duplicate used to corrupt the result (record 1 took record 2's
+    // name and record 2 vanished) because the return zipped names against the
+    // non-deduped resIds. Every id must resolve to its own name.
+    const displayNames = await getService("name").loadDisplayNames("dev", [1, 1, 2]);
+    expect(displayNames).toEqual({ 1: "Julien", 2: "Pierre" });
+});
+
 test("loadDisplayNames is done in silent mode", async () => {
     await makeMockEnv();
 

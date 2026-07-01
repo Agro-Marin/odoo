@@ -455,13 +455,16 @@ export class CalendarController extends Component {
     }
 
     getSelectedRecordIds(selectedCells) {
-        const ids = [];
+        const ids = new Set();
         for (const element of selectedCells) {
             for (const event of [...element.querySelectorAll(".fc-event")]) {
-                ids.push(Number.parseInt(event.dataset.eventId, 10));
+                // A multi-day event renders one .fc-event segment per day cell it
+                // spans, so the same record id appears in several selected cells —
+                // dedupe so the count (nbSelected) and unlink are per-record.
+                ids.add(Number.parseInt(event.dataset.eventId, 10));
             }
         }
-        return ids;
+        return [...ids];
     }
 
     onMultiDelete(selectedCells) {

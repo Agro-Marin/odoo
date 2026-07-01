@@ -205,6 +205,59 @@ test("widget many2many_binary displays notification on error", async () => {
     expect(".o_notification_bar").toHaveClass("bg-danger");
 });
 
+test("widget many2many_binary keeps valid files uploaded after an errored one", async () => {
+    expect.assertions(4);
+
+    (/** @type {any} */ (mockService))("http", {
+        post(route, { ufile }) {
+            expect(route).toBe("/web/binary/upload_attachment");
+            // The errored file is FIRST; the valid file is second. The old code
+            // returned on the first error and abandoned the valid file.
+            const ids = MockServer.env["ir.attachment"].create({
+                name: ufile[1].name,
+                mimetype: "text/plain",
+            });
+            return JSON.stringify([
+                {
+                    name: ufile[0].name,
+                    mimetype: "text/plain",
+                    error: `Error on file: ${ufile[0].name}`,
+                },
+                ...MockServer.env["ir.attachment"].read(ids),
+            ]);
+        },
+    });
+
+    IrAttachment._views.list = '<list string="Pictures"><field name="name"/></list>';
+
+    await mountView({
+        type: "form",
+        resModel: "turtle",
+        arch: `
+            <form>
+                <group>
+                    <field name="picture_ids" widget="many2many_binary" options="{'accepted_file_extensions': 'image/*'}"/>
+                </group>
+            </form>`,
+        resId: 1,
+    });
+
+    // Upload [bad, good] — bad first.
+    await contains(".o_file_input_trigger").click();
+    await setInputFiles([
+        new File(["bad_file"], "bad_file.txt", { type: "text/plain" }),
+        new File(["good_file"], "good_file.txt", { type: "text/plain" }),
+    ]);
+    await animationFrame();
+
+    // The valid file (uploaded after the errored one) must still be linked.
+    expect(".o_attachment:nth-child(2) .caption a:eq(0)").toHaveText("good_file.txt");
+    expect(".o_notification").toHaveCount(1);
+    expect(".o_notification_content").toHaveText(
+        "Uploading error. Error on file: bad_file.txt",
+    );
+});
+
 test("widget many2many_binary image MIME type preview", async () => {
     expect.assertions(9);
 

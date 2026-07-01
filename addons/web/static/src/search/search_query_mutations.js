@@ -149,12 +149,16 @@ export function createNewFilters(searchModel, prefilters) {
         return [];
     }
     prefilters.forEach((preFilter) => {
-        const filter = Object.assign(preFilter, {
+        // Copy rather than Object.assign onto the caller's prefilter — this is
+        // public API (search_model.createNewFilters); stamping id/groupId/type
+        // onto the passed-in object would corrupt any reused prefilter template.
+        const filter = {
+            ...preFilter,
             groupId: searchModel.nextGroupId,
             groupNumber: searchModel.nextGroupNumber,
             id: searchModel.nextId,
             type: "filter",
-        });
+        };
         searchModel.searchItems[searchModel.nextId] = filter;
         searchModel.query.push({ searchItemId: searchModel.nextId });
         searchModel.nextId++;

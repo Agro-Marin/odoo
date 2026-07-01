@@ -144,19 +144,19 @@ export const gaugeField = {
         },
         {
             label: _t("Max value field"),
-            name: "max_value_field",
+            name: "max_field",
             type: "field",
             availableTypes: ["integer", "float"],
         },
         {
             label: _t("Max value"),
             name: "max_value",
-            type: "string",
+            type: "number",
         },
     ],
     extractProps: ({ options }) => ({
-        maxValueField: options.max_value_field,
-        maxValue: options.max_value,
+        maxValueField: options.max_field,
+        maxValue: options.max_value === undefined ? undefined : Number(options.max_value),
         title: options.title,
     }),
 };

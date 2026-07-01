@@ -507,6 +507,9 @@ export class PivotModel extends Model {
      * Reload the view with the current rowGroupBys and colGroupBys.
      */
     async expandAll() {
+        if (this.race.getCurrentProm()) {
+            return; // a load is already in flight (matches expandGroup/sortRows/addGroupBy)
+        }
         const config = { metaData: this.metaData, data: this.data };
         await this._loadData(config, false);
         this.notify();
