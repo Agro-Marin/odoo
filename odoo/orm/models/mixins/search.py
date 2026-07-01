@@ -654,6 +654,8 @@ class SearchMixin(_ModelStubs):
             values that are not identifiers.
         :raises: ``LockError`` when some records could not be locked
         """
+        if (backend := self.env.backend) is not None:
+            return backend.lock_for_update(self, allow_referencing=allow_referencing)
         ids = {id_ for id_ in self._ids if id_}
         if not ids:
             return
@@ -685,6 +687,10 @@ class SearchMixin(_ModelStubs):
         :param limit: The maximum number of rows to lock
         :return: The recordset of locked records
         """
+        if (backend := self.env.backend) is not None:
+            return backend.try_lock_for_update(
+                self, allow_referencing=allow_referencing, limit=limit
+            )
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if limit is not None:
             if len(new_ids) >= limit:

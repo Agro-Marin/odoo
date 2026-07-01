@@ -186,6 +186,18 @@ class TestOptimizerInvariants(unittest.TestCase):
         self.assertEqual(list(original), [("a", "=", 1)])
         self.assertIs(original._opt_level, OptimizationLevel.NONE)
 
+    def test_optimize_state_is_written_atomically(self):
+        # The (level, model_name) pair lives in ONE slot so a threaded reader
+        # never observes a torn ``(FULL, None)`` node -- which would read as
+        # "model-independent" and skip a different model's BASIC value coercion,
+        # emitting wrong SQL. A pass-through leaf caches its level in place (a
+        # tested contract); this pins that the stamp is a single tuple.
+        original = Domain("name", "like", "x")
+        self.assertEqual(original._opt, (OptimizationLevel.NONE, None))
+        out = original.optimize(_StubModel())
+        self.assertIs(out, original)
+        self.assertEqual(out._opt, (OptimizationLevel.BASIC, "m"))
+
     def test_optimize_is_idempotent(self):
         model = _StubModel()
         once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)

@@ -288,6 +288,61 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertTrue(len(result.stalled_fields) > 0)
 
 
+class TestLoopExhaustionConsistency(unittest.TestCase):
+    """Loop exhaustion must report a consistent LoopResult."""
+
+    def test_flush_exhaustion_with_pending_recompute_is_not_converged(self) -> None:
+        """A final flush that schedules a recompute must not report converged.
+
+        Otherwise ``flush_all`` returns success while the scheduled computation
+        was never run or persisted — silent data loss instead of RuntimeError.
+        """
+        cache = FieldCache()
+        engine = ComputeEngine()
+        uow = UnitOfWork(cache, engine, max_iterations=3)
+        f_dirty = _field("m", "a")
+        f_computed = _field("m", "b")
+        cache.set_value(f_dirty, 1, 10)
+        cache.mark_dirty(f_dirty, [1])
+        state = {"flush": 0}
+
+        def recompute_fn(field):
+            engine.mark_done(field, list(engine.pending_ids(field)))
+
+        def flush_fn(_models):
+            state["flush"] += 1
+            cache.pop_dirty(f_dirty)
+            if state["flush"] < uow.max_iterations:
+                cache.set_value(f_dirty, state["flush"] + 1, 10)
+                cache.mark_dirty(f_dirty, [state["flush"] + 1])
+            else:
+                engine.schedule(f_computed, [1, 2, 3])  # modified() side effect
+
+        result = uow.run_flush_loop(recompute_fn, flush_fn)
+        self.assertFalse(result.converged)
+        # the pending-but-not-yet-dirty computed field is reported as stalled
+        self.assertIn("m.b", result.stalled_fields)
+
+    def test_recompute_convergence_on_last_iteration_clears_stalled(self) -> None:
+        """Converging exactly on the final iteration must not keep stalled_fields."""
+        cache = FieldCache()
+        engine = ComputeEngine()
+        uow = UnitOfWork(cache, engine, max_iterations=3)
+        f = _field("m", "total")
+        engine.schedule(f, [1])
+        state = {"n": 0}
+
+        def recompute_fn(_field):
+            state["n"] += 1
+            if state["n"] >= 3:  # stall on 0,1; resolve on the last iteration
+                engine.mark_done(f, [1])
+
+        result = uow.run_recompute_loop(recompute_fn)
+        self.assertFalse(engine.pending_real_fields())
+        self.assertTrue(result.converged)
+        self.assertEqual(result.stalled_fields, [])
+
+
 class TestLoopResult(unittest.TestCase):
     """Test LoopResult dataclass."""
 

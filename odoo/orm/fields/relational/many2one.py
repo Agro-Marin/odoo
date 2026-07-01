@@ -215,12 +215,8 @@ class Many2one(_Relational):
             # value is a pair (id, name) or a tuple of ids. Reject x2many Command
             # tuples: they would degrade to ``id_ = command_int`` and silently
             # corrupt the m2o.
-            if validate and len(value) == 3 and isinstance(value[0], int):
-                if value[0] in Command._value2member_map_:
-                    raise ValueError(
-                        f"Wrong value for {self}: x2many Command tuple "
-                        f"{value!r} cannot be assigned to a many2one field"
-                    )
+            if validate:
+                self._reject_command_tuple(value)
             # normalise falsy ids to None: web clients send (False, "") for "no
             # value". A literal False/0 would yield _ids=(False,) with len()==1
             # but bool()==False, an inconsistent recordset.
@@ -292,10 +288,25 @@ class Many2one(_Relational):
             return value.id
         if isinstance(value, tuple):
             # value is either a pair (id, name), or a tuple of ids
+            self._reject_command_tuple(value)
             return value[0] if value else False
         if isinstance(value, dict):
             return record.env[self.comodel_name].new(value).id
         raise ValueError(f"Wrong value for {self}: {value!r}")
+
+    def _reject_command_tuple(self, value: tuple) -> None:
+        """Raise if ``value`` is an x2many ``Command`` tuple.
+
+        A ``(command, id, values)`` triple assigned to a many2one would silently
+        degrade to ``value[0]`` (the command int) and corrupt the field. Guard
+        both the cache and write conversion paths identically.
+        """
+        if len(value) == 3 and isinstance(value[0], int):
+            if value[0] in Command._value2member_map_:
+                raise ValueError(
+                    f"Wrong value for {self}: x2many Command tuple "
+                    f"{value!r} cannot be assigned to a many2one field"
+                )
 
     @override
     def convert_to_export(self, value: BaseModel, record: BaseModel) -> str:

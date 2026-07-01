@@ -42,10 +42,13 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 with cr.savepoint(flush=False):
                     func(cr)
         except Exception as e:
+            # "%s" % e, not *e.args: an empty-args exception would raise inside
+            # this handler, and args[0] as a format string mangles messages that
+            # contain a literal '%' (e.g. a constraint body with LIKE 'a%').
             if self._is_install:
-                _schema.error(*e.args)
+                _schema.error("%s", e)
             else:
-                _schema.info(*e.args)
+                _schema.info("%s", e)
                 self._constraint_queue[key] = func
 
     def finalize_constraints(self, cr: Cursor) -> None:
@@ -57,7 +60,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
             except Exception as e:
                 # warn only, this is not a deployment showstopper, and
                 # can sometimes be a transient error
-                _schema.warning(*e.args)
+                _schema.warning("%s", e)
         self._constraint_queue.clear()
 
     def check_null_constraints(self, cr: Cursor) -> None:

@@ -196,11 +196,15 @@ class UnitOfWork:
                 recompute_fn(fld)
         else:
             result.iterations = self.max_iterations
-            result.converged = not bool(self.engine.pending_real_fields())
-            if not result.converged:
+            pending = self.engine.pending_real_fields()
+            result.converged = not pending
+            if result.converged:
+                # Discard any stall recorded on an earlier iteration: converging
+                # exactly on the last iteration must not report stalled fields.
+                result.stalled_fields = []
+            else:
                 result.stalled_fields = sorted(
-                    self._field_label(f)
-                    for f in self.engine.pending_real_fields()
+                    self._field_label(f) for f in pending
                 )
 
         return result
@@ -262,12 +266,21 @@ class UnitOfWork:
             flush_fn(model_names)
         else:
             result.iterations = self.max_iterations
-            result.converged = not bool(self.dirty_models())
-            if not result.converged:
-                result.stalled_fields = sorted(
-                    self._field_label(f)
-                    for f in self.cache.iter_dirty_fields()
-                )
+            # The final flush_fn can schedule new recomputations (via modified())
+            # that have not yet produced dirty fields. Treating "no dirty models"
+            # as converged would return success while those computes were never
+            # run or persisted — silent data loss instead of a RuntimeError.
+            dirty_models = self.dirty_models()
+            pending = self.engine.pending_real_fields()
+            result.converged = not dirty_models and not pending
+            if result.converged:
+                result.stalled_fields = []
+            else:
+                labels = {
+                    self._field_label(f) for f in self.cache.iter_dirty_fields()
+                }
+                labels.update(self._field_label(f) for f in pending)
+                result.stalled_fields = sorted(labels)
 
         return result
 

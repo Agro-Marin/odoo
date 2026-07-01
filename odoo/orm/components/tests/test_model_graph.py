@@ -129,6 +129,18 @@ class TestTriggerTree(unittest.TestCase):
         result = TriggerTree.merge([tree])
         self.assertEqual(list(result.root), ["A", "B"])
 
+    def test_root_is_immutable_tuple(self) -> None:
+        """``root`` is a tuple: the single-tree merge fast path returns the
+        shared cached node by identity, so a mutable root would let one consumer
+        corrupt the registry-wide trigger cache.
+        """
+        tree = TriggerTree(["A", "B"])
+        self.assertIsInstance(tree.root, tuple)
+        # merge fast path aliases the cached node; mutation must be impossible
+        self.assertIs(TriggerTree.merge([tree]), tree)
+        with self.assertRaises(AttributeError):
+            tree.root.append("C")  # type: ignore[attr-defined]
+
     def test_merge_roots(self) -> None:
         t1 = TriggerTree(["A", "B"])
         t2 = TriggerTree(["B", "C"])
@@ -535,8 +547,9 @@ class TestTransitiveTriggers(unittest.TestCase):
             g.add_trigger(fields[i], (), [fields[i + 1]])
 
         tree = g.get_field_trigger_tree(fields[0])
-        # all targets land on the root (empty path), once each, in chain order
-        self.assertEqual(tree.root, fields[1:])
+        # all targets land on the root (empty path), once each, in chain order.
+        # root is a tuple: nodes are shared registry-wide and must be immutable.
+        self.assertEqual(tree.root, tuple(fields[1:]))
         self.assertEqual(len(tree.root), len(set(tree.root)))
 
 

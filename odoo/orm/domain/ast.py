@@ -251,14 +251,27 @@ class Domain:
 
     # Abstract base, but not marked ABC: __new__ is overridden so Domain doubles
     # as a factory for the concrete subtypes while keeping `isinstance` working.
-    __slots__ = ("_opt_level", "_opt_model_name")
-    _opt_level: OptimizationLevel
-    # Model name ``_opt_level`` was reached against. BASIC passes coerce values
-    # using each field's type, so a level cached against one model must not
-    # short-circuit optimization against another (mirrors the per-model
-    # invalidation of ``DomainCondition._field``). ``None`` for never-optimized
+    #
+    # ``_opt`` is the (level, model_name) optimization stamp held as ONE tuple so
+    # the pair is written with a single atomic reference assignment. Splitting it
+    # across two slots let a threaded reader observe a torn ``(FULL, None)`` node:
+    # ``None`` reads as "model-independent", so a different model's ``_to_sql``
+    # would skip that node's BASIC value coercion and emit wrong SQL. The model
+    # name matters because BASIC passes coerce values using each field's type, so
+    # a level reached against one model must not short-circuit optimization
+    # against another (mirrors the per-model invalidation of
+    # ``DomainCondition._field``). ``model_name`` is ``None`` for never-optimized
     # nodes and for model-independent leaves (DomainBool/DomainCustom at FULL).
-    _opt_model_name: str | None
+    __slots__ = ("_opt",)
+    _opt: tuple[OptimizationLevel, str | None]
+
+    @property
+    def _opt_level(self) -> OptimizationLevel:
+        return self._opt[0]
+
+    @property
+    def _opt_model_name(self) -> str | None:
+        return self._opt[1]
 
     def __new__(cls, *args: object, internal: bool = False) -> Domain:
         """Build a domain AST.
@@ -547,26 +560,28 @@ class Domain:
         input-order-dependent). Convergence relies on those expansions not being
         re-expandable; a future pass that oscillates would hit the backstop.
         """
-        # ``_opt_level`` is cached per model: a level reached against one model
-        # must not short-circuit (type-dependent) optimization against another.
-        # Reusing an already-canonical/optimized node against a different model
-        # would otherwise skip BASIC coercion and yield wrong SQL. Children are
-        # covered too: every recursion goes through ``_optimize`` (DomainNary /
-        # DomainNot delegate to ``child._optimize``).
-        if self._opt_model_name is not None and self._opt_model_name != model._name:
-            object.__setattr__(self, "_opt_level", OptimizationLevel.NONE)
-            object.__setattr__(self, "_opt_model_name", None)
-        domain, previous, count = self, None, 0
-        while domain._opt_level < level:
+        # ``_opt`` is cached per model: a level reached against one model must not
+        # short-circuit (type-dependent) optimization against another. Reusing an
+        # already-canonical/optimized node against a different model would skip
+        # BASIC coercion and yield wrong SQL, so reset first. The level cache is
+        # kept on the node itself (an already-optimal pass-through returns
+        # unchanged -- a tested contract), which is safe because ``_opt`` is one
+        # slot written atomically: a reader never sees a torn ``(level, model)``.
+        # Children are covered too: every recursion goes through ``_optimize``
+        # (DomainNary / DomainNot delegate to ``child._optimize``).
+        model_name = model._name
+        if self._opt[1] is not None and self._opt[1] != model_name:
+            object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
+        domain, count = self, 0
+        while domain._opt[0] < level:
             if (count := count + 1) > MAX_OPTIMIZE_ITERATIONS:
                 msg = "Domain.optimize: too many loops"
                 raise RecursionError(msg)
-            next_level = domain._opt_level.next_level
+            next_level = domain._opt[0].next_level
             previous, domain = domain, domain._optimize_step(model, next_level)
             # bump the level when stable (DomainBool etc. start already at FULL)
-            if domain == previous and domain._opt_level < next_level:
-                object.__setattr__(domain, "_opt_level", next_level)
-                object.__setattr__(domain, "_opt_model_name", model._name)
+            if domain == previous and domain._opt[0] < next_level:
+                object.__setattr__(domain, "_opt", (next_level, model_name))
         return domain
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
@@ -595,8 +610,7 @@ class DomainBool(Domain):
     def __new__(cls, value: bool):
         self = object.__new__(cls)
         object.__setattr__(self, "value", value)
-        object.__setattr__(self, "_opt_level", OptimizationLevel.FULL)
-        object.__setattr__(self, "_opt_model_name", None)
+        object.__setattr__(self, "_opt", (OptimizationLevel.FULL, None))
         return self
 
     def __eq__(self, other: object) -> bool:
@@ -651,8 +665,7 @@ class DomainNot(Domain):
         """Create a domain which is the inverse of the child."""
         self = object.__new__(cls)
         object.__setattr__(self, "child", child)
-        object.__setattr__(self, "_opt_level", OptimizationLevel.NONE)
-        object.__setattr__(self, "_opt_model_name", None)
+        object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
     def __invert__(self) -> Domain:
@@ -708,8 +721,7 @@ class DomainNary(Domain):
             )
         self = object.__new__(cls)
         object.__setattr__(self, "children", children)
-        object.__setattr__(self, "_opt_level", OptimizationLevel.NONE)
-        object.__setattr__(self, "_opt_model_name", None)
+        object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
     @classmethod
@@ -890,8 +902,7 @@ class DomainCustom(Domain):
         self = object.__new__(cls)
         object.__setattr__(self, "_sql", sql)
         object.__setattr__(self, "_filtered", filtered)
-        object.__setattr__(self, "_opt_level", OptimizationLevel.FULL)
-        object.__setattr__(self, "_opt_model_name", None)
+        object.__setattr__(self, "_opt", (OptimizationLevel.FULL, None))
         return self
 
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
@@ -946,8 +957,7 @@ class DomainCondition(Domain):
         object.__setattr__(self, "operator", operator)
         object.__setattr__(self, "value", value)
         object.__setattr__(self, "_field_instance", None)
-        object.__setattr__(self, "_opt_level", OptimizationLevel.NONE)
-        object.__setattr__(self, "_opt_model_name", None)
+        object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
     def checked(self) -> DomainCondition:
@@ -1288,6 +1298,14 @@ class DomainCondition(Domain):
         if self._opt_level < OptimizationLevel.FULL:
             raise RuntimeError(
                 f"Must fully optimize before generating the query {(field_expr, op, value)}"
+            )
+        # A FULL node carries model-specific value coercion and field/search
+        # substitutions; feeding it to another model's query would emit the first
+        # model's SQL. ``None`` marks a model-independent leaf (safe to reuse).
+        if self._opt_model_name not in (None, model._name):
+            raise RuntimeError(
+                f"Domain optimized for {self._opt_model_name!r} cannot generate "
+                f"SQL for {model._name!r} in term {(field_expr, op, value)}"
             )
 
         field = self._field(model)

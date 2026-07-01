@@ -90,7 +90,10 @@ class TriggerTree(dict):
             Remaining arguments seed the ``{edge_field: subtree}`` dict.
         """
         super().__init__(*args, **kwargs)
-        self.root = root
+        # tuple, not list: the single-tree fast path in merge() returns the
+        # shared cached tree by identity, so a mutable root would let one
+        # consumer corrupt the registry-wide, frozen trigger cache.
+        self.root = tuple(root)
 
     def __bool__(self) -> bool:
         """Return whether the node has any root fields or subtrees."""
@@ -367,7 +370,7 @@ class ModelGraph:
             current = tree
             for label in full_path:
                 current = current.increase(label)
-            current.root = root_list
+            current.root = tuple(root_list)
 
         self._trigger_trees[field] = tree
         return tree

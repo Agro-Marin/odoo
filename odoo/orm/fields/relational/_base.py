@@ -306,7 +306,10 @@ class _Relational(Field["BaseModel"]):
             return lambda _: False
 
         ids = set(corecords._ids)
-        return lambda rec: any(id_ in ids for val in getter(rec) for id_ in val._ids)
+        # ``getter(rec)._ids`` reads the whole related set's ids in one shot;
+        # iterating ``getter(rec)`` would allocate a singleton recordset per
+        # corecord (M×K objects) only to re-read the same ids.
+        return lambda rec: not ids.isdisjoint(getter(rec)._ids)
 
 
 class _RelationalMulti(_Relational):

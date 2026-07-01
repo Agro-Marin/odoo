@@ -1571,6 +1571,11 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 fallback_single = True
             if fallback_single:
                 record._fetch_field(self)
+            # re-resolve: _fetch_field flushes/recomputes, which can call
+            # env.invalidate_all() and detach the per-field dict captured above,
+            # leaving the freshly fetched value in a new dict (as the compute
+            # branch does for the same reason).
+            field_cache = self._get_cache(env)
             value = field_cache.get(record_id, SENTINEL)
             if value is SENTINEL:
                 raise MissingError(
@@ -1608,7 +1613,9 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                     record._origin[self.name], record, validate=False
                 )
                 self._update_cache(record, value)
-            # get the final value (see patches in x2many fields)
+            # get the final value (see patches in x2many fields); re-resolve, as
+            # convert_to_cache on a relational origin can invalidate the cache.
+            field_cache = self._get_cache(env)
             value = field_cache[record_id]
 
         elif self.compute:
@@ -1678,7 +1685,10 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 # without an initial value the conversion recurses infinitely.
                 value = self.convert_to_cache(defaults[self.name], record)
                 self._update_cache(record, value)
-            # get the final value (see patches in x2many fields)
+            # get the final value (see patches in x2many fields); re-resolve, as
+            # default_get runs user code that can call env.invalidate_all() and
+            # detach the dict the null pre-write above landed in.
+            field_cache = self._get_cache(env)
             value = field_cache[record_id]
 
         return self.convert_to_record(value, record)

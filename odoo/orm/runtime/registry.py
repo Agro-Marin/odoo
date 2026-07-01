@@ -591,6 +591,15 @@ class Registry(
         if self.ready:
             for model in env.values():
                 model._register_hook()
+            # Eagerly rebuild the field-dependency caches under the setup lock
+            # (this method is @locked) before releasing it. On a ready registry
+            # -- an incremental setup from a custom-field add or reset_changes --
+            # other request threads may read _field_triggers concurrently, and
+            # cached_property has no internal lock since Py 3.12, so a lazy build
+            # would let them double-compute and race the shared model_graph. This
+            # mirrors the eager build in Registry.new (which covers initial load,
+            # where self.ready is still False and no request threads exist yet).
+            self._field_triggers  # noqa: B018 — eager build for thread-safety
             env.flush_all()
 
     def post_init(self, func: Callable, *args, **kwargs) -> None:
