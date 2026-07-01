@@ -233,6 +233,15 @@ export class AutoComplete extends Component {
     }
 
     async loadSources(useInput) {
+        // Order guard for overlapping loads (fast typing over a slow async source
+        // such as name_search): only the most recent invocation may mutate
+        // rendering state. Without it, a stale resolution still bumps optionsRev
+        // (spurious re-render against orphaned source objects) and the final
+        // navigate()/scroll() runs in last-to-resolve rather than last-issued
+        // order. The framework's SearchBar wraps its own calls in KeepLast, but
+        // every other consumer (record selectors, many2one widgets) relies on
+        // this component directly.
+        const loadId = (this._loadId = (this._loadId ?? 0) + 1);
         this.sources = [];
         this.state.activeSourceOption = null;
         const proms = [];
@@ -247,6 +256,9 @@ export class AutoComplete extends Component {
             if (options instanceof Promise) {
                 source.isLoading = true;
                 const prom = options.then((options) => {
+                    if (loadId !== this._loadId) {
+                        return; // superseded by a newer load
+                    }
                     source.options = options.map((option) => this.makeOption(option));
                     source.isLoading = false;
                     this.state.optionsRev++;
@@ -258,6 +270,9 @@ export class AutoComplete extends Component {
         }
 
         await Promise.all(proms);
+        if (loadId !== this._loadId) {
+            return; // a newer load is in flight; let it finalize navigation
+        }
         this.navigate(0);
         this.scroll();
     }

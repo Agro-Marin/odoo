@@ -242,6 +242,20 @@ test("custom color picker sets default color as selected", async () => {
     expect("input.o_hex_input").toHaveValue("#FF0000");
 });
 
+test("AGROMARINVERIFY custom color picker does not mutate its props", async () => {
+    const picker = await mountWithCleanup(CustomColorPicker, {
+        props: { defaultColor: "#FF0000", defaultOpacity: 0.5 },
+    });
+    // OWL props are owned by the parent: the component must not rewrite them
+    // (the old in-place mutation was also non-idempotent).
+    expect(picker.props.defaultColor).toBe("#FF0000");
+    expect(picker.props.defaultOpacity).toBe(0.5);
+    // Derived display values live on the instance instead.
+    expect(picker.defaultOpacity).toBe(50); // 0.5 in (0,1] scaled to a percentage
+    expect(picker.defaultColor).toBe("#FF000080"); // opacity hex appended once
+    expect(picker.selectedColor).toBe("#FF000080"); // falls back to defaultColor
+});
+
 test("should preserve color slider when picking max lightness color", async () => {
     class TestColorPicker extends Component {
         static template = xml`

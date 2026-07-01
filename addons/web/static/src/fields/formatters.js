@@ -65,19 +65,24 @@ export function formatBinary(value) {
 }
 
 /**
+ * Read-only rendering of a boolean value as a disabled checkbox.
+ *
+ * The output depends only on ``value``, so the two possible markup fragments are
+ * built once and reused — previously every call allocated a fresh ``markup``
+ * template and bumped a module-global counter that grew unbounded for the page
+ * lifetime (this runs once per read-only boolean cell per render). The former
+ * per-instance ``id``/``for`` pairing served no purpose here: the input is
+ * ``disabled`` and the label is empty, so nothing focuses or references it.
+ *
  * @param {boolean} value
  * @returns {any}
  */
-let booleanCheckboxId = 0;
+const _booleanMarkup = {
+    checked: markup`<div class="o-checkbox d-inline-block me-2"><input type="checkbox" class="form-check-input" disabled checked/><label class="form-check-label"/></div>`,
+    unchecked: markup`<div class="o-checkbox d-inline-block me-2"><input type="checkbox" class="form-check-input" disabled/><label class="form-check-label"/></div>`,
+};
 export function formatBoolean(value) {
-    const id = `boolean_checkbox_${booleanCheckboxId++}`;
-    return markup`
-        <div class="o-checkbox d-inline-block me-2">
-            <input id="${id}" type="checkbox" class="form-check-input" disabled ${
-                value ? "checked" : ""
-            }/>
-            <label for="${id}" class="form-check-label"/>
-        </div>`;
+    return value ? _booleanMarkup.checked : _booleanMarkup.unchecked;
 }
 
 /**

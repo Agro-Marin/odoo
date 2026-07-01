@@ -331,7 +331,10 @@ async function _startServices(env, toStart) {
             waveStarted.push(name);
             proms.push(
                 Promise.resolve(value).then((val) => {
-                    services[name] = val || null;
+                    // Use ?? (not ||) so a service that legitimately resolves to a
+                    // falsy-but-valid value (0, "", false) is preserved rather than
+                    // coerced to null; only undefined/null collapse to null.
+                    services[name] = val ?? null;
                     resolver.propagate(name);
                 }),
             );

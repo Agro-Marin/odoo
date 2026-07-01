@@ -216,6 +216,15 @@ export class RelationalModel extends Model {
             lifecycle: { ...DEFAULT_LIFECYCLE_HOOKS, ...params.hooks?.lifecycle },
             ui: { ...DEFAULT_UI_HOOKS, ...params.hooks?.ui },
         };
+        // ``onRecordChanged`` fires on every committed change to hand integrations
+        // the server-shaped changeset. Its default is a no-op, so building that
+        // changeset — which for a new record or a dirty x2many is a full recursive
+        // command serialization — would be pure waste discarded immediately.
+        // Capture once whether a real consumer wired a hook so ``Record._update``
+        // can skip ``_getChanges()`` entirely in the overwhelmingly common
+        // default case. (Only ``res_user_group_ids_field`` overrides it in core.)
+        this.hasOnRecordChangedHook =
+            this.hooks.lifecycle.onRecordChanged !== DEFAULT_LIFECYCLE_HOOKS.onRecordChanged;
 
         this.initialLimit = params.limit || this.Class.DEFAULT_LIMIT;
         this.initialGroupsLimit = params.groupsLimit;

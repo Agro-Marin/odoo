@@ -845,3 +845,44 @@ test(`don't duplicate a useRecordObserver effect when switching back and forth b
     await contains("#setRecord").click();
     expect.verifySteps(["foo: ghi"]);
 });
+
+test(`AGROMARINVERIFY re-setting a many2one to its current value records no change and does not mutate the caller's changes`, async () => {
+    class Bar extends models.Model {
+        name = fields.Char();
+        _records = [{ id: 1, name: "bar1" }];
+    }
+    defineModels([Bar]);
+
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Record, Many2OneField };
+        static template = xml`
+            <Record resModel="'foo'" fieldNames="['foo']" fields="fields" values="values" t-slot-scope="data" hooks="hooks">
+                <Many2OneField name="'foo'" record="data.record"/>
+            </Record>
+        `;
+        setup() {
+            this.fields = { foo: { name: "foo", type: "many2one", relation: "bar" } };
+            this.values = { foo: { id: 1, display_name: "bar1" } };
+            this.hooks = {
+                lifecycle: { onRecordChanged: () => expect.step("record changed") },
+            };
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    const field = findComponent(parent, (c) => c instanceof Many2OneField);
+    const record = field.props.record;
+
+    // Re-set the many2one to the SAME value it already holds.
+    const changes = { foo: { id: 1, display_name: "bar1" } };
+    await record.update(changes);
+
+    // No real parent change is recorded (the no-op m2o is filtered out) ...
+    expect.verifySteps([]);
+    // ... and _update no longer mutates the caller's object in place: the key
+    // survives (previously the in-place `delete changes.foo` removed it).
+    expect("foo" in changes).toBe(true);
+    // The record value is unchanged.
+    expect(record.data.foo).toEqual({ id: 1, display_name: "bar1" });
+});
