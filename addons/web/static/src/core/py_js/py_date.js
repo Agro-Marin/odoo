@@ -12,7 +12,7 @@ import {
     ValueError,
     ymd2ord,
 } from "./py_date_helpers.js";
-import { parseArgs } from "./py_parser.js";
+import { bindArgs } from "./py_args.js";
 import { PyTimeDelta } from "./py_timedelta.js";
 
 // Re-export for backward compatibility
@@ -21,6 +21,25 @@ export { PyTimeDelta } from "./py_timedelta.js";
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export class NotSupportedError extends Error {}
+
+// ─── strftime ──────────────────────────────────────────────────────────────────
+
+/**
+ * Shared strftime implementation. Only the conversion chars present in
+ * ``converters`` are supported; any other ``%X`` raises ``ValueError``.
+ *
+ * @param {string} format
+ * @param {Record<string, () => string>} converters conversion char → getter
+ * @returns {string}
+ */
+function strftime(format, converters) {
+    return format.replace(/%([A-Za-z])/g, (m, c) => {
+        if (c in converters) {
+            return converters[c]();
+        }
+        throw new ValueError(`No known conversion for ${m}`);
+    });
+}
 
 // ─── PyDate ──────────────────────────────────────────────────────────────────
 
@@ -57,7 +76,7 @@ export class PyDate {
      * @returns {PyDate}
      */
     static create(...args) {
-        const { year, month, day } = parseArgs(args, ["year", "month", "day"]);
+        const { year, month, day } = bindArgs(args, ["year", "month", "day"]);
         return new PyDate(year, month, day);
     }
 
@@ -90,16 +109,10 @@ export class PyDate {
      * @returns {string}
      */
     strftime(format) {
-        return format.replace(/%([A-Za-z])/g, (m, c) => {
-            switch (c) {
-                case "Y":
-                    return fmt4(this.year);
-                case "m":
-                    return fmt2(this.month);
-                case "d":
-                    return fmt2(this.day);
-            }
-            throw new ValueError(`No known conversion for ${m}`);
+        return strftime(format, {
+            Y: () => fmt4(this.year),
+            m: () => fmt2(this.month),
+            d: () => fmt2(this.day),
         });
     }
 
@@ -155,7 +168,7 @@ export class PyDateTime {
      * @returns {PyDateTime}
      */
     static create(...args) {
-        const namedArgs = parseArgs(args, [
+        const namedArgs = bindArgs(args, [
             "year",
             "month",
             "day",
@@ -179,7 +192,7 @@ export class PyDateTime {
      * @returns {PyDateTime}
      */
     static combine(...args) {
-        const { date, time } = parseArgs(args, ["date", "time"]);
+        const { date, time } = bindArgs(args, ["date", "time"]);
         return PyDateTime.create(
             date.year,
             date.month,
@@ -258,22 +271,13 @@ export class PyDateTime {
      * @returns {string}
      */
     strftime(format) {
-        return format.replace(/%([A-Za-z])/g, (m, c) => {
-            switch (c) {
-                case "Y":
-                    return fmt4(this.year);
-                case "m":
-                    return fmt2(this.month);
-                case "d":
-                    return fmt2(this.day);
-                case "H":
-                    return fmt2(this.hour);
-                case "M":
-                    return fmt2(this.minute);
-                case "S":
-                    return fmt2(this.second);
-            }
-            throw new ValueError(`No known conversion for ${m}`);
+        return strftime(format, {
+            Y: () => fmt4(this.year),
+            m: () => fmt2(this.month),
+            d: () => fmt2(this.day),
+            H: () => fmt2(this.hour),
+            M: () => fmt2(this.minute),
+            S: () => fmt2(this.second),
         });
     }
 
@@ -337,7 +341,7 @@ export class PyTime extends PyDate {
      * @returns {PyTime}
      */
     static create(...args) {
-        const namedArgs = parseArgs(args, ["hour", "minute", "second"]);
+        const namedArgs = bindArgs(args, ["hour", "minute", "second"]);
         const hour = namedArgs.hour || 0;
         const minute = namedArgs.minute || 0;
         const second = namedArgs.second || 0;
@@ -365,22 +369,13 @@ export class PyTime extends PyDate {
      * @returns {string}
      */
     strftime(format) {
-        return format.replace(/%([A-Za-z])/g, (m, c) => {
-            switch (c) {
-                case "Y":
-                    return fmt4(this.year);
-                case "m":
-                    return fmt2(this.month);
-                case "d":
-                    return fmt2(this.day);
-                case "H":
-                    return fmt2(this.hour);
-                case "M":
-                    return fmt2(this.minute);
-                case "S":
-                    return fmt2(this.second);
-            }
-            throw new ValueError(`No known conversion for ${m}`);
+        return strftime(format, {
+            Y: () => fmt4(this.year),
+            m: () => fmt2(this.month),
+            d: () => fmt2(this.day),
+            H: () => fmt2(this.hour),
+            M: () => fmt2(this.minute),
+            S: () => fmt2(this.second),
         });
     }
 
@@ -415,7 +410,7 @@ export class PyRelativeDelta {
      * @returns {PyRelativeDelta}
      */
     static create(...args) {
-        const params = parseArgs(args, argsSpec);
+        const params = bindArgs(args, argsSpec);
         if ("dt1" in params) {
             throw new Error("relativedelta(dt1, dt2) is not supported for now");
         }

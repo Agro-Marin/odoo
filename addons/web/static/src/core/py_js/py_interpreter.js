@@ -12,7 +12,7 @@ import {
     PyTime,
     PyTimeDelta,
 } from "./py_date.js";
-import { parseArgs } from "./py_parser.js";
+import { bindArgs } from "./py_args.js";
 import { PY_DICT, toPyDict } from "./py_utils.js";
 import { ASTType } from "./ast_type.js";
 
@@ -158,7 +158,7 @@ const DICT = {
      * @returns {any}
      */
     get(...args) {
-        const { key, defValue } = parseArgs(args, ["key", "defValue"]);
+        const { key, defValue } = bindArgs(args, ["key", "defValue"]);
         if (Object.hasOwn(this, key)) {
             return this[key];
         } else if (defValue !== undefined) {
@@ -255,6 +255,162 @@ const SET = {
     },
 };
 
+/**
+ * Apply a unary operator.
+ * @param {import("./ast_type.js").ASTUnaryOperator} ast
+ * @param {(ast: AST) => any} recurse evaluator for sub-expressions
+ * @returns {any}
+ */
+function _applyUnaryOp(ast, recurse) {
+    const value = recurse(ast.right);
+    switch (ast.op) {
+        case "-":
+            if (value instanceof Object && value.negate) {
+                return value.negate();
+            }
+            return -value;
+        case "+":
+            return value;
+        case "not":
+            return !isTrue(value);
+        case "~":
+            return ~value;
+    }
+    throw new EvaluationError(`Unknown unary operator: ${ast.op}`);
+}
+
+/**
+ * Apply a binary operator.
+ * @param {import("./ast_type.js").ASTBinaryOperator} ast
+ * @param {(ast: AST) => any} recurse evaluator for sub-expressions
+ * @returns {any}
+ */
+function _applyBinaryOp(ast, recurse) {
+    const left = recurse(ast.left);
+    const right = recurse(ast.right);
+    switch (ast.op) {
+        case "+": {
+            const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
+            const relativeDeltaOnRight = right instanceof PyRelativeDelta;
+            if (relativeDeltaOnLeft || relativeDeltaOnRight) {
+                const date = relativeDeltaOnLeft ? right : left;
+                const delta = relativeDeltaOnLeft ? left : right;
+                return PyRelativeDelta.add(date, delta);
+            }
+
+            const timeDeltaOnLeft = left instanceof PyTimeDelta;
+            const timeDeltaOnRight = right instanceof PyTimeDelta;
+            if (timeDeltaOnLeft && timeDeltaOnRight) {
+                return left.add(right);
+            }
+            if (timeDeltaOnLeft) {
+                if (right instanceof PyDate || right instanceof PyDateTime) {
+                    return right.add(left);
+                } else {
+                    throw new NotSupportedError();
+                }
+            }
+            if (timeDeltaOnRight) {
+                if (left instanceof PyDate || left instanceof PyDateTime) {
+                    return left.add(right);
+                } else {
+                    throw new NotSupportedError();
+                }
+            }
+            if (Array.isArray(left) && Array.isArray(right)) {
+                return [...left, ...right];
+            }
+
+            return left + right;
+        }
+        case "-": {
+            const isRightDelta = right instanceof PyRelativeDelta;
+            if (isRightDelta) {
+                return PyRelativeDelta.subtract(left, right);
+            }
+
+            const timeDeltaOnRight = right instanceof PyTimeDelta;
+            if (timeDeltaOnRight) {
+                if (left instanceof PyTimeDelta) {
+                    return left.subtract(right);
+                } else if (left instanceof PyDate || left instanceof PyDateTime) {
+                    return left.subtract(right);
+                } else {
+                    throw new NotSupportedError();
+                }
+            }
+
+            if (left instanceof PyDate || left instanceof PyDateTime) {
+                return left.subtract(right);
+            }
+            return left - right;
+        }
+        case "*": {
+            const timeDeltaOnLeft = left instanceof PyTimeDelta;
+            const timeDeltaOnRight = right instanceof PyTimeDelta;
+            if (timeDeltaOnLeft || timeDeltaOnRight) {
+                const number = timeDeltaOnLeft ? right : left;
+                const delta = timeDeltaOnLeft ? left : right;
+                return delta.multiply(number);
+            }
+
+            return left * right;
+        }
+        case "/":
+            if (right === 0) {
+                throw new EvaluationError("ZeroDivisionError: division by zero");
+            }
+            return left / right;
+        case "%":
+            if (right === 0) {
+                throw new EvaluationError("ZeroDivisionError: modulo by zero");
+            }
+            return ((left % right) + right) % right;
+        case "//":
+            if (left instanceof PyTimeDelta) {
+                return left.divide(right);
+            }
+            if (right === 0) {
+                throw new EvaluationError("ZeroDivisionError: floor division by zero");
+            }
+            return Math.floor(left / right);
+        case "**":
+            return left ** right;
+        case "==":
+            return isEqual(left, right);
+        case "<>":
+        case "!=":
+            return !isEqual(left, right);
+        case "<":
+            return isLess(left, right);
+        case ">":
+            return isLess(right, left);
+        case ">=":
+            return isEqual(left, right) || isLess(right, left);
+        case "<=":
+            return isEqual(left, right) || isLess(left, right);
+        case "in":
+            return isIn(left, right);
+        case "not in":
+            return !isIn(left, right);
+        case "is":
+            return left === null ? right === null : left === right;
+        case "is not":
+            return left === null ? right !== null : left !== right;
+        case "|":
+            return left | right;
+        case "^":
+            return left ^ right;
+        case "&":
+            return left & right;
+        case "<<":
+            return left << right;
+        case ">>":
+            return left >> right;
+    }
+    throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
+}
+
 // -----------------------------------------------------------------------------
 // Evaluate function
 // -----------------------------------------------------------------------------
@@ -334,162 +490,6 @@ export function evaluate(ast, context = {}) {
     const callerProvidesContext = Object.hasOwn(context, "context");
 
     /**
-     * Apply a unary operator within the current evaluation scope.
-     * Defined here (instead of module-level) to reuse _evaluate and dicts.
-     * @param {import("./ast_type.js").ASTUnaryOperator} ast
-     * @returns {any}
-     */
-    function _applyUnaryOp(ast) {
-        const value = _evaluate(ast.right);
-        switch (ast.op) {
-            case "-":
-                if (value instanceof Object && value.negate) {
-                    return value.negate();
-                }
-                return -value;
-            case "+":
-                return value;
-            case "not":
-                return !isTrue(value);
-            case "~":
-                return ~value;
-        }
-        throw new EvaluationError(`Unknown unary operator: ${ast.op}`);
-    }
-
-    /**
-     * Apply a binary operator within the current evaluation scope.
-     * Defined here (instead of module-level) to reuse _evaluate and dicts.
-     * @param {import("./ast_type.js").ASTBinaryOperator} ast
-     * @returns {any}
-     */
-    function _applyBinaryOp(ast) {
-        const left = _evaluate(ast.left);
-        const right = _evaluate(ast.right);
-        switch (ast.op) {
-            case "+": {
-                const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
-                const relativeDeltaOnRight = right instanceof PyRelativeDelta;
-                if (relativeDeltaOnLeft || relativeDeltaOnRight) {
-                    const date = relativeDeltaOnLeft ? right : left;
-                    const delta = relativeDeltaOnLeft ? left : right;
-                    return PyRelativeDelta.add(date, delta);
-                }
-
-                const timeDeltaOnLeft = left instanceof PyTimeDelta;
-                const timeDeltaOnRight = right instanceof PyTimeDelta;
-                if (timeDeltaOnLeft && timeDeltaOnRight) {
-                    return left.add(right);
-                }
-                if (timeDeltaOnLeft) {
-                    if (right instanceof PyDate || right instanceof PyDateTime) {
-                        return right.add(left);
-                    } else {
-                        throw new NotSupportedError();
-                    }
-                }
-                if (timeDeltaOnRight) {
-                    if (left instanceof PyDate || left instanceof PyDateTime) {
-                        return left.add(right);
-                    } else {
-                        throw new NotSupportedError();
-                    }
-                }
-                if (Array.isArray(left) && Array.isArray(right)) {
-                    return [...left, ...right];
-                }
-
-                return left + right;
-            }
-            case "-": {
-                const isRightDelta = right instanceof PyRelativeDelta;
-                if (isRightDelta) {
-                    return PyRelativeDelta.subtract(left, right);
-                }
-
-                const timeDeltaOnRight = right instanceof PyTimeDelta;
-                if (timeDeltaOnRight) {
-                    if (left instanceof PyTimeDelta) {
-                        return left.subtract(right);
-                    } else if (left instanceof PyDate || left instanceof PyDateTime) {
-                        return left.subtract(right);
-                    } else {
-                        throw new NotSupportedError();
-                    }
-                }
-
-                if (left instanceof PyDate || left instanceof PyDateTime) {
-                    return left.subtract(right);
-                }
-                return left - right;
-            }
-            case "*": {
-                const timeDeltaOnLeft = left instanceof PyTimeDelta;
-                const timeDeltaOnRight = right instanceof PyTimeDelta;
-                if (timeDeltaOnLeft || timeDeltaOnRight) {
-                    const number = timeDeltaOnLeft ? right : left;
-                    const delta = timeDeltaOnLeft ? left : right;
-                    return delta.multiply(number);
-                }
-
-                return left * right;
-            }
-            case "/":
-                if (right === 0) {
-                    throw new EvaluationError("ZeroDivisionError: division by zero");
-                }
-                return left / right;
-            case "%":
-                if (right === 0) {
-                    throw new EvaluationError("ZeroDivisionError: modulo by zero");
-                }
-                return ((left % right) + right) % right;
-            case "//":
-                if (left instanceof PyTimeDelta) {
-                    return left.divide(right);
-                }
-                if (right === 0) {
-                    throw new EvaluationError("ZeroDivisionError: floor division by zero");
-                }
-                return Math.floor(left / right);
-            case "**":
-                return left ** right;
-            case "==":
-                return isEqual(left, right);
-            case "<>":
-            case "!=":
-                return !isEqual(left, right);
-            case "<":
-                return isLess(left, right);
-            case ">":
-                return isLess(right, left);
-            case ">=":
-                return isEqual(left, right) || isLess(right, left);
-            case "<=":
-                return isEqual(left, right) || isLess(left, right);
-            case "in":
-                return isIn(left, right);
-            case "not in":
-                return !isIn(left, right);
-            case "is":
-                return left === null ? right === null : left === right;
-            case "is not":
-                return left === null ? right !== null : left !== right;
-            case "|":
-                return left | right;
-            case "^":
-                return left ^ right;
-            case "&":
-                return left & right;
-            case "<<":
-                return left << right;
-            case ">>":
-                return left >> right;
-        }
-        throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
-    }
-
-    /**
      * @param {AST} ast
      * @returns {any}
      */
@@ -523,9 +523,9 @@ export function evaluate(ast, context = {}) {
             case ASTType.Boolean:
                 return ast.value;
             case ASTType.UnaryOperator:
-                return _applyUnaryOp(ast);
+                return _applyUnaryOp(ast, _evaluate);
             case ASTType.BinaryOperator:
-                return _applyBinaryOp(ast);
+                return _applyBinaryOp(ast, _evaluate);
             case ASTType.BooleanOperator: {
                 const left = _evaluate(ast.left);
                 if (ast.op === "and") {
