@@ -58,7 +58,17 @@ export class GraphRenderer extends Component {
             await loadChartJS();
         });
 
-        useEffect(() => this.renderChart());
+        // Rebuild the (heavyweight) Chart.js instance only when the inputs that
+        // actually define the chart change. Without a deps array this re-ran on
+        // EVERY render — destroying and recreating the chart (re-parsing config,
+        // replaying entry animations) on unrelated re-renders. GraphModel
+        // reassigns both `data` and `metaData` to new objects on each load/config
+        // change (and lineOverlayDataset is recomputed alongside `data`), so this
+        // captures every real change.
+        useEffect(
+            () => this.renderChart(),
+            () => [this.model.data, this.model.metaData],
+        );
         onWillUnmount(this.onWillUnmount);
     }
 

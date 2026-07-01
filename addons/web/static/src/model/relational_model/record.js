@@ -154,7 +154,11 @@ export class RelationalRecord extends DataPoint {
     _setData(data, { orderBys, keepChanges } = {}) {
         this._isEvalContextReady = false;
         if (this.resId) {
-            this._values = this._parseServerValues(data, { orderBys });
+            // markRaw like the new-record branch below and every other _values
+            // writer: without it, `data = {...this._values}` reads _values through
+            // the reactive proxy and eagerly wraps every relational sub-value
+            // (even undisplayed fields) on every existing-record load.
+            this._values = markRaw(this._parseServerValues(data, { orderBys }));
             Object.assign(this._textValues, this._getTextValues(data));
         } else {
             const allVals = { ...this._getDefaultValues(), ...data };
