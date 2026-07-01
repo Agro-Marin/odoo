@@ -92,6 +92,13 @@ def nary_optimization(optimization: typing.Any) -> typing.Any:
     ``(optimize AND) if cond == cls.ZERO.value else (optimize OR)``. Children
     arrive optimized and sorted by (field, operator type, operator).
     """
+    # ``_match_operators`` is the operator gate read by
+    # ``DomainNary._optimize_step`` to skip a merge whose operators are absent
+    # from a node's children (running it would scan the children and change
+    # nothing).  ``None`` = always applicable (e.g. the dedup pass);
+    # ``nary_condition_optimization`` sets the concrete operator set.
+    if not hasattr(optimization, "_match_operators"):
+        optimization._match_operators = None
     _MERGE_OPTIMIZATIONS.append(optimization)
     return optimization
 
@@ -107,7 +114,6 @@ def nary_condition_optimization(
     """
 
     def register(optimization: typing.Any) -> typing.Any:
-        @nary_optimization
         def optimizer(
             cls: type[DomainNary], domains: list[Domain], model: BaseModel
         ) -> list[Domain]:
@@ -144,7 +150,14 @@ def nary_condition_optimization(
             flush()
             return result
 
-        # Return the *undecorated* function (not ``optimizer``): ``@nary_optimization``
+        # Gate this merge to its operators, then register it.  ``_optimize_step``
+        # skips it when no child condition uses one of these operators — the loop
+        # above would otherwise scan every child and pass them all through
+        # unchanged (a no-op), so skipping is result-preserving.
+        optimizer._match_operators = frozenset(operators)
+        nary_optimization(optimizer)
+
+        # Return the *undecorated* function (not ``optimizer``): ``nary_optimization``
         # already registered ``optimizer`` for its side effect, and returning the raw
         # function lets stacked ``@nary_condition_optimization`` decorators (e.g. on
         # ``_optimize_merge_any`` for both "any" and "any!") each wrap the original
