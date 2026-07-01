@@ -917,8 +917,12 @@ export class StaticList extends DataPoint {
         // report a change every time and never skip. ``deepEqual`` over the
         // handful of context keys is cheap (run once per x2many per edit, not
         // per row).
+        // Compare over the UNION of old + new keys so a key that DISAPPEARED
+        // from the field context (not just changed value) is detected — iterating
+        // only the new keys missed removals.
         let changed = false;
-        for (const key of Object.keys(context)) {
+        const keys = new Set([...Object.keys(this.context), ...Object.keys(context)]);
+        for (const key of keys) {
             if (!deepEqual(this.context[key], context[key])) {
                 changed = true;
                 break;
@@ -926,6 +930,15 @@ export class StaticList extends DataPoint {
         }
         if (!changed) {
             return;
+        }
+        // ``this.context`` mirrors getFieldContext() exactly (it has no other
+        // contributor — see record.js:794), so drop keys that disappeared before
+        // merging; a plain Object.assign would leave stale keys lingering in
+        // every sub-record's eval context (and in load/save RPCs).
+        for (const key of Object.keys(this.context)) {
+            if (!(key in context)) {
+                delete this.context[key];
+            }
         }
         Object.assign(this.context, context);
         for (const record of Object.values(this._cache)) {

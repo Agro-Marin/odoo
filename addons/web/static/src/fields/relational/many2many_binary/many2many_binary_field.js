@@ -72,14 +72,23 @@ export class Many2ManyBinaryField extends Component {
 
     /** @param {Array<{ id: number, error?: string }>} files - Uploaded file descriptors */
     async onFileUploaded(files) {
+        const uploadedIds = [];
         for (const file of files) {
             if (file.error) {
-                return this.notification.add(file.error, {
+                // Notify but keep processing the batch — a single failed file
+                // must not abandon the other successfully-uploaded ones.
+                this.notification.add(file.error, {
                     title: _t("Uploading error"),
                     type: "danger",
                 });
+                continue;
             }
-            await this.operations.saveRecord([file.id]);
+            uploadedIds.push(file.id);
+        }
+        if (uploadedIds.length) {
+            // Link all uploaded attachments in one operation (addAndRemove)
+            // instead of one RPC per file.
+            await this.operations.saveRecord(uploadedIds);
         }
     }
 

@@ -419,8 +419,11 @@ export function parse(tokens) {
  */
 export function parseArgs(args, spec) {
     const last = args.at(-1);
-    const unnamedArgs = typeof last === "object" && last !== null ? args.slice(0, -1) : args;
-    const kwargs = typeof last === "object" && last !== null ? last : {};
+    const hasKwargs = typeof last === "object" && last !== null;
+    const unnamedArgs = hasKwargs ? args.slice(0, -1) : args;
+    // Copy rather than write through: the positional names below were being
+    // assigned onto the caller's own kwargs object.
+    const kwargs = hasKwargs ? { ...last } : {};
     for (const [index, val] of unnamedArgs.entries()) {
         kwargs[spec[index]] = val;
     }

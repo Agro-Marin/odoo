@@ -15,7 +15,7 @@ import { usePosition } from "@web/core/position/position_hook";
 import { Deferred } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { isScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
-import { useAutofocus, useForwardRefToParent, useService } from "@web/core/utils/hooks";
+import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
@@ -127,9 +127,6 @@ export class AutoComplete extends Component {
         this._onMouseMove = () => (this.mouseSelectionActive = true);
         this._globalCleanups = [];
         onWillUnmount(() => this._removeGlobalListeners());
-
-        this.hotkey = useService("hotkey");
-        this.hotkeysToRemove = [];
 
         onWillUpdateProps((nextProps) => {
             if (this.props.value !== nextProps.value || this.forceValFromProp) {

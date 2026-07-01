@@ -70,18 +70,24 @@ export async function resequence(list, movedId, targetId) {
     // Determine what records need to be modified
     const firstIndex = Math.min(fromIndex, toIndex);
     const lastIndex = Math.max(fromIndex, toIndex) + 1;
-    let reorderAll = false;
-    let lastSequence = (asc ? -1 : 1) * Infinity;
-    for (let index = 0; index < records.length; index++) {
-        const sequence = getSequence(records[index]);
-        if (
-            (asc && lastSequence >= sequence) ||
-            (!asc && lastSequence <= sequence)
-        ) {
-            reorderAll = true;
-            break;
+    // A record with no handle value (undefined) must force a full reorder:
+    // comparing a number against `undefined` yields NaN (always false), so the
+    // monotonic scan below would silently let it through and the partial-reorder
+    // branch would write colliding `offset + i` sequences. Mirrors resequence.js.
+    let reorderAll = records.some((record) => getSequence(record) === undefined);
+    if (!reorderAll) {
+        let lastSequence = (asc ? -1 : 1) * Infinity;
+        for (let index = 0; index < records.length; index++) {
+            const sequence = getSequence(records[index]);
+            if (
+                (asc && lastSequence >= sequence) ||
+                (!asc && lastSequence <= sequence)
+            ) {
+                reorderAll = true;
+                break;
+            }
+            lastSequence = sequence;
         }
-        lastSequence = sequence;
     }
 
     // Perform the resequence in the list of records

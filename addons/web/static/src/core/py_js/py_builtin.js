@@ -108,6 +108,24 @@ export function execOnIterable(iterable, func) {
     return func(iterable);
 }
 
+/**
+ * Resolve the items for a Python-style ``max``/``min`` call: either a single
+ * iterable argument or several positional ones. The trailing element is the
+ * kwargs object the interpreter appends, so it is always dropped.
+ *
+ * @param {any[]} args raw call arguments (kwargs object last)
+ * @param {"max" | "min"} name for the empty-sequence error message
+ * @returns {any[]}
+ */
+function maxMinItems(args, name) {
+    const values = args.slice(0, -1); // remove kwargs
+    const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
+    if (items.length === 0) {
+        throw new EvaluationError(`${name}() arg is an empty sequence`);
+    }
+    return items;
+}
+
 export const BUILTINS = {
     /**
      * @param {any} value
@@ -150,21 +168,18 @@ export const BUILTINS = {
     },
 
     max(/** @type {any[]} */ ...args) {
-        const values = args.slice(0, -1); // remove kwargs
-        const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
-        if (items.length === 0) {
-            throw new EvaluationError("max() arg is an empty sequence");
-        }
-        return Math.max(...items);
+        const items = maxMinItems(args, "max");
+        // Reduce with the relational operator rather than Math.max: Math.max
+        // coerces every item with Number(), so max("b","a")/max(dateA,dateB)
+        // returned NaN. Relational `>` orders numbers, strings, booleans and
+        // Date-likes correctly, and keeping `acc` on ties matches Python's
+        // "first maximal element wins".
+        return items.reduce((acc, item) => (item > acc ? item : acc));
     },
 
     min(/** @type {any[]} */ ...args) {
-        const values = args.slice(0, -1); // remove kwargs
-        const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
-        if (items.length === 0) {
-            throw new EvaluationError("min() arg is an empty sequence");
-        }
-        return Math.min(...items);
+        const items = maxMinItems(args, "min");
+        return items.reduce((acc, item) => (item < acc ? item : acc));
     },
 
     time: {

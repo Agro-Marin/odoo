@@ -55,11 +55,21 @@ export const hotkeyService = {
 
         addListeners(/** @type {any} */ (browser));
 
-        function addListeners(/** @type {Window} */ target) {
+        /**
+         * @param {Window} target
+         * @returns {() => void} disposer that detaches every listener it added
+         */
+        function addListeners(target) {
             target.addEventListener("keydown", onKeydown);
             target.addEventListener("keyup", removeHotkeyOverlays);
             target.addEventListener("blur", removeHotkeyOverlays);
             target.addEventListener("click", removeHotkeyOverlays);
+            return () => {
+                target.removeEventListener("keydown", onKeydown);
+                target.removeEventListener("keyup", removeHotkeyOverlays);
+                target.removeEventListener("blur", removeHotkeyOverlays);
+                target.removeEventListener("click", removeHotkeyOverlays);
+            };
         }
 
         /**
@@ -426,10 +436,14 @@ export const hotkeyService = {
                 };
             },
             /**
+             * Attach the hotkey listeners to an iframe's window.
              * @param {HTMLIFrameElement} iframe
+             * @returns {() => void} disposer — call it on iframe removal/unmount
+             *   to avoid leaking the four listeners (and retaining the detached
+             *   window) every time the iframe is re-created.
              */
             registerIframe(iframe) {
-                addListeners(iframe.contentWindow);
+                return addListeners(iframe.contentWindow);
             },
         };
     },

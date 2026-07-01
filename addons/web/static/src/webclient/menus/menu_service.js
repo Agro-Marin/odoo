@@ -138,10 +138,10 @@ export const menuService = {
             },
             setCurrentMenu,
             async reload() {
-                if (fetchMenus) {
-                    menusData = await fetchMenus(true);
-                    env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
-                }
+                // fetchMenus is a const arrow defined above — always truthy, so
+                // the old `if (fetchMenus)` guard was dead.
+                menusData = await fetchMenus(true);
+                env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
             },
         };
     },

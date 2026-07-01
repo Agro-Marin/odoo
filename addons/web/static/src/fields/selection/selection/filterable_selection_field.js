@@ -29,12 +29,14 @@ export class FilterableSelectionField extends SelectionField {
     get options() {
         let options = super.options;
         if (this.props.whitelist_fname) {
+            // The whitelist field is a fields.Json compute that reads ``false``
+            // when unset (new record / conditional compute), so guard against
+            // ``false.includes`` crashing the form render.
+            const whitelist = this.props.record.data[this.props.whitelist_fname] || [];
             options = options.filter(
                 (option) =>
                     option[0] === this.props.record.data[this.props.name] ||
-                    this.props.record.data[this.props.whitelist_fname].includes(
-                        option[0],
-                    ),
+                    whitelist.includes(option[0]),
             );
         } else if (this.props.whitelisted_values) {
             options = options.filter(

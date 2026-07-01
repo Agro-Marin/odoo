@@ -31,7 +31,14 @@ export class BadgeField extends Component {
 
     /** @returns {string} Bootstrap badge CSS class based on color field or decoration rules. */
     get badgeClass() {
-        if (this.props.colorField) {
+        // Only emit a color class for a real integer color index. A null/false
+        // color field otherwise produced the junk class `o_badge_color_false`
+        // AND skipped the decoration/default fallback below. Mirrors the
+        // Number.isInteger guard in list_badge_selection_field.
+        if (
+            this.props.colorField &&
+            Number.isInteger(this.props.record.data[this.props.colorField])
+        ) {
             return `o_badge_color_${this.props.record.data[this.props.colorField]}`;
         }
         const evalContext = this.props.record.evalContextWithVirtualIds;
