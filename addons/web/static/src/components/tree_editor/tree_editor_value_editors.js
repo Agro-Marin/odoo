@@ -330,15 +330,19 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             const formatType = type === "integer" ? "integer" : "float";
             const typeFormatter = formatters.get(formatType, null);
             const formatter = (value) => {
-                let v = value;
-                if (typeFormatter) {
+                // Only run the numeric formatter on actual numbers. Dynamic
+                // values (an ``Expression`` such as ``uid``/``today``) must
+                // render as their raw expression text; coercing them through
+                // the number formatter blanks them out (crashing the domain
+                // editor's display of dynamic filters).
+                if (typeFormatter && typeof value === "number") {
                     try {
-                        v = typeFormatter(value);
+                        return String(typeFormatter(value));
                     } catch {
-                        /* do nothing */
+                        /* fall through to String(value) */
                     }
                 }
-                return String(v);
+                return value === false ? "" : String(value);
             };
             return {
                 component: Input,

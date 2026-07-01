@@ -124,8 +124,16 @@ export class AutoComplete extends Component {
         // Arrow functions capture `this` — required because addEventListener
         // does not preserve component context like OWL's useExternalListener.
         this._externalClose = (/** @type {Event} */ ev) => this.externalClose(ev);
-        this._onMouseMove = () => (this.mouseSelectionActive = true);
+        // The mousemove listener is a one-shot latch: the first move flips
+        // mouseSelectionActive on and removes itself, so we stop capturing every
+        // pixel of movement forever. It is re-armed whenever the latch is reset
+        // (close, keyboard navigation) so hover-selection keeps working.
+        this._onMouseMove = () => {
+            this._mouseMoveCleanup = null;
+            this.mouseSelectionActive = true;
+        };
         this._globalCleanups = [];
+        this._mouseMoveCleanup = null;
         onWillUnmount(() => this._removeGlobalListeners());
 
         onWillUpdateProps((nextProps) => {
@@ -135,6 +143,14 @@ export class AutoComplete extends Component {
                     this.state.value = nextProps.value;
                     this.inputRef.el.value = nextProps.value;
                 }
+                // A prop value change means the owner replaced the value out from
+                // under us (e.g. a delayed onChange while the dropdown is open).
+                // Close so the next interaction re-opens a fresh, correctly-seeded
+                // dropdown — without this, a still-open list clicked afterwards
+                // toggles shut (onInputClick) instead of selecting. The inEdition
+                // guard above keeps the user's in-progress text; only the dropdown
+                // is dismissed.
+                this.close();
             }
         });
 
@@ -198,7 +214,7 @@ export class AutoComplete extends Component {
     close() {
         this.state.open = false;
         this.state.activeSourceOption = null;
-        this.mouseSelectionActive = false;
+        this._resetMouseSelection();
         this._removeGlobalListeners();
     }
 
@@ -212,7 +228,7 @@ export class AutoComplete extends Component {
         };
         add(window, "scroll", this._externalClose, true);
         add(window, "pointerdown", this._externalClose);
-        add(window, "mousemove", this._onMouseMove, true);
+        this._armMouseMove();
     }
 
     _removeGlobalListeners() {
@@ -220,6 +236,34 @@ export class AutoComplete extends Component {
             cleanup();
         }
         this._globalCleanups = [];
+        this._mouseMoveCleanup?.();
+        this._mouseMoveCleanup = null;
+    }
+
+    /**
+     * Arm the one-shot mousemove latch: the first move sets
+     * mouseSelectionActive and removes the listener (once: true).
+     */
+    _armMouseMove() {
+        if (this._mouseMoveCleanup) {
+            return; // already armed
+        }
+        window.addEventListener("mousemove", this._onMouseMove, {
+            capture: true,
+            once: true,
+        });
+        this._mouseMoveCleanup = () =>
+            window.removeEventListener("mousemove", this._onMouseMove, {
+                capture: true,
+            });
+    }
+
+    /** Turn off mouse hover selection and re-arm the mousemove latch. */
+    _resetMouseSelection() {
+        this.mouseSelectionActive = false;
+        if (this.isOpened) {
+            this._armMouseMove();
+        }
     }
 
     cancel() {
@@ -329,6 +373,10 @@ export class AutoComplete extends Component {
     }
 
     navigate(direction) {
+        // Navigation (keyboard or programmatic) takes over from the mouse:
+        // disarm hover selection and re-arm the latch so the next real
+        // mousemove re-enables it.
+        this._resetMouseSelection();
         let step = Math.sign(direction);
         if (!step) {
             this.state.activeSourceOption = null;

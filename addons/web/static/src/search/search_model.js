@@ -317,6 +317,8 @@ export class SearchModel extends EventBus {
         this.globalGroupBy = groupBy || [];
         this.globalOrderBy = orderBy || [];
 
+        // Called for its side effect: strips the search_default_* keys out of
+        // this.globalContext (their values feed the initial section state).
         this._extractSearchDefaultsFromGlobalContext();
 
         await this._reloadSections();
@@ -766,10 +768,11 @@ export class SearchModel extends EventBus {
         const { viewType } = this.env.config;
         return {
             controlPanel: "controlPanel" in display ? display.controlPanel : {},
-            searchPanel:
+            searchPanel: Boolean(
                 this.sections.size &&
-                (!viewType || viewTypes.includes(viewType)) &&
-                ("searchPanel" in display ? display.searchPanel : true),
+                    (!viewType || viewTypes.includes(viewType)) &&
+                    ("searchPanel" in display ? display.searchPanel : true),
+            ),
         };
     }
 
@@ -934,7 +937,7 @@ export class SearchModel extends EventBus {
         return computeOrderBy(
             this._getGroups(),
             this.searchItems,
-            this.groupBy,
+            this._getGroupBy(),
             this.orderByCount,
             this.globalOrderBy,
         );
