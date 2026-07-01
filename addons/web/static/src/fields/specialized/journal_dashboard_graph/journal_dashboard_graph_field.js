@@ -24,20 +24,25 @@ export class JournalDashboardGraphField extends Component {
     setup() {
         this.chart = null;
         this.canvasRef = useRef("canvas");
-        this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
 
         onWillStart(async () => {
             await loadChartJS();
         });
 
-        useEffect(() => {
-            this.renderChart();
-            return () => {
-                if (this.chart) {
-                    this.chart.destroy();
-                }
-            };
-        });
+        // Rebuild only when the serialized graph data actually changes — not on
+        // every render. Parsing happens inside renderChart so the chart reflects
+        // the current field value (it was parsed once in setup and went stale).
+        useEffect(
+            () => {
+                this.renderChart();
+                return () => {
+                    if (this.chart) {
+                        this.chart.destroy();
+                    }
+                };
+            },
+            () => [this.props.record.data[this.props.name]],
+        );
     }
 
     /**
@@ -48,6 +53,7 @@ export class JournalDashboardGraphField extends Component {
         if (this.chart) {
             this.chart.destroy();
         }
+        this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
         if (!this.data.length) {
             return;
         }
