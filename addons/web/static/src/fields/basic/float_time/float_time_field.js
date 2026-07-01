@@ -3,17 +3,16 @@
 
 /** @module @web/fields/basic/float_time/float_time_field - Time duration input that stores hours as a float (e.g. 1.5 = 1h30) */
 
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
 import { formatFloatTime } from "@web/fields/formatters";
-import { useInputField } from "@web/fields/input_field_hook";
-import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { parseFloatTime } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class FloatTimeField extends Component {
+import { NumericInputFieldBase } from "../numeric_input_field_base.js";
+
+export class FloatTimeField extends NumericInputFieldBase {
     static template = "web.FloatTimeField";
     static props = {
         ...standardFieldProps,
@@ -24,13 +23,9 @@ export class FloatTimeField extends Component {
         inputType: "text",
     };
 
-    setup() {
-        this.inputFloatTimeRef = useInputField({
-            getValue: () => this.formattedValue,
-            refName: "numpadDecimal",
-            parse: (v) => parseFloatTime(v),
-        });
-        useNumpadDecimal();
+    /** @param {string} v @returns {number} */
+    parse(v) {
+        return parseFloatTime(v);
     }
 
     /** @returns {string} float value formatted as HH:MM (or HH:MM:SS) */

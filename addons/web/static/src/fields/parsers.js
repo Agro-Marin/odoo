@@ -17,6 +17,50 @@ import { escapeRegExp } from "@web/core/utils/format/strings";
  */
 import { Operation } from "@web/model/relational_model/operation";
 
+/**
+ * Memoizes a ``RegExp`` builder keyed on a string. Number parsing runs on every
+ * keystroke of every numeric input, and the compiled regexes only depend on the
+ * (rarely changing) localization separators — so caching by separator avoids
+ * recompiling identical patterns on the hot path.
+ *
+ * @param {(key: string) => RegExp} build
+ * @returns {(key: string) => RegExp}
+ */
+function memoizeRegex(build) {
+    /** @type {Map<string, RegExp>} */
+    const cache = new Map();
+    return (key) => {
+        let regex = cache.get(key);
+        if (!regex) {
+            regex = build(key);
+            cache.set(key, regex);
+        }
+        return regex;
+    };
+}
+
+const getOperationRegex = memoizeRegex(
+    (decimalPoint) =>
+        new RegExp(
+            `^(?<operator>[+\\-*/])\\s*=\\s*(?<operand>-?\\d+(?:[${escapeRegExp(
+                decimalPoint,
+            )}]\\d+)?)$`,
+        ),
+);
+const getThousandsSepRegex = memoizeRegex(
+    (thousandsSep) => new RegExp(escapeRegExp(thousandsSep), "g"),
+);
+const getDecimalPointRegex = memoizeRegex(
+    (decimalPoint) => new RegExp(escapeRegExp(decimalPoint), "g"),
+);
+const getMonetaryStartRegex = memoizeRegex(
+    (decimalPoint) => new RegExp(`[\\d\\-+=]|${escapeRegExp(decimalPoint)}`),
+);
+
+// A whitespace thousands separator matches any run of whitespace, so it needs
+// no per-separator compilation.
+const WHITESPACE_THOUSANDS_SEP_REGEX = /\s+/g;
+
 function evaluateMathematicalExpression(expr, context = {}) {
     // remove extra space
     const val = expr.replaceAll(" ", "");
@@ -42,12 +86,7 @@ function evaluateMathematicalExpression(expr, context = {}) {
  * @returns {import("@web/model/relational_model/operation").Operation | false}
  */
 function parseOperation(value, parseValueFn) {
-    const regex = new RegExp(
-        `^(?<operator>[+\\-*/])\\s*=\\s*(?<operand>-?\\d+(?:[${escapeRegExp(
-            localization.decimalPoint,
-        )}]\\d+)?)$`,
-    );
-    const match = value.match(regex);
+    const match = value.match(getOperationRegex(localization.decimalPoint));
     if (match?.groups) {
         const operand = parseValueFn(match.groups.operand);
         const operator = match.groups.operator;
@@ -72,13 +111,13 @@ function parseNumber(value, options = /** @type {any} */ ({})) {
         // E.g. "1  000 000" should be parsed as 1000000 even if the
         // thousands separator is nbsp.
         const thousandsSepRegex = options.thousandsSep.match(/\s+/)
-            ? /\s+/g
-            : new RegExp(escapeRegExp(options.thousandsSep), "g");
+            ? WHITESPACE_THOUSANDS_SEP_REGEX
+            : getThousandsSepRegex(options.thousandsSep);
 
         // a number can have the thousand separator multiple times. ex: 1,000,000.00
         value = value.replaceAll(thousandsSepRegex, "");
         // a number only have one decimal separator
-        value = value.replace(new RegExp(escapeRegExp(options.decimalPoint), "g"), ".");
+        value = value.replace(getDecimalPointRegex(options.decimalPoint), ".");
     }
 
     return Number(value);
@@ -236,9 +275,7 @@ export function parseMonetary(value, { allowOperation = false } = {}) {
         return operation;
     }
     value = value.trim();
-    const startMatch = value.match(
-        new RegExp(`[\\d\\-+=]|${escapeRegExp(localization.decimalPoint)}`),
-    );
+    const startMatch = value.match(getMonetaryStartRegex(localization.decimalPoint));
     if (startMatch) {
         value = value.slice(startMatch.index);
     }

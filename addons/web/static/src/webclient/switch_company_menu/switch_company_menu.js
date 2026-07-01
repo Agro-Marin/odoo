@@ -104,23 +104,22 @@ class CompanySelector {
         this.selectedCompaniesIds = user.activeCompanies.map((c) => c.id);
     }
 
-    selectAll(companyIds) {
-        let shouldSelectAll = true;
+    toggleSelectAll(companyIds) {
+        const anySelected = companyIds.some((id) =>
+            this.selectedCompaniesIds.includes(id),
+        );
 
-        // If any company is selected, just unselect all
-        for (let i = this.selectedCompaniesIds.length - 1; i >= 0; i--) {
-            if (companyIds.includes(this.selectedCompaniesIds[i])) {
-                this.selectedCompaniesIds.splice(i, 1);
-                shouldSelectAll = false;
-            }
-        }
-
-        // If no company is selected, select all
-        if (shouldSelectAll) {
-            for (const companyId of companyIds) {
-                if (!this.selectedCompaniesIds.includes(companyId)) {
-                    this.selectedCompaniesIds.push(companyId);
+        if (anySelected) {
+            // If any company is selected, unselect all of them.
+            for (let i = this.selectedCompaniesIds.length - 1; i >= 0; i--) {
+                if (companyIds.includes(this.selectedCompaniesIds[i])) {
+                    this.selectedCompaniesIds.splice(i, 1);
                 }
+            }
+        } else {
+            // If none is selected, select all.
+            for (const companyId of companyIds) {
+                this.selectedCompaniesIds.push(companyId);
             }
         }
     }
@@ -404,7 +403,7 @@ export class SwitchCompanyMenu extends Component {
 
     selectAll() {
         const companyIds = this.visibleCompanies.map((entry) => entry.company.id);
-        this.companySelector.selectAll(companyIds);
+        this.companySelector.toggleSelectAll(companyIds);
     }
 
     get isSingleCompany() {

@@ -3,8 +3,6 @@
 
 /** @module @web/views/list/list_aggregates - Hook computing column aggregates and multi-currency popovers for the list view */
 
-/** @odoo-module native */
-
 import { onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";

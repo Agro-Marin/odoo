@@ -83,7 +83,6 @@ export { DRAGGED_CLASS };
  *  scrollParentXRect?: DOMRect | null;
  *  scrollParentY?: HTMLElement | null;
  *  scrollParentYRect?: DOMRect | null;
- *  scrollingEdge?: "left"|"right"|"top"|"bottom"|null;
  *  timeout?: number;
  *  initialPosition?: Position;
  *  offset?: Position;
@@ -345,25 +344,20 @@ export function makeDraggableHook(hookParams) {
 
                 /** @type {{ x?: [number, number], y?: [number, number] }} */
                 const diff = {};
-                ctx.current.scrollingEdge = null;
                 if (xRect) {
                     const maxWidth = xRect.x + xRect.width;
                     if (pointerX - xRect.x < threshold) {
                         diff.x = [pointerX - xRect.x, -1];
-                        ctx.current.scrollingEdge = "left";
                     } else if (maxWidth - pointerX < threshold) {
                         diff.x = [maxWidth - pointerX, 1];
-                        ctx.current.scrollingEdge = "right";
                     }
                 }
                 if (yRect) {
                     const maxHeight = yRect.y + yRect.height;
                     if (pointerY - yRect.y < threshold) {
                         diff.y = [pointerY - yRect.y, -1];
-                        ctx.current.scrollingEdge = "top";
                     } else if (maxHeight - pointerY < threshold) {
                         diff.y = [maxHeight - pointerY, 1];
-                        ctx.current.scrollingEdge = "bottom";
                     }
                 }
 

@@ -3,8 +3,6 @@
 
 /** @module @web/views/list/list_keyboard_nav - Keyboard navigation hook for arrow, tab, and enter key traversal across list view cells */
 
-/** @odoo-module native */
-
 import { ModelEvent } from "@web/core/events";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
@@ -14,7 +12,7 @@ import { makeEditHandlers } from "./list_keyboard_edit.js";
  * @param {HTMLTableCellElement} cell
  * @param {number} [index]
  */
-function getElementToFocus(cell, index) {
+export function getElementToFocus(cell, index) {
     return /** @type {HTMLElement} */ (getTabableElements(cell).at(index) || cell);
 }
 

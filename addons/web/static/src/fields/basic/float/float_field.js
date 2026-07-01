@@ -6,7 +6,7 @@
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
-import { extractDigits, extractNumericOptions } from "@web/fields/field_utils";
+import { extractDigits, extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { formatFloat } from "@web/fields/formatters";
 import { parseFloat } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -143,7 +143,7 @@ export const floatField = {
         },
     ],
     supportedTypes: ["float", "monetary"],
-    isEmpty: (record, fieldName) => record.data[fieldName] === false,
+    isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({
         ...extractNumericOptions({ options }),
         digits: extractDigits({ attrs, options }),

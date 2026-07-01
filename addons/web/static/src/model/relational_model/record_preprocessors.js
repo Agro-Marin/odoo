@@ -73,9 +73,7 @@ export async function preprocessMany2oneChanges(record, changes) {
         .map(async ([fieldName, value]) => {
             if (!value) {
                 changes[fieldName] = false;
-            } else if (!record.activeFields[fieldName]) {
-                changes[fieldName] = value;
-            } else {
+            } else if (record.activeFields[fieldName]) {
                 const relation = record.fields[fieldName].relation;
                 return completeMany2OneValue(record, value, fieldName, relation).then(
                     (v) => {

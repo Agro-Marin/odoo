@@ -41,7 +41,7 @@
                     <input t-ref="search" type="search" class="form-control mb-3 o_export_search_input" id="o-export-search-filter" placeholder="Search" t-on-input="onSearch" />
                     <div class="o_left_field_panel h-100 overflow-auto border">
                         <div class="o_field_tree_structure">
-                            <t t-if="fieldsAvailable">
+                            <t t-if="fieldsAvailable.length">
                                 <t t-foreach="rootFields" t-as="field" t-key="field.id + '_' + state.search.length + '_' + isCompatible">
                                     <ExportDataItem
                                         exportList="state.exportList"

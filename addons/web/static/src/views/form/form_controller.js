@@ -42,7 +42,11 @@ import {
 } from "@web/views/view_button/view_button_hook";
 import { useViewCompiler } from "@web/views/view_compiler";
 import { useDeleteRecords } from "@web/views/view_hook";
-import { buildActionMenuItems, useControllerServices } from "@web/views/view_utils";
+import {
+    buildActionMenuItems,
+    computeArchiveEnabled,
+    useControllerServices,
+} from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { ButtonBox } from "./button_box/button_box.js";
@@ -608,14 +612,7 @@ export class FormController extends Component {
 
     // enable the archive feature in Actions menu only if the active field is in the view
     get archiveEnabled() {
-        const activeFields = this.model.root.activeFields;
-        if ("active" in activeFields) {
-            return !this.props.fields.active.readonly;
-        }
-        if ("x_active" in activeFields) {
-            return !this.props.fields.x_active.readonly;
-        }
-        return false;
+        return computeArchiveEnabled(this.props.fields, this.model.root.activeFields);
     }
 
     async shouldExecuteAction(item) {

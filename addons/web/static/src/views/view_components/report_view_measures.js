@@ -14,8 +14,8 @@ export class ReportViewMeasures extends Component {
         DropdownItem,
     };
     static props = {
-        measures: true,
-        activeMeasures: { type: Array, optional: true },
-        onMeasureSelected: { type: Function, optional: true },
+        measures: { type: Object },
+        activeMeasures: { type: Array },
+        onMeasureSelected: { type: Function },
     };
 }
