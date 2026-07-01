@@ -14,13 +14,12 @@
  *   - Group-aware mutation entry points (``addInGroup``,
  *     ``addNewGroup``, ``editGroupRecord``).
  *   - Aggregate-column / colspan computations
- *     (``getFirstAggregateIndex``, ``getLastAggregateIndex``,
- *     ``getAggregateColumns``, ``getGroupNameCellColSpan``,
+ *     (``getAggregateColumns``, ``getGroupNameCellColSpan``,
  *     ``getGroupPagerCellColspan``) — these are thin wrappers over the
  *     shared utility functions in ``list_group_layout.js`` that adapt
  *     the renderer's ``this.columns`` / ``this.fields`` /
- *     ``this.hasSelectors`` / ``this.hasOpenFormViewColumn`` shape to
- *     the utilities' parameter list.
+ *     ``this.hasSelectors`` / ``this.hasOpenFormViewColumn`` shape plus
+ *     the group's ``aggregates`` to the utilities' parameter list.
  *   - Group-pager rendering (``getGroupPagerProps``,
  *     ``showGroupPager``).
  *   - Group menu config (``getGroupConfigMenuProps``,
@@ -34,7 +33,7 @@
  *   - ``this.props.list`` / ``this.props.activeActions`` / ``this.props.archInfo``
  *   - ``this.props.editable`` / ``this.props.readonly``
  *   - ``this.actionService`` (for ``editGroupRecord``)
- *   - ``this.columns`` / ``this.fields`` / ``this.aggregates``
+ *   - ``this.columns`` / ``this.fields``
  *   - ``this.hasSelectors`` / ``this.hasOpenFormViewColumn``
  *   - ``this.dialogClose``
  *   - ``this.agg`` (the ``useListAggregates`` hook result)
@@ -48,10 +47,8 @@ import { registry } from "@web/core/registry";
 import {
     countRecordsInGroup,
     getAggregateColumns as getAggregateColumnsUtil,
-    getFirstAggregateIndex as getFirstAggregateIndexUtil,
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
     getGroupPagerCellColspan as getGroupPagerCellColspanUtil,
-    getLastAggregateIndex as getLastAggregateIndexUtil,
 } from "./list_group_layout.js";
 
 /**
@@ -161,14 +158,13 @@ export const listGroupRenderingMixin = {
     // -----------------------------------------------------------------
     // Aggregate-column / colspan computations
     //
-    // The five methods below are shape-adapters that take the
-    // renderer's ``this.columns`` / ``this.fields`` /
-    // ``this.aggregates`` plus a few feature flags
-    // (``hasSelectors``, ``hasOpenFormViewColumn``) and call into the
-    // pure utilities in ``list_group_layout.js``.  They exist as
-    // overridable methods because subclasses (e.g. ``stock``,
-    // ``hr_recruitment``) pre-process columns or aggregates before
-    // dispatch.
+    // The three methods below are shape-adapters that take the
+    // renderer's ``this.columns`` / ``this.fields`` plus the group's
+    // ``aggregates`` and a few feature flags (``hasSelectors``,
+    // ``hasOpenFormViewColumn``) and call into the pure utilities in
+    // ``list_group_layout.js``.  They exist as overridable methods
+    // because subclasses (e.g. ``stock``, ``hr_recruitment``)
+    // pre-process columns or aggregates before dispatch.
     //
     // Group-header layout the helpers cooperatively render:
     //   TH TH TH TH TH AGG AGG TH AGG AGG TH TH TH
@@ -177,59 +173,28 @@ export const listGroupRenderingMixin = {
     //   [ group name ][ aggregate cells  ][ pager]
     // -----------------------------------------------------------------
 
-    getFirstAggregateIndex(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getFirstAggregateIndexUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-        );
-    },
-
-    getLastAggregateIndex(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getLastAggregateIndexUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-        );
-    },
-
     getAggregateColumns(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
         return getAggregateColumnsUtil(
             /** @type {any} */ (this.columns),
             this.fields,
-            aggregates,
+            group.aggregates,
         );
     },
 
     getGroupNameCellColSpan(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
         return getGroupNameCellColSpanUtil(
             /** @type {any} */ (this.columns),
             this.fields,
-            aggregates,
+            group.aggregates,
             { hasSelectors: this.hasSelectors },
         );
     },
 
     getGroupPagerCellColspan(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
         return getGroupPagerCellColspanUtil(
             /** @type {any} */ (this.columns),
             this.fields,
-            aggregates,
+            group.aggregates,
             { hasOpenFormViewColumn: this.hasOpenFormViewColumn },
         );
     },

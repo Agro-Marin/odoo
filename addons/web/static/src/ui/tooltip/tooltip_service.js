@@ -91,17 +91,11 @@ export const tooltipService = {
         }
 
         /**
-         * Checks that the target is in the DOM and we're hovering the target.
+         * Whether the current target left the DOM and its tooltip should close.
          * @returns {boolean}
          */
         function shouldCleanup() {
-            if (!target) {
-                return false;
-            }
-            if (!document.body.contains(target)) {
-                return true; // target is no longer in the DOM
-            }
-            return false;
+            return Boolean(target) && !target.isConnected;
         }
 
         /**
@@ -234,6 +228,24 @@ export const tooltipService = {
             }, timeoutDelay);
         }
 
+        /**
+         * Cancels a pending tooltip when a touch ends or is cancelled.
+         * @param {TouchEvent} ev a "touchend" or "touchcancel" event
+         */
+        function onTouchEnd(ev) {
+            const el = /** @type {HTMLElement} */ (ev.target);
+            if (isHelpNode(el)) {
+                ev.preventDefault();
+                return;
+            }
+            if (el.closest("[data-tooltip], [data-tooltip-template]")) {
+                if (!el.dataset.tooltipTouchTapToShow) {
+                    browser.clearTimeout(showTimer);
+                    browser.clearTimeout(openTooltipTimeout);
+                }
+            }
+        }
+
         /** @type {number} */
         let cleanupIntervalId;
         whenReady(() => {
@@ -246,33 +258,8 @@ export const tooltipService = {
 
             if (hasTouch()) {
                 document.body.addEventListener("touchstart", onTouchStart);
-
-                document.body.addEventListener("touchend", (ev) => {
-                    const el = /** @type {HTMLElement} */ (ev.target);
-                    if (isHelpNode(el)) {
-                        ev.preventDefault();
-                        return;
-                    }
-                    if (el.closest("[data-tooltip], [data-tooltip-template]")) {
-                        if (!el.dataset.tooltipTouchTapToShow) {
-                            browser.clearTimeout(showTimer);
-                            browser.clearTimeout(openTooltipTimeout);
-                        }
-                    }
-                });
-                document.body.addEventListener("touchcancel", (ev) => {
-                    const el = /** @type {HTMLElement} */ (ev.target);
-                    if (isHelpNode(el)) {
-                        ev.preventDefault();
-                        return;
-                    }
-                    if (el.closest("[data-tooltip], [data-tooltip-template]")) {
-                        if (!el.dataset.tooltipTouchTapToShow) {
-                            browser.clearTimeout(showTimer);
-                            browser.clearTimeout(openTooltipTimeout);
-                        }
-                    }
-                });
+                document.body.addEventListener("touchend", onTouchEnd);
+                document.body.addEventListener("touchcancel", onTouchEnd);
             }
 
             // Listen (using event delegation) to "mouseenter" events to open the tooltip if any
@@ -298,6 +285,8 @@ export const tooltipService = {
             },
             destroy() {
                 browser.clearInterval(cleanupIntervalId);
+                browser.clearTimeout(openTooltipTimeout);
+                browser.clearTimeout(showTimer);
             },
         };
     },

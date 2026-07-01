@@ -331,13 +331,12 @@ export function operate(
     tree,
     options = {},
     treeType = "condition",
-    traverseSubTrees = true,
 ) {
     if (tree.type === "connector") {
         const newTree = {
             ...tree,
             children: tree.children.map((c) =>
-                operate(transformation, c, options, treeType, traverseSubTrees),
+                operate(transformation, c, options, treeType),
             ),
         };
         if (treeType === "connector") {
@@ -346,13 +345,12 @@ export function operate(
         return normalizeConnector(newTree);
     }
     const clone = cloneTree(tree);
-    if (traverseSubTrees && tree.type === "condition" && isTree(tree.value)) {
+    if (tree.type === "condition" && isTree(tree.value)) {
         clone.value = operate(
             transformation,
             /** @type {Tree} */ (tree.value),
             makeOptions(tree.path, options),
             treeType,
-            traverseSubTrees,
         );
     }
     if (treeType === tree.type) {

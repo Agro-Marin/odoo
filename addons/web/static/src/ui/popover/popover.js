@@ -101,7 +101,6 @@ export class Popover extends Component {
         componentProps: {},
         fixedPosition: false,
         position: "bottom",
-        setActiveElement: false,
     };
     static props = {
         // Main props
