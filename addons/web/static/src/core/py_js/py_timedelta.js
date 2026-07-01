@@ -4,7 +4,7 @@
 /** @module @web/core/py_js/py_timedelta - Python timedelta emulation: normalized duration stored as (days, seconds, microseconds) */
 
 import { divmod } from "./py_date_helpers.js";
-import { parseArgs } from "./py_parser.js";
+import { bindArgs } from "./py_args.js";
 
 const TIME_DELTA_KEYS =
     "weeks days hours minutes seconds milliseconds microseconds".split(" ");
@@ -25,7 +25,7 @@ export class PyTimeDelta {
      * @returns {PyTimeDelta}
      */
     static create(...args) {
-        const namedArgs = parseArgs(args, ["days", "seconds", "microseconds"]);
+        const namedArgs = bindArgs(args, ["days", "seconds", "microseconds"]);
         for (const key of TIME_DELTA_KEYS) {
             namedArgs[key] = namedArgs[key] || 0;
         }
