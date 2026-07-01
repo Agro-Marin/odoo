@@ -66,6 +66,21 @@ export function useInputField(params) {
     }
 
     /**
+     * Whether the parsed input value differs from the record's current value.
+     *
+     * Uses the ORM falsy-empty convention (``?? false``) so that null/undefined
+     * and ``false`` are treated as the same "empty" value. Both commit paths —
+     * blur (``onChange``) and Tab/Enter/urgent (``commitChanges``) — share this
+     * one predicate; previously ``onChange`` used a strict ``!==`` while
+     * ``commitChanges`` used ``?? false``, so at the null-vs-false boundary blur
+     * could fire a redundant ``record.update`` (and onchange RPC) that Tab/Enter
+     * would not, or reset the input on one path but not the other.
+     */
+    function hasValueChanged(val) {
+        return (val ?? false) !== (component.props.record.data[fieldName] ?? false);
+    }
+
+    /**
      * On blur, we consider the field no longer dirty, even if it were to be invalid.
      * However, if the field is invalid, the new value will not be committed to the model.
      */
@@ -84,7 +99,7 @@ export function useInputField(params) {
             }
 
             if (!isInvalid) {
-                if (val !== component.props.record.data[fieldName]) {
+                if (hasValueChanged(val)) {
                     lastSetValue = inputRef.el.value;
                     pendingUpdate = true;
                     await component.props.record.update(
@@ -193,7 +208,7 @@ export function useInputField(params) {
                 return;
             }
 
-            if ((val ?? false) !== (component.props.record.data[fieldName] ?? false)) {
+            if (hasValueChanged(val)) {
                 lastSetValue = inputRef.el.value;
                 await component.props.record.update(
                     { [fieldName]: val },

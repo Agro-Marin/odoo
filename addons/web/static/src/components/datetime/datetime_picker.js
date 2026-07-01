@@ -472,16 +472,38 @@ export class DateTimePicker extends Component {
             this.props;
         const { focusDate, hoveredDate } = this.state;
         const precision = this.activePrecisionLevel;
-        const getterParams = {
-            maxDate: this.maxDate,
-            minDate: this.minDate,
-            showWeekNumbers: showWeekNumbers ?? !range,
+        const effShowWeekNumbers = showWeekNumbers ?? !range;
+
+        // The grid (title + items) depends only on focusDate / precision /
+        // limits / validity — NOT on hoveredDate. Every pointerenter on a day
+        // cell mutates ``state.hoveredDate`` and re-renders, which previously
+        // rebuilt the full 6×7 luxon grid (getItems) on every hover — pure waste,
+        // most visible during a range drag-selection mouse sweep. Recompute the
+        // grid only when a grid input actually changes; the hovered-range
+        // highlight below stays cheap and is always recomputed.
+        const gridKey = [
+            focusDate?.ts,
+            precision,
+            this.minDate?.ts,
+            this.maxDate?.ts,
+            effShowWeekNumbers,
             isDateValid,
             dayCellClass,
-        };
-
-        this.title = precision.getTitle(focusDate);
-        this.items = precision.getItems(focusDate, getterParams);
+        ];
+        if (
+            !this._gridKey ||
+            gridKey.some((value, index) => value !== this._gridKey[index])
+        ) {
+            this._gridKey = gridKey;
+            this.title = precision.getTitle(focusDate);
+            this.items = precision.getItems(focusDate, {
+                maxDate: this.maxDate,
+                minDate: this.minDate,
+                showWeekNumbers: effShowWeekNumbers,
+                isDateValid,
+                dayCellClass,
+            });
+        }
 
         this.selectedRange = [...this.values];
         if (

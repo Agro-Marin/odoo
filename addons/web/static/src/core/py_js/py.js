@@ -18,11 +18,19 @@ export { formatAST } from "./py_utils.js";
  */
 
 /**
- * LRU cache for parsed ASTs. Expressions in Odoo domains, modifiers, and QWeb
- * conditionals are highly repetitive — the same string (e.g., "state == 'draft'")
- * is evaluated once per record × per field. Caching the parsed AST eliminates
- * redundant tokenize + parse work (~2,400 calls reduced to ~10 unique parses per
- * 80-row list render).
+ * Bounded cache for parsed ASTs. Expressions in Odoo domains, modifiers, and
+ * QWeb conditionals are highly repetitive — the same string (e.g.,
+ * "state == 'draft'") is evaluated once per record × per field. Caching the
+ * parsed AST eliminates redundant tokenize + parse work (~2,400 calls reduced
+ * to ~10 unique parses per 80-row list render).
+ *
+ * Eviction is FIFO (insertion-order), NOT LRU: a hit does not refresh recency,
+ * and eviction always drops the oldest-inserted key. This is intentional — a
+ * cache hit is the hottest path here, and true-LRU would add a Map delete+set
+ * on every one of those ~2,400 hits/render for a benefit that only materializes
+ * once a session exceeds the 512-entry cap (the working set is ~10 expressions,
+ * so the cap is effectively never reached). If ``_AST_CACHE_MAX`` is ever
+ * lowered enough to be hit in practice, revisit this trade-off.
  *
  * @type {Map<string, AST>}
  */

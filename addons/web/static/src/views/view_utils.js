@@ -59,6 +59,22 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
 }
 
 /**
+ * Per-`fieldInfo` cache of extracted format options.
+ *
+ * ``codec.extractOptions(fieldInfo)`` derives options (digits, currency field,
+ * …) purely from the parsed arch node, which is stable for a column's whole
+ * lifetime — yet ``getFormattedValue`` runs once per read-only cell per render
+ * (rows × formatter columns × every re-render), each time re-deriving those
+ * options and, for numeric types, re-parsing ``digits`` (JSON.parse). Memoize
+ * the extraction keyed on the ``fieldInfo`` object identity. The result is
+ * still shallow-copied per call below, so ``.data``/``.field`` assignment and
+ * formatter self-mutation (e.g. ``formatFloat`` setting ``options.digits``)
+ * touch only the copy, never the cached original.
+ * @type {WeakMap<object, object>}
+ */
+const formatOptionsByFieldInfo = new WeakMap();
+
+/**
  * @param {any} record
  * @param {string} fieldName
  * @param {any} [fieldInfo]
@@ -67,7 +83,17 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
 export function getFormattedValue(record, fieldName, fieldInfo = null) {
     const field = record.fields[fieldName];
     const codec = getFieldCodec(field.type);
-    const formatOptions = fieldInfo ? { ...codec.extractOptions(fieldInfo) } : {};
+    let formatOptions;
+    if (fieldInfo) {
+        let extracted = formatOptionsByFieldInfo.get(fieldInfo);
+        if (extracted === undefined) {
+            extracted = codec.extractOptions(fieldInfo);
+            formatOptionsByFieldInfo.set(fieldInfo, extracted);
+        }
+        formatOptions = { ...extracted };
+    } else {
+        formatOptions = {};
+    }
     formatOptions.data = record.data;
     formatOptions.field = field;
     return record.data[fieldName] !== undefined

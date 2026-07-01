@@ -26,7 +26,12 @@ import {
 } from "./record_preprocessors.js";
 import { save } from "./record_save.js";
 import { addSavePoint, discard } from "./record_savepoint.js";
-import { isFieldInvisible, isFieldReadonly, isFieldRequired } from "./record_utils.js";
+import {
+    computeChangeset,
+    isFieldInvisible,
+    isFieldReadonly,
+    isFieldRequired,
+} from "./record_utils.js";
 import {
     checkValidity,
     displayInvalidFieldNotification,
@@ -635,41 +640,26 @@ export class RelationalRecord extends DataPoint {
      * @returns {Record<string, any>}
      */
     _getChanges(changes = this._changes, { withReadonly } = {}) {
-        if (!this.resId) {
-            // Apply the initial changes when the record is new
-            changes = { ...this._values, ...changes };
-        }
-        /** @type {Record<string, any>} */
-        const result = {};
-        for (const [fieldName, value] of Object.entries(changes)) {
-            const field = this.fields[fieldName];
-            if (fieldName === "id") {
-                continue;
-            }
-            if (
-                !withReadonly &&
-                fieldName in this.activeFields &&
-                this._isReadonly(fieldName) &&
-                !this.activeFields[fieldName].forceSave
-            ) {
-                continue;
-            }
-            if (field.relatedPropertyField) {
-                continue;
-            }
-            if (field.type === "one2many" || field.type === "many2many") {
-                const commands = /** @type {import("./static_list").StaticList} */ (
-                    value
-                )._getCommands({ withReadonly });
-                if (!this.isNew && !commands.length && !withReadonly) {
-                    continue;
-                }
-                result[fieldName] = commands;
-            } else {
-                result[fieldName] = this._formatServerValue(field.type, value);
-            }
-        }
-        return result;
+        // Delegate to the pure ``computeChangeset`` (record_utils.js): the two
+        // used to carry identical hand-inlined copies of this algorithm — the
+        // duplication rotted (``computeChangeset`` had no live caller and was
+        // only exercised by its own unit tests). ``_isReadonly`` /
+        // ``_formatServerValue`` / ``isNew`` are thin delegators to the same
+        // primitives ``computeChangeset`` uses, so behaviour is unchanged; the
+        // existing changeset unit-tests now cover the live path.
+        return computeChangeset({
+            changes,
+            values: this._values,
+            isNew: !this.resId,
+            fields: this.fields,
+            activeFields: this.activeFields,
+            evalContext: this.evalContextWithVirtualIds,
+            options: { withReadonly },
+            getCommands: (fieldName, value, wr) =>
+                /** @type {import("./static_list").StaticList} */ (value)._getCommands({
+                    withReadonly: wr,
+                }),
+        });
     }
 
     _getDefaultValues(fieldNames = this.fieldNames) {
@@ -914,9 +904,15 @@ export class RelationalRecord extends DataPoint {
                     this._getOnchangeValues(changes),
                 )) ?? {};
         }
-        // changes inside the record set as value for a many2one field must trigger the onchange,
-        // but can't be considered as changes on the parent record, so here we detect if many2one
-        // fields really changed, and if not, we delete them from changes
+        // A many2one re-set to its CURRENT value must still trigger the onchange
+        // (that already ran above), but must NOT be recorded as a parent change.
+        // Filter such no-op m2o entries into a local object instead of mutating
+        // the caller's `changes` argument — `_update` had been rewriting its own
+        // input in place, a side-effect surprise for any caller that reuses the
+        // object. Cloned lazily so the common path (nothing to filter) allocates
+        // nothing. The result feeds both `_applyChanges` and the "did anything
+        // change?" gate below, exactly as the in-place delete used to.
+        let effectiveChanges = changes;
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2one") {
                 const curVal = toRaw(this.data[fieldName]);
@@ -927,13 +923,16 @@ export class RelationalRecord extends DataPoint {
                     curVal.id === nextVal.id &&
                     curVal.display_name === nextVal.display_name
                 ) {
-                    delete changes[fieldName];
+                    if (effectiveChanges === changes) {
+                        effectiveChanges = { ...changes };
+                    }
+                    delete effectiveChanges[fieldName];
                 }
             }
         }
-        const undoChanges = this._applyChanges(changes, onchangeServerValues);
+        const undoChanges = this._applyChanges(effectiveChanges, onchangeServerValues);
         if (
-            Object.keys(changes).length > 0 ||
+            Object.keys(effectiveChanges).length > 0 ||
             Object.keys(onchangeServerValues).length > 0
         ) {
             try {
@@ -942,7 +941,12 @@ export class RelationalRecord extends DataPoint {
                 undoChanges();
                 throw e;
             }
-            await this.model.hooks.lifecycle.onRecordChanged(this, this._getChanges());
+            // Only serialize the changeset when a real consumer is listening;
+            // the default hook is a no-op and ``_getChanges()`` (recursive x2many
+            // command build for new records / dirty x2many) would be discarded.
+            if (this.model.hasOnRecordChangedHook) {
+                await this.model.hooks.lifecycle.onRecordChanged(this, this._getChanges());
+            }
         }
     }
 }

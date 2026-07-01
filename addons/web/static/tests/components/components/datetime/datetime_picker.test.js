@@ -1281,3 +1281,26 @@ test("disable show week numbers", async () => {
         "--DateTimePicker__Day-template-columns": "7",
     });
 });
+
+test("AGROMARINVERIFY grid is reused on hover, rebuilt on focus change", async () => {
+    // Regression guard for the grid-cache optimization: hovering a day cell only
+    // mutates state.hoveredDate (for the range highlight) and must NOT rebuild the
+    // 6×7 grid; changing the focused month MUST rebuild it.
+    const picker = await mountWithCleanup(DateTimePicker, {
+        props: { value: DateTime.fromObject({ day: 5 }) },
+    });
+    const itemsBefore = picker.items;
+    const titleBefore = picker.title;
+    expect(Array.isArray(itemsBefore)).toBe(true);
+
+    // Simulate a hover (what pointerenter does on a day cell).
+    picker.state.hoveredDate = DateTime.fromObject({ day: 20 });
+    await animationFrame();
+    expect(picker.items).toBe(itemsBefore); // same reference => grid not rebuilt
+    expect(picker.title).toBe(titleBefore);
+
+    // Navigating to another month must invalidate the cache and rebuild.
+    picker.state.focusDate = picker.state.focusDate.plus({ month: 1 });
+    await animationFrame();
+    expect(picker.items).not.toBe(itemsBefore); // grid rebuilt on focus change
+});
