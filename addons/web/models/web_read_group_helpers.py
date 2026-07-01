@@ -4,7 +4,6 @@ Extracted from ``web_read_group.py`` to keep the core API and the
 formatting / expansion logic in separate files.
 """
 
-import datetime
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -14,7 +13,7 @@ import babel.dates
 import pytz
 
 from odoo import api, models
-from odoo.fields import Date, Domain
+from odoo.fields import Domain
 from odoo.models import (
     READ_GROUP_DISPLAY_FORMAT,
     READ_GROUP_NUMBER_GRANULARITY,
@@ -230,42 +229,26 @@ class Base(models.AbstractModel):
             # locale, so filled groups should be too to avoid overlaps.
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
-        tz = False
-        if (
-            field.type == "datetime"
-            and self.env.context.get("tz") in pytz.all_timezones_set
-        ):
-            tz = pytz.timezone(self.env.context["tz"])
-
         # existing non null date(time)
         existing = sorted(
             group_value for group in groups if (group_value := group[0])
         ) or [None]
         # assumption: existing data is sorted by field 'groupby_name'
         existing_from, existing_to = existing[0], existing[-1]
+
+        # Resolve the bounds via the shared ORM helper (parse by field type, snap
+        # to the granularity, keep naive to match the naive group keys); absent
+        # bounds fall back to the existing extrema.
         if fill_from:
-            fill_from = Date.to_date(fill_from)
-            fill_from = date_utils.start_of(
-                fill_from, granularity
-            ) - datetime.timedelta(days=days_offset)
-            if tz:
-                # tz.localize() requires datetime.datetime, not datetime.date.
-                # Date.to_date() + start_of() may return a date when fill_from
-                # is passed as a string — convert to midnight datetime first.
-                if not isinstance(fill_from, datetime.datetime):
-                    fill_from = datetime.datetime.combine(fill_from, datetime.time.min)
-                fill_from = tz.localize(fill_from)
+            fill_from = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_from
+            )
         elif existing_from:
             fill_from = existing_from
         if fill_to:
-            fill_to = Date.to_date(fill_to)
-            fill_to = date_utils.start_of(fill_to, granularity) - datetime.timedelta(
-                days=days_offset
+            fill_to = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_to
             )
-            if tz:
-                if not isinstance(fill_to, datetime.datetime):
-                    fill_to = datetime.datetime.combine(fill_to, datetime.time.min)
-                fill_to = tz.localize(fill_to)
         elif existing_to:
             fill_to = existing_to
 

@@ -1154,6 +1154,32 @@ class TestFillTemporal(common.TransactionCase):
         ).formatted_read_group([], ["date:month"], ["__count", "value:sum"])
         self.assertEqual(groups, expected)
 
+    def test_datetime_bounds_with_timezone(self):
+        """Datetime field + explicit fill bounds + tz must not crash.
+
+        Group keys are naive local-time values; the string bounds must be parsed
+        as datetimes (per the grouped field's type) and stay naive to match
+        them.  Previously the bound went through ``Date.to_date`` (yielding a
+        ``date``) and/or was tz-localised, so the fill comparison raised
+        ``date < datetime`` / ``can't compare offset-naive and offset-aware``.
+        Regression guard: an existing datum OUTSIDE the requested window is what
+        triggered the naive-vs-(date|aware) mix.
+        """
+        self.Model.create({"datetime": "1916-06-15 10:00:00", "value": 7})
+
+        groups = self.Model.with_context(
+            tz="Europe/Brussels",
+            fill_temporal={
+                "fill_from": "1916-02-15 05:30:00",
+                "fill_to": "1916-04-15 23:00:00",
+            },
+        ).formatted_read_group([], ["datetime:month"], ["__count", "value:sum"])
+
+        # Feb/Mar/Apr filled (empty) + the out-of-window June datum, kept.
+        self.assertEqual(len(groups), 4)
+        self.assertEqual(sum(g["value:sum"] or 0 for g in groups), 7)
+        self.assertEqual([g["__count"] for g in groups], [0, 0, 0, 1])
+
     def test_with_bounds_groupby_week(self):
         """Test data with weeks starting on Sunday and forced boundaries."""
         self.Model.create(

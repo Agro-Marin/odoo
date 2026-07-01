@@ -138,18 +138,24 @@ class LoadMixin(_ModelStubs):
                 )
 
             errors = 0
-            # try again, this time record by record
+            # try again, this time record by record.  Each record runs in its
+            # OWN savepoint so a failure rolls back only that record's partial
+            # work, leaving already-succeeded records (and their ids) intact.
+            # Rolling back the load-wide ``savepoint`` here (the previous
+            # behaviour) undid earlier rows while their ids stayed in ``ids`` —
+            # harmless for the error path (``ids`` is reset to ``False`` below
+            # when any error is recorded) but wrong for the psycopg.Warning path,
+            # which records no 'error' and so returned ids of rolled-back rows.
             for i, rec_data in enumerate(data_list, 1):
                 try:
-                    rec = self._load_records([rec_data], mode == "update")
-                    cr.flush()  # make sure flush exceptions are raised here
+                    with cr.savepoint():
+                        rec = self._load_records([rec_data], mode == "update")
+                        cr.flush()  # surface flush exceptions inside the savepoint
                     ids.append(rec.id)
                 except psycopg.Warning as e:
-                    savepoint.rollback()
                     info = rec_data["info"]
                     messages.append(dict(info, type="warning", message=str(e)))
                 except psycopg.Error as e:
-                    savepoint.rollback()
                     info = rec_data["info"]
                     pg_error_info = {"message": self._sql_error_to_message(e)}
                     if e.diag.table_name == self._table:
@@ -159,15 +165,12 @@ class LoadMixin(_ModelStubs):
                         if len(e_fields) == 1:
                             pg_error_info["field"] = e_fields[0]
                     messages.append(dict(info, type="error", **pg_error_info))
-                    # rolled back savepoint to avoid a broken transaction; keep going
                     errors += 1
                 except UserError as e:
-                    savepoint.rollback()
                     info = rec_data["info"]
                     messages.append(dict(info, type="error", message=str(e)))
                     errors += 1
                 except Exception as e:
-                    savepoint.rollback()
                     _logger.debug("Error while loading record", exc_info=True)
                     info = rec_data["info"]
                     message = _(
