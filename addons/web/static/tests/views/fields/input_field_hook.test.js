@@ -190,3 +190,43 @@ describe("parse error handling", () => {
         expect(".o_field_widget[name=int_field]").toHaveClass("o_field_invalid");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Blur / Tab commit-decision consistency (shared hasValueChanged predicate)
+// ---------------------------------------------------------------------------
+
+describe("AGROMARINVERIFY blur/Tab equality contract", () => {
+    test("blur: a dirty-but-parse-equal integer re-entry commits nothing", async () => {
+        onRpc("res.partner", "web_save", () => expect.step("web_save"));
+        await mountView({
+            type: "form",
+            resModel: "res.partner",
+            resId: 1,
+            arch: `<form><field name="int_field"/></form>`,
+        });
+        // " 10 " is dirty as raw text but parses back to the current value (10);
+        // the blur (onChange) path must decide "unchanged" and commit nothing.
+        await fieldInput("int_field").edit(" 10 ");
+        await clickSave();
+        expect.verifySteps([]);
+        expect(".o_field_widget[name=int_field] input").toHaveValue("10");
+    });
+
+    test("Tab: a dirty-but-parse-equal integer re-entry commits nothing (same as blur)", async () => {
+        onRpc("res.partner", "web_save", () => expect.step("web_save"));
+        await mountView({
+            type: "form",
+            resModel: "res.partner",
+            resId: 1,
+            arch: `<form><field name="int_field"/><field name="foo"/></form>`,
+        });
+        await fieldInput("int_field").edit(" 10 ", { confirm: false });
+        await press("Tab");
+        await animationFrame();
+        await clickSave();
+        // commitChanges must reach the SAME decision as onChange via the shared
+        // hasValueChanged() predicate — no spurious write.
+        expect.verifySteps([]);
+        expect(".o_field_widget[name=int_field] input").toHaveValue("10");
+    });
+});

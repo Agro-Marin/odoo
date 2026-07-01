@@ -58,23 +58,28 @@ export class CustomColorPicker extends Component {
         this.pickerFlag = false;
         this.sliderFlag = false;
         this.opacitySliderFlag = false;
-        if (this.props.defaultOpacity > 0 && this.props.defaultOpacity <= 1) {
-            this.props.defaultOpacity *= 100;
-        }
-        if (this.props.defaultColor.length <= 7) {
-            const opacityHex = Math.round((this.props.defaultOpacity / 100) * 255)
+        // Derive display values from props WITHOUT mutating them. OWL props are
+        // owned by the parent and must stay read-only; the previous in-place
+        // mutation was also non-idempotent — a parent reusing the same props
+        // object (or re-instantiation against retained props) would scale
+        // defaultOpacity ×100 twice and append the opacity hex twice.
+        this.defaultOpacity =
+            this.props.defaultOpacity > 0 && this.props.defaultOpacity <= 1
+                ? this.props.defaultOpacity * 100
+                : this.props.defaultOpacity;
+        this.defaultColor = this.props.defaultColor;
+        if (this.defaultColor.length <= 7) {
+            const opacityHex = Math.round((this.defaultOpacity / 100) * 255)
                 .toString(16)
                 .padStart(2, "0");
-            this.props.defaultColor += opacityHex;
+            this.defaultColor += opacityHex;
         }
         this.colorComponents = {};
         this.uniqueId = uniqueId("colorpicker");
         this.selectedHexValue = "";
         this.shouldSetSelectedColor = false;
         this.lastFocusedSliderEl = undefined;
-        if (!this.props.selectedColor) {
-            this.props.selectedColor = this.props.defaultColor;
-        }
+        this.selectedColor = this.props.selectedColor || this.defaultColor;
         this.debouncedOnChangeInputs = debounce(
             this.onChangeInputs.bind(this),
             10,
@@ -146,8 +151,8 @@ export class CustomColorPicker extends Component {
         });
         onMounted(async () => {
             const rgba =
-                convertCSSColorToRgba(this.props.selectedColor) ||
-                convertCSSColorToRgba(this.props.defaultColor);
+                convertCSSColorToRgba(this.selectedColor) ||
+                convertCSSColorToRgba(this.defaultColor);
             if (rgba) {
                 this._updateRgba(rgba.red, rgba.green, rgba.blue, rgba.opacity);
             }
@@ -343,7 +348,7 @@ export class CustomColorPicker extends Component {
         // Remove full transparency in case some lightness is added
         const opacity = a || this.colorComponents.opacity;
         if (opacity < 0.1 && (r > 0.1 || g > 0.1 || b > 0.1)) {
-            a = this.props.defaultOpacity;
+            a = this.defaultOpacity;
         }
 
         const hex = convertRgbaToCSSColor(r, g, b, a);
@@ -380,7 +385,7 @@ export class CustomColorPicker extends Component {
         // Remove full transparency in case some lightness is added
         let a = this.colorComponents.opacity;
         if (a < 0.1 && l > 0.1) {
-            a = this.props.defaultOpacity;
+            a = this.defaultOpacity;
         }
 
         const rgb = convertHslToRgb(h, s, l);

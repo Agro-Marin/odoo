@@ -70,15 +70,15 @@ export function isFieldRequired(activeField, evalContext) {
     return evaluateFieldAttr(activeField.required, evalContext);
 }
 
-// ---------------------------------------------------------------------------
 // Changeset computation
 // ---------------------------------------------------------------------------
 
 /**
  * Compute the minimal changeset to send to the server from pending changes.
  *
- * This is the pure core of Record._getChanges. It determines which fields
- * have changed, skips readonly fields (unless forceSave), skips property
+ * This is the pure core of Record._getChanges (which delegates here — the two
+ * used to be hand-inlined copies of the same algorithm). It determines which
+ * fields have changed, skips readonly fields (unless forceSave), skips property
  * fields, and formats values for the server.
  *
  * For x2many fields, the caller must provide a `getCommands` callback that

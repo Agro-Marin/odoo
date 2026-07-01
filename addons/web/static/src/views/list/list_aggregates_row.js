@@ -3,7 +3,7 @@
 
 /** @module views/list/list_aggregates_row - Footer aggregate row component for ListRenderer */
 
-import { Component, useRef } from "@odoo/owl";
+import { Component, onWillRender, useRef } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -75,10 +75,34 @@ export class ListAggregatesRow extends Component {
             getProps: () => this.props,
             getOptionalActiveFields: () => this.props.optionalActiveFields,
         });
+
+        // Per-render memoization for `columns` / `aggregates`.
+        //
+        // The template reads `aggregates[col.name]` ~4× per aggregate column
+        // (t-if, data-tooltip, t-esc, multiCurrency sup) and reads `columns`
+        // via both colspan helpers, so a plain getter recomputes
+        // `computeAggregates()` / `processAllColumns()` `4·nCols + 2` times per
+        // render (measured: 18 for 4 aggregate columns). `computeAggregates`
+        // is unmemoized and O(nCols × records), which makes the footer
+        // O(nCols² × records) on *every* list re-render (cell edit, selection,
+        // sort). Caching per render collapses that to one computation.
+        //
+        // Reactive correctness is preserved: the FIRST read still happens
+        // during template evaluation, inside OWL's tracking scope, so the
+        // subscriptions to `list.records` / `record.data` / `record.selected`
+        // are established exactly as before; a dependency change triggers a new
+        // render, which bumps `_renderId` and forces recomputation. `onWillRender`
+        // only reads a plain counter, so it adds no reactive dependency.
+        this._renderId = 0;
+        this._columnsCache = { renderId: -1, value: null };
+        this._aggregatesCache = { renderId: -1, value: null };
+        onWillRender(() => {
+            this._renderId++;
+        });
     }
 
     // -------------------------------------------------------------------------
-    // Column helpers (recomputed each template evaluation — OWL tracks the reads)
+    // Column helpers (memoized per render — see setup())
     // -------------------------------------------------------------------------
 
     /** @returns {any[]} All columns including expanded property fields. */
@@ -88,24 +112,37 @@ export class ListAggregatesRow extends Component {
 
     /** @returns {any[]} Visible columns (excluding optional-hidden and column-invisible). */
     get columns() {
-        return this.allColumns.filter((col) => {
-            if (col.optional && !this.props.optionalActiveFields[col.name]) {
-                return false;
-            }
-            if (
-                evaluateBooleanExpr(col.column_invisible, this.props.list.evalContext)
-            ) {
-                return false;
-            }
-            return true;
-        });
+        if (this._columnsCache.renderId !== this._renderId) {
+            this._columnsCache = {
+                renderId: this._renderId,
+                value: this.allColumns.filter((col) => {
+                    if (col.optional && !this.props.optionalActiveFields[col.name]) {
+                        return false;
+                    }
+                    if (
+                        evaluateBooleanExpr(col.column_invisible, this.props.list.evalContext)
+                    ) {
+                        return false;
+                    }
+                    return true;
+                }),
+            };
+        }
+        return this._columnsCache.value;
     }
 
     /** @returns {Record<string, object>} Computed aggregate values keyed by field name. */
     get aggregates() {
-        // Called from template evaluation — OWL reactive tracking subscribes to
-        // list.records, record.data[field], and record.selected inside this call.
-        return this.agg.computeAggregates();
+        // First read per render establishes OWL reactive tracking (subscribes to
+        // list.records, record.data[field], record.selected); later reads within
+        // the same render return the cached result (see setup()).
+        if (this._aggregatesCache.renderId !== this._renderId) {
+            this._aggregatesCache = {
+                renderId: this._renderId,
+                value: this.agg.computeAggregates(),
+            };
+        }
+        return this._aggregatesCache.value;
     }
 
     /** @returns {Record<string, any>} Field definitions from the list model. */
