@@ -383,6 +383,28 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ],
             )
 
+    def test_having_without_groupby(self):
+        # HAVING must be honoured even with an empty groupby: PostgreSQL applies
+        # it to the single implicit aggregate group.  It used to be silently
+        # dropped (the having clause was only built inside ``if groupby_terms``),
+        # returning the unfiltered aggregate row.
+        Model = self.env["test_read_group.aggregate"]
+        Model.create({"key": 1, "value": 8})
+        Model.create({"key": 1, "value": 2})
+
+        # baseline: single implicit group, total value == 10
+        self.assertEqual(Model._read_group([], [], ["value:sum"]), [(10,)])
+        # HAVING the single group fails -> no rows (was: silently returned [(10,)])
+        self.assertEqual(
+            Model._read_group([], [], ["value:sum"], having=[("value:sum", ">", 10)]),
+            [],
+        )
+        # HAVING the single group satisfies -> the row is returned
+        self.assertEqual(
+            Model._read_group([], [], ["value:sum"], having=[("value:sum", ">", 5)]),
+            [(10,)],
+        )
+
     def test_malformed_params(self):
         Model = self.env["test_read_group.order.line"]
         # Test malformed groupby clause

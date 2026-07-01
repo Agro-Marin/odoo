@@ -458,6 +458,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if groupby_terms:
             query.order = self._read_group_orderby(order, groupby_terms, query)
             query.groupby = SQL(", ").join(groupby_terms.values())
+        # HAVING filters aggregate groups and is valid without GROUP BY too
+        # (PostgreSQL applies it to the single implicit aggregate group), so
+        # honour a supplied ``having`` even when ``groupby`` is empty rather than
+        # silently dropping it.  ``_read_group_having([])`` returns ``SQL.EMPTY``,
+        # so guarding on ``having`` preserves the grouped no-having behaviour.
+        if having:
             query.having = self._read_group_having(list(having), query)
 
         # row_values: [(a1, b1, c1), (a2, b2, c2), ...]
