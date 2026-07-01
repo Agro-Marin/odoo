@@ -61,8 +61,8 @@ section; when really in doubt, read the Odoo 19 source in ``core/``.
 **XML / JS**
 
 * ``<list>`` not ``<tree>``; ``invisible=``/``readonly=`` not ``attrs=`` (§3.3). 👁
-* XML IDs use the **suffix** style: ``sale_order_view_form``, ``sale_order_action`` —
-  but ``ref=`` a core record by its *real* (often prefixed) id (§3.2). 👁
+* XML IDs use the **prefix** style: ``view_sale_order_form``, ``action_sale_order`` —
+  matching Odoo Community core; ``ref=`` a record by its real id (§3.2). 👁
 * Frontend changes ship with a Hoot test or a tour (§4.4). 👁
 
 **Process**
@@ -1381,17 +1381,30 @@ Base: `Odoo Coding Guidelines -- XML Files <https://www.odoo.com/documentation/1
 * **4 spaces** indentation
 * Root element: ``<odoo>`` (not ``<data>``\ )
 * Attribute order on records: ``id``\ , ``model``\ ; on fields: ``name`` first
+* **Double-quoted** attribute values; self-closing empty elements (\ ``<field … />``\ )
+* One blank line between top-level records; blank line after ``<odoo>`` and before ``</odoo>``
+* **88-column** lines: a tag longer than 88 chars wraps **one attribute per line**
+  (a lone attribute that is itself longer than 88 — a big ``domain``/``context`` —
+  stays on its own line, since it cannot be split)
+* Write multi-line ``domain``/``context``/``options`` values on a **single line**:
+  XML normalises an attribute value's newlines to spaces, so the multi-line form
+  is only cosmetic and the formatter cannot preserve it
+* This is enforced, not aspirational — two canonical fixers in ``test_lint`` own
+  it: ``_pretty_xml.py`` (formatting/wrapping) and ``_sort_xml_records.py``
+  (``<field>`` child order + element attribute order). Run the sorter first, the
+  formatter last (the formatter preserves order; the sorter does not preserve
+  formatting). 🔧
 
 3.2 XML IDs and Naming
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Suffix style** — the model/entity comes first, the role comes last. This
-matches the **official Odoo coding guidelines** and current Enterprise code, and
-keeps related records alphabetically grouped in the manifest and in search.
-(Heads-up: legacy Odoo **Community** core is largely *prefix*-style —
-``view_sale_order_form``, ``action_sale_order`` — so when you **inherit or
-reference** a core record you must ``ref`` its real, often prefixed, id. New
-AgroMarin records use the suffix style below.)
+**Prefix style** — the role comes first, the model/entity follows. This matches
+**Odoo Community core** (the codebase this repo forks), so new records sit next
+to the core records they relate to, and inheriting or referencing a core record
+needs no mental translation — you ``ref`` ids written in the same style you
+author them in. The records in a typical data file are overwhelmingly views and
+actions, and the leading ``view_`` / ``action_`` keyword groups them by role at
+a glance.
 
 .. list-table::
    :header-rows: 1
@@ -1400,43 +1413,43 @@ AgroMarin records use the suffix style below.)
      - Pattern
      - Example
    * - Views
-     - ``{model}_view_{type}``
-     - ``sale_order_view_form``
+     - ``view_{model}_{type}``
+     - ``view_sale_order_form``
    * - Actions
-     - ``{model}_action``
-     - ``sale_order_action``
+     - ``action_{name}``
+     - ``action_sale_order``
    * - Menus
-     - ``{model}_menu``
-     - ``sale_order_menu``
+     - ``menu_{name}``
+     - ``menu_sale_order``
    * - Groups
-     - ``{module}_group_{name}``
-     - ``sale_group_manager``
+     - ``group_{name}``
+     - ``group_sale_manager``
    * - Record rules
      - ``{model}_rule_{group}``
-     - ``sale_order_rule_user``
-   * - Reports
-     - ``{name}_report_action``
-     - ``sale_order_report_action``
+     - ``sale_order_rule_portal``
+   * - Reports (action)
+     - ``action_report_{name}``
+     - ``action_report_saleorder``
    * - Report templates
-     - ``{name}_report_document``
-     - ``sale_order_report_document``
+     - ``report_{name}_document``
+     - ``report_saleorder_document``
    * - Inherited views
-     - ``{model}_view_{type}_inherit_{context}``
-     - ``sale_order_view_form_inherit_custom``
+     - ``view_{model}_{type}_inherit_{context}``
+     - ``view_sale_order_form_inherit_custom``
    * - Server actions
-     - ``{model}_action_server_{action}``
-     - ``sale_order_action_server_cancel``
+     - ``action_{name}``
+     - ``action_sale_order_cancel``
    * - Email templates
-     - ``{model}_mail_template_{purpose}``
-     - ``sale_order_mail_template_confirmation``
+     - ``mail_template_{name}``
+     - ``mail_template_sale_confirmation``
 
 
 ..
 
-   **Migration note**\ : the prior AgroMarin convention used the inverted prefix
-   (\ ``view_sale_order_form``\ ). All new XML IDs follow the suffix style; existing
-   records are migrated opportunistically when their surrounding file is edited.
-   See Appendix C for the retired pattern.
+   **Note**\ : a few legacy core ids carry a model-first form
+   (\ ``sale_order_menu``\ , ``sale_menu_root``\ ); leave those untouched and keep
+   ``ref``\ -ing their real id. Multi-company record rules keep the core
+   ``{model}_comp_rule`` form. See Appendix C for the retired suffix experiment.
 
 
 3.3 View Structure Patterns
@@ -3115,20 +3128,25 @@ Patterns that used to be canonical but have been retired. They are listed here
 so reviewers can flag them on sight and existing code can be migrated
 opportunistically.
 
-C.1 XML IDs — inverted prefix style
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C.1 XML IDs — suffix style
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Retired**\ : ``view_sale_order_form``\ , ``action_sale_order``\ , ``menu_sale_order``.
+**Retired**\ : ``sale_order_view_form``\ , ``sale_order_action``\ , ``sale_order_menu``
+(the short-lived model-first "suffix" experiment).
 
-**Replaced by**\ : the suffix style in §3.2 (\ ``sale_order_view_form``\ ,
-``sale_order_action``\ , ``sale_order_menu``\ ).
+**Replaced by**\ : the prefix style in §3.2 (\ ``view_sale_order_form``\ ,
+``action_sale_order``\ , ``menu_sale_order``\ ).
 
-**Why**\ : the suffix style matches Odoo 19 core, keeps related records
-alphabetically grouped, and reduces diff noise when renaming models.
+**Why**\ : the prefix style matches Odoo Community core — the codebase this repo
+forks — so new records read the same as the core records they reference, and the
+leading ``view_``/``action_`` keyword groups a data file by role. Maintaining a
+second style on top of a prefix-style core only added translation friction every
+time a core id was inherited or ``ref``\ -ed.
 
-**Migration**\ : existing records keep the old ID until the surrounding file is
-edited. When editing a file that defines XML records, migrate every ID in that
-file in the same commit (\ ``[REF] module: rename XML IDs to suffix style``\ ).
+**Migration**\ : no rename of existing core ids — they are already prefix-style.
+Any record created under the retired suffix convention is renamed back to prefix
+when its surrounding file is next edited (\ ``[REF] module: rename XML IDs to
+prefix style``\ ).
 
 C.2 Commit tags — ``[MIG]`` and ``[CLA]``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -3228,6 +3246,15 @@ Appendix D — Document History
    * - Version
      - Date
      - Summary
+   * - 4.2
+     - 2026-06-30
+     - Reversed the XML-ID convention from **suffix** back to **prefix**
+       (\ ``view_sale_order_form``\ , ``action_sale_order``\ ) to match Odoo Community
+       core — rewrote §3.2 and flipped Appendix C.1 (now retiring the suffix
+       experiment). Expanded §3.1 to document the canonical ``test_lint`` fixers
+       (\ ``_pretty_xml.py`` formatting/88-col wrapping, ``_sort_xml_records.py``
+       ordering), the single-line ``domain``/``context`` rule, and the sorter-then-
+       formatter run order.
    * - 4.1
      - 2026-06-23
      - Expanded §2.4 (Method Naming): added Mail and Framework-hooks rows; added a
