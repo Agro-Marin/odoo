@@ -11,6 +11,10 @@ Enforces the coding-guidelines XML style:
 - Self-closing empty elements (``<field name="active"/>`` instead of
   ``<field name="active"></field>``)
 - Double-quoted attribute values
+- Lines longer than 88 characters are wrapped one-attribute-per-line — at the
+  data layer and inside ``arch``/template content alike. A lone tag whose single
+  attribute already exceeds 88 characters (a long ``domain``/``context``) is left
+  on its own line, since a single attribute cannot be split further.
 
 **Opaque content** (arch fields, template bodies) is *re-indented* to the
 correct depth but never re-formatted — its internal whitespace and mixed text
@@ -101,7 +105,7 @@ def _orig_depth_from_text(text: str | None) -> int:
 
 
 def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
-    """Convert arch content from its original indentation step to 2-space.
+    """Convert arch content from its original indentation step to 4-space.
 
     The *orig_base* is the absolute number of leading spaces before the arch
     root element (e.g. ``<form>``); *new_base* is the target.  The original
@@ -110,9 +114,9 @@ def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
     Algorithm:
     - Detect *step* = smallest indentation above *orig_base*.
     - For each line: ``level = (spaces - orig_base) // step``.
-    - New spaces: ``new_base + level * 2``.
+    - New spaces: ``new_base + level * len(_INDENT)``.
 
-    This converts 4-space-per-level arch content to 2-space while adjusting
+    This converts arch content to the canonical 4-space step while adjusting
     the absolute position to the correct depth in the formatted file.
     """
     if orig_base == new_base:
@@ -195,6 +199,74 @@ def _open_tag_lines(tag: str, attrib: dict, pad: str, suffix: str) -> list[str]:
     return lines
 
 
+# Matches a single ``name="value"`` attribute in an already-serialised tag.
+# lxml escapes ``"`` -> ``&quot;`` inside values, so ``[^"]*`` never over-runs.
+_SERIALIZED_ATTR_RE = re.compile(r'[\w:.\-]+\s*=\s*"[^"]*"')
+
+
+def _is_lone_tag_line(stripped: str) -> bool:
+    """Return ``True`` if *stripped* is a single start/self-closing tag, nothing else.
+
+    *stripped* must already be left-stripped.  A lone tag is the only opaque
+    line that is safe to wrap: it has no surrounding text and no sibling/child
+    tags on the same line.  lxml escapes ``<``/``>`` inside attribute values
+    (``&lt;``/``&gt;``), so a literal ``count("<") == 1`` reliably means "exactly
+    one tag" and a trailing ``>`` means "no text follows the tag".
+    """
+    if not stripped.startswith("<"):
+        return False
+    if stripped.startswith(("</", "<!--", "<?", "<![")):
+        return False
+    return stripped.endswith(">") and stripped.count("<") == 1
+
+
+def _wrap_serialized_tag(line: str) -> list[str]:
+    """Wrap a long lone start-tag *line* one-attribute-per-line at :data:`_MAX_LINE`.
+
+    Operates on an already-serialised (lxml-escaped, double-quoted) line, so the
+    attribute tokens are redistributed **verbatim** — never re-escaped (which
+    would double-escape ``&quot;``/``&amp;``).  Lines at or below ``_MAX_LINE``,
+    or that are not a lone tag, are returned unchanged.  If the tag cannot be
+    parsed back into ``tag + attributes`` losslessly, the line is left as-is.
+    """
+    if len(line) <= _MAX_LINE:
+        return [line]
+    stripped = line.lstrip(" ")
+    if not _is_lone_tag_line(stripped):
+        return [line]
+    pad = line[: len(line) - len(stripped)]
+    if stripped.endswith("/>"):
+        suffix, body = " />", stripped[1:-2]
+    else:
+        suffix, body = ">", stripped[1:-1]
+    match = re.match(r"([\w:.\-]+)\s*(.*)$", body.strip(), re.DOTALL)
+    if not match:
+        return [line]
+    tag, attr_str = match.group(1), match.group(2)
+    attrs = _SERIALIZED_ATTR_RE.findall(attr_str)
+    if not attrs:
+        return [line]
+    # Loss check: the parsed tag+attributes must reproduce the input (modulo
+    # whitespace).  If not, an attribute was missed — leave the line untouched.
+    rebuilt = f"<{tag} {' '.join(attrs)}{suffix}"
+    if rebuilt.split() != stripped.split():
+        return [line]
+    attr_pad = pad + _INDENT
+    out = [f"{pad}<{tag}"]
+    for i, part in enumerate(attrs):
+        end = suffix if i == len(attrs) - 1 else ""
+        out.append(f"{attr_pad}{part}{end}")
+    return out
+
+
+def _wrap_opaque_lines(lines: list[str]) -> list[str]:
+    """Apply :func:`_wrap_serialized_tag` to every line of opaque content."""
+    out: list[str] = []
+    for line in lines:
+        out.extend(_wrap_serialized_tag(line))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Per-element formatters
 # ---------------------------------------------------------------------------
@@ -265,7 +337,9 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
             inner_lines.pop()
         if not inner_lines:
             return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
-        inner_lines = [_normalize_self_close(line) for line in inner_lines]
+        inner_lines = _wrap_opaque_lines(
+            [_normalize_self_close(line) for line in inner_lines]
+        )
         return (
             _open_tag_lines(elem.tag, elem.attrib, pad, ">")
             + inner_lines
@@ -289,8 +363,11 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
     if not shifted_lines:
         return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
 
-    # Normalise lxml-serialised self-closing tags inside arch/template content.
-    shifted_lines = [_normalize_self_close(line) for line in shifted_lines]
+    # Normalise lxml-serialised self-closing tags inside arch/template content,
+    # then wrap any lone start-tag that exceeds the maximum line length.
+    shifted_lines = _wrap_opaque_lines(
+        [_normalize_self_close(line) for line in shifted_lines]
+    )
 
     return (
         _open_tag_lines(elem.tag, elem.attrib, pad, ">")
@@ -409,7 +486,7 @@ def format_xml_file(
     *,
     dry_run: bool = False,
 ) -> bool | None:
-    """Format an Odoo XML data file with canonical 2-space indentation.
+    """Format an Odoo XML data file with canonical 4-space indentation.
 
     Processing rules:
 
@@ -475,7 +552,7 @@ def main(argv: list[str] | None = None) -> None:
     """Entry point for standalone use."""
     parser = argparse.ArgumentParser(
         description=(
-            "Format Odoo XML data files with canonical 2-space indentation."
+            "Format Odoo XML data files with canonical 4-space indentation."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

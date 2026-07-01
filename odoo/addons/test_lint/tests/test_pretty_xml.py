@@ -1,4 +1,4 @@
-"""Lint check: XML data files must use canonical 2-space formatting."""
+"""Lint check: XML data files must use canonical 4-space formatting."""
 
 import logging
 from pathlib import Path
@@ -18,7 +18,7 @@ class PrettyXmlLinter(LintCase):
     """
 
     def test_xml_formatting(self):
-        """Assert that XML files are formatted with canonical 2-space indentation."""
+        """Assert that XML files are formatted with canonical 4-space indentation."""
         violations: list[str] = []
         for xml_file in self.iter_module_files("*.xml"):
             result = _pretty_xml.format_xml_file(Path(xml_file), dry_run=True)
