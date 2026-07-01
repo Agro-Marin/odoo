@@ -260,20 +260,6 @@ export class RelationalModel extends Model {
         this._closeUrgentSaveNotification = null;
     }
 
-    /**
-     * Backward-compat facade. Delegates to
-     * ``urgentSave.run(fn)`` so existing callers in record.js keep
-     * working through the same entry point.  New code should prefer
-     * ``model.urgentSave.run(...)`` directly.
-     *
-     * @template T
-     * @param {() => Promise<T>} fn
-     * @returns {Promise<T>}
-     */
-    _withUrgentSaveScope(fn) {
-        return this.urgentSave.run(fn);
-    }
-
     // -------------------------------------------------------------------------
     // Public
     // -------------------------------------------------------------------------

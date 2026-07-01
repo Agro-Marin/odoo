@@ -9,6 +9,7 @@ import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
 import { registerField } from "@web/fields/_registry";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { formatMonetary } from "@web/fields/formatters";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
@@ -144,7 +145,7 @@ export const monetaryField = {
     ],
     supportedTypes: ["monetary", "float", "integer"],
     displayName: _t("Monetary"),
-    isEmpty: (record, fieldName) => record.data[fieldName] === false,
+    isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({
         currencyField: options.currency_field,
         inputType: attrs.type,

@@ -4,6 +4,16 @@
 /** @module @web/fields/field_utils - Shared utilities for field extractProps and configuration */
 
 /**
+ * Shared ``isEmpty`` predicate for field descriptors whose widget treats the
+ * ORM ``false`` sentinel as "no value" (numeric and selection-like fields).
+ *
+ * @param {import("@web/model/relational_model/record").RelationalRecord} record
+ * @param {string} fieldName
+ * @returns {boolean}
+ */
+export const isFalseEmpty = (record, fieldName) => record.data[fieldName] === false;
+
+/**
  * Extract digits precision from field attrs or options.
  *
  * The digits parameter is available as both an XML attribute (JSON string)

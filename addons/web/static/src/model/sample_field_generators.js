@@ -59,17 +59,6 @@ export function getRandomInt(max) {
     return Math.floor(Math.random() * max);
 }
 
-/**
- * @param {{ selection: [string | number, string][] }} field
- * @returns {string | number | false}
- */
-export function getRandomSelectionValue(field) {
-    if (field.selection.length) {
-        return getRandomArrayEl(field.selection)[0];
-    }
-    return false;
-}
-
 /** @returns {number} id in [1, SUB_RECORDSET_SIZE] */
 export function getRandomSubRecordId() {
     return Math.floor(Math.random() * SUB_RECORDSET_SIZE) + 1;

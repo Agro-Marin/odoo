@@ -191,13 +191,15 @@ export class ExportDataDialog extends Component {
         );
     }
 
+    /** @returns {boolean} true if the search input currently holds a query */
+    get isSearching() {
+        return Boolean(/** @type {HTMLInputElement} */ (this.searchRef.el)?.value);
+    }
+
     /** @returns {Array<Object>} fields matching the current search, or all known fields */
     get fieldsAvailable() {
-        if (
-            this.searchRef.el &&
-            /** @type {HTMLInputElement} */ (this.searchRef.el).value
-        ) {
-            return this.state.search.length && Object.values(this.state.search);
+        if (this.isSearching) {
+            return this.state.search.length ? Object.values(this.state.search) : [];
         }
         return Object.values(this.knownFields);
     }
@@ -208,10 +210,7 @@ export class ExportDataDialog extends Component {
 
     /** @returns {Array<Object>} top-level fields (or search-matching roots) for the left panel tree */
     get rootFields() {
-        if (
-            this.searchRef.el &&
-            /** @type {HTMLInputElement} */ (this.searchRef.el).value
-        ) {
+        if (this.isSearching) {
             const rootFromSearchResults = this.fieldsAvailable.map((f) => {
                 if (f.parent) {
                     const parentEl = this.knownFields[f.parent.id];
@@ -234,19 +233,13 @@ export class ExportDataDialog extends Component {
     filterSubfields(subfields) {
         let subfieldsFromSearchResults = [];
         let searchResults;
-        if (
-            this.searchRef.el &&
-            /** @type {HTMLInputElement} */ (this.searchRef.el).value
-        ) {
+        if (this.isSearching) {
             searchResults = this.lookup(
                 /** @type {HTMLInputElement} */ (this.searchRef.el).value,
             );
         }
         const fieldsAvailable = Object.values(searchResults || this.knownFields);
-        if (
-            this.searchRef.el &&
-            /** @type {HTMLInputElement} */ (this.searchRef.el).value
-        ) {
+        if (this.isSearching) {
             subfieldsFromSearchResults = fieldsAvailable
                 .filter((f) => f.parent && this.knownFields[f.parent.id].parent)
                 .map((f) => f.parent);

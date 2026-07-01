@@ -272,18 +272,23 @@ export function useControllerServices() {
 /**
  * Determine if archive/unarchive actions should be available.
  *
- * Checks for the presence and writability of the `active` or `x_active`
- * field in the provided fields definition.
+ * Checks for the presence of the `active` or `x_active` field in
+ * ``presenceSource`` and its writability in ``readonlySource``. Multi-record
+ * views pass a single fields definition for both; the form view gates presence
+ * on ``model.root.activeFields`` (the field must actually be in the view) while
+ * reading writability from ``props.fields``.
  *
- * @param {Object} fields - field definitions (props.fields or model.root.activeFields)
+ * @param {Object} readonlySource - fields definition providing `.readonly`
+ * @param {Object} [presenceSource=readonlySource] - fields definition gating
+ *   the `active`/`x_active` presence check
  * @returns {boolean}
  */
-export function computeArchiveEnabled(fields) {
-    if ("active" in fields) {
-        return !fields.active.readonly;
+export function computeArchiveEnabled(readonlySource, presenceSource = readonlySource) {
+    if ("active" in presenceSource) {
+        return !readonlySource.active.readonly;
     }
-    if ("x_active" in fields) {
-        return !fields.x_active.readonly;
+    if ("x_active" in presenceSource) {
+        return !readonlySource.x_active.readonly;
     }
     return false;
 }

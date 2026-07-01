@@ -46,14 +46,15 @@ export {
 
 /**
  * Limits defining a valid date (server only understands 4-digit years).
- * Lazily initialized to avoid crashing when luxon is not yet loaded
- * (e.g. in standalone asset bundles like survey.survey_assets).
+ * Computed once and cached — each getter is hit ~10x per parseDateTime.
  */
+let minValidDate;
+let maxValidDate;
 export function getMinValidDate() {
-    return DateTime.fromObject({ year: 1000 });
+    return (minValidDate ??= DateTime.fromObject({ year: 1000 }));
 }
 export function getMaxValidDate() {
-    return DateTime.fromObject({ year: 9999 }).endOf("year");
+    return (maxValidDate ??= DateTime.fromObject({ year: 9999 }).endOf("year"));
 }
 
 const nonAlphaRegex = /[^a-z]/gi;

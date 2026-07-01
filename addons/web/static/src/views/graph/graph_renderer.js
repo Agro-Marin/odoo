@@ -331,10 +331,6 @@ export class GraphRenderer extends Component {
             tooltipOptions.xAlign = "center";
             tooltipOptions.yAlign = "center";
         }
-        if (mode === "scatter") {
-            tooltipOptions.mode = "nearest";
-            tooltipOptions.intersect = true;
-        }
         return tooltipOptions;
     }
 
@@ -542,7 +538,7 @@ export class GraphRenderer extends Component {
      * @param {any[]} domain the domain of the clicked area
      */
     onGraphClickedFinal(domain, isMiddleClick = false) {
-        const { context } = this.model.metaData;
+        const context = { ...this.model.metaData.context };
 
         for (const x of Object.keys(context)) {
             if (x === "group_by" || x.startsWith("search_default_")) {

@@ -6,7 +6,7 @@
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
-import { extractNumericOptions } from "@web/fields/field_utils";
+import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { formatInteger } from "@web/fields/formatters";
 import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -101,7 +101,7 @@ export const integerField = {
         },
     ],
     supportedTypes: ["integer"],
-    isEmpty: (record, fieldName) => record.data[fieldName] === false,
+    isEmpty: isFalseEmpty,
     extractProps: ({ options }) => ({
         ...extractNumericOptions({ options }),
         min: options.min,

@@ -746,9 +746,6 @@ export class CalendarCommonRenderer extends Component {
         this.fc.api.unselect();
         return "popover";
     }
-    onWindowResize() {
-        /** @type {any} */ (this).updateSize();
-    }
 
     getHeaderHtml({ date }) {
         return {

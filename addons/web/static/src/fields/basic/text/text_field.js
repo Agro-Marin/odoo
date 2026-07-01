@@ -3,14 +3,13 @@
 
 /** @module @web/fields/basic/text/text_field - Multi-line textarea input field for Text columns */
 
-import { useEffect, useExternalListener, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
-import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 import { useInputField } from "@web/fields/input_field_hook";
 import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -53,15 +52,7 @@ export class TextField extends TextInputFieldBase {
         useRenderCounter("fields.TextField");
         this.divRef = useRef("div");
         this.textareaRef = useRef("textarea");
-        if (this.props.dynamicPlaceholder) {
-            this.dynamicPlaceholder = useDynamicPlaceholder(this.textareaRef);
-            useExternalListener(document, "keydown", this.dynamicPlaceholder.onKeydown);
-            useEffect(() =>
-                this.dynamicPlaceholder.updateModel(
-                    this.props.dynamicPlaceholderModelReferenceField,
-                ),
-            );
-        }
+        this.setupDynamicPlaceholder(this.textareaRef);
         useInputField({
             getValue: () => this.props.record.data[this.props.name] || "",
             refName: "textarea",
@@ -73,8 +64,6 @@ export class TextField extends TextInputFieldBase {
         useAutoresize(/** @type {any} */ (this.textareaRef), {
             minimumHeight: this.minimumHeight,
         });
-
-        this.selectionStart = this.props.record.data[this.props.name]?.length || 0;
     }
 
     /** @returns {boolean} */
@@ -88,13 +77,6 @@ export class TextField extends TextInputFieldBase {
             return value.trim();
         }
         return value;
-    }
-
-    /** @returns {Promise<void>} */
-    async onBlur() {
-        this.selectionStart = /** @type {HTMLTextAreaElement} */ (
-            this.textareaRef.el
-        ).selectionStart;
     }
 
     /** @returns {number} */

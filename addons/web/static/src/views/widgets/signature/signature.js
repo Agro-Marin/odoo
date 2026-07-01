@@ -46,8 +46,6 @@ export class SignatureWidget extends Component {
             defaultName = signName === "" ? undefined : signName;
         }
 
-        nameAndSignatureProps.defaultFont = this.props.defaultFont;
-
         const dialogProps = {
             defaultName,
             nameAndSignatureProps,

@@ -13,15 +13,7 @@
  * @see list_keyboard_nav.js for the coordinator that composes these handlers
  */
 
-/**
- * @param {HTMLTableCellElement} cell
- * @param {number} [index]
- */
-
-import { getTabableElements } from "@web/core/utils/dom/ui";
-function getElementToFocus(cell, index) {
-    return /** @type {HTMLElement} */ (getTabableElements(cell).at(index) || cell);
-}
+import { getElementToFocus } from "./list_keyboard_nav.js";
 
 /**
  * Create edit-mode keyboard handlers that are merged onto the navigation object.
