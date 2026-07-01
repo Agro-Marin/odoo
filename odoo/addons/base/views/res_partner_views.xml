@@ -265,7 +265,7 @@
                     <widget name="web_ribbon" title="Archived"
                         bg_color="text-bg-danger"
                         invisible="active" />
-                    <div class="mb8">
+                    <div name="div_top" class="mb8">
                         <div class="d-flex gap-3">
                             <field name="image_1920" widget="contact_image"
                                 options="{'preview_image': 'avatar_128', 'size': [130,130], 'img_class': 'rounded border'}" />
@@ -305,6 +305,7 @@
                             </div>
                         </div>
                     </div>
+                    <div name="options" />
                     <group name="main">
                         <group name="left_col">
                             <field name="parent_id" string="Company"
