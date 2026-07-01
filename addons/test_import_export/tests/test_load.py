@@ -325,6 +325,54 @@ class test_integer_field(ImporterCase):
             ],
         )
 
+    def test_load_per_record_savepoint_isolates_failures(self):
+        """Record-by-record retry must give each record its own savepoint.
+
+        When a batch falls back to row-by-row and one record raises a
+        psycopg.Warning (recorded as a 'warning', so ``ids`` is NOT reset to
+        False), every id returned must reference a record that still exists.
+        The previous code rolled back the single load-wide savepoint on each
+        failure, undoing already-succeeded rows while their ids stayed in the
+        result.
+        """
+        import psycopg
+
+        Model = type(self.model)
+        real_load = Model._load_records
+
+        def fake_load(model_self, data_list, update=False):
+            # Force the row-by-row fallback by failing the batch call (len > 1).
+            # A generic Exception routes to the fallback; psycopg.InternalError
+            # would instead bail the whole load.
+            if len(data_list) != 1:
+                raise Exception("forced batch failure")
+            recs = real_load(model_self, data_list, update)
+            # Emit a warning for the middle record AFTER it was written, so its
+            # own savepoint rolls it back without recording an 'error'.
+            if any(d["values"].get("value") == 2 for d in data_list):
+                raise psycopg.Warning("forced warning")
+            return recs
+
+        with patch.object(Model, "_load_records", fake_load), mute_logger(
+            "odoo.models"
+        ):
+            result = self.import_(["value"], [["1"], ["2"], ["3"]])
+
+        # A warning (not an error) leaves ``ids`` populated; each must be real.
+        self.assertTrue(
+            all(m["type"] != "error" for m in result["messages"]), result["messages"]
+        )
+        self.assertTrue(result["ids"])
+        for rid in result["ids"]:
+            self.assertTrue(
+                self.model.browse(rid).exists(),
+                f"load() returned id {rid} of a rolled-back record",
+            )
+        # the warned record (value == 2) was rolled back; 1 and 3 persisted.
+        self.assertEqual(
+            sorted(self.model.browse(result["ids"]).mapped("value")), [1, 3]
+        )
+
 
 class test_float_field(ImporterCase):
     model_name = 'export.float'

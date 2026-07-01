@@ -1392,7 +1392,9 @@ def exp_list_countries() -> list[list[str]]:
     root = ET.parse(  # noqa: S314
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()
-    for country in root.find("data").findall('record[@model="res.country"]'):
+    # Records may sit directly under <odoo> (current layout) or inside a legacy
+    # <data> wrapper; match res.country records at any depth either way.
+    for country in root.findall('.//record[@model="res.country"]'):
         name = country.find('field[@name="name"]').text
         code = country.find('field[@name="code"]').text
         list_countries.append([code, name])

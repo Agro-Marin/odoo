@@ -4,8 +4,6 @@ import collections
 import datetime
 import typing
 
-from odoo.libs.datetime.tz import all_timezones
-from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.tools import date_utils, get_lang
 
 from .... import decorators as api
@@ -121,6 +119,31 @@ class _ReadGroupFillMixin(_ModelStubs):
 
         return list(result.values())
 
+    def _read_group_fill_temporal_bound(self, field, granularity, days_offset, bound):
+        """Parse and snap one ``fill_temporal`` bound to its granularity bucket.
+
+        Shared by :meth:`_read_group_fill_temporal` and the web layer's
+        ``_web_read_group_fill_temporal`` so the (previously duplicated, and
+        independently buggy) bound parsing lives in one place.
+
+        ``bound`` is a date/datetime *string* (``%Y-%m-%d`` or
+        ``%Y-%m-%d %H:%M:%S``).  It is parsed according to the GROUPED FIELD's
+        type — not the argument's Python type — and kept naive: the group keys
+        are naive local-time values (``date_trunc`` already applied the user's
+        tz in SQL), so a ``date``-typed or tz-aware bound would crash the naive
+        ``datetime`` comparisons that follow (``date < datetime`` /
+        ``can't compare offset-naive and offset-aware``).
+        """
+        value = (Datetime.to_datetime if field.type == "datetime" else Date.to_date)(
+            bound
+        )
+        if granularity == "hour":
+            # date_utils.start_of supports day-and-coarser granularities only.
+            value = value.replace(minute=0, second=0, microsecond=0)
+        else:
+            value = date_utils.start_of(value, granularity)
+        return value - datetime.timedelta(days=days_offset)
+
     @api.model
     def _read_group_fill_temporal(
         self,
@@ -213,9 +236,6 @@ class _ReadGroupFillMixin(_ModelStubs):
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
         interval = READ_GROUP_TIME_GRANULARITY[granularity]
-        tz = None
-        if field.type == "datetime" and self.env.context.get("tz") in all_timezones():
-            tz = get_timezone(self.env.context["tz"])
 
         # Existing non-null datetimes. Sort defensively: the bounds below assume
         # chronological order, but ``data`` follows the caller's ``orderby``,
@@ -223,30 +243,19 @@ class _ReadGroupFillMixin(_ModelStubs):
         # fill silently produces no gap groups).
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
         existing_from, existing_to = existing[0], existing[-1]
+
+        # Resolve the bounds: explicit ones are parsed/snapped via the shared
+        # helper; absent ones fall back to the existing extrema.
         if fill_from:
-            fill_from = (
-                Datetime.to_datetime(fill_from)
-                if isinstance(fill_from, datetime.datetime)
-                else Date.to_date(fill_from)
+            fill_from = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_from
             )
-            fill_from = date_utils.start_of(
-                fill_from, granularity
-            ) - datetime.timedelta(days=days_offset)
-            if tz:
-                fill_from = fill_from.replace(tzinfo=tz)
         elif existing_from:
             fill_from = existing_from
         if fill_to:
-            fill_to = (
-                Datetime.to_datetime(fill_to)
-                if isinstance(fill_to, datetime.datetime)
-                else Date.to_date(fill_to)
+            fill_to = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_to
             )
-            fill_to = date_utils.start_of(fill_to, granularity) - datetime.timedelta(
-                days=days_offset
-            )
-            if tz:
-                fill_to = fill_to.replace(tzinfo=tz)
         elif existing_to:
             fill_to = existing_to
 
