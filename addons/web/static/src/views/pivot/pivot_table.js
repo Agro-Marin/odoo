@@ -104,7 +104,24 @@ export function getTableHeaders(data, metaData) {
  * @returns {Object[]}
  */
 export function getTableRows(tree, columns, data, metaData) {
-    let rows = [];
+    const rows = [];
+    _collectTableRows(tree, columns, data, metaData, rows);
+    return rows;
+}
+
+/**
+ * Pre-order walk that pushes each tree node's row into a single shared
+ * accumulator. Replaces the previous ``rows = [...rows, ...recurse()]`` which
+ * re-copied the whole accumulated array at every node (O(N²) in tree size,
+ * re-paid on every render / expand-all).
+ *
+ * @param {Object} tree
+ * @param {Object[]} columns
+ * @param {Object} data
+ * @param {Object} metaData
+ * @param {Object[]} rows accumulator, mutated in place
+ */
+function _collectTableRows(tree, columns, data, metaData, rows) {
     const group = tree.root;
     const rowGroupId = [group.values, []];
     const title = group.labels.length ? group.labels.at(-1) : _t("Total");
@@ -145,8 +162,6 @@ export function getTableRows(tree, columns, data, metaData) {
     const subTreeKeys = tree.sortedKeys || [...tree.directSubTrees.keys()];
     for (const subTreeKey of subTreeKeys) {
         const subTree = tree.directSubTrees.get(subTreeKey);
-        rows = [...rows, ...getTableRows(subTree, columns, data, metaData)];
+        _collectTableRows(subTree, columns, data, metaData, rows);
     }
-
-    return rows;
 }

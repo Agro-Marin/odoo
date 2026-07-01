@@ -53,22 +53,20 @@ export class Domain {
         if (nonEmpty.length === 1) {
             return nonEmpty[0];
         }
-        // Recursively combine: pair the first domain with the combination
-        // of the rest. This produces the correct prefix notation where each
-        // operator sits before its two operands (e.g. OR(d1, d2, d3) yields
-        // ["|", d1..., "|", d2..., d3...]).
+        // Build the right-associated prefix form in a single pass — an operator
+        // before each operand except the last (e.g. OR(d1,d2,d3) yields
+        // ["|", ...d1, "|", ...d2, ...d3]). The previous recursive `slice(1)`
+        // was O(N²) in AST size and recursed to depth N (stack-overflow risk for
+        // large AND/OR merges); this is O(N) and iterative.
         const op = operator === "AND" ? "&" : "|";
-        const first = nonEmpty[0];
-        const rest = Domain.combine(nonEmpty.slice(1), operator);
+        const value = [];
+        for (let i = 0; i < nonEmpty.length - 1; i++) {
+            value.push({ type: ASTType.String, value: op });
+            value.push(...nonEmpty[i].ast.value);
+        }
+        value.push(...nonEmpty.at(-1).ast.value);
         const result = new Domain([]);
-        result.ast = {
-            type: ASTType.List,
-            value: [
-                { type: ASTType.String, value: op },
-                ...first.ast.value,
-                ...rest.ast.value,
-            ],
-        };
+        result.ast = { type: ASTType.List, value };
         return result;
     }
 
