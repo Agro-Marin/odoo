@@ -193,8 +193,10 @@ try:
     import geoip2.models
     import maxminddb
 
-    GEOIP_EMPTY_COUNTRY = geoip2.models.Country(None)
-    GEOIP_EMPTY_CITY = geoip2.models.City(None)
+    # geoip2 >= 2.x builds its model from the raw response mapping; ``{}`` is the
+    # empty placeholder (``None`` raised AttributeError as of geoip2 2.9).
+    GEOIP_EMPTY_COUNTRY = geoip2.models.Country({})
+    GEOIP_EMPTY_CITY = geoip2.models.City({})
 except ImportError:
     geoip2 = None
     maxminddb = None
