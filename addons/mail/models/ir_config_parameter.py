@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import api, models
 
 
@@ -115,15 +117,18 @@ class IrConfig_Parameter(models.Model):
 
     def write(self, vals):
         if "value" in vals:
-            # Each record may carry a different key, so sanitize per record with
-            # its own copy of vals — mutating the shared dict in the loop would
-            # leak the last record's sanitized value onto every record (A2).
-            result = True
+            # The value may need key-dependent sanitizing and records can carry
+            # different keys, so group records by their sanitized value and write
+            # each group once. In the common case (uniform key / no-op sanitize)
+            # this stays a single batched write, while still giving each
+            # parameter its own value instead of leaking the last record's (A2).
+            records_by_value = defaultdict(self.browse)
             for record in self:
-                # determine the key: from vals if changing, otherwise from the record
+                # key: from vals if being changed, otherwise from the record
                 key = vals.get("key", record.key)
-                record_vals = dict(vals)
-                record_vals["value"] = self._sanitize_param_value(key, record_vals["value"])
-                result = super(IrConfig_Parameter, record).write(record_vals) and result
+                records_by_value[self._sanitize_param_value(key, vals["value"])] |= record
+            result = True
+            for value, records in records_by_value.items():
+                result = super(IrConfig_Parameter, records).write({**vals, "value": value}) and result
             return result
         return super().write(vals)
