@@ -842,7 +842,11 @@ export class PropertiesField extends Component {
             newDefinition.name = initialValues.name;
         } else if (
             oldDefinition.type !== newDefinition.type ||
-            oldDefinition.model !== newDefinition.model
+            // Definitions carry the target relation as ``comodel`` (see the
+            // ``comodel`` branch above and propertiesValues.comodel). ``.model``
+            // is always undefined here, so a comodel change (e.g. m2o retargeted
+            // to another model) never reset values on other records.
+            oldDefinition.comodel !== newDefinition.comodel
         ) {
             // Generate a new name to reset all values on other records.
             // because the name has been changed on the definition,

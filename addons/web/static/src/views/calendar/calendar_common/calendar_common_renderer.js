@@ -3,7 +3,7 @@
 
 /** @module @web/views/calendar/calendar_common/calendar_common_renderer - FullCalendar renderer for day/week/month scales */
 
-import { Component } from "@odoo/owl";
+import { Component, onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { ModelEvent } from "@web/core/events";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
@@ -89,6 +89,10 @@ export class CalendarCommonRenderer extends Component {
         // stale values when the OWL scale/date props change.
         this.fc = useFullCalendar("fullCalendar", () => this.options);
         this.clickTimeoutId = null;
+        // The single-click timer (250ms, see onEventClick) would otherwise fire
+        // onClick on a destroyed renderer when the user navigates/changes scale
+        // within the window — this renderer remounts on scale/date change.
+        onWillUnmount(() => browser.clearTimeout(this.clickTimeoutId));
         this.popover = useCalendarPopover(
             /** @type {any} */ (this.constructor).components.Popover,
         );
@@ -615,7 +619,10 @@ export class CalendarCommonRenderer extends Component {
         this.fc.api.unselect();
     }
     isSelectionAllowed(event) {
-        return event.end.getDate() === event.start.getDate() || event.allDay;
+        // Compare the whole calendar day, not just the day-of-month: getDate()
+        // returns 1–31, so a timed selection spanning the same day number in a
+        // different month (e.g. Mar 3 → Apr 3) was wrongly treated as same-day.
+        return event.allDay || event.start.toDateString() === event.end.toDateString();
     }
     onEventDrop(info) {
         this.fc.api.unselect();

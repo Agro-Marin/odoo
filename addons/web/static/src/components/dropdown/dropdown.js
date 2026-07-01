@@ -246,13 +246,12 @@ export class Dropdown extends Component {
 
     /** @type {HTMLElement|null} */
     get target() {
-        const target = getFirstElementOfNode(/** @type {any} */ (this).__owl__.bdom);
-        if (!target) {
-            throw new Error(
-                "Could not find a valid dropdown toggler, prefer a single html element and put any dynamic content inside of it.",
-            );
-        }
-        return target;
+        // Returns null when the toggler element is absent (teardown, or a
+        // conditionally-rendered/empty slot). Every consumer already guards for
+        // null (`this.target?.`, `if (!this.target)`, `if (this.target)`); the
+        // previous `throw` made those guards dead code and crashed the close
+        // path (onClosed/updatePopoverPosition) instead of no-op'ing.
+        return getFirstElementOfNode(/** @type {any} */ (this).__owl__.bdom);
     }
 
     handleClick(event) {

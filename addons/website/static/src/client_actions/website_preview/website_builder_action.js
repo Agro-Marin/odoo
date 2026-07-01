@@ -628,7 +628,17 @@ export class WebsiteBuilderClientAction extends Component {
     setIframeLoaded() {
         this.iframeLoaded = new Promise((resolve) => {
             this.resolveIframeLoaded = () => {
-                this.hotkeyService.registerIframe(this.websiteContent.el);
+                // Detach any prior registration before re-attaching to the (new)
+                // contentWindow, and tear down on unmount, so listeners don't
+                // accumulate across iframe reloads.
+                this.unregisterHotkeyIframe?.();
+                this.unregisterHotkeyIframe = this.hotkeyService.registerIframe(
+                    this.websiteContent.el
+                );
+                if (!this._hotkeyIframeCleanupRegistered) {
+                    this._hotkeyIframeCleanupRegistered = true;
+                    this.cleanups.push(() => this.unregisterHotkeyIframe?.());
+                }
                 this.websiteContent.el.contentWindow.addEventListener(
                     "beforeunload",
                     this.onPageUnload.bind(this)

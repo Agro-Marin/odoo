@@ -159,10 +159,10 @@ export const fileUploadService = {
                 }
                 bus.trigger(FileUploadEvent.ERROR, { upload });
             }
-            // Error listener
-            xhr.addEventListener("error", (ev) =>
-                onError(/** @type {any} */ (ev).error),
-            );
+            // Error listener. The XHR "error" event is a ProgressEvent with no
+            // ``.error`` property, so the old ``ev.error`` was always undefined —
+            // fall back to the default message explicitly.
+            xhr.addEventListener("error", () => onError());
             // Abort listener, considered as error
             xhr.addEventListener("abort", async () => {
                 delete uploads[upload.id];

@@ -35,6 +35,20 @@ defineModels([Partner, User]);
 setupChartJsForTests();
 
 test("GaugeField in kanban view", async () => {
+    // Capture each gauge's resolved max so we assert `max_field` is actually
+    // honoured (a regression that read the wrong option key once shipped green
+    // because this test only checked the displayed value, never the max).
+    // Collected order-independently because kanban cards mount bottom-up.
+    const maxes = [];
+    patchWithCleanup(GaugeField.prototype, {
+        setup() {
+            super.setup();
+            onMounted(() => {
+                maxes.push(this.chart.config.options.plugins.tooltip.callbacks.label({}));
+            });
+        },
+    });
+
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -52,6 +66,8 @@ test("GaugeField in kanban view", async () => {
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(2);
     expect(".o_field_widget[name=int_field] .oe_gauge canvas").toHaveCount(2);
     expect(queryAllTexts(".o_gauge_value")).toEqual(["10", "4"]);
+    // max pulled from another_int_field (45, 10) — NOT the default of 100.
+    expect(maxes.toSorted()).toEqual(["Max: 10", "Max: 45"]);
 });
 
 test("GaugeValue supports max_value option", async () => {

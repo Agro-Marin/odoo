@@ -87,7 +87,15 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
             const key = JSON.stringify(info);
             breadcrumbCache[key] = req.then(
                 (res) => {
-                    breadcrumbCache[key] = res[i];
+                    // Only cache a successful resolution. A per-action ``{error}``
+                    // result (e.g. transient ACL race) must NOT be cached, or the
+                    // controller is dropped from the breadcrumb/URL for the rest
+                    // of the session; evict so a later view re-fetches it.
+                    if (res[i] && "display_name" in res[i]) {
+                        breadcrumbCache[key] = res[i];
+                    } else {
+                        delete breadcrumbCache[key];
+                    }
                     return res[i];
                 },
                 (error) => {

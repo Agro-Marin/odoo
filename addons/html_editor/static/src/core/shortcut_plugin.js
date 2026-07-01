@@ -68,7 +68,9 @@ export class ShortCutPlugin extends Plugin {
             }
         );
         if (document !== this.document) {
-            hotkeyService.registerIframe({ contentWindow: this.window });
+            // Detach the iframe hotkey listeners when the plugin is destroyed so
+            // re-created editors don't accumulate listeners on a reused window.
+            this._cleanups.push(hotkeyService.registerIframe({ contentWindow: this.window }));
         }
         for (const shortcut of this.getResource("shortcuts")) {
             const command = this.dependencies.userCommand.getCommand(shortcut.commandId);

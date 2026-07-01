@@ -47,7 +47,9 @@ export const floatTimeField = {
     supportedOptions: [
         {
             label: _t("Display seconds"),
-            name: "display_seconds",
+            // Match what extractProps reads and every arch passes (camelCase);
+            // the snake_case name here was metadata-only and never functional.
+            name: "displaySeconds",
             type: "boolean",
         },
         {
