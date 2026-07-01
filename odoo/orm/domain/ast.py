@@ -779,7 +779,19 @@ class DomainNary(Domain):
             # sort to group children by field and operator
             children.sort(key=_optimize_nary_sort_key)
             cls = type(self)
+            # Operators present among the children.  A merge gated to operators
+            # disjoint from this set is a guaranteed no-op — it would scan every
+            # child and pass them all through unchanged — so skip it.  Merges with
+            # no gate (``_match_operators is None``, e.g. dedup) always run.  Most
+            # domains use only ``=``/``like``/inequalities, so this skips the
+            # ``in``/``any``/``not any`` set-merges that dominate the pass.
+            present_ops = {
+                c.operator for c in children if isinstance(c, DomainCondition)
+            }
             for merge in _MERGE_OPTIMIZATIONS:
+                gate = merge._match_operators
+                if gate is not None and gate.isdisjoint(present_ops):
+                    continue
                 children = merge(cls, children, model)
             # Reuse self when no merge changed anything (children identical). No
             # early break on the first shrinking merge: ``_optimize`` re-runs this
