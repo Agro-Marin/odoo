@@ -341,6 +341,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const header = document.querySelector("header#top");
     if (header) {
         const topMenu = header.querySelector(".top_menu");
+        // Guard: a `header#top` may exist without a `.top_menu` child (e.g.
+        // custom/minimal frontend headers). Bail out early — there is no menu
+        // to auto-hide and no `o_menu_loading` class to clear in that case.
+        if (!topMenu) {
+            return;
+        }
         const unfoldable = ".divider, .divider ~ li, .o_no_autohide_item, .js_language_selector";
         if (
             !topMenu.querySelector(`:scope > :not(${unfoldable})`) ||
