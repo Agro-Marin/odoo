@@ -51,7 +51,7 @@ class IterationMixin(_ModelStubs):
             which bypass this ``__init__``.  ``_spawn`` is the single source of
             truth for the slot set; a handful of per-record hot loops still
             inline the same three assignments for speed (``__iter__``,
-            ``__reversed__``, ``CacheMixin._flush``, ``Environment.__getitem__``)
+            ``__reversed__``, ``RecomputeMixin._flush``, ``Environment.__getitem__``)
             and are marked as such.  Any new slot must be set in ``_spawn`` and
             those marked mirrors, or empty recordsets will lack it.
         """

@@ -94,7 +94,7 @@ class _FieldConvertMixin(_FieldStubs):
         """Read ``record``'s dirty cache value as a SQL parameter for UPDATE.
 
         The cache → SQL path used by
-        :meth:`~odoo.orm.models.mixins.cache.CacheMixin._flush`. Most fields
+        :meth:`~odoo.orm.models.mixins.recompute.RecomputeMixin._flush`. Most fields
         delegate to :meth:`convert_to_column`; translated and company-dependent
         fields assemble JSONB directly.
         """

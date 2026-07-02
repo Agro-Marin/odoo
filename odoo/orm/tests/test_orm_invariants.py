@@ -382,7 +382,7 @@ def test_every_construction_path_sets_all_slots() -> None:
     """All recordset-construction paths populate the full ``__slots__`` set.
 
     ``BaseModel._spawn`` is the single source of truth for the slots; a handful
-    of per-record hot loops (``__iter__``, ``__reversed__``, ``CacheMixin._flush``,
+    of per-record hot loops (``__iter__``, ``__reversed__``, ``RecomputeMixin._flush``,
     ``Environment.__getitem__``) inline the same assignments for speed. This
     guards against a new slot being added to ``__slots__``/``_spawn`` while a
     hot-loop mirror or a construction helper forgets to set it — which would

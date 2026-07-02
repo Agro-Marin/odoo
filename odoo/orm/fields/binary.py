@@ -96,6 +96,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
                 )
             ) from e
 
+    @override
     def get_column_update(self, record: BaseModel) -> bytes | None:
         """Return the raw binary bytes for ``record``, bypassing bin_size."""
         # force bin_size=False to get actual data, not the size

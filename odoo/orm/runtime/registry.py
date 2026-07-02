@@ -282,7 +282,6 @@ class Registry(
         self.models: dict[
             str, type[BaseModel]
         ] = {}  # model name/model instance mapping
-        self._sql_constraints = set()  # type: ignore[var-annotated]
         self._database_translated_fields: dict[
             str, str
         ] = {}  # {"model.field": "translate_func"} for translated db fields

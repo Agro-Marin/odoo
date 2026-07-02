@@ -417,9 +417,15 @@ def _optimize_boolean_in(condition, model):
     """b in boolean_values"""
     value = condition.value
     operator = condition.operator
-    if operator not in ("in", "not in") or not isinstance(value, COLLECTION_TYPES):
+    if operator not in ("in", "not in"):
         condition._raise(
-            "Cannot compare %r to %s which is not a collection of length 1",
+            "Operator %r is not supported on boolean field %r",
+            operator,
+            condition.field_expr,
+        )
+    if not isinstance(value, COLLECTION_TYPES):
+        condition._raise(
+            "Cannot compare boolean field %r to %s which is not a collection",
             condition.field_expr,
             type(value),
         )
