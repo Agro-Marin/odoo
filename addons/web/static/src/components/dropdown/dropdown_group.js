@@ -20,6 +20,11 @@ function getGroup(id) {
 
 function removeGroup(id) {
     const groupData = GROUPS.get(id);
+    if (!groupData) {
+        // Defensive: nothing to release (e.g. already deleted). Guards
+        // against a TypeError on an unbalanced release.
+        return;
+    }
     groupData.count--;
     if (groupData.count <= 0) {
         GROUPS.delete(id);
@@ -36,8 +41,14 @@ export class DropdownGroup extends Component {
 
     setup() {
         if (this.props.group) {
-            const group = getGroup(this.props.group);
-            onWillDestroy(() => removeGroup(this.props.group));
+            // Capture the id at setup time: ``setup`` runs once, but
+            // ``this.props.group`` can change on a later re-render, so reading
+            // it lazily in ``onWillDestroy`` could release a different group
+            // than the one we reserved here (leaking ours, underflowing that
+            // one).
+            const groupId = this.props.group;
+            const group = getGroup(groupId);
+            onWillDestroy(() => removeGroup(groupId));
             useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_GROUP]: group }));
         } else {
             useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_GROUP]: new Set() }));
