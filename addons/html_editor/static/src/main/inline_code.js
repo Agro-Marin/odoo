@@ -6,7 +6,7 @@ import { isElement, isTextNode, isVisible, isZwnbsp } from "@html_editor/utils/d
 import { closestElement, selectElements, findFurthest } from "@html_editor/utils/dom_traversal";
 import { DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { DISABLED_NAMESPACE } from "./toolbar/toolbar_plugin";
+import { DISABLED_NAMESPACE } from "./toolbar/toolbar_plugin.js";
 
 /** @typedef {((codeElement: HTMLElement) => void)[]} to_inline_code_processors */
 

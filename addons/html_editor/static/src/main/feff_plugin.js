@@ -6,7 +6,7 @@ import { prepareUpdate } from "@html_editor/utils/dom_state";
 import { descendants, selectElements } from "@html_editor/utils/dom_traversal";
 import { leftPos, rightPos } from "@html_editor/utils/position";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
-import { withSequence } from "../utils/resource";
+import { withSequence } from "../utils/resource.js";
 
 /** @typedef {import("../core/selection_plugin").Cursors} Cursors */
 

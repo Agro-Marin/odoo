@@ -9,7 +9,7 @@ import { nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { DISABLED_NAMESPACE } from "../toolbar/toolbar_plugin";
+import { DISABLED_NAMESPACE } from "../toolbar/toolbar_plugin.js";
 
 export class FilePlugin extends Plugin {
     static id = "file";
