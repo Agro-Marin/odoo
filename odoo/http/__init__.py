@@ -235,10 +235,7 @@ from .application import (
 # untouched — a regression from the monolithic ``http.py``, where one namespace
 # made this patch point work. Patch ``odoo.http._serve.Registry`` to steer
 # dispatch. ``request_class.py`` also imports ``Registry`` but has NO call site
-# (annotation-only); that binding is kept solely so ``TestRegistryPatchPoint`` can
-# assert it shares one underlying object with ``_serve.Registry``. The
-# (in)effectiveness of each target is locked by
-# ``test_http_audit.py::TestRegistryPatchPoint``.
+# (annotation-only).
 from odoo.modules.registry import Registry
 
 __all__ = [
