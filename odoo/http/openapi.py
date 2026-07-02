@@ -44,6 +44,21 @@ _RULE_ARG_RE = re.compile(
 # HTTP verbs werkzeug adds implicitly; not emitted as OpenAPI operations.
 _IMPLICIT_METHODS = frozenset({"HEAD", "OPTIONS"})
 
+# Characters not allowed in an operationId slug (collapsed to ``_``).
+_ID_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9]+")
+
+
+def _operation_id(method: str, template: str) -> str:
+    """Build a document-unique operationId from the method and path template.
+
+    OpenAPI requires operationIds to be unique across the document. Deriving the
+    id from the handler ``__name__`` (the previous scheme) collides as soon as two
+    controllers reuse a method name (two ``index`` handlers → two ``index_get``);
+    ``(method, path)`` is unique by construction.
+    """
+    slug = _ID_SANITIZE_RE.sub("_", template).strip("_") or "root"
+    return f"{method.lower()}_{slug}"
+
 
 class RouteInfo(NamedTuple):
     """One route, normalised for OpenAPI generation.
@@ -110,15 +125,18 @@ def _summary(handler: typing.Callable) -> str | None:
 def build_operation(
     route: RouteInfo,
     method: str,
+    template: str,
     path_params: list[dict[str, Any]],
     security_schemes: dict[str, dict[str, str]],
 ) -> dict[str, Any]:
     """Build one OpenAPI operation object for ``route`` served via ``method``.
 
-    Registers any security scheme it uses into ``security_schemes`` (mutated).
+    ``template`` is the OpenAPI path (from :func:`_path_template`); with
+    ``method`` it forms the document-unique ``operationId``. Registers any
+    security scheme it uses into ``security_schemes`` (mutated).
     """
     operation: dict[str, Any] = {
-        "operationId": f"{getattr(route.handler, '__name__', 'endpoint')}_{method.lower()}",
+        "operationId": _operation_id(method, template),
         "responses": {"200": {"description": "Successful response"}},
     }
     if summary := _summary(route.handler):
@@ -190,7 +208,7 @@ def build_openapi(
         path_item = paths.setdefault(template, {})
         for method in sorted(route.methods - _IMPLICIT_METHODS):
             path_item[method.lower()] = build_operation(
-                route, method, path_params, security_schemes
+                route, method, template, path_params, security_schemes
             )
 
     document: dict[str, Any] = {

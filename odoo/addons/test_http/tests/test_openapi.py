@@ -66,6 +66,23 @@ class TestOpenApi(BaseCase):
         self.assertEqual(op["security"], [{"sessionCookie": []}])
         self.assertEqual(doc["components"]["securitySchemes"]["sessionCookie"]["in"], "cookie")
 
+    def test_operation_ids_are_document_unique(self):
+        # Two controllers reusing a handler name (``index``) must not collide:
+        # operationIds derive from (method, path), unique by construction.
+        def index(self, **kw):
+            return None
+
+        routes = [
+            RouteInfo("/shop", frozenset({"GET", "POST"}), {"type": "http"}, index),
+            RouteInfo("/blog", frozenset({"GET"}), {"type": "http"}, index),
+            RouteInfo("/x/<int:id>", frozenset({"GET"}), {"type": "http"}, index),
+        ]
+        doc = build_openapi(routes)
+        ids = [op["operationId"] for item in doc["paths"].values() for op in item.values()]
+        self.assertEqual(len(ids), len(set(ids)), f"duplicate operationIds: {ids}")
+        self.assertEqual(doc["paths"]["/shop"]["get"]["operationId"], "get_shop")
+        self.assertEqual(doc["paths"]["/x/{id}"]["get"]["operationId"], "get_x_id")
+
     def test_typed_only_filters_untyped_routes(self):
         typed = RouteInfo("/typed", frozenset({"GET"}), {"type": "http", "typed": True}, _http_handler)
         untyped = RouteInfo("/legacy", frozenset({"GET"}), {"type": "http"}, lambda self, **k: None)

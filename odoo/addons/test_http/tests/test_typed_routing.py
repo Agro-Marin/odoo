@@ -72,6 +72,37 @@ class TestTypedParams(BaseCase):
     def test_unannotated_route_has_no_specs(self):
         self.assertEqual(build_param_specs(lambda self, **kw: None), {})
 
+    def test_override_without_typed_restated_warns(self):
+        """Coercion is compiled per decorator; an override that drops
+        ``typed=True`` must be flagged, since the merged routing (and OpenAPI)
+        still advertise coercion."""
+        from odoo.http.routing import _check_and_complete_route_definition
+
+        def parent(self, n: int, **kw):
+            return None
+
+        parent.original_routing = {"routes": ["/x"], "type": "http", "typed": True}
+
+        def child(self, n: int, **kw):
+            return None
+
+        child.original_routing = {}
+
+        class FakeController:
+            pass
+
+        merged = {"auth": "user", "methods": None, "routes": []}
+        _check_and_complete_route_definition(FakeController, parent, merged)
+        merged.update(parent.original_routing)
+        with self.assertLogs("odoo.http.routing", level="WARNING") as capture:
+            _check_and_complete_route_definition(FakeController, child, merged)
+        self.assertIn("without restating typed=True", capture.output[0])
+
+        # Restating typed=True (or explicitly opting out) stays silent.
+        child.original_routing = {"typed": True}
+        with self.assertNoLogs("odoo.http.routing", level="WARNING"):
+            _check_and_complete_route_definition(FakeController, child, merged)
+
 
 @tagged("post_install", "-at_install")
 class TestTypedRouting(TestHttpBase):
@@ -93,4 +124,25 @@ class TestTypedRouting(TestHttpBase):
 
     def test_missing_required_is_400(self):
         res = self.nodb_url_open("/test_http/typed-echo")
+        self.assertEqual(res.status_code, 400)
+
+    def test_repeated_query_key_fills_list_param(self):
+        # The flat params merge keeps one value per key; the dispatcher re-reads
+        # ``list``-annotated params via ``getlist`` so none are dropped.
+        res = self.nodb_url_open("/test_http/typed-list?vals=1&vals=2&vals=3")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.text, "[1, 2, 3]")
+
+    def test_single_query_key_still_wraps_to_list(self):
+        res = self.nodb_url_open("/test_http/typed-list?vals=7")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.text, "[7]")
+
+    def test_absent_list_param_keeps_default(self):
+        res = self.nodb_url_open("/test_http/typed-list")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.text, "None")
+
+    def test_uncoercible_list_item_is_400(self):
+        res = self.nodb_url_open("/test_http/typed-list?vals=1&vals=x")
         self.assertEqual(res.status_code, 400)
