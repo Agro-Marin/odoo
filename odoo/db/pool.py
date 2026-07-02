@@ -838,7 +838,9 @@ class Connection:
 
     def __init__(self, pool: ConnectionPool, dbname: str, dsn: dict):
         self.__dbname = dbname
-        self.__dsn = dsn
+        # Private copy: the memoized routing key below is only valid while the
+        # dsn is immutable, so don't alias a caller-owned dict it could mutate.
+        self.__dsn = dict(dsn)
         self.__pool = pool
         # Memoize the routing key once: ``dsn`` is immutable for this
         # Connection's life, so the key (a BLAKE2s hash of the password plus
