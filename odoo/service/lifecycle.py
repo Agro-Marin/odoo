@@ -123,10 +123,31 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
         with registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
             env["ir.qweb"]._pregenerate_assets_bundles()
-    result = loader.run_suite(
-        post_install_suite,
-        global_report=registry._assertion_report,
-    )
+
+    # The threaded server enters preload holding ``Registry._lock`` (see
+    # ``ThreadedServer.run``: requests must not build registries while preload
+    # is in flight — upstream odoo/odoo#161438). By this point the registry IS
+    # fully loaded, and keeping the lock through the suite deadlocks any HTTP
+    # request from a test that does NOT enter registry test mode (BaseCase
+    # suites exercising real registry loading, e.g. test_http's
+    # ``database_breaking``): the worker blocks in ``Registry.__new__`` while
+    # this thread waits for its HTTP response. Release our holds for the
+    # duration of the suite and restore them after. HttpCase suites are
+    # unaffected either way (test mode swaps in ``DummyRLock``); the prefork
+    # path calls this without holding the lock (``held == 0``).
+    lock = Registry._lock
+    held = 0
+    while getattr(lock, "_is_owned", bool)():
+        lock.release()
+        held += 1
+    try:
+        result = loader.run_suite(
+            post_install_suite,
+            global_report=registry._assertion_report,
+        )
+    finally:
+        for _ in range(held):
+            lock.acquire()
     registry._assertion_report.update(result)
     _logger.info(
         "%d post-tests in %.2fs, %s queries",

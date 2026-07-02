@@ -67,8 +67,11 @@ NOT_FOUND_NODB = """\
 # Paths whose controllers call ``web.ensure_db()``: when the database becomes
 # unusable mid-request, drop the ``?db=`` parameter and retry db-less instead of
 # surfacing the registry error. Matched by exact path or ENSURE_DB_PATH_PREFIX.
+# Test-only paths don't belong here: ``test_registry.TestHttpRegistry`` patches
+# ``odoo.http.application.ENSURE_DB_PATHS`` (the consuming namespace) to add its
+# ``/test_http/ensure_db`` route.
 ENSURE_DB_PATH_PREFIX = "/odoo/"
-ENSURE_DB_PATHS = frozenset({"/odoo", "/web", "/web/login", "/test_http/ensure_db"})
+ENSURE_DB_PATHS = frozenset({"/odoo", "/web", "/web/login"})
 
 # The @route arguments to propagate to the werkzeug routing rule. ``frozenset``
 # because it is a shared read-only global (consumed by ``submap`` in
