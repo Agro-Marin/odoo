@@ -36,7 +36,7 @@ function useClickAway(popover, callback) {
     function blurHandler(/** @type {Event} */ ev) {
         const target = /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
         if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
-            callback(/** @type {Node} */ (target));
+            return callback(/** @type {Node} */ (target));
         }
     }
 
