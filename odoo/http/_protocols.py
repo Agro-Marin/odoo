@@ -2,9 +2,9 @@
 
 :class:`HttpExtension` declares the ``env["ir.http"]`` methods the http package
 calls — documenting the contract in one place and surfacing breakage when a hook
-signature changes. No type checker runs on this fork, so that guarantee is
-enforced at test time: ``test_http_audit.TestIrHttpContract`` asserts ``IrHttp``
-still satisfies this protocol (presence + arity). Keep the two in sync.
+signature changes. No type checker runs on this fork and no test asserts the
+protocol anymore, so keep it in sync with ``IrHttp`` (presence + arity) by hand
+when touching either side.
 
 Methods are declared as instance methods to model the **caller-visible** shape
 (``env["ir.http"].method(...)``), even though most are ``@classmethod`` on

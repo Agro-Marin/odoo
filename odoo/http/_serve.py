@@ -156,10 +156,9 @@ class _RequestServeMixin:
         ``finally`` then closes it. On failure this method closes the cursor
         itself and raises :class:`RegistryError`, which :meth:`Application.__call__`
         recovers from by serving db-less. A naive ``return cr`` would leak the
-        connection here; ``TestAcquireRegistryCursor`` locks the close-on-failure
-        contract, and the ``database_breaking`` suite in ``test_registry.py``
-        guards the recovery (OperationalError → db gone; ProgrammingError → broken
-        schema).
+        connection on that failure path — keep the close-on-failure contract. The
+        ``database_breaking`` suite in ``test_registry.py`` guards the recovery
+        (OperationalError → db gone; ProgrammingError → broken schema).
 
         AttributeError is a broad, *legacy* arm (no dedicated test): it guards a
         registry observed mid-``Registry.new`` (inserted into ``registries``
