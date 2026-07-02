@@ -652,4 +652,41 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         await savePending;
         expect(coordinator.status).toBe("clean"); // discard's settlement preserved
     });
+
+    test("a veto while a save is in flight does not reject the in-flight save", async () => {
+        // Scenario: a save is in flight when a second ``requestSave`` runs and
+        // its ``onWillSave`` vetoes (external validation rejected the newer
+        // edits).  The veto moves ``saving → dirty``; without epoch
+        // invalidation the in-flight save's terminal ``_finishTransition("ok")``
+        // would then attempt an illegal ``dirty → ok`` and reject a *successful*
+        // save (re-throwing from its own catch as an unhandled rejection).
+        let resolveFirst;
+        const firstPromise = new Promise((r) => (resolveFirst = r));
+        let willSaveCall = 0;
+        const { coordinator } = makeContext({
+            save: () => firstPromise,
+            hooks: {
+                onWillSave: async () => (++willSaveCall === 1 ? undefined : false),
+            },
+        });
+
+        const firstSave = coordinator.requestSave();
+        // Pump microtasks so the first save has entered save() (begin fired).
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(coordinator.isSaving).toBe(true);
+
+        // Second save vetoes while the first is still in flight.
+        const vetoed = await coordinator.requestSave();
+        expect(vetoed).toBe(false);
+        expect(coordinator.status).toBe("dirty");
+
+        // The in-flight save now succeeds — it must resolve cleanly (returning
+        // its saved value), not reject.
+        resolveFirst(true);
+        const firstResult = await firstSave;
+        expect(firstResult).toBe(true);
+        // The veto's ``dirty`` status stands: there are newer, un-saved edits.
+        expect(coordinator.status).toBe("dirty");
+    });
 });

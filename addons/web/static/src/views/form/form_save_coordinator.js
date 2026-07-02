@@ -210,6 +210,14 @@ export class FormSaveCoordinator extends SignalStore {
         const willSave = await this.hooks.onWillSave?.(this.model.root);
         if (willSave === false) {
             // Caller-side guard vetoed the save (e.g. external validation).
+            // If a save is already in flight, invalidate its epoch (as
+            // concurrent begin/discard do) before the ``saving → dirty``
+            // veto: otherwise the in-flight save's terminal
+            // ``_finishTransition("ok", ...)`` would attempt an illegal
+            // ``dirty → ok`` and reject a *successful* save.
+            if (this.isSaving) {
+                this._saveEpoch++;
+            }
             this._transition("veto");
             return false;
         }
