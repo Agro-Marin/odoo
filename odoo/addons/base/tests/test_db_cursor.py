@@ -2476,8 +2476,10 @@ class TestDiscardOnReturn(BaseCase):
     """The ``db_discard_on_return`` config option (env ODOO_DB_DISCARD_ON_RETURN)
     opts into a hard session reset (DISCARD ALL) on connection return, for
     multi-tenant hosts needing isolation between borrows.  Off by default — the
-    return path stays purely client-side and keeps the auto-prepared-statement
-    cache warm.  Read from config on each return (no import-time freeze).
+    return path runs the cheap single-round-trip session reset
+    (``_RESET_SESSION_STATE_SQL``), closing cross-borrower leaks while keeping
+    the auto-prepared-statement/plan caches warm.  Read from config on each
+    return (no import-time freeze).
     """
 
     def _set_discard(self, value):
@@ -2487,11 +2489,24 @@ class TestDiscardOnReturn(BaseCase):
         config["db_discard_on_return"] = value
         self.addCleanup(config.__setitem__, "db_discard_on_return", old)
 
-    def test_default_no_discard(self):
+    def test_default_runs_cheap_session_reset(self):
         conn = MagicMock()
+        seen = []
+        # Capture autocommit state AT THE MOMENT execute() runs: DISCARD TEMP
+        # (part of the cheap reset) cannot run inside a transaction block, so
+        # the reset must be issued in autocommit mode.  prepare=False: psycopg
+        # cannot PREPARE a multi-statement string, so auto-prepare is bypassed.
+        conn.execute.side_effect = lambda sql, **kw: seen.append(
+            (sql, conn.autocommit, kw.get("prepare"))
+        )
         self._set_discard(False)
         _reset_connection(conn)
-        conn.execute.assert_not_called()
+        self.assertEqual(
+            seen,
+            [(_RESET_SESSION_STATE_SQL, True, False)],
+            "default return path must run the cheap session reset "
+            "(and never DISCARD ALL)",
+        )
         # session settings still restored
         self.assertEqual(conn.prepare_threshold, 2)
         self.assertEqual(conn.prepared_max, 500)
@@ -2503,11 +2518,16 @@ class TestDiscardOnReturn(BaseCase):
         # Capture autocommit state AT THE MOMENT execute() runs: DISCARD ALL
         # cannot run inside a transaction block, so it must be issued in
         # autocommit mode.
-        conn.execute.side_effect = lambda sql: seen.append((sql, conn.autocommit))
+        conn.execute.side_effect = lambda sql, **kw: seen.append(
+            (sql, conn.autocommit, kw.get("prepare"))
+        )
         self._set_discard(True)
         _reset_connection(conn)
-        conn.execute.assert_called_once_with("DISCARD ALL")
-        self.assertEqual(seen, [("DISCARD ALL", True)])
+        self.assertEqual(seen, [("DISCARD ALL", True, False)])
+        # DISCARD ALL deallocated every server-side prepared statement; the
+        # client-side prepare cache must be dropped too or the next borrower
+        # would EXECUTE a name the server no longer knows.
+        conn._prepared.clear.assert_called_once_with()
         # autocommit returned to False and prepare tuning re-applied afterwards
         self.assertFalse(conn.autocommit)
         self.assertEqual(conn.prepare_threshold, 2)
@@ -3518,40 +3538,41 @@ class TestClassifyDdl(BaseCase):
                     )
 
 
-class TestResetConnectionLeavesSessionGuc(BaseCase):
-    """_reset_connection (the pool's return hook) resets ONLY
-    autocommit/isolation_level/read_only and the prepared-statement tuning —
-    never arbitrary session GUCs.  A plain ``SET search_path`` therefore
-    survives the pool return and leaks to the next borrower; callers needing
-    short-lived overrides must use ``SET LOCAL``.  This pins the documented
-    contract so a future ``RESET ALL`` in _reset_connection does not silently
-    change it (the ODOO_FAKETIME_TEST_MODE path in Cursor.__init__ relies on
-    a session SET persisting across rollback).
+class TestResetConnectionClosesSessionGucLeak(BaseCase):
+    """_reset_connection (the pool's return hook) runs the cheap session reset
+    (``_RESET_SESSION_STATE_SQL``), so a plain ``SET search_path`` left behind
+    by a borrower does NOT leak to the next borrower of the same physical
+    connection — a multi-tenant isolation requirement.  Within a cursor's own
+    life a session SET still survives rollback (the ODOO_FAKETIME_TEST_MODE
+    path in Cursor.__init__ relies on that); the reset happens only at pool
+    return.
     """
 
-    def test_session_set_survives_reset_local_does_not(self):
+    def test_session_set_cleared_by_return_hook(self):
         cr = db_connect(common.get_db_name()).cursor()
         try:
             conn = cr.connection
             cr.execute("SET search_path = pg_catalog")
             cr.commit()  # close the txn so the SESSION-level SET sticks
-            _reset_connection(conn)  # the pool's return hook — no open txn here
-            cr.execute("SHOW search_path")
-            self.assertEqual(
-                cr.fetchscalar(),
-                "pg_catalog",
-                "_reset_connection reset a session GUC — the documented leak "
-                "contract changed (was a RESET ALL added?)",
-            )
-            # Contrast: SET LOCAL is transaction-scoped and must NOT persist.
-            cr.execute("SET LOCAL search_path = information_schema")
+            # Within the cursor's life, the session SET survives a rollback
+            # (this is what the FAKETIME search_path pinning relies on).
             cr.rollback()
             cr.execute("SHOW search_path")
             self.assertEqual(cr.fetchscalar(), "pg_catalog")
+            cr.rollback()  # close the SHOW's txn: the return hook needs no open txn
+            # The pool's return hook closes the leak before the next borrower.
+            _reset_connection(conn)
+            cr.execute("SHOW search_path")
+            self.assertNotEqual(
+                cr.fetchscalar(),
+                "pg_catalog",
+                "_reset_connection must clear session GUCs (RESET ALL) so they "
+                "cannot leak to the next borrower",
+            )
         finally:
             # Hygiene: never return a connection with a mutated search_path to
             # the shared pool — the next borrower (another test) would inherit
-            # it.  This is exactly the leak the test documents.
+            # it if the reset contract ever regresses.
             cr.execute("RESET search_path")
             cr.commit()
             cr.close()
