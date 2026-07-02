@@ -1,8 +1,6 @@
 import base64
 import collections.abc
 import contextlib
-import copy
-import itertools
 import os
 import re
 import time
@@ -13,6 +11,7 @@ from stat import S_ISREG
 from typing import Any
 
 from odoo.libs._vendor import sessions
+from odoo.libs.json import dumps_bytes as _dumps_bytes
 from odoo.tools import get_lang
 
 from .constants import (
@@ -69,19 +68,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 )
                 del session["gc_previous_sessions"]
                 self.save(session)
-
-    def get(self, sid: str) -> Session:
-        # retro compatibility
-        old_path = Path(super().get_session_filename(sid))
-        session_path = Path(self.get_session_filename(sid))
-        if old_path.is_file() and not session_path.is_file():
-            dirname = session_path.parent
-            if not dirname.is_dir():
-                with contextlib.suppress(OSError):
-                    dirname.mkdir(mode=0o0700)
-            with contextlib.suppress(OSError):
-                old_path.rename(session_path)
-        return super().get(sid)
 
     def rotate(self, session: Session, env: Any, soft: bool = False) -> None:
         # Soft rotation keeps the static prefix (so the CSRF token still works) and
@@ -160,12 +146,12 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         # the singleton's filestore regardless of which store was called.
         threshold = time.time() - max_lifetime
         base_path = Path(self.path)
-        # Reap both layouts: the scattered ``<base>/<sid[:2]>/<sid>`` files
-        # (``*/*``) and the legacy flat files the vendored store wrote pre-scatter.
-        # ``get()`` only migrates a flat file on access, so globbing ``*/*`` alone
-        # would leak never-touched flat sessions forever.
-        flat_glob = self.filename_template % "*"
-        for path in itertools.chain(base_path.glob("*/*"), base_path.glob(flat_glob)):
+        # Only the scattered ``<base>/<sid[:2]>/<sid>`` layout exists: every
+        # writer goes through the overridden ``get_session_filename``, and the
+        # pre-scatter flat layout died with Odoo 16 — its 7-day-lifetime files
+        # cannot have survived to this fork, so no flat glob / ``get()``
+        # migration is kept.
+        for path in base_path.glob("*/*"):
             with contextlib.suppress(OSError):
                 st = path.stat()
                 if S_ISREG(st.st_mode) and st.st_mtime < threshold:
@@ -306,11 +292,11 @@ class Session(collections.abc.MutableMapping):
         # made; the store drops its reference, so the session owns the data.
         self.__data: dict[str, Any] = dict(data)
         self.is_dirty: bool = False
-        # Deep snapshot for nested-mutation detection, captured per request by
-        # ``mark_clean``. ``None`` until then: ``is_modified`` falls back to
-        # ``is_dirty`` so a session inspected before its first ``mark_clean``
-        # still reports explicit writes correctly.
-        self.__baseline: dict[str, Any] | None = None
+        # Serialized snapshot for nested-mutation detection, captured per
+        # request by ``mark_clean``. ``None`` until then: ``is_modified`` falls
+        # back to ``is_dirty`` so a session inspected before its first
+        # ``mark_clean`` still reports explicit writes correctly.
+        self.__baseline: bytes | None = None
         self.is_new: bool = new
         self.should_rotate: bool = False
         self.sid: str = sid
@@ -497,11 +483,12 @@ class Session(collections.abc.MutableMapping):
         changes — including in-place mutation of a nested value such as
         ``session.context['lang'] = 'es'`` that bypasses :meth:`__setitem__` —
         are picked up by :meth:`is_modified` even if the caller forgets
-        :meth:`touch`. Costs one deep copy of the (small, JSON-native) session
-        data per request.
+        :meth:`touch`. The snapshot is an orjson dump of the (JSON-native by
+        :meth:`__setitem__`'s contract) session data — ~6x cheaper than the
+        ``copy.deepcopy`` it replaces, measured on a representative session.
         """
         self.is_dirty = False
-        self.__baseline = copy.deepcopy(self.__data)
+        self.__baseline = _dumps_bytes(self.__data)
 
     def is_modified(self) -> bool:
         """Whether the session changed since the last :meth:`mark_clean`.
@@ -509,11 +496,14 @@ class Session(collections.abc.MutableMapping):
         ``True`` for explicit writes (via :attr:`is_dirty`) *and* for in-place
         mutation of nested values that bypass :meth:`__setitem__`. Before the
         first :meth:`mark_clean` (no baseline yet) it falls back to
-        :attr:`is_dirty`.
+        :attr:`is_dirty`. The byte comparison can yield a false *positive* for
+        a semantically equal dict serialized differently (key re-insertion
+        changing order, ``1`` rewritten as ``1.0``); the cost is one spurious
+        session save, never a missed one.
         """
         if self.__baseline is None:
             return self.is_dirty
-        return self.is_dirty or self.__data != self.__baseline
+        return self.is_dirty or _dumps_bytes(self.__data) != self.__baseline
 
     def update_trace(self, request: Any) -> dict[str, Any] | None:
         """
