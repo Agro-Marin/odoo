@@ -6,17 +6,17 @@
 import { normalize } from "@web/core/l10n/utils";
 
 /**
- * @param {string} pattern
+ * @param {string} normalizedPattern an already-normalized pattern
  * @param {string|string[]} strs
  * @returns {number}
  */
-function match(pattern, strs) {
+function match(normalizedPattern, strs) {
     if (!Array.isArray(strs)) {
         strs = [strs];
     }
     let globalScore = 0;
     for (const str of strs) {
-        globalScore = Math.max(globalScore, _match(pattern, str));
+        globalScore = Math.max(globalScore, _match(normalizedPattern, str));
     }
     return globalScore;
 }
@@ -32,7 +32,8 @@ function match(pattern, strs) {
  * Better matches will get a higher score: consecutive letters are better,
  * and a match closer to the beginning of the string is also scored higher.
  *
- * @param {string} pattern
+ * @param {string} pattern an already-normalized pattern (normalized once at
+ *  the entry points instead of once per candidate string)
  * @param {string} str
  * @returns {number}
  */
@@ -41,7 +42,6 @@ function _match(pattern, str) {
     let currentScore = 0;
     let patternIndex = 0;
 
-    pattern = normalize(pattern);
     str = normalize(str);
 
     const len = str.length;
@@ -71,10 +71,11 @@ function _match(pattern, str) {
  * @returns {T[]}
  */
 export function fuzzyLookup(pattern, list, fn) {
+    const normalizedPattern = normalize(pattern);
     /** @type {{ score: number, elem: T }[]} */
     const results = [];
     list.forEach((data) => {
-        const score = match(pattern, fn(data));
+        const score = match(normalizedPattern, fn(data));
         if (score > 0) {
             results.push({ score, elem: data });
         }
@@ -93,7 +94,7 @@ export function fuzzyLookup(pattern, list, fn) {
  * @returns {boolean}
  */
 export function fuzzyTest(pattern, string) {
-    return _match(pattern, string) !== 0;
+    return _match(normalize(pattern), string) !== 0;
 }
 
 /**

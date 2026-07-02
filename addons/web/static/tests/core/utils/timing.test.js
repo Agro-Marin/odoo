@@ -296,7 +296,11 @@ describe("debounce", () => {
             expect.step("resolved " + x);
         });
         await runAllTimers();
-        expect.verifySteps([]); // not called 3000ms did not elapse between the previous call and the first
+        // func is NOT called (3000ms did not elapse between the previous call
+        // and this one), but the suppressed call's promise is drained when the
+        // cooldown timer fires — resolved with undefined, like cancel() — so
+        // awaiters do not hang and pending entries do not accumulate.
+        expect.verifySteps(["resolved undefined"]);
 
         myDebouncedFunc().then((x) => {
             expect.step("resolved " + x);

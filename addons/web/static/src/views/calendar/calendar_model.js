@@ -13,7 +13,7 @@ import {
 import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-import { groupBy, intersection } from "@web/core/utils/collections/arrays";
+import { groupBy } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { formatFloat } from "@web/core/utils/format/numbers";
@@ -520,23 +520,19 @@ export class CalendarModel extends Model {
             if (!inactiveFilters.length) {
                 continue;
             }
+            const inactiveFilterVals = new Set(
+                inactiveFilters.map((filter) => filter.value),
+            );
             for (const [recordId, record] of Object.entries(data.records)) {
                 const rawValue = record.rawRecord[fieldName];
                 let remove;
                 if (["many2many", "one2many"].includes(field.type)) {
-                    const inactiveFilterVals = inactiveFilters.map(
-                        (filter) => filter.value,
-                    );
-                    remove =
-                        intersection(rawValue, inactiveFilterVals).length ===
-                        rawValue.length;
+                    remove = rawValue.every((value) => inactiveFilterVals.has(value));
                 } else {
                     const recordValue = Array.isArray(rawValue)
                         ? rawValue[0]
                         : rawValue;
-                    remove = inactiveFilters.some(
-                        (filter) => filter.value === recordValue,
-                    );
+                    remove = inactiveFilterVals.has(recordValue);
                 }
                 if (remove) {
                     delete data.records[recordId];
@@ -747,12 +743,20 @@ export class CalendarModel extends Model {
         const rawFilters = await this.fetchFilters(writeResModel, fields);
         const previousFilters = previousSection ? previousSection.filters : [];
 
-        const filters = rawFilters.map((rawFilter) => {
-            const previousRecordFilter = previousFilters.find(
-                (f) => f.type === "record" && f.recordId === rawFilter.id,
-            );
-            return this.makeFilterRecord(filterInfo, previousRecordFilter, rawFilter);
-        });
+        // Index previous record filters by id to avoid a find() per raw filter
+        const previousRecordFilters = new Map();
+        for (const filter of previousFilters) {
+            if (filter.type === "record") {
+                previousRecordFilters.set(filter.recordId, filter);
+            }
+        }
+        const filters = rawFilters.map((rawFilter) =>
+            this.makeFilterRecord(
+                filterInfo,
+                previousRecordFilters.get(rawFilter.id),
+                rawFilter,
+            ),
+        );
 
         const field = this.meta.fields[fieldName];
         const isUserOrPartner = ["res.users", "res.partner"].includes(field.relation);
@@ -815,23 +819,25 @@ export class CalendarModel extends Model {
         const field = fields[fieldName];
         const previousFilters = previousSection ? previousSection.filters : [];
 
-        const rawFilters = Object.values(data.records).reduce((filters, record) => {
+        // Dedupe by id with a Map: a find() per value would be O(records × values)
+        const rawFiltersById = new Map();
+        for (const record of Object.values(data.records)) {
             const rawValues = ["many2many", "one2many"].includes(field.type)
                 ? record.rawRecord[fieldName]
                 : [record.rawRecord[fieldName]];
 
             for (const rawValue of rawValues) {
                 const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-                if (!filters.find((f) => f.id === value)) {
-                    filters.push({
+                if (!rawFiltersById.has(value)) {
+                    rawFiltersById.set(value, {
                         id: value,
                         [fieldName]: rawValue,
                         ...this.addFilterFields(record, filterInfo),
                     });
                 }
             }
-            return filters;
-        }, []);
+        }
+        const rawFilters = [...rawFiltersById.values()];
 
         const isX2Many = ["many2many", "one2many"].includes(field.type);
 
@@ -876,18 +882,22 @@ export class CalendarModel extends Model {
             }
         }
 
-        const filters = rawFilters.map((rawFilter) => {
-            const previousDynamicFilter = previousFilters.find(
-                (f) => f.type === "dynamic" && f.value === rawFilter.id,
-            );
-            return this.makeFilterDynamic(
+        // Index previous dynamic filters by value to avoid a find() per raw filter
+        const previousDynamicFilters = new Map();
+        for (const filter of previousFilters) {
+            if (filter.type === "dynamic") {
+                previousDynamicFilters.set(filter.value, filter);
+            }
+        }
+        const filters = rawFilters.map((rawFilter) =>
+            this.makeFilterDynamic(
                 filterInfo,
-                previousDynamicFilter,
+                previousDynamicFilters.get(rawFilter.id),
                 fieldName,
                 rawFilter,
                 rawColors,
-            );
-        });
+            ),
+        );
 
         return {
             label: filterInfo.label,

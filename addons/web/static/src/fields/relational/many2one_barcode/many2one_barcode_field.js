@@ -15,8 +15,6 @@ export class Many2OneBarcodeField extends Many2OneField {
     static template = "web.Many2OneBarcodeField";
 }
 
-export const many2OneBarcodeField = {};
-
 registerField("many2one_barcode", {
     ...buildM2OFieldDescription(Many2OneBarcodeField),
     displayName: _t("Many2OneBarcode"),

@@ -220,7 +220,7 @@ function getWidthSpecs(columns) {
         let minWidth;
         let maxWidth;
         if (column.attrs && column.attrs.width) {
-            minWidth = maxWidth = Number.parseInt(column.attrs.width.split("px", 10)[0]);
+            minWidth = maxWidth = Number.parseInt(column.attrs.width.split("px")[0]);
         } else {
             let width;
             if (column.type === "field") {
@@ -269,6 +269,16 @@ export function useMagicColumnWidths(tableRef, getState) {
     let parentWidthFixed = false;
     let hash;
     let _resizing = false;
+    // Width of the table's parent node, kept up-to-date by the ResizeObserver below.
+    let parentWidth;
+    // Parent width at the time the current `columnWidths` were last applied.
+    let lastAppliedParentWidth = null;
+    // Cell paddings only depend on the column set: cache them per hash to avoid
+    // one getComputedStyle per header on every patch.
+    let cellPaddings = null;
+    // Removes the window listeners of an in-flight column resize (set by
+    // onStartResize, cleared when the resize stops or the component unmounts).
+    let cleanupResize = null;
 
     /**
      * Apply the column widths in the DOM. If necessary, compute them first (e.g. if they haven't
@@ -302,14 +312,33 @@ export function useMagicColumnWidths(tableRef, getState) {
             }
         }
 
+        // Fast path: this function runs on every patch (e.g. on each keystroke during
+        // inline edition). When the column set is unchanged (checked above), the widths
+        // are already frozen and still applied in the DOM, and the parent width (kept
+        // up-to-date by the ResizeObserver below) hasn't changed since they were
+        // applied, there is nothing to do: skip the whole measure/write cycle.
+        // Note: reading `th.style.width` inspects the inline style attribute only (no
+        // forced reflow) and detects headers that were re-created by a patch.
+        if (
+            columnWidths &&
+            lastAppliedParentWidth !== null &&
+            parentWidth === lastAppliedParentWidth &&
+            table.style.tableLayout === "fixed" &&
+            headers.every((th) => th.style.width)
+        ) {
+            return;
+        }
+
         const parentPadding = getHorizontalPadding(table.parentNode);
-        const cellPaddings = headers.map((th) => getHorizontalPadding(th));
+        if (!cellPaddings || cellPaddings.length !== headers.length) {
+            cellPaddings = headers.map((th) => getHorizontalPadding(th));
+        }
         const totalCellPadding = cellPaddings.reduce(
             (total, padding) => padding + total,
             0,
         );
-        const nextAllowedWidth =
-            table.parentNode.clientWidth - parentPadding - totalCellPadding;
+        const parentClientWidth = table.parentNode.clientWidth;
+        const nextAllowedWidth = parentClientWidth - parentPadding - totalCellPadding;
         const allowedWidthDiff = Math.abs(allowedWidth - nextAllowedWidth);
         allowedWidth = nextAllowedWidth;
 
@@ -325,6 +354,8 @@ export function useMagicColumnWidths(tableRef, getState) {
         headers.forEach((th, index) => {
             th.style.width = `${Math.floor(columnWidths[index] + cellPaddings[index])}px`;
         });
+        lastAppliedParentWidth = parentClientWidth;
+        parentWidth = parentClientWidth;
     }
 
     /**
@@ -332,6 +363,8 @@ export function useMagicColumnWidths(tableRef, getState) {
      */
     function unsetWidths() {
         columnWidths = null;
+        lastAppliedParentWidth = null;
+        cellPaddings = null;
         // Unset widths that might have been set on the table by resizing a column
         tableRef.el.style.width = null;
         if (parentWidthFixed) {
@@ -384,6 +417,21 @@ export function useMagicColumnWidths(tableRef, getState) {
         };
         window.addEventListener("pointermove", resizeHeader);
 
+        // Shared teardown, run by stopResize and by onWillUnmount if the renderer is
+        // destroyed mid-resize (otherwise the window listeners would leak).
+        const cleanup = () => {
+            _resizing = false;
+            for (const el of resizingColumnElements) {
+                el.classList.remove("o_column_resizing");
+            }
+            window.removeEventListener("pointermove", resizeHeader);
+            for (const eventType of resizeStoppingEvents) {
+                window.removeEventListener(eventType, stopResize);
+            }
+            cleanupResize = null;
+        };
+        cleanupResize = cleanup;
+
         // Mouse or keyboard events : stop resize
         const stopResize = (ev) => {
             _resizing = false;
@@ -401,14 +449,7 @@ export function useMagicColumnWidths(tableRef, getState) {
             ev.preventDefault();
             ev.stopPropagation();
 
-            for (const el of resizingColumnElements) {
-                el.classList.remove("o_column_resizing");
-            }
-
-            window.removeEventListener("pointermove", resizeHeader);
-            for (const eventType of resizeStoppingEvents) {
-                window.removeEventListener(eventType, stopResize);
-            }
+            cleanup();
 
             // We remove the focus to make sure that the there is no focus inside
             // the tr.  If that is the case, there is some css to darken the whole
@@ -444,7 +485,6 @@ export function useMagicColumnWidths(tableRef, getState) {
         // that the display of chatter messages introduces a vertical scrollbar, thus reducing the
         // available width.
         const component = useComponent();
-        let parentWidth;
         const debouncedForceColumnWidths = useDebounced(
             () => {
                 if (status(component) !== "destroyed") {
@@ -467,6 +507,10 @@ export function useMagicColumnWidths(tableRef, getState) {
         });
         onWillUnmount(() => resizeObserver.disconnect());
     }
+
+    // If the renderer is destroyed while a column resize is in progress, run the
+    // same teardown as stopResize to avoid leaking window listeners.
+    onWillUnmount(() => cleanupResize?.());
 
     // API
     return {

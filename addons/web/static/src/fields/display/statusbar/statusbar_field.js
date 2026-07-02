@@ -6,6 +6,7 @@
 import {
     Component,
     onWillRender,
+    onWillUnmount,
     useEffect,
     useExternalListener,
     useRef,
@@ -14,10 +15,9 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { throttleForAnimation } from "@web/core/utils/timing";
+import { registerField } from "@web/fields/_registry";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
@@ -73,6 +73,8 @@ export class StatusBarField extends Component {
     setup() {
         // Properties
         this.items = {};
+        /** @type {StatusBarItem[]} */
+        this.allItems = [];
         this.beforeRef = useRef("before");
         this.rootRef = useRef("root");
         this.afterRef = useRef("after");
@@ -94,6 +96,9 @@ export class StatusBarField extends Component {
 
         let forceRecomputeItems = false;
         onWillRender(() => {
+            // Cache the item list once per render: it is read by
+            // getSortedItems, getCurrentLabel and the template.
+            this.allItems = this.getAllItems();
             if (status !== "adjusting" || forceRecomputeItems) {
                 Object.assign(this.items, this.getSortedItems());
                 status = "shouldAdjust";
@@ -103,7 +108,9 @@ export class StatusBarField extends Component {
             forceRecomputeItems = false;
         });
 
-        useExternalListener(window, "resize", throttleForAnimation(adjust));
+        this.throttledAdjust = throttleForAnimation(adjust);
+        useExternalListener(window, "resize", this.throttledAdjust);
+        onWillUnmount(() => this.throttledAdjust.cancel());
 
         // Special data
         if (this.field.type === "many2one") {
@@ -122,7 +129,9 @@ export class StatusBarField extends Component {
                         record.evalContext,
                     );
                 }
-                const res = await orm.searchRead(relation, domain, fieldNames, { context });
+                const res = await orm.searchRead(relation, domain, fieldNames, {
+                    context,
+                });
                 forceRecomputeItems = true;
                 return res;
             });
@@ -239,7 +248,7 @@ export class StatusBarField extends Component {
         // Reset items variables
         this.items.before = [];
         this.items.after = [...this.items.folded];
-        const itemsToAssign = this.getAllItems().filter((item) => !item.isFolded);
+        const itemsToAssign = this.allItems.filter((item) => !item.isFolded);
 
         if (this.env.isSmall && this.items.inline.length) {
             // Small screen case: only a single dropdown
@@ -315,7 +324,7 @@ export class StatusBarField extends Component {
     }
 
     getCurrentLabel() {
-        return this.getAllItems().find((item) => item.isSelected)?.label || _t("More");
+        return this.allItems.find((item) => item.isSelected)?.label || _t("More");
     }
 
     /**
@@ -337,7 +346,7 @@ export class StatusBarField extends Component {
         const after = [];
         const { true: inline = [], false: folded = [] } = /** @type {any} */ (
             groupBy(
-                this.getAllItems(),
+                this.allItems,
                 /** @type {any} */ ((item) => item.isSelected || !item.isFolded),
             )
         );

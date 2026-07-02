@@ -34,14 +34,19 @@ export function useListOptionalFields(
     keyDebugOpenView,
     { getAllColumns, getOptionalActiveFields, onSave },
 ) {
+    // `computeOptionalActiveFields` is consulted on every render (the column set
+    // may change across renders, e.g. property fields), so cache the synchronous
+    // localStorage read and refresh the cache only when this hook itself writes
+    // to localStorage (toggle/save paths).
+    let optionalFieldsStorageValue = browser.localStorage.getItem(keyOptionalFields);
     const self = {
-        debugOpenView: false,
+        debugOpenView: exprToBoolean(browser.localStorage.getItem(keyDebugOpenView)),
 
         /**
          * Compute which optional fields are active from localStorage or defaults.
          */
         computeOptionalActiveFields() {
-            const localStorageValue = browser.localStorage.getItem(keyOptionalFields);
+            const localStorageValue = optionalFieldsStorageValue;
             const optionalColumns = getAllColumns().filter(
                 (col) => col.type === "field" && col.optional,
             );
@@ -64,14 +69,16 @@ export function useListOptionalFields(
          */
         saveOptionalActiveFields() {
             const optionalActiveFields = getOptionalActiveFields();
+            const activeFieldNames = Object.keys(optionalActiveFields).filter(
+                (fieldName) => optionalActiveFields[fieldName],
+            );
             browser.localStorage.setItem(
                 keyOptionalFields,
-                /** @type {any} */ (
-                    Object.keys(optionalActiveFields).filter(
-                        (fieldName) => optionalActiveFields[fieldName],
-                    )
-                ),
+                /** @type {any} */ (activeFieldNames),
             );
+            // localStorage coerces the array to a comma-separated string; keep the
+            // cache consistent with what getItem would now return.
+            optionalFieldsStorageValue = activeFieldNames.join(",");
         },
 
         /**

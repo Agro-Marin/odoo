@@ -3,7 +3,7 @@
 
 /** @module @web/fields/field - Generic Field component that resolves and renders the appropriate field widget from the registry */
 
-import { Component, xml } from "@odoo/owl";
+import { Component, onWillRender, xml } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -296,6 +296,11 @@ export class Field extends Component {
             const fieldType = this.props.record.fields[this.props.name].type;
             this.field = getFieldFromRegistry(fieldType, this.props.type);
         }
+        // The template reads `tooltip` twice: build (and stringify) the
+        // tooltip info at most once per render.
+        onWillRender(() => {
+            this._tooltip = this.computeTooltip();
+        });
     }
 
     /** @returns {Record<string, boolean>} OWL dynamic class map for the field wrapper element */
@@ -429,16 +434,22 @@ export class Field extends Component {
     }
 
     /** @returns {string | false} JSON-serialized tooltip data, or false if tooltip is disabled */
-    get tooltip() {
-        if (this.props.showTooltip) {
-            const tooltip = getTooltipInfo({
-                field: this.props.record.fields[this.props.name],
-                fieldInfo: this.props.fieldInfo || {},
-            });
-            if (Boolean(odoo.debug) || (tooltip && JSON.parse(tooltip).field.help)) {
-                return tooltip;
-            }
+    computeTooltip() {
+        if (!this.props.showTooltip) {
+            return false;
         }
-        return false;
+        const field = this.props.record.fields[this.props.name];
+        const fieldInfo = this.props.fieldInfo || {};
+        // Cheap precheck: only build (and stringify) the tooltip info when
+        // it will actually be displayed.
+        if (!odoo.debug && !(fieldInfo.help ?? field.help)) {
+            return false;
+        }
+        return getTooltipInfo({ field, fieldInfo });
+    }
+
+    /** @returns {string | false} JSON-serialized tooltip data, or false if tooltip is disabled */
+    get tooltip() {
+        return this._tooltip;
     }
 }

@@ -338,13 +338,22 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * @returns {Context} should be imported from context.js?
+     * Raw memoized context for internal read-only consumers: the public
+     * `context` getter deep-copies on every access.
+     * @returns {Context}
      */
-    get context() {
+    get _rawContext() {
         if (!this._context) {
             this._context = makeContext([this.globalContext, this._getContext()]);
         }
-        return deepCopy(this._context);
+        return this._context;
+    }
+
+    /**
+     * @returns {Context} should be imported from context.js?
+     */
+    get context() {
+        return deepCopy(this._rawContext);
     }
 
     /**
@@ -495,22 +504,34 @@ export class SearchModel extends EventBus {
     /**
      * Return an array containing enriched copies of all searchElements or of those
      * satifying the given predicate if any
-     * @param {Function} [predicate]
+     * @param {(searchItem: Object) => boolean} [predicate]
      * @returns {Object[]}
      */
     getSearchItems(predicate) {
-        const searchItems = [];
-        for (const searchItem of Object.values(this.searchItems)) {
-            const enrichedSearchitem = this._enrichItem(searchItem);
-            if (enrichedSearchitem) {
-                const isInvisible =
-                    "invisible" in searchItem &&
-                    evaluateExpr(searchItem.invisible, this.domainEvalContext);
-                if (!isInvisible && (!predicate || predicate(enrichedSearchitem))) {
-                    searchItems.push(enrichedSearchitem);
+        // Memoised like _groups/_facets: enriching every search item (query
+        // lookups, period options, invisible evaluation) rebuilds the same
+        // data within a query cycle and SearchBarMenu reads this several
+        // times per render. Cleared in _reset() and whenever search items
+        // are created outside a query cycle.
+        if (!this._enrichedSearchItems) {
+            const domainEvalContext = this.domainEvalContext;
+            const enrichedSearchItems = [];
+            for (const searchItem of Object.values(this.searchItems)) {
+                const enrichedSearchitem = this._enrichItem(searchItem);
+                if (enrichedSearchitem) {
+                    const isInvisible =
+                        "invisible" in searchItem &&
+                        evaluateExpr(searchItem.invisible, domainEvalContext);
+                    if (!isInvisible) {
+                        enrichedSearchItems.push(enrichedSearchitem);
+                    }
                 }
             }
+            this._enrichedSearchItems = enrichedSearchItems;
         }
+        const searchItems = predicate
+            ? this._enrichedSearchItems.filter(predicate)
+            : [...this._enrichedSearchItems];
         if (searchItems.some((f) => f.type === "favorite")) {
             searchItems.sort((f1, f2) => f1.groupNumber - f2.groupNumber);
         }
@@ -673,6 +694,9 @@ export class SearchModel extends EventBus {
             this.nextId++;
         });
         this.nextGroupId++;
+        // New items can be created outside a query cycle (e.g. lazily loaded
+        // properties): invalidate the enriched search items memo.
+        this._enrichedSearchItems = null;
     }
 
     /**
@@ -1035,6 +1059,7 @@ export class SearchModel extends EventBus {
         this._orderBy = null;
         this._groups = null;
         this._facets = null;
+        this._enrichedSearchItems = null;
     }
 
     /** Whether the query should wait for section data before proceeding. */

@@ -169,16 +169,22 @@ export class ExportDataDialog extends Component {
         });
 
         onWillStart(async () => {
-            this.availableFormats = await rpc("/web/export/formats");
-            this.templates = await this.orm.searchRead(
-                "ir.exports",
-                [["resource", "=", this.props.root.resModel]],
-                [],
-                {
-                    context: this.props.context,
-                },
-            );
-            await this.fetchFields();
+            // The three fetches are independent (state.templateId is still null
+            // here, so fetchFields doesn't depend on the templates list)
+            const [availableFormats, templates] = await Promise.all([
+                rpc("/web/export/formats"),
+                this.orm.searchRead(
+                    "ir.exports",
+                    [["resource", "=", this.props.root.resModel]],
+                    [],
+                    {
+                        context: this.props.context,
+                    },
+                ),
+                this.fetchFields(),
+            ]);
+            this.availableFormats = availableFormats;
+            this.templates = templates;
         });
 
         onMounted(() => {

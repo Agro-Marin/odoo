@@ -85,11 +85,18 @@ class CompanySelector {
         const state = {};
         const options = { reload: true };
         if (controller?.props.resId && controller?.props.resModel) {
-            const hasReadRights = await user.checkAccessRight(
-                controller.props.resModel,
-                "read",
-                controller.props.resId,
-            );
+            let hasReadRights = true;
+            try {
+                hasReadRights = await user.checkAccessRight(
+                    controller.props.resModel,
+                    "read",
+                    controller.props.resId,
+                );
+            } catch {
+                // The companies were already switched (cookie/context mutated
+                // above): the reload below must happen no matter what, so keep
+                // the current view and let the server enforce access rights.
+            }
 
             if (!hasReadRights) {
                 options.replace = true;

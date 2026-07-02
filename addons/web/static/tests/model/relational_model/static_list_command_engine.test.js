@@ -72,6 +72,16 @@ function makeList(overrides = {}) {
             return record;
         },
         _getResIdsToLoad: (ids) => ids,
+        // Mirrors StaticList._bumpLimit: cumulative temp-limit bump used when
+        // commands add records beyond the current page limit.
+        _bumpLimit(n) {
+            this._tmpIncreaseLimit += n;
+            this.model._updateConfig(
+                this.config,
+                { limit: this.limit + n },
+                { reload: false },
+            );
+        },
         model: {
             _updateConfig: () => {},
             _loadRecords: () => Promise.resolve([]),

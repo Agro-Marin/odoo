@@ -47,7 +47,7 @@ export class StaticList extends DataPoint {
 
         /** @type {RelationalRecord[]} */
         this.records = data
-            .slice(this.offset, this.limit)
+            .slice(this.offset, this.offset + this.limit)
             .map((r) => this._createRecordDatapoint(r));
         this.count = this.resIds.length;
         this.handleField = Object.keys(this.activeFields).find(
@@ -312,7 +312,9 @@ export class StaticList extends DataPoint {
                 const commands = this._unknownRecordCommands[record.resId];
                 delete this._unknownRecordCommands[record.resId];
                 if (commands) {
-                    this._applyCommands(commands);
+                    // await before _addSavePoint, so the savepoint doesn't
+                    // snapshot a state where commands are partially applied
+                    await this._applyCommands(commands);
                 }
                 record._addSavePoint();
             } else {
@@ -484,6 +486,23 @@ export class StaticList extends DataPoint {
     }
 
     /**
+     * Temporarily increase the page limit by ``n`` extra row slots, e.g. when
+     * records are added to an already full page. The cumulative increase is
+     * tracked in ``_tmpIncreaseLimit`` so ``_discard`` can restore the
+     * original limit.
+     *
+     * @param {number} n
+     */
+    _bumpLimit(n) {
+        this._tmpIncreaseLimit += n;
+        this.model._updateConfig(
+            this.config,
+            { limit: this.limit + n },
+            { reload: false },
+        );
+    }
+
+    /**
      * @param {RelationalRecord} record
      * @param {{ position?: string, sort?: boolean }} [options]
      */
@@ -500,13 +519,7 @@ export class StaticList extends DataPoint {
             this.records.push(record);
             this._currentIds.splice(this.offset + this.limit, 0, record._virtualId);
             if (this.records.length > this.limit) {
-                this._tmpIncreaseLimit++;
-                const nextLimit = this.limit + 1;
-                this.model._updateConfig(
-                    this.config,
-                    { limit: nextLimit },
-                    { reload: false },
-                );
+                this._bumpLimit(1);
             }
             this._commands.push(command);
         } else {
@@ -532,13 +545,7 @@ export class StaticList extends DataPoint {
             mode: options.mode || "edit",
         });
         if (this.records.length === this.limit) {
-            this._tmpIncreaseLimit++;
-            const nextLimit = this.limit + 1;
-            this.model._updateConfig(
-                this.config,
-                { limit: nextLimit },
-                { reload: false },
-            );
+            this._bumpLimit(1);
         }
         await this._addRecord(newRecord);
         await resequence(this, newRecord.id, this.records[index].id);
@@ -735,7 +742,7 @@ export class StaticList extends DataPoint {
         this._tmpIncreaseLimit = 0;
         this.model._updateConfig(this.config, { limit }, { reload: false });
         this.records = this._currentIds
-            .slice(this.offset, this.limit)
+            .slice(this.offset, this.offset + this.limit)
             .map((resId) => this._cache[resId]);
         if (!this._savePoint) {
             this._applyCommands(this._initialCommands);
@@ -770,13 +777,7 @@ export class StaticList extends DataPoint {
 
         const localIncreaseLimit = this.records.length + records.length - this.limit;
         if (localIncreaseLimit > 0) {
-            this._tmpIncreaseLimit += localIncreaseLimit;
-            const nextLimit = this.limit + localIncreaseLimit;
-            this.model._updateConfig(
-                this.config,
-                { limit: nextLimit },
-                { reload: false },
-            );
+            this._bumpLimit(localIncreaseLimit);
         }
 
         const commands = [];
@@ -880,13 +881,7 @@ export class StaticList extends DataPoint {
         this._currentIds = [...ids];
         this.count = this._currentIds.length;
         if (this._currentIds.length > this.limit) {
-            this._tmpIncreaseLimit = this._currentIds.length - this.limit;
-            const nextLimit = this.limit + this._tmpIncreaseLimit;
-            this.model._updateConfig(
-                this.config,
-                { limit: nextLimit },
-                { reload: false },
-            );
+            this._bumpLimit(this._currentIds.length - this.limit);
         }
     }
 

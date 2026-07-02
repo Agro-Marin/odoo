@@ -10,9 +10,9 @@
  *
  *   1. **{@link findUnsetRequiredFields}** — pure function: determines
  *      which required fields are unset without mutating any state.
- *      Used by ``checkValidity`` below and exported for direct use by
- *      callers that want the scan without the side effects (e.g.
- *      ``record_save.js``'s pre-flight check).
+ *      Used by ``checkValidity`` below; exported so it can be
+ *      unit-tested (and used directly by callers that want the scan
+ *      without the side effects).
  *
  *   2. **Orchestration helpers** (``checkValidity``, ``setInvalidField``,
  *      ``resetFieldValidity``, ``removeInvalidFields``,
@@ -221,6 +221,11 @@ export function checkValidity(record, { silent, displayNotification, removeInval
  * @returns {Promise<void>}
  */
 export async function setInvalidField(record, fieldName) {
+    // NB: intentionally NOT awaited. The sole consumer of this hook is
+    // synchronous, and introducing a microtask gap here changes the ordering
+    // of invalid-field notifications in multi-edit (a single invalid commit
+    // would surface two notifications). If an async veto consumer is ever
+    // added, revisit both this call and that ordering together.
     const canProceed = record.model.hooks.lifecycle.onWillSetInvalidField(record, fieldName);
     if (canProceed === false) {
         return;

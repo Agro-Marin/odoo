@@ -18,15 +18,16 @@ export function getMeasureSpecs(config) {
             return acc;
         }
         const field = metaData.fields[measure];
-        if (field.type === "many2one") {
-            field.aggregator = "count_distinct";
-        }
-        if (field.aggregator === undefined) {
+        // compute the m2o aggregator locally: writing it back onto `field`
+        // would mutate the shared field definition
+        const aggregator =
+            field.type === "many2one" ? "count_distinct" : field.aggregator;
+        if (aggregator === undefined) {
             throw new Error(
                 `No aggregate function has been provided for the measure '${measure}'`,
             );
         }
-        acc.push(`${measure}:${field.aggregator}`);
+        acc.push(`${measure}:${aggregator}`);
         if (field.currency_field) {
             acc.push(`${field.currency_field}:array_agg_distinct`);
             acc.push(`${field.name}:sum_currency`);

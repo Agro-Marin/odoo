@@ -30,6 +30,7 @@ from .lifecycle import (
     _configure_connection,
     _reset_connection,
 )
+from .utils import is_maintenance_db
 
 if TYPE_CHECKING:
     from .cursor import Cursor
@@ -360,13 +361,25 @@ class ConnectionPool:
         # so they apply at connection establishment (no cursor ops in configure):
         # - jit=off: compile overhead (5-50ms) dwarfs Odoo's sub-10ms queries.
         # - work_mem=16MB: 4MB default forces disk sorts for search_read joins.
-        # - idle_session_timeout=15min: server-side net for escaped connections,
-        #   above pool max_idle (10min) so normal recycling wins.
-        # Hardcoded, not configurable: tuned for Odoo's profile; override via
-        # postgresql.conf if needed.
+        # - idle_session_timeout: server-side net for escaped connections.
+        #   Derived as 1.5 * max_idle (floored at 15 min, the value matching the
+        #   600s default) so raising ``db_conn_max_idle`` cannot put the pool's
+        #   idle window past the server's — the server would then silently kill
+        #   warm pooled connections and every borrow past the grace period would
+        #   pay a probe failure + reconnect.
+        # jit/work_mem are hardcoded, not configurable: tuned for Odoo's
+        # profile; override via postgresql.conf if needed.
         options = kwargs.get("options", "")
+        if not options and conninfo:
+            # A URI's ``?options=...`` GUCs live inside the conninfo string, and
+            # psycopg gives per-key precedence to kwargs — so setting ours
+            # without folding the URI's in would silently drop the operator's
+            # (e.g. a ?options=-csearch_path%3D... on the URI).
+            options = _expand_conninfo(conninfo).get("options", "")
+        idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
         kwargs["options"] = (
-            f"{options} -c jit=off -c work_mem=16MB -c idle_session_timeout=900000"
+            f"{options} -c jit=off -c work_mem=16MB"
+            f" -c idle_session_timeout={idle_session_ms}"
         ).strip()
 
         # Fail fast on permanent connect errors instead of a ~30s pool retry.
@@ -381,11 +394,19 @@ class ConnectionPool:
                 self._note_pool_activity(pool)
                 return pool
 
+            # Never warm connections to system/template databases: psycopg_pool
+            # maintains min_size by reconnecting after every discard, so the
+            # cursor-close discard (Cursor._close keep_in_pool=False) alone
+            # cannot keep them connection-free — and an idle connection to a
+            # template blocks CREATE DATABASE ... TEMPLATE outright.
+            min_size = self._minconn
+            if min_size and is_maintenance_db(dict(key).get("database", "")):
+                min_size = 0
             pool = _PsycopgPool(
                 conninfo,
                 connection_class=psycopg.Connection,
                 kwargs=kwargs,
-                min_size=self._minconn,
+                min_size=min_size,
                 max_size=self._maxconn,
                 max_lifetime=self._max_lifetime,
                 max_idle=self._max_idle,

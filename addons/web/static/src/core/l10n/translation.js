@@ -178,6 +178,25 @@ export function _pl(count, forms) {
  * @returns {string | Markup | TranslatedString}
  */
 export function appTranslateFn(source, moduleName, ...substitutions) {
+    if (translatedTerms[translationLoaded]) {
+        // Fast path once translations are loaded: behaviorally identical to
+        // `new TranslatedString(...).valueOf()` (which is what the slow path
+        // reduces to when not lazy), without allocating and discarding the
+        // TranslatedString wrapper on every call.
+        if (!isNotBlank(source)) {
+            // Matches the constructor's `new String(value)` escape hatch,
+            // whose `.valueOf()` returns the coerced primitive.
+            return String(source);
+        }
+        const context = moduleName || DEFAULT_MODULE;
+        const translation =
+            translatedTerms[context]?.[source] ??
+            translatedTermsGlobal[source] ??
+            source;
+        return substitutions.length
+            ? translationSprintf(translation, substitutions)
+            : translation;
+    }
     const string = new TranslatedString(source, substitutions, moduleName);
     return string.lazy ? string : string.valueOf();
 }

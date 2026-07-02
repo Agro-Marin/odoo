@@ -128,6 +128,9 @@ class _BulkAccessMixin:
         # Pipeline multi-batch non-fetch executions for single round-trip
         use_pipeline = len(argslist) > page_size and not fetch
         ctx = self._cnx.pipeline() if use_pipeline else _nullcontext()
+        # Placeholder strings depend only on the row length — memoize them
+        # across rows and batches instead of rebuilding "(%s, %s, ...)" per row.
+        ph_by_len: dict[int, str] = {}
         try:
             with ctx:
                 for i in batches:
@@ -135,17 +138,18 @@ class _BulkAccessMixin:
                     placeholders = []
                     params = []
                     for row in batch:
-                        if template:
-                            placeholders.append(template)
-                        elif isinstance(row, (list, tuple)):
-                            placeholders.append(
-                                "(" + ", ".join(["%s"] * len(row)) + ")"
-                            )
-                        else:
-                            placeholders.append("(%s)")
                         if isinstance(row, (list, tuple)):
+                            if template:
+                                placeholders.append(template)
+                            elif (ph := ph_by_len.get(len(row))) is not None:
+                                placeholders.append(ph)
+                            else:
+                                ph = "(" + ", ".join(["%s"] * len(row)) + ")"
+                                ph_by_len[len(row)] = ph
+                                placeholders.append(ph)
                             params.extend(row)
                         else:
+                            placeholders.append(template or "(%s)")
                             params.append(row)
                     full_query = f"{prefix}{', '.join(placeholders)}{suffix}"
                     self.execute(full_query, params)
@@ -359,20 +363,23 @@ class _BulkAccessMixin:
         self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", table))
         (seq_name,) = self.fetchone()
         if seq_name is None:
-            # Shared sequence (e.g. _inherits): find via pg_depend.
+            # Shared sequence (e.g. _inherits): find via pg_depend.  Anchor on
+            # ``%s::regclass`` (search_path-resolved, like the primary lookup
+            # above) rather than joining pg_class on relname — a bare relname
+            # matches every same-named table in every schema and LIMIT 1 then
+            # picks one arbitrarily, returning another schema's sequence.
             self.execute(
                 SQL(
                     """SELECT s.oid::regclass::text
                 FROM pg_attrdef ad
-                JOIN pg_class t ON t.oid = ad.adrelid
-                JOIN pg_attribute a ON a.attrelid = t.oid
+                JOIN pg_attribute a ON a.attrelid = ad.adrelid
                     AND a.attnum = ad.adnum
                 JOIN pg_depend d ON d.objid = ad.oid
                     AND d.classid = 'pg_attrdef'::regclass
                     AND d.refclassid = 'pg_class'::regclass
                 JOIN pg_class s ON s.oid = d.refobjid
                     AND s.relkind = 'S'
-                WHERE t.relname = %s AND a.attname = 'id'
+                WHERE ad.adrelid = %s::regclass AND a.attname = 'id'
                 LIMIT 1""",
                     table,
                 )

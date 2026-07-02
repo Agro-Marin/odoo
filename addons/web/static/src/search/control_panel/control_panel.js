@@ -55,29 +55,58 @@ class EmbeddedActionsConfigHandler {
      * @param {number|false} currentActiveId
      * @param {string} parentResModel
      * @param {Object} ormService
+     * @param {Object} notificationService
      */
-    constructor(parentActionId, currentActiveId, parentResModel, ormService) {
+    constructor(
+        parentActionId,
+        currentActiveId,
+        parentResModel,
+        ormService,
+        notificationService,
+    ) {
         this.parentActionId = parentActionId;
         this.currentActiveId = currentActiveId;
         this.parentResModel = parentResModel;
         this.embeddedActionsKey = `${this.parentActionId}+${this.currentActiveId || ""}`;
         this.embeddedActionsConfig = user.settings.embedded_actions_config_ids || {};
         this.orm = ormService;
+        this.notification = notificationService;
     }
 
-    /** @param {Object} config - partial config to merge (e.g. { embedded_visibility: true }) */
-    setEmbeddedActionsConfig(config) {
-        if (this.embeddedActionsKey in this.embeddedActionsConfig) {
+    /**
+     * @param {Object} config - partial config to merge (e.g. { embedded_visibility: true })
+     * @returns {Promise<void>} never rejects: on failure, the local cache is
+     *  reverted and a notification is shown
+     */
+    async setEmbeddedActionsConfig(config) {
+        const hadConfig = this.embeddedActionsKey in this.embeddedActionsConfig;
+        const previousConfig = hadConfig
+            ? { ...this.embeddedActionsConfig[this.embeddedActionsKey] }
+            : null;
+        if (hadConfig) {
             Object.assign(this.embeddedActionsConfig[this.embeddedActionsKey], config);
         } else {
             this.embeddedActionsConfig[this.embeddedActionsKey] = config;
         }
-        this.orm.call("res.users.settings", "set_embedded_actions_setting", [
-            user.settings.id,
-            this.parentActionId,
-            this.currentActiveId,
-            config,
-        ]);
+        try {
+            await this.orm.call("res.users.settings", "set_embedded_actions_setting", [
+                user.settings.id,
+                this.parentActionId,
+                this.currentActiveId,
+                config,
+            ]);
+        } catch {
+            // Revert the local cache so it stays in sync with the server.
+            if (hadConfig) {
+                this.embeddedActionsConfig[this.embeddedActionsKey] = previousConfig;
+            } else {
+                delete this.embeddedActionsConfig[this.embeddedActionsKey];
+            }
+            this.notification.add(
+                _t("Failed to save the embedded actions configuration."),
+                { type: "danger" },
+            );
+        }
     }
 
     /**
@@ -224,6 +253,7 @@ export class ControlPanel extends Component {
             currentActiveId,
             this.currentEmbeddedAction?.parent_res_model,
             this.orm,
+            this.notificationService,
         );
 
         this.state = useState({
@@ -437,7 +467,7 @@ export class ControlPanel extends Component {
                 if (embeddedOrder) {
                     this._sortEmbeddedActions(embeddedOrder);
                 }
-                this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
+                await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
                     embedded_visibility: true,
                 });
             } else {
@@ -465,10 +495,12 @@ export class ControlPanel extends Component {
                             this.state.embeddedInfos.visibleEmbeddedActions;
                     }
                 }
-                this.embeddedActionsConfigHandler.setEmbeddedActionsConfig(config);
+                await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig(
+                    config,
+                );
             }
         } else {
-            this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
+            await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
                 embedded_visibility: !this.state.embeddedInfos.showEmbedded,
             });
         }
@@ -648,7 +680,7 @@ export class ControlPanel extends Component {
         }
         const embeddedActionId = await this.orm.create("ir.embedded.actions", [values]);
         const description = `${newActionName}`;
-        this.env.searchModel.createNewFavorite({
+        await this.env.searchModel.createNewFavorite({
             description,
             isDefault: true,
             isShared: newActionIsShared,
@@ -668,7 +700,7 @@ export class ControlPanel extends Component {
         const embeddedActionResId = embeddedActionId[0];
         visibleEmbeddedActions.push(embeddedActionResId);
         const order = this.state.embeddedInfos.embeddedActions.map((el) => el.id);
-        this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
+        await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
             embedded_actions_visibility: visibleEmbeddedActions,
             embedded_actions_order: order,
         });
@@ -709,7 +741,7 @@ export class ControlPanel extends Component {
             ({ id }) => id !== action.id,
         );
         const order = this.state.embeddedInfos.embeddedActions.map((el) => el.id);
-        this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
+        await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
             embedded_actions_visibility: visibleEmbeddedActions,
             embedded_actions_order: order,
         });

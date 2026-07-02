@@ -43,7 +43,7 @@ const ParentedMixin = {
             if (this.getParent().__parentedMixin) {
                 const children = this.getParent().getChildren();
                 this.getParent().__parentedChildren = children.filter(
-                    (child) => child.el !== this.el,
+                    (child) => child !== this,
                 );
             }
         }
@@ -754,7 +754,8 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
             this.el = element;
         }
 
-        // Legacy compat: some subclasses still reference $el
+        // Legacy compat: some subclasses still reference $el. Warning: this is
+        // a raw HTMLElement kept only as an alias of `el`, NOT a jQuery object.
         this.$el = this.el;
 
         this._delegateEvents();

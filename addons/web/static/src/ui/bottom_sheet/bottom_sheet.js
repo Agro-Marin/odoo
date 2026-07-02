@@ -85,6 +85,8 @@ export class BottomSheet extends Component {
         // Handle mobile "back" gesture and "back" navigation button.
         // Push a history state when the BottomSheet opens, intercept the browser's
         // history events, prevents navigation by pushing another state and closes the sheet.
+        // TODO: this history entry leaks when the sheet is closed by other means
+        // than "back" (it is never popped), leaving a stale entry on the stack.
         browser.history.pushState({ bottomSheet: true }, "");
         this.handlePopState = () => {
             if (this.state.isPositionedReady && !this.state.isDismissing) {
@@ -302,20 +304,21 @@ export class BottomSheet extends Component {
         if (this.prefersReducedMotion) {
             this.props.close?.();
         } else {
-            this.sheetRef.el?.addEventListener(
-                "animationend",
-                () => this.props.close?.(),
-                {
-                    once: true,
-                },
-            );
-            this.sheetRef.el?.addEventListener(
-                "animationcancel",
-                () => this.props.close?.(),
-                {
-                    once: true,
-                },
-            );
+            // Close only once, whichever of the two events fires first.
+            const onAnimationDone = () => {
+                this.sheetRef.el?.removeEventListener("animationend", onAnimationDone);
+                this.sheetRef.el?.removeEventListener(
+                    "animationcancel",
+                    onAnimationDone,
+                );
+                this.props.close?.();
+            };
+            this.sheetRef.el?.addEventListener("animationend", onAnimationDone, {
+                once: true,
+            });
+            this.sheetRef.el?.addEventListener("animationcancel", onAnimationDone, {
+                once: true,
+            });
         }
 
         // Update state to trigger animation

@@ -83,6 +83,9 @@ export async function getSearchItemsProperties(searchModel, searchItem) {
         }
     }
 
+    // Items were created/updated outside a query cycle: invalidate the
+    // enriched search items memo before reading it back.
+    searchModel._enrichedSearchItems = null;
     return searchModel.getSearchItems((searchItem) => searchItemIds.has(searchItem.id));
 }
 
@@ -194,10 +197,13 @@ export async function fillSearchViewItemsProperty(searchModel) {
  */
 export async function fetchPropertiesDefinition(searchModel, resModel, fieldName) {
     const domain = [];
-    if (searchModel.context.active_id) {
+    // Read the raw memoized context (the public `context` getter deep-copies
+    // on every access); only `active_id` is read here.
+    const activeId = searchModel._rawContext.active_id;
+    if (activeId) {
         // assume the active id is the definition record
         // and show only its properties
-        domain.push(["id", "=", searchModel.context.active_id]);
+        domain.push(["id", "=", activeId]);
     }
 
     const definitions = await searchModel.fieldService.loadPropertyDefinitions(

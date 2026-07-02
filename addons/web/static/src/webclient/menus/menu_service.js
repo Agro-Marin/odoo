@@ -42,48 +42,56 @@ export const menuService = {
             }
             return res.json();
         };
+        /** @param {Object} data */
+        const persistMenus = (data) => {
+            try {
+                browser.localStorage.setItem(
+                    "webclient_menus_version",
+                    session.registry_hash,
+                );
+                browser.localStorage.setItem("webclient_menus", JSON.stringify(data));
+            } catch (error) {
+                console.error("Error while storing menus in localStorage", error);
+            }
+        };
         const storedMenus = browser.localStorage.getItem("webclient_menus");
         const storedMenusVersion = browser.localStorage.getItem(
             "webclient_menus_version",
         );
 
         if (storedMenus && storedMenusVersion === session.registry_hash) {
-            fetchMenus().then((res) => {
-                if (res) {
-                    const fetchedMenus = JSON.stringify(res);
-                    if (fetchedMenus !== storedMenus) {
-                        try {
-                            browser.localStorage.setItem(
-                                "webclient_menus",
-                                fetchedMenus,
-                            );
-                        } catch (error) {
-                            console.error(
-                                "Error while storing menus in localStorage",
-                                error,
-                            );
+            fetchMenus()
+                .then((res) => {
+                    if (res) {
+                        const fetchedMenus = JSON.stringify(res);
+                        if (fetchedMenus !== storedMenus) {
+                            try {
+                                browser.localStorage.setItem(
+                                    "webclient_menus",
+                                    fetchedMenus,
+                                );
+                            } catch (error) {
+                                console.error(
+                                    "Error while storing menus in localStorage",
+                                    error,
+                                );
+                            }
+                            menusData = res;
+                            env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                         }
-                        menusData = res;
-                        env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                     }
-                }
-            });
+                })
+                // Background revalidation only: the stale menus are already on
+                // screen, so a failed refetch is not worth surfacing to the
+                // user — but log it so a persistent failure is diagnosable.
+                .catch((error) => {
+                    console.warn("Background menu revalidation failed", error);
+                });
             menusData = JSON.parse(storedMenus);
         } else {
             menusData = await fetchMenus();
             if (menusData) {
-                try {
-                    browser.localStorage.setItem(
-                        "webclient_menus_version",
-                        session.registry_hash,
-                    );
-                    browser.localStorage.setItem(
-                        "webclient_menus",
-                        JSON.stringify(menusData),
-                    );
-                } catch (error) {
-                    console.error("Error while storing menus in localStorage", error);
-                }
+                persistMenus(menusData);
             }
         }
 
@@ -141,6 +149,11 @@ export const menuService = {
                 // fetchMenus is a const arrow defined above — always truthy, so
                 // the old `if (fetchMenus)` guard was dead.
                 menusData = await fetchMenus(true);
+                if (menusData) {
+                    // Persist so the next boot doesn't serve stale menus from
+                    // localStorage.
+                    persistMenus(menusData);
+                }
                 env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
             },
         };

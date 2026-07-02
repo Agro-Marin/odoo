@@ -10,6 +10,7 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/l10n/translation";
 import {
     convertCSSColorToRgba,
@@ -21,7 +22,6 @@ import {
 import { clamp } from "@web/core/utils/format/numbers";
 import { uniqueId } from "@web/core/utils/functions";
 import { debounce, useThrottleForAnimation } from "@web/core/utils/timing";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 const ARROW_KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright"];
 const SLIDER_KEYS = [...ARROW_KEYS, "pageup", "pagedown", "home", "end"];
@@ -262,6 +262,17 @@ export class CustomColorPicker extends Component {
      * @private
      */
     _updateUI() {
+        // Read all DOM geometry first, then perform all writes, to avoid
+        // interleaved reads/writes forcing several reflows per drag frame.
+        const colorPickerArea = this.colorPickerAreaRef.el;
+        const pickerHeight = colorPickerArea.clientHeight;
+        const pickerWidth = colorPickerArea.clientWidth;
+        const sliderHeight = this.colorSliderRef.el.clientHeight;
+        const opacitySlider = this.props.noTransparency
+            ? null
+            : this.opacitySliderRef.el;
+        const opacitySliderHeight = opacitySlider ? opacitySlider.clientHeight : 0;
+
         // Update inputs
         for (const [color, value] of Object.entries(this.colorComponents)) {
             const input = this.el.querySelector(`.o_${color}_input`);
@@ -271,13 +282,9 @@ export class CustomColorPicker extends Component {
         }
 
         // Update picker area and picker pointer position
-        const colorPickerArea = this.colorPickerAreaRef.el;
         colorPickerArea.style.backgroundColor = `hsl(${this.colorComponents.hue}, 100%, 50%)`;
-        const top =
-            ((100 - this.colorComponents.lightness) * colorPickerArea.clientHeight) /
-            100;
-        const left =
-            (this.colorComponents.saturation * colorPickerArea.clientWidth) / 100;
+        const top = ((100 - this.colorComponents.lightness) * pickerHeight) / 100;
+        const left = (this.colorComponents.saturation * pickerWidth) / 100;
 
         const colorpickerPointer = this.colorPickerPointerRef.el;
         colorpickerPointer.style.top = `${top - 5}px`;
@@ -291,20 +298,16 @@ export class CustomColorPicker extends Component {
         );
 
         // Update color slider position
-        const colorSlider = this.colorSliderRef.el;
-        const height = colorSlider.clientHeight;
-        const y = (this.colorComponents.hue * height) / 360;
+        const y = (this.colorComponents.hue * sliderHeight) / 360;
         this.colorSliderPointerRef.el.style.bottom = `${Math.round(y - 4)}px`;
         this.colorSliderPointerRef.el.setAttribute(
             "aria-valuenow",
             this.colorComponents.hue.toFixed(2),
         );
 
-        if (!this.props.noTransparency) {
+        if (opacitySlider) {
             // Update opacity slider position
-            const opacitySlider = this.opacitySliderRef.el;
-            const heightOpacity = opacitySlider.clientHeight;
-            const z = heightOpacity * (1 - this.colorComponents.opacity / 100.0);
+            const z = opacitySliderHeight * (1 - this.colorComponents.opacity / 100.0);
             this.opacitySliderPointerRef.el.style.top = `${Math.round(z - 2)}px`;
             this.opacitySliderPointerRef.el.setAttribute(
                 "aria-valuenow",
@@ -709,17 +712,20 @@ export class CustomColorPicker extends Component {
                     Number.parseInt(
                         /** @type {HTMLInputElement} */ (
                             this.el.querySelector(".o_hue_input")
-                        ).value, 10,
+                        ).value,
+                        10,
                     ),
                     Number.parseInt(
                         /** @type {HTMLInputElement} */ (
                             this.el.querySelector(".o_saturation_input")
-                        ).value, 10,
+                        ).value,
+                        10,
                     ),
                     Number.parseInt(
                         /** @type {HTMLInputElement} */ (
                             this.el.querySelector(".o_lightness_input")
-                        ).value, 10,
+                        ).value,
+                        10,
                     ),
                 );
                 break;

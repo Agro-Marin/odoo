@@ -41,6 +41,23 @@ function cast(value) {
  * @typedef {{ [key: string]: any }} Route
  */
 
+/**
+ * Decodes a URI component, returning the raw string when it contains
+ * malformed percent-encoding (e.g. "%E0%A4%A" or a lone "%"). This module
+ * parses the location at evaluation time — an unguarded URIError here
+ * would blank the whole app on boot.
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+function tryDecode(s) {
+    try {
+        return decodeURIComponent(s);
+    } catch {
+        return s;
+    }
+}
+
 function parseString(/** @type {string} */ str) {
     if (!str) {
         return Object.create(null);
@@ -50,12 +67,12 @@ function parseString(/** @type {string} */ str) {
     for (const part of parts) {
         const eqIdx = part.indexOf("=");
         const rawKey = eqIdx === -1 ? part : part.slice(0, eqIdx);
-        const key = decodeURIComponent(rawKey);
+        const key = tryDecode(rawKey);
         if (key === "__proto__" || key === "constructor" || key === "prototype") {
             continue;
         }
         const value = eqIdx === -1 ? "" : part.slice(eqIdx + 1);
-        const decoded = decodeURIComponent(value || "");
+        const decoded = tryDecode(value || "");
         result[key] = cast(decoded);
     }
     return result;

@@ -47,20 +47,36 @@ function onFocus(/** @type {FocusEvent} */ ev) {
 export function useNumpadDecimal() {
     const ref = useRef("numpadDecimal");
     const isIOSDevice = isIOS();
-    useEffect(() => {
-        let inputs = [];
-        const el = ref.el;
-        if (el) {
-            inputs = el.nodeName === "INPUT" ? [el] : [...el.querySelectorAll("input")];
-            inputs.forEach((input) => input.addEventListener("keydown", onKeydown));
-            inputs.forEach((input) => input.addEventListener("focus", onFocus));
+    // Delegated listeners: a single pair on the root element instead of one
+    // pair per input rewired on every patch.
+    const handleKeydown = (/** @type {KeyboardEvent} */ ev) => {
+        if (/** @type {HTMLElement} */ (ev.target).closest("input")) {
+            onKeydown(ev);
+        }
+    };
+    // "focus" does not bubble: use "focusin" for delegation.
+    const handleFocusin = (/** @type {FocusEvent} */ ev) => {
+        if (/** @type {HTMLElement} */ (ev.target).closest("input")) {
+            onFocus(ev);
+        }
+    };
+    useEffect(
+        (el) => {
+            if (!el) {
+                return;
+            }
+            el.addEventListener("keydown", handleKeydown);
+            el.addEventListener("focusin", handleFocusin);
             if (isIOSDevice) {
+                const inputs =
+                    el.nodeName === "INPUT" ? [el] : el.querySelectorAll("input");
                 inputs.forEach((input) => input.removeAttribute("inputmode"));
             }
-        }
-        return () => {
-            inputs.forEach((input) => input.removeEventListener("keydown", onKeydown));
-            inputs.forEach((input) => input.removeEventListener("focus", onFocus));
-        };
-    });
+            return () => {
+                el.removeEventListener("keydown", handleKeydown);
+                el.removeEventListener("focusin", handleFocusin);
+            };
+        },
+        () => [ref.el],
+    );
 }

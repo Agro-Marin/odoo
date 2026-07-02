@@ -385,10 +385,11 @@ export class SearchPanel extends Component {
 
     /** Sync component state with the SearchModel's current section values. */
     updateActiveValues() {
-        if (!this.sections.length) {
+        const sections = this.sections;
+        if (!sections.length) {
             this.state.sidebarExpanded = false;
         }
-        for (const section of this.sections) {
+        for (const section of sections) {
             if (section.type === "category") {
                 this.state.active[section.id] = section.activeValueId;
             } else {

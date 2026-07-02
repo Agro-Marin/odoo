@@ -76,16 +76,9 @@ export function applyCommands(
                 addOwnCommand([CREATE, virtualId]);
                 const index = list.offset + list.limit;
                 list._currentIds.splice(index, 0, virtualId);
-                list._tmpIncreaseLimit = Math.max(
-                    list.records.length - list.limit,
-                    0,
-                );
-                const nextLimit = list.limit + list._tmpIncreaseLimit;
-                list.model._updateConfig(
-                    list.config,
-                    { limit: nextLimit },
-                    { reload: false },
-                );
+                if (list.records.length > list.limit) {
+                    list._bumpLimit(list.records.length - list.limit);
+                }
                 list.count++;
                 break;
             }
@@ -189,13 +182,7 @@ export function applyCommands(
                     }
                     list.records.push(record);
                     if (list.records.length > list.limit) {
-                        list._tmpIncreaseLimit = list.records.length - list.limit;
-                        const nextLimit = list.limit + list._tmpIncreaseLimit;
-                        list.model._updateConfig(
-                            list.config,
-                            { limit: nextLimit },
-                            { reload: false },
-                        );
+                        list._bumpLimit(list.records.length - list.limit);
                     }
                 }
                 list._currentIds.push(record.resId);
@@ -263,7 +250,7 @@ export function applyCommands(
         const resIds = recordsToLoad.map((r) => r.resId);
         return list.model
             ._loadRecords({ ...list.config, resIds })
-            .then((recordValues) => {
+            .then(async (recordValues) => {
                 const valuesById = Object.fromEntries(
                     recordValues.map((v) => [v.id, v]),
                 );
@@ -273,7 +260,10 @@ export function applyCommands(
                     const commands = list._unknownRecordCommands[record.resId];
                     if (commands) {
                         delete list._unknownRecordCommands[record.resId];
-                        applyCommands(list, commands);
+                        // await so the outer promise doesn't resolve before the
+                        // recursive application completes (and so rejections
+                        // propagate instead of being unhandled)
+                        await applyCommands(list, commands);
                     }
                 }
             });

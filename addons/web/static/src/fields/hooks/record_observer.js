@@ -28,6 +28,24 @@ export function useRecordObserver(callback) {
         const def = new Deferred();
         const effectId = currentId;
         let firstCall = true;
+        // A single batched instance so that all effect notifications within the
+        // same animation frame coalesce into one callback invocation.
+        const batchedCallback = batched(
+            (record) => {
+                if (effectId !== currentId) {
+                    // effect doesn't clean up when the component is unmounted.
+                    // We must do it manually.
+                    return;
+                }
+                return Promise.resolve(callback(record, props))
+                    .then(def.resolve)
+                    .catch(def.reject);
+            },
+            () =>
+                new Promise((resolve) =>
+                    browser.requestAnimationFrame(() => resolve()),
+                ),
+        );
         effect(
             (record) => {
                 if (firstCall) {
@@ -36,22 +54,7 @@ export function useRecordObserver(callback) {
                         .then(def.resolve)
                         .catch(def.reject);
                 } else {
-                    return batched(
-                        (record) => {
-                            if (effectId !== currentId) {
-                                // effect doesn't clean up when the component is unmounted.
-                                // We must do it manually.
-                                return;
-                            }
-                            return Promise.resolve(callback(record, props))
-                                .then(def.resolve)
-                                .catch(def.reject);
-                        },
-                        () =>
-                            new Promise((resolve) =>
-                                browser.requestAnimationFrame(() => resolve()),
-                            ),
-                    )(record);
+                    return batchedCallback(record);
                 }
             },
             [props.record],

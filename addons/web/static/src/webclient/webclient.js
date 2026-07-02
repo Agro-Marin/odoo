@@ -89,7 +89,13 @@ export class WebClient extends Component {
             capture: true,
         });
         this.serviceWorkerActivatedDeferred = new Deferred();
-        onWillStart(this.registerServiceWorker);
+        // Fire-and-forget: don't block the first render on service worker
+        // registration/activation (if the SW install stalls, awaiting
+        // ``navigator.serviceWorker.ready`` would never resolve and leave a
+        // blank page). ``registerServiceWorker`` catches its own errors.
+        onWillStart(() => {
+            this.registerServiceWorker();
+        });
     }
 
     /** Resolve the current URL state to an action + menu, then load it. */

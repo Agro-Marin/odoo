@@ -3,14 +3,13 @@
 
 /** @module @web/fields/temporal/remaining_days/remaining_days_field - Deadline countdown field showing remaining days with color-coded urgency */
 
-import { Component } from "@odoo/owl";
+import { Component, onWillRender } from "@odoo/owl";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
-
-import { registerField } from "@web/fields/_registry";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { capitalize } from "@web/core/utils/format/strings";
+import { registerField } from "@web/fields/_registry";
 import { formatDate } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
@@ -33,8 +32,17 @@ export class RemainingDaysField extends Component {
 
     static template = "web.RemainingDaysField";
 
+    setup() {
+        // `diffDays` is read several times per render (diffString, classNames,
+        // template) and each computation allocates luxon objects: compute it
+        // once per render.
+        onWillRender(() => {
+            this._diffDays = this.computeDiffDays();
+        });
+    }
+
     /** @returns {number|null} Number of days until the deadline, or null if unset */
-    get diffDays() {
+    computeDiffDays() {
         const { record, name } = this.props;
         const value = record.data[name];
         if (!value) {
@@ -43,6 +51,11 @@ export class RemainingDaysField extends Component {
         const today = DateTime.local().startOf("day");
         const diff = value.startOf("day").diff(today, "days");
         return Math.floor(diff.days);
+    }
+
+    /** @returns {number|null} Number of days until the deadline, or null if unset */
+    get diffDays() {
+        return this._diffDays;
     }
 
     /** @returns {string} Human-readable relative date string (e.g. "yesterday", "in 3 days") */

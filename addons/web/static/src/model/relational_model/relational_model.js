@@ -16,7 +16,6 @@ import { computeNextConfig } from "./config_transitions.js";
 import { DynamicGroupList } from "./dynamic_group_list.js";
 import { DynamicRecordList } from "./dynamic_record_list.js";
 import { FetchRecordError } from "./errors.js";
-import { RelationalModelLoadCoordinator } from "./load_coordinator.js";
 import { getBasicEvalContext, getId } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { Group } from "./group.js";
@@ -191,18 +190,6 @@ export class RelationalModel extends Model {
         this.keepLast = markRaw(new KeepLast());
         this.mutex = markRaw(new Mutex());
 
-        // Observable load-lifecycle state machine. Mirrors
-        // ``FormSaveCoordinator`` for the save axis: provides a
-        // ``status: idle | loading | error`` surface plus
-        // ``lastError`` for diagnostics. Wired through ``load()`` for
-        // status tracking; does NOT replace ``keepLast`` (cancellation
-        // semantics), ``mutex`` (per-record save/discard
-        // serialization), or ``urgentSave`` (cross-cutting mode
-        // coordinator, see ``urgent_save_coordinator.js``) — those
-        // serve orthogonal concerns. See ``load_coordinator.js`` for
-        // the full scope rationale.
-        this.loadCoordinator = new RelationalModelLoadCoordinator();
-
         /** @type {RelationalModelConfig} */
         this.config = {
             isMonoRecord: false,
@@ -304,18 +291,7 @@ export class RelationalModel extends Model {
         const rootLoadDef = new Deferred();
         const cache = this._getCacheParams(config, rootLoadDef);
         performance.mark("model:loadData:start");
-        // Route the actual data load through ``loadCoordinator.run`` so
-        // ``loadCoordinator.status`` reflects the in-flight load and
-        // observers (loading spinners, route guards) can react. The
-        // ``keepLast.add`` cancellation wrapper still runs inside —
-        // ``run`` doesn't replace it, it adds a status-narration layer
-        // around it. A failed load rejects through ``run``'s
-        // ``failed``-transition path; a stale rejection (superseded by
-        // a newer ``keepLast.add``) lands on the epoch-bumped
-        // coordinator and becomes a silent no-op.
-        const data = await this.loadCoordinator.run(() =>
-            this.keepLast.add(this._loadData(config, cache)),
-        );
+        const data = await this.keepLast.add(this._loadData(config, cache));
         performance.measure("model:loadData", "model:loadData:start");
         this.root = this._createRoot(config, data);
         rootLoadDef.resolve({ root: this.root, loadId: config.loadId });
@@ -762,7 +738,18 @@ export class RelationalModel extends Model {
             params,
         );
         if (!this.initialSampleGroups) {
-            this.initialSampleGroups = deepCopy(result.groups);
+            // These groups are only consumed in sample-data mode (see
+            // ``load()`` above), where the SampleServer only reads the group
+            // headers and the *presence* of ``__records`` (to know which
+            // groups are open) — it regenerates the record payloads itself
+            // (see ``_mockWebReadGroup`` in sample_server.js). Strip the
+            // heavy ``__records`` payloads before deep copying, as this runs
+            // on every first grouped load, sample mode or not.
+            this.initialSampleGroups = deepCopy(
+                result.groups.map((group) =>
+                    "__records" in group ? { ...group, __records: [] } : group,
+                ),
+            );
         }
         return result;
     }

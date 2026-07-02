@@ -17,15 +17,10 @@ import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import {
-    cloneTree,
-    connector,
-    isTree,
-    TRUE_TREE,
-} from "@web/core/tree/condition_tree";
-import {
     getDefaultValue,
     getValueEditorInfo,
 } from "@web/components/tree_editor/tree_editor_value_editors";
+import { cloneTree, connector, isTree, TRUE_TREE } from "@web/core/tree/condition_tree";
 import { getResModel } from "@web/core/tree/utils";
 import { areEquivalentTrees } from "@web/core/tree/virtual_operators";
 import { shallowEqual } from "@web/core/utils/collections/objects";
@@ -97,19 +92,21 @@ export class TreeEditor extends Component {
      * @param {Object} props
      */
     async prepareInfo(props) {
-        const [fieldDefs, getFieldDef] = await Promise.all([
+        const [fieldDefs, getFieldDef, getConditionDescription] = await Promise.all([
             this.fieldService.loadFields(props.resModel),
             this.treeProcessor.makeGetFieldDef(props.resModel, this.tree),
+            props.readonly
+                ? this.treeProcessor.makeGetConditionDescription(
+                      props.resModel,
+                      this.tree,
+                  )
+                : undefined,
         ]);
         this.getFieldDef = getFieldDef;
         this.defaultCondition = props.getDefaultCondition(fieldDefs);
 
         if (props.readonly) {
-            this.getConditionDescription =
-                await this.treeProcessor.makeGetConditionDescription(
-                    props.resModel,
-                    this.tree,
-                );
+            this.getConditionDescription = getConditionDescription;
         }
     }
 
@@ -360,9 +357,11 @@ export class TreeEditor extends Component {
     /**
      * Toggles hover highlight on the closest tree editor node element.
      * @param {HTMLElement} target
+     * @param {boolean} force - whether to add or remove the highlight
      */
-    highlightNode(target) {
-        const nodeEl = target.closest(".o_tree_editor_node");
-        nodeEl.classList.toggle("o_hovered_button");
+    highlightNode(target, force) {
+        target
+            .closest(".o_tree_editor_node")
+            ?.classList.toggle("o_hovered_button", force);
     }
 }

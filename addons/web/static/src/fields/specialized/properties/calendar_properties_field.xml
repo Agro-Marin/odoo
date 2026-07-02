@@ -9,7 +9,7 @@
             <span class="fw-bold me-2" t-out="propertyConfiguration.string"/>
             <div class="text-truncate">
                 <PropertyValue
-                    id="generateUniqueDomID()"
+                    id="getPropertyDomID(propertyConfiguration.name)"
                     canChangeDefinition="state.canChangeDefinition"
                     comodel="propertyConfiguration.comodel || ''"
                     context="props.context"

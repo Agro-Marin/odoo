@@ -24,6 +24,16 @@ export class IndexedDB {
     constructor(/** @type {string} */ name, /** @type {string} */ version) {
         this.name = name;
         this._tables = new Set([VERSION_TABLE]);
+        /**
+         * Cached open connection, reused across operations instead of
+         * opening (and closing) a fresh one per read/write/invalidate.
+         * Dropped when a schema upgrade is needed (new table), when
+         * another context requests a version change, or when the browser
+         * closes the connection.
+         *
+         * @type {IDBDatabase | null}
+         */
+        this._db = null;
         this.mutex = new Mutex();
         this.mutex.exec(() => this._checkVersion(version));
     }
@@ -97,6 +107,10 @@ export class IndexedDB {
      * non-matching and left in place) so a single bad entry can't
      * abort the entire invalidation pass.
      *
+     * @deprecated Production callers migrated to {@link invalidateByModel};
+     *   kept because its regression tests document a transaction-commit
+     *   subtlety (no explicit ``commit()`` while cursors are pending).
+     *
      * @param {string[]} tables
      * @param {(key: string) => boolean} predicate
      * @returns Promise
@@ -162,7 +176,19 @@ export class IndexedDB {
     // Protected
     // -------------------------------------------------------------------------
 
+    /**
+     * Close and drop the cached connection (no-op when there is none).
+     */
+    _closeCachedDB() {
+        if (this._db) {
+            this._db.close();
+            this._db = null;
+        }
+    }
+
     async _deleteDatabase(/** @type {() => any} */ callback) {
+        // An open cached connection would block the deleteDatabase request.
+        this._closeCachedDB();
         return new Promise((resolve) => {
             const request = indexedDB.deleteDatabase(this.name);
             request.onsuccess = () => {
@@ -201,10 +227,62 @@ export class IndexedDB {
     }
 
     /**
+     * Run the callback against an open connection, translating quota
+     * errors. Extracted so the cached-connection fast path and the
+     * fresh-open path share the exact same error handling.
+     *
+     * @param {IDBDatabase} db
+     * @param {(db?: IDBDatabase) => any} callback
+     */
+    async _runCallback(db, callback) {
+        try {
+            return await callback(db);
+        } catch (e) {
+            if (e.name === "QuotaExceededError") {
+                const { quota, usage } = await navigator.storage.estimate();
+                console.error(
+                    `IndexedDB error: Quota Exceeded (${formatStorageSize(
+                        usage,
+                    )} out of ${formatStorageSize(quota)} used)`,
+                );
+                throw new IDBQuotaExceededError();
+            }
+            throw e;
+        }
+    }
+
+    /**
      * @param {(db?: IDBDatabase) => any} callback
      * @param {number} [idbVersion]
      */
     async _execute(callback, idbVersion) {
+        // Fast path: reuse the cached connection when it already contains
+        // every table this instance knows about (the common case once the
+        // schema is warm). Runs under the same mutex as the open path, so
+        // no schema-changing open can interleave with it.
+        if (this._db && idbVersion === undefined) {
+            const db = this._db;
+            const dbTables = new Set(db.objectStoreNames);
+            if (this._tables.difference(dbTables).size === 0) {
+                try {
+                    return await this._runCallback(db, callback);
+                } catch (e) {
+                    if (e?.name === "InvalidStateError") {
+                        // The connection was closed under us (browser-initiated
+                        // close, versionchange from another tab): drop the
+                        // cached handle and retry with a fresh open.
+                        if (this._db === db) {
+                            this._db = null;
+                        }
+                        return this._execute(callback);
+                    }
+                    throw e;
+                }
+            }
+            // A table is missing: close the cached connection so the open
+            // below can perform the version-bump upgrade that creates it.
+            this._closeCachedDB();
+        }
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.name, idbVersion);
             request.onupgradeneeded = (event) => {
@@ -222,22 +300,23 @@ export class IndexedDB {
                     const version = db.version + 1;
                     return this._execute(callback, version).then(resolve);
                 }
-                Promise.resolve(callback(db))
-                    .then(resolve)
-                    .catch(async (e) => {
-                        if (e.name === "QuotaExceededError") {
-                            const { quota, usage } = await navigator.storage.estimate();
-                            console.error(
-                                `IndexedDB error: Quota Exceeded (${formatStorageSize(
-                                    usage,
-                                )} out of ${formatStorageSize(quota)} used)`,
-                            );
-                            reject(new IDBQuotaExceededError());
-                        } else {
-                            reject(e);
-                        }
-                    })
-                    .finally(() => db.close());
+                // Cache the connection for subsequent operations. Drop (and
+                // close) it as soon as another context requests a version
+                // change — keeping it open would block that upgrade — or
+                // when the browser closes the connection itself.
+                this._db = db;
+                db.onversionchange = () => {
+                    db.close();
+                    if (this._db === db) {
+                        this._db = null;
+                    }
+                };
+                db.onclose = () => {
+                    if (this._db === db) {
+                        this._db = null;
+                    }
+                };
+                this._runCallback(db, callback).then(resolve, reject);
             };
             request.onerror = (event) => {
                 console.error(

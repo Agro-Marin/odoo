@@ -45,16 +45,12 @@ function useResizable({
     const containerRef =
         typeof _containerRef == "string" ? useRef(_containerRef) : _containerRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
-    const handleRef =
-        typeof _handleRef == "string" ? useRef(_handleRef) : _handleRef;
+    const handleRef = typeof _handleRef == "string" ? useRef(_handleRef) : _handleRef;
     const props = useComponent().props;
 
     let minWidth = getMinWidth(props);
     let resizeSide = getResizeSide(props);
     let isChangingSize = false;
-
-    useExternalListener(document, "mouseup", () => onMouseUp());
-    useExternalListener(document, "mousemove", (ev) => onMouseMove(ev));
 
     useExternalListener(window, "resize", () => {
         const limit = getLimitWidth();
@@ -89,18 +85,29 @@ function useResizable({
         if (handleRef.el) {
             handleRef.el.removeEventListener("mousedown", onMouseDown);
         }
+        // Safety: drop the drag listeners if unmounted mid-drag.
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
     });
 
-    /** Begin drag — disable pointer events and text selection on body. */
+    /**
+     * Begin drag — disable pointer events and text selection on body.
+     * The document-level drag listeners are only attached for the
+     * duration of the drag.
+     */
     function onMouseDown() {
         isChangingSize = true;
         document.body.classList.add("pe-none", "user-select-none");
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
     }
 
     /** End drag — restore pointer events and text selection on body. */
     function onMouseUp() {
         isChangingSize = false;
         document.body.classList.remove("pe-none", "user-select-none");
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
     }
 
     /**
@@ -165,7 +172,9 @@ function useResizable({
      * @returns {number} maximum width in pixels
      */
     function getLimitWidth() {
-        const offsetParent = /** @type {HTMLElement | null} */ (containerRef.el.offsetParent);
+        const offsetParent = /** @type {HTMLElement | null} */ (
+            containerRef.el.offsetParent
+        );
         return offsetParent ? offsetParent.offsetWidth : window.innerWidth;
     }
 
@@ -185,7 +194,7 @@ function useResizable({
  * Wraps the `useResizable` hook with declarative props.
  */
 export class ResizablePanel extends Component {
-    static template = "web_studio.ResizablePanel";
+    static template = "web.ResizablePanel";
 
     static components = {};
     static props = {

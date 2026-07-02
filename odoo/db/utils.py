@@ -36,6 +36,21 @@ def register_adapters(conn: psycopg.Connection) -> None:
     conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
+def is_maintenance_db(db_name: str) -> bool:
+    """True for system/template databases Odoo must never hold connections to.
+
+    An idle connection to a template blocks ``CREATE DATABASE ... TEMPLATE``
+    ("source database is being accessed by other users"), so the pool both
+    discards borrowed connections to these on cursor close
+    (:meth:`Cursor._close`) and refuses to keep ``minconn`` warm connections
+    to them (:meth:`ConnectionPool._get_or_create_pool`) — either alone is
+    insufficient: psycopg_pool refills to ``min_size`` right after a discard.
+    ``db_template`` is read per call (not frozen at import) so tests and
+    runtime reconfiguration see the current value.
+    """
+    return db_name in ("template0", "template1", "postgres", tools.config["db_template"])
+
+
 # Query categorization patterns — debug-stats only, not correctness.  The
 # optional `"?` handles quoted identifiers; the optional schema prefix matches
 # `public.res_users` / `"public"."res_users"`.  Misclassification only skews
@@ -46,14 +61,37 @@ re_from = re.compile(
 re_into = re.compile(
     r'\binto\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
 )
+# Anchored (^) on purpose: an unanchored ``\bupdate\b`` would also hit the
+# row-locking clause of ``SELECT ... FOR UPDATE`` (common in the ORM) and
+# misfile reads as writes.  ``WITH ... UPDATE`` slips past the anchor and falls
+# through to the from/other buckets — same approximation as before.
+re_update = re.compile(
+    r'^\s*update\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
+)
+re_delete = re.compile(r"^\s*delete\b", re.IGNORECASE)
 
 
 def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
-    """Categorize a SQL query as 'from', 'into', or 'other' and extract the table name.
+    """Categorize a SQL query as 'from' (read), 'into' (write), or 'other'
+    and extract the table name.
+
+    Writes — INSERT, UPDATE, DELETE — all land in 'into' so the per-table
+    debug stats show every write on one bucket: an UPDATE classified 'other'
+    would be invisible, and a DELETE classified 'from' would read as a SELECT.
 
     :param decoded_query: The SQL query string to categorize
     :return: A tuple of (query_type, table_name) where query_type is 'from', 'into', or 'other'
     """
+    # Anchored UPDATE/DELETE first: their bodies may contain INTO/FROM inside
+    # subqueries or string literals that would mislead the unanchored searches.
+    res_update = re_update.match(decoded_query)
+    if res_update:
+        return "into", res_update.group(1)
+
+    if re_delete.match(decoded_query):
+        res_from = re_from.search(decoded_query)  # DELETE FROM <table>
+        return ("into", res_from.group(1)) if res_from else ("other", None)
+
     res_into = re_into.search(decoded_query)
     # prioritize `insert` over `select` so `select` subqueries are not
     # considered when inside a `insert`

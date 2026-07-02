@@ -23,10 +23,40 @@ function getClone(template) {
 }
 
 /**
+ * cyrb53 — a fast, well-distributed 53-bit string hash (public domain,
+ * https://github.com/bryc/code). Used instead of the 32-bit
+ * ``hashCode`` from ``@web/core/utils/format/strings`` because the
+ * ``registered`` dedup set can hold tens of thousands of entries, where
+ * 32-bit birthday collisions become likely — and a collision here would
+ * silently skip registering a template.
+ *
+ * @param {string} str
+ * @returns {number}
+ */
+function cyrb53(str) {
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+/**
+ * Dedup key for a ``[name, url, templateString]`` registration triple.
+ * Hashed so the ``registered`` set doesn't retain a full copy of every
+ * template string (several MB over a session) for its whole lifetime.
+ *
  * @param {unknown[]} args
  */
 function getKey(args) {
-    return JSON.stringify(args);
+    return String(cyrb53(JSON.stringify(args)));
 }
 
 /**

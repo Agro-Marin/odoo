@@ -3,13 +3,19 @@
 
 /** @module @web/fields/media/pdf_viewer/pdf_viewer_field - Embedded PDF viewer field for Binary columns using PDF.js */
 
-import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillDestroy,
+    onWillUpdateProps,
+    useEffect,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { url } from "@web/core/utils/urls";
+import { registerField } from "@web/fields/_registry";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -33,9 +39,10 @@ export class PdfViewerField extends Component {
         this.iframeViewerPdfRef = useRef("iframeViewerPdf");
         onWillUpdateProps((nextProps) => {
             if (nextProps.readonly) {
-                this.state.objectUrl = "";
+                this.setObjectUrl("");
             }
         });
+        onWillDestroy(() => this.setObjectUrl(""));
         useEffect(
             (el) => {
                 if (el) {
@@ -47,6 +54,18 @@ export class PdfViewerField extends Component {
             },
             () => [this.iframeViewerPdfRef.el],
         );
+    }
+
+    /**
+     * Replaces the current object URL, revoking the previous one so the
+     * underlying blob doesn't leak.
+     * @param {string} objectUrl
+     */
+    setObjectUrl(objectUrl) {
+        if (this.state.objectUrl && this.state.objectUrl !== objectUrl) {
+            URL.revokeObjectURL(this.state.objectUrl);
+        }
+        this.state.objectUrl = objectUrl;
     }
 
     get urlFile() {
@@ -73,7 +92,10 @@ export class PdfViewerField extends Component {
         const changes = {
             [this.props.name]: data || false,
         };
-        if (this.props.fileNameField && this.props.record.data[this.props.fileNameField] !== name) {
+        if (
+            this.props.fileNameField &&
+            this.props.record.data[this.props.fileNameField] !== name
+        ) {
             changes[this.props.fileNameField] = name || false;
         }
         return this.props.record.update(changes);
@@ -94,7 +116,7 @@ export class PdfViewerField extends Component {
 
     onFileUploaded({ name, data, objectUrl }) {
         this.state.isValid = true;
-        this.state.objectUrl = objectUrl;
+        this.setObjectUrl(objectUrl);
         this.update({ name, data });
     }
 

@@ -149,7 +149,7 @@ export class GraphModel extends Model {
      * @param {boolean} [forceUseAllDataPoints=false]
      */
     async _fetchDataPoints(metaData, forceUseAllDataPoints = false) {
-        [/** @type {any} */ (this).dataPoints] = await this.keepLast.add(
+        /** @type {any} */ (this).dataPoints = await this.keepLast.add(
             this._loadDataPoints(metaData),
         );
         this.metaData = metaData;
@@ -342,6 +342,10 @@ export class GraphModel extends Model {
      * @returns {Promise<any[]>}
      */
     async _loadDataPoints(metaData) {
+        // Reset the flag: it is only ever set to false below, so without this
+        // reset an integer-only measure set could never recover after a
+        // non-integer measure was once loaded.
+        metaData.allIntegers = true;
         const { measure, domain, fields, groupBy, resModel, cumulatedStart } = metaData;
         const fieldName = groupBy[0]?.fieldName;
         const sequentialField =
@@ -424,8 +428,7 @@ export class GraphModel extends Model {
                 )) {
                     rawValues.push({ [gb.spec]: group[gb.spec] });
                 }
-                cumulatedStartValue[JSON.stringify(rawValues)] =
-                    group[/** @type {any} */ (measures.slice(-1))];
+                cumulatedStartValue[JSON.stringify(rawValues)] = group[measures.at(-1)];
             }
         }
         const graphCurrencies = new Set();
@@ -507,7 +510,7 @@ export class GraphModel extends Model {
             }
             delete dataPoint.convertedValue;
         }
-        return [dataPoints, graphCurrencies];
+        return dataPoints;
     }
 
     /**

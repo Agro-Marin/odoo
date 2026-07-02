@@ -662,10 +662,9 @@ test(`editable list without open_form_view in debug`, async () => {
     await contains(".o_optional_columns_dropdown button").click();
     expect(".o-dropdown-item:contains('View Button')").toHaveCount(1);
     await contains(".o-dropdown-item:contains('View Button')").click();
-    expect.verifySteps([
-        ["setItem", localStorageKey, true],
-        ["getItem", localStorageKey, "true"],
-    ]);
+    // Only a setItem: the toggle updates the cached in-memory flag, so the
+    // list no longer re-reads localStorage on the ensuing render.
+    expect.verifySteps([["setItem", localStorageKey, true]]);
 
     expect(`td.o_list_record_open_form_view`).toHaveCount(4, {
         message: "button to open form view should be present on each rows",
@@ -676,10 +675,8 @@ test(`editable list without open_form_view in debug`, async () => {
 
     await contains(".o_optional_columns_dropdown button").click();
     await contains(".o-dropdown-item:contains('View Button')").click();
-    expect.verifySteps([
-        ["setItem", localStorageKey, false],
-        ["getItem", localStorageKey, "false"],
-    ]);
+    // Only a setItem (see above): no per-render localStorage re-read.
+    expect.verifySteps([["setItem", localStorageKey, false]]);
     expect(`td.o_list_record_open_form_view`).toHaveCount(0, {
         message: "button to open form view should no longer be present",
     });
@@ -16097,11 +16094,9 @@ test(`list view with optional fields rendering and local storage mock`, async ()
     // enable optional field
     await contains(`.o-dropdown--menu span.dropdown-item:eq(1) input`).click();
     // Only a setItem since the list view maintains its own internal state of toggled
-    // optional columns.
-    expect.verifySteps([
-        [`setItem ${localStorageKey}`, ["m2o", "reference"]],
-        ["getItem", "optional_fields,foo,list,42,foo,m2o,reference"],
-    ]);
+    // optional columns (the cached localStorage value is refreshed on write, so
+    // there is no per-render re-read).
+    expect.verifySteps([[`setItem ${localStorageKey}`, ["m2o", "reference"]]]);
     expect(`th:not(.o_list_record_selector)`).toHaveCount(4, {
         message:
             "should have 1 for checkbox (desktop only), 3 for columns, 1 for optional columns",
@@ -16182,10 +16177,9 @@ test(`list view with optional fields from local storage being the empty array`, 
     );
     // disable optional field "reference" (no optional column enabled)
     await contains(`.o-dropdown--menu span.dropdown-item input:eq(1)`).click();
-    expect.verifySteps([
-        [`setItem ${localStorageKey}`, []],
-        ["getItem", "optional_fields,foo,list,42,foo,m2o,reference"],
-    ]);
+    // Only a setItem: the toggle refreshes the cached value, so the render
+    // that follows does not re-read localStorage.
+    expect.verifySteps([[`setItem ${localStorageKey}`, []]]);
     verifyHeaders(["foo"]);
     // mount again to ensure that active optional columns will not be reset while empty
     await getService("action").doAction(1);

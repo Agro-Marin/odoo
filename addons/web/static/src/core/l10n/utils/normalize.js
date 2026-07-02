@@ -28,53 +28,46 @@ export function normalize(str) {
 }
 
 /**
- * Searches for "substr" in "src". The search is performed on normalized strings
- * so that "ce" can match "Cédric".
+ * Memo of single-codepoint normalizations. The domain is tiny in practice
+ * (the distinct codepoints seen in searched strings), while `normalize()`
+ * runs four Unicode passes per call — memoizing it turns the per-codepoint
+ * normalization done by `normalizedMatch` into a Map lookup.
  *
- * @param {string} src
- * @param {string} substr
- * @returns {NormalizedMatchResult}
+ * @type {Map<string, string>}
  */
-export function normalizedMatch(src, substr) {
-    if (!substr) {
-        return { start: 0, end: 0, match: "" };
+const NORMALIZED_CODEPOINTS = new Map();
+
+/**
+ * @param {string} codepoint a single codepoint (one `Array.from(str)` element)
+ * @returns {string}
+ */
+function normalizeCodepoint(codepoint) {
+    let normalized = NORMALIZED_CODEPOINTS.get(codepoint);
+    if (normalized === undefined) {
+        normalized = normalize(codepoint);
+        NORMALIZED_CODEPOINTS.set(codepoint, normalized);
     }
-    /**
-     * Array.from splits the string into an array of codepoints. This avoids
-     * processing unpaired surrogates, which could lead to unexpected results.
-     *
-     * "𝔖"[0];              // "\ud835" ← unpaired surrogate!!
-     * Array.from("𝔖")[0];  // "𝔖"
-     *
-     * "𝔖".split("");   // Array [ "\ud835", "\udd16" ]
-     * Array.from("𝔖"); // Array [ "𝔖" ]
-     *
-     * "𝔖".split("").map((c) => c.normalize("NFKC")).join("");      // "𝔖"
-     * Array.from("𝔖").map((c) => c.normalize("NFKC")).join("");    // "S"
-     */
-    const srcAsCodepoints = Array.from(src);
-    /**
-     * Instead of calling normalize directly on the source string, the source is
-     * split into an array of codepoints, where each of the elements is
-     * normalized individually. This is because this function is expected to
-     * return the start and end indexes of the match in the *original*,
-     * unnormalized string, but strings can grow in length during normalization,
-     * which would alter the indexes. Now, even if the length of the individual
-     * elements grows, the length of the containing array remains the same.
-     */
-    const normalizedSrc = srcAsCodepoints.map(normalize);
-    const normalizedSubstr = Array.from(normalize(substr));
-    /**
-     * normalizedSrc can contain empty strings if the source is an NFD string,
-     * corresponding to diacritics that have been stripped off. They must be
-     * taken into account in the length calculation to get the indexes right,
-     * hence Math.max(x.length, 1).
-     */
-    const flattenSrcLength = normalizedSrc.reduce(
-        (acc, x) => acc + Math.max(x.length, 1),
-        0,
-    );
-    for (let i = 0; i <= flattenSrcLength - normalizedSubstr.length; ++i) {
+    return normalized;
+}
+
+/**
+ * Core matcher shared by `normalizedMatch` and `normalizedMatches`: finds
+ * the first match of the normalized substring starting at codepoint index
+ * `fromIndex`, and returns its codepoint index range, or `null`.
+ *
+ * @param {string[]} normalizedSrc per-codepoint normalizations of the source
+ * @param {string[]} normalizedSubstr codepoints of the normalized substring
+ * @param {number} fromIndex codepoint index to start searching at
+ * @param {number} flattenSrcLength total normalized length of the source
+ * @returns {{ startIdx: number, endIdx: number } | null}
+ */
+function findNormalizedMatch(
+    normalizedSrc,
+    normalizedSubstr,
+    fromIndex,
+    flattenSrcLength,
+) {
+    for (let i = fromIndex; i <= flattenSrcLength - normalizedSubstr.length; ++i) {
         let substrIdx = 0;
         for (let j = 0; i + j < normalizedSrc.length; ++j) {
             const current = normalizedSrc[i + j];
@@ -94,14 +87,77 @@ export function normalizedMatch(src, substr) {
                 break;
             }
             if (substrIdx >= normalizedSubstr.length) {
-                const start = srcAsCodepoints.slice(0, i).join("").length;
-                const match = srcAsCodepoints.slice(i, i + j + 1).join("");
-                const end = start + match.length;
-                return { start, end, match };
+                return { startIdx: i, endIdx: i + j + 1 };
             }
         }
     }
-    return { start: -1, end: -1, match: "" };
+    return null;
+}
+
+/**
+ * Splits the source into an array of codepoints. This avoids processing
+ * unpaired surrogates, which could lead to unexpected results.
+ *
+ * "𝔖"[0];              // "\ud835" ← unpaired surrogate!!
+ * Array.from("𝔖")[0];  // "𝔖"
+ *
+ * "𝔖".split("");   // Array [ "\ud835", "\udd16" ]
+ * Array.from("𝔖"); // Array [ "𝔖" ]
+ *
+ * "𝔖".split("").map((c) => c.normalize("NFKC")).join("");      // "𝔖"
+ * Array.from("𝔖").map((c) => c.normalize("NFKC")).join("");    // "S"
+ *
+ * Each codepoint is then normalized individually (instead of calling
+ * normalize directly on the source string) because the matchers must
+ * return start/end indexes in the *original*, unnormalized string, but
+ * strings can grow in length during normalization, which would alter the
+ * indexes. Even if the length of the individual elements grows, the
+ * length of the containing array remains the same.
+ *
+ * normalizedSrc can contain empty strings if the source is an NFD string,
+ * corresponding to diacritics that have been stripped off. They must be
+ * taken into account in the flattened length calculation to get the
+ * indexes right, hence Math.max(x.length, 1).
+ *
+ * @param {string} src
+ */
+function prepareSource(src) {
+    const srcAsCodepoints = Array.from(src);
+    const normalizedSrc = srcAsCodepoints.map(normalizeCodepoint);
+    const flattenSrcLength = normalizedSrc.reduce(
+        (acc, x) => acc + Math.max(x.length, 1),
+        0,
+    );
+    return { srcAsCodepoints, normalizedSrc, flattenSrcLength };
+}
+
+/**
+ * Searches for "substr" in "src". The search is performed on normalized strings
+ * so that "ce" can match "Cédric".
+ *
+ * @param {string} src
+ * @param {string} substr
+ * @returns {NormalizedMatchResult}
+ */
+export function normalizedMatch(src, substr) {
+    if (!substr) {
+        return { start: 0, end: 0, match: "" };
+    }
+    const { srcAsCodepoints, normalizedSrc, flattenSrcLength } = prepareSource(src);
+    const normalizedSubstr = Array.from(normalize(substr));
+    const found = findNormalizedMatch(
+        normalizedSrc,
+        normalizedSubstr,
+        0,
+        flattenSrcLength,
+    );
+    if (!found) {
+        return { start: -1, end: -1, match: "" };
+    }
+    const start = srcAsCodepoints.slice(0, found.startIdx).join("").length;
+    const match = srcAsCodepoints.slice(found.startIdx, found.endIdx).join("");
+    const end = start + match.length;
+    return { start, end, match };
 }
 
 /**
@@ -113,17 +169,39 @@ export function normalizedMatch(src, substr) {
  * @returns {NormalizedMatchResult[]}
  */
 export function normalizedMatches(src, substr) {
+    /** @type {NormalizedMatchResult[]} */
     const matches = [];
-    let index = 0;
-    while (src.length) {
-        const { start, end, match } = normalizedMatch(src, substr);
-        if (match) {
-            matches.push({ start: index + start, end: index + end, match });
-            index += end;
-            src = src.slice(end);
-        } else {
+    if (!substr) {
+        return matches;
+    }
+    // Normalize once and resume each search from the previous match's end
+    // (instead of re-normalizing every sliced suffix, which was O(n²)).
+    const { srcAsCodepoints, normalizedSrc, flattenSrcLength } = prepareSource(src);
+    const normalizedSubstr = Array.from(normalize(substr));
+    let fromIndex = 0;
+    let charOffset = 0; // string length of the codepoints before `fromIndex`
+    while (fromIndex < srcAsCodepoints.length) {
+        const found = findNormalizedMatch(
+            normalizedSrc,
+            normalizedSubstr,
+            fromIndex,
+            flattenSrcLength,
+        );
+        if (!found) {
             break;
         }
+        for (let k = fromIndex; k < found.startIdx; ++k) {
+            charOffset += srcAsCodepoints[k].length;
+        }
+        let match = "";
+        for (let k = found.startIdx; k < found.endIdx; ++k) {
+            match += srcAsCodepoints[k];
+        }
+        const start = charOffset;
+        const end = start + match.length;
+        matches.push({ start, end, match });
+        charOffset = end;
+        fromIndex = found.endIdx;
     }
     return matches;
 }

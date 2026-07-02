@@ -230,6 +230,7 @@ declare module "@web/search/utils/misc" {
     export const FACET_ICONS: Record<string, string>;
     export const FACET_COLORS: Record<string, number>;
     export const GROUPABLE_TYPES: string[];
+    export function editFavoriteFilter(actionService: any, resId: number): Promise<any>;
 }
 
 declare module "@web/search/search_state" {

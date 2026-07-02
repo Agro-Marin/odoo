@@ -8,10 +8,10 @@ import { hasTouch } from "@web/core/browser/feature_detection";
 import { localization } from "@web/core/l10n/localization";
 import { rpc } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
+import { assetLog } from "@web/core/utils/asset_log";
 import { mountComponent } from "@web/env";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
-import { assetLog } from "@web/core/utils/asset_log";
 
 // Chrome iOS wraps some text nodes (like measures, email...)
 // with a `<chrome_annotation>` tag, which breaks OWL rendering.
@@ -30,16 +30,17 @@ document.head.appendChild(chromeMetaTag);
  * @param {Component} Webclient
  */
 export async function startWebClient(Webclient) {
+    const isEnterprise = (session.server_version_info ?? []).at(-1) === "e";
     assetLog("boot", "startWebClient:enter", {
         db: session.db,
         version: session.server_version,
-        enterprise: (session.server_version_info ?? []).at(-1) === "e",
+        enterprise: isEnterprise,
     });
     /** @type {any} */ (odoo).info = {
         db: session.db,
         server_version: session.server_version,
         server_version_info: session.server_version_info,
-        isEnterprise: (session.server_version_info ?? []).at(-1) === "e",
+        isEnterprise,
     };
     /** @type {any} */ (odoo).isReady = false;
 

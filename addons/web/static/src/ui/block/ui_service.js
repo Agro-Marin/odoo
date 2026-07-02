@@ -167,17 +167,6 @@ export const utils = {
 const bus = new EventBus();
 
 /**
- * Register a callback for viewport size changes. Returns an unsubscribe function.
- * @param {Function} callback
- * @returns {Function} unsubscribe
- */
-export function listenSizeChange(callback) {
-    bus.addEventListener(AppEvent.RESIZE, /** @type {EventListener} */ (callback));
-    return () =>
-        bus.removeEventListener(AppEvent.RESIZE, /** @type {EventListener} */ (callback));
-}
-
-/**
  * Core UI service providing block/unblock, active element management,
  * and responsive size tracking.
  */
