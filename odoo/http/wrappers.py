@@ -1,6 +1,6 @@
 import functools
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import werkzeug.datastructures
@@ -33,7 +33,10 @@ def _apply_cookie_defaults(
     apply.
     """
     if expires == -1:  # not provided → default 1 year
-        expires = datetime.now() + timedelta(days=365)
+        # Timezone-aware: werkzeug's ``http_date`` treats a naive datetime as
+        # UTC, so a naive ``datetime.now()`` shifted the Expires header by the
+        # server's UTC offset (6h early on a UTC-6 host).
+        expires = datetime.now(tz=UTC) + timedelta(days=365)
 
     # Guard on ``env`` not ``db``: ``_is_allowed_cookie`` is an ``ir.http`` (ORM)
     # call needing a live env. They diverge on the error path, where

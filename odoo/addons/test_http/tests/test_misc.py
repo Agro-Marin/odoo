@@ -268,6 +268,23 @@ class TestHttpMisc(TestHttpBase):
         )
         self.assertEqual(set(res.json()), {"version", "version_info"})
 
+    def test_misc10_cookie_default_expires_is_utc(self):
+        """The default cookie expiry must be timezone-aware UTC.
+
+        werkzeug's ``http_date`` treats a naive datetime as UTC, so a naive
+        ``datetime.now()`` shifted the Expires header by the host's UTC offset.
+        """
+        import datetime as dt
+
+        from odoo.http.wrappers import _apply_cookie_defaults
+
+        expires, _max_age, _secure, _samesite = _apply_cookie_defaults(
+            -1, None, "required", None, None
+        )
+        self.assertEqual(expires.utcoffset(), dt.timedelta(0))
+        expected = dt.datetime.now(tz=dt.UTC) + dt.timedelta(days=365)
+        self.assertLess(abs((expires - expected).total_seconds()), 60)
+
 
 @tagged("post_install", "-at_install")
 class TestHttpCors(TestHttpBase):

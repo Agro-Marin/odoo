@@ -233,7 +233,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             else:
                 lang = babel.core.LOCALE_ALIASES[code]
             return lang
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return None
 
     @functools.cached_property
@@ -366,6 +366,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if not sess.can_save:
             return
 
+        # Computed once for both the save gate and the cookie check below: the
+        # branches in between either don't mutate the session, or are rotations
+        # that change ``sess.sid`` (making the cookie check true regardless).
+        modified = sess.is_modified()
+
         if sess.should_rotate:
             root.session_store.rotate(sess, env)  # it saves
         elif (
@@ -374,7 +379,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
         ):
             root.session_store.rotate(sess, env, True)
-        elif sess.is_modified():
+        elif modified:
             root.session_store.save(sess)
 
         # Compare against the RAW client cookie, not the sanitized ``self.cookies``
@@ -382,7 +387,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         # ``session_id``), but reading the facade forces an ``ir.http`` call on the
         # session-save path of requests that never touch ``request.cookies``.
         cookie_sid = self.httprequest.session_id
-        if sess.is_modified() or cookie_sid != sess.sid:
+        if modified or cookie_sid != sess.sid:
             # Logged-out sessions skip the DB query: the inactivity timeout only
             # matters when authenticated, and the connection may be dead.
             max_age = get_session_max_inactivity(env) if sess.uid else SESSION_LIFETIME
