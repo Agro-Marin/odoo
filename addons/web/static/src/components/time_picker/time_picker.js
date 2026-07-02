@@ -7,10 +7,10 @@ import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { parseTime, Time } from "@web/core/l10n/time";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useChildRef } from "@web/core/utils/hooks";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 const HOURS = [...Array(24)].map((_, i) => i);
 const MINUTES = [...Array(60)].map((_, i) => i);
@@ -148,8 +148,14 @@ export class TimePicker extends Component {
      * @param {TimePickerProps} props
      */
     onPropsUpdated(props) {
-        if (!this.suggestions.length) {
+        if (
+            !this.suggestions.length ||
+            props.minutesRounding !== this.lastSuggestionsRounding ||
+            props.showSeconds !== this.lastSuggestionsShowSeconds
+        ) {
             this.suggestions = this.getSuggestions(props);
+            this.lastSuggestionsRounding = props.minutesRounding;
+            this.lastSuggestionsShowSeconds = props.showSeconds;
         }
 
         this.updateStateValue(Time.from(props.value));

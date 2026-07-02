@@ -460,11 +460,23 @@ ViewCompiler.OWL_DIRECTIVE_WHITELIST = [];
 
 let templateCache = Object.create(null);
 /**
+ * Per-Element memo of the serialized arch part of the cache key. Serializing
+ * `outerHTML` (+ regex replace) on every call is costly on hot paths (e.g.
+ * KanbanRecord.setup runs once per card); the arch Element is immutable once
+ * parsed, so its serialization can be computed once per Element.
+ * @type {WeakMap<Element, string>}
+ */
+const archKeyCache = new WeakMap();
+/**
  * Compile view arch templates and register them with OWL.
  *
- * Each template is keyed by `${ViewCompiler.name}/${arch.outerHTML}` (with
- * newlines collapsed to spaces) — a string that is both the compiler-cache key
+ * Each template is keyed by
+ * `${ViewCompiler.name}/${stringify(params)}/${arch.outerHTML}` (with newlines
+ * collapsed to spaces) — a string that is both the compiler-cache key
  * AND the name registered in OWL's globalTemplates via App.registerTemplate.
+ * The params discriminator prevents different compilations of the same arch
+ * (e.g. form_controller passes `{ isSubView: true }`) from colliding on one
+ * cached template.
  * The key must be single-line because Owl embeds it in a `//` JS comment during
  * code generation; real newlines in the name would break the comment and cause
  * a syntax error. Using arch content as the OWL template name ensures that
@@ -482,11 +494,21 @@ export function useViewCompiler(ViewCompiler, templates, params) {
     /** @type {Record<string, string>} */
     const compiledTemplates = {};
     let compiler;
+    // Stable stringify (params are small plain objects): sort entries so key
+    // order can't produce distinct keys for equal params.
+    const paramsKey = params
+        ? JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))
+        : "";
     for (const tname of Object.keys(templates)) {
-        // Collapse newlines to spaces so the key is always a single-line string.
-        // Owl embeds the template name in a // JS comment during code generation;
-        // a multi-line name would break the comment and cause "Unexpected token '<'".
-        const key = `${ViewCompiler.name}/${templates[tname].outerHTML.replace(/[\n\r]+/g, " ")}`;
+        let archKey = archKeyCache.get(templates[tname]);
+        if (archKey === undefined) {
+            // Collapse newlines to spaces so the key is always a single-line string.
+            // Owl embeds the template name in a // JS comment during code generation;
+            // a multi-line name would break the comment and cause "Unexpected token '<'".
+            archKey = templates[tname].outerHTML.replace(/[\n\r]+/g, " ");
+            archKeyCache.set(templates[tname], archKey);
+        }
+        const key = `${ViewCompiler.name}/${paramsKey}/${archKey}`;
         if (!templateCache[key]) {
             compiler = compiler || new ViewCompiler(templates);
             const compiledOuterHTML = compiler.compile(tname, params).outerHTML;

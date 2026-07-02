@@ -139,37 +139,54 @@ export async function fetchCategories(searchModel, categories) {
     const categoriesLoadId = ++searchModel.categoriesLoadId;
     await Promise.all(
         categories.map(async (category) => {
-            const result = await searchModel.orm
-                .cache({
-                    type: "disk",
-                    update: "always",
-                    callback: (result, hasChanged) => {
-                        if (
-                            !hasChanged ||
-                            categoriesLoadId !== searchModel.categoriesLoadId
-                        ) {
-                            return;
-                        }
-                        searchModel._createCategoryTree(category.id, result);
-                        searchModel._reset();
-                        searchModel.trigger("update");
-                    },
-                })
-                .call(
-                    searchModel.resModel,
-                    "search_panel_select_range",
-                    [category.fieldName],
-                    {
-                        category_domain: searchModel._getCategoryDomain(category.id),
-                        context: searchModel.globalContext,
-                        enable_counters: category.enableCounters,
-                        expand: category.expand,
-                        filter_domain: filterDomain,
-                        hierarchize: category.hierarchize,
-                        limit: category.limit,
-                        search_domain: searchDomain,
-                    },
-                );
+            let result;
+            try {
+                result = await searchModel.orm
+                    .cache({
+                        type: "disk",
+                        update: "always",
+                        callback: (result, hasChanged) => {
+                            if (
+                                !hasChanged ||
+                                categoriesLoadId !== searchModel.categoriesLoadId
+                            ) {
+                                return;
+                            }
+                            searchModel._createCategoryTree(category.id, result);
+                            searchModel._reset();
+                            searchModel.trigger("update");
+                        },
+                    })
+                    .call(
+                        searchModel.resModel,
+                        "search_panel_select_range",
+                        [category.fieldName],
+                        {
+                            category_domain: searchModel._getCategoryDomain(
+                                category.id,
+                            ),
+                            context: searchModel.globalContext,
+                            enable_counters: category.enableCounters,
+                            expand: category.expand,
+                            filter_domain: filterDomain,
+                            hierarchize: category.hierarchize,
+                            limit: category.limit,
+                            search_domain: searchDomain,
+                        },
+                    );
+            } catch (error) {
+                // A failed fetch only degrades its own section: stamp the same
+                // errorMsg field used for server-side section errors.
+                if (categoriesLoadId === searchModel.categoriesLoadId) {
+                    category.errorMsg =
+                        error.data?.message || error.message || String(error);
+                }
+                return;
+            }
+            if (categoriesLoadId !== searchModel.categoriesLoadId) {
+                // A newer fetch started meanwhile: drop this stale response.
+                return;
+            }
             searchModel._createCategoryTree(category.id, result);
         }),
     );
@@ -191,38 +208,56 @@ export async function fetchFilters(searchModel, filters) {
     const filtersLoadId = ++searchModel.filtersLoadId;
     await Promise.all(
         filters.map(async (filter) => {
-            const result = await searchModel.orm
-                .cache({
-                    type: "disk",
-                    update: "always",
-                    callback: (result, hasChanged) => {
-                        if (!hasChanged || filtersLoadId !== searchModel.filtersLoadId) {
-                            return;
-                        }
-                        searchModel._createFilterTree(filter.id, result);
-                        searchModel._reset();
-                        searchModel.trigger("update");
-                    },
-                })
-                .call(
-                    searchModel.resModel,
-                    "search_panel_select_multi_range",
-                    [filter.fieldName],
-                    {
-                        category_domain: categoryDomain,
-                        comodel_domain: new Domain(filter.domain).toList(
-                            evalContext,
-                        ),
-                        context: searchModel.globalContext,
-                        enable_counters: filter.enableCounters,
-                        filter_domain: searchModel._getFilterDomain(filter.id),
-                        expand: filter.expand,
-                        group_by: filter.groupBy || false,
-                        group_domain: searchModel._getGroupDomain(filter),
-                        limit: filter.limit,
-                        search_domain: searchDomain,
-                    },
-                );
+            let result;
+            try {
+                result = await searchModel.orm
+                    .cache({
+                        type: "disk",
+                        update: "always",
+                        callback: (result, hasChanged) => {
+                            if (
+                                !hasChanged ||
+                                filtersLoadId !== searchModel.filtersLoadId
+                            ) {
+                                return;
+                            }
+                            searchModel._createFilterTree(filter.id, result);
+                            searchModel._reset();
+                            searchModel.trigger("update");
+                        },
+                    })
+                    .call(
+                        searchModel.resModel,
+                        "search_panel_select_multi_range",
+                        [filter.fieldName],
+                        {
+                            category_domain: categoryDomain,
+                            comodel_domain: new Domain(filter.domain).toList(
+                                evalContext,
+                            ),
+                            context: searchModel.globalContext,
+                            enable_counters: filter.enableCounters,
+                            filter_domain: searchModel._getFilterDomain(filter.id),
+                            expand: filter.expand,
+                            group_by: filter.groupBy || false,
+                            group_domain: searchModel._getGroupDomain(filter),
+                            limit: filter.limit,
+                            search_domain: searchDomain,
+                        },
+                    );
+            } catch (error) {
+                // A failed fetch only degrades its own section: stamp the same
+                // errorMsg field used for server-side section errors.
+                if (filtersLoadId === searchModel.filtersLoadId) {
+                    filter.errorMsg =
+                        error.data?.message || error.message || String(error);
+                }
+                return;
+            }
+            if (filtersLoadId !== searchModel.filtersLoadId) {
+                // A newer fetch started meanwhile: drop this stale response.
+                return;
+            }
             searchModel._createFilterTree(filter.id, result);
         }),
     );

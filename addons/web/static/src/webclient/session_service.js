@@ -36,9 +36,24 @@ export const lazySession = {
              */
             getValue(key, callback) {
                 if (!lazyConfigPromise) {
-                    lazyConfigPromise = fetchServerData();
+                    const promise = fetchServerData();
+                    lazyConfigPromise = promise;
+                    promise.catch((error) => {
+                        // Don't cache a failed fetch forever: let the next
+                        // getValue call retry (unless a retry already started).
+                        if (lazyConfigPromise === promise) {
+                            lazyConfigPromise = null;
+                        }
+                        console.warn("Lazy session-info fetch failed", error);
+                    });
                 }
-                lazyConfigPromise.then((config) => callback(deepCopy(config)[key]));
+                lazyConfigPromise.then(
+                    (config) => callback(deepCopy(config[key])),
+                    () => {
+                        // Fetch failed: the callback is simply never called
+                        // (handled above so the rejection isn't unhandled).
+                    },
+                );
             },
         };
     },

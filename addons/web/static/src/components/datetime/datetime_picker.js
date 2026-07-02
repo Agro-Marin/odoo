@@ -7,9 +7,9 @@ import { Component, onWillRender, onWillUpdateProps, useState } from "@odoo/owl"
 import { TimePicker } from "@web/components/time_picker/time_picker";
 import {
     clampDate,
-    isInRange,
     getMaxValidDate,
     getMinValidDate,
+    isInRange,
     today,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
@@ -171,81 +171,57 @@ const PRECISION_LEVELS = new Map()
             date,
             { maxDate, minDate, showWeekNumbers, isDateValid, dayCellClass },
         ) => {
-            const startDates = [date];
-
+            /** @type {DateRange} */
+            const monthRange = [date.startOf("month"), date.endOf("month")];
             /** @type {WeekItem[]} */
-            const lastWeeks = [];
-            let shouldAddLastWeek = false;
+            const weeks = [];
 
-            const dayItems = startDates.map((date, i) => {
-                /** @type {DateRange} */
-                const monthRange = [date.startOf("month"), date.endOf("month")];
-                /** @type {WeekItem[]} */
-                const weeks = [];
-
-                // Generate 6 weeks for current month
-                let startOfNextWeek = getStartOfWeek(monthRange[0]);
-                for (let w = 0; w < WEEKS_PER_MONTH; w++) {
-                    const weekDayItems = [];
-                    // Generate all days of the week
-                    for (let d = 0; d < DAYS_PER_WEEK; d++) {
-                        const day = startOfNextWeek.plus({ day: d });
-                        /** @type {DateRange} */
-                        const range = [day, day.endOf("day")];
-                        const dayItem = toDateItem({
-                            isOutOfRange: !isInRange(day, monthRange),
-                            isValid:
-                                isInRange(range, [minDate, maxDate]) &&
-                                isDateValid?.(day),
-                            label: "day",
-                            range,
-                            extraClass: dayCellClass?.(day) || "",
-                        });
-                        weekDayItems.push(dayItem);
-                        if (d === DAYS_PER_WEEK - 1) {
-                            startOfNextWeek = day.plus({ day: 1 });
-                        }
-                        if (w === WEEKS_PER_MONTH - 1) {
-                            shouldAddLastWeek = true;
-                        }
-                    }
-
-                    const weekItem = toWeekItem(weekDayItems);
-                    if (w === WEEKS_PER_MONTH - 1) {
-                        lastWeeks.push(weekItem);
-                    } else {
-                        weeks.push(weekItem);
+            // Generate 6 weeks for current month
+            let startOfNextWeek = getStartOfWeek(monthRange[0]);
+            for (let w = 0; w < WEEKS_PER_MONTH; w++) {
+                const weekDayItems = [];
+                // Generate all days of the week
+                for (let d = 0; d < DAYS_PER_WEEK; d++) {
+                    const day = startOfNextWeek.plus({ day: d });
+                    /** @type {DateRange} */
+                    const range = [day, day.endOf("day")];
+                    const dayItem = toDateItem({
+                        isOutOfRange: !isInRange(day, monthRange),
+                        isValid:
+                            isInRange(range, [minDate, maxDate]) && isDateValid?.(day),
+                        label: "day",
+                        range,
+                        extraClass: dayCellClass?.(day) || "",
+                    });
+                    weekDayItems.push(dayItem);
+                    if (d === DAYS_PER_WEEK - 1) {
+                        startOfNextWeek = day.plus({ day: 1 });
                     }
                 }
 
-                // Generate days of week labels
-                const daysOfWeek = weeks[0].days.map((d) => [
-                    d.range[0].weekdayShort,
-                    d.range[0].weekdayLong,
-                    Info.weekdays("narrow", { locale: d.range[0].locale })[
-                        d.range[0].weekday - 1
-                    ],
-                ]);
-                if (showWeekNumbers) {
-                    daysOfWeek.unshift(["", _t("Week numbers"), ""]);
-                }
+                weeks.push(toWeekItem(weekDayItems));
+            }
 
-                return {
-                    id: `__month__${i}`,
+            // Generate days of week labels
+            const daysOfWeek = weeks[0].days.map((d) => [
+                d.range[0].weekdayShort,
+                d.range[0].weekdayLong,
+                Info.weekdays("narrow", { locale: d.range[0].locale })[
+                    d.range[0].weekday - 1
+                ],
+            ]);
+            if (showWeekNumbers) {
+                daysOfWeek.unshift(["", _t("Week numbers"), ""]);
+            }
+
+            return [
+                {
+                    id: "__month__0",
                     number: monthRange[0].month,
                     daysOfWeek,
                     weeks,
-                };
-            });
-
-            if (shouldAddLastWeek) {
-                // Add last empty week item if the other month has an extra week
-                for (let i = 0; i < dayItems.length; i++) {
-                    dayItems[i].weeks.push(lastWeeks[i]);
-                }
-            }
-
-            return dayItems;
+                },
+            ];
         },
     })
     .set("months", {
@@ -580,7 +556,9 @@ export class DateTimePicker extends Component {
 
         if (this.props.range) {
             if (result.isSelected) {
-                const [selectStart, selectEnd] = this.selectedRange.toSorted();
+                const [selectStart, selectEnd] = this.selectedRange.toSorted(
+                    (a, b) => (a?.ts ?? -Infinity) - (b?.ts ?? -Infinity),
+                );
                 result.isSelectStart = !selectStart || isInRange(selectStart, range);
                 result.isSelectEnd = !selectEnd || isInRange(selectEnd, range);
             }

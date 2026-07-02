@@ -7,17 +7,16 @@ import {
     Component,
     onWillUnmount,
     onWillUpdateProps,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { usePosition } from "@web/core/position/position_hook";
 import { Deferred } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { isScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
 import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 export class AutoComplete extends Component {
     static template = "web.AutoComplete";
@@ -110,8 +109,8 @@ export class AutoComplete extends Component {
             try {
                 await this.open(true);
                 currentPromise.resolve();
-            } catch {
-                currentPromise.reject();
+            } catch (error) {
+                currentPromise.reject(error);
             } finally {
                 if (currentPromise === this.loadingPromise) {
                     this.loadingPromise = null;
@@ -224,7 +223,9 @@ export class AutoComplete extends Component {
         }
         const add = (target, event, handler, capture = false) => {
             target.addEventListener(event, handler, capture);
-            this._globalCleanups.push(() => target.removeEventListener(event, handler, capture));
+            this._globalCleanups.push(() =>
+                target.removeEventListener(event, handler, capture),
+            );
         };
         add(window, "scroll", this._externalClose, true);
         add(window, "pointerdown", this._externalClose);
@@ -413,7 +414,7 @@ export class AutoComplete extends Component {
                 let sourceIndex = step < 0 ? this.sources.length - 1 : 0;
                 let source = this.sources[sourceIndex];
 
-                while (source && source.isLoading) {
+                while (source && (source.isLoading || !source.options.length)) {
                     sourceIndex += step;
                     source = this.sources[sourceIndex];
                 }
@@ -470,7 +471,12 @@ export class AutoComplete extends Component {
     }
     async onInput() {
         this.inEdition = true;
-        this.pendingPromise ??= new Deferred();
+        if (!this.pendingPromise) {
+            this.pendingPromise = new Deferred();
+            // Nothing necessarily awaits this promise: swallow the rejection
+            // to avoid an unhandled rejection when a source fails to load.
+            this.pendingPromise.catch(() => {});
+        }
         this.loadingPromise = this.pendingPromise;
         this.debouncedProcessInput();
     }
@@ -508,7 +514,11 @@ export class AutoComplete extends Component {
                 ev.preventDefault();
             }
 
-            await this.loadingPromise;
+            try {
+                await this.loadingPromise;
+            } catch {
+                // Sources failed to load: proceed as if there were no options.
+            }
         }
 
         switch (hotkey) {

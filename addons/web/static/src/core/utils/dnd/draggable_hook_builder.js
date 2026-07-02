@@ -129,30 +129,38 @@ export function makeDraggableHook(hookParams) {
         ...hookParams.defaultParams,
     };
 
+    // Stable key order for the param-merge effect dependencies below.
+    const paramKeys = Object.keys(allAcceptedParams);
+
     /**
-     * Computes the current params and converts the params definition
+     * Computes the current param values, in `paramKeys` order.
+     *
+     * The result is used as the dependencies of the param-merge effect, so
+     * it MUST be a flat array of stable values: owl's `useEffect` compares
+     * deps element-wise with `!==`, and returning fresh wrappers (e.g. the
+     * previous `Object.entries(...)` pairs, or `toFunction(enable)` which
+     * allocates a new closure for non-function values) made every dep
+     * differ on every render, re-running the effect for all
+     * useDraggable/useSortable consumers on each patch. Wrapping `enable`
+     * with `toFunction` therefore happens in the effect body, not here.
+     *
      * @param {Record<string, any>} params
-     * @returns {[string, any][]}
+     * @returns {any[]}
      */
-    const computeParams = (params) => {
-        /** @type {Record<string, any>} */
-        const computedParams = { enable: () => true };
-        for (const prop of Object.keys(allAcceptedParams)) {
-            if (prop in params) {
-                if (prop === "enable") {
-                    computedParams[prop] = toFunction(params[prop]);
-                } else if (
-                    allAcceptedParams[prop].length === 1 &&
-                    allAcceptedParams[prop][0] === Function
-                ) {
-                    computedParams[prop] = params[prop];
-                } else {
-                    computedParams[prop] = getReturnValue(params[prop]);
-                }
+    const computeParams = (params) =>
+        paramKeys.map((prop) => {
+            if (!(prop in params)) {
+                return undefined;
             }
-        }
-        return Object.entries(computedParams);
-    };
+            if (
+                prop === "enable" ||
+                (allAcceptedParams[prop].length === 1 &&
+                    allAcceptedParams[prop][0] === Function)
+            ) {
+                return params[prop];
+            }
+            return getReturnValue(params[prop]);
+        });
 
     /**
      * Basic error builder for the hook.
@@ -740,17 +748,30 @@ export function makeDraggableHook(hookParams) {
             // Effect depending on the params to update them.
             setupHooks.setup(
                 (...deps) => {
+                    // Rebuild the computed params from the flat dep values
+                    // (see `computeParams`): same `prop in params` presence
+                    // check, same `paramKeys` order, and `enable` is wrapped
+                    // with `toFunction` here so a raw (stable) value can be
+                    // used as the dependency.
                     /** @type {Record<string, any>} */
-                    const params = Object.fromEntries(deps);
+                    const computedParams = { enable: () => true };
+                    paramKeys.forEach((prop, index) => {
+                        if (prop in params) {
+                            computedParams[prop] =
+                                prop === "enable"
+                                    ? toFunction(deps[index])
+                                    : deps[index];
+                        }
+                    });
                     /** @type {Record<string, any>} */
                     const actualParams = {
                         ...defaultParams,
-                        ...omit(params, "edgeScrolling"),
+                        ...omit(computedParams, "edgeScrolling"),
                     };
-                    if (params.edgeScrolling) {
+                    if (computedParams.edgeScrolling) {
                         actualParams.edgeScrolling = {
                             ...actualParams.edgeScrolling,
-                            ...params.edgeScrolling,
+                            ...computedParams.edgeScrolling,
                         };
                     }
 

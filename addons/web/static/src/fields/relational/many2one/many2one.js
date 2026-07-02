@@ -29,7 +29,9 @@ export function extractData(record) {
     if ("display_name" in record) {
         name = record.display_name;
     } else if ("name" in record) {
-        name = record.name.id ? record.name.display_name : record.name;
+        // `record.name` can be `false` (e.g. a record saved from a create
+        // dialog with an empty name): don't read `.id` on it.
+        name = record.name?.id ? record.name.display_name : record.name;
     }
     return { id: record.id, display_name: name };
 }

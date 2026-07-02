@@ -6,7 +6,7 @@
 import { EventBus, onWillDestroy, useChildSubEnv, useEffect, useEnv } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { effect } from "@web/core/utils/reactive";
+import { disposableEffect } from "@web/core/utils/reactive";
 export const DROPDOWN_NESTING = Symbol("dropdownNesting");
 const BUS = new EventBus();
 
@@ -103,7 +103,7 @@ export function useDropdownNesting(state) {
         current.handleChange(other),
     );
 
-    effect(
+    const disposeEffect = disposableEffect(
         (state) => {
             current.isOpen = state.isOpen;
         },
@@ -111,6 +111,7 @@ export function useDropdownNesting(state) {
     );
 
     onWillDestroy(() => {
+        disposeEffect();
         current.remove();
     });
 

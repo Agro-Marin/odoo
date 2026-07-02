@@ -52,6 +52,10 @@ export function buildZXingBarcodeDetector(ZXing) {
             );
             this.reader = new ZXing.MultiFormatReader();
             this.reader.setHints(hints);
+            // Reused across detect() calls (~10/s) to avoid allocating a new
+            // canvas per scan tick; resized only when dimensions change.
+            this.canvas = document.createElement("canvas");
+            this.ctx = this.canvas.getContext("2d");
         }
 
         /**
@@ -73,7 +77,7 @@ export function buildZXingBarcodeDetector(ZXing) {
                     "InvalidStateError",
                 );
             }
-            const canvas = document.createElement("canvas");
+            const canvas = this.canvas;
 
             let barcodeArea;
             if (this.cropArea && (this.cropArea.x || this.cropArea.y)) {
@@ -86,10 +90,14 @@ export function buildZXingBarcodeDetector(ZXing) {
                     height: video.videoHeight,
                 };
             }
-            canvas.width = barcodeArea.width;
-            canvas.height = barcodeArea.height;
+            if (canvas.width !== barcodeArea.width) {
+                canvas.width = barcodeArea.width;
+            }
+            if (canvas.height !== barcodeArea.height) {
+                canvas.height = barcodeArea.height;
+            }
 
-            const ctx = canvas.getContext("2d");
+            const ctx = this.ctx;
 
             ctx.drawImage(
                 video,

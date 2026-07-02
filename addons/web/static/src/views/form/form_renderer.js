@@ -131,20 +131,24 @@ export class FormRenderer extends Component {
             // try to ensure ids unicity by temporarily removing similar ids that could already
             // exist in the DOM (e.g. in a form view displayed below this dialog which contains
             // same field names as this form view)
-            const fieldNodeIds = Object.keys(this.props.archInfo.fieldNodes);
+            const fieldNodeIds = new Set(Object.keys(this.props.archInfo.fieldNodes));
             const elementsByNodeIds = {};
             onMounted(() => {
                 if (!rootRef.el) {
                     // t-ref is sometimes set on a <t> node, resulting in a null ref (e.g. footer case)
                     return;
                 }
-                for (const id of fieldNodeIds) {
-                    const els = [...document.querySelectorAll(`[id=${id}]`)].filter(
-                        (el) => !rootRef.el?.contains(el),
-                    );
-                    if (els.length) {
-                        els[0].removeAttribute("id");
-                        elementsByNodeIds[id] = els[0];
+                // Single DOM pass: querying `[id=...]` once per field id would
+                // rescan the whole document for each field.
+                for (const el of document.querySelectorAll("[id]")) {
+                    const id = el.getAttribute("id");
+                    if (
+                        fieldNodeIds.has(id) &&
+                        !(id in elementsByNodeIds) &&
+                        !rootRef.el.contains(el)
+                    ) {
+                        el.removeAttribute("id");
+                        elementsByNodeIds[id] = el;
                     }
                 }
             });

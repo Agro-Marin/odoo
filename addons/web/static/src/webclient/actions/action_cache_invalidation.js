@@ -21,9 +21,14 @@ import { UPDATE_METHODS } from "@web/services/orm_service";
  * established sibling-module convention of taking the manager instance.
  *
  * @param {import("./action_service").ActionManager} am
+ * @returns {() => void} disposer that removes the rpcBus listener. There is
+ *   currently no ActionManager teardown path in this repo (the webclient's
+ *   manager lives for the whole session), but short-lived managers created
+ *   through ``makeActionManager`` (e.g. enterprise/web_studio's editor) must
+ *   call it on teardown to avoid leaking the listener.
  */
 export function installActionCacheInvalidation(am) {
-    rpcBus.addEventListener(RpcEvent.RESPONSE, async (ev) => {
+    const onRpcResponse = async (/** @type {any} */ ev) => {
         // ``ev.detail`` itself may be null (synthetic test fires, or a
         // malformed event from an upstream listener). Optional-chain it before
         // reading ``.data`` so the listener never throws.
@@ -33,7 +38,10 @@ export function installActionCacheInvalidation(am) {
         const { model, method } = ev.detail.data.params;
         if (model === "ir.actions.act_window" && UPDATE_METHODS.includes(method)) {
             rpcBus.trigger(RpcEvent.CLEAR_CACHES, "/web/action/load");
-            const virtualStack = await am._controllersFromState(am.router.current);
+            // The client-side breadcrumb display-name cache is stale too (and
+            // otherwise only grows for the whole session); flush it so the
+            // recomputation below refetches fresh names.
+            am.breadcrumbCache = {};
             const tip = am.controllerStack.at(-1);
             if (!tip) {
                 // No active controller — nothing to refresh. This happens in
@@ -41,6 +49,12 @@ export function installActionCacheInvalidation(am) {
                 // webclient (so ``controllerStack`` is empty); without this
                 // guard the access ``tip.config.breadcrumbs`` throws and
                 // pollutes the test as an unhandled error.
+                return;
+            }
+            const virtualStack = await am._controllersFromState(am.router.current);
+            if (am.controllerStack.at(-1) !== tip) {
+                // Navigation changed the stack while we awaited: committing
+                // ``nextStack`` now would clobber the newer stack. Bail out.
                 return;
             }
             const nextStack = [...virtualStack, tip];
@@ -53,5 +67,7 @@ export function installActionCacheInvalidation(am) {
                 );
             am.controllerStack = nextStack;
         }
-    });
+    };
+    rpcBus.addEventListener(RpcEvent.RESPONSE, onRpcResponse);
+    return () => rpcBus.removeEventListener(RpcEvent.RESPONSE, onRpcResponse);
 }

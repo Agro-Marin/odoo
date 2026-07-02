@@ -13,7 +13,7 @@
                     <label t-if="['integer', 'float', 'date', 'datetime', 'boolean'].includes(propertyConfiguration.type)"
                         t-att-class="{'fw-bold' : propertyConfiguration.type !== 'boolean'}" t-out="propertyConfiguration.string"/>
                     <PropertyValue
-                        id="generateUniqueDomID()"
+                        id="getPropertyDomID(propertyConfiguration.name)"
                         canChangeDefinition="state.canChangeDefinition"
                         comodel="propertyConfiguration.comodel || ''"
                         context="props.context"

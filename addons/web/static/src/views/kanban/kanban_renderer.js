@@ -210,6 +210,10 @@ export class KanbanRenderer extends Component {
                         `.o_kanban_group[data-id="${groupIdToFocus}"]`,
                     )
                 );
+                if (!groupEl) {
+                    delete this.lastOpenedGroupId;
+                    return;
+                }
                 const rect = groupEl.getBoundingClientRect();
                 // Don't scroll if the group to focus is completely inside of the viewport
                 if (rect.x + rect.width > window.innerWidth) {

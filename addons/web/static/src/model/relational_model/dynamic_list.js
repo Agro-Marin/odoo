@@ -477,7 +477,11 @@ export class DynamicList extends DataPoint {
         );
         if (canProceed === false) {
             selectedRecords.forEach((record) => record._discard());
-            this.leaveEditMode({ discard: true });
+            // Deliberately not awaited: _multiSave runs inside a
+            // model.mutex.exec critical section, and leaveEditMode's discard
+            // path re-enters the mutex (record.discard), so awaiting here
+            // would deadlock. Catch rejections so they don't go unhandled.
+            this.leaveEditMode({ discard: true }).catch((e) => console.error(e));
             return false;
         }
 

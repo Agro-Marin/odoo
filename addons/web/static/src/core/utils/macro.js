@@ -227,6 +227,15 @@ export class MacroMutationObserver {
      */
     constructor(callback) {
         this.callback = callback;
+        // Every listener added by this observer is registered with this
+        // controller's signal, so disconnect() can remove them all at once
+        // (they used to leak: disconnect() never removed the iframe "load"
+        // listeners).
+        this.abortController = new AbortController();
+        /** @type {WeakSet<HTMLIFrameElement>} Guard against double-adding iframe "load" listeners. */
+        this.observedIframes = new WeakSet();
+        /** @type {WeakSet<Document>} Guard against double-adding contentDocument "load" listeners. */
+        this.observedContentDocuments = new WeakSet();
         this.observer = new MutationObserver((mutationList, observer) => {
             callback(mutationList);
             mutationList.forEach((mutationRecord) =>
@@ -253,6 +262,7 @@ export class MacroMutationObserver {
     }
     disconnect() {
         this.observer.disconnect();
+        this.abortController.abort();
     }
     /**
      * @param {Node} node
@@ -295,25 +305,34 @@ export class MacroMutationObserver {
      * @param {Function} callback
      */
     observeIframe(iframeEl, observer, callback) {
+        const { signal } = this.abortController;
         const observeIframeContent = () => {
-            if (iframeEl.contentDocument) {
-                iframeEl.contentDocument.addEventListener("load", (event) => {
-                    callback();
-                    observer.observe(
-                        /** @type {Node} */ (event.target),
-                        this.observerOptions,
+            const contentDocument = iframeEl.contentDocument;
+            if (contentDocument) {
+                if (!this.observedContentDocuments.has(contentDocument)) {
+                    this.observedContentDocuments.add(contentDocument);
+                    contentDocument.addEventListener(
+                        "load",
+                        (event) => {
+                            callback();
+                            observer.observe(
+                                /** @type {Node} */ (event.target),
+                                this.observerOptions,
+                            );
+                        },
+                        { signal },
                     );
-                });
-                if (
-                    !iframeEl.src ||
-                    iframeEl.contentDocument.readyState === "complete"
-                ) {
+                }
+                if (!iframeEl.src || contentDocument.readyState === "complete") {
                     callback();
-                    observer.observe(iframeEl.contentDocument, this.observerOptions);
+                    observer.observe(contentDocument, this.observerOptions);
                 }
             }
         };
         observeIframeContent();
-        iframeEl.addEventListener("load", observeIframeContent);
+        if (!this.observedIframes.has(iframeEl)) {
+            this.observedIframes.add(iframeEl);
+            iframeEl.addEventListener("load", observeIframeContent, { signal });
+        }
     }
 }

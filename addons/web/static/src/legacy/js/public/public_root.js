@@ -27,6 +27,11 @@ function getLang() {
 }
 const lang = cookie.get("frontend_lang") || getLang(); // FIXME the cookie value should maybe be in the ctx?
 
+// One-shot guard: the interaction service patch below targets the service's
+// prototype, so it must only ever be applied once even if several PublicRoot
+// instances are created.
+let interactionsServicePatched = false;
+
 /**
  * Element which is designed to be unique and that will be the top-most element
  * in the widget hierarchy. So, all other widgets will be indirectly linked to
@@ -59,7 +64,8 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         // widgets.
         const interactionsService = this.env.services["public.interactions"];
         const publicRoot = this;
-        if (interactionsService) {
+        if (interactionsService && !interactionsServicePatched) {
+            interactionsServicePatched = true;
             patch(interactionsService.constructor.prototype, {
                 /** @this {any} */
                 startInteractions(el) {
@@ -321,7 +327,7 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         const m = repr.match(/(.+)\((-?\d+),(.*)\)/);
         ev.data.callback({
             model: m[1],
-            id: Number(m[2]) | 0,
+            id: Number(m[2]),
         });
     },
     /**

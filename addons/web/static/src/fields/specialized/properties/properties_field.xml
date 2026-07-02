@@ -2,9 +2,8 @@
 <templates xml:space="preserve">
  <t t-name="web.PropertiesField">
  <div t-ref="properties" class="row" t-att-columns="renderedColumnsCount">
- <t t-set="unfoldedSeparators" t-value="state.unfoldedSeparators"/>
  <t t-set="_groupedPropertiesList" t-value="groupedPropertiesList"/>
- <t t-foreach="groupedPropertiesList" t-as="propertiesListGroup" t-key="propertiesListGroup_index">
+ <t t-foreach="_groupedPropertiesList" t-as="propertiesListGroup" t-key="propertiesListGroup_index">
  <t t-set="foldable" t-value="propertiesListGroup.name and propertiesListGroup.title and propertiesListGroup.title.length"/>
  <div class="o_inner_group o_group col-lg-6 o_property_group"
  t-att-property-name="propertiesListGroup.name || ''">
@@ -33,7 +32,7 @@
  'mb-4': renderedColumnsCount === 1, 'mb-3': renderedColumnsCount !== 1
  }"
  t-att-property-name="propertyConfiguration.name">
- <t t-set="domId" t-value="generateUniqueDomID()"/>
+ <t t-set="domId" t-value="getPropertyDomID(propertyConfiguration.name)"/>
  <label
  class="o_field_property_label o_form_label text-break d-flex align-items-baseline mb-0 pe-2"
  t-att-class="{'w-auto': env.isSmall}"

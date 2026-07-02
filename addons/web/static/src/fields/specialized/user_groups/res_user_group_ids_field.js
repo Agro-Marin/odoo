@@ -6,9 +6,9 @@
 import { Component, onWillRender, toRaw, useChildSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { registerField } from "@web/fields/_registry";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { parseXML } from "@web/core/utils/dom/xml";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { Record } from "@web/model/record";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
@@ -39,7 +39,7 @@ class ResUserGroupIdsField extends Component {
         // Generate the "other" category (for privileges that do not belong to any category)
         const privilegesWithoutCategory = Object.values(privileges)
             .filter((privilege) => !privilege.category_id)
-            .sort((privilege) => privilege.sequence);
+            .sort((p1, p2) => p1.sequence - p2.sequence);
         if (privilegesWithoutCategory.length) {
             categories.push({
                 id: "other",

@@ -10526,11 +10526,9 @@ test(`form view with inline list view with optional fields and local storage moc
 
     // enable optional field
     await contains(`.o-dropdown--menu input[name="bar"]`).click();
-    expect.verifySteps([
-        `setItem optional_fields,${localStorageKey} to bar`,
-        `getItem optional_fields,${localStorageKey}`,
-        `getItem debug_open_view,${localStorageKey}`,
-    ]);
+    // Only a setItem: the toggle refreshes the cached localStorage value, so
+    // the ensuing render does not re-read optional_fields/debug_open_view.
+    expect.verifySteps([`setItem optional_fields,${localStorageKey} to bar`]);
 
     expect(`.o_list_table th`).toHaveCount(3);
     expect(`th[data-name="foo"]`).toBeVisible();
@@ -10602,11 +10600,9 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
 
     // enable optional field
     await contains(`.o-dropdown--menu input[name="foo"]`).click();
-    expect.verifySteps([
-        `setItem optional_fields,${localStorageKey} to foo`,
-        `getItem optional_fields,${localStorageKey}`,
-        `getItem debug_open_view,${localStorageKey}`,
-    ]);
+    // Only a setItem: the toggle refreshes the cached localStorage value, so
+    // the ensuing render does not re-read optional_fields/debug_open_view.
+    expect.verifySteps([`setItem optional_fields,${localStorageKey} to foo`]);
 
     expect(`.o_list_table th`).toHaveCount(3);
     expect(`th[data-name="foo"]`).toBeVisible();

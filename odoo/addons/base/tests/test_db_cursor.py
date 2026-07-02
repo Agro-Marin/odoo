@@ -983,6 +983,36 @@ class TestCopyFrom(BaseCase):
                 # Clean up sequence cache to avoid cross-test contamination
                 _id_sequence_cache.pop((cr.dbname, "_test_cpid"), None)
 
+    def test_resolve_id_sequence_shared_fallback_is_schema_aware(self):
+        """A non-owned (shared) id DEFAULT sequence resolves via the pg_depend
+        fallback, anchored on ``%s::regclass`` (search_path).  Regression: the
+        fallback used to join pg_class on bare relname, matching every
+        same-named table in every schema and returning an arbitrary schema's
+        sequence via LIMIT 1.
+        """
+        cr = registry().cursor()
+        try:
+            for s, seq in (("_cpseq_s1", "seq_a"), ("_cpseq_s2", "seq_b")):
+                cr.execute(f"CREATE SCHEMA {s}")
+                cr.execute(f"CREATE SEQUENCE {s}.{seq}")
+                cr.execute(
+                    f"CREATE TABLE {s}.foo "
+                    f"(id int DEFAULT nextval('{s}.{seq}'), val text)"
+                )
+            cr.execute("SET LOCAL search_path = _cpseq_s2, public")
+            # Not column-owned: pg_get_serial_sequence is NULL, forcing the
+            # pg_depend fallback (the _inherits shared-sequence case).
+            cr.execute("SELECT pg_get_serial_sequence('foo', 'id')")
+            self.assertIsNone(cr.fetchone()[0])
+            try:
+                seq_name = cr._resolve_id_sequence("foo")
+                self.assertEqual(seq_name, "seq_b")
+            finally:
+                _id_sequence_cache.pop((cr.dbname, "foo"), None)
+        finally:
+            cr.rollback()  # discard schemas/tables (transactional DDL)
+            cr.close()
+
     def test_copy_from_empty_returning(self):
         """copy_from with empty rows and returning_ids returns empty list."""
         with registry().cursor() as cr:
@@ -1122,10 +1152,38 @@ class TestCategorizeQuery(BaseCase):
         self.assertEqual(qtype, "into")
         self.assertEqual(table, "t1")
 
-    def test_update_without_from(self):
+    def test_update_is_a_write(self):
+        """UPDATE lands in 'into' (write) with its table, not invisible 'other'."""
         qtype, table = categorize_query("UPDATE res_users SET name='x'")
-        self.assertEqual(qtype, "other")
-        self.assertIsNone(table)
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_update_schema_qualified(self):
+        qtype, table = categorize_query('UPDATE "public"."res_users" SET name=1')
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_update_with_from_subquery(self):
+        """The UPDATE target wins over a FROM inside the statement."""
+        qtype, table = categorize_query(
+            "UPDATE t1 SET a = s.a FROM (SELECT * FROM t2) s WHERE s.id = t1.id"
+        )
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "t1")
+
+    def test_delete_is_a_write(self):
+        """DELETE FROM lands in 'into' (write), not 'from' (read)."""
+        qtype, table = categorize_query("DELETE FROM res_users WHERE id = 1")
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_select_for_update_stays_a_read(self):
+        """The FOR UPDATE row-locking clause must not misfile a SELECT as a write."""
+        qtype, table = categorize_query(
+            "SELECT id FROM res_users WHERE id = 1 FOR UPDATE NOWAIT"
+        )
+        self.assertEqual(qtype, "from")
+        self.assertEqual(table, "res_users")
 
     def test_other(self):
         qtype, table = categorize_query("COMMIT")
@@ -3730,6 +3788,105 @@ class TestPoolMinconn(BaseCase):
     def test_negative_minconn_raises(self):
         with self.assertRaises(ValueError):
             ConnectionPool(maxconn=4, minconn=-1)
+
+    def test_minconn_suppressed_for_maintenance_databases(self):
+        """minconn must not warm connections to postgres/template databases.
+
+        psycopg_pool maintains min_size by reconnecting after every discard, so
+        the cursor-close discard (keep_in_pool=False) alone cannot keep those
+        databases connection-free — and an idle connection to a template makes
+        ``CREATE DATABASE ... TEMPLATE`` fail with "source database is being
+        accessed by other users".
+        """
+        pool = ConnectionPool(maxconn=4, minconn=2)
+        created = {}
+        real_pool_cls = pool_module._PsycopgPool
+
+        def capture(conninfo, **kw):
+            created["min_size"] = kw.get("min_size")
+            return real_pool_cls(conninfo, **kw)
+
+        _, info = connection_info_for("postgres")
+        with patch.object(pool_module, "_PsycopgPool", side_effect=capture):
+            try:
+                conn = pool.borrow(info)
+                pool.give_back(conn, keep_in_pool=False)
+            finally:
+                pool.close_all()
+        self.assertEqual(
+            created.get("min_size"),
+            0,
+            "per-DSN pool for 'postgres' must be created with min_size=0",
+        )
+
+
+class TestPoolSessionGucOptions(BaseCase):
+    """_get_or_create_pool appends Odoo's session GUCs to the libpq ``options``
+    kwarg.  psycopg gives kwargs per-key precedence over the conninfo string,
+    so a URI's own ``?options=`` GUCs must be folded into the kwarg — setting
+    ours without merging would silently drop the operator's (e.g. search_path).
+    """
+
+    def _created_pool_args(self, connection_info, **pool_kw):
+        pool = ConnectionPool(maxconn=2, **pool_kw)
+        created = {}
+
+        class _FakePool:
+            closed = False
+
+            def __init__(self, conninfo, **kw):
+                created["conninfo"] = conninfo
+                created.update(kw)
+
+            def close(self):
+                pass
+
+            def get_stats(self):
+                return {}
+
+        key = _normalize_dsn_key(connection_info)
+        with (
+            patch.object(pool_module, "_PsycopgPool", _FakePool),
+            patch.object(pool, "_probe_connectable"),
+        ):
+            try:
+                pool._get_or_create_pool(key, dict(connection_info))
+            finally:
+                pool.close_all()
+        return created
+
+    def test_uri_options_preserved_alongside_session_gucs(self):
+        created = self._created_pool_args(
+            {"dsn": "postgresql://u@h/db?options=-csearch_path%3Dfoo"}
+        )
+        opts = created["kwargs"]["options"]
+        self.assertIn("search_path=foo", opts, "URI ?options= GUC was dropped")
+        self.assertIn("jit=off", opts)
+        self.assertIn("work_mem=16MB", opts)
+
+    def test_keyword_options_preserved(self):
+        created = self._created_pool_args(
+            {"dbname": "db", "options": "-c statement_timeout=5000"}
+        )
+        opts = created["kwargs"]["options"]
+        self.assertIn("statement_timeout=5000", opts)
+        self.assertIn("jit=off", opts)
+
+    def test_idle_session_timeout_default_unchanged(self):
+        """Default max_idle (600s) keeps the historical 15-minute server net."""
+        created = self._created_pool_args({"dbname": "db"})
+        self.assertIn(
+            "idle_session_timeout=900000", created["kwargs"]["options"]
+        )
+
+    def test_idle_session_timeout_scales_with_max_idle(self):
+        """Raising db_conn_max_idle must keep the server-side timeout above the
+        pool's idle window, or the server silently kills warm pooled
+        connections and every borrow past the grace period pays a reconnect."""
+        created = self._created_pool_args({"dbname": "db"}, max_idle=1200)
+        self.assertIn(
+            "idle_session_timeout=1800000", created["kwargs"]["options"]
+        )
 
 
 class TestCopyFromMetricsQueryLazy(BaseCase):

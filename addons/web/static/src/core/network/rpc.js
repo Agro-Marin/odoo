@@ -83,7 +83,28 @@ import { buildKey } from "@web/core/network/rpc_dedup";
  * @typedef {Promise<T> & { abort: (rejectError?: boolean) => void }} RpcPromise
  */
 
-export const rpcBus = new EventBus();
+// ── Cross-bundle singleton state ─────────────────────────────────────────
+//
+// ``rpcBus``, the in-flight dedup map, and the ``rpcCache`` slot MUST be
+// shared by every ESM bundle in the document, for the same reason
+// ``registry.js`` (``__odooRegistry__``), ``templates.js``
+// (``__odooTemplates__``) and ``l10n/translation.js`` anchor their state
+// on ``globalThis``: esbuild inlines this module into ``web.assets_web``
+// and every dynamic child bundle, and per-copy module state would give
+// each bundle its own bus (listeners in one bundle never see RPCs fired
+// from another), its own dedup map (no dedup across bundles), and its own
+// cache slot (``rpc.setCache`` from the parent leaves satellites
+// uncached).  ``??=`` keeps the FIRST bundle's instance authoritative.
+const _RPC_STATE_KEY = "__odoo_rpc_state__";
+/** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean }} */
+const _rpcState = (/** @type {any} */ (globalThis)[_RPC_STATE_KEY] ??= {
+    rpcBus: new EventBus(),
+    inflightDedup: new Map(),
+    rpcCache: undefined,
+    busListenersAttached: false,
+});
+
+export const rpcBus = _rpcState.rpcBus;
 
 const RPC_SETTINGS = new Set(["cache", "silent", "headers", "timeout", "retry", "dedup"]);
 /**
@@ -233,77 +254,94 @@ export function makeErrorFromResponse(response) {
 // Cache RPC method
 // -----------------------------------------------------------------------------
 
-/** @type {RPCCache | undefined} */
-let rpcCache;
-
 /**
  * @param {RPCCache} cache
  */
 rpc.setCache = function (cache) {
-    rpcCache = cache;
+    _rpcState.rpcCache = cache;
 };
 
-rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, (event) => {
-    /** @type {{ tables?: string[]; model?: string } | string | string[] | undefined} */
-    const detail = /** @type {CustomEvent<any>} */ (event).detail;
-    if (isObject(detail)) {
-        // ``isObject`` is more selective than ``typeof === "object"``
-        // (rejects Map/Set/Date/Array) but TS doesn't see it as a type
-        // predicate. Re-cast to the model-scoped shape so the property
-        // accesses below typecheck.
-        //
-        // Note: ``tables`` is cast as ``string[]`` (non-optional) — the
-        // contract documented at every emit site is "if model is set,
-        // tables is set" (see ``RESULT_SET_TABLES`` in
-        // ``services/result_set_cache_invalidator_service.js``). The
-        // cache's ``invalidateByModel`` iterates ``tables`` and would
-        // throw on ``undefined`` regardless, so preserving the old
-        // throw-on-malformed-emit behavior is correct.
-        const objDetail = /** @type {{ tables: string[]; model?: string }} */ (detail);
-        if (objDetail.model) {
-            rpcCache?.invalidateByModel(objDetail.tables, objDetail.model);
+// The module-level bus listeners below are attached exactly once for the
+// whole document: the bus is a cross-bundle singleton, so a second bundle
+// evaluating this module must not register duplicate handlers (double
+// cache invalidation, double rpc logging).
+if (!_rpcState.busListenersAttached) {
+    _rpcState.busListenersAttached = true;
+
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, (event) => {
+        /** @type {{ tables?: string[]; model?: string } | string | string[] | undefined} */
+        const detail = /** @type {CustomEvent<any>} */ (event).detail;
+        if (isObject(detail)) {
+            // ``isObject`` is more selective than ``typeof === "object"``
+            // (rejects Map/Set/Date/Array) but TS doesn't see it as a type
+            // predicate. Re-cast to the model-scoped shape so the property
+            // accesses below typecheck.
+            //
+            // Note: ``tables`` is cast as ``string[]`` (non-optional) — the
+            // contract documented at every emit site is "if model is set,
+            // tables is set" (see ``RESULT_SET_TABLES`` in
+            // ``services/result_set_cache_invalidator_service.js``). The
+            // cache's ``invalidateByModel`` iterates ``tables`` and would
+            // throw on ``undefined`` regardless, so preserving the old
+            // throw-on-malformed-emit behavior is correct.
+            const objDetail = /** @type {{ tables: string[]; model?: string }} */ (
+                detail
+            );
+            if (objDetail.model) {
+                _rpcState.rpcCache?.invalidateByModel(
+                    objDetail.tables,
+                    objDetail.model,
+                );
+                return;
+            }
+        }
+        // ``detail`` is either ``string`` (single table — most emit sites
+        // pass a literal table name like ``"get_views"``), ``string[]``
+        // (rare, accepted by the cache for batch clearing), or
+        // ``undefined`` (full-cache nuke from ``webclient.js`` after
+        // service-worker registration). The cache's ``invalidate``
+        // accepts all three.
+        _rpcState.rpcCache?.invalidate(
+            /** @type {string | string[] | null} */ (detail ?? null),
+        );
+    });
+
+    // -----------------------------------------------------------------------
+    // Observability — passive bus listeners that mirror every RPC into the
+    // rpcLog namespace.  Activated by ``localStorage.setItem("debug.rpc", "1")``
+    // (or ``?debug=rpc``).  When disabled the listener body short-circuits on
+    // rpcLog.enabled() before any payload construction — cost is one event
+    // dispatch per RPC, negligible against the network round-trip itself.
+    // -----------------------------------------------------------------------
+
+    rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
+        if (!rpcLog.enabled()) {
             return;
         }
-    }
-    // ``detail`` is either ``string`` (single table — most emit sites
-    // pass a literal table name like ``"get_views"``), ``string[]``
-    // (rare, accepted by the cache for batch clearing), or
-    // ``undefined`` (full-cache nuke from ``webclient.js`` after
-    // service-worker registration). The cache's ``invalidate``
-    // accepts all three.
-    rpcCache?.invalidate(/** @type {string | string[] | null} */ (detail ?? null));
-});
+        const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
+        const params = detail.data?.params || {};
+        rpcLog("request", detail.url, params.model || "", params.method || "");
+    });
 
-// ---------------------------------------------------------------------------
-// Observability — passive bus listeners that mirror every RPC into the
-// rpcLog namespace.  Activated by ``localStorage.setItem("debug.rpc", "1")``
-// (or ``?debug=rpc``).  When disabled the listener body short-circuits on
-// rpcLog.enabled() before any payload construction — cost is one event
-// dispatch per RPC, negligible against the network round-trip itself.
-// ---------------------------------------------------------------------------
-
-rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
-    if (!rpcLog.enabled()) {
-        return;
-    }
-    const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
-    const params = detail.data?.params || {};
-    rpcLog("request", detail.url, params.model || "", params.method || "");
-});
-
-rpcBus.addEventListener(RpcEvent.RESPONSE, (event) => {
-    if (!rpcLog.enabled()) {
-        return;
-    }
-    const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
-    const params = detail.data?.params || {};
-    const target = `${params.model || ""}.${params.method || detail.url}`;
-    if (detail.error) {
-        rpcLog("error", target, detail.error.name || "error", detail.error.message || "");
-    } else {
-        rpcLog("ok", target);
-    }
-});
+    rpcBus.addEventListener(RpcEvent.RESPONSE, (event) => {
+        if (!rpcLog.enabled()) {
+            return;
+        }
+        const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
+        const params = detail.data?.params || {};
+        const target = `${params.model || ""}.${params.method || detail.url}`;
+        if (detail.error) {
+            rpcLog(
+                "error",
+                target,
+                detail.error.name || "error",
+                detail.error.message || "",
+            );
+        } else {
+            rpcLog("ok", target);
+        }
+    });
+}
 
 // -----------------------------------------------------------------------------
 // Retry helpers
@@ -401,9 +439,12 @@ function isRetryable(err) {
  * callers that need independent abort lifecycles must not opt in to
  * ``dedup``.
  *
+ * Anchored on ``globalThis`` (see ``_rpcState``) so concurrent identical
+ * requests dedupe across bundles too.
+ *
  * @type {Map<string, Promise<any>>}
  */
-const inflightDedup = new Map();
+const inflightDedup = _rpcState.inflightDedup;
 
 // -----------------------------------------------------------------------------
 // Main RPC
@@ -471,7 +512,7 @@ rpc._rpc = function (url, params, settings) {
         }
         return promise;
     }
-    if (settings.cache && rpcCache) {
+    if (settings.cache && _rpcState.rpcCache) {
         // Thread ``params.model`` into the cache settings so the entry
         // joins the per-table model→keys reverse index.  This makes
         // ``invalidateByModel`` O(1) instead of scanning + parsing
@@ -485,7 +526,7 @@ rpc._rpc = function (url, params, settings) {
         if (params?.model && cacheSettings.model === undefined) {
             cacheSettings.model = params.model;
         }
-        return rpcCache.read(
+        return _rpcState.rpcCache.read(
             params?.method || url, // table
             buildKey(url, params), // key — key-order independent (rpc_dedup.js)
             () => rpc._rpc(url, params, omit(settings, "cache")),

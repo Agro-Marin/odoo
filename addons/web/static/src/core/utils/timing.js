@@ -127,6 +127,18 @@ export function debounce(func, delay, options) {
                             pending = [];
                             execute(lastSelf, lastArgs, awaiters);
                             lastArgs = null;
+                        } else {
+                            // Leading-only mode: calls queued while the timer
+                            // was armed will never run. Settle them with
+                            // `undefined` (same semantics as cancel()) and
+                            // drop the stale args so cancel(true) can't
+                            // replay them later.
+                            const awaiters = pending;
+                            pending = [];
+                            lastArgs = null;
+                            for (const { resolve } of awaiters) {
+                                resolve(undefined);
+                            }
                         }
                     }, delay);
                 });

@@ -4,7 +4,7 @@
 /** @module @web/services/navigation/navigation - Keyboard arrow-key navigation hook for selectable item lists */
 
 import {
-    onWillUnmount,
+    onWillDestroy,
     reactive,
     useEffect,
     useExternalListener,
@@ -540,7 +540,10 @@ export function useNavigation(containerRef, options = {}) {
         ({ target }) => navigator._checkFocus(target),
         /** @type {any} */ (true),
     );
-    onWillUnmount(() => navigator._destroy());
+    // onWillDestroy (not onWillUnmount): unmount hooks don't fire for
+    // components destroyed before mount, which would leak the hotkey
+    // registrations and item listeners.
+    onWillDestroy(() => navigator._destroy());
 
     return navigator;
 }

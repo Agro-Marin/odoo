@@ -267,9 +267,16 @@ export class KanbanRecordQuickCreate extends Component {
         });
         this.viewService = useService("view");
         onMounted(() => {
-            this.getQuickCreateProps(this.props).then(() => {
-                this.state.isLoaded = true;
-            });
+            this.getQuickCreateProps(this.props)
+                .then(() => {
+                    this.state.isLoaded = true;
+                })
+                .catch((error) => {
+                    // don't leave the quick create stuck in its loading state;
+                    // rethrow so the error service still reports the failure
+                    this.props.onCancel();
+                    throw error;
+                });
         });
         useSubEnv({
             config: getDefaultConfig(),
@@ -291,7 +298,7 @@ export class KanbanRecordQuickCreate extends Component {
             const result = await this.viewService.loadViews(
                 /** @type {any} */ ({
                     context: {
-                        ...props.context,
+                        ...props.group.context,
                         form_view_ref: props.quickCreateView,
                     },
                     resModel: props.group.resModel,

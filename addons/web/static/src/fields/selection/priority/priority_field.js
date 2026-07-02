@@ -3,9 +3,8 @@
 
 /** @module @web/fields/selection/priority/priority_field - Star rating field for priority Selection columns */
 
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillRender, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useCommand } from "@web/services/commands/command_hook";
@@ -24,6 +23,15 @@ export class PriorityField extends Component {
     setup() {
         this.state = useState({
             index: -1,
+        });
+        // The selection is static: build the options list once.
+        this.options = Array.from(this.props.record.fields[this.props.name].selection);
+        // The template reads `index` twice per star: compute the selected
+        // index once per render.
+        onWillRender(() => {
+            this._selectedIndex = this.options.findIndex(
+                (o) => o[0] === this.props.record.data[this.props.name],
+            );
         });
         if (this.props.withCommand) {
             for (const command of this.commands) {
@@ -59,15 +67,8 @@ export class PriorityField extends Component {
     get tooltipLabel() {
         return this.props.record.fields[this.props.name].string;
     }
-    get options() {
-        return Array.from(this.props.record.fields[this.props.name].selection);
-    }
     get index() {
-        return this.state.index > -1
-            ? this.state.index
-            : this.options.findIndex(
-                  (o) => o[0] === this.props.record.data[this.props.name],
-              );
+        return this.state.index > -1 ? this.state.index : this._selectedIndex;
     }
 
     getTooltip(value) {

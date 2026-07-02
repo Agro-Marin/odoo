@@ -16,6 +16,8 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { useDebounced } from "@web/core/utils/timing";
 let selectMenuId = 0;
 
+const collator = new Intl.Collator();
+
 export const DEBOUNCED_DELAY = 250;
 
 export class SelectMenu extends Component {
@@ -131,6 +133,8 @@ export class SelectMenu extends Component {
         });
         this.inputRef = useRef("inputRef");
         this.menuRef = useChildRef();
+        this.onScrollListener = (ev) => this.onScroll(ev);
+        this.scrollListenerEl = null;
         this.props.menuRef?.(this.menuRef);
         this.debouncedOnInput = useDebounced((searchString) => {
             if (!this.dropdownState.isOpen) {
@@ -142,7 +146,7 @@ export class SelectMenu extends Component {
 
         this.selectedChoice = this.getSelectedChoice(this.props);
         onWillUpdateProps((nextProps) => {
-            const choicesChanged = this.state.choices !== nextProps.choices;
+            const choicesChanged = this.props.choices !== nextProps.choices;
             if (choicesChanged) {
                 this.state.choices = nextProps.choices;
             }
@@ -297,9 +301,8 @@ export class SelectMenu extends Component {
             if (this.displayInputInDropdown && !this.isBottomSheet) {
                 this.inputRef.el.focus();
             }
-            /** @type {any} */ (this.menuRef).el?.addEventListener("scroll", (ev) =>
-                this.onScroll(ev),
-            );
+            this.scrollListenerEl = /** @type {any} */ (this.menuRef).el ?? null;
+            this.scrollListenerEl?.addEventListener("scroll", this.onScrollListener);
             const selectedElement = /** @type {any} */ (
                 this.menuRef
             ).el?.querySelectorAll(".selected")[0];
@@ -308,6 +311,8 @@ export class SelectMenu extends Component {
             }
             this.props.onOpened();
         } else {
+            this.scrollListenerEl?.removeEventListener("scroll", this.onScrollListener);
+            this.scrollListenerEl = null;
             this.state.searchValue = null;
             this.props.onClosed();
         }
@@ -346,13 +351,15 @@ export class SelectMenu extends Component {
 
         const valueSet = new Set(props.value);
         // Combine previously selected choices + newly selected choice from
-        // the searched choices and then filter the choices based on
-        // props.value i.e. valueSet.
-        return [...(this.selectedChoice || []), ...choices].filter(
-            (c, index, self) =>
-                valueSet.has(c.value) &&
-                self.findIndex((t) => t.value === c.value) === index,
-        );
+        // the searched choices, keep only the first occurrence of each value
+        // and filter the choices based on props.value i.e. valueSet.
+        const choiceByValue = new Map();
+        for (const choice of [...(this.selectedChoice || []), ...choices]) {
+            if (valueSet.has(choice.value) && !choiceByValue.has(choice.value)) {
+                choiceByValue.set(choice.value, choice);
+            }
+        }
+        return [...choiceByValue.values()];
     }
 
     onItemSelected(value) {
@@ -395,7 +402,7 @@ export class SelectMenu extends Component {
 
         const _choices = [];
         const _sections = new Set();
-        groupsList.sort((a, b) => (a.section || "").localeCompare(b.section || ""));
+        groupsList.sort((a, b) => collator.compare(a.section || "", b.section || ""));
 
         for (const group of groupsList) {
             let filteredOptions = group.choices || [];
@@ -409,7 +416,7 @@ export class SelectMenu extends Component {
             } else {
                 if (this.props.autoSort) {
                     filteredOptions = filteredOptions.toSorted((optionA, optionB) =>
-                        optionA.label.localeCompare(optionB.label),
+                        collator.compare(optionA.label, optionB.label),
                     );
                 }
             }

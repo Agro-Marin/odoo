@@ -108,6 +108,15 @@ export const actionLog = _makeNamespacedLog("action", "action");
  */
 export const modelLog = _makeNamespacedLog("model", "model");
 
+/**
+ * Localization tracing — translation fetch, cache hits, application.
+ *
+ * Activation:
+ *   • ``?debug=l10n``
+ *   • ``localStorage.setItem("debug.l10n", "1")``
+ */
+export const l10nLog = _makeNamespacedLog("l10n", "l10n");
+
 // ---------------------------------------------------------------------------
 // Scoped logger factories (partial application by category)
 // ---------------------------------------------------------------------------

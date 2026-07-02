@@ -13,7 +13,11 @@ import { sortBy } from "@web/core/utils/collections/arrays";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
-import { FACET_ICONS, GROUPABLE_TYPES } from "@web/search/utils/misc";
+import {
+    editFavoriteFilter,
+    FACET_ICONS,
+    GROUPABLE_TYPES,
+} from "@web/search/utils/misc";
 
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
@@ -157,18 +161,20 @@ export class SearchBarMenu extends Component {
         );
     }
 
-    /** @returns {Object[]} shared favorite search items (collapsed to 3 until expanded) */
-    get sharedFavorites() {
-        const sharedFavorites = this.env.searchModel.getSearchItems(
+    /** @returns {Object[]} all shared favorite search items */
+    get allSharedFavorites() {
+        return this.env.searchModel.getSearchItems(
             (searchItem) =>
                 searchItem.type === "favorite" && searchItem.userIds.length !== 1,
         );
-        if (sharedFavorites.length <= 4 || this.state.sharedFavoritesExpanded) {
-            this.state.sharedFavoritesExpanded = true;
-        } else {
-            sharedFavorites.length = 3;
-        }
-        return sharedFavorites;
+    }
+
+    /** @returns {Object[]} shared favorite search items (collapsed to 3 until expanded) */
+    get sharedFavorites() {
+        const sharedFavorites = this.allSharedFavorites;
+        const expanded =
+            this.state.sharedFavoritesExpanded || sharedFavorites.length <= 4;
+        return expanded ? sharedFavorites : sharedFavorites.slice(0, 3);
     }
 
     /** @returns {{ Component: Function, groupNumber: number, key: string }[]} registry-provided favorite menu items */
@@ -197,14 +203,9 @@ export class SearchBarMenu extends Component {
 
     /** @param {number} itemId */
     editFavorite(itemId) {
-        this.actionService.doAction({
-            type: "ir.actions.act_window",
-            res_model: "ir.filters",
-            views: [[false, "form"]],
-            context: {
-                form_view_ref: "base.ir_filters_view_edit_form",
-            },
-            res_id: this.env.searchModel.searchItems[itemId].serverSideId,
-        });
+        editFavoriteFilter(
+            this.actionService,
+            this.env.searchModel.searchItems[itemId].serverSideId,
+        );
     }
 }

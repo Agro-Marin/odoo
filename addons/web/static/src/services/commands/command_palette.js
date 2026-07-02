@@ -223,8 +223,22 @@ export class CommandPalette extends Component {
             const result = provide(this.env, options);
             return result;
         });
+        // Don't let one broken provider swallow the results of the others
+        // (Promise.all would reject the whole search, which then looks like
+        // "no result found"): log the failures and render what succeeded.
+        const settled = await this.keepLast.add(Promise.allSettled(proms));
+        for (const result of settled) {
+            if (result.status === "rejected") {
+                console.error(
+                    "Command palette: a command provider failed:",
+                    result.reason,
+                );
+            }
+        }
         let commands = /** @type {CommandItem[]} */ (
-            (await this.keepLast.add(Promise.all(proms))).flat()
+            settled
+                .filter((result) => result.status === "fulfilled")
+                .flatMap((result) => /** @type {any} */ (result).value)
         );
         const namespaceConfig = /** @type {any} */ (
             this.configByNamespace[namespace] || {}

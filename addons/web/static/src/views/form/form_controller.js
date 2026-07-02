@@ -503,7 +503,9 @@ export class FormController extends Component {
             }
         } catch (e) {
             if (e instanceof FetchRecordError) {
-                this.model.load({
+                // await the recovery load before rethrowing, to avoid an
+                // unhandled rejection interleaving with subsequent loads
+                await this.model.load({
                     resIds: this.model.config.resIds.filter(
                         (id) => !e.resIds.includes(id),
                     ),

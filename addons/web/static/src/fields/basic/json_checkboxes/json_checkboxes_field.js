@@ -6,11 +6,10 @@
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
-
+import { useDebounced } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
-import { debounce } from "@web/core/utils/timing";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JsonCheckboxes extends Component {
     static template = "account.JsonCheckboxes";
@@ -22,7 +21,9 @@ export class JsonCheckboxes extends Component {
 
     setup() {
         this.checkboxes = useState(this.props.record.data[this.props.name]);
-        this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 100);
+        this.debouncedCommitChanges = useDebounced(this.commitChanges, 100, {
+            execBeforeUnmount: true,
+        });
 
         useRecordObserver((record) => {
             Object.assign(this.checkboxes, record.data[this.props.name]);

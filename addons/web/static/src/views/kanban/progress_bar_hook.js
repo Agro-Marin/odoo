@@ -84,6 +84,9 @@ class ProgressBarState {
         this.activeBars = activeBars;
         this._aggregateValues = [];
         this._pbCounts = null;
+        // Stale-response guards for the concurrent refresh RPCs (see updateCounts)
+        this._pbEpoch = 0;
+        this._aggEpoch = 0;
     }
 
     /**
@@ -327,9 +330,10 @@ class ProgressBarState {
      * @param {Group} group - The group where the change occurred.
      */
     updateCounts(group) {
-        this._updateProgressBar();
+        // Fire-and-forget refreshes: catch to avoid unhandled rejections
+        this._updateProgressBar().catch((error) => console.error(error));
         if (this._aggregateFields.length) {
-            this._updateAggregates();
+            this._updateAggregates().catch((error) => console.error(error));
             this.updateAggregateGroup(group);
         }
 
@@ -354,6 +358,7 @@ class ProgressBarState {
 
     /** Re-fetch aggregate values for all groups from the server. */
     async _updateAggregates() {
+        const epoch = ++this._aggEpoch;
         const { context, fields, groupBy, domain, resModel } = this.model.root;
         const kwargs = { context };
         const groups = await this.model.orm.formattedReadGroup(
@@ -363,6 +368,9 @@ class ProgressBarState {
             getAggregateSpecifications(this._aggregateFields),
             kwargs,
         );
+        if (epoch !== this._aggEpoch) {
+            return; // a more recent call superseded this one
+        }
         this._aggregateValues = _groupsToAggregateValues(groups, groupBy, fields);
     }
 
@@ -370,6 +378,7 @@ class ProgressBarState {
     async _updateProgressBar() {
         const groupBy = this.model.root.groupBy;
         if (groupBy.length) {
+            const epoch = ++this._pbEpoch;
             const resModel = this.model.root.resModel;
             const domain = this.model.root.domain;
             const context = this.model.root.context;
@@ -381,6 +390,9 @@ class ProgressBarState {
                 progress_bar: { colors, field, help },
                 context,
             });
+            if (epoch !== this._pbEpoch) {
+                return; // a more recent call superseded this one
+            }
             if (groupsId !== this.model.root.groups.map((g) => g.id).join()) {
                 return;
             }
@@ -461,6 +473,24 @@ class ProgressBarState {
     }
 
     /**
+     * Drop cached per-group progress bar info for groups that no longer exist in
+     * the current root (e.g. after a reload with a different filter/groupBy).
+     * ``_groupsInfo`` is keyed by datapoint id and lazily filled by
+     * ``getGroupInfo``; without pruning, stale entries (and the record lists
+     * they retain through closures) would accumulate forever.
+     */
+    _pruneGroupsInfo() {
+        const groupIds = new Set(
+            (this.model.root.groups || []).map((group) => group.id),
+        );
+        for (const id of Object.keys(this._groupsInfo)) {
+            if (!groupIds.has(id)) {
+                delete this._groupsInfo[id];
+            }
+        }
+    }
+
+    /**
      * We must be able to match groups returned by the read_progress_bar call with groups previously
      * returned by formatted_read_group. When grouped on date(time) fields, the key of each group is the
      * displayName of the period (e.g. "W8 2024"). When grouped on boolean fields, it's "True" and
@@ -513,6 +543,7 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
     const onRootLoaded = model.hooks.lifecycle.onRootLoaded;
     model.hooks.lifecycle.onRootLoaded = async (root) => {
         await onRootLoaded(root);
+        progressBarState._pruneGroupsInfo();
         if (model.isReady) {
             // On a reload, the groups are now loaded; once read_progress_bar also
             // resolves, re-sync the bars so their segments/total reflect the same epoch

@@ -104,10 +104,15 @@ function getAssetCache(targetDoc) {
 }
 
 /**
+ * Seed the per-document asset cache with the script/link URLs already
+ * present in the document, so that ``loadJS``/``loadCSS`` (which dedupe
+ * against that same cache) don't re-inject — and re-execute — assets
+ * the server already rendered into the initial HTML.
+ *
  * @param {Document} targetDoc
  */
 function computeBundleCacheMap(targetDoc) {
-    const cacheMap = getGlobalBundleCache();
+    const cacheMap = getAssetCache(targetDoc);
     for (const script of targetDoc.head.querySelectorAll("script[src]")) {
         // The `[src]` selector guarantees the attribute is present.
         cacheMap.set(
@@ -565,16 +570,36 @@ export const assets = {
         scriptEl.textContent = scriptText;
         const win = /** @type {Window} */ (targetDoc.defaultView);
         await new Promise((resolve, reject) => {
-            win.addEventListener(doneEvent, () => resolve(undefined), { once: true });
-            win.addEventListener(
-                errorEvent,
-                (e) =>
+            // Done/error are paired listeners on the target window: whichever
+            // fires must remove BOTH (a `{once: true}` pair only removes the
+            // one that fired, leaking the other). The script element "error"
+            // listener covers the case where the injected module never runs
+            // (e.g. parse failure) — without it the promise hangs forever.
+            const settle = (/** @type {() => void} */ fn) => {
+                win.removeEventListener(doneEvent, onDone);
+                win.removeEventListener(errorEvent, onError);
+                scriptEl.removeEventListener("error", onScriptError);
+                fn();
+            };
+            const onDone = () => settle(() => resolve(undefined));
+            const onError = (/** @type {Event} */ e) =>
+                settle(() =>
                     reject(
                         /** @type {CustomEvent} */ (e).detail ||
                             new Error(`loadESMBundle failed`),
                     ),
-                { once: true },
-            );
+                );
+            const onScriptError = (/** @type {Event} */ error) =>
+                settle(() =>
+                    reject(
+                        new AssetsLoadingError(`The loading of an ESM bundle failed`, {
+                            cause: error,
+                        }),
+                    ),
+                );
+            win.addEventListener(doneEvent, onDone);
+            win.addEventListener(errorEvent, onError);
+            scriptEl.addEventListener("error", onScriptError);
             (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
         });
     },

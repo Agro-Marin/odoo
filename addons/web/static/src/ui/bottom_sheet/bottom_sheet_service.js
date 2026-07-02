@@ -39,7 +39,14 @@ export const bottomSheetService = {
          * @returns {() => void}
          */
         const add = (target, component, props = {}, options = {}) => {
+            let closed = false;
             function removeAndUpdateCount() {
+                // Close can be requested more than once (e.g. by concurrent
+                // animation listeners): only decrement the count once.
+                if (closed) {
+                    return;
+                }
+                closed = true;
                 _remove();
                 bottomSheetCount--;
                 if (bottomSheetCount === 0) {

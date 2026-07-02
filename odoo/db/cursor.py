@@ -28,7 +28,7 @@ from .metrics import _MetricsMixin
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import schema_cache
-from .utils import categorize_query
+from .utils import categorize_query, is_maintenance_db
 
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
@@ -677,13 +677,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         # Return the connection to the pool.  give_back() MUST run even if
         # rollback() fails, or the connection and its semaphore slot leak.
-        chosen_template = tools.config["db_template"]
-        keep_in_pool = self.dbname not in (
-            "template0",
-            "template1",
-            "postgres",
-            chosen_template,
-        )
+        # Never keep connections to system/template databases: an idle one
+        # blocks CREATE DATABASE (see utils.is_maintenance_db, which the pool
+        # also consults to suppress minconn warming for these).
+        keep_in_pool = not is_maintenance_db(self.dbname)
         try:
             self.rollback()
         except Exception:

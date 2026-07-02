@@ -43,6 +43,7 @@ export async function loadSubViews(
     viewService,
     isSmall,
 ) {
+    const fieldInfosToLoad = [];
     for (const fieldInfo of Object.values(fieldNodes)) {
         const fieldName = fieldInfo.name;
         const field = fields[fieldName];
@@ -65,42 +66,52 @@ export async function loadSubViews(
         if (fieldInfo.views[viewType]) {
             continue; // the sub view is inline in the main form view
         }
-
-        // extract *_view_ref keys from field context, to fetch the adequate view
-        const fieldContext = {};
-        const regex = /'([a-z]*_view_ref)' *: *'(.*?)'/g;
-        let matches;
-        while ((matches = regex.exec(fieldInfo.context)) !== null) {
-            fieldContext[matches[1]] = matches[2];
-        }
-        // filter out *_view_ref keys from general context
-        const refinedContext = {};
-        for (const key of Object.keys(context)) {
-            if (!key.includes("_view_ref")) {
-                refinedContext[key] = context[key];
-            }
-        }
-
-        const comodel = field.relation;
-        const {
-            fields: comodelFields,
-            relatedModels,
-            views,
-        } = await viewService.loadViews({
-            resModel: comodel,
-            views: [[false, viewType]],
-            context: makeContext([fieldContext, user.context, refinedContext]),
-        });
-        const { ArchParser } = viewRegistry.get(viewType);
-        const xmlDoc = parseXML(views[viewType].arch);
-        const archInfo = new ArchParser().parse(xmlDoc, relatedModels, comodel);
-        fieldInfo.views[viewType] = {
-            ...archInfo,
-            limit: archInfo.limit || 40,
-            fields: comodelFields,
-        };
-        fieldInfo.relatedFields = comodelFields;
+        fieldInfosToLoad.push(fieldInfo);
     }
+
+    // Fetch all sub-view archs in parallel: each iteration only mutates its own
+    // fieldInfo, so there is no need to serialize the round-trips.
+    await Promise.all(
+        fieldInfosToLoad.map(async (fieldInfo) => {
+            const field = fields[fieldInfo.name];
+            const viewType = fieldInfo.viewMode;
+
+            // extract *_view_ref keys from field context, to fetch the adequate view
+            const fieldContext = {};
+            const regex = /'([a-z]*_view_ref)' *: *'(.*?)'/g;
+            let matches;
+            while ((matches = regex.exec(fieldInfo.context)) !== null) {
+                fieldContext[matches[1]] = matches[2];
+            }
+            // filter out *_view_ref keys from general context
+            const refinedContext = {};
+            for (const key of Object.keys(context)) {
+                if (!key.includes("_view_ref")) {
+                    refinedContext[key] = context[key];
+                }
+            }
+
+            const comodel = field.relation;
+            const {
+                fields: comodelFields,
+                relatedModels,
+                views,
+            } = await viewService.loadViews({
+                resModel: comodel,
+                views: [[false, viewType]],
+                context: makeContext([fieldContext, user.context, refinedContext]),
+            });
+            const { ArchParser } = viewRegistry.get(viewType);
+            const xmlDoc = parseXML(views[viewType].arch);
+            const archInfo = new ArchParser().parse(xmlDoc, relatedModels, comodel);
+            fieldInfo.views[viewType] = {
+                ...archInfo,
+                limit: archInfo.limit || 40,
+                fields: comodelFields,
+            };
+            fieldInfo.relatedFields = comodelFields;
+        }),
+    );
 }
 
 /**

@@ -281,7 +281,8 @@ export class ListRenderer extends Component {
                 this.optionalActiveFields,
                 this.computeOptionalActiveFields(),
             );
-            this.opt.refreshDebugOpenView();
+            // `this.opt` caches its localStorage-backed state; no per-render
+            // refresh needed (toggle handlers keep it up to date).
             this.debugOpenView = this.opt.debugOpenView;
 
             mark("list:getActiveColumns:start");

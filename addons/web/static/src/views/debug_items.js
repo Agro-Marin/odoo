@@ -362,8 +362,8 @@ class SetDefaultDialog extends Component {
                     displayed,
                 };
             })
-            .filter((val) => val)
-            .sort((field) => field.string);
+            .filter((val) => val);
+        // no sort: fields are listed in form-view order
     }
 
     getConditions() {

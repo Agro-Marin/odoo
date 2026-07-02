@@ -7,11 +7,10 @@ import { Component, onWillRender, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
+import { registerField } from "@web/fields/_registry";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -167,7 +166,16 @@ export class ImageField extends Component {
         ) {
             const image = document.createElement("img");
             image.src = `data:${info.type};base64,${info.data}`;
-            await new Promise((resolve) => image.addEventListener("load", resolve));
+            try {
+                await image.decode();
+            } catch {
+                // Corrupt/invalid image data: abort the upload instead of
+                // hanging forever on a "load" event that never fires.
+                this.notification.add(_t("Could not display the selected image"), {
+                    type: "danger",
+                });
+                return;
+            }
 
             const canvas = document.createElement("canvas");
             canvas.width = image.width;
@@ -183,7 +191,16 @@ export class ImageField extends Component {
             // Generate alternate sizes and format for reports.
             const image = document.createElement("img");
             image.src = `data:image/webp;base64,${info.data}`;
-            await new Promise((resolve) => image.addEventListener("load", resolve));
+            try {
+                await image.decode();
+            } catch {
+                // Corrupt/invalid image data: abort the upload instead of
+                // hanging forever on a "load" event that never fires.
+                this.notification.add(_t("Could not display the selected image"), {
+                    type: "danger",
+                });
+                return;
+            }
             const originalSize = Math.max(image.width, image.height);
             const smallerSizes = [1920, 1024, 512, 256, 128].filter(
                 (size) => size < originalSize,

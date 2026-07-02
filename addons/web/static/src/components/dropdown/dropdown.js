@@ -7,6 +7,7 @@ import {
     Component,
     onMounted,
     onRendered,
+    onWillDestroy,
     onWillUpdateProps,
     reactive,
     status,
@@ -22,7 +23,7 @@ import { hasTouch } from "@web/core/browser/feature_detection";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useChildRef, useService } from "@web/core/utils/hooks";
-import { effect } from "@web/core/utils/reactive";
+import { disposableEffect } from "@web/core/utils/reactive";
 import { useNavigation } from "@web/services/navigation/navigation";
 import { utils } from "@web/ui/block/ui_service";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -216,7 +217,11 @@ export class Dropdown extends Component {
         );
 
         onMounted(() => this.onStateChanged(this.state));
-        effect((state) => this.onStateChanged(state), [this.state]);
+        const disposeEffect = disposableEffect(
+            (state) => this.onStateChanged(state),
+            [this.state],
+        );
+        onWillDestroy(disposeEffect);
 
         useEffect(
             (target) => this.setTargetElement(target),
@@ -225,6 +230,7 @@ export class Dropdown extends Component {
 
         onWillUpdateProps(({ disabled }) => {
             if (disabled) {
+                this.state.close();
                 this.closePopover();
             }
         });

@@ -3,14 +3,13 @@
 
 /** @module @web/fields/relational/many2many_checkboxes/many2many_checkboxes_field - Checkbox group field for Many2many relations */
 
-import { Component, onWillUnmount } from "@odoo/owl";
+import { Component, onWillRender, onWillUnmount } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useBus } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
@@ -39,6 +38,13 @@ export class Many2ManyCheckboxesField extends Component {
         this.idsToAdd = new Set();
         this.idsToRemove = new Set();
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
+        // `isSelected` is called once per checkbox: build the set of current
+        // ids once per render instead of scanning `currentIds` per item.
+        onWillRender(() => {
+            this.currentIds = new Set(
+                this.props.record.data[this.props.name].currentIds,
+            );
+        });
         useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => {
             const result = this.commitChanges();
             if (result) {
@@ -58,7 +64,7 @@ export class Many2ManyCheckboxesField extends Component {
      * @returns {boolean}
      */
     isSelected(item) {
-        return this.props.record.data[this.props.name].currentIds.includes(item[0]);
+        return this.currentIds.has(item[0]);
     }
 
     /** @returns {Promise|undefined} Flushes pending add/remove changes to the relation */

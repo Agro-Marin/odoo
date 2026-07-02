@@ -160,8 +160,10 @@ export class ActionManager {
 
         // Refresh the action stack when an act_window write invalidates the
         // server-side action caches. Extracted to its own module to keep this
-        // cross-cutting concern out of the constructor.
-        installActionCacheInvalidation(this);
+        // cross-cutting concern out of the constructor. The returned disposer
+        // removes the permanent rpcBus listener — short-lived managers (e.g.
+        // enterprise/web_studio's editor) must call it on teardown.
+        this.uninstallActionCacheInvalidation = installActionCacheInvalidation(this);
 
         // -------------------------------------------------------------------
         // Action-type dispatcher

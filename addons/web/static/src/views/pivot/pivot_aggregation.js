@@ -67,8 +67,7 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
     }
 
     // Compute the measure specs once for the whole pass rather than per
-    // sub-group; getMeasureSpecs also mutates the shared field descriptors
-    // (field.aggregator), so computing once reduces that churn.
+    // sub-group.
     const measureSpecs = getMeasureSpecs(config);
 
     groupSubdivisions.forEach((groupSubdivision) => {

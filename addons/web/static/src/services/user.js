@@ -187,21 +187,24 @@ export function _makeUser(session) {
     };
     const getGroupCacheKey = (/** @type {string} */ group) => group;
     const groupCache = new Cache(getGroupCacheValue, getGroupCacheKey);
-    if (isInternalUser !== undefined) {
-        groupCache.cache["base.group_user"] = Promise.resolve(isInternalUser);
-    }
-    if (isSystem !== undefined) {
-        groupCache.cache["base.group_system"] = Promise.resolve(isSystem);
-    }
-    if (isAdmin !== undefined) {
-        groupCache.cache["base.group_erp_manager"] = Promise.resolve(isAdmin);
-    }
-    if (isPublic !== undefined) {
-        groupCache.cache["base.group_public"] = Promise.resolve(isPublic);
-    }
-    for (const [group, value] of Object.entries(groups)) {
-        groupCache.cache[group] = Promise.resolve(!!value);
-    }
+    const seedGroupCache = () => {
+        if (isInternalUser !== undefined) {
+            groupCache.cache["base.group_user"] = Promise.resolve(isInternalUser);
+        }
+        if (isSystem !== undefined) {
+            groupCache.cache["base.group_system"] = Promise.resolve(isSystem);
+        }
+        if (isAdmin !== undefined) {
+            groupCache.cache["base.group_erp_manager"] = Promise.resolve(isAdmin);
+        }
+        if (isPublic !== undefined) {
+            groupCache.cache["base.group_public"] = Promise.resolve(isPublic);
+        }
+        for (const [group, value] of Object.entries(groups)) {
+            groupCache.cache[group] = Promise.resolve(!!value);
+        }
+    };
+    seedGroupCache();
     /** @type {(model: string, operation: string, ids: number[], context: Object) => Promise<boolean>} */
     const getAccessRightCacheValue = (model, operation, ids, context) => {
         const url = `/web/dataset/call_kw/${model}/has_access`;
@@ -221,6 +224,14 @@ export function _makeUser(session) {
         getAccessRightCacheValue,
         getAccessRightCacheKey,
     );
+    // Cached answers depend on the active companies (record rules): flush
+    // both caches on company switches that don't reload the page, and re-seed
+    // the group cache from the (company-independent) session values.
+    userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
+        groupCache.invalidate();
+        seedGroupCache();
+        accessRightCache.invalidate();
+    });
     const lang = pyToJsLocale(context?.lang);
 
     return {
@@ -295,7 +306,9 @@ export function _makeUser(session) {
         },
         async activateCompanies(
             companyIds,
-            options = { includeChildCompanies: true, reload: true },
+            // Per-key defaults: a partial options object (e.g. `{ reload: false }`)
+            // must not drop the other defaults.
+            { includeChildCompanies = true, reload = true } = {},
         ) {
             // Fall back to the current primary company when no ids are given.
             // Guard activeCompanies[0] against the (degenerate) no-company case.
@@ -321,7 +334,7 @@ export function _makeUser(session) {
                 }
             }
 
-            if (options.includeChildCompanies) {
+            if (includeChildCompanies) {
                 addCompanies(
                     companyIds.flatMap((companyId) => {
                         const company = allowedCompanies.find(
@@ -334,7 +347,7 @@ export function _makeUser(session) {
 
             updateActiveCompanies(newCompanyIds, allowedCompanies, defaultCompany);
 
-            if (options.reload) {
+            if (reload) {
                 browser.location.reload();
             }
         },

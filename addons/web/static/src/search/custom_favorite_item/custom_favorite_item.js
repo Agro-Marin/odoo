@@ -9,6 +9,7 @@ import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { editFavoriteFilter } from "@web/search/utils/misc";
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
 /** Dropdown form for saving the current search as a named favorite filter. */
@@ -66,15 +67,7 @@ export class CustomFavoriteItem extends Component {
         if (!serverSideId) {
             return;
         }
-        this.actionService.doAction({
-            type: "ir.actions.act_window",
-            res_model: "ir.filters",
-            views: [[false, "form"]],
-            context: {
-                form_view_ref: "base.ir_filters_view_edit_form",
-            },
-            res_id: serverSideId,
-        });
+        editFavoriteFilter(this.actionService, serverSideId);
     }
 
     /**

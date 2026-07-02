@@ -121,7 +121,9 @@ export class SearchBar extends Component {
                 : useAutofocus({ mobile: this.ui.isSmall }); // only force the focus on touch devices on small screens
 
         useBus(this.env.searchModel, "focus-search", () => {
-            this.inputRef.el.focus();
+            // The input may not be rendered (e.g. collapsed search bar on
+            // small screens).
+            this.inputRef.el?.focus();
         });
 
         useBus(this.env.searchModel, "update", () => this.render());
@@ -767,11 +769,6 @@ export class SearchBar extends Component {
                 this.selectItem(item);
             }
         }
-    }
-
-    onToggleSearchBar() {
-        const state = /** @type {any} */ (this.state);
-        state.showSearchBar = !state.showSearchBar;
     }
 
     onInputDropdownChanged(isOpen) {

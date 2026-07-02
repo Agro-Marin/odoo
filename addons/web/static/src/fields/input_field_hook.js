@@ -4,9 +4,9 @@
 /** @module @web/fields/input_field_hook - OWL hook that syncs an input element with the ORM record and handles dirty/parse/save lifecycle */
 
 import { useComponent, useEffect, useRef } from "@odoo/owl";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 /**
  * This hook is meant to be used by field components that use an input or
@@ -107,7 +107,10 @@ export function useInputField(params) {
                         { save: shouldSave() },
                     );
                     pendingUpdate = false;
-                    component.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
+                    component.props.record.model.bus.trigger(
+                        ModelEvent.FIELD_IS_DIRTY,
+                        isDirty,
+                    );
                 } else {
                     inputRef.el.value = params.getValue();
                 }
@@ -155,11 +158,13 @@ export function useInputField(params) {
         // the corresponding value in the record. Otherwise, in some cases,
         // if the value in the record change the useEffect isn't triggered.
         const value = params.getValue();
-        if (
-            inputRef.el &&
-            !isDirty &&
-            !component.props.record.isFieldInvalid(fieldName)
-        ) {
+        // NB: unlike upstream, we deliberately do NOT reset `isDirty` when
+        // `inputRef.el.value === value`. The fork commits on blur/Tab via
+        // `onChange`/`commitChanges` (which clear `isDirty` themselves and set
+        // `pendingUpdate`), so re-deriving dirtiness here would resync the
+        // input to a stale model value while a slow onchange is still pending,
+        // wiping what the user typed. See list_view slow-onchange tests.
+        if (inputRef.el && !isDirty && !component.props.record.isFieldInvalid(fieldName)) {
             inputRef.el.value = value;
             lastSetValue = inputRef.el.value;
         }
@@ -214,7 +219,10 @@ export function useInputField(params) {
                     { [fieldName]: val },
                     { save: shouldSave() },
                 );
-                component.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, false);
+                component.props.record.model.bus.trigger(
+                    ModelEvent.FIELD_IS_DIRTY,
+                    false,
+                );
             } else {
                 inputRef.el.value = params.getValue();
             }

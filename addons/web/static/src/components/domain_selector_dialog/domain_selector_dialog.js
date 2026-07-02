@@ -88,22 +88,32 @@ export class DomainSelectorDialog extends Component {
         let domain;
         let isValid;
         try {
-            const evalContext = { ...user.context, ...this.props.context };
-            domain = new Domain(this.state.domain).toList(evalContext);
-        } catch {
-            isValid = false;
-        }
-        if (isValid === undefined) {
-            isValid = await rpc("/web/domain/validate", {
-                model: this.props.resModel,
-                domain,
-            });
-        }
-        if (!isValid) {
+            try {
+                const evalContext = { ...user.context, ...this.props.context };
+                domain = new Domain(this.state.domain).toList(evalContext);
+            } catch {
+                isValid = false;
+            }
+            if (isValid === undefined) {
+                try {
+                    isValid = await rpc("/web/domain/validate", {
+                        model: this.props.resModel,
+                        domain,
+                    });
+                } catch {
+                    // Validation could not be performed (e.g. network error):
+                    // treat the domain as invalid instead of leaving the
+                    // confirm button permanently disabled.
+                    isValid = false;
+                }
+            }
+        } finally {
             if (this.confirmButtonRef.el) {
                 /** @type {HTMLButtonElement} */ (this.confirmButtonRef.el).disabled =
                     false;
             }
+        }
+        if (!isValid) {
             this.notification.add(_t("Domain is invalid. Please correct it"), {
                 type: "danger",
             });

@@ -74,7 +74,27 @@ class InteractionService {
     activate(Interactions, target) {
         this.Interactions = Interactions;
         const startProm = this.env.isReady.then(() => this.startInteractions(target));
-        this.proms.push(startProm);
+        this._trackProm(startProm);
+    }
+
+    /**
+     * Tracks a pending promise for `isReady`, and drops it once fulfilled so
+     * that `this.proms` does not grow forever. Rejected promises are kept:
+     * they are the record of interaction crashes, and `isReady` must reject
+     * for them (the no-op rejection handler below only prevents the derived
+     * promise from reporting an unhandled rejection of its own).
+     *
+     * @param {Promise<any>} prom
+     * @returns {void}
+     */
+    _trackProm(prom) {
+        this.proms.push(prom);
+        prom.then(() => {
+            const index = this.proms.indexOf(prom);
+            if (index !== -1) {
+                this.proms.splice(index, 1);
+            }
+        }, () => {});
     }
 
     /**
@@ -103,7 +123,10 @@ class InteractionService {
             // intentional. Cast keeps the call type-clean.
             this.owlApp = new App(null, /** @type {any} */ (appConfig));
         }
-        const root = /** @type {any} */ (this.owlApp).createRoot(C, { props, env: this.env });
+        const root = /** @type {any} */ (this.owlApp).createRoot(C, {
+            props,
+            env: this.env,
+        });
         const rootEl = document.createElement("owl-root");
         rootEl.setAttribute("contenteditable", "false");
         rootEl.dataset.oeProtected = "true";
@@ -193,7 +216,7 @@ class InteractionService {
         const prom = /** @type {Promise<void>} */ (
             /** @type {unknown} */ (Promise.all(proms))
         );
-        this.proms.push(prom);
+        this._trackProm(prom);
         return prom;
     }
 
@@ -214,7 +237,7 @@ class InteractionService {
                 this.interactions.push(interaction);
                 proms.push(interaction.start());
             } catch (e) {
-                this.proms.push(Promise.reject(e));
+                this._trackProm(Promise.reject(e));
             }
         } else {
             proms.push(
@@ -255,10 +278,13 @@ class InteractionService {
      * @returns {void}
      */
     stopInteractions(el = this.el) {
-        const interactions = [];
         const errors = [];
+        // Destroy in reverse start order, but keep survivors in their
+        // original order.
+        const stoppedInteractions = new Set();
         for (const interaction of this.interactions.toReversed()) {
             if (this.shouldStop(el, interaction)) {
+                stoppedInteractions.add(interaction);
                 try {
                     interaction.destroy();
                 } catch (error) {
@@ -268,26 +294,33 @@ class InteractionService {
                     interaction.el,
                     interaction.interaction.constructor,
                 );
-            } else {
-                interactions.push(interaction);
             }
         }
-        this.interactions = interactions;
-        const roots = [];
+        this.interactions = this.interactions.filter(
+            (interaction) => !stoppedInteractions.has(interaction),
+        );
+        const stoppedRoots = new Set();
         for (const root of this.roots.toReversed()) {
             if (el === root.el || el.contains(root.el)) {
+                stoppedRoots.add(root);
                 root.destroy();
                 this.activeInteractions.delete(root.el, root.C);
-            } else {
-                roots.push(root);
             }
         }
-        this.roots = roots;
+        this.roots = this.roots.filter((root) => !stoppedRoots.has(root));
         if (el === this.el) {
             this.isActive = false;
         }
-        for (const [interaction, error] of errors) {
-            throw new Error(`Could not destroy interaction ${interaction}`, { cause: error });
+        if (errors.length) {
+            throw new AggregateError(
+                errors.map(
+                    ([interaction, error]) =>
+                        new Error(`Could not destroy interaction ${interaction}`, {
+                            cause: error,
+                        }),
+                ),
+                "Could not destroy some interactions",
+            );
         }
     }
 

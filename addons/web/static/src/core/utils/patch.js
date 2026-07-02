@@ -161,6 +161,9 @@ export function patch(objToPatch, extension) {
  * - ``patchedKeys`` is the union of property keys any extension has
  *   touched, useful for "did *anyone* override ``save``?" queries.
  *
+ * Note: this is a DevTools/test diagnostic helper — no production code
+ * path calls it.
+ *
  * @param {object} target Same object handed to ``patch()`` (class
  *   prototype, class constructor, or plain object).
  * @returns {{ extensions: object[], patchedKeys: string[] } | null}

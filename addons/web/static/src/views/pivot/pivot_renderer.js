@@ -57,6 +57,7 @@ export class PivotRenderer extends Component {
         this.actionService = useService("action");
         this.model = this.props.model;
         this.table = this.model.getTable();
+        this.computeMeasureFormatters();
         this.l10n = localization;
         this.tableRef = useRef("table");
 
@@ -86,6 +87,43 @@ export class PivotRenderer extends Component {
     }
     onWillUpdateProps() {
         this.table = this.model.getTable();
+        this.computeMeasureFormatters();
+    }
+    /**
+     * Precompute the codec and base format options for each active measure.
+     *
+     * `getFormattedValue` runs once per body cell per render; rebuilding the
+     * fieldInfo + codec + options there would repeat the same derivation for
+     * every cell (cf. the memoization in view_utils.getFormattedValue). Only
+     * per-cell bits (e.g. currencyId) are resolved per cell.
+     *
+     * @private
+     */
+    computeMeasureFormatters() {
+        const { fieldAttrs, measures, widgets, activeMeasures } = this.model.metaData;
+        /** @type {Map<string, { codec: any, formatType: string, baseOptions: Record<string, any> }>} */
+        this.measureFormatters = new Map();
+        for (const measure of activeMeasures) {
+            const field = measures[measure];
+            const attrs = fieldAttrs[measure] ?? {};
+            const fieldInfo = {
+                options: attrs.options ?? {},
+                attrs,
+            };
+            let formatType = widgets[measure];
+            if (!formatType) {
+                const fieldType = field.type;
+                formatType = ["many2one", "reference"].includes(fieldType)
+                    ? "integer"
+                    : fieldType;
+            }
+            const codec = getFieldCodec(formatType);
+            this.measureFormatters.set(measure, {
+                codec,
+                formatType,
+                baseOptions: { field, ...codec.extractOptions(fieldInfo) },
+            });
+        }
     }
     /**
      * Get the formatted value of the cell.
@@ -95,22 +133,12 @@ export class PivotRenderer extends Component {
      * @returns {string} Formatted value
      */
     getFormattedValue(cell) {
-        const field = this.model.metaData.measures[cell.measure];
-        const fieldAttrs = this.model.metaData.fieldAttrs[cell.measure] ?? {};
-        const fieldInfo = {
-            options: fieldAttrs.options ?? {},
-            attrs: fieldAttrs,
-        };
-        let formatType = this.model.metaData.widgets[cell.measure];
-        if (!formatType) {
-            const fieldType = field.type;
-            formatType = ["many2one", "reference"].includes(fieldType)
-                ? "integer"
-                : fieldType;
-        }
-        const codec = getFieldCodec(formatType);
+        const { codec, formatType, baseOptions } = this.measureFormatters.get(
+            cell.measure,
+        );
+        // Shallow-copy per cell: some formatters self-mutate their options
         /** @type {Record<string, any>} */
-        const formatOptions = { field, ...codec.extractOptions(fieldInfo) };
+        const formatOptions = { ...baseOptions };
         if (formatType === "monetary") {
             if (cell.currencyIds.length > 1) {
                 formatOptions.currencyId = user.activeCompany?.currency_id;

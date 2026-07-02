@@ -528,10 +528,24 @@ export class RPCCache {
         this.indexedDB.invalidate(tables);
         this.ramCache.invalidate(tables);
         // flag the pending requests as invalidated s.t. we don't write their results in caches
-        for (const key of Object.keys(this.pendingRequests)) {
-            this.pendingRequests[key].invalidated = true;
+        if (tables == null) {
+            // full-cache nuke: every pending request is affected
+            for (const key of Object.keys(this.pendingRequests)) {
+                this.pendingRequests[key].invalidated = true;
+            }
+            this.pendingRequests = {};
+            return;
         }
-        this.pendingRequests = {};
+        // Table-scoped invalidation: only flag pending requests belonging to
+        // the invalidated tables (requestKey format is "${table}/${key}"),
+        // like invalidateByModel already does for model-scoped signals.
+        const tableList = typeof tables === "string" ? [tables] : tables;
+        for (const requestKey of Object.keys(this.pendingRequests)) {
+            if (tableList.some((table) => requestKey.startsWith(`${table}/`))) {
+                this.pendingRequests[requestKey].invalidated = true;
+                delete this.pendingRequests[requestKey];
+            }
+        }
     }
 
     /**

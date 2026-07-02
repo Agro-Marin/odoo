@@ -12071,9 +12071,10 @@ test("open a one2many record containing a one2many", async () => {
 
     await contains(".o_data_cell").click();
     expect(".modal .o_data_row").toHaveCount(1);
+    // Only the freshly-mounted inner "turtles" list reads localStorage here:
+    // the outer "p" list caches its localStorage-backed state at setup and no
+    // longer re-reads it when it re-renders as the modal opens.
     expect.verifySteps([
-        "getItem: optional_fields,partner,form,5,p,list,name",
-        "getItem: debug_open_view,partner,form,5,p,list,name",
         "getItem: optional_fields,partner,form,5,turtles,list,name",
         "getItem: debug_open_view,partner,form,5,turtles,list,name",
     ]);
@@ -12137,20 +12138,17 @@ test("open a one2many record with optional open record displayed", async () => {
     await contains(".o_optional_columns_dropdown button").click();
     expect(".o-dropdown-item:contains('View Button')").toHaveCount(1);
     await contains(".o-dropdown-item:contains('View Button')").click();
-    expect.verifySteps([
-        ["setItem", localStorageKey, true],
-        ["getItem", localStorageKey, "true"],
-    ]);
+    // Only a setItem: the toggle refreshes the cached flag, so no per-render
+    // localStorage re-read follows.
+    expect.verifySteps([["setItem", localStorageKey, true]]);
 
     expect(`td.o_list_record_open_form_view`).toHaveCount(1, {
         message: "button to open form view should be present on each rows",
     });
 
     await contains(`td.o_list_record_open_form_view`).click();
-    expect.verifySteps([
-        ["getItem", localStorageKey, "true"],
-        "partner.get_views",
-    ]);
+    // The cached flag means opening the record no longer re-reads localStorage.
+    expect.verifySteps(["partner.get_views"]);
 });
 
 test("if there are less than 4 lines in a one2many, empty lines must be displayed to cover the difference.", async () => {

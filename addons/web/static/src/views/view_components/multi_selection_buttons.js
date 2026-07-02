@@ -48,9 +48,16 @@ export class MultiSelectionButtons extends Component {
         this.state = useState({ isReady: false });
         onWillRender(() => {
             if (this.props.reactive.visible && !this.state.isReady) {
-                this.loadMultiCreateView().then(() => {
-                    this.state.isReady = true;
-                });
+                // Store the promise: onWillRender fires on every render while
+                // not ready, which would otherwise start concurrent loads and
+                // retry (with unhandled rejections) on every render on failure.
+                this._loadViewProm ??= this.loadMultiCreateView()
+                    .then(() => {
+                        this.state.isReady = true;
+                    })
+                    .catch((error) => {
+                        console.error("Failed to load multi-create view:", error);
+                    });
             }
         });
 

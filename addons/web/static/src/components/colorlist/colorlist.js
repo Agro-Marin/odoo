@@ -3,7 +3,7 @@
 
 /** @module @web/components/colorlist/colorlist - Expandable color swatch picker for selecting from predefined Odoo color indices */
 
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 export class ColorList extends Component {
     static COLORS = [
@@ -37,10 +37,24 @@ export class ColorList extends Component {
     setup() {
         this.colorlistRef = useRef("colorlist");
         this.state = useState({ isExpanded: this.props.isExpanded });
-        useExternalListener(
-            window,
-            "click",
-            /** @type {EventListener} */ (this.onOutsideClick),
+        this.onOutsideClick = this.onOutsideClick.bind(this);
+        // Only listen to outside clicks while expanded; the effect cleanup
+        // also removes the listener on unmount.
+        useEffect(
+            (isExpanded) => {
+                if (isExpanded) {
+                    window.addEventListener(
+                        "click",
+                        /** @type {EventListener} */ (this.onOutsideClick),
+                    );
+                    return () =>
+                        window.removeEventListener(
+                            "click",
+                            /** @type {EventListener} */ (this.onOutsideClick),
+                        );
+                }
+            },
+            () => [this.state.isExpanded],
         );
     }
     get colors() {

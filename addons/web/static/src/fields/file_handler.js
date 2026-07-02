@@ -69,6 +69,9 @@ export class FileUploader extends Component {
                     size: file.size,
                     type: file.type,
                     data: data.split(",")[1],
+                    // Ownership of the object URL is transferred to the
+                    // `onUploaded` consumer, which is responsible for revoking
+                    // it (see PdfViewerField, currently its only consumer).
                     objectUrl:
                         file.type === "application/pdf"
                             ? URL.createObjectURL(file)

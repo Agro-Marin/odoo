@@ -16,8 +16,8 @@ import { useFileUploader } from "@web/core/utils/files";
  * Props:
  * @param {string} [props.acceptedFileExtensions='*'] Comma-separated
  *      list of authorized file extensions (default to all).
- * @param {string} [props.route='/web/binary/upload'] Route called when
- *      a file is uploaded in the input.
+ * @param {string} [props.route='/web/binary/upload_attachment'] Route called
+ *      when a file is uploaded in the input.
  * @param {string} [props.resId]
  * @param {string} [props.resModel]
  * @param {string} [props.multiUpload=false] Whether the input should allow
@@ -109,13 +109,14 @@ export class FileInput extends Component {
                         ? /** @type {HTMLInputElement} */ (this.fileInputRef.el).files
                         : [],
                 );
-                // Because the input would not trigger this method if the same file name is uploaded,
-                // we must clear the value after handling the upload
-                if (this.fileInputRef.el) {
-                    /** @type {HTMLInputElement} */ (this.fileInputRef.el).value = "";
-                }
             }
         } finally {
+            // Because the input would not trigger this method if the same file name is uploaded,
+            // we must clear the value once the upload is handled (even when it failed, so that
+            // re-selecting the same file triggers a new upload)
+            if (this.fileInputRef.el) {
+                /** @type {HTMLInputElement} */ (this.fileInputRef.el).value = "";
+            }
             this.state.isDisable = false;
         }
     }

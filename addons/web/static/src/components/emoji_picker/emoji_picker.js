@@ -9,6 +9,7 @@ import {
     onMounted,
     onPatched,
     onWillPatch,
+    onWillRender,
     onWillStart,
     onWillUnmount,
     reactive,
@@ -59,9 +60,8 @@ export async function loadEmoji() {
     const res = { categories: [], emojis: [] };
     try {
         await loader.loadEmoji();
-        const { getCategories, getEmojis } = await import(
-            "@web/components/emoji_picker/emoji_data"
-        );
+        const { getCategories, getEmojis } =
+            await import("@web/components/emoji_picker/emoji_data");
         res.categories = getCategories();
         res.emojis = getEmojis();
         return res;
@@ -128,6 +128,15 @@ export class EmojiPicker extends Component {
     emojis;
     /** @type {{[key: string]: Emoji}} */
     emojiByCodepoints;
+    /** @type {Map<string, {name: string, displayName: string, sortId: number, title?: string}>} */
+    categoryByName;
+    // Search results are computed once per render (see onWillRender) and
+    // cached non-reactively; the template reads the cached values through
+    // recentEmojis / getEmojis().
+    /** @type {Emoji[] | undefined} */
+    _recentEmojis;
+    /** @type {Emoji[] | undefined} */
+    _emojis;
     /** @type {{name: string, displayName: string, title: string, sortId: number}} */
     recentCategory;
     /** @type {ResizeObserver | undefined} */
@@ -164,6 +173,9 @@ export class EmojiPicker extends Component {
             this.emojiByCodepoints = Object.fromEntries(
                 this.emojis.map((emoji) => [emoji.codepoints, emoji]),
             );
+            this.categoryByName = new Map(
+                this.categories.map((category) => [category.name, category]),
+            );
             this.recentCategory = {
                 name: "Frequently used",
                 displayName: _t("Frequently used"),
@@ -173,6 +185,10 @@ export class EmojiPicker extends Component {
             this.state.categoryId = this.recentEmojis.length
                 ? this.recentCategory.sortId
                 : this.categories[0].sortId;
+        });
+        onWillRender(() => {
+            this._recentEmojis = this.computeRecentEmojis();
+            this._emojis = this.computeEmojis();
         });
         onMounted(() => {
             if (!this.emojis.length) {
@@ -330,11 +346,11 @@ export class EmojiPicker extends Component {
         }
     }
 
-    get itemsNumber() {
-        return this.recentEmojis.length + this.getEmojis().length;
+    get recentEmojis() {
+        return this._recentEmojis ?? this.computeRecentEmojis();
     }
 
-    get recentEmojis() {
+    computeRecentEmojis() {
         const recent = Object.entries(this.frequentEmojiService.all)
             .sort(([, usage_1], [, usage_2]) => usage_2 - usage_1)
             .map(([codepoints]) => this.emojiByCodepoints[codepoints]);
@@ -501,6 +517,10 @@ export class EmojiPicker extends Component {
     }
 
     getEmojis() {
+        return this._emojis ?? this.computeEmojis();
+    }
+
+    computeEmojis() {
         let emojisToDisplay = [...this.emojis];
         const recentEmojis = this.recentEmojis;
         if (recentEmojis.length && this.searchTerm) {
@@ -554,7 +574,8 @@ export class EmojiPicker extends Component {
             return;
         }
         this.state.categoryId = Number.parseInt(
-            /** @type {HTMLElement} */ (res).dataset.category, 10,
+            /** @type {HTMLElement} */ (res).dataset.category,
+            10,
         );
     }
 }
@@ -623,14 +644,17 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
             };
             if (ref?.el) {
                 pickerMobileProps.close = () => remove();
-                const app = new App(PickerMobile, /** @type {any} */ ({
-                    name: "Popout",
-                    env: component.env,
-                    props: pickerMobileProps,
-                    getTemplate,
-                    translatableAttributes: ["data-tooltip"],
-                    translateFn: appTranslateFn,
-                }));
+                const app = new App(
+                    PickerMobile,
+                    /** @type {any} */ ({
+                        name: "Popout",
+                        env: component.env,
+                        props: pickerMobileProps,
+                        getTemplate,
+                        translatableAttributes: ["data-tooltip"],
+                        translateFn: appTranslateFn,
+                    }),
+                );
                 app.mount(ref.el);
                 remove = () => {
                     state.isOpen = false;
@@ -738,7 +762,10 @@ class PickerMobileInDialog extends PickerMobile {
             window,
             "click",
             (ev) => {
-                if (ev.target !== this.root.el && !this.root.el.contains(/** @type {Node} */ (ev.target))) {
+                if (
+                    ev.target !== this.root.el &&
+                    !this.root.el.contains(/** @type {Node} */ (ev.target))
+                ) {
                     this.props.close?.();
                 }
             },

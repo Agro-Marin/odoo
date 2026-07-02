@@ -6,6 +6,7 @@
 import { browser } from "@web/core/browser/browser";
 import { strftimeToLuxonFormat } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { Settings } from "@web/core/l10n/luxon";
 import {
     translatedTerms,
     translatedTermsGlobal,
@@ -13,8 +14,8 @@ import {
     translationLoaded,
 } from "@web/core/l10n/translation";
 import { jsToPyLocale } from "@web/core/l10n/utils";
-import { Settings } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+import { l10nLog } from "@web/core/utils/asset_log";
 import { IndexedDB } from "@web/core/utils/indexed_db";
 import { objectToUrlEncodedString } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
@@ -58,14 +59,15 @@ export const localizationService = {
             let queryString = objectToUrlEncodedString({ hash, lang });
             queryString = queryString.length ? `?${queryString}` : queryString;
             const url = `${translationURL}${queryString}`;
-            console.debug("[debug:l10n] fetchTranslations begin url=%s", url);
+            l10nLog("fetch", "fetchTranslations begin", `url=${url}`);
             const response = await browser.fetch(url, {
                 cache: "no-store",
             });
-            console.debug(
-                "[debug:l10n] fetchTranslations response status=%s ok=%s",
-                response.status,
-                response.ok,
+            l10nLog(
+                "fetch",
+                "fetchTranslations response",
+                `status=${response.status}`,
+                `ok=${response.ok}`,
             );
             if (!response.ok) {
                 throw new Error("Error while fetching translations");
@@ -74,9 +76,10 @@ export const localizationService = {
             if (result.hash !== hash) {
                 localizationDB.write(translationURL, JSON.stringify({ lang }), result);
                 updateTranslations(result);
-                console.debug(
-                    "[debug:l10n] fetchTranslations cached + applied hash=%s",
-                    result.hash,
+                l10nLog(
+                    "fetch",
+                    "fetchTranslations cached + applied",
+                    `hash=${result.hash}`,
                 );
             }
         };
@@ -139,20 +142,21 @@ export const localizationService = {
             translationURL,
             JSON.stringify({ lang }),
         );
-        console.debug(
-            "[debug:l10n] storedTranslations hit=%s hash=%s lang=%s",
-            Boolean(storedTranslations),
-            storedTranslations?.hash,
-            lang,
+        l10nLog(
+            "cache",
+            "storedTranslations",
+            `hit=${Boolean(storedTranslations)}`,
+            `hash=${storedTranslations?.hash}`,
+            `lang=${lang}`,
         );
 
-        const translationProm = fetchTranslations(storedTranslations?.hash).catch(
-            (e) => console.warn("Background translation fetch failed:", e),
+        const translationProm = fetchTranslations(storedTranslations?.hash).catch((e) =>
+            console.warn("Background translation fetch failed:", e),
         );
         if (storedTranslations) {
             updateTranslations(storedTranslations);
         } else {
-            console.debug("[debug:l10n] no cache, awaiting fetch");
+            l10nLog("cache", "no cache, awaiting fetch");
             await translationProm;
         }
 

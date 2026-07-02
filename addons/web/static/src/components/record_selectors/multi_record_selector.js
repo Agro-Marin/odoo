@@ -4,8 +4,8 @@
 /** @module @web/components/record_selectors/multi_record_selector - Multi-value record picker with tag display and autocomplete search */
 
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { isId } from "@web/core/tree/utils";
 import { _t } from "@web/core/l10n/translation";
+import { isId } from "@web/core/tree/utils";
 import { imageUrl } from "@web/core/utils/urls";
 
 import { BaseRecordSelector } from "./base_record_selector.js";
@@ -47,7 +47,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
      */
     /** @returns {string | undefined} input placeholder, empty when tags exist */
     get placeholder() {
-        return this.getTags(this.props, {}).length ? "" : this.props.placeholder;
+        return this.props.resIds.length ? "" : this.props.placeholder;
     }
 
     /**

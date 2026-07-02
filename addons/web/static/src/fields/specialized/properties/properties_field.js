@@ -16,19 +16,18 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { reposition } from "@web/core/position/utils";
-
-import { registerField } from "@web/fields/_registry";
 import { exprToBoolean, uuid } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 import { user } from "@web/services/user";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
+import { usePropertiesSortable } from "./properties_sortable_hook.js";
 import { PropertyDefinition } from "./property_definition.js";
 import { PropertyValue } from "./property_value.js";
-import { usePropertiesSortable } from "./properties_sortable_hook.js";
 
 export class PropertiesField extends Component {
     static template = "web.PropertiesField";
@@ -63,6 +62,9 @@ export class PropertiesField extends Component {
             setActiveElement: false, // make tag navigation work when adding a tag property
         });
         this.propertiesRef = useRef("properties");
+        // Prefix used to build stable DOM ids for the properties (one uuid
+        // per component instance instead of one per property per render).
+        this.domIdPrefix = `property_${uuid()}`;
 
         let currentResId;
         useRecordObserver((record) => {
@@ -175,15 +177,13 @@ export class PropertiesField extends Component {
 
         usePropertiesSortable({
             propertiesRef: this.propertiesRef,
-            getEnabled: () =>
-                !this.props.readonly && this.state.canChangeDefinition,
+            getEnabled: () => !this.props.readonly && this.state.canChangeDefinition,
             getRenderedColumnsCount: () => this.renderedColumnsCount,
             getGroupedPropertiesList: () => this.groupedPropertiesList,
             onPropertyMoveTo: (from, to, moveBefore) =>
                 this.onPropertyMoveTo(from, to, moveBefore),
             onGroupMoveTo: (from, to) => this.onGroupMoveTo(from, to),
-            onToggleSeparators: (names, force) =>
-                this._toggleSeparators(names, force),
+            onToggleSeparators: (names, force) => this._toggleSeparators(names, force),
         });
     }
 
@@ -346,12 +346,14 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Generate an unique ID to be used in the DOM.
+     * Return a unique but render-stable ID to be used in the DOM for the
+     * given property.
      *
+     * @param {string} propertyName
      * @returns {string}
      */
-    generateUniqueDomID() {
-        return `property_${uuid()}`;
+    getPropertyDomID(propertyName) {
+        return `${this.domIdPrefix}_${propertyName}`;
     }
 
     /**
@@ -969,10 +971,6 @@ export class PropertiesField extends Component {
         if (newProperty.default) {
             newProperty.value = newProperty.default;
         }
-        // it won't update the props, it's a trick because the onClose event of the popover
-        // is called not synchronously, and so if we click on "create a property", it will close
-        // the popover, calling this function, but the value will be overwritten because of onPropertyCreate
-        this.props.value = propertiesValues;
         this.props.record.update({ [this.props.name]: propertiesValues });
     }
 
@@ -997,9 +995,13 @@ export class PropertiesField extends Component {
      */
     _getPropertyEditWarningText() {
         if (!this.definitionRecordId) {
-            return _t("Oops! A %(parentFieldLabel)s is needed to add property fields.", {
-                parentFieldLabel: this.props.record.fields[this.definitionRecordField].string,
-            });
+            return _t(
+                "Oops! A %(parentFieldLabel)s is needed to add property fields.",
+                {
+                    parentFieldLabel:
+                        this.props.record.fields[this.definitionRecordField].string,
+                },
+            );
         }
         return _t('Oops! You cannot edit the %(parentFieldLabel)s "%(parentName)s".', {
             parentName: this.props.record.data[this.definitionRecordField].display_name,

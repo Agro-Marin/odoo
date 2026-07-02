@@ -242,6 +242,34 @@ export const strftimeToLuxonFormat = memoize(function strftimeToLuxonFormat(form
 // Formatting
 //-----------------------------------------------------------------------------
 
+// Base locale format objects, precomputed once instead of spread + mutated on
+// every toLocaleDateString/toLocaleDateTimeString call.
+const DATE_MED_NO_YEAR = { ...DateTime.DATE_MED };
+delete DATE_MED_NO_YEAR.year;
+const DATETIME_MED_NO_SECONDS = { ...DateTime.DATETIME_MED_WITH_SECONDS };
+delete DATETIME_MED_NO_SECONDS.second;
+
+/**
+ * Current year in the default timezone, memoized for the current local day.
+ * Avoids building two luxon DateTimes (`today()`) per formatted value just to
+ * compare `.year`. The memo is keyed on the [start, end) timestamps of the
+ * day it was computed for, so it also recomputes when the clock is moved
+ * backwards (e.g. mocked dates in tests).
+ */
+let currentYear;
+let currentYearDayStart = 0;
+let currentYearDayEnd = 0;
+function getCurrentYear() {
+    const now = Date.now();
+    if (now < currentYearDayStart || now >= currentYearDayEnd) {
+        const startOfToday = today();
+        currentYear = startOfToday.year;
+        currentYearDayStart = startOfToday.ts;
+        currentYearDayEnd = startOfToday.plus({ day: 1 }).ts;
+    }
+    return currentYear;
+}
+
 /**
  * @param {NullableDateTime} value
  * @param {ConversionOptions} [options={}]
@@ -276,10 +304,8 @@ export function toLocaleDateString(value) {
     if (!value) {
         return "";
     }
-    const format = { ...DateTime.DATE_MED };
-    if (today().year === value.year) {
-        delete format.year;
-    }
+    const format =
+        getCurrentYear() === value.year ? DATE_MED_NO_YEAR : DateTime.DATE_MED;
     return value.toLocaleString(format);
 }
 
@@ -296,10 +322,9 @@ export function toLocaleDateTimeString(
     if (!value) {
         return "";
     }
-    const format = { ...DateTime.DATETIME_MED_WITH_SECONDS };
-    if (!options.showSeconds) {
-        delete format.second;
-    }
+    const format = options.showSeconds
+        ? { ...DateTime.DATETIME_MED_WITH_SECONDS }
+        : { ...DATETIME_MED_NO_SECONDS };
     if (options.showDate === false) {
         delete format.day;
         delete format.month;
@@ -309,7 +334,7 @@ export function toLocaleDateTimeString(
         delete format.hour;
         delete format.minute;
     }
-    if (today().year === value.year) {
+    if (getCurrentYear() === value.year) {
         delete format.year;
     }
     return value.setZone(options.tz || "default").toLocaleString(format);

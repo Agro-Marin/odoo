@@ -54,7 +54,12 @@ export const computeReportMeasures = (
 
     for (const fieldName of Object.keys(fieldAttrs)) {
         if (fieldAttrs[fieldName].string && fieldName in measures) {
-            measures[fieldName].string = fieldAttrs[fieldName].string;
+            // copy before mutating: `measures[fieldName]` aliases the live
+            // shared field definition
+            measures[fieldName] = {
+                ...measures[fieldName],
+                string: fieldAttrs[fieldName].string,
+            };
         }
     }
 
@@ -83,9 +88,11 @@ export function computeAggregatedValue(values, aggregator) {
     } else if (aggregator === "avg") {
         return values.reduce((acc, v) => v + acc, 0) / values.length;
     } else if (aggregator === "min") {
-        return Math.min(Infinity, ...values);
+        // reduce instead of Math.min(...values): spreading very large arrays
+        // exceeds the argument limit and throws a RangeError
+        return values.reduce((acc, v) => (v < acc ? v : acc), Infinity);
     } else if (aggregator === "max") {
-        return Math.max(-Infinity, ...values);
+        return values.reduce((acc, v) => (v > acc ? v : acc), -Infinity);
     } else if (aggregator === "count") {
         return values.length;
     } else if (aggregator === "count_distinct") {
