@@ -50,7 +50,7 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
     The first parameter (the controller instance) is EXCLUDED: it is bound
     positionally, so a same-named request arg (e.g. ``?self=1``) would otherwise
     raise ``got multiple values for argument 'self'`` — a 500 on every route.
-    This divergence from ``filter_kwargs`` is locked by ``TestSelfParamCollision``.
+    This exclusion is a deliberate divergence from ``filter_kwargs``.
     """
     accepts_var_keyword = False
     named: set[str] = set()
@@ -112,8 +112,10 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
         against the handler's type annotations (see :mod:`odoo.http._params`):
         an ``n: int`` parameter then arrives as a real ``int``, and a missing
         required parameter or a value that cannot be coerced yields a ``400``.
-        Only annotated parameters are affected; unannotated ones pass through
-        unchanged. ``False`` by default.
+        A ``list[...]``-annotated parameter collects every repeated occurrence
+        of its query/form key (``?a=1&a=2`` → ``[1, 2]``) on ``type='http'``
+        routes. Only annotated parameters are affected; unannotated ones pass
+        through unchanged. ``False`` by default.
     :param bool | Callable[[Controller, rule, dict], bool] readonly:
         Whether this endpoint should open a cursor on a read-only
         replica instead of (by default) the primary read/write database.
@@ -229,6 +231,16 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
 
         route_wrapper.original_routing = routing
         route_wrapper.original_endpoint = endpoint
+        if param_specs:
+            # Names of ``list``-annotated params, so ``HttpDispatcher.dispatch``
+            # can re-read repeated query/form keys via ``getlist`` — the flat
+            # ``get_http_params`` merge keeps only one value per key. Set only
+            # when non-empty so untyped routes carry no extra attribute.
+            typed_list_params = frozenset(
+                name for name, spec in param_specs.items() if spec.target is list
+            )
+            if typed_list_params:
+                route_wrapper.typed_list_params = typed_list_params
         return route_wrapper
 
     return decorator
@@ -401,6 +413,18 @@ def _check_and_complete_route_definition(
             routing_type,
         )
     submethod.original_routing["type"] = routing_type
+
+    # Param coercion (``typed=True``) is compiled into each wrapper AT DECORATION
+    # TIME from its own ``@route`` arguments — it cannot be inherited through the
+    # routing merge. An override that forgets to restate ``typed=True`` therefore
+    # silently loses coercion while the merged routing (and the OpenAPI document)
+    # still advertise it; warn so the divergence is visible.
+    if merged_routing.get("typed") and "typed" not in submethod.original_routing:
+        _logger.warning(
+            "The endpoint %s overrides a typed=True route without restating "
+            "typed=True; parameter coercion is DISABLED for this override.",
+            f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
+        )
 
     default_auth = submethod.original_routing.get("auth", merged_routing["auth"])
     default_mode = submethod.original_routing.get("readonly", default_auth == "none")

@@ -108,6 +108,14 @@ class TestHttp(http.Controller):
         # ``flag`` a real bool before this body runs.
         return f"{n}:{type(n).__name__}:{flag}:{type(flag).__name__}"
 
+    @http.route(
+        "/test_http/typed-list", type="http", auth="none", methods=["GET"], typed=True
+    )
+    def typed_list(self, vals: list[int] | None = None):
+        # A ``list[...]`` param on a typed http route collects every repeated
+        # occurrence of its query key (``?vals=1&vals=2`` → ``[1, 2]``).
+        return repr(vals)
+
     @http.route("/test_http/openapi.json", type="http", auth="none", methods=["GET"])
     def openapi_json(self):
         # Serve the curated (typed) API as an OpenAPI 3.1 document, generated

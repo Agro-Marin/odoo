@@ -174,6 +174,21 @@ class HttpDispatcher(Dispatcher):
         """
         self.request.params = self.request.get_http_params() | args
 
+        # ``get_http_params``'s flat merge keeps one value per key, silently
+        # dropping the rest of ``?a=1&a=2``. For a typed route's
+        # ``list``-annotated params (the only place multi-values have declared
+        # meaning), re-read every value via ``getlist``. Path args are never
+        # lists, so keys bound by the rule are left alone.
+        list_params = getattr(endpoint, "typed_list_params", None)
+        if list_params:
+            httprequest = self.request.httprequest
+            for name in list_params:
+                if name in args:
+                    continue
+                values = httprequest.args.getlist(name) + httprequest.form.getlist(name)
+                if len(values) > 1:
+                    self.request.params[name] = values
+
         # Check for CSRF token for relevant requests
         if (
             self.request.httprequest.method not in SAFE_HTTP_METHODS
