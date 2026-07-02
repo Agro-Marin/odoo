@@ -7,7 +7,6 @@
 
 declare module "@web/search/search_model" {
     import { EventBus } from "@odoo/owl";
-    import { Domain } from "@web/core/domain";
 
     export type OrderTerm = { name: string; asc?: boolean };
 
@@ -99,7 +98,7 @@ declare module "@web/search/search_model" {
         // Getters — computed search state
         get categories(): Section[];
         get context(): Record<string, any>;
-        get domain(): Domain;
+        get domain(): any[];
         get domainString(): string;
         get facets(): any[];
         get filters(): Section[];
@@ -117,7 +116,7 @@ declare module "@web/search/search_model" {
             embeddedActionId?: number | false;
         }): Promise<number>;
         createNewFilters(prefilters: any[]): void;
-        createNewGroupBy(fieldName: string, options?: { interval?: string; invisible?: string }): void;
+        createNewGroupBy(fieldName: string, options?: { interval?: string; invisible?: string | boolean }): void;
         deactivateGroup(groupId: number): void;
         exportState(): Record<string, any>;
         getSearchItems(predicate: (item: SearchItem) => boolean): SearchItem[];
@@ -129,7 +128,7 @@ declare module "@web/search/search_model" {
         clearSections(sectionIds: number[]): void;
         toggleSearchItem(searchItemId: number): void;
         toggleDateFilter(searchItemId: number, generatorId: string): void;
-        toggleDateGroupBy(searchItemId: number, intervalId: string): void;
+        toggleDateGroupBy(searchItemId: number, intervalId?: string): void;
         spawnCustomFilterDialog(): Promise<void>;
         switchGroupBySort(): void;
         getSearchItemsProperties(searchItem: SearchItem): Promise<SearchItem[]>;
