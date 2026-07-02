@@ -3,7 +3,7 @@
 :class:`RecomputeScheduler` converts trigger-traversal results into scheduling
 decisions. No dependency on Environment, BaseModel, or cursors — testable with
 pure Python. It processes (field, ids) trigger entries (from the trigger tree
-traversal in ``CacheMixin._modified_triggers``) and for each routes to:
+traversal in ``RecomputeMixin._modified_triggers``) and for each routes to:
 
 * **Recomputation** (stored-computed fields) — accumulated in :attr:`to_recompute`
 * **Cache invalidation** (non-stored computed) — accumulated in :attr:`to_invalidate`

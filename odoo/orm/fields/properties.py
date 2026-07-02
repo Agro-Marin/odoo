@@ -242,7 +242,7 @@ class Properties(Field):
         # gives a clearer message than the strict-zip below
         if len(values) != len(records):
             raise ValueError(
-                f"convert_to_record: expected {len(records)} values, got {len(values)}"
+                f"convert_to_read_multi: expected {len(records)} values, got {len(values)}"
             )
 
         # each value is either False or a dict

@@ -276,7 +276,7 @@ def _prepare_setup(model_cls: type[BaseModel]):
     # reset properties memoized on model_cls's own __dict__.  Each memo is
     # stored under a distinct ``*__`` name read from the class's own __dict__
     # (via ``helpers.own_class_memo``, used by BaseModel._constraint_methods,
-    # CreateMixin._prepare_create_values and CacheMixin._get_stored_computed_fields,
+    # CreateMixin._prepare_create_values and RecomputeMixin._get_stored_computed_fields,
     # to avoid leaking it to prototype-inheriting children).  The model class
     # object is reused across re-setup (only ``__bases__`` is reassigned, above),
     # so these memos are NOT cleared by class recreation — they must be discarded
