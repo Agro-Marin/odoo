@@ -56,23 +56,29 @@ function useClickAway(popover, callback) {
         capture: true,
     });
     for (const iframeEl of document.querySelectorAll("iframe")) {
-        useEarlyExternalListener(
-            iframeEl.contentWindow,
-            "pointerdown",
-            () => {
-                const popupEl = popover.popoverRef.el;
-                let checkEl = iframeEl.parentElement;
-                while (checkEl) {
-                    if (checkEl === popupEl) {
-                        // Ignore iframes within popup
-                        return;
+        try {
+            useEarlyExternalListener(
+                iframeEl.contentWindow,
+                "pointerdown",
+                () => {
+                    const popupEl = popover.popoverRef.el;
+                    let checkEl = iframeEl.parentElement;
+                    while (checkEl) {
+                        if (checkEl === popupEl) {
+                            // Ignore iframes within popup
+                            return;
+                        }
+                        checkEl = checkEl.parentElement;
                     }
-                    checkEl = checkEl.parentElement;
-                }
-                callback(iframeEl);
-            },
-            { capture: true, once: true },
-        );
+                    callback(iframeEl);
+                },
+                { capture: true, once: true },
+            );
+        } catch (e) {
+            // In some browsers, if an iframe is loaded from a different
+            // domain accessing it results in a SecurityError.
+            if (e.name !== "SecurityError") throw e;
+        }
     }
 }
 
