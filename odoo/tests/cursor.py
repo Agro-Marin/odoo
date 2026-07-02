@@ -118,7 +118,15 @@ class TestCursor(BaseCursor):
                 self._lock.release()
 
     def commit(self) -> None:
-        """Perform an SQL ``COMMIT``."""
+        """Perform an SQL ``COMMIT``.
+
+        Deliberately NOT guarded by ``_savepoint_depth`` (unlike the production
+        ``Cursor.commit``): ``TransactionCase.setUp`` wraps every test body in a
+        ``Savepoint(self.cr)`` on this cursor, so the depth is >= 1 for the
+        whole test and the guard would reject every legitimate simulated
+        commit.  The real protection lives in ``TransactionCase.setUpClass``,
+        which patches the class cursor's commit/rollback/close to raise.
+        """
         self.flush()
         if self._savepoint:
             self._savepoint.close(rollback=self.readonly)
@@ -130,7 +138,10 @@ class TestCursor(BaseCursor):
         self.postcommit.clear()  # TestCursor ignores post-commit hooks by default
 
     def rollback(self) -> None:
-        """Perform an SQL ``ROLLBACK``."""
+        """Perform an SQL ``ROLLBACK``.
+
+        Not guarded by ``_savepoint_depth`` — see :meth:`commit`.
+        """
         self.clear()
         self._now = None  # next simulated transaction gets a fresh timestamp
         self.postcommit.clear()

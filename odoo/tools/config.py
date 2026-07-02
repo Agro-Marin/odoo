@@ -844,7 +844,9 @@ class configmanager:
             type="int",
             my_default=600,
             help="seconds an unused pooled connection is kept open before being "
-            "closed (default 600 = 10min)",
+            "closed (default 600 = 10min). The server-side idle_session_timeout "
+            "each pooled connection gets is derived from this (1.5x, min 15min) "
+            "so the server never kills a connection the pool still considers warm",
         )
         group.add_option(
             "--db_pool_reap_idle",
