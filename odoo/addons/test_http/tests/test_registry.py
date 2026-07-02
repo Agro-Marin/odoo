@@ -10,7 +10,7 @@ from odoo.db import close_db, db_connect
 from odoo.libs.web.urls import urljoin
 from odoo.modules.registry import Registry
 from odoo.tests import HOST, BaseCase, Like, get_db_name, tagged
-from odoo.tools import SQL, mute_logger, reset_cached_properties
+from odoo.tools import SQL, config, mute_logger, reset_cached_properties
 
 """
 RCO:
@@ -52,10 +52,23 @@ class TestHttpRegistry(BaseCase):
     def setUpClass(cls):
         reset_cached_properties(odoo.http.root)
         cls.addClassCleanup(reset_cached_properties, odoo.http.root)
+        # ``odoo.conf`` no longer exists in this fork; patch the config chainmap
+        # the way ``test_common.TestHttpBase`` does.
         cls.classPatch(
-            odoo.conf,
-            "server_wide_modules",
-            ["base", "web", "rpc", "test_http"],
+            config,
+            "options",
+            config.options.new_child(
+                {"server_wide_modules": ["base", "web", "rpc", "test_http"]}
+            ),
+        )
+        # ``/test_http/ensure_db`` is a test route; the production constant no
+        # longer lists it. Patch the CONSUMING namespace (application.py binds
+        # the name at import), so ``_recover_from_registry_error`` strips
+        # ``?db=`` for it like it does for ``/web``.
+        cls.classPatch(
+            odoo.http.application,
+            "ENSURE_DB_PATHS",
+            odoo.http.application.ENSURE_DB_PATHS | {"/test_http/ensure_db"},
         )
 
         # make sure there are always many databases, to break monodb
@@ -75,6 +88,10 @@ class TestHttpRegistry(BaseCase):
         self.opener = requests.Session()
         Registry.delete(get_db_name())
         close_db(get_db_name())
+        # The monodb-detection memo (5s TTL) must not serve a catalog cached
+        # before this test dropped/duplicated databases.
+        odoo.http.request_class.clear_monodb_cache()
+        self.addCleanup(odoo.http.request_class.clear_monodb_cache)
 
     def duplicate_current_db(self, db_suffix):
         db_duplicate = f"{get_db_name()}-test-http-registry-{db_suffix}"
