@@ -288,11 +288,7 @@ export class DynamicGroupList extends DynamicList {
                 offset: 0,
             },
         };
-        this.model._updateConfig(
-            this.config,
-            { groups: nextConfigGroups },
-            { reload: false },
-        );
+        this.model._patchConfig(this.config, { groups: nextConfigGroups });
 
         const data = {
             aggregates: {},
@@ -345,7 +341,7 @@ export class DynamicGroupList extends DynamicList {
             delete configGroups[group.value];
         }
         if (shouldReload) {
-            await this.model._updateConfig(
+            await this.model._reloadWithConfig(
                 this.config,
                 { groups: configGroups },
                 { commit: /** @type {any} */ (this._setData.bind(this)) },
@@ -354,11 +350,7 @@ export class DynamicGroupList extends DynamicList {
             for (const group of groups) {
                 this._removeGroup(group);
             }
-            this.model._updateConfig(
-                this.config,
-                { groups: configGroups },
-                { reload: false },
-            );
+            this.model._patchConfig(this.config, { groups: configGroups });
         }
     }
 
@@ -381,7 +373,7 @@ export class DynamicGroupList extends DynamicList {
     }
 
     async _load(offset, limit, orderBy, domain) {
-        await this.model._updateConfig(
+        await this.model._reloadWithConfig(
             this.config,
             { offset, limit, orderBy, domain },
             { commit: /** @type {any} */ (this._setData.bind(this)) },

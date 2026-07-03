@@ -76,14 +76,10 @@ function makeList(overrides = {}) {
         // commands add records beyond the current page limit.
         _bumpLimit(n) {
             this._tmpIncreaseLimit += n;
-            this.model._updateConfig(
-                this.config,
-                { limit: this.limit + n },
-                { reload: false },
-            );
+            this.model._patchConfig(this.config, { limit: this.limit + n });
         },
         model: {
-            _updateConfig: () => {},
+            _patchConfig: () => {},
             _loadRecords: () => Promise.resolve([]),
         },
         ...overrides,

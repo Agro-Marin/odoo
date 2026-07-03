@@ -73,16 +73,30 @@ export function compareRecords(r1, r2, orderBy, fields) {
 /**
  * Compute the next orderBy spec after clicking a column header.
  *
- * Cycles through: asc → desc → reset (id asc).
+ * Cycles through: asc → desc → reset.
  * If the column wasn't the primary sort, it becomes the new primary (asc).
  * If reordering is pending, the current direction is kept.
+ *
+ * The reset policy is caller-defined: StaticList (in-memory x2many sorting)
+ * falls back to "id asc" — it must keep a deterministic comparator — while
+ * DynamicList clears the order entirely, deferring to the server/default
+ * order on the next load.
  *
  * @param {string} fieldName - column clicked
  * @param {import("@web/core/utils/order_by").OrderTerm[]} currentOrderBy
  * @param {boolean} needsReordering - true when a drag-reorder is pending
+ * @param {Object} [options]
+ * @param {import("@web/core/utils/order_by").OrderTerm[]} [options.resetOrderBy]
+ *   orderBy to fall back to when the desc → reset transition is reached
+ *   (default: ``[{ name: "id", asc: true }]``)
  * @returns {import("@web/core/utils/order_by").OrderTerm[]}
  */
-export function computeNextOrderBy(fieldName, currentOrderBy, needsReordering) {
+export function computeNextOrderBy(
+    fieldName,
+    currentOrderBy,
+    needsReordering,
+    { resetOrderBy = [{ name: "id", asc: true }] } = {},
+) {
     let orderBy = [...currentOrderBy];
     if (fieldName) {
         if (orderBy.length && orderBy[0].name === fieldName) {
@@ -90,7 +104,7 @@ export function computeNextOrderBy(fieldName, currentOrderBy, needsReordering) {
                 if (orderBy[0].asc) {
                     orderBy[0] = { name: orderBy[0].name, asc: false };
                 } else {
-                    orderBy = [{ name: "id", asc: true }];
+                    orderBy = [...resetOrderBy];
                 }
             }
         } else {

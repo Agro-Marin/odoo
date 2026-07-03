@@ -105,7 +105,7 @@ function makeRecord({
                     }),
             },
             load: load ?? (async () => {}),
-            _updateConfig: () => {},
+            _patchConfig: () => {},
             hooks: {
                 ui: {
                     onDisplayArchiveAction:
@@ -258,7 +258,7 @@ describe("deleteRecord navigation", () => {
 describe("deleteRecord state reset (last record)", () => {
     test("when resIds becomes empty, resets _values / _textValues / _changes / data", async () => {
         let loadCalled = false;
-        let updateConfigArgs = null;
+        let patchConfigArgs = null;
         let setEvalContextCalled = false;
         const rec = makeRecord({
             resId: 1,
@@ -267,8 +267,8 @@ describe("deleteRecord state reset (last record)", () => {
                 loadCalled = true;
             },
         });
-        rec.model._updateConfig = (_config, patch, opts) => {
-            updateConfigArgs = { patch, opts };
+        rec.model._patchConfig = (_config, patch) => {
+            patchConfigArgs = { patch };
         };
         rec._setEvalContext = () => {
             setEvalContextCalled = true;
@@ -276,10 +276,9 @@ describe("deleteRecord state reset (last record)", () => {
         await deleteRecord(rec);
         // Navigation MUST NOT occur — instead local state is reset in place.
         expect(loadCalled).toBe(false);
-        // _updateConfig must clear the resId without triggering a reload.
-        expect(updateConfigArgs).toEqual({
+        // _patchConfig (sync, no reload by construction) must clear the resId.
+        expect(patchConfigArgs).toEqual({
             patch: { resId: false },
-            opts: { reload: false },
         });
         // State reset:
         expect(rec._textValues).toEqual({});

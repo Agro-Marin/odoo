@@ -11,6 +11,7 @@
  */
 
 import { pick } from "@web/core/utils/collections/objects";
+import { computeResequencePlan } from "./resequence.js";
 import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
 
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
@@ -53,65 +54,16 @@ export async function sort(list, currentIds = list.currentIds, orderBy = list.or
  * @param {number|string|null} targetId
  */
 export async function resequence(list, movedId, targetId) {
-    const records = [...list.records];
     const order = list.orderBy.find((o) => o.name === list.handleField);
     const asc = !order || order.asc;
 
-    // Find indices
-    const fromIndex = records.findIndex((r) => r.id === movedId);
-    let toIndex = 0;
-    if (targetId !== null) {
-        const targetIndex = records.findIndex((r) => r.id === targetId);
-        toIndex = fromIndex > targetIndex ? targetIndex + 1 : targetIndex;
-    }
-
-    const getSequence = (rec) => rec?.data[list.handleField];
-
-    // Determine what records need to be modified
-    const firstIndex = Math.min(fromIndex, toIndex);
-    const lastIndex = Math.max(fromIndex, toIndex) + 1;
-    // A record with no handle value (undefined) must force a full reorder:
-    // comparing a number against `undefined` yields NaN (always false), so the
-    // monotonic scan below would silently let it through and the partial-reorder
-    // branch would write colliding `offset + i` sequences. Mirrors resequence.js.
-    let reorderAll = records.some((record) => getSequence(record) === undefined);
-    if (!reorderAll) {
-        let lastSequence = (asc ? -1 : 1) * Infinity;
-        for (let index = 0; index < records.length; index++) {
-            const sequence = getSequence(records[index]);
-            if (
-                (asc && lastSequence >= sequence) ||
-                (!asc && lastSequence <= sequence)
-            ) {
-                reorderAll = true;
-                break;
-            }
-            lastSequence = sequence;
-        }
-    }
-
-    // Perform the resequence in the list of records
-    const [record] = records.splice(fromIndex, 1);
-    records.splice(toIndex, 0, record);
-
-    // Creates the list of to modify
-    let toReorder = records;
-    if (!reorderAll) {
-        toReorder = toReorder
-            .slice(firstIndex, lastIndex)
-            .filter((r) => r.id !== movedId);
-        if (fromIndex < toIndex) {
-            toReorder.push(record);
-        } else {
-            toReorder.unshift(record);
-        }
-    }
-    if (!asc) {
-        toReorder.reverse();
-    }
-
-    const sequences = toReorder.map(getSequence).filter((s) => s != null && !isNaN(s));
-    const offset = sequences.length ? Math.min(...sequences) : 0;
+    const { toReorder, offset } = computeResequencePlan({
+        records: list.records,
+        movedId,
+        targetId,
+        getSequence: (rec) => rec?.data[list.handleField],
+        asc,
+    });
 
     const proms = [];
     for (const [i, record] of Object.entries(toReorder)) {

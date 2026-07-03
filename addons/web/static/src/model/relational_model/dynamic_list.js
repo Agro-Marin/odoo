@@ -12,6 +12,7 @@ import { getFieldsSpec } from "./field_spec.js";
 import { Operation } from "./operation.js";
 import { RelationalRecord } from "./record.js";
 import { resequence } from "./resequence.js";
+import { computeNextOrderBy } from "./static_list_utils.js";
 
 const DEFAULT_HANDLE_FIELD = "sequence";
 
@@ -156,11 +157,7 @@ export class DynamicList extends DataPoint {
         const canProceed = await this.leaveEditMode();
         if (canProceed) {
             record._checkValidity();
-            this.model._updateConfig(
-                record.config,
-                { mode: "edit" },
-                { reload: false },
-            );
+            this.model._patchConfig(record.config, { mode: "edit" });
         }
         return canProceed;
     }
@@ -193,8 +190,11 @@ export class DynamicList extends DataPoint {
             let canProceed = true;
             if (discard) {
                 this._recordToDiscard = editedRecord;
-                await editedRecord.discard();
-                this._recordToDiscard = null;
+                try {
+                    await editedRecord.discard();
+                } finally {
+                    this._recordToDiscard = null;
+                }
                 editedRecord = this.editedRecord;
                 if (editedRecord?.isNew) {
                     this._removeRecords([editedRecord.id]);
@@ -217,11 +217,9 @@ export class DynamicList extends DataPoint {
 
             editedRecord = this.editedRecord;
             if (canProceed && editedRecord) {
-                this.model._updateConfig(
-                    editedRecord.config,
-                    { mode: "readonly" },
-                    { reload: false },
-                );
+                this.model._patchConfig(editedRecord.config, {
+                    mode: "readonly",
+                });
             } else {
                 return canProceed;
             }
@@ -247,20 +245,12 @@ export class DynamicList extends DataPoint {
 
     sortBy(fieldName) {
         return this.model.mutex.exec(() => {
-            let orderBy = [...this.orderBy];
-            if (orderBy.length && orderBy[0].name === fieldName) {
-                if (orderBy[0].asc) {
-                    orderBy[0] = { name: orderBy[0].name, asc: false };
-                } else {
-                    orderBy = [];
-                }
-            } else {
-                orderBy = orderBy.filter((o) => o.name !== fieldName);
-                orderBy.unshift({
-                    name: fieldName,
-                    asc: true,
-                });
-            }
+            // Same asc → desc → reset cycling as StaticList.sortBy, except the
+            // reset clears the order entirely (next load uses the server /
+            // default order) instead of falling back to "id asc".
+            const orderBy = computeNextOrderBy(fieldName, this.orderBy, false, {
+                resetOrderBy: [],
+            });
             return this._load(this.offset, this.limit, orderBy, this.domain);
         });
     }
@@ -491,11 +481,7 @@ export class DynamicList extends DataPoint {
             records = await save();
         } catch (e) {
             selectedRecords.forEach((record) => record._discard());
-            this.model._updateConfig(
-                editedRecord.config,
-                { mode: "readonly" },
-                { reload: false },
-            );
+            this.model._patchConfig(editedRecord.config, { mode: "readonly" });
             throw e;
         }
         const serverValuesById = Object.fromEntries(
@@ -506,11 +492,7 @@ export class DynamicList extends DataPoint {
             record._setData(serverValues);
             this.model._updateSimilarRecords(record, serverValues);
         }
-        this.model._updateConfig(
-            editedRecord.config,
-            { mode: "readonly" },
-            { reload: false },
-        );
+        this.model._patchConfig(editedRecord.config, { mode: "readonly" });
         this.model.hooks.lifecycle.onSavedMulti(validRecords);
         return true;
     }
@@ -543,6 +525,36 @@ export class DynamicList extends DataPoint {
             } else {
                 dp[handleField] = dpData[handleField];
             }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Record-facing narrow interface
+    //
+    // Selection/discard bookkeeping lives in the list; records it owns call
+    // these instead of reading/writing the list's protected state directly
+    // (``isDomainSelected``/``_selectDomain``/``_recordToDiscard``).
+    // -------------------------------------------------------------------------
+
+    /**
+     * Whether the given record is the one currently being discarded through
+     * ``leaveEditMode({ discard: true })``. Used by the multi-edit validation
+     * flow to skip selection side-effects on a deliberate discard.
+     *
+     * @param {RelationalRecord} record
+     * @returns {boolean}
+     */
+    _isRecordToDiscard(record) {
+        return this._recordToDiscard === record;
+    }
+
+    /**
+     * Called by a record when it is deselected: a partial deselection
+     * invalidates the "whole domain selected" state.
+     */
+    _onRecordDeselected() {
+        if (this.isDomainSelected) {
+            this._selectDomain(false);
         }
     }
 

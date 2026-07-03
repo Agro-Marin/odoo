@@ -295,7 +295,11 @@ export function parseServerValues(
                     staticList._applyInitialCommands(listValue);
                 }
             } else if (valueIsCommandList) {
-                staticList._applyCommands(listValue);
+                // This call chain is synchronous (record._setData →
+                // parseServerValues) — the possibly-async result is tracked
+                // on the list so save/discard flows can sequence after it
+                // and rejections are surfaced instead of floating.
+                staticList._trackCommandsPromise(staticList._applyCommands(listValue));
             }
             parsedValues[fieldName] = staticList;
         } else {

@@ -5,11 +5,13 @@
 
 import {
     EventBus,
+    onWillRender,
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
     status,
     useComponent,
+    useState,
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
@@ -55,6 +57,12 @@ export class Model extends SignalStore {
         this.orm = services.orm;
         this.bus = new EventBus();
         this.isReady = false;
+        /**
+         * Bumped by every ``notify()`` — the reactive key
+         * ``useReactiveModel`` subscribes renderers to.
+         * @type {number}
+         */
+        this._updateEpoch = 0;
         /**
          * Observable sample-data state. Read via {@link useSampleModel}
          * getter for backward-compat across the 11 historical reader
@@ -171,8 +179,33 @@ export class Model extends SignalStore {
     }
 
     notify() {
+        // Reactive update signal: renderers subscribed via
+        // ``useReactiveModel`` re-render on this bump without the
+        // legacy deep-render bus listener (see ``reactiveRenderers``).
+        this._updateEpoch++;
         this.bus.trigger(ModelEvent.UPDATE);
     }
+}
+
+/**
+ * Subscribes the current component to a model's ``notify()`` signal and
+ * returns a component-bound reactive view of the model.
+ *
+ * Use this in renderers that snapshot derived state from the model
+ * (e.g. PivotRenderer's ``getTable()``): reading ``_updateEpoch`` during
+ * render subscribes the component, so every ``model.notify()`` re-renders
+ * it directly — no parent deep render required. Model classes whose whole
+ * view tree relies on this pattern opt out of the legacy listener with
+ * ``static reactiveRenderers = true``.
+ *
+ * @template {Model} M
+ * @param {M} model
+ * @returns {M} component-bound reactive proxy of ``model``
+ */
+export function useReactiveModel(model) {
+    const reactiveModel = useState(model);
+    onWillRender(() => void reactiveModel._updateEpoch);
+    return reactiveModel;
 }
 
 /**
@@ -260,7 +293,20 @@ export function useModel(ModelClass, params, options = {}) {
         await model.load(getSearchParams(component.props));
         model.whenReady.resolve();
     });
-    onWillUpdateProps((nextProps) => model.load(getSearchParams(nextProps)));
+    onWillUpdateProps(async (nextProps) => {
+        // Drain an in-flight mutex'd save before reloading the root: a
+        // search-driven load racing a save would otherwise render pre-save
+        // values and detach the old root while the save's response updates
+        // it. Gated on ``mutex.locked`` so the idle path keeps its exact
+        // microtask timing (dozens of tests pin RPC step order). Internal,
+        // mutex-held load() callers (record_lifecycle) must NOT drain —
+        // they would deadlock — which is why this sits at the props
+        // boundary instead of load().
+        if (/** @type {any} */ (model).mutex?.locked) {
+            await model._askChanges?.();
+        }
+        return model.load(getSearchParams(nextProps));
+    });
     return model;
 }
 
@@ -289,23 +335,24 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
 
     const model = new ModelClass(/** @type {any} */ (component.env), params, services);
 
-    // Manual re-render listener — retained for backward compatibility with
-    // consumers that do NOT wrap the model with ``useState(...)`` (in
-    // particular several enterprise addons: ``web_map``, ``web_cohort``,
-    // ``web_grid``, ``web_gantt``, ``social``).
-    //
-    // As of 2026-05-25, ``Model extends SignalStore`` (see ``model.js``
-    // class declaration), so consumers that DO wrap with ``useState(...)``
-    // — calendar, graph, pivot, plus form/list/kanban via their own
-    // controllers — already receive proxy-based reactive renders on every
-    // mutation. The bus listener below then schedules a redundant
-    // ``render(true)`` on each ``notify()`` call; OWL batches both into
-    // one render per tick, so there is no observable double-render. If a
-    // future audit confirms every consumer wraps with ``useState`` (or
-    // an equivalent reactive subscription path), this listener can go.
-    const onUpdate = () => component.render(true);
-    model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
-    onWillUnmount(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
+    // Legacy deep-render listener. CAUTION: despite the controllers
+    // wrapping their model in ``useState(...)``, this listener IS
+    // load-bearing for any renderer that (a) receives the model as a
+    // stable prop (OWL's props-equality skips it on reactive controller
+    // renders) and (b) snapshots derived state in ``onWillUpdateProps``
+    // or ``useEffect`` deps — pivot/graph did exactly that until they
+    // migrated to ``useReactiveModel`` and opted out via
+    // ``static reactiveRenderers = true``. Still depending on it:
+    // calendar, plus enterprise ``web_map``, ``web_cohort``,
+    // ``web_grid``, ``web_gantt``, ``social``. Audit a view's full
+    // renderer tree against (a)+(b) before opting its model out.
+    if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
+        const onUpdate = () => component.render(true);
+        model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
+        onWillUnmount(() =>
+            model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate),
+        );
+    }
 
     const globalState = component.props.globalState || {};
     const localState = component.props.state || {};
@@ -328,6 +375,11 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
      * @param {Record<string, unknown>} props
      */
     async function _load(props) {
+        // Same save/load race guard as useModel's onWillUpdateProps; no-op
+        // for model classes without a mutex (graph, pivot) and when idle.
+        if (/** @type {any} */ (model).mutex?.locked) {
+            await (/** @type {any} */ (model)._askChanges?.());
+        }
         const searchParams = getSearchParams(props);
         await model.load(searchParams);
         if (useSampleModel && !model.hasData()) {

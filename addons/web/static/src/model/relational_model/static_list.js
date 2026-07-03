@@ -34,6 +34,13 @@ export class StaticList extends DataPoint {
         this._cache = markRaw({});
         this._commands = [];
         this._initialCommands = [];
+        /**
+         * Pending floating command-application work (see
+         * ``_trackCommandsPromise``). Null when no async ``_applyCommands``
+         * result is in flight.
+         * @type {Promise<void> | null}
+         */
+        this._commandsPromise = null;
         this._savePoint = undefined;
         this._unknownRecordCommands = {}; // tracks update commands on records we haven't fetched yet
         this._currentIds = [...this.resIds];
@@ -254,9 +261,7 @@ export class StaticList extends DataPoint {
                 if (this._extendedRecords.has(record.id)) {
                     // case 1.1: the record has already been extended
                     // -> simply store a savepoint
-                    this.model._updateConfig(record.config, config, {
-                        reload: false,
-                    });
+                    this.model._patchConfig(record.config, config);
                     record._addSavePoint();
                     return record;
                 }
@@ -283,9 +288,7 @@ export class StaticList extends DataPoint {
                         evalContext,
                     );
                 }
-                this.model._updateConfig(record.config, config, {
-                    reload: false,
-                });
+                this.model._patchConfig(record.config, config);
                 record._applyDefaultValues();
                 for (const fieldName of Object.keys(record.activeFields)) {
                     if (
@@ -299,13 +302,9 @@ export class StaticList extends DataPoint {
                             fields: activeFields[fieldName].related.fields,
                         };
                         for (const subRecord of Object.values(list._cache)) {
-                            this.model._updateConfig(subRecord.config, patch, {
-                                reload: false,
-                            });
+                            this.model._patchConfig(subRecord.config, patch);
                         }
-                        this.model._updateConfig(list.config, patch, {
-                            reload: false,
-                        });
+                        this.model._patchConfig(list.config, patch);
                     }
                 }
                 record._applyValues(data);
@@ -474,11 +473,9 @@ export class StaticList extends DataPoint {
                 this._commands = this._commands.filter((c) => c[1] !== virtualId);
                 this.count--;
                 if (this._tmpIncreaseLimit > 0) {
-                    this.model._updateConfig(
-                        this.config,
-                        { limit: this.limit - 1 },
-                        { reload: false },
-                    );
+                    this.model._patchConfig(this.config, {
+                        limit: this.limit - 1,
+                    });
                     this._tmpIncreaseLimit--;
                 }
             }
@@ -495,11 +492,7 @@ export class StaticList extends DataPoint {
      */
     _bumpLimit(n) {
         this._tmpIncreaseLimit += n;
-        this.model._updateConfig(
-            this.config,
-            { limit: this.limit + n },
-            { reload: false },
-        );
+        this.model._patchConfig(this.config, { limit: this.limit + n });
     }
 
     /**
@@ -581,8 +574,51 @@ export class StaticList extends DataPoint {
         return applyCommands(this, commands, options);
     }
 
+    /**
+     * Track the possibly-async result of an ``_applyCommands`` call whose
+     * caller cannot await it (the call chains are synchronous:
+     * ``record._setData`` → ``parseServerValues`` → ``_applyCommands``).
+     *
+     * The result — a promise when command application had to fetch record
+     * values from the server — is chained onto ``this._commandsPromise`` so
+     * that flows needing a stable list state (``record_save.save``,
+     * ``_discard``'s cache prune) can sequence after it. Rejections are
+     * routed to the established error surface: logged with the list context,
+     * then re-thrown in a microtask so the error service's
+     * ``unhandledrejection`` handler reports them — the same surface an
+     * awaited ``model._loadRecords`` rejection escaping the model mutex
+     * reaches. The tracked chain itself always resolves, so sequenced
+     * follow-ups (prune, save barrier) still run after a failure.
+     *
+     * @param {Promise<void> | undefined} result
+     */
+    _trackCommandsPromise(result) {
+        if (!result) {
+            return;
+        }
+        const guarded = result.catch((error) => {
+            console.error(
+                `Failed to apply x2many commands (resModel: ${this.resModel}, list: ${this.id}): the pending record load rejected`,
+            );
+            // Re-throw outside this chain so the error service surfaces it
+            // (error dialog / crash manager) instead of it being swallowed.
+            Promise.resolve().then(() => {
+                throw error;
+            });
+        });
+        const combined = this._commandsPromise
+            ? this._commandsPromise.then(() => guarded)
+            : guarded;
+        this._commandsPromise = combined;
+        combined.then(() => {
+            if (this._commandsPromise === combined) {
+                this._commandsPromise = null;
+            }
+        });
+    }
+
     _applyInitialCommands(commands) {
-        this._applyCommands(commands);
+        this._trackCommandsPromise(this._applyCommands(commands));
         this._initialCommands = [...commands];
     }
 
@@ -697,7 +733,7 @@ export class StaticList extends DataPoint {
             const commands = this._unknownRecordCommands[id];
             if (commands) {
                 delete this._unknownRecordCommands[id];
-                this._applyCommands(commands);
+                this._trackCommandsPromise(this._applyCommands(commands));
             }
         }
         return record;
@@ -740,13 +776,25 @@ export class StaticList extends DataPoint {
         this._unknownRecordCommands = {};
         const limit = this.limit - this._tmpIncreaseLimit;
         this._tmpIncreaseLimit = 0;
-        this.model._updateConfig(this.config, { limit }, { reload: false });
+        this.model._patchConfig(this.config, { limit });
         this.records = this._currentIds
             .slice(this.offset, this.offset + this.limit)
             .map((resId) => this._cache[resId]);
         if (!this._savePoint) {
-            this._applyCommands(this._initialCommands);
-            this._pruneCache();
+            this._trackCommandsPromise(this._applyCommands(this._initialCommands));
+            if (this._commandsPromise) {
+                // A floating commands load (the initial-commands one above,
+                // or an earlier one) is still mutating records/_cache:
+                // sequence the prune after it settles, otherwise it could
+                // evict entries the load is about to fill or that its
+                // deferred-commands replay re-references. The tracked
+                // promise never rejects (see _trackCommandsPromise), and
+                // the prune re-reads _currentIds at execution time, so
+                // running it late is safe.
+                this._commandsPromise.then(() => this._pruneCache());
+            } else {
+                this._pruneCache();
+            }
         }
         this._savePoint = undefined;
     }
@@ -854,11 +902,7 @@ export class StaticList extends DataPoint {
         }
         this.records = currentIds.map((id) => this._cache[id]);
         this._currentIds = nextCurrentIds;
-        await this.model._updateConfig(
-            this.config,
-            { limit, offset, orderBy },
-            { reload: false },
-        );
+        this.model._patchConfig(this.config, { limit, offset, orderBy });
     }
 
     async _replaceWith(ids, { reload = false } = {}) {

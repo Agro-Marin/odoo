@@ -15,7 +15,7 @@
  * @see record_validator.js for field validation logic
  */
 
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { evaluateBooleanExpr, getExprFreeVariables } from "@web/core/py_js/py";
 
 import { formatServerValue } from "./record_value_transforms.js";
 // ---------------------------------------------------------------------------
@@ -68,6 +68,170 @@ export function isFieldReadonly(activeField, evalContext) {
  */
 export function isFieldRequired(activeField, evalContext) {
     return evaluateFieldAttr(activeField.required, evalContext);
+}
+
+// ---------------------------------------------------------------------------
+// Modifier dependency analysis (scoped per-commit re-validation)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sentinel returned by {@link extractFieldNamesFromExpr} when the expression
+ * cannot be statically analysed (parse failure). Callers must treat it as
+ * "depends on everything" and fall back to unconditional re-validation.
+ * @type {null}
+ */
+const UNKNOWN_DEPENDENCIES = null;
+
+/**
+ * Extract the field-name root identifiers referenced by a modifier expression
+ * (``invisible`` / ``required`` / ``readonly``).
+ *
+ * Thin, defensive wrapper around {@link getExprFreeVariables}: returns the raw
+ * free-variable root-name set on success (still including non-field names such
+ * as ``parent``, ``context``, ``uid`` and builtin callees — the caller filters
+ * those against the real field universe), or {@link UNKNOWN_DEPENDENCIES}
+ * (``null``) when the expression is falsy or fails to parse. A ``null`` result
+ * is the airtight-fallback signal: the field must then be re-validated on every
+ * commit rather than risk missing a dependency.
+ *
+ * @param {string|false|undefined} expr
+ * @returns {Set<string>|null} free-variable root names, or ``null`` if unknown
+ */
+export function extractFieldNamesFromExpr(expr) {
+    if (!expr || typeof expr !== "string") {
+        // No modifier (or a boolean literal already normalised away): no
+        // dependency on any field.
+        return new Set();
+    }
+    if (expr === "True" || expr === "False" || expr === "1" || expr === "0") {
+        return new Set();
+    }
+    try {
+        return getExprFreeVariables(expr);
+    } catch {
+        // Unparseable expression — cannot prove independence, so signal
+        // "unknown" and let the caller conservatively always re-validate.
+        return UNKNOWN_DEPENDENCIES;
+    }
+}
+
+/**
+ * Per-``activeFields`` cache of the modifier-dependency inverse map. Keyed on
+ * the (arch-stable) ``activeFields`` object so extraction runs once per view
+ * rather than once per commit. ``WeakMap`` lets the entry be collected when the
+ * view (and its ``activeFields``) is torn down.
+ *
+ * @type {WeakMap<object, { dependents: Map<string, Set<string>>, always: Set<string> }>}
+ */
+const _modifierDependencyCache = new WeakMap();
+
+/**
+ * Build (and memoise) the inverse dependency map for a view's ``activeFields``:
+ * for each field ``X``, the set of fields ``B`` whose ``invisible`` /
+ * ``required`` / ``readonly`` modifier references ``X``.
+ *
+ * All three modifiers are considered:
+ *   - ``invisible`` and ``required`` directly drive
+ *     {@link findUnsetRequiredFields} (an invisible field is skipped; a
+ *     non-required field is not flagged), so a change flipping either can
+ *     change ``B``'s unset-required status.
+ *   - ``readonly`` does not affect that scan, but is included as a safe
+ *     over-approximation (per the perf-fix spec) — extra dependents only cost a
+ *     redundant re-check, never a missed one.
+ *
+ * Non-field free variables are handled as follows (documented, deliberate):
+ *   - ``parent`` / ``parent.*``: a reference to the parent record. It is NOT a
+ *     field of this record, so it produces no same-record dependency here. The
+ *     parent-triggered re-validation path covers it: on any parent commit the
+ *     parent re-validates its (currently-invalid) x2many child lists, which
+ *     recurse into the children — see the x2many handling in ``checkValidity``.
+ *   - ``context`` / ``uid`` / ``allowed_company_ids`` / builtins: stable during
+ *     field editing (set at view load), so they create no per-commit
+ *     dependency.
+ *   - Unparseable modifier ({@link UNKNOWN_DEPENDENCIES}): the field is added to
+ *     ``always`` and re-validated on every commit (airtight fallback).
+ *
+ * @param {Object} activeFields
+ * @returns {{ dependents: Map<string, Set<string>>, always: Set<string> }}
+ */
+export function getModifierDependencies(activeFields) {
+    let cached = _modifierDependencyCache.get(activeFields);
+    if (cached) {
+        return cached;
+    }
+    /** @type {Map<string, Set<string>>} */
+    const dependents = new Map();
+    /** @type {Set<string>} */
+    const always = new Set();
+    const fieldNames = Object.keys(activeFields);
+    const fieldNameSet = new Set(fieldNames);
+    for (const fieldB of fieldNames) {
+        const af = activeFields[fieldB];
+        const refs = new Set();
+        let unknown = false;
+        for (const modifier of [af.invisible, af.required, af.readonly]) {
+            const names = extractFieldNamesFromExpr(modifier);
+            if (names === UNKNOWN_DEPENDENCIES) {
+                unknown = true;
+                break;
+            }
+            for (const name of names) {
+                refs.add(name);
+            }
+        }
+        if (unknown) {
+            always.add(fieldB);
+            continue;
+        }
+        for (const name of refs) {
+            if (name === fieldB || !fieldNameSet.has(name)) {
+                // Self-references and non-field names (parent/context/builtins)
+                // never trigger a same-record re-check via this map.
+                continue;
+            }
+            let set = dependents.get(name);
+            if (!set) {
+                set = new Set();
+                dependents.set(name, set);
+            }
+            set.add(fieldB);
+        }
+    }
+    cached = { dependents, always };
+    _modifierDependencyCache.set(activeFields, cached);
+    return cached;
+}
+
+/**
+ * Compute the set of fields whose unset-required status could change as a
+ * result of committing ``changedFieldNames``: the changed fields themselves,
+ * plus every field whose ``invisible`` / ``required`` / ``readonly`` modifier
+ * references one of them, plus fields with an unparseable modifier (always
+ * re-validated as a fallback).
+ *
+ * This is the scope passed to the ``removeInvalidOnly`` re-validation so it can
+ * avoid re-scanning (and re-evaluating the modifier expressions of) fields that
+ * provably cannot have changed status.
+ *
+ * @param {string[]} changedFieldNames
+ * @param {Object} activeFields
+ * @returns {Set<string>}
+ */
+export function computeRevalidationScope(changedFieldNames, activeFields) {
+    const { dependents, always } = getModifierDependencies(activeFields);
+    const scope = new Set(changedFieldNames);
+    for (const changed of changedFieldNames) {
+        const deps = dependents.get(changed);
+        if (deps) {
+            for (const b of deps) {
+                scope.add(b);
+            }
+        }
+    }
+    for (const b of always) {
+        scope.add(b);
+    }
+    return scope;
 }
 
 // Changeset computation

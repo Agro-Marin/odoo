@@ -16,6 +16,12 @@ import {
     resetFieldValidity,
     setInvalidField,
 } from "@web/model/relational_model/record_validator";
+import {
+    computeRevalidationScope,
+    extractFieldNamesFromExpr,
+    getModifierDependencies,
+    isFieldRequired,
+} from "@web/model/relational_model/record_utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -357,7 +363,13 @@ function makeOrchestrationRecord({
         switchMode: () => {},
         model: {
             multiEdit,
-            root: { _recordToDiscard: null },
+            // narrow record-facing interface of DynamicList (see dynamic_list.js)
+            root: {
+                _recordToDiscard: null,
+                _isRecordToDiscard(rec) {
+                    return this._recordToDiscard === rec;
+                },
+            },
             hooks: {
                 lifecycle: {
                     onWillSetInvalidField: () => willSetInvalidResult,
@@ -576,7 +588,7 @@ describe("setInvalidField", () => {
         expect(switchModeArg).toBe("readonly");
     });
 
-    test("multiEdit + selected + _recordToDiscard === this: does NOT trigger discard/switchMode", async () => {
+    test("multiEdit + selected + record being discarded: does NOT trigger discard/switchMode", async () => {
         let discardCalled = false;
         const rec = makeOrchestrationRecord({
             selected: true,
@@ -651,5 +663,284 @@ describe("displayInvalidFieldNotification", () => {
         });
         const result = displayInvalidFieldNotification(rec);
         expect(result).toBe(closer);
+    });
+});
+
+// ===========================================================================
+// Scoped per-commit re-validation (change-scoped-validation perf fix)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// extractFieldNamesFromExpr — free-variable extraction from modifier exprs
+// ---------------------------------------------------------------------------
+
+describe("extractFieldNamesFromExpr", () => {
+    test("returns empty set for falsy / boolean-literal modifiers", () => {
+        expect([...extractFieldNamesFromExpr(false)]).toEqual([]);
+        expect([...extractFieldNamesFromExpr(undefined)]).toEqual([]);
+        expect([...extractFieldNamesFromExpr("True")]).toEqual([]);
+        expect([...extractFieldNamesFromExpr("False")]).toEqual([]);
+        expect([...extractFieldNamesFromExpr("1")]).toEqual([]);
+        expect([...extractFieldNamesFromExpr("0")]).toEqual([]);
+    });
+
+    test("extracts field names from a comparison expression", () => {
+        const names = extractFieldNamesFromExpr("state == 'done'");
+        expect([...names]).toEqual(["state"]);
+    });
+
+    test("extracts multiple field names across boolean operators", () => {
+        const names = extractFieldNamesFromExpr("a == 1 and b in (2, 3) or c");
+        expect(new Set(names)).toEqual(new Set(["a", "b", "c"]));
+    });
+
+    test("collapses attribute access to its base name (parent.state -> parent)", () => {
+        const names = extractFieldNamesFromExpr("parent.state == 'x'");
+        expect([...names]).toEqual(["parent"]);
+    });
+
+    test("collapses context access to its base name (context.foo -> context)", () => {
+        const names = extractFieldNamesFromExpr("context.foo and bar");
+        expect(new Set(names)).toEqual(new Set(["context", "bar"]));
+    });
+
+    test("returns null (unknown) for an unparseable expression", () => {
+        // Unbalanced parenthesis: py tokenizer/parser throws -> conservative null.
+        expect(extractFieldNamesFromExpr("a ==")).toBe(null);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getModifierDependencies / computeRevalidationScope
+// ---------------------------------------------------------------------------
+
+describe("computeRevalidationScope", () => {
+    test("scope of a change is the changed field plus its modifier dependents", () => {
+        const activeFields = {
+            a: {},
+            b: { required: "a == 1" }, // b depends on a
+            c: { required: "d == 2" }, // c depends on d, not a
+            d: {},
+        };
+        const scope = computeRevalidationScope(["a"], activeFields);
+        expect(scope.has("a")).toBe(true); // the changed field itself
+        expect(scope.has("b")).toBe(true); // dependent via required modifier
+        expect(scope.has("c")).toBe(false); // independent of a
+    });
+
+    test("invisible and readonly modifiers also create dependencies", () => {
+        const activeFields = {
+            a: {},
+            b: { invisible: "a == 1" },
+            c: { readonly: "a == 2" },
+        };
+        const scope = computeRevalidationScope(["a"], activeFields);
+        expect(scope.has("b")).toBe(true);
+        expect(scope.has("c")).toBe(true);
+    });
+
+    test("parent.* / context.* references do not create same-record dependencies", () => {
+        const activeFields = {
+            a: {},
+            b: { required: "parent.state == 1" },
+            c: { required: "context.foo == 2" },
+        };
+        const scope = computeRevalidationScope(["a"], activeFields);
+        expect(scope.has("b")).toBe(false);
+        expect(scope.has("c")).toBe(false);
+    });
+
+    test("fields with an unparseable modifier are always in scope (fallback)", () => {
+        const activeFields = {
+            a: {},
+            b: { required: "a ==" }, // unparseable -> always revalidate
+        };
+        const scope = computeRevalidationScope(["z_unrelated"], activeFields);
+        expect(scope.has("b")).toBe(true);
+    });
+
+    test("memoises the dependency map per activeFields object", () => {
+        const activeFields = { a: {}, b: { required: "a == 1" } };
+        const first = getModifierDependencies(activeFields);
+        const second = getModifierDependencies(activeFields);
+        expect(first).toBe(second); // same cached object (WeakMap keyed on activeFields)
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkValidity — scoped removeInvalidOnly: modifier re-evaluation
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap makeOrchestrationRecord so that _isRequired / _isInvisible evaluate the
+ * real modifier expressions declared on activeFields (via record_utils), and
+ * count how many times each field's required modifier is evaluated.
+ */
+function makeModifierCountingRecord({ activeFields, fields, data, unsetRequired = [] }) {
+    const requiredEvalCount = {};
+    /** @type {any} */
+    const rec = makeOrchestrationRecord({
+        activeFields,
+        fields,
+        data,
+        unsetRequired,
+        invalid: unsetRequired,
+    });
+    const evalContext = data;
+    rec._isRequired = (name) => {
+        requiredEvalCount[name] = (requiredEvalCount[name] || 0) + 1;
+        return isFieldRequired(activeFields[name], evalContext);
+    };
+    rec._isInvisible = (name) =>
+        activeFields[name].invisible
+            ? isFieldRequired(
+                  { required: activeFields[name].invisible },
+                  evalContext,
+              )
+            : false;
+    return { rec, requiredEvalCount };
+}
+
+describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () => {
+    test("(4a) committing A does NOT re-evaluate B's required modifier when B doesn't reference A", () => {
+        const activeFields = {
+            a: {},
+            b: { required: "c == 1" }, // B references C, not A
+        };
+        const fields = { a: { type: "char" }, b: { type: "char" }, c: { type: "char" } };
+        // B is currently unset+required (c==1 holds, b is false) -> flagged.
+        const data = { a: "set", b: false, c: 1 };
+        const { rec, requiredEvalCount } = makeModifierCountingRecord({
+            activeFields,
+            fields,
+            data,
+            unsetRequired: ["b"],
+        });
+        // Commit A: scope is {a} (+ its dependents). B depends on C, so B is
+        // out of scope and must NOT be re-evaluated.
+        const scopedFields = computeRevalidationScope(["a"], activeFields);
+        checkValidity(rec, { removeInvalidOnly: true, scopedFields });
+        expect(requiredEvalCount["b"] || 0).toBe(0);
+        // B stays flagged (nothing pruned it).
+        expect(rec._unsetRequiredFields.has("b")).toBe(true);
+    });
+
+    test("(4b) committing A DOES re-evaluate B's required modifier when B references A", () => {
+        const activeFields = {
+            a: {},
+            b: { required: "a == 1" }, // B references A
+        };
+        const fields = { a: { type: "char" }, b: { type: "char" } };
+        // Start: a==1 so B required and unset -> flagged. After commit, a is now
+        // 0 so B is no longer required -> B must be re-evaluated and pruned.
+        const data = { a: 0, b: false };
+        const { rec, requiredEvalCount } = makeModifierCountingRecord({
+            activeFields,
+            fields,
+            data,
+            unsetRequired: ["b"],
+        });
+        const scopedFields = computeRevalidationScope(["a"], activeFields);
+        checkValidity(rec, { removeInvalidOnly: true, scopedFields });
+        expect(requiredEvalCount["b"] || 0).toBeGreaterThan(0);
+        // a == 1 is false now -> B not required -> pruned.
+        expect(rec._unsetRequiredFields.has("b")).toBe(false);
+        expect(rec._invalidFields.has("b")).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkValidity — scoped removeInvalidOnly: x2many child re-validation
+// ---------------------------------------------------------------------------
+
+/** Build a mock child record datapoint with a _checkValidity spy. */
+function makeChildRecord({ valid, dirty = true }) {
+    let checkValidityCalls = 0;
+    const child = {
+        dirty,
+        get isValid() {
+            return valid;
+        },
+        _checkValidity() {
+            checkValidityCalls++;
+            return valid;
+        },
+        get _calls() {
+            return checkValidityCalls;
+        },
+    };
+    return child;
+}
+
+describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
+    test("(4c) committing a child row does not re-validate a valid dirty sibling", () => {
+        // Valid sibling FIRST so it is visited before .every() short-circuits on
+        // the invalid row — proving the skip comes from the valid-row shortcut,
+        // not from short-circuit evaluation.
+        const validSibling = makeChildRecord({ valid: true });
+        const editedRow = makeChildRecord({ valid: false });
+        const list = { records: [validSibling, editedRow], count: 2 };
+        const rec = makeOrchestrationRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+            data: { line_ids: list },
+            // list is flagged because a child is invalid
+            unsetRequired: ["line_ids"],
+            invalid: ["line_ids"],
+        });
+        const scopedFields = computeRevalidationScope(["line_ids"], rec.activeFields);
+        checkValidity(rec, { removeInvalidOnly: true, scopedFields });
+        // valid sibling skipped (shortcut); the invalid edited row re-checked.
+        expect(validSibling._calls).toBe(0);
+        expect(editedRow._calls).toBe(1);
+    });
+
+    test("(4c) save-time full validation re-validates every dirty child row", () => {
+        // Two valid dirty rows: .every() visits both (no short-circuit), and
+        // default mode has NO valid-row shortcut, so both are re-validated.
+        const row1 = makeChildRecord({ valid: true });
+        const row2 = makeChildRecord({ valid: true });
+        const list = { records: [row1, row2], count: 2 };
+        const rec = makeOrchestrationRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+            data: { line_ids: list },
+        });
+        // Default (save-time) validation: no removeInvalidOnly, no scope.
+        checkValidity(rec, { displayNotification: true });
+        expect(row1._calls).toBe(1);
+        expect(row2._calls).toBe(1);
+    });
+
+    test("removeInvalidOnly DOES apply the valid-row shortcut (contrast to default)", () => {
+        const row1 = makeChildRecord({ valid: true });
+        const row2 = makeChildRecord({ valid: true });
+        const list = { records: [row1, row2], count: 2 };
+        const rec = makeOrchestrationRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+            data: { line_ids: list },
+            unsetRequired: ["line_ids"],
+            invalid: ["line_ids"],
+        });
+        const scopedFields = computeRevalidationScope(["line_ids"], rec.activeFields);
+        checkValidity(rec, { removeInvalidOnly: true, scopedFields });
+        // Both rows valid -> both skipped by the shortcut.
+        expect(row1._calls).toBe(0);
+        expect(row2._calls).toBe(0);
+    });
+
+    test("silent mode re-validates every dirty child row (no valid-row shortcut)", () => {
+        const row1 = makeChildRecord({ valid: true });
+        const row2 = makeChildRecord({ valid: true });
+        const list = { records: [row1, row2], count: 2 };
+        const rec = makeOrchestrationRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+            data: { line_ids: list },
+        });
+        checkValidity(rec, { silent: true });
+        expect(row1._calls).toBe(1);
+        expect(row2._calls).toBe(1);
     });
 });
