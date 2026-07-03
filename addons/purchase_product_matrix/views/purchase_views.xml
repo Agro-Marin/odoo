@@ -4,7 +4,7 @@
     <record id="purchase_order_form_matrix" model="ir.ui.view">
         <field name="name">purchase.order.form.inherit.matrix</field>
         <field name="model">purchase.order</field>
-        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="inherit_id" ref="purchase.view_purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//list/field[@name='product_id']" position="attributes">
                 <attribute name="column_invisible">1</attribute>

@@ -4,7 +4,7 @@
     <record id="view_order_form_with_variant_grid" model="ir.ui.view">
         <field name="name">sale.order.grid</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="inherit_id" ref="sale.view_sale_order_form"/>
         <field name="arch" type="xml">
             <field name="partner_id" position="after">
                 <!-- Technical non stored fields for Order Grid Entry -->
@@ -12,7 +12,7 @@
                 <field name="grid_product_tmpl_id" invisible="1"/>
                 <field name="grid_update" invisible="1"/>
             </field>
-            <group name="sales_person" position="inside">
+            <group name="responsible_info" position="inside">
                 <field name="report_grids" groups="base.group_no_one"/>
             </group>
         </field>
