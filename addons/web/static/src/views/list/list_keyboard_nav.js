@@ -3,7 +3,7 @@
 
 /** @module @web/views/list/list_keyboard_nav - Keyboard navigation hook for arrow, tab, and enter key traversal across list view cells */
 
-import { ModelEvent } from "@web/core/events";
+import { ModelEvent, SearchModelEvent } from "@web/core/events";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
 
@@ -395,7 +395,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                 case "arrowup":
                     toFocus = self.findFocusFutureCell(cell, cellIsInGroupRow, "up");
                     if (!toFocus && getEnv().searchModel) {
-                        getEnv().searchModel.trigger("focus-search");
+                        getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
                         return true;
                     }
                     break;
@@ -539,7 +539,7 @@ export function useListKeyboardNavigation(tableRef, options) {
     // Handle "focus-view" from the search model (e.g., after breadcrumb navigation).
     const env = getEnv();
     if (env.searchModel) {
-        useBus(env.searchModel, "focus-view", () => {
+        useBus(env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
             if (getProps().list.model.useSampleModel) {
                 return;
             }

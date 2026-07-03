@@ -126,12 +126,13 @@ const hookParams = {
         addStyle,
         callHandler,
     }) {
+        const { connectGroups, current, elementSelector, groupSelector, ref } = ctx;
+
         /**
-         * Element "pointerenter" event handler.
-         * @param {PointerEvent} ev
+         * Called when the cursor enters another sortable element.
+         * @param {HTMLElement} element
          */
-        const onElementPointerEnter = (ev) => {
-            const element = /** @type {HTMLElement} */ (ev.currentTarget);
+        const onElementPointerEnter = (element) => {
             if (
                 connectGroups ||
                 !groupSelector ||
@@ -148,20 +149,22 @@ const hookParams = {
         };
 
         /**
-         * Element "pointerleave" event handler.
-         * @param {PointerEvent} ev
+         * Called when the cursor leaves another sortable element.
+         * @param {HTMLElement} element
          */
-        const onElementPointerLeave = (ev) => {
-            const element = /** @type {HTMLElement} */ (ev.currentTarget);
+        const onElementPointerLeave = (element) => {
             callHandler("onElementLeave", { element });
         };
 
-        const onElementComplexPointerEnter = (/** @type {PointerEvent} */ ev) => {
+        /**
+         * Same as {@link onElementPointerEnter}, in complex (non-clone)
+         * placeholder mode.
+         * @param {HTMLElement} element
+         */
+        const onElementComplexPointerEnter = (element) => {
             if (ctx.haveAlreadyChanged) {
                 return;
             }
-            const element = /** @type {HTMLElement} */ (ev.currentTarget);
-
             const siblingArray = [
                 // The dragged/target item is always attached to its list here.
                 ...(/** @type {HTMLElement} */ (element.parentElement)).children,
@@ -202,15 +205,16 @@ const hookParams = {
         };
 
         /**
-         * Element "pointerleave" event handler.
-         * @param {PointerEvent} ev
+         * Same as {@link onElementPointerLeave}, in complex (non-clone)
+         * placeholder mode.
+         * @param {HTMLElement} element
+         * @param {EventTarget | null} relatedTarget
          */
-        const onElementComplexPointerLeave = (ev) => {
+        const onElementComplexPointerLeave = (element, relatedTarget) => {
             if (ctx.haveAlreadyChanged) {
                 return;
             }
-            const element = /** @type {HTMLElement} */ (ev.currentTarget);
-            const relatedElement = /** @type {HTMLElement} */ (ev.relatedTarget);
+            const relatedElement = /** @type {HTMLElement} */ (relatedTarget);
             if (!relatedElement) {
                 // Pointer left the browser window — no sibling comparison possible.
                 return;
@@ -251,25 +255,22 @@ const hookParams = {
         };
 
         /**
-         * Group "pointerenter" event handler.
-         * @param {PointerEvent} ev
+         * Called when the cursor enters another group element.
+         * @param {HTMLElement} group
          */
-        const onGroupPointerEnter = (ev) => {
-            const group = /** @type {HTMLElement} */ (ev.currentTarget);
+        const onGroupPointerEnter = (group) => {
             group.appendChild(current.placeHolder);
             callHandler("onGroupEnter", { group });
         };
 
         /**
-         * Group "pointerleave" event handler.
-         * @param {PointerEvent} ev
+         * Called when the cursor leaves another group element.
+         * @param {HTMLElement} group
          */
-        const onGroupPointerLeave = (ev) => {
-            const group = /** @type {HTMLElement} */ (ev.currentTarget);
+        const onGroupPointerLeave = (group) => {
             callHandler("onGroupLeave", { group });
         };
 
-        const { connectGroups, current, elementSelector, groupSelector, ref } = ctx;
         if (ctx.placeholderClone) {
             const { width, height } = current.elementRect;
 
@@ -282,35 +283,102 @@ const hookParams = {
             });
         }
 
-        // Binds handlers on eligible groups, if the elements are not confined to
-        // their parents and a 'groupSelector' has been provided.
-        if (connectGroups && groupSelector) {
-            for (const siblingGroup of ref.el.querySelectorAll(groupSelector)) {
-                addListener(siblingGroup, "pointerenter", onGroupPointerEnter);
-                addListener(siblingGroup, "pointerleave", onGroupPointerLeave);
-            }
-        }
+        const onElementEnter = ctx.placeholderClone
+            ? onElementPointerEnter
+            : onElementComplexPointerEnter;
+        const onElementLeave = ctx.placeholderClone
+            ? onElementPointerLeave
+            : onElementComplexPointerLeave;
 
-        // Binds handlers on eligible elements
-        for (const siblingEl of ref.el.querySelectorAll(elementSelector)) {
-            if (siblingEl !== current.element && siblingEl !== current.placeHolder) {
-                if (ctx.placeholderClone) {
-                    addListener(siblingEl, "pointerenter", onElementPointerEnter);
-                    addListener(siblingEl, "pointerleave", onElementPointerLeave);
-                } else {
-                    addListener(
-                        siblingEl,
-                        "pointerenter",
-                        onElementComplexPointerEnter,
-                    );
-                    addListener(
-                        siblingEl,
-                        "pointerleave",
-                        onElementComplexPointerLeave,
-                    );
+        /**
+         * Resolves the sortable element containing the given event target:
+         * the same elements the previous per-element listeners were bound on
+         * (inside the ref, and neither the dragged element nor the
+         * placeholder).
+         * @param {EventTarget | null} node
+         * @returns {HTMLElement | null}
+         */
+        const closestElementOf = (node) => {
+            if (!(node instanceof Element)) {
+                return null;
+            }
+            const element = /** @type {HTMLElement | null} */ (
+                node.closest(elementSelector)
+            );
+            return element &&
+                element !== current.element &&
+                element !== current.placeHolder &&
+                ref.el.contains(element)
+                ? element
+                : null;
+        };
+
+        /**
+         * Resolves the group element containing the given event target.
+         * @param {EventTarget | null} node
+         * @returns {HTMLElement | null}
+         */
+        const closestGroupOf = (node) => {
+            if (!(node instanceof Element)) {
+                return null;
+            }
+            const group = /** @type {HTMLElement | null} */ (
+                node.closest(groupSelector)
+            );
+            return group && ref.el.contains(group) ? group : null;
+        };
+
+        // Group transitions are only tracked if the elements are not confined
+        // to their parents and a 'groupSelector' has been provided.
+        const trackGroups = Boolean(connectGroups && groupSelector);
+
+        /**
+         * Delegated "pointerover" event handler: dispatches group and element
+         * "enter" transitions by comparing the sortable group/element under
+         * the pointer with the one it comes from ("relatedTarget"), emulating
+         * the "pointerenter" semantics of the previous per-element listeners.
+         * @param {PointerEvent} ev
+         */
+        const onPointerOver = (ev) => {
+            if (trackGroups) {
+                const group = closestGroupOf(ev.target);
+                if (group && group !== closestGroupOf(ev.relatedTarget)) {
+                    onGroupPointerEnter(group);
                 }
             }
-        }
+            const element = closestElementOf(ev.target);
+            if (element && element !== closestElementOf(ev.relatedTarget)) {
+                onElementEnter(element);
+            }
+        };
+
+        /**
+         * Delegated "pointerout" event handler: dispatches group and element
+         * "leave" transitions (@see onPointerOver).
+         * @param {PointerEvent} ev
+         */
+        const onPointerOut = (ev) => {
+            if (trackGroups) {
+                const group = closestGroupOf(ev.target);
+                if (group && group !== closestGroupOf(ev.relatedTarget)) {
+                    onGroupPointerLeave(group);
+                }
+            }
+            const element = closestElementOf(ev.target);
+            if (element && element !== closestElementOf(ev.relatedTarget)) {
+                onElementLeave(element, ev.relatedTarget);
+            }
+        };
+
+        // A single delegated "pointerover"/"pointerout" listener pair replaces
+        // the previous per-element and per-group "pointerenter"/"pointerleave"
+        // listeners, which required O(N) listener additions and O(N) inline
+        // "pointer-events: auto" style writes on every drag start (and as many
+        // removals/restores on drop). `addListener` restores pointer events on
+        // the whole ref subtree through a single container-level style, needed
+        // since the body is "pe-none" during the drag sequence.
+        addListener(ref.el, "pointerover", onPointerOver);
+        addListener(ref.el, "pointerout", onPointerOut);
 
         // Placeholder is initially added right after the current element.
         current.element.after(current.placeHolder);

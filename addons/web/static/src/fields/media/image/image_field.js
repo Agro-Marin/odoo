@@ -62,19 +62,30 @@ export class ImageField extends Component {
                 "ImageField: previewImage must be provided when set on a many2one field",
             );
         }
+        // Cache-busting key: write_date snapshotted when the binary value
+        // itself (bin_size string or base64 payload) or the record changes.
+        // Reading write_date live instead would bust every image URL on any
+        // save of any field of the record.
         const field = this.props.record.fields[this.props.name];
-        if (field.related?.includes(".")) {
-            this.uniqueId = DateTime.now();
-            let key = this.props.record.data[this.props.name];
-            onWillRender(() => {
-                const nextKey = this.props.record.data[this.props.name];
-                if (key !== nextKey) {
-                    this.uniqueId = DateTime.now();
-                }
-
-                key = nextKey;
-            });
-        }
+        // A dotted related field can change without this record's write_date
+        // moving, so bust those with a fresh timestamp instead.
+        const isDottedRelated = field.related?.includes(".");
+        this.uniqueId = this.props.record.data.write_date;
+        let resId = this.props.record.resId;
+        let value = this.props.record.data[this.props.name];
+        onWillRender(() => {
+            const { record } = this.props;
+            const nextValue = record.data[this.props.name];
+            if (record.resId !== resId) {
+                this.uniqueId = record.data.write_date;
+            } else if (value !== nextValue) {
+                this.uniqueId = isDottedRelated
+                    ? DateTime.now()
+                    : record.data.write_date;
+            }
+            resId = record.resId;
+            value = nextValue;
+        });
     }
 
     get imgAlt() {
@@ -93,7 +104,7 @@ export class ImageField extends Component {
     }
 
     get rawCacheKey() {
-        return this.uniqueId || this.props.record.data.write_date;
+        return this.uniqueId;
     }
 
     get sizeStyle() {

@@ -124,38 +124,27 @@ export const webVitalsService = {
             // ignore
         }
 
-        // INP — Group event-timing entries by interactionId and track the
-        // worst (longest) interaction over the page lifetime.  Entries with
-        // ``interactionId === 0`` are non-interactive events (programmatic,
-        // hover) and don't count toward INP.  ``durationThreshold: 40`` skips
-        // events shorter than 40ms — these are below the perceptible-latency
-        // floor and would only add noise.
+        // INP — Track the worst (longest) interaction over the page lifetime.
+        // Entries with ``interactionId === 0`` are non-interactive events
+        // (programmatic, hover) and don't count toward INP.
+        // ``durationThreshold: 40`` skips events shorter than 40ms — these
+        // are below the perceptible-latency floor and would only add noise.
         //
         // The P100 (worst-observed) reducer here is a strict upper bound on
-        // the canonical P98 INP.  Swap for the sliding-window reducer when
-        // vendoring web-vitals; the wire schema does not change.
+        // the canonical P98 INP, so a scalar running max suffices — the P98
+        // reducer will need the per-interactionId grouping back.  Swap for
+        // the sliding-window reducer when vendoring web-vitals; the wire
+        // schema does not change.
         try {
-            /** @type {Map<number, number>} */
-            const interactionMaxDuration = new Map();
             const inpObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
                     const e = /** @type {any} */ (entry);
                     if (!e.interactionId) {
                         continue;
                     }
-                    const prev = interactionMaxDuration.get(e.interactionId) || 0;
-                    if (e.duration > prev) {
-                        interactionMaxDuration.set(e.interactionId, e.duration);
+                    if (e.duration > (metrics.inp || 0)) {
+                        metrics.inp = e.duration;
                     }
-                }
-                let worst = 0;
-                for (const d of interactionMaxDuration.values()) {
-                    if (d > worst) {
-                        worst = d;
-                    }
-                }
-                if (worst > 0) {
-                    metrics.inp = worst;
                 }
             });
             // ``durationThreshold`` is part of the Event Timing spec extension

@@ -117,11 +117,11 @@
  <tr t-if="virt.topSpacerHeight > 0" class="o_virtual_spacer">
  <td t-att-colspan="nbCols" t-attf-style="height: {{ virt.topSpacerHeight }}px;"/>
  </tr>
- <t t-foreach="virt.visibleFlatRows" t-as="flatRow" t-key="flatRow.globalIndex">
+ <!-- Rows keyed by stable identity (record/group id), not position: inserts
+      and resequences above a row must patch it in place, not recreate it. -->
+ <t t-foreach="virt.visibleFlatRows" t-as="flatRow" t-key="flatRow.type === 'record' ? flatRow.record.id : (flatRow.type === 'group' ? 'group:' + flatRow.group.id : 'addline:' + (flatRow.parentGroup ? flatRow.parentGroup.id : flatRow.globalIndex))">
  <t t-if="flatRow.type === 'record'">
- <t t-set="record" t-value="flatRow.record"/>
- <t t-set="groupId" t-value="flatRow.parentGroup?.id"/>
- <t t-call="{{ constructor.recordRowTemplate }}"/>
+ <t t-component="rowComponent" t-props="getRowProps(flatRow.record, undefined, flatRow.parentGroup ? flatRow.parentGroup.id : undefined)"/>
  </t>
  <t t-elif="flatRow.type === 'group'">
  <t t-set="group" t-value="flatRow.group"/>
@@ -149,7 +149,7 @@
  <!-- Non-virtualized path (unchanged) -->
  <t t-if="!list.isGrouped">
  <t t-foreach="list.records" t-as="record" t-key="record.id">
- <t t-call="{{ constructor.recordRowTemplate }}"/>
+ <t t-component="rowComponent" t-props="getRowProps(record, group, groupId)"/>
  </t>
  <tr t-if="displayRowCreates" class="d-print-none">
  <td t-if="withHandleColumn"/>
@@ -300,18 +300,19 @@
  <t t-foreach="getColumns(record)" t-as="column" t-key="column.id">
  <t t-if="column.type === 'field'">
  <t t-set="isInvisible" t-value="evalInvisible(column.invisible, record) or !(column.name in record.data)"/>
+ <t t-set="formattedValue" t-value="!isInvisible and canUseFormatter(column, record) ? getFormattedValue(column, record) : undefined"/>
  <td t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)"
  class="o_data_cell cursor-pointer"
  t-att-class="this.getCellClass(column, record)"
  t-att-name="column.name"
  t-att-colspan="column.colspan"
  t-att-data-col-index="column_index + (hasSelectors ? 1 : 0)"
- t-att-data-tooltip="!isInvisible ? getCellTitle(column, record) : false"
+ t-att-data-tooltip="!isInvisible ? getCellTitle(column, record, formattedValue) : false"
  data-tooltip-delay="1000"
  t-custom-click="(ev, isMiddleClick) => this.onCellClicked(record, column, ev, isMiddleClick)"
  tabindex="-1">
  <t t-if="!isInvisible">
- <t t-if="canUseFormatter(column, record)" t-out="getFormattedValue(column, record)"/>
+ <t t-if="formattedValue !== undefined" t-out="formattedValue"/>
  <Field t-else="" name="column.name" record="record" type="column.widget" class="getFieldClass(column)" fieldInfo="column" t-props="getFieldProps(record, column)"/>
  </t>
  </td>

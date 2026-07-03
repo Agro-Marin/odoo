@@ -33,4 +33,16 @@
     bottom: 0;
     left: 0;
     height: 3px;
+    width: 0;
+}
+
+// Auto-close progress: driven by CSS instead of per-frame JS width writes;
+// duration is set inline by Notification.startNotificationTimer().
+@keyframes o-notification-progress {
+    from {
+        width: 100%;
+    }
+    to {
+        width: 0;
+    }
 }

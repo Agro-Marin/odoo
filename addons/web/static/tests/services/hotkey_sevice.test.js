@@ -103,8 +103,14 @@ test("[accesskey] attrs replaced by [data-hotkey]", async () => {
     expect(".foo[accesskey]").toHaveCount(1);
     expect(".foo[data-hotkey]").toHaveCount(0);
 
-    // press any hotkey, i.e. the left arrow
+    // press a hotkey that does not involve the overlay modifier: the swap
+    // is overlay-gated, so the [accesskey] attribute must stay untouched
     await press("arrowleft");
+    expect(".foo[accesskey]").toHaveCount(1);
+    expect(".foo[data-hotkey]").toHaveCount(0);
+
+    // press any hotkey involving the overlay modifier
+    await press(["alt", "arrowleft"]);
 
     // div should now only have [data-hotkey] attribute
     expect(".foo").toHaveCount(1);
@@ -151,8 +157,8 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
     expect("main div[accesskey]").toHaveCount(1);
     expect("main div[data-hotkey]").toHaveCount(0);
 
-    // press any hotkey, i.e. the left arrow
-    await press("arrowleft");
+    // press any hotkey involving the overlay modifier (the swap is overlay-gated)
+    await press(["alt", "arrowleft"]);
 
     // div should now only have [data-hotkey] attribute
     expect("main div").toHaveCount(1);

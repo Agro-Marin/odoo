@@ -61,18 +61,47 @@ export function applyContextToTextNode() {
  * @returns {Node}
  */
 export function deepClone(node) {
-    const clone = node.cloneNode();
-    if (node.nodeType === Node.TEXT_NODE) {
-        if (contextByTextNode.has(node)) {
-            contextByTextNode.set(clone, contextByTextNode.get(node));
-        }
-    }
-    if (node.childNodes?.length) {
-        for (const childNode of [...node.childNodes]) {
-            /** @type {Element} */ (clone).append(deepClone(childNode));
-        }
+    // Native deep clone; O(n) in C++ instead of a per-node JS recursion that
+    // spread childNodes at every level. The only reason the old recursion
+    // existed was to carry over the `contextByTextNode` entries onto the
+    // clones — so we replay just that mapping with a parallel TreeWalker, and
+    // only when the map actually holds entries (the common boot path has an
+    // empty map, so this is skipped entirely).
+    const clone = node.cloneNode(true);
+    if (contextByTextNode.size) {
+        remapTextNodeContexts(node, clone);
     }
     return clone;
+}
+
+/**
+ * Copy `contextByTextNode` entries from the text nodes of `original` onto the
+ * matching text nodes of `clone`. `original` and `clone` are structurally
+ * identical (clone is a deep clone of original), so a parallel in-order walk
+ * of their text nodes lines them up one-to-one.
+ *
+ * @param {Node} original
+ * @param {Node} clone
+ */
+function remapTextNodeContexts(original, clone) {
+    if (original.nodeType === Node.TEXT_NODE) {
+        if (contextByTextNode.has(original)) {
+            contextByTextNode.set(clone, contextByTextNode.get(original));
+        }
+        return;
+    }
+    const originalWalker = document.createTreeWalker(original, NodeFilter.SHOW_TEXT);
+    const cloneWalker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+    let originalNode;
+    let cloneNode;
+    while (
+        (originalNode = originalWalker.nextNode()) &&
+        (cloneNode = cloneWalker.nextNode())
+    ) {
+        if (contextByTextNode.has(originalNode)) {
+            contextByTextNode.set(cloneNode, contextByTextNode.get(originalNode));
+        }
+    }
 }
 
 /**
@@ -159,11 +188,18 @@ function getXpath(operation) {
  */
 function getNode(element, operation) {
     const root = getRoot(element);
-    const doc = new Document();
-    doc.appendChild(root); // => root is the documentElement of its ownerDocument (we do that in case root is a clone)
+    // `doc.evaluate` (below) requires `root` to be attached to a document.
+    // `root` is normally already the documentElement of its own Document
+    // (getClone / applyInheritance keep it that way), so re-adopting it into a
+    // fresh Document on every operation — O(tree) × hundreds of operations at
+    // boot — is pure waste. Adopt only when `root` is actually detached, i.e.
+    // right after it's been replaced (replace/outer builds a fresh root).
+    if (root.ownerDocument?.documentElement !== root) {
+        new Document().appendChild(root);
+    }
     if (operation.tagName === "xpath") {
         const xpath = getXpath(operation);
-        const result = doc.evaluate(
+        const result = root.ownerDocument.evaluate(
             xpath,
             root,
             null,

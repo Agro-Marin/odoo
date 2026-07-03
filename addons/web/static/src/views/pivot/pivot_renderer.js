@@ -3,7 +3,7 @@
 
 /** @module @web/views/pivot/pivot_renderer - Renders the pivot table HTML with expandable row/column headers, measures dropdown, and XLSX export */
 
-import { Component, onWillUpdateProps, useRef } from "@odoo/owl";
+import { Component, onWillRender, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownState } from "@web/components/dropdown/dropdown_hooks";
@@ -19,6 +19,7 @@ import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import { getIntervalOptions } from "@web/search/utils/dates";
 import { GROUPABLE_TYPES } from "@web/search/utils/misc";
+import { useReactiveModel } from "@web/model/model";
 import { user } from "@web/services/user";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
@@ -55,9 +56,20 @@ export class PivotRenderer extends Component {
     setup() {
         useRenderCounter("pivot.PivotRenderer");
         this.actionService = useService("action");
-        this.model = this.props.model;
-        this.table = this.model.getTable();
-        this.computeMeasureFormatters();
+        // Subscribe directly to model.notify(): the model prop is stable,
+        // so this renderer only updated through the legacy deep-render
+        // listener before (PivotModel now opts out of it via
+        // ``reactiveRenderers``). The epoch guard keeps unrelated local
+        // re-renders (dropdown state, hover) from recomputing the table.
+        this.model = useReactiveModel(this.props.model);
+        let tableEpoch;
+        onWillRender(() => {
+            if (this.model._updateEpoch !== tableEpoch) {
+                tableEpoch = this.model._updateEpoch;
+                this.table = this.model.getTable();
+                this.computeMeasureFormatters();
+            }
+        });
         this.l10n = localization;
         this.tableRef = useRef("table");
 
@@ -82,12 +94,6 @@ export class PivotRenderer extends Component {
             }
         }
         this.fields = sortBy(fields, "string");
-
-        onWillUpdateProps(this.onWillUpdateProps);
-    }
-    onWillUpdateProps() {
-        this.table = this.model.getTable();
-        this.computeMeasureFormatters();
     }
     /**
      * Precompute the codec and base format options for each active measure.

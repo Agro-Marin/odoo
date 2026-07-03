@@ -20,11 +20,30 @@ import { user, userBus } from "@web/services/user";
 import { SwitchCompanyItem } from "@web/webclient/switch_company_menu/switch_company_item";
 
 /**
+ * Lazy id -> company Map over ``user.allowedCompaniesWithAncestors``.
+ *
+ * ``getCompany`` is called per child company, per node, per keystroke while
+ * filtering, so an ``Array.find`` per lookup is quadratic on large company
+ * trees. The map is rebuilt only when the companies array reference changes
+ * (a new ``user`` configuration, e.g. after a server-state change in tests).
+ *
+ * @type {Map<number, Object> | null}
+ */
+let companyById = null;
+/** @type {Object[] | null} the companies array ``companyById`` was built from */
+let companyByIdSource = null;
+
+/**
  * @param {number} cid - company ID
  * @returns {Object | undefined} the company descriptor from user.allowedCompaniesWithAncestors
  */
 function getCompany(cid) {
-    return user.allowedCompaniesWithAncestors.find((c) => c.id === cid);
+    const companies = user.allowedCompaniesWithAncestors;
+    if (companyByIdSource !== companies) {
+        companyByIdSource = companies;
+        companyById = new Map(companies.map((c) => [c.id, c]));
+    }
+    return companyById.get(cid);
 }
 
 /**

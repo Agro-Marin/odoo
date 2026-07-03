@@ -3,9 +3,10 @@
 
 /** @module @web/views/kanban/progress_bar_hook - Progress bar state computation, active bar filtering, and per-group aggregate tracking for kanban columns */
 
-import { reactive } from "@odoo/owl";
+import { onWillDestroy, reactive } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
+import { debounce } from "@web/core/utils/timing";
 import {
     extractInfoFromGroupData,
     getAggregateSpecifications,
@@ -14,6 +15,10 @@ import {
 /** @import { Group } from "@web/model/relational_model/group" */
 
 const FALSE = Symbol("False");
+
+// Delay (ms) after the last locally reconciled move before a full
+// authoritative `read_progress_bar` refresh fires (see _scheduleMoveReconcile).
+const MOVE_RECONCILE_DELAY = 300;
 
 /**
  * Find a group entry matching a specific group-by field value.
@@ -87,6 +92,8 @@ class ProgressBarState {
         // Stale-response guards for the concurrent refresh RPCs (see updateCounts)
         this._pbEpoch = 0;
         this._aggEpoch = 0;
+        // Pending drag & drop moves, keyed by record datapoint id (see registerRecordMove)
+        this._recordMoves = new Map();
     }
 
     /**
@@ -326,15 +333,31 @@ class ProgressBarState {
     }
 
     /**
-     * Refresh all progress bar counts and aggregates after a record change.
+     * Refresh progress bar counts and aggregates after a record change.
+     *
+     * For a drag & drop between two groups (registered beforehand via
+     * `registerRecordMove`), the two affected groups' bars are reconciled
+     * locally and aggregates are refetched for those two groups only, instead
+     * of firing `read_progress_bar` + `formatted_read_group` over the full
+     * domain. Every other change (quick create, edited record, bar
+     * (de)selection) still triggers a full refresh.
+     *
      * @param {Group} group - The group where the change occurred.
+     * @param {Object} [record] - The saved record datapoint, when the change
+     *   comes from a record save.
      */
-    updateCounts(group) {
-        // Fire-and-forget refreshes: catch to avoid unhandled rejections
-        this._updateProgressBar().catch((error) => console.error(error));
-        if (this._aggregateFields.length) {
-            this._updateAggregates().catch((error) => console.error(error));
-            this.updateAggregateGroup(group);
+    updateCounts(group, record) {
+        const move = record && this._recordMoves.get(record.id);
+        if (move) {
+            this._recordMoves.delete(record.id);
+        }
+        if (!(move && this._reconcileMove(record, move))) {
+            // Fire-and-forget refreshes: catch to avoid unhandled rejections
+            this._updateProgressBar().catch((error) => console.error(error));
+            if (this._aggregateFields.length) {
+                this._updateAggregates().catch((error) => console.error(error));
+                this.updateAggregateGroup(group);
+            }
         }
 
         // If the selected bar is empty, remove the selection
@@ -343,6 +366,189 @@ class ProgressBarState {
                 this.selectBar(group.id, { value: null });
             }
         }
+    }
+
+    /**
+     * Notify that a record is about to be moved between two groups (drag &
+     * drop). The `updateCounts` call triggered by the resulting save will
+     * reconcile the two groups locally instead of refetching all counts.
+     *
+     * @param {string} recordId - The record datapoint id.
+     * @param {string} sourceGroupId
+     * @param {string} targetGroupId
+     */
+    registerRecordMove(recordId, sourceGroupId, targetGroupId) {
+        const groups = this.model.root.groups || [];
+        const sourceGroup = groups.find((g) => g.id === sourceGroupId);
+        const record = sourceGroup?.list.records.find((r) => r.id === recordId);
+        this._recordMoves.set(recordId, {
+            sourceGroupId,
+            targetGroupId,
+            // Captured before the save: the source bucket must be decremented
+            // by the value the record had while counted in the source group
+            // (the save itself may rewrite the progress field server-side).
+            sourceValue: record?.data[this.progressAttributes.fieldName],
+        });
+    }
+
+    /**
+     * Drop a pending move registration (no-op if it was already consumed by
+     * `updateCounts`). Called when the move failed or was reverted.
+     * @param {string} recordId - The record datapoint id.
+     */
+    cancelRecordMove(recordId) {
+        this._recordMoves.delete(recordId);
+    }
+
+    /**
+     * Locally reconcile the bars after a record was dragged from one group to
+     * another: decrement the source group's bucket, increment the target
+     * group's, and refetch aggregates for those two groups only (domain
+     * scoped to the groups) instead of over the full domain.
+     *
+     * @param {Object} record - The moved record datapoint (already saved).
+     * @param {Object} move - `{ sourceGroupId, targetGroupId, sourceValue }`.
+     * @returns {boolean} Whether the move was reconciled locally. When false,
+     *   the caller falls back to a full refresh: local reconcile is
+     *   impossible (bars not loaded yet, groups reloaded under us, progress
+     *   field not part of the fetched fields) or ambiguous (grouped on the
+     *   progress field itself, whose old value is unknown).
+     */
+    _reconcileMove(record, move) {
+        const groups = this.model.root.groups || [];
+        const sourceGroup = groups.find((g) => g.id === move.sourceGroupId);
+        const targetGroup = groups.find((g) => g.id === move.targetGroupId);
+        const { fieldName } = this.progressAttributes;
+        if (
+            this._pbCounts === null ||
+            !sourceGroup ||
+            !targetGroup ||
+            !(fieldName in record.data) ||
+            fieldName === this.model.root.groupByField.name
+        ) {
+            return false;
+        }
+        // Invalidate in-flight full refreshes: their (older) responses must
+        // not overwrite the locally reconciled counts.
+        this._pbEpoch++;
+        this._applyMoveDelta(sourceGroup, move.sourceValue, -1);
+        this._applyMoveDelta(targetGroup, record.data[fieldName], +1);
+        if (this._aggregateFields.length) {
+            this._updateAggregatesForGroups([sourceGroup, targetGroup]).catch((error) =>
+                console.error(error),
+            );
+            this.updateAggregateGroup(sourceGroup);
+            this.updateAggregateGroup(targetGroup);
+        }
+        this._scheduleMoveReconcile();
+        return true;
+    }
+
+    /**
+     * Apply a +1/-1 delta to a group's bar bucket for a given progress field
+     * value, keeping the `_pbCounts` snapshot, the cached bars, the snapshot
+     * ``total`` and the active bar count in sync. The "Other" (FALSE) bar is
+     * recomputed as the remainder against the group's live count, as in
+     * `_refreshBars`.
+     *
+     * @param {Group} group
+     * @param {*} value - The moved record's progress field value.
+     * @param {number} delta - +1 or -1.
+     */
+    _applyMoveDelta(group, value, delta) {
+        const { colors } = this.progressAttributes;
+        const bucket = Object.keys(colors).find(
+            (key) => key === value || key === String(value),
+        );
+        if (bucket) {
+            const counts = (this._pbCounts[this._getGroupValue(group)] ||= {});
+            counts[bucket] = Math.max(0, (counts[bucket] || 0) + delta);
+        }
+        const groupInfo = this._groupsInfo[group.id];
+        if (!groupInfo) {
+            // Never rendered (e.g. always-folded group): the snapshot above is
+            // enough, getGroupInfo will build the bars from it when needed.
+            return;
+        }
+        if (bucket) {
+            const bar = groupInfo.bars.find((b) => b.value === bucket);
+            if (bar) {
+                bar.count = Math.max(0, bar.count + delta);
+            }
+        }
+        // The "Other" bar absorbs the remainder against the live group count.
+        const coloredCount = groupInfo.bars
+            .filter((b) => b.value !== FALSE)
+            .reduce((sum, b) => sum + b.count, 0);
+        groupInfo.bars.find((b) => b.value === FALSE).count = Math.max(
+            0,
+            group.count - coloredCount,
+        );
+        groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
+        if (this.activeBars[group.serverValue]) {
+            this.activeBars[group.serverValue].count = groupInfo.bars.find(
+                (x) => x.value === this.activeBars[group.serverValue].value,
+            ).count;
+        }
+    }
+
+    /**
+     * Re-fetch aggregate values for the given groups only, with a domain
+     * scoped to those groups, and merge the result into `_aggregateValues`.
+     *
+     * @param {Group[]} groupsToUpdate
+     * @returns {Promise<void>}
+     */
+    async _updateAggregatesForGroups(groupsToUpdate) {
+        const epoch = ++this._aggEpoch;
+        const { context, fields, groupBy, resModel } = this.model.root;
+        const domain = Domain.or(groupsToUpdate.map((g) => g.groupDomain)).toList();
+        const groups = await this.model.orm.formattedReadGroup(
+            resModel,
+            domain,
+            groupBy,
+            getAggregateSpecifications(this._aggregateFields),
+            { context },
+        );
+        if (epoch !== this._aggEpoch) {
+            return; // a more recent call superseded this one
+        }
+        const aggrValues = _groupsToAggregateValues(groups, groupBy, fields, domain);
+        for (const group of groupsToUpdate) {
+            const { groupByField, serverValue } = group;
+            const entry = {
+                ..._findGroup(aggrValues, groupByField, serverValue),
+                [groupByField.name]: serverValue,
+            };
+            const index = this._aggregateValues.findIndex(
+                (values) => values[groupByField.name] === serverValue,
+            );
+            if (index > -1) {
+                this._aggregateValues[index] = entry;
+            } else {
+                this._aggregateValues.push(entry);
+            }
+        }
+    }
+
+    /**
+     * Schedule a trailing, authoritative refresh after a burst of locally
+     * reconciled moves: one full `read_progress_bar` (and aggregate re-read
+     * when relevant) fires once no move has happened for
+     * MOVE_RECONCILE_DELAY ms. This bounds the drift a purely local reconcile
+     * could accumulate (e.g. concurrent edits from other tabs/users, or
+     * server-side writes triggered by the move) to a single burst window.
+     */
+    _scheduleMoveReconcile() {
+        if (!this._moveReconcileDebounced) {
+            this._moveReconcileDebounced = debounce(() => {
+                this._updateProgressBar().catch((error) => console.error(error));
+                if (this._aggregateFields.length) {
+                    this._updateAggregates().catch((error) => console.error(error));
+                }
+            }, MOVE_RECONCILE_DELAY);
+        }
+        this._moveReconcileDebounced();
     }
 
     /**
@@ -555,6 +761,7 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             return prom.then(() => progressBarState._refreshBars());
         }
     };
+    onWillDestroy(() => progressBarState._moveReconcileDebounced?.cancel());
 
     return progressBarState;
 }

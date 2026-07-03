@@ -9453,6 +9453,9 @@ test("drag & drop records grouped by m2o with progressbar", async () => {
         "web_read_group",
         "has_group",
         "web_search_read",
+        // The progress field ("foo") is not part of the fetched fields here,
+        // so the local per-move reconcile is impossible and each drag & drop
+        // falls back to a full read_progress_bar refresh.
         "web_save",
         "read_progress_bar",
         "web_resequence",
@@ -9513,6 +9516,8 @@ test("d&d records grouped by date with progressbar with aggregates", async () =>
         "read_progress_bar",
         "web_read_group",
         "has_group",
+        // The progress field ("foo") is not part of the fetched fields here,
+        // so the drag & drop falls back to a full progress bar refresh.
         "web_save",
         "read_progress_bar",
         "formatted_read_group",
@@ -9591,9 +9596,63 @@ test("progress bar recompute after d&d to and from other column", async () => {
         "read_progress_bar",
         "web_read_group",
         "has_group",
+        // The drag & drop between columns reconciles both columns' bars
+        // locally: no full-domain read_progress_bar refetch.
         "web_save",
-        "read_progress_bar",
         "web_resequence",
+    ]);
+});
+
+test.tags("desktop");
+test("d&d between columns updates both progressbars without a full-domain read_progress_bar", async () => {
+    onRpc("read_progress_bar", ({ kwargs }) => {
+        expect.step(`read_progress_bar ${JSON.stringify(kwargs.domain)}`);
+    });
+    onRpc("formatted_read_group", ({ kwargs }) => {
+        expect.step(`formatted_read_group ${JSON.stringify(kwargs.domain)}`);
+    });
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <progressbar field="foo" colors='{"yop": "success", "gnap": "warning", "blip": "danger"}' sum_field="int_field"/>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        groupBy: ["bar"],
+    });
+
+    expect(getKanbanColumnTooltips(0)).toEqual(["1 blip"]);
+    expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 gnap", "1 blip"]);
+    expect(getKanbanCounters()).toEqual(["-4", "36"]);
+    expect.verifySteps(["read_progress_bar []"]);
+
+    // Drag the "yop" record from the second column to the first one
+    await contains(".o_kanban_group:nth-child(2) .o_kanban_record").dragAndDrop(
+        ".o_kanban_group:first-child",
+    );
+
+    // Both columns' bar counts and totals are reconciled locally; the only
+    // refetch is the aggregate read, scoped to the two affected groups
+    // instead of the full domain, and no read_progress_bar is fired.
+    expect(getKanbanColumnTooltips(0)).toEqual(["1 yop", "1 blip"]);
+    expect(getKanbanColumnTooltips(1)).toEqual(["1 gnap", "1 blip"]);
+    expect(getKanbanCounters()).toEqual(["6", "26"]);
+    expect(getKanbanProgressBars(0).map((pb) => pb.style.width)).toEqual([
+        "50%",
+        "50%",
+    ]);
+    expect(getKanbanProgressBars(1).map((pb) => pb.style.width)).toEqual([
+        "50%",
+        "50%",
+    ]);
+    expect.verifySteps([
+        'formatted_read_group ["|",["bar","=",true],["bar","=",false]]',
     ]);
 });
 
@@ -11252,8 +11311,9 @@ test("filtered column counters when dropping in non-matching record", async () =
         "has_group",
         "web_search_read",
         "read_progress_bar",
+        // The drop from the other column reconciles both columns' bars
+        // locally: no full-domain read_progress_bar refetch.
         "web_save",
-        "read_progress_bar",
         "web_resequence",
     ]);
 });
@@ -11320,8 +11380,10 @@ test("filtered column is reloaded when dragging out its last record", async () =
     expect(getKanbanColumnTooltips(1)).toEqual(["1 blip", "1 Other"]);
     expect(getKanbanRecordTexts(1)).toEqual(["2blip", "3gnap"]);
     expect.verifySteps([
+        // The drag out of the filtered column reconciles both columns' bars
+        // locally (no full-domain read_progress_bar refetch); emptying the
+        // filtered column then deselects its bar and reloads it.
         "web_save",
-        "read_progress_bar",
         "web_search_read",
         "web_resequence",
     ]);
@@ -12653,6 +12715,8 @@ test("drag record to folded column, with progressbars", async () => {
         "read_progress_bar",
         "web_read_group",
         "has_group",
+        // The progress field ("foo") is not part of the fetched fields here,
+        // so the drag & drop falls back to a full progress bar refresh.
         "web_save",
         "read_progress_bar",
         "formatted_read_group",

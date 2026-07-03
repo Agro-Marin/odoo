@@ -117,6 +117,10 @@ export const viewService = {
             // already accepts staleness, so one retry smooths the
             // cold-fetch path while capping persistent-outage delay
             // at a single backoff interval.
+            // NOT ``immutable``: view consumers pervasively extend the
+            // returned field dicts in place (``addFieldDependencies``,
+            // ``addPropertyFieldDefs``, property definitions, ...), so the
+            // payload must stay a per-hit copy.
             const result = await orm
                 .cache({ type: "disk" })
                 .retry(1)

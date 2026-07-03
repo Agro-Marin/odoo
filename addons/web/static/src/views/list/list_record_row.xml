@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+ <!--
+    Thin wrapper: the actual row body stays at t-name "web.ListRenderer.RecordRow"
+    (in list_renderer.xml) so every existing template inheritance keeps working,
+    and renderer subclasses overriding `static recordRowTemplate` keep working —
+    the renderer passes its `constructor.recordRowTemplate` down as a prop.
+ -->
+ <t t-name="web.ListRecordRow">
+ <t t-call="{{ props.recordRowTemplate }}"/>
+ </t>
+
+</templates>

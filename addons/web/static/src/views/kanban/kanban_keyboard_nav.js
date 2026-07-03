@@ -3,6 +3,7 @@
 
 /** @module @web/views/kanban/kanban_keyboard_nav - Hotkey wiring for Enter/Space/Arrow card navigation in kanban view */
 
+import { SearchModelEvent } from "@web/core/events";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
 /**
@@ -103,7 +104,7 @@ export function useKanbanKeyboardNavigation(options) {
             "ArrowUp",
             ({ area: el }) => {
                 if (!onArrowNav(el, "up")) {
-                    searchModel.trigger("focus-search");
+                    searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
                 }
             },
             arrowsOptions,
