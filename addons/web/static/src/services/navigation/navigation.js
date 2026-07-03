@@ -7,7 +7,6 @@ import {
     onWillDestroy,
     reactive,
     useEffect,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -17,7 +16,6 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 export const ACTIVE_ELEMENT_CLASS = "focus";
-const throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) => el?.focus());
 
 class NavigationItem {
     /**@type {number} */
@@ -90,8 +88,8 @@ class NavigationItem {
         this.target.ariaSelected = "true";
 
         if (focus && !this._options.virtualFocus) {
-            throttledFocus.cancel();
-            throttledFocus(this.target);
+            this._navigator._throttledFocus.cancel();
+            this._navigator._throttledFocus(this.target);
         }
     }
 
@@ -130,6 +128,12 @@ export class Navigator {
      */
     constructor(options, hotkeyService) {
         this._hotkeyService = hotkeyService;
+        // Per-instance (not module-level): stacked navigators (e.g. nested
+        // overlays) must not cancel each other's pending focus.
+        /**@private*/
+        this._throttledFocus = throttleForAnimation(
+            (/** @type {HTMLElement} */ el) => el?.focus(),
+        );
         // OWL-reactive view of the navigator's active state. Components
         // can subscribe through `useNavigatorActive(navigator, el)` and
         // declaratively bind the focus class via `t-att-class` rather
@@ -381,6 +385,7 @@ export class Navigator {
     }
 
     _destroy() {
+        this._throttledFocus.cancel();
         for (const item of this.items) {
             item._removeListeners();
         }
@@ -520,6 +525,12 @@ export function useNavigation(containerRef, options = {}) {
     const navigator = new Navigator(newOptions, hotkeyService);
     const observer = new MutationObserver(() => navigator.update());
 
+    // The window focus listener is scoped to the container's lifetime
+    // (dropdown open), like the hotkey registrations: a closed dropdown
+    // must not contribute a capture listener to every focus event —
+    // list/kanban pages mount one Navigator per card menu.
+    const onFocus = (/** @type {FocusEvent} */ { target }) =>
+        navigator._checkFocus(/** @type {any} */ (target));
     useEffect(
         (containerEl) => {
             if (containerEl) {
@@ -528,17 +539,14 @@ export function useNavigation(containerRef, options = {}) {
                     childList: true,
                     subtree: true,
                 });
+                browser.addEventListener("focus", onFocus, true);
             }
-            return () => observer.disconnect();
+            return () => {
+                observer.disconnect();
+                browser.removeEventListener("focus", onFocus, true);
+            };
         },
         () => [/** @type {any} */ (containerRef).el],
-    );
-
-    useExternalListener(
-        browser,
-        "focus",
-        ({ target }) => navigator._checkFocus(target),
-        /** @type {any} */ (true),
     );
     // onWillDestroy (not onWillUnmount): unmount hooks don't fire for
     // components destroyed before mount, which would leak the hotkey

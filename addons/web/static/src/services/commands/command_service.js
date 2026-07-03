@@ -207,27 +207,6 @@ export const commandService = {
                 ...command,
                 ...options,
             });
-            if (registration.identifier) {
-                const commandsArray = Array.from(registeredCommands.values());
-                const sameName = commandsArray.find(
-                    (com) => com.name === registration.name,
-                );
-                if (sameName) {
-                    if (registration.identifier !== sameName.identifier) {
-                        registration.name += ` (${registration.identifier})`;
-                        sameName.name += ` (${sameName.identifier})`;
-                    }
-                } else {
-                    const sameFullName = commandsArray.find(
-                        (com) =>
-                            com.name ===
-                            registration.name + ` (${registration.identifier})`,
-                    );
-                    if (sameFullName) {
-                        registration.name += ` (${registration.identifier})`;
-                    }
-                }
-            }
             if (registration.hotkey) {
                 const action = async () => {
                     const commandService = /** @type {any} */ (env.services.command);
@@ -303,10 +282,36 @@ export const commandService = {
              * @returns {Command[]}
              */
             getCommands(activeElement) {
-                return [...registeredCommands.values()].filter(
+                const commands = [...registeredCommands.values()].filter(
                     (command) =>
                         command.activeElement === activeElement || command.global,
                 );
+                // Disambiguate same-name commands carrying distinct
+                // ``identifier``s (e.g. two "Assign to me" fields on one
+                // view) at read time: registrations are never renamed, so
+                // names heal when one of the clashing commands unregisters.
+                const byName = new Map();
+                for (const command of commands) {
+                    if (command.identifier) {
+                        const group = byName.get(command.name);
+                        if (group) {
+                            group.push(command);
+                        } else {
+                            byName.set(command.name, [command]);
+                        }
+                    }
+                }
+                return commands.map((command) => {
+                    const group = command.identifier && byName.get(command.name);
+                    if (
+                        group &&
+                        group.length > 1 &&
+                        group.some((c) => c.identifier !== command.identifier)
+                    ) {
+                        return { ...command, name: `${command.name} (${command.identifier})` };
+                    }
+                    return command;
+                });
             },
             openMainPalette,
             openPalette,

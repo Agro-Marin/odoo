@@ -85,9 +85,11 @@ function useResizable({
         if (handleRef.el) {
             handleRef.el.removeEventListener("mousedown", onMouseDown);
         }
-        // Safety: drop the drag listeners if unmounted mid-drag.
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
+        // Safety: end the drag if unmounted mid-drag — restores the body
+        // classes and drops the document-level drag listeners.
+        if (isChangingSize) {
+            onMouseUp();
+        }
     });
 
     /**

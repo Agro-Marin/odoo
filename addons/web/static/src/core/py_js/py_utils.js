@@ -78,7 +78,7 @@ export function formatAST(ast, lbp = 0) {
         case ASTType.Boolean:
             return ast.value ? "True" : "False";
         case ASTType.List:
-            return `[${ast.value.map(formatAST).join(", ")}]`;
+            return `[${ast.value.map((v) => formatAST(v)).join(", ")}]`;
         case ASTType.UnaryOperator:
             if (ast.op === "not") {
                 return `not ` + formatAST(ast.right, 50);
@@ -97,7 +97,7 @@ export function formatAST(ast, lbp = 0) {
             return `{` + pairs.join(", ") + `}`;
         }
         case ASTType.Tuple:
-            return `(${ast.value.map(formatAST).join(", ")})`;
+            return `(${ast.value.map((v) => formatAST(v)).join(", ")})`;
         case ASTType.Name:
             return ast.value;
         case ASTType.Lookup: {
@@ -115,7 +115,7 @@ export function formatAST(ast, lbp = 0) {
         case ASTType.ObjLookup:
             return `${formatAST(ast.obj, 150)}.${ast.key}`;
         case ASTType.FunctionCall: {
-            const args = ast.args.map(formatAST);
+            const args = ast.args.map((v) => formatAST(v));
             const kwargs = [];
             for (const kwarg of Object.keys(ast.kwargs || {})) {
                 kwargs.push(`${kwarg} = ${formatAST(ast.kwargs[kwarg])}`);

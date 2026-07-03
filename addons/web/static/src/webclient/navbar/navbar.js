@@ -6,7 +6,6 @@
 import {
     Component,
     onWillDestroy,
-    onWillUnmount,
     useEffect,
     useExternalListener,
     useRef,
@@ -77,7 +76,9 @@ export class NavBar extends Component {
         systrayRegistry.addEventListener("UPDATE", renderAndAdapt);
         this.env.bus.addEventListener(AppEvent.MENUS_APP_CHANGED, renderAndAdapt);
 
-        onWillUnmount(() => {
+        // onWillDestroy (not onWillUnmount): unmount hooks don't fire for
+        // components destroyed before mount, which would leak the listeners.
+        onWillDestroy(() => {
             systrayRegistry.removeEventListener("UPDATE", renderAndAdapt);
             this.env.bus.removeEventListener(AppEvent.MENUS_APP_CHANGED, renderAndAdapt);
         });

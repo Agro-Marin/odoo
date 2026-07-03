@@ -140,6 +140,14 @@ describe("formatAST", () => {
     test("null value", () => {
         expect(formatAST(toPyValue(null))).toBe("None");
     });
+
+    test("long list is not parenthesized by element position", () => {
+        // `.map(formatAST)` used to pass the array index as the binding
+        // power, parenthesizing low-bp elements past index 30 ("or" bp is 30).
+        const numbers = Array.from({ length: 32 }, (_, i) => String(i));
+        const expr = `[${[...numbers, "a or b"].join(", ")}]`;
+        expect(checkAST(expr, "33-element list with trailing boolean op")).toBe(true);
+    });
 });
 
 describe("toPyValue", () => {
