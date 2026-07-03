@@ -113,19 +113,30 @@ class IrAttachment(models.Model):
             # computed over ALL rows of that name — not just the over-grace
             # candidates — otherwise a superseded row whose successor is
             # younger than the cutoff would pose as "newest" forever.
-            live_ids = {
-                max_id
-                # Same population as `candidates` (minus the grace/suffix
-                # filters): a serving-group user could otherwise create a
-                # higher-id same-named row that poses as "newest", marking the
-                # real bundle stale.
-                for _name, max_id in self.sudo()._read_group(
-                    self._esm_asset_domain()
-                    & Domain("name", "in", list(set(artifacts.mapped("name")))),
-                    ["name"],
-                    ["id:max"],
-                )
-            }
+            #
+            # "Newest" means freshest ``write_date`` (id as tie-break), NOT
+            # max id: content-addressed saves REUSE an existing row when a
+            # bundle's content reverts (deploy rollback: content A → B →
+            # back to A), and the render path bumps the reused row's
+            # ``write_date`` on every uncached reuse
+            # (``IrQweb._persist_esm_attachment_rows``).  Max-id liveness
+            # would keep calling B — the abandoned newer row — live and
+            # sweep A, the row every cached node URL actually points at
+            # (hard 404: the ESM serve path has no rebuild).
+            live_ids = set()
+            _seen_names = set()
+            # Same population as `candidates` (minus the grace/suffix
+            # filters): a serving-group user could otherwise create a
+            # same-named row that poses as "newest", marking the real
+            # bundle stale.
+            for att in self.sudo().search(
+                self._esm_asset_domain()
+                & Domain("name", "in", list(set(artifacts.mapped("name")))),
+                order="write_date desc, id desc",
+            ):
+                if att.name not in _seen_names:
+                    _seen_names.add(att.name)
+                    live_ids.add(att.id)
             stale_artifacts = artifacts.filtered(lambda a: a.id not in live_ids)
 
         to_gc = stale_artifacts | bridges
