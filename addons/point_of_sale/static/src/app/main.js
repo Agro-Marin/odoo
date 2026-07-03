@@ -68,6 +68,8 @@ whenReady(() => {
 function registerServiceWorker() {
     // Register the service worker for the POS
     const urlsToCache = JSON.parse(odoo.urls_to_cache);
+    // The zxing-library import-map external is fetched lazily (dynamic
+    // import in the barcode scanner) — precache it so offline scans work.
     urlsToCache.push("/web/static/lib/zxing-library/zxing-library.js");
 
     navigator.serviceWorker?.register("/pos/service-worker.js").then((registration) => {

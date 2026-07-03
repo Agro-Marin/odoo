@@ -54,21 +54,16 @@ function fromField(f, record) {
             copyButton.onclick = async function (event) {
                 event.preventDefault();
                 await browser.navigator.clipboard.writeText(secretSpan.innerText);
-                // Bootstrap's Tooltip may not be available in ESM bundles where
-                // Bootstrap is loaded as UMD in a different execution scope.
-                const TooltipCtor = window.Tooltip || window.bootstrap?.Tooltip;
-                if (TooltipCtor) {
-                    const tooltip = new TooltipCtor(copyButton, {
-                        title: _t("Copied!"),
-                        trigger: "manual",
-                        placement: "bottom",
-                    });
-                    tooltip.show();
-                    setTimeout(() => {
-                        tooltip.hide();
-                        tooltip.dispose();
-                    }, 800);
-                }
+                const tooltip = new Tooltip(copyButton, {
+                    title: _t("Copied!"),
+                    trigger: "manual",
+                    placement: "bottom",
+                });
+                tooltip.show();
+                setTimeout(() => {
+                    tooltip.hide();
+                    tooltip.dispose();
+                }, 800);
             };
 
             copyButton.appendChild(copySpanIcon);

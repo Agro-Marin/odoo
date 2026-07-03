@@ -59,6 +59,34 @@ EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 EXTERNAL_BARE_SPECIFIERS = frozenset(
     {
         "luxon",
+        # DOMPurify (upstream ESM build).  Shared as one instance so the
+        # html_editor's per-iframe ``DOMPurify(window)`` factories and the
+        # one-off ``DOMPurify.sanitize`` callers agree on the same library
+        # copy — replacing the old eager UMD ``<script>`` +
+        # ``window.DOMPurify`` global.
+        "dompurify",
+        # signature_pad (upstream ESM build), lazily pulled in by
+        # ``@web/components/signature/name_and_signature`` via dynamic
+        # ``import()`` — replacing the old ``web.assets_signature_pad_lib``
+        # classic bundle + ``window.SignaturePad`` global.
+        "signature_pad",
+        # ZXing barcode library (single-file ESM bundle built from upstream
+        # ``@zxing/library`` esm/ sources — see the banner in the vendored
+        # file).  Lazily pulled in by the barcode video scanner and the
+        # QR-writer call sites via dynamic ``import()``; statically imported
+        # by ``l10n_sa_pos`` (sync receipt rendering) — replacing the old
+        # eager UMD bundle member + ``window.ZXing`` global.
+        "zxing-library",
+        # pdf.js main library (the vendored ``build/pdf.js`` IS the upstream
+        # ESM build — it always was; only the consumption was global-based).
+        # Lazily pulled in by ``@web/core/utils/pdfjs.loadPDFJS`` and by the
+        # website_slides embed viewer via dynamic ``import()``.  Evaluating
+        # the module also assigns ``globalThis.pdfjsLib`` (webpack build
+        # artifact), which the classic ``PDFSlidesViewer.js`` helper relies
+        # on.  The worker stays a plain URL (``build/pdf.worker.js``) handed
+        # to ``GlobalWorkerOptions.workerSrc`` — pdf.js spawns it itself as
+        # a module worker.
+        "pdfjs-dist",
         "chart.js",
         # Stateless Chart.js helper utilities, shared by the geo/treemap
         # chart plugins (kept external so there is one copy, not one per
@@ -678,7 +706,9 @@ class EsbuildCompiler:
         registered_specs: set[str] = {"@odoo/owl"}
         # Register @odoo/owl explicitly — externalized by esbuild
         # (resolved via import map) but must be in registerNativeModules
-        # so legacy require("@odoo/owl") works (e.g. spreadsheet).
+        # so bridge modules and other ``odoo.loader.modules.get()``
+        # consumers (cross-doc iframes, hoot fixtures) can find the owl
+        # namespace under its specifier.
         entry_lines.append('import * as __owl from "@odoo/owl";')
         register_entries.append('  "@odoo/owl": __owl')
         # ``web.assets_unit_tests_setup`` (and any future bundle in
@@ -708,11 +738,13 @@ class EsbuildCompiler:
         entry_lines.append(",\n".join(register_entries))
         entry_lines.append("});")
 
-        # Register @odoo/* external library aliases so that data: URI
-        # bridges (which resolve specifiers via odoo.loader.modules.get())
-        # can find these modules.  The esbuild bundle registers modules
-        # under their internal specifiers (e.g. @web/../lib/hoot/hoot)
-        # but the import map has data: URI bridges for the @odoo/* names.
+        # Register @odoo/* external library aliases so that bridge
+        # modules (attachment shims under ``/web/assets/esm/bridges/``,
+        # or runtime ``data:`` bridges — both resolve specifiers via
+        # ``odoo.loader.modules.get()``) can find these modules.  The
+        # esbuild bundle registers modules under their internal
+        # specifiers (e.g. @web/../lib/hoot/hoot) but the import map
+        # carries bridges for the @odoo/* names.
         _ext_aliases = {
             "@odoo/hoot": "@web/../lib/hoot/hoot",
             "@odoo/hoot-dom": "@web/../lib/hoot-dom/hoot-dom",

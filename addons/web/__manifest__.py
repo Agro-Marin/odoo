@@ -70,7 +70,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/scss/ui.scss",
             "web/static/src/fields/translation_dialog.scss",
             "web/static/src/libs/bootstrap.js",
-            "web/static/lib/dompurify/DOMpurify.js",
             "base/static/src/css/modules.css",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
@@ -283,14 +282,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/ace/mode-scss.js",
             "web/static/lib/ace/mode-json.js",
             "web/static/lib/ace/theme-monokai.js",
-        ],
-        # Lazy-loaded by ``components/signature/name_and_signature.js`` via
-        # ``loadBundle("web.assets_signature_pad_lib")``.  Kept out of
-        # ``web.assets_backend`` so the signature pad's ~31 KB UMD payload
-        # ships only on the first session that opens a SignatureField,
-        # SignatureDialog, or any descendant component.
-        "web.assets_signature_pad_lib": [
-            "web/static/lib/signature_pad/signature_pad.umd.js",
         ],
         "web.assets_web_print": [
             "web/static/src/scss/functions.scss",

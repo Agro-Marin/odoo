@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, useState } from "@odoo/owl";
+import { loadPDFJS } from "@web/core/utils/pdfjs";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 import { rpc } from "@web/core/network/rpc";
 import { uniqueId } from "@web/core/utils/functions";
@@ -167,14 +168,12 @@ export class SlideUploadCategory extends Component {
             this.canSubmitForm = false;
             const dataURL = await getDataURLFromFile(file);
             this.file.data = dataURL.split(",", 2)[1];
-            /**
-             * The following line fixes pdfjsLib 'Util' global variable.
-             * This is (most likely) related to #32181 which lazy loads most assets.
-             * See commit 3716a9b
-             */
-            window.Util = window.pdfjsLib.Util;
+            // pdf.js was previously an eager <script type="module"> in the
+            // course page head (window.pdfjsLib global); it is now
+            // lazy-loaded on the first PDF upload.
+            const pdfjsLib = await loadPDFJS();
             // pdf is stored in file.data in base64 and converted in binary (atob) to generate the preview
-            const pdfTask = window.pdfjsLib.getDocument({ data: atob(this.file.data) });
+            const pdfTask = pdfjsLib.getDocument({ data: atob(this.file.data) });
             pdfTask.onPassword = () => {
                 this._alertDisplay(_t("You can not upload password protected file."));
                 this._fileReset();

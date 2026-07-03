@@ -111,11 +111,11 @@
 
 <!-- Channel main template -->
 <template id='course_main' name="Course Main" track="1">
- <t t-set="head">
- <script type="module" src="/web/static/lib/pdfjs/build/pdf.js"/>
- <script type="module" src="/web/static/lib/pdfjs/build/pdf.worker.js"/>
- <script type="text/javascript" src="/website_slides/static/lib/pdfslidesviewer/PDFSlidesViewer.js"></script>
- </t>
+ <!-- pdf.js used to be three eager head scripts (pdf.js + the 2.2 MB
+      worker evaluated on the main thread + PDFSlidesViewer). Slides are
+      viewed through the embed iframe (embed_slide template) and the
+      upload dialog lazy-loads pdf.js via @web/core/utils/pdfjs, so the
+      course page ships none of it anymore. -->
  <t t-set="body_classname" t-value="'o_wslides_body'"/>
  <t t-call="website.layout">
  <div id="wrap" t-attf-class="wrap mt-0">

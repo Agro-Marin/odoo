@@ -18,16 +18,19 @@ declare const $: typeof import("jquery");
 
 // Third-party libraries loaded as globals
 declare const ace: any;
-declare const ZXing: any;
-declare const SignaturePad: any;
 
-// Lazy-loaded third-party ES modules without bundled npm types in this fork
-// (pulled in via dynamic ``import()`` from ``@web/core/lib/*``). Declared so the
-// dynamic imports type-resolve; their exports are untyped (``any``).
+// Third-party ES modules without bundled npm types in this fork (external
+// bare specifiers resolved through the import map — eagerly imported or
+// pulled in via dynamic ``import()``). Declared so the imports type-resolve;
+// their exports are untyped (``any``).
 declare module "chart.js";
 declare module "chartjs-adapter-luxon";
 declare module "@fullcalendar/core";
 declare module "@fullcalendar/core/locales-all";
+declare module "dompurify";
+declare module "pdfjs-dist";
+declare module "signature_pad";
+declare module "zxing-library";
 // Chart.js — now a real ES module imported through ``@web/core/lib/chartjs``.
 // This ambient global remains ONLY for the two consumers that read
 // ``globalThis.Chart`` set by a deliberate installer module rather than
@@ -48,8 +51,6 @@ declare class BarcodeDetector {
 // Third-party globals accessed via `window.*`
 interface Window {
     ace: any;
-    ZXing: any;
-    SignaturePad: any;
     Chart: any;
     MozBlob: typeof Blob | undefined;
     WebKitBlob: typeof Blob | undefined;

@@ -1,19 +1,14 @@
 /** @odoo-module native */
-import { loadPDFJSAssets } from "@web/core/utils/pdfjs";
+import { loadPDFJS } from "@web/core/utils/pdfjs";
 export async function generatePdfThumbnail(
     pdfUrl,
     options = { height: 256, width: 256 },
 ) {
-    let initialWorkerSrc = false,
-        isPdfValid,
-        pdf,
-        thumbnail;
+    let isPdfValid, pdf, pdfjsLib, thumbnail;
     try {
-        await loadPDFJSAssets();
-        // Force usage of worker to avoid hanging the tab.
-        initialWorkerSrc = globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc;
-        globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc =
-            "/web/static/lib/pdfjs/build/pdf.worker.js";
+        // The loader sets GlobalWorkerOptions.workerSrc centrally, so
+        // rendering runs in a real worker instead of hanging the tab.
+        pdfjsLib = await loadPDFJS();
     } catch {
         return { thumbnail, pdfEnabled: false };
     }
@@ -21,10 +16,10 @@ export async function generatePdfThumbnail(
         // Support for blob url
         if (pdfUrl.startsWith("blob:")) {
             pdfUrl = URL.createObjectURL(pdfUrl);
-            pdf = await globalThis.pdfjsLib.getDocument(pdfUrl).promise;
+            pdf = await pdfjsLib.getDocument(pdfUrl).promise;
             URL.revokeObjectURL(pdfUrl);
         } else {
-            pdf = await globalThis.pdfjsLib.getDocument(pdfUrl).promise;
+            pdf = await pdfjsLib.getDocument(pdfUrl).promise;
         }
     } catch (_error) {
         if (_error.status === 415) {
@@ -36,9 +31,6 @@ export async function generatePdfThumbnail(
         ) {
             pdf = undefined;
         }
-    } finally {
-        // Restore pdfjs's state
-        globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = initialWorkerSrc;
     }
     if (pdf) {
         isPdfValid = true;

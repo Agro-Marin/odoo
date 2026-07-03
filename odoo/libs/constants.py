@@ -56,15 +56,19 @@ EXTENSION_TO_WEB_MIMETYPES = {
 
 # URLs for @odoo/* (and other bare-specifier) libraries externalized by
 # esbuild — they must be in the browser import map so runtime ``import()``
-# can resolve them.  @odoo/hoot-dom is aliased in esbuild (bundled inline)
-# so it does NOT need an import map entry.
+# can resolve them.  Some entries (e.g. ``@odoo/hoot-dom``) are ALSO
+# aliased in esbuild (``_LIB_CANDIDATES`` — bundled inline in production);
+# their entry here serves ``?debug=assets`` mode, where the browser must
+# resolve the bare specifier itself.
 #
 # Lives here (not on IrQweb) so ``assetsbundle`` can read it without a
 # deferred import of ``ir_qweb`` — the two used to form a cycle.  Kept in
 # sync with ``EsbuildCompiler`` by ``AssetsBundle._validate_external_libs``
 # at import time: every key here must resolve via the ``@odoo/*`` prefix,
 # ``EXTERNAL_BARE_SPECIFIERS`` (externalized, shared through this map), or a
-# ``_LIB_CANDIDATES`` alias (inlined into the bundle).
+# ``_LIB_CANDIDATES`` alias (inlined into the bundle); every
+# ``EXTERNAL_BARE_SPECIFIERS`` entry must have a URL here; and every URL
+# must exist on disk.
 ODOO_EXTERNAL_LIBS = MappingProxyType(
     {
         "@odoo/owl": "/web/static/lib/owl/owl.es.js",
@@ -94,6 +98,32 @@ ODOO_EXTERNAL_LIBS = MappingProxyType(
         # Chart date adapter share ONE instance via this URL — replacing the
         # old UMD IIFE + ``window.luxon`` global + ``luxon.esm.js`` shim.
         "luxon": "/web/static/lib/luxon/luxon.js",
+        # DOMPurify (upstream 3.3.1 ESM build, ``dist/purify.es.mjs``).
+        # External bare specifier (see ``EXTERNAL_BARE_SPECIFIERS``) so the
+        # html_editor sanitize plugin, web_tour and website_forum share ONE
+        # instance via this URL — replacing the old eager UMD ``<script>``
+        # + ``window.DOMPurify`` global.
+        "dompurify": "/web/static/lib/dompurify/purify.es.js",
+        # signature_pad (upstream 5.1.3 ESM build, ``dist/signature_pad.js``).
+        # Lazily pulled in by ``@web/components/signature`` via dynamic
+        # ``import()`` — replacing the old ``web.assets_signature_pad_lib``
+        # classic bundle + ``window.SignaturePad`` global.
+        "signature_pad": "/web/static/lib/signature_pad/signature_pad.js",
+        # ZXing (single-file ESM bundle built from upstream @zxing/library
+        # 0.21.3 esm/ sources — see the banner in the vendored file).  Lazily
+        # pulled in by ``@web/components/barcode/barcode_video_scanner`` and
+        # the QR-writer call sites (frontdesk, l10n_at_pos) via dynamic
+        # ``import()``; statically imported by ``l10n_sa_pos`` — replacing
+        # the old eager UMD bundle member + ``window.ZXing`` global.
+        "zxing-library": "/web/static/lib/zxing-library/zxing-library.js",
+        # pdf.js (the vendored file is the upstream ESM build; evaluating it
+        # also sets ``globalThis.pdfjsLib`` for the classic PDFSlidesViewer
+        # helper).  Lazily pulled in by ``@web/core/utils/pdfjs.loadPDFJS``
+        # and the website_slides embed page — replacing the old ``loadJS``
+        # + eager ``<script type="module">`` global pattern.  The standalone
+        # viewer (``pdfjs/web/viewer.html``) keeps loading ``../build/pdf.js``
+        # itself inside its iframe.
+        "pdfjs-dist": "/web/static/lib/pdfjs/build/pdf.js",
         # Chart.js v4 (auto-registering ESM bundle) and its luxon date
         # adapter.  Lazily pulled in by ``@web/core/lib/chartjs.loadChartJS``;
         # the adapter's internal ``import { _adapters } from "chart.js"`` and
