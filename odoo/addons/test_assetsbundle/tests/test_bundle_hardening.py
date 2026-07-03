@@ -898,9 +898,18 @@ class TestAuditRegressionFixes(TransactionCase):
         ``--external`` flag (no hand-maintained allowlist to drift);
         an unaliased non-pattern specifier still fails fast.
         """
-        AssetsBundle._validate_external_libs({"@odoo/owl", "@odoo/not-listed"})
+        AssetsBundle._validate_external_libs(
+            {
+                "@odoo/owl": "/web/static/lib/owl/owl.es.js",
+                "@odoo/not-listed": "/web/static/lib/owl/owl.es.js",
+            },
+            bare_specifiers=set(),
+        )
         with self.assertRaises(ValueError):
-            AssetsBundle._validate_external_libs({"left-pad"})
+            AssetsBundle._validate_external_libs(
+                {"left-pad": "/web/static/lib/owl/owl.es.js"},
+                bare_specifiers=set(),
+            )
 
 
 class TestCompileCssImportSanitizeUnit(BaseCase):
