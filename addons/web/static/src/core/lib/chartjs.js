@@ -46,7 +46,13 @@ export async function loadChartJS() {
             ]);
             Chart = chartModule.Chart;
             return Chart;
-        })();
+        })().catch((error) => {
+            // Never cache a rejection: a transient fetch failure would
+            // otherwise disable every future chart until a full page
+            // reload (the pre-ESM loadJS path also allowed retries).
+            loadPromise = null;
+            throw error;
+        });
         await loadPromise;
     }
     return Chart;
