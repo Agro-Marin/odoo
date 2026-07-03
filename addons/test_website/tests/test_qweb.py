@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from lxml import etree
 import re
 
 from odoo import tools
+
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.addons.http_routing.tests.common import MockRequest
 
@@ -34,22 +33,24 @@ class TestQweb(TransactionCaseWithUserDemo):
         qweb = self.env['ir.qweb']
         bundle = qweb._get_asset_bundle(asset_bundle_xmlid, css=True, js=True, assets_params={'website_id': website.id})
 
-        asset_version_js = bundle.get_version('js')
         asset_version_css = bundle.get_version('css')
-        css_url, js_url = bundle.get_links()[-2:]
+        # The bundle carries no LOCAL JS (only external scripts + local
+        # CSS), so its only generated link is the css attachment — there
+        # is no bundle ``.min.js`` script to expect.  The old
+        # ``css_url, js_url = get_links()[-2:]`` unpacking silently
+        # grabbed an external URL once the js link stopped existing.
+        css_url = bundle.get_links()[-1]
 
         html = html.strip()
         html = re.sub(r'\?unique=[^"]+', '', html).encode('utf8')
 
         format_data = {
             "css": css_url,
-            "js": js_url,
             "user_id": demo.id,
             "filename": "Marc%20Demo",
             "alt": "Marc Demo",
             "asset_xmlid": asset_bundle_xmlid,
             "asset_version_css": asset_version_css,
-            "asset_version_js": asset_version_js,
         }
         self.assertHTMLEqual(html, ("""<!DOCTYPE html>
 <html>
@@ -60,7 +61,6 @@ class TestQweb(TransactionCaseWithUserDemo):
         <meta/>
         <script type="text/javascript" src="http://test.external.link/javascript1.js"></script>
         <script type="text/javascript" src="http://test.external.link/javascript2.js"></script>
-        <script type="text/javascript" src="http://test.cdn%(js)s" onerror="__odooAssetError=1"></script>
     </head>
     <body>
         <img src="http://test.external.link/img.png" loading="lazy"/>

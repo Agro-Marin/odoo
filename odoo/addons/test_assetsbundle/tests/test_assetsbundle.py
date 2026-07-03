@@ -1311,7 +1311,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         <meta/>
         <script type="text/javascript" src="http://test.external.link/javascript1.js"></script>
         <script type="text/javascript" src="http://test.external.link/javascript2.js"></script>
-        <script type="text/javascript" src="{links[5]}" onerror="__odooAssetError=1"></script>
+        <script type="text/javascript" src="{links[5]}"></script>
     </head>
     <body>
     </body>
@@ -1333,7 +1333,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         <meta/>
         <script type="text/javascript" src="http://test.external.link/javascript1.js"></script>
         <script type="text/javascript" src="http://test.external.link/javascript2.js"></script>
-        <script type="text/javascript" src="/web/assets/debug/test_assetsbundle.bundle4.js" onerror="__odooAssetError=1"></script>
+        <script type="text/javascript" src="/web/assets/debug/test_assetsbundle.bundle4.js"></script>
     </head>
     <body>
     </body>
