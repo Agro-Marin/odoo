@@ -263,9 +263,9 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
   runs `npx tsc --project tsconfig.json --noEmit` on every PR touching
   JS/TS (and on every push to `19.0-marin` / `19.0`) as a **blocking
   drift-zero ratchet** (no `continue-on-error`). The committed floor lives
-  in `tooling/ratchet/baselines/tsc.json` (**2002** errors as of
-  2026-06-25 — down from the stale ~6,575 the old warn-only gate hardcoded
-  and never enforced) and only moves one way. To lower it after a fix
+  in `tooling/ratchet/baselines/tsc.json` (**1917** errors as of
+  2026-07-02 — down from 2002 on 2026-06-25 and from the stale ~6,575 the
+  old warn-only gate hardcoded and never enforced) and only moves one way. To lower it after a fix
   wave: run tsc locally, count `error TS` lines, then
   `python tooling/ratchet/ratchet.py tsc --count "$N" --update` and commit
   the baseline. See `tooling/ratchet/README.md`.

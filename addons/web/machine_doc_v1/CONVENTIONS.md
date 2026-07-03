@@ -434,10 +434,10 @@ When refactoring a widget:
      Benefits: asset hashing for cache-busting, integration with the asset
      pipeline's circuit breaker and observability log
      (`makeAssetLog("js")`), single source of truth in the manifest.
-     Examples: `web.assets_signature_pad_lib`,
-     `survey.assets_chartjs_datalabels_lib`, `web.ace_lib`.
-     (Libraries that ship as real ES modules — Chart.js, FullCalendar — use
-     the `core/lib/` lazy-ESM loader pattern instead; see above.)
+     Examples: `web.ace_lib`.
+     (Libraries that ship as real ES modules — Chart.js, FullCalendar,
+     DOMPurify, signature_pad — are import-map bare specifiers instead of
+     classic bundles: eager `import` or dynamic `import()`; see above.)
 
    - **External SDKs delivered via vendor CDN** (payment processors, Maps
      APIs, video player APIs, reCAPTCHA, etc.): use `loadJS(url)` directly.

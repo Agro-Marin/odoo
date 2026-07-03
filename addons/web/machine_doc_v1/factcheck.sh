@@ -31,21 +31,24 @@ assert_range() {
 }
 
 # ------- Module size -------
-# 657 (round 5, 2026-07-02): +8 over the 649 round-4 baseline from this
+# 658 (2026-07-03 machinery wave): +1 over the 657 round-5 baseline
+# (core/errors/stack_frames.js — native stack parsing + sourcemap consumer
+# replacing vendored stacktracejs).  Round-5 note: 657 was +8 over the 649
+# round-4 baseline from this
 # audit wave (core/lib/{chartjs,fullcalendar}.js, search/embedded_actions_bar,
 # views/list/list_record_row.js, model/relational_model split files, ...)
 # minus the deleted polyfills/ file and load_coordinator.js.
-assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "657"
+assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "658"
 
 # ------- Type coverage -------
-# 655 = 657 total - 2 intentional exclusions (module_loader + service_worker)
+# 656 = 658 total - 2 intentional exclusions (module_loader + service_worker)
 assert_eq "@ts-check coverage" \
-    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "655"
+    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "656"
 assert_eq "Untyped JS files (intentional: module_loader + service_worker)" \
     "$(find "$WEB/static/src" -name "*.js" -type f -exec grep -L "@ts-check" {} + 2>/dev/null | wc -l)" "2"
 
 # ------- Test scope -------
-assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "351"
+assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "352"
 # Legacy QUnit chain REMOVED (see TEST_TAGS.md): static/tests/legacy/ tree,
 # vendored static/lib/qunit/, the web.tests_assets / web.__assets_tests_call__ /
 # web.qunit_suite_tests bundles and the /web/tests/legacy route are all gone.
@@ -353,14 +356,14 @@ assert_eq "FormSaveCoordinator errorMode typedef declares three modes" \
 
 # 3. ARCHITECTURE.md JS file counts — sites previously cited 615/621/649;
 #    now 657 after the 2026-07-02 audit wave.
-assert_eq "ARCHITECTURE.md no stale JS file counts (615/621/649)" \
-    "$(grep -cE '(615|621|649) (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
+assert_eq "ARCHITECTURE.md no stale JS file counts (615/621/649/657)" \
+    "$(grep -cE '(615|621|649|657) (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
 assert_eq "ARCHITECTURE.md JS count cited in prose" \
-    "$(grep -cE '657 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+    "$(grep -cE '658 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 # (The other site is in a markdown table cell `| JavaScript (src) | 657 |` —
 # pattern above won't match because of the pipe layout, so check it separately.)
 assert_eq "ARCHITECTURE.md JS table cell" \
-    "$(grep -cE '\| JavaScript \(src\) \| 657 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+    "$(grep -cE '\| JavaScript \(src\) \| 658 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
 # 4. Pattern 4 inventory — STATE_MANAGEMENT.md should enumerate verified sites
 #    rather than implying an open population.
@@ -391,7 +394,7 @@ assert_eq "eslint.config.mjs no longer carries the Reactive-import rule" \
 # the others held.  Lock all eight so future drift trips on commit.
 for section_check in \
     "components/:74" \
-    "core/:110" \
+    "core/:111" \
     "fields/:112" \
     "views/:151" \
     "webclient/:56" \
@@ -535,20 +538,20 @@ assert_eq "ARCHITECTURE.md File Counts: Python tests = 44" \
     "$(grep -cE '\| Python \(tests\) \| 44 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "Python test file count = 44 (reality check)" \
     "$(find "$WEB/tests" -name "test_*.py" | wc -l)" "44"
-assert_eq "ARCHITECTURE.md File Counts: JS tests = 407/351" \
-    "$(grep -cE '\| JavaScript \(tests\) \| 407 \(incl\. 351' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "static/tests JS file count = 407 (reality check)" \
-    "$(find "$WEB/static/tests" -name "*.js" | wc -l)" "407"
-assert_eq "ARCHITECTURE.md File Counts: vendored libs = 92" \
-    "$(grep -cE '\| JavaScript \(vendored libs\) \| 92 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "static/lib JS file count = 92 (reality check)" \
-    "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "92"
+assert_eq "ARCHITECTURE.md File Counts: JS tests = 408/352" \
+    "$(grep -cE '\| JavaScript \(tests\) \| 408 \(incl\. 352' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "static/tests JS file count = 408 (reality check)" \
+    "$(find "$WEB/static/tests" -name "*.js" | wc -l)" "408"
+assert_eq "ARCHITECTURE.md File Counts: vendored libs = 91" \
+    "$(grep -cE '\| JavaScript \(vendored libs\) \| 91 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "static/lib JS file count = 91 (reality check)" \
+    "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "91"
 
 # 15. ARCHITECTURE.md JavaScript Architecture table — lock the Layer subtotals.
 #     These mirror the per-section filesystem assertions but for the
 #     ARCHITECTURE doc's view of the same numbers.
-assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 110" \
-    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 110 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 111" \
+    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 111 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md Layer: Webclient = 56" \
     "$(grep -cE '\| \*\*Webclient\*\* \| .webclient/. \|.*\| 56 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md Layer: Views = 151" \
@@ -606,16 +609,16 @@ assert_eq "esm_registry.py: EsmRegistry NamedTuple on cited line 75" \
     "$(sed -n '75p' "$PYTOOLS/esm_registry.py" | grep -c 'class EsmRegistry')" "1"
 assert_eq "esm_registry.py: validate_esm_config on cited line 205" \
     "$(sed -n '205p' "$PYTOOLS/esm_registry.py" | grep -c 'def validate_esm_config')" "1"
-assert_eq "esbuild.py: _LIB_CANDIDATES on cited line 271" \
-    "$(sed -n '271p' "$PYTOOLS/esbuild.py" | grep -c '_LIB_CANDIDATES')" "1"
-assert_eq "esm_graph.py: is_native_module on cited line 57" \
-    "$(sed -n '57p' "$PYTOOLS/esm_graph.py" | grep -c 'def is_native_module')" "1"
-assert_eq "assetsbundle.py: membership via esm_registry().bundles (line 1446)" \
-    "$(sed -n '1446p' "$PYBASE/assetsbundle.py" | grep -c 'esm_registry().bundles')" "1"
-assert_eq "assetsbundle.py: esbuild_native_bundle on cited line 1754" \
-    "$(sed -n '1754p' "$PYBASE/assetsbundle.py" | grep -c 'def esbuild_native_bundle')" "1"
-assert_eq "ir_qweb.py: _get_native_module_nodes on cited line 4292" \
-    "$(sed -n '4292p' "$PYBASE/ir_qweb.py" | grep -c 'def _get_native_module_nodes')" "1"
+assert_eq "esbuild.py: _LIB_CANDIDATES on cited line 299" \
+    "$(sed -n '299p' "$PYTOOLS/esbuild.py" | grep -c '_LIB_CANDIDATES')" "1"
+assert_eq "esm_graph.py: is_native_module on cited line 58" \
+    "$(sed -n '58p' "$PYTOOLS/esm_graph.py" | grep -c 'def is_native_module')" "1"
+assert_eq "assetsbundle.py: membership via esm_registry().bundles (line 1539)" \
+    "$(sed -n '1539p' "$PYBASE/assetsbundle.py" | grep -c 'esm_registry().bundles')" "1"
+assert_eq "assetsbundle.py: esbuild_native_bundle on cited line 1847" \
+    "$(sed -n '1847p' "$PYBASE/assetsbundle.py" | grep -c 'def esbuild_native_bundle')" "1"
+assert_eq "ir_qweb.py: _get_native_module_nodes on cited line 4299" \
+    "$(sed -n '4299p' "$PYBASE/ir_qweb.py" | grep -c 'def _get_native_module_nodes')" "1"
 assert_eq "ESM_BUNDLING.md documents the manifest 'esm' key" \
     "$(grep -c 'dynamic_children' "$WEB/machine_doc_v1/ESM_BUNDLING.md")" "3"
 assert_eq "ESM_BUNDLING.md no stale _ESM_APP_BUNDLES table row" \
@@ -705,10 +708,10 @@ assert_eq "typecheck.yml enforces via tooling/ratchet" \
     "$(grep -c 'tooling/ratchet/ratchet.py tsc' "$TYPECHECK_YML")" "3"
 assert_eq "JSDOC doc: warn-only claim replaced by blocking ratchet" \
     "$(grep -c 'continue-on-error: true' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
-assert_eq "JSDOC doc cites the 2002 floor" \
-    "$(grep -c '2002' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "1"
+assert_eq "JSDOC doc cites the 1917 floor" \
+    "$(grep -c '1917' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "1"
 tsc_floor=$(python3 -c "import json;print(json.load(open('/home/marin/Odoo/addons/core/tooling/ratchet/baselines/tsc.json'))['count'])" 2>/dev/null || echo "missing")
-assert_eq "committed tsc ratchet floor is 2002" "$tsc_floor" "2002"
+assert_eq "committed tsc ratchet floor is 1917" "$tsc_floor" "1917"
 
 # 23. Conditional /web/webclient/load_menus (X-Menus-Hash round-trip).
 assert_eq "home.py sends X-Menus-Hash" \
@@ -787,10 +790,10 @@ assert_eq "webclient.py no longer serves /web/tests/legacy" \
     "$(grep -c '/web/tests/legacy' "$WEB/controllers/webclient.py")" "0"
 assert_eq "ROUTE_MAP notes the /web/tests/legacy removal" \
     "$(grep -c 'was \*\*removed\*\* along with the whole legacy QUnit chain' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
-assert_eq "route handler count = 72 (reality check)" \
-    "$(cat "$WEB"/controllers/*.py | grep -cE '@(http\.)?route\(')" "72"
-assert_eq "ROUTE_MAP total row says 72 handlers" \
-    "$(grep -c '72 handlers / ~104 URL variants' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
+assert_eq "route handler count = 73 (reality check)" \
+    "$(cat "$WEB"/controllers/*.py | grep -cE '@(http\.)?route\(')" "73"
+assert_eq "ROUTE_MAP total row says 73 handlers" \
+    "$(grep -c '73 handlers / ~105 URL variants' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
 
 # 32. ADR index (core-root doc/adr) lists ADR-0011.
 assert_eq "doc/adr/README.md indexes ADR-0011" \
