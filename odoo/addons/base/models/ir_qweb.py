@@ -408,6 +408,7 @@ from odoo.libs.constants import (
 )
 from odoo.libs.lru import LRU
 from odoo.modules import Manifest
+from odoo.modules import module as _module
 from odoo.modules.registry import _REGISTRY_CACHES
 from odoo.tools import OrderedSet, config, frozendict, json, safe_eval
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
@@ -3978,11 +3979,16 @@ class IrQweb(models.AbstractModel):
             "lock_retry_sleep_s",
             "timeout_s",
             "target",
-            # Source-map mode: ``""`` (off — default), ``"external"`` (sidecar
-            # ``.js.map`` attachment, browser fetches only when devtools
-            # opens), or ``"inline"`` (base64 in the bundle, no sidecar but
-            # ~2x download).  Operators turn this on for production debugging
-            # without redeploying.
+            # Source-map mode: ``""`` (off — default), ``"linked"``
+            # (RECOMMENDED for production debugging: sidecar ``.js.map``
+            # attachment + a ``//# sourceMappingURL=`` directive in the
+            # bundle — the only mode devtools and the error-dialog stack
+            # annotator (``@web/core/errors/stack_frames``) can discover),
+            # ``"external"`` (sidecar without the directive — for maps
+            # consumed out-of-band, e.g. a crash reporter), or ``"inline"``
+            # (base64 in the bundle, no sidecar but ~2x download).
+            # Operators turn this on without redeploying; the ``.map``
+            # sidecar is served immutable by ``content_esm_assets``.
             "source_maps",
         }
     )
@@ -4315,7 +4321,7 @@ class IrQweb(models.AbstractModel):
             and bundle not in self._esbuild_forced_fallback_bundles()
         ):
             try:
-                return self._get_native_module_nodes_cached(
+                pre, post = self._get_native_module_nodes_cached(
                     bundle, assets_params=assets_params
                 )
             except _EsmFallbackError:
@@ -4324,12 +4330,57 @@ class IrQweb(models.AbstractModel):
                 # debug fallback. The re-run re-evaluates those conditions
                 # (cheap; no second subprocess once the circuit has opened) and
                 # constructs the asset_bundle the debug branch needs.
-                return self._get_native_module_nodes_impl(
+                pre, post = self._get_native_module_nodes_impl(
                     bundle, debug=debug, assets_params=assets_params
                 )
-        return self._get_native_module_nodes_impl(
-            bundle, debug=debug, assets_params=assets_params
+        else:
+            pre, post = self._get_native_module_nodes_impl(
+                bundle, debug=debug, assets_params=assets_params
+            )
+        return self._dedup_request_import_map(bundle, pre), post
+
+    def _dedup_request_import_map(
+        self,
+        bundle: str,
+        pre_nodes: list[tuple[str, dict[str, Any]]],
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """Keep at most one ``<script type="importmap">`` per request.
+
+        The browser evaluates every importmap on the page and logs "An
+        import map rule for specifier '<spec>' was removed, as it
+        conflicted with an existing rule" for each duplicate key, so a
+        page composing several ESM bundles (``t-call-assets`` twice, the
+        unit-test page stacking setup + tests bundles) must render the
+        map of the FIRST bundle only.
+
+        Runs in the dispatcher — outside ``_get_native_module_nodes_cached``
+        — because the decision is request-scoped while the cache key is
+        ``(bundle, assets_params)``: filtering inside the cached impl baked
+        one request's page composition into every later render (nodes
+        cached without their importmap serve broken pages forever).
+
+        Returns a filtered COPY when dropping the node; cached lists are
+        shared by reference and must never be mutated.
+        """
+        if not request:
+            return pre_nodes
+
+        def _is_import_map(node: tuple[str, dict[str, Any]]) -> bool:
+            return node[0] == "script" and node[1].get("type") == "importmap"
+
+        if not any(_is_import_map(node) for node in pre_nodes):
+            return pre_nodes
+        if not getattr(request, "_esm_import_map_rendered", False):
+            request._esm_import_map_rendered = True
+            return pre_nodes
+        log_event(
+            _esm_log,
+            logging.DEBUG,
+            "importmap_skipped",
+            bundle=bundle,
+            reason="already_rendered",
         )
+        return [node for node in pre_nodes if not _is_import_map(node)]
 
     def _get_native_module_nodes_impl(
         self,
@@ -4636,9 +4687,19 @@ class IrQweb(models.AbstractModel):
                 assets_params=assets_params,
             )
             prod_import_map.update(include_data["import_map"])
-            prod_import_map.update(
-                include_data.get("bridge_import_map", {}),
-            )
+            # The include's bridges cover specifiers its OWN files import
+            # from elsewhere — mostly this parent's modules (absent from
+            # the map, added here) but also DYNAMIC-CHILD specifiers,
+            # which already have a direct URL from the child merge above.
+            # Those must keep the direct URL: the parent's esbuild output
+            # externalizes dynamic-child specs and imports them through
+            # the map at page-load time, when ``odoo.loader.modules`` is
+            # not yet populated — a shim there yields undefined exports.
+            # The direct URL also preserves singleton identity for the
+            # satellite (browsers singleton ES modules by URL).  Same
+            # first-wins rule the secondary-includes loop below applies.
+            for spec, shim_url in include_data.get("bridge_import_map", {}).items():
+                prod_import_map.setdefault(spec, shim_url)
 
         # Include NEW import-map specifiers from secondary
         # satellite bundles (e.g. ``web.assets_tests`` loaded
@@ -4734,47 +4795,34 @@ class IrQweb(models.AbstractModel):
                 if shim:
                     prod_import_map[alias] = shim
 
-        # Only ONE ``<script type="importmap">`` may be
-        # evaluated per document — the browser logs "An import
-        # map rule for specifier '<spec>' was removed, as it
-        # conflicted with an existing rule" on every duplicate
-        # key.  A second ``_get_native_module_nodes`` call on
-        # the same request (e.g. a page that composes more than
-        # one ESM bundle with ``t-call-assets``, or the unit-test
-        # page that stacks ``web.assets_unit_tests_setup`` and
-        # ``web.assets_unit_tests``) must therefore skip the
-        # importmap even if it's in the prod branch.  The debug
-        # branch already gates on this flag (see ~line 4431);
-        # aligning prod here closes the symmetry gap.
-        _already_has_esm = request and getattr(
-            request,
-            "_esm_import_map_rendered",
-            False,
+        # ALWAYS emit the importmap node here.  Only ONE
+        # ``<script type="importmap">`` may be evaluated per
+        # document, but this method runs inside the ormcached
+        # ``_get_native_module_nodes_cached`` whose key is
+        # ``(bundle, assets_params)`` — request-independent.
+        # Consulting ``request._esm_import_map_rendered`` here
+        # (as this method used to) baked one request's page
+        # composition into the process cache: a bundle first
+        # rendered as the SECOND ESM bundle of a page was cached
+        # WITHOUT its importmap and served broken to every later
+        # page that rendered it alone.  The per-request dedup now
+        # happens outside the cache, in the dispatcher
+        # (``_get_native_module_nodes`` →
+        # ``_dedup_request_import_map``); the debug branch keeps
+        # its own flag handling because it is never cached and
+        # the flag also shapes its generated bridge code.
+        pre.append(
+            (
+                "script",
+                {
+                    "type": "importmap",
+                    "data-bundle": bundle,
+                    "text": json_mod.dumps(
+                        {"imports": prod_import_map},
+                    ),
+                },
+            )
         )
-        if not _already_has_esm:
-            pre.append(
-                (
-                    "script",
-                    {
-                        "type": "importmap",
-                        "data-bundle": bundle,
-                        "text": json_mod.dumps(
-                            {"imports": prod_import_map},
-                        ),
-                    },
-                )
-            )
-            if request:
-                request._esm_import_map_rendered = True
-        else:
-            log_event(
-                _esm_log,
-                logging.DEBUG,
-                "importmap_skipped",
-                bundle=bundle,
-                branch="prod",
-                reason="already_rendered",
-            )
         # Bootstrap odoo.loader — must be a class instance (not
         # a plain object) because Hoot's ModuleSetLoader does
         # ``extends loader.constructor`` and calls parent methods
@@ -4840,32 +4888,53 @@ class IrQweb(models.AbstractModel):
                 + esm_tpl
                 + ("\n" + sm_directive + "\n" if sm_directive else "")
             )
-        # In read-only transactions (e.g. test mode), inline the code
-        # instead of attempting an INSERT that would fail.
-        if self.env.cr.readonly:
-            post.append(
-                (
-                    "script",
-                    {
-                        "type": "module",
-                        "text": bundle_code,
-                        "data-bridge": bundle,
-                    },
-                )
-            )
-        else:
+        # Persist and reference by URL even on read-only request cursors:
+        # ``_save_esm_attachment`` routes its INSERT through a dedicated
+        # read-write registry cursor (a primary cursor even on a
+        # replica-routed render — see ``_persist_esm_attachment_rows``),
+        # so replica renders no longer inline the multi-MB bundle into
+        # every response.  Inlining remains as the degradation path for
+        # contexts with no writable cursor at all (read-only test
+        # cursors, primary down) — functionally identical, just heavier.
+        esm_url = None
+        try:
             esm_url = self._save_esm_attachment(
                 bundle,
                 bundle_code,
                 metafile=esbuild_result.metafile,
                 sourcemap=esbuild_result.sourcemap,
             )
+        except ReadOnlySqlTransaction:
+            # Raised cleanly (no SQL executed) by
+            # ``_persist_esm_attachment_rows`` when no writable cursor
+            # exists — the transaction is intact, inlining is safe.
+            # Anything else propagates as before: a real save error must
+            # not be papered over with a silently degraded page.
+            log_event(
+                _attach_log,
+                logging.WARNING,
+                "save_failed_inline",
+                bundle=bundle,
+                readonly=bool(self.env.cr.readonly),
+            )
+        if esm_url:
             post.append(
                 (
                     "script",
                     {
                         "type": "module",
                         "src": esm_url,
+                        "data-bridge": bundle,
+                    },
+                )
+            )
+        else:
+            post.append(
+                (
+                    "script",
+                    {
+                        "type": "module",
+                        "text": bundle_code,
                         "data-bridge": bundle,
                     },
                 )
@@ -4882,28 +4951,39 @@ class IrQweb(models.AbstractModel):
             esm_registry().import_map_includes.get(bundle),
         )
         if esm_tpl and _has_satellites:
-            if self.env.cr.readonly:
-                post.append(
-                    (
-                        "script",
-                        {
-                            "type": "module",
-                            "text": esm_tpl,
-                            "data-templates": bundle,
-                        },
-                    )
-                )
-            else:
+            # Same persist-or-inline ladder as the main bundle above.
+            tpl_url = None
+            try:
                 tpl_url = self._save_esm_attachment(
                     f"{bundle}.templates",
                     esm_tpl,
                 )
+            except ReadOnlySqlTransaction:
+                log_event(
+                    _attach_log,
+                    logging.WARNING,
+                    "save_failed_inline",
+                    bundle=f"{bundle}.templates",
+                    readonly=bool(self.env.cr.readonly),
+                )
+            if tpl_url:
                 post.append(
                     (
                         "script",
                         {
                             "type": "module",
                             "src": tpl_url,
+                            "data-templates": bundle,
+                        },
+                    )
+                )
+            else:
+                post.append(
+                    (
+                        "script",
+                        {
+                            "type": "module",
+                            "text": esm_tpl,
                             "data-templates": bundle,
                         },
                     )
@@ -5191,7 +5271,13 @@ class IrQweb(models.AbstractModel):
                 register_entries = []
                 for i, specifier in enumerate(non_hoot_specs):
                     var = f"__m{i}"
-                    import_lines.append(f'import * as {var} from "{specifier}";')
+                    # json.dumps quotes/escapes the specifier so a quote or
+                    # backslash in a (developer-controlled) module path
+                    # cannot break out of the string literal — same
+                    # treatment the registration keys below already get.
+                    import_lines.append(
+                        f"import * as {var} from {json_mod.dumps(specifier)};"
+                    )
                     register_entries.append(f"  {json_mod.dumps(specifier)}: {var}")
                 bridge_code = "\n".join(import_lines) + "\n"
                 bridge_code += "odoo.loader.registerNativeModules({\n"
@@ -5206,7 +5292,10 @@ class IrQweb(models.AbstractModel):
                 # registration side-effect.
                 tour_specs = [s for s in non_hoot_specs if "/tours/" in s]
                 if tour_specs:
-                    bridge_code = "\n".join(f'import "{s}";' for s in tour_specs) + "\n"
+                    bridge_code = (
+                        "\n".join(f"import {json_mod.dumps(s)};" for s in tour_specs)
+                        + "\n"
+                    )
 
             # ESM native test loading: import all Hoot test files
             # eagerly via start.hoot's loadAndStart(), following Hoot's
@@ -5329,25 +5418,47 @@ class IrQweb(models.AbstractModel):
                 url=url,
                 bytes=len(content_bytes),
             )
+            # Touch the row so the asset GC sees a REUSED artifact as
+            # live.  Content-addressing means a reverted deploy (content
+            # A → B → back to A) reuses A's original row, whose
+            # ``write_date`` (and id) are older than B's — without the
+            # touch, ``_gc_esm_assets``'s newest-per-name heuristic
+            # treats B as the live version and sweeps A while every
+            # cached node still embeds A's URL (hard 404; the ESM serve
+            # path has no rebuild).  Best-effort, out-of-band commit —
+            # same rationale as the create below.
+            self._persist_esm_attachment_rows(
+                [],
+                touch_ids=existing.ids,
+                bundle=bundle,
+            )
             return url
 
-        IrAttachment.with_user(SUPERUSER_ID).create(
-            {
-                "name": f"{bundle}.esm.js",
-                "mimetype": "text/javascript",
-                "res_model": "ir.ui.view",
-                "res_id": False,
-                "type": "binary",
-                "public": True,
-                "raw": content_bytes,
-                "url": url,
-            }
+        self._persist_esm_attachment_rows(
+            [
+                {
+                    "name": f"{bundle}.esm.js",
+                    "mimetype": "text/javascript",
+                    "res_model": "ir.ui.view",
+                    "res_id": False,
+                    "type": "binary",
+                    "public": True,
+                    "raw": content_bytes,
+                    "url": url,
+                }
+            ],
+            bundle=bundle,
         )
         # Clean old versions across both the legacy per-version URL
         # layout (``/web/assets/<ver>/<bundle>.esm.js``) and the
         # content-addressable layout (``/web/assets/esm/<hash>/…``).
-        # ``=like`` is glob-on-``%``; ``_`` is also a wildcard so no
-        # false positives from literal underscores in bundle names.
+        # ``=like`` patterns are approximate: ``_`` is a single-char
+        # wildcard (bundle names are full of literal underscores) and the
+        # leading ``%`` can span path segments, so the sweep CAN over-match
+        # sibling bundle names.  Contained by design — matches are only
+        # deferred to ``_gc_esm_assets``, which re-derives liveness itself;
+        # the cost of a false positive is an extra cache clear, never a
+        # deleted live row.
         # Sweep matching ``.meta.json`` and ``.esm.js.map`` siblings
         # too — otherwise old hashes leave orphan rows that pile up
         # in ``ir.attachment`` and waste filestore bytes (one stale
@@ -5439,13 +5550,14 @@ class IrQweb(models.AbstractModel):
         attachment when the URL already maps to one.
         """
         IrAttachment = self.env["ir.attachment"]
-        if IrAttachment.sudo().search(
+        existing = IrAttachment.sudo().search(
             [
                 ("url", "=", url),
                 ("public", "=", True),
             ],
             limit=1,
-        ):
+        )
+        if existing:
             log_event(
                 _attach_log,
                 logging.DEBUG,
@@ -5453,18 +5565,29 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
                 url=url,
             )
+            # Same GC-liveness touch as the main-bundle reuse branch:
+            # a reused sidecar must not look older than a superseded
+            # sibling of the same name.
+            self._persist_esm_attachment_rows(
+                [],
+                touch_ids=existing.ids,
+                bundle=bundle,
+            )
             return
-        IrAttachment.with_user(SUPERUSER_ID).create(
-            {
-                "name": url.rsplit("/", 1)[-1],
-                "mimetype": mimetype,
-                "res_model": "ir.ui.view",
-                "res_id": False,
-                "type": "binary",
-                "public": True,
-                "raw": content,
-                "url": url,
-            }
+        self._persist_esm_attachment_rows(
+            [
+                {
+                    "name": url.rsplit("/", 1)[-1],
+                    "mimetype": mimetype,
+                    "res_model": "ir.ui.view",
+                    "res_id": False,
+                    "type": "binary",
+                    "public": True,
+                    "raw": content,
+                    "url": url,
+                }
+            ],
+            bundle=bundle,
         )
         log_event(
             _attach_log,
@@ -5474,6 +5597,121 @@ class IrQweb(models.AbstractModel):
             url=url,
             bytes=len(content),
         )
+
+    def _persist_esm_attachment_rows(
+        self,
+        vals_list: list[dict],
+        touch_ids: Sequence[int] = (),
+        bundle: str = "",
+    ) -> None:
+        """Persist ESM asset attachments through a dedicated RW cursor.
+
+        The rendered nodes embedding these attachment URLs are stored in
+        the process-memory ``assets`` ormcache the moment the enclosing
+        cached method returns — and ormcache entries never roll back with
+        the transaction.  Creating the rows on the REQUEST cursor meant a
+        later failure in the same request (access error in another
+        template section, serialization abort) rolled the attachment back
+        while the cache kept serving its URL: a hard 404 with no rebuild
+        path, since the ESM serve route deliberately has none (see
+        ``ir.attachment.unlink``).  A dedicated cursor that commits
+        independently of the render closes that window — the same
+        invariant, and the same escalation pattern,
+        ``BridgeShimManager._persist_bridges_via_rw_cursor`` applies to
+        bridge shims.  It also lets read-only replica renders (e.g. the
+        ``/web/bundle`` lazy-load route) persist without relying on the
+        http layer's whole-request read-write retry.
+
+        Test mode writes on the request cursor instead (the
+        pre-refactor behavior): rollback-safety is meaningless inside a
+        test transaction, and while an HttpCase's registry cursor is a
+        TestCursor sharing the test transaction, a plain
+        TransactionCase's ``registry.cursor()`` opens a REAL cursor
+        whose out-of-band commit is invisible to the test's snapshot
+        and leaks rows past the test rollback.
+
+        The attachments are content-addressed and idempotent, so the
+        out-of-band commit is safe; a concurrent worker doing the same
+        produces a harmless duplicate row (served via ``limit 1``,
+        cleaned by the GC).
+
+        :param vals_list: ``ir.attachment`` create values.  When the RW
+            cursor is unreachable (primary down), falls back to creating
+            on the request cursor — the pre-refactor behavior — and lets
+            any error propagate so a URL is never returned (and cached)
+            without a surviving row.
+        :param touch_ids: existing attachment ids whose ``write_date``
+            must be bumped so ``_gc_esm_assets`` keeps treating a REUSED
+            content-addressed row as live (content reverts re-use old
+            rows; see the reuse branches of the two savers).  Best-effort:
+            a failed touch only shortens GC protection, never the render.
+        """
+        if _module.current_test:
+            if vals_list:
+                if self.env.cr.readonly:
+                    # Raise WITHOUT executing the doomed INSERT: a failed
+                    # statement aborts the transaction and would poison
+                    # every later query of the render.  Same type the
+                    # INSERT itself would raise, so callers that let it
+                    # propagate (the /web/bundle payload path) still get
+                    # the http layer's read-write retry.
+                    raise ReadOnlySqlTransaction(
+                        "cannot persist ESM attachments on a read-only "
+                        "test cursor"
+                    )
+                self.env["ir.attachment"].with_user(SUPERUSER_ID).create(vals_list)
+            # The touch is best-effort everywhere — skip it on readonly
+            # test cursors (pre-refactor reuse did no write at all).
+            if touch_ids and not self.env.cr.readonly:
+                self.env.cr.execute(
+                    "UPDATE ir_attachment SET write_date = now() at time zone 'UTC'"
+                    " WHERE id = ANY(%s)",
+                    (list(touch_ids),),
+                )
+                self.env["ir.attachment"].browse(list(touch_ids)).invalidate_recordset(
+                    ["write_date"],
+                )
+            return
+        try:
+            with self.env.registry.cursor(readonly=False) as rw_cr:
+                if vals_list:
+                    rw_env = api.Environment(rw_cr, SUPERUSER_ID, {})
+                    rw_env["ir.attachment"].create(vals_list)
+                if touch_ids:
+                    rw_cr.execute(
+                        "UPDATE ir_attachment SET write_date = now() at time zone 'UTC'"
+                        " WHERE id = ANY(%s)",
+                        (list(touch_ids),),
+                    )
+        except Exception:
+            if not vals_list:
+                # Touch-only call: losing the write_date bump is harmless
+                # (GC protection just isn't extended this render).
+                log_event(
+                    _attach_log,
+                    logging.DEBUG,
+                    "touch_failed",
+                    bundle=bundle,
+                    ids=len(touch_ids),
+                )
+                return
+            # No writable registry cursor reachable — degrade to the
+            # request cursor (pre-refactor path).  A failure here
+            # propagates: better to fail the render than to cache a URL
+            # whose row may not survive the transaction.
+            _logger.warning(
+                "ESM attachment escalation to a read-write cursor failed; "
+                "creating on the request cursor",
+                exc_info=True,
+            )
+            if self.env.cr.readonly:
+                # Raise without executing the doomed INSERT (see the
+                # test-mode branch above): keeps the request transaction
+                # usable for callers that catch this and inline instead.
+                raise ReadOnlySqlTransaction(
+                    "no writable cursor reachable for ESM attachments"
+                ) from None
+            self.env["ir.attachment"].with_user(SUPERUSER_ID).create(vals_list)
 
     def _get_asset_link_urls(self, bundle: str, debug: str | bool = False) -> list[str]:
         asset_nodes = self._get_asset_nodes(bundle, js=False, debug=debug)

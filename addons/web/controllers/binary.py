@@ -211,6 +211,65 @@ class Binary(http.Controller):
         return stream.get_response(**send_file_kwargs)
 
     @http.route(
+        ["/web/assets/esm/<string:unique>/<string:filename>"],
+        type="http",
+        auth="public",
+        readonly=True,
+    )
+    def content_esm_assets(self, unique: str, filename: str) -> Response:
+        """Serve a content-addressed ESM artifact with immutable caching.
+
+        Covers the URLs minted by ``ir.qweb._save_esm_attachment`` (bundles
+        ``/web/assets/esm/<hash>/<bundle>.esm.js`` plus their ``.meta.json``
+        / ``.esm.js.map`` sidecars) and by
+        ``BridgeShimManager._persist_bridge_shims``
+        (``/web/assets/esm/bridges/<hash>.js``).  These previously fell
+        through to ``ir.http._serve_fallback``, which streams with an ETag
+        but NO ``Cache-Control`` — so every module/bridge fetch (hundreds
+        per page in satellite/test scenarios) paid a conditional request.
+        The path segment after ``/esm/`` is a content hash (or ``bridges``
+        followed by one), so the bytes behind a URL can never change:
+        long-lived immutable caching is safe.
+
+        Deliberately NO on-the-fly rebuild (parity with the fallback path
+        this replaces): a missing row is a hard 404; regeneration happens
+        through the render path after ``ir.attachment.unlink``'s cache
+        clear.
+        """
+        # Same row identity the renderers create and _gc_esm_assets sweeps
+        # (see ir_attachment._esm_asset_domain): public, view-owned,
+        # superuser-created. Newest row first — content-addressed
+        # duplicates from concurrent workers are interchangeable.
+        attachment = (
+            request.env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("public", "=", True),
+                    ("url", "=", f"/web/assets/esm/{unique}/{filename}"),
+                    ("res_model", "=", "ir.ui.view"),
+                    ("res_id", "=", 0),
+                    ("create_uid", "=", SUPERUSER_ID),
+                ],
+                limit=1,
+                order="id desc",
+            )
+        )
+        if not attachment:
+            raise request.not_found()
+        stream = request.env["ir.binary"]._get_stream_from(
+            attachment,
+            "raw",
+            filename,
+        )
+        return stream.get_response(
+            as_attachment=False,
+            content_security_policy=None,
+            immutable=True,
+            max_age=http.STATIC_CACHE_LONG,
+        )
+
+    @http.route(
         [
             "/web/image",
             "/web/image/<string:xmlid>",
