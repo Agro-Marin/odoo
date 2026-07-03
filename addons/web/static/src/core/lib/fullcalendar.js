@@ -48,7 +48,13 @@ export async function loadFullCalendar() {
             ]);
             FullCalendar = coreModule;
             return FullCalendar;
-        })();
+        })().catch((error) => {
+            // Never cache a rejection: a transient fetch failure would
+            // otherwise disable every future calendar until a full page
+            // reload (the pre-ESM loadJS path also allowed retries).
+            loadPromise = null;
+            throw error;
+        });
         await loadPromise;
     }
     return FullCalendar;
