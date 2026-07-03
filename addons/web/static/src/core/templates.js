@@ -73,7 +73,8 @@ function getKey(args) {
  * already anchored on ``globalThis`` so sibling esbuild bundles share
  * one source of truth.  Templates need the same anchor for the same
  * reason — esbuild inlines this module into ``web.assets_web``,
- * ``web.assets_unit_tests``, and every ``DYNAMIC_ESM_BUNDLES`` child,
+ * ``web.assets_unit_tests``, and every manifest-declared
+ * ``esm.dynamic_children`` child,
  * and a per-copy state map would split template registrations across
  * bundles.  Lifting the state onto an explicit class makes the anchor
  * explicit and unlocks scoped instances for embedded apps that want
@@ -393,7 +394,8 @@ export class TemplateRegistry {
  * Anchor the canonical TemplateRegistry on ``globalThis`` for the same
  * reason ``core/registry.js`` does — esbuild inlines this module into
  * multiple bundles (``web.assets_web``, ``web.assets_unit_tests``, each
- * ``DYNAMIC_ESM_BUNDLES`` child), and a per-copy state map would split
+ * manifest-declared ``esm.dynamic_children`` child), and a per-copy
+ * state map would split
  * template registrations across bundles.  Bundle-evaluation order is
  * deterministic; the first bundle to load creates the instance, all
  * subsequent bundles re-bind ``templates`` to the same object via

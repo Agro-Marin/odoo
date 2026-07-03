@@ -3,7 +3,8 @@
 
     <!-- Call this template instead of "web.assets_tests" to have the proper conditional check.
          Both backend and frontend pages load the same ``web.assets_tests`` bundle, which is a
-         DYNAMIC_ESM_BUNDLES child of ``web.assets_web`` AND ``web.assets_frontend`` so the
+         declared under ``esm.secondary_import_map_includes`` for ``web.assets_web`` AND
+         ``web.assets_frontend`` (web/__manifest__.py) so the
          page-specific import map carries the bridge entries that preserve singleton identity
          (Registry, TourHelpers, …) across the test bundle and the parent. -->
     <template id="web.conditional_assets_tests" name="Tests Assets Bundle">
@@ -66,8 +67,9 @@ debug: "<t t-out="debug" />",
                  ``<script type="importmap">`` wins (the first ESM bundle's
                  import map is the only one honoured per document — see
                  ``ir_qweb.py``'s ``_esm_import_map_rendered`` guard).
-                 ``web.assets_tests`` is a DYNAMIC_ESM_BUNDLES child of
-                 ``web.assets_frontend_lazy``, so the served import map
+                 ``web.assets_tests`` is declared under
+                 ``esm.secondary_import_map_includes`` for the frontend
+                 bundle family, so the served import map
                  carries the bridge entries (``@web/core/registry`` →
                  ``odoo.loader.modules``-reading shim) needed for the
                  test bundle to share singleton identity with the parent.

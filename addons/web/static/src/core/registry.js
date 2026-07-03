@@ -398,7 +398,8 @@ export class Registry extends EventBus {
 // Anchor the global ``registry`` on ``globalThis`` so ESM bundles which
 // each inline their own copy of this module (web.assets_web bundles the
 // canonical registry; web.assets_tests, web.assets_unit_tests, and every
-// DYNAMIC_ESM_BUNDLES child build separately and inline their own copies)
+// manifest-declared ``esm.dynamic_children`` child build separately and
+// inline their own copies)
 // observe the SAME ``Registry`` instance instead of running with private
 // ones.  Without this anchor, code that registers into
 // ``registry.category("web_tour.tours")`` from a tour file in the
