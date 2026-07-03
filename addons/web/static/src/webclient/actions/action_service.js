@@ -451,8 +451,8 @@ export class ActionManager {
 
     /**
      * Wires the controller's reactive ``config`` slots that drive UI
-     * affordances (breadcrumbs, display name, embedded-action setters,
-     * history back, reloading flag).
+     * affordances (breadcrumbs, display name, history back, reloading
+     * flag).
      *
      * Pure side effects on ``controller.config`` — no return value,
      * no bus events, no dialog interactions. Lives outside the dispatch
@@ -479,12 +479,6 @@ export class ActionManager {
                 controller.config.breadcrumbs.push(undefined);
                 controller.config.breadcrumbs.pop();
             }
-        };
-        controller.config.setCurrentEmbeddedAction = (embeddedActionId) => {
-            controller.currentEmbeddedActionId = embeddedActionId;
-        };
-        controller.config.setEmbeddedActions = (embeddedActions) => {
-            controller.embeddedActions = embeddedActions;
         };
         controller.config.historyBack = () => {
             const previousController = this.controllerStack[this.controllerStack.length - 2];

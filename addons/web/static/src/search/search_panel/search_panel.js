@@ -16,6 +16,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useBus } from "@web/core/utils/hooks";
 
@@ -82,7 +83,7 @@ export class SearchPanel extends Component {
             this.state.sidebarExpanded = exprToBoolean(sidebarExpandedPreference);
         }
 
-        useBus(this.env.searchModel, "update", async () => {
+        useBus(this.env.searchModel, SearchModelEvent.UPDATE, async () => {
             await this.env.searchModel.sectionsPromise;
             this.updateActiveValues();
             this.render();

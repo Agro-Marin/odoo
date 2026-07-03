@@ -184,28 +184,18 @@ export class FormController extends Component {
             new FormSaveCoordinator(this.model, {
                 onSaveError: (error, callbacks) =>
                     this._renderSaveErrorDialog(error, callbacks),
-                // ``onWillSave`` is intentionally NOT wired here.
-                // ``onWillSaveRecord`` is already a model-level hook
-                // (see modelParams.hooks.lifecycle.onWillSaveRecord); the
-                // model fires it AFTER validation, BEFORE web_save. Wiring
-                // it again at the coordinator level would (a) fire it
-                // twice and (b) fire it BEFORE validation runs (the
-                // coordinator runs the hook before record.save which
-                // is where _checkValidity lives).  The integration
-                // tests "execute an action before and after each
-                // valid save" and "don't exec a valid save with
-                // onWillSaveRecord" assert the validation-first
-                // ordering.
-                //
-                // ``onSaved`` is intentionally NOT wired here.
-                // Historical semantics: ``props.onSave`` was called
-                // only by 4 of the 9 entry points (beforeLeave,
-                // beforeExecuteActionButton, save, saveButtonClicked)
-                // — not by onPagerUpdate, beforeVisibilityChange,
-                // shouldExecuteAction, or create.  To preserve that,
-                // the controller invokes ``props.onSave`` explicitly
-                // at those 4 call sites instead of having every
-                // requestSave fire it.
+                // No pre/post-save hooks at the coordinator level:
+                //   - pre-save vetoes belong to the model-level
+                //     ``onWillSaveRecord`` hook (see
+                //     modelParams.hooks.lifecycle), which the model fires
+                //     AFTER validation, BEFORE web_save — a coordinator
+                //     hook would fire twice and before validation.
+                //   - post-save ``props.onSave`` is invoked explicitly by
+                //     the 4 entry points that historically called it
+                //     (beforeLeave, beforeExecuteActionButton, save,
+                //     saveButtonClicked), not by every requestSave.
+                // The coordinator used to carry unwired onWillSave/onSaved
+                // hooks for these; they were removed as dead code.
                 onUrgentSaveFailed: () => this._onUrgentSaveFailed(),
                 recoverFromSaveError: (error, model) =>
                     this.multiCompanyRecovery.recoverFromSaveError(error, model),

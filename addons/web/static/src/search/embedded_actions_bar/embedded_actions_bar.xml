@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="web.EmbeddedActionsBar">
+        <!--
+            The `t-ref="root"` MUST live on an element that already exists at
+            mount time (outside the Transition, which is empty while the bar is
+            hidden): useSortable's param-setup effect bails out on a null
+            `ref.el` and does not re-run when the element later appears, so an
+            in-Transition ref would leave drag-and-drop uninitialised. The
+            wrapper is `d-contents` so the inner `o_embedded_actions` div keeps
+            participating in the ControlPanel's flex layout as before.
+        -->
+        <div class="o_embedded_actions_bar d-contents" t-ref="root">
+            <Transition visible="state.embeddedInfos.showEmbedded" name="'o-fade'" t-slot-scope="transition" leaveDuration="500">
+                <div class="o_embedded_actions d-flex flex-wrap w-100 align-items-center justify-content-center gap-2" t-att-class="transition.className">
+                    <t t-foreach="state.embeddedInfos.embeddedActions" t-as="action" t-key="action.id">
+                        <t t-if="_isEmbeddedActionVisible(action)">
+                            <button class="btn btn-secondary o_draggable"
+                                    t-att-class="{ 'active': state.embeddedInfos.currentEmbeddedAction?.id === action.id}"
+                                    t-on-click="() => this.onEmbeddedActionClick(action)"
+                                    t-att-data-id="action.id"
+                            >
+                                <span t-out="action.name"/>
+                            </button>
+                        </t>
+                    </t>
+                    <t t-call="web.embeddedActionsDropdown" />
+                </div>
+            </Transition>
+        </div>
+    </t>
+
+    <!--
+        Shared between the EmbeddedActionsBar (desktop) and the ControlPanel
+        (mobile): the calling component must provide `state.embeddedInfos`,
+        `embeddedActionsDropdown`, `getDropdownClass`, `onEmbeddedActionClick`,
+        `_setVisibility`, `openConfirmationDialog`, `_onShareCheckboxChange`,
+        `_saveNewAction` and the `newActionNameRef` ref.
+    -->
+    <t t-name="web.embeddedActionsDropdown">
+        <Dropdown state="embeddedActionsDropdown" menuClass="'o_embedded_actions_dropdown_menu'">
+            <button name="openEmbeddedActions" class="btn btn-secondary">
+                <i class="fa-solid fa-sliders"/>
+            </button>
+            <t t-set-slot="content">
+                <t t-foreach="state.embeddedInfos.embeddedActions" t-as="action" t-key="action.id">
+                    <DropdownItem
+                        class="this.getDropdownClass(action)"
+                        onSelected="() => this.env.isSmall ? this.onEmbeddedActionClick(action) : this._setVisibility(action.id)"
+                        closingMode="'none'"
+                    >
+                        <div class="d-flex p-0 pe-1 align-items-center justify-content-between">
+                            <span t-out="action.name"/>
+                            <i t-if="action.is_deletable" class="o_icon_right btn btn-link text-danger p-0 position-absolute end-0 fa-regular fa-trash-can" title="Delete item" t-on-click.stop="() => this.openConfirmationDialog(action)" />
+                        </div>
+                    </DropdownItem>
+                </t>
+                <div role="separator" class="dropdown-divider"/>
+                <AccordionItem class="'o_save_current_view'" description.translate="Save View">
+                    <div class="px-2 py-2">
+                        <input type="text"
+                            t-ref="newActionNameRef"
+                            class="o_input mb-2"
+                            t-model.trim="state.embeddedInfos.newActionName"
+                        />
+                        <CheckBox value="state.embeddedInfos.newActionIsShared" onChange.bind="_onShareCheckboxChange">
+                            <span data-tooltip="Make this embedded action available to other users">Shared</span>
+                        </CheckBox>
+                    </div>
+                    <div class="px-3 py-2">
+                        <button class="o_save_favorite btn btn-primary w-100" t-on-click="_saveNewAction">
+                            Save
+                        </button>
+                    </div>
+                </AccordionItem>
+            </t>
+        </Dropdown>
+    </t>
+
+</templates>

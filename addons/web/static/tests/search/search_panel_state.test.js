@@ -212,17 +212,17 @@ describe("clearSections", () => {
 // ---------------------------------------------------------------------------
 
 describe("getSections", () => {
-    test("returns sections sorted ascending by index", () => {
+    test("returns sections in Map insertion order (arch order)", () => {
         const sections = new Map([
-            [3, makeCategory(3, { index: 3 })],
-            [1, makeCategory(1, { index: 1 })],
-            [2, makeCategory(2, { index: 2 })],
+            [3, makeCategory(3)],
+            [1, makeCategory(1)],
+            [2, makeCategory(2)],
         ]);
         const model = makeSearchModel(sections);
 
         const result = getSections(model);
 
-        expect(result.map((s) => s.index)).toEqual([1, 2, 3]);
+        expect(result.map((s) => s.id)).toEqual([3, 1, 2]);
     });
 
     test("marks category as empty when values.size <= 1", () => {

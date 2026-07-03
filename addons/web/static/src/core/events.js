@@ -131,6 +131,34 @@ export const ModelEvent = Object.freeze({
 });
 
 /**
+ * Events dispatched on the search model's bus (``env.searchModel``).
+ *
+ * Each ``SearchModel`` instance extends ``EventBus``; these constants
+ * name the contract between the search layer (control panel, search
+ * bar, search panel) and the views (list, kanban, ...). They are NOT
+ * for ``env.bus`` — search model events are scoped to one view's
+ * search model lifecycle.
+ *
+ * Usage:
+ *   import { SearchModelEvent } from "@web/core/events";
+ *   useBus(this.env.searchModel, SearchModelEvent.UPDATE, () => ...);
+ */
+export const SearchModelEvent = Object.freeze({
+    /** Search state changed (facets, filters, search panel values) —
+     *  consumers should re-render / reload. */
+    UPDATE: "update",
+    /** Ask the view to take focus back (e.g. pressing ArrowDown from
+     *  the search bar, or its "focus view" command). */
+    FOCUS_VIEW: "focus-view",
+    /** Ask the search bar input to take focus (e.g. pressing ArrowUp
+     *  from the first record of a list/kanban view). */
+    FOCUS_SEARCH: "focus-search",
+    /** Ask the view to export its records directly (export-all button
+     *  in the control panel's cog menu). */
+    DIRECT_EXPORT_DATA: "direct-export-data",
+});
+
+/**
  * Events dispatched on the `user` service's public `userBus`
  * (`import { userBus } from "@web/services/user"`).
  *

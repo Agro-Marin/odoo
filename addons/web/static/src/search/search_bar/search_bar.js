@@ -10,6 +10,7 @@ import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { Domain } from "@web/core/domain";
+import { SearchModelEvent } from "@web/core/events";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
@@ -120,13 +121,13 @@ export class SearchBar extends Component {
                 ? useRef("autofocus")
                 : useAutofocus({ mobile: this.ui.isSmall }); // only force the focus on touch devices on small screens
 
-        useBus(this.env.searchModel, "focus-search", () => {
+        useBus(this.env.searchModel, SearchModelEvent.FOCUS_SEARCH, () => {
             // The input may not be rendered (e.g. collapsed search bar on
             // small screens).
             this.inputRef.el?.focus();
         });
 
-        useBus(this.env.searchModel, "update", () => this.render());
+        useBus(this.env.searchModel, SearchModelEvent.UPDATE, () => this.render());
     }
 
     /**
@@ -543,7 +544,7 @@ export class SearchBar extends Component {
                         this.env.searchModel.search() /** @todo keep this thing ?*/,
                 },
                 arrowdown: {
-                    callback: () => this.env.searchModel.trigger("focus-view"),
+                    callback: () => this.env.searchModel.trigger(SearchModelEvent.FOCUS_VIEW),
                 },
                 backspace: {
                     bypassEditableProtection: true,

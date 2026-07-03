@@ -12,6 +12,8 @@
  */
 
 import { Domain } from "@web/core/domain";
+import { SearchModelEvent } from "@web/core/events";
+import { deepEqual } from "@web/core/utils/collections/objects";
 import {
     createCategoryTree as buildCategoryTree,
     createFilterTree as buildFilterTree,
@@ -76,7 +78,8 @@ export function clearSections(searchModel, sectionIds) {
 }
 
 /**
- * Returns a sorted list of section copies, optionally filtered.
+ * Returns a list of section copies, optionally filtered.
+ * Section order is the ``sections`` Map insertion order (arch order).
  * @param {SearchModel} searchModel
  * @param {SectionPredicate} [predicate]
  * @returns {Section[]}
@@ -89,7 +92,7 @@ export function getSections(searchModel, predicate) {
     if (predicate) {
         sections = sections.filter(predicate);
     }
-    return sections.sort((s1, s2) => s1.index - s2.index);
+    return sections;
 }
 
 /**
@@ -154,7 +157,7 @@ export async function fetchCategories(searchModel, categories) {
                             }
                             searchModel._createCategoryTree(category.id, result);
                             searchModel._reset();
-                            searchModel.trigger("update");
+                            searchModel.trigger(SearchModelEvent.UPDATE);
                         },
                     })
                     .call(
@@ -223,7 +226,7 @@ export async function fetchFilters(searchModel, filters) {
                             }
                             searchModel._createFilterTree(filter.id, result);
                             searchModel._reset();
-                            searchModel.trigger("update");
+                            searchModel.trigger(SearchModelEvent.UPDATE);
                         },
                     })
                     .call(
@@ -289,7 +292,7 @@ export async function reloadSections(searchModel) {
     );
     const searchDomainChanged =
         searchModel.searchPanelInfo.shouldReload ||
-        JSON.stringify(searchModel.searchDomain) !== JSON.stringify(searchDomain);
+        !deepEqual(searchModel.searchDomain, searchDomain);
     searchModel.searchDomain = searchDomain;
 
     const toFetch = (section) =>

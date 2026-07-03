@@ -5,6 +5,7 @@
 
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { deepCopy } from "@web/core/utils/collections/objects";
@@ -72,7 +73,6 @@ import { getIntervalOptions } from "./utils/dates.js";
  * @property {string} [color]
  * @property {boolean} [expand]
  * @property {string|false} [hierarchize]
- * @property {number} [index]
  * @property {any} [activeValueId]
  * @property {string} [domain]
  * @property {string|false} [groupBy]
@@ -548,7 +548,7 @@ export class SearchModel extends EventBus {
     }
 
     search() {
-        this.trigger("update");
+        this.trigger(SearchModelEvent.UPDATE);
     }
 
     async splitAndAddDomain(domain, groupId) {
@@ -1022,15 +1022,17 @@ export class SearchModel extends EventBus {
     }
 
     async _notify() {
+        // Reset memoized state even when notifications are blocked: the
+        // query did change, so the memos are stale either way.
+        this._reset();
+
         if (this.blockNotification) {
             return;
         }
 
-        this._reset();
-
         await this._reloadSections();
 
-        this.trigger("update");
+        this.trigger(SearchModelEvent.UPDATE);
     }
 
     /**

@@ -8,6 +8,7 @@ import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { SearchModelEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -74,7 +75,7 @@ export class SearchBarMenu extends Component {
         this.fields = sortBy(fields, "string");
         // Favorite
         this.state = useState({ sharedFavoritesExpanded: false });
-        useBus(this.env.searchModel, "update", /** @type {any} */ (this.render));
+        useBus(this.env.searchModel, SearchModelEvent.UPDATE, /** @type {any} */ (this.render));
     }
 
     // Filter Panel

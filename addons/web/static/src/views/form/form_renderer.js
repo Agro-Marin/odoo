@@ -14,12 +14,12 @@ import {
     xml,
 } from "@odoo/owl";
 import { Notebook } from "@web/components/notebook/notebook";
-import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { AppEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { useService } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
-import { useDebounced, useThrottleForAnimation } from "@web/core/utils/timing";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { Field } from "@web/fields/field";
 import { ButtonBox } from "@web/views/form/button_box/button_box";
 import { InnerGroup, OuterGroup } from "@web/views/form/form_group/form_group";
@@ -81,14 +81,10 @@ export class FormRenderer extends Component {
         this.templates = useViewCompiler(Compiler || FormCompiler, templates);
         useSubEnv({ model: record.model });
         this.uiService = useService("ui");
-        this.onResize = useDebounced(this.render, 200);
+        // The template only reads breakpoint-level sizes (e.g. uiService.size),
+        // so re-render on breakpoint changes only, not on every resize event.
+        useBus(this.uiService.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
         this.onScrollThrottled = useThrottleForAnimation(this.onScroll);
-        onMounted(() =>
-            browser.addEventListener("resize", /** @type {any} */ (this.onResize)),
-        );
-        onWillUnmount(() =>
-            browser.removeEventListener("resize", /** @type {any} */ (this.onResize)),
-        );
 
         const { autofocusFieldIds } = archInfo;
         const rootRef = useRef("compiled_view_root");
