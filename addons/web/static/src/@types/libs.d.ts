@@ -37,9 +37,6 @@ declare module "@fullcalendar/core/locales-all";
 // consumers import ``{ Chart }`` from ``@web/core/lib/chartjs``. Typed ``any``
 // because the chart.js npm types are not installed in this fork.
 declare const Chart: any;
-declare const StackTrace: {
-    fromError(error: Error): Promise<Array<{ fileName: string; lineNumber: number; columnNumber: number; functionName: string }>>;
-};
 
 // Web APIs not yet in lib.dom.d.ts
 declare class BarcodeDetector {
