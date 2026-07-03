@@ -44,6 +44,9 @@ const LIST_STYLES = /** @type {const} */ ({
     },
 });
 
+/** @type {Map<string, Intl.ListFormat>} */
+const _listFormatCache = new Map();
+
 /**
  * Format the items in `values` as a list in a locale-dependent manner with the
  * chosen style.
@@ -82,6 +85,12 @@ const LIST_STYLES = /** @type {const} */ ({
  */
 export function formatList(values, { localeCode, style } = {}) {
     const locale = localeCode || pyToJsLocale(localization.code) || "en-US";
-    const formatter = new Intl.ListFormat(locale, LIST_STYLES[style || "standard"]);
+    const listStyle = style || "standard";
+    const cacheKey = `${locale}|${listStyle}`;
+    let formatter = _listFormatCache.get(cacheKey);
+    if (!formatter) {
+        formatter = new Intl.ListFormat(locale, LIST_STYLES[listStyle]);
+        _listFormatCache.set(cacheKey, formatter);
+    }
     return formatter.format(Array.from(values, String));
 }

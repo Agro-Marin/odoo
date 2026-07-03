@@ -245,10 +245,14 @@ export const listStylingMixin = {
      *
      * @param {Object} column
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
+     * @param {string} [formattedValue] value already formatted for display in
+     *  the cell body — passed by the template to avoid formatting twice
      */
-    getCellTitle(column, record) {
+    getCellTitle(column, record, formattedValue) {
         if (["many2one", "reference", "char"].includes(this.fields[column.name].type)) {
-            return this.getFormattedValue(column, record);
+            return formattedValue !== undefined
+                ? formattedValue
+                : this.getFormattedValue(column, record);
         }
     },
 

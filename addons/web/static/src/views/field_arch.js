@@ -31,9 +31,8 @@
  *     - web_hierarchy/hierarchy_arch_parser
  *     - mail/activity/activity_arch_parser
  *
- *   Tests (2):
+ *   Tests (1):
  *     - tests/views/calendar/calendar_test_helpers
- *     - tests/legacy/views/calendar/helpers
  *
  *   Agromarin (1):
  *     - agromarin/geoengine/geoengine_arch_parser

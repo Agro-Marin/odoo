@@ -56,6 +56,7 @@ import {
 import { rpc, rpcBus } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
 import { ListAggregatesRow } from "@web/views/list/list_aggregates_row";
+import { ListRecordRow } from "@web/views/list/list_record_row";
 
 // ─── Minimal model fixture ────────────────────────────────────────────────────
 
@@ -166,6 +167,50 @@ test("aggregate row re-renders when a record is selected (R4 positive case)", as
 
     // aggregate row MUST have re-rendered
     expect.verifySteps(["ListAggregatesRow render"]);
+});
+
+// ─── R5: ListRecordRow render isolation ───────────────────────────────────────
+
+/**
+ * Rows are components whose props stay referentially stable for unchanged
+ * records, so OWL must skip them: toggling ONE record's selection checkbox
+ * changes only that record's `selected` atom — exactly one row component may
+ * re-render (the header checkbox and footer aggregates row have their own
+ * subscriptions and are allowed to update).
+ */
+test.tags("desktop");
+test("toggling one checkbox re-renders only that record's row (R5)", async () => {
+    const rowRenders = [];
+    patchWithCleanup(ListRecordRow.prototype, {
+        setup() {
+            super.setup(...arguments);
+            onRendered(() => {
+                rowRenders.push(this.props.record.resId);
+            });
+        },
+    });
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list editable="bottom">
+            <field name="amount"/>
+        </list>`,
+    });
+
+    // Initial mount: one render per record row.
+    expect(rowRenders).toHaveLength(8);
+    rowRenders.length = 0;
+
+    // Toggle the FIRST record's selection checkbox.
+    await contains(".o_data_row:first-child .o_list_record_selector input").click();
+    await animationFrame();
+
+    // Exactly one row re-rendered — the toggled record's.
+    expect(rowRenders).toEqual([1]);
+
+    // Sanity: the selection actually happened.
+    expect(".o_data_row:first-child").toHaveClass("o_data_row_selected");
 });
 
 // ─── D3: Selective unlink cache invalidation ──────────────────────────────────

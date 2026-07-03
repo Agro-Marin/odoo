@@ -63,14 +63,7 @@ export class Notification extends Component {
 
     /** Pause the auto-close timer (e.g. on mouse hover). */
     freeze() {
-        this.startedTimestamp = false;
-        if (this._rafHandle) {
-            browser.cancelAnimationFrame(this._rafHandle);
-            this._rafHandle = null;
-        }
-        if (this.autocloseProgress.el) {
-            this.autocloseProgress.el.style.width = "0";
-        }
+        this.stopNotificationTimer();
     }
 
     /** Restart the auto-close timer from the beginning. */
@@ -86,31 +79,33 @@ export class Notification extends Component {
         if (this.props.sticky) {
             return;
         }
-        this.startedTimestamp = Date.now();
-
-        const cb = () => {
-            if (this.startedTimestamp) {
-                const currentProgress =
-                    (Date.now() - /** @type {number} */ (this.startedTimestamp)) /
-                    this.props.autocloseDelay;
-                if (currentProgress > 1) {
-                    this.close();
-                    return;
-                }
-                if (this.autocloseProgress.el) {
-                    this.autocloseProgress.el.style.width = `${(1 - currentProgress) * 100}%`;
-                }
-                this._rafHandle = browser.requestAnimationFrame(cb);
-            }
-        };
-        cb();
+        this.stopNotificationTimer();
+        // The close deadline stays a browser.setTimeout (mockable time); the
+        // shrinking progress bar is a compositor-driven CSS animation instead
+        // of a per-frame JS width write.
+        this._closeTimeout = browser.setTimeout(
+            () => this.close(),
+            this.props.autocloseDelay,
+        );
+        const progressEl = this.autocloseProgress.el;
+        if (progressEl) {
+            // Clearing the animation and forcing a reflow restarts it from 100%
+            // on refresh().
+            progressEl.style.animation = "none";
+            void progressEl.offsetWidth;
+            progressEl.style.animation = `o-notification-progress ${this.props.autocloseDelay}ms linear forwards`;
+        }
     }
 
     stopNotificationTimer() {
-        this.startedTimestamp = null;
-        if (this._rafHandle) {
-            browser.cancelAnimationFrame(this._rafHandle);
-            this._rafHandle = null;
+        if (this._closeTimeout) {
+            browser.clearTimeout(this._closeTimeout);
+            this._closeTimeout = null;
+        }
+        if (this.autocloseProgress.el) {
+            // Without the animation the bar falls back to its 0-width default,
+            // matching the previous freeze() behavior of emptying the bar.
+            this.autocloseProgress.el.style.animation = "none";
         }
     }
 }

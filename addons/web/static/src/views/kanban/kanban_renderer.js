@@ -12,6 +12,7 @@ import {
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { SearchModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -164,7 +165,7 @@ export class KanbanRenderer extends Component {
         });
 
         if (this.env.searchModel) {
-            useBus(this.env.searchModel, "focus-view", () => {
+            useBus(this.env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
                 const { model } = this.props.list;
                 if (model.useSampleModel || !model.hasData()) {
                     return;
@@ -461,7 +462,12 @@ export class KanbanRenderer extends Component {
     }
 
     toggleSelection(record, isRange = false) {
-        if (isRange && this.lastCheckedRecord) {
+        // Guard against a stale anchor (e.g. removed by a reload): fall back
+        // to a plain toggle, as the list renderer does.
+        const isAnchorPresent =
+            this.lastCheckedRecord &&
+            this.props.list.records.some((e) => e.id === this.lastCheckedRecord.id);
+        if (isRange && isAnchorPresent) {
             this.toggleRangeSelection(record);
         } else {
             record.toggleSelection();
@@ -577,6 +583,20 @@ export class KanbanRenderer extends Component {
             }
             const refId = previous ? previous.dataset.id : null;
             const targetGroupId = parent?.dataset.id;
+            const isGroupMove =
+                this.props.list.isGrouped &&
+                !!targetGroupId &&
+                targetGroupId !== dataGroupId;
+            if (isGroupMove) {
+                // Let the progress bars reconcile the two affected groups
+                // locally when the move is saved, instead of refetching all
+                // counts over the full domain.
+                this.props.progressBarState?.registerRecordMove(
+                    dataRecordId,
+                    dataGroupId,
+                    targetGroupId,
+                );
+            }
             try {
                 await this.props.list.moveRecord(
                     dataRecordId,
@@ -586,6 +606,11 @@ export class KanbanRenderer extends Component {
                 );
             } finally {
                 this.toggleProcessing(dataRecordId, false);
+                if (isGroupMove) {
+                    // No-op if consumed by the post-save reconcile; drops the
+                    // registration if the move failed or was reverted.
+                    this.props.progressBarState?.cancelRecordMove(dataRecordId);
+                }
             }
         }
     }

@@ -810,7 +810,9 @@ test("unique in url doesn't change on onchange", async () => {
     await clickSave();
     expect.verifySteps(["web_save"]);
 
-    expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659692220000");
+    // saving without touching the image must not bust its URL: the unique
+    // key follows the image value, not the record's write_date
+    expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659688620000");
 });
 
 test("unique in url change on record change", async () => {

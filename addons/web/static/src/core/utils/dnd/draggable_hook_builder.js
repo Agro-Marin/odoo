@@ -39,7 +39,7 @@ export { DRAGGED_CLASS };
  * @property {Record<string, any>} [defaultParams]
  * Setup hooks
  * @property {{
- *  addListener: typeof import("@odoo/owl")["useExternalListener"];
+ *  addListener?: typeof import("@odoo/owl")["useExternalListener"];
  *  setup: typeof import("@odoo/owl")["useEffect"];
  *  teardown: typeof import("@odoo/owl")["onWillUnmount"];
  *  throttle: typeof import("@web/core/utils/timing")["useThrottleForAnimation"];
@@ -289,6 +289,22 @@ export function makeDraggableHook(hookParams) {
                     (ctx.current.scrollParentX || ctx.current.scrollParentY) &&
                     ctx.edgeScrolling.enabled
                 ) {
+                    // Rects were computed above (`updateRects`) and are then
+                    // only marked for recomputation after an actual scroll or
+                    // resize, instead of being recomputed on every animation
+                    // frame: `updateRects` interleaves layout reads (rects,
+                    // computed styles, scroll sizes) with the same-frame style
+                    // writes of the drag sequence, forcing a layout per frame.
+                    ctx.current.rectsDirty = false;
+                    const markRectsDirty = () => (ctx.current.rectsDirty = true);
+                    dom.addListener(window, "resize", markRectsDirty);
+                    dom.addListener(
+                        /** @type {HTMLElement} */ (ctx.current.container)
+                            .ownerDocument,
+                        "scroll",
+                        markRectsDirty,
+                        { capture: true, passive: true },
+                    );
                     const cleanupFn = setRecurringAnimationFrame(handleEdgeScrolling);
                     cleanup.add(cleanupFn);
                 }
@@ -330,25 +346,19 @@ export function makeDraggableHook(hookParams) {
              * the edge of the container.
              */
             const handleEdgeScrolling = (/** @type {number} */ deltaTime) => {
-                updateRects();
+                // Rects are only recomputed after an actual scroll or resize
+                // (marked by the listeners added in `dragStart`), never on
+                // idle frames.
+                const wereRectsDirty = ctx.current.rectsDirty;
+                if (wereRectsDirty) {
+                    ctx.current.rectsDirty = false;
+                    updateRects();
+                }
                 const { x: pointerX, y: pointerY } = ctx.pointer;
                 const xRect = ctx.current.scrollParentXRect;
                 const yRect = ctx.current.scrollParentYRect;
 
-                // "getBoundingClientRect()"" (used in "getRect()") gives the
-                // distance from the element's top to the viewport, excluding
-                // scroll position. Only the "document.scrollingElement" element
-                // ("<html>") accounts for scrollTop.
-                const scrollParentYEl = ctx.current.scrollParentY;
-                if (
-                    scrollParentYEl ===
-                    ctx.current.container.ownerDocument.scrollingElement
-                ) {
-                    yRect.y += scrollParentYEl.scrollTop;
-                }
-
                 const { direction, speed, threshold } = ctx.edgeScrolling;
-                const correctedSpeed = (speed / 16) * deltaTime;
 
                 /** @type {{ x?: [number, number], y?: [number, number] }} */
                 const diff = {};
@@ -361,27 +371,63 @@ export function makeDraggableHook(hookParams) {
                     }
                 }
                 if (yRect) {
-                    const maxHeight = yRect.y + yRect.height;
-                    if (pointerY - yRect.y < threshold) {
-                        diff.y = [pointerY - yRect.y, -1];
+                    // "getBoundingClientRect()"" (used in "getRect()") gives the
+                    // distance from the element's top to the viewport, excluding
+                    // scroll position. Only the "document.scrollingElement" element
+                    // ("<html>") accounts for scrollTop. The adjustment is applied
+                    // on a local value: the cached rect must not be mutated.
+                    let yRectY = yRect.y;
+                    const scrollParentYEl = /** @type {HTMLElement} */ (
+                        ctx.current.scrollParentY
+                    );
+                    if (
+                        scrollParentYEl ===
+                        ctx.current.container.ownerDocument.scrollingElement
+                    ) {
+                        yRectY += scrollParentYEl.scrollTop;
+                    }
+                    const maxHeight = yRectY + yRect.height;
+                    if (pointerY - yRectY < threshold) {
+                        diff.y = [pointerY - yRectY, -1];
                     } else if (maxHeight - pointerY < threshold) {
                         diff.y = [maxHeight - pointerY, 1];
                     }
                 }
 
-                const diffToScroll = (/** @type {[number, number]} */ [delta, sign]) =>
-                    (1 - Math.max(delta, 0) / threshold) * correctedSpeed * sign;
-                if ((!direction || direction === "vertical") && diff.y) {
-                    ctx.current.scrollParentY.scrollBy({
-                        top: diffToScroll(diff.y),
-                    });
+                let scrolled = false;
+                if (diff.x || diff.y) {
+                    const correctedSpeed = (speed / 16) * deltaTime;
+                    const diffToScroll = (
+                        /** @type {[number, number]} */ [delta, sign],
+                    ) => (1 - Math.max(delta, 0) / threshold) * correctedSpeed * sign;
+                    if ((!direction || direction === "vertical") && diff.y) {
+                        const scrollParentY = /** @type {HTMLElement} */ (
+                            ctx.current.scrollParentY
+                        );
+                        const previousScrollTop = scrollParentY.scrollTop;
+                        scrollParentY.scrollBy({ top: diffToScroll(diff.y) });
+                        scrolled ||= scrollParentY.scrollTop !== previousScrollTop;
+                    }
+                    if ((!direction || direction === "horizontal") && diff.x) {
+                        const scrollParentX = /** @type {HTMLElement} */ (
+                            ctx.current.scrollParentX
+                        );
+                        const previousScrollLeft = scrollParentX.scrollLeft;
+                        scrollParentX.scrollBy({ left: diffToScroll(diff.x) });
+                        scrolled ||= scrollParentX.scrollLeft !== previousScrollLeft;
+                    }
+                    if (scrolled) {
+                        // Rects moved along with the scrolled content.
+                        ctx.current.rectsDirty = true;
+                    }
                 }
-                if ((!direction || direction === "horizontal") && diff.x) {
-                    ctx.current.scrollParentX.scrollBy({
-                        left: diffToScroll(diff.x),
-                    });
+                // Only dispatch "onDrag" on frames where something actually
+                // moved under the pointer (edge scroll, or an observed scroll/
+                // resize): pointer-driven movement already dispatches "onDrag"
+                // from the "pointermove" handler.
+                if (scrolled || wereRectsDirty) {
+                    callBuildHandler("onDrag");
                 }
-                callBuildHandler("onDrag");
             };
 
             /**
@@ -471,6 +517,11 @@ export function makeDraggableHook(hookParams) {
                 if (target.hasPointerCapture(pointerId)) {
                     target.releasePointerCapture(pointerId);
                 }
+
+                // From this point a drag sequence may start: attach the global
+                // drag-following listeners (removed at drag end by the cleanup
+                // manager).
+                attachDragListeners();
 
                 if (initiationDelay) {
                     if (hasTouch()) {
@@ -858,32 +909,55 @@ export function makeDraggableHook(hookParams) {
                 },
                 () => [ctx.ref.el],
             );
-            /**
-             * @param {string} type
-             * @param {any} listener
-             * @param {boolean | AddEventListenerOptions} [options]
-             */
-            const addWindowListener = (type, listener, options) => {
-                if (params.iframeWindow) {
-                    setupHooks.addListener(
-                        params.iframeWindow,
-                        type,
-                        listener,
-                        options,
-                    );
-                }
-                setupHooks.addListener(window, type, listener, options);
-            };
-            // Other global event listeners.
+            // Global drag-following event handlers. The (throttled) pointermove
+            // handler is created once per hook instance, but the listeners are
+            // only attached for the duration of a drag sequence
+            // (@see attachDragListeners).
             const throttledOnPointerMove = setupHooks.throttle(onPointerMove);
-            addWindowListener(
-                useMouseEvents ? "mousemove" : "pointermove",
-                throttledOnPointerMove,
-                { passive: false },
-            );
-            addWindowListener(useMouseEvents ? "mouseup" : "pointerup", onPointerUp);
-            addWindowListener("pointercancel", onPointerCancel);
-            addWindowListener("keydown", onKeyDown, { capture: true });
+            /**
+             * Attaches the global drag-following listeners ("pointermove",
+             * "pointerup", "pointercancel" and capture "keydown") for the
+             * duration of a single drag sequence.
+             *
+             * They are bound when a drag sequence is initiated (pointerdown on
+             * a valid draggable element) and removed by the cleanup manager at
+             * drag end/cancel/unmount, so that mounted-but-idle hook instances
+             * do zero work on pointer moves (the throttled handler allocates a
+             * promise and schedules an animation frame on each call).
+             *
+             * A single AbortController detaches all of them at once.
+             */
+            const attachDragListeners = () => {
+                const controller = new AbortController();
+                /**
+                 * @param {string} type
+                 * @param {any} listener
+                 * @param {AddEventListenerOptions} [options]
+                 */
+                const addWindowListener = (type, listener, options = {}) => {
+                    options.signal = controller.signal;
+                    if (params.iframeWindow) {
+                        params.iframeWindow.addEventListener(
+                            type,
+                            listener,
+                            options,
+                        );
+                    }
+                    window.addEventListener(type, listener, options);
+                };
+                addWindowListener(
+                    useMouseEvents ? "mousemove" : "pointermove",
+                    throttledOnPointerMove,
+                    { passive: false },
+                );
+                addWindowListener(
+                    useMouseEvents ? "mouseup" : "pointerup",
+                    onPointerUp,
+                );
+                addWindowListener("pointercancel", onPointerCancel);
+                addWindowListener("keydown", onKeyDown, { capture: true });
+                cleanup.add(() => controller.abort());
+            };
             setupHooks.teardown(() => dragEnd(null));
 
             return state;

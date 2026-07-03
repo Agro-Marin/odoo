@@ -15,7 +15,12 @@
 import { _t } from "@web/core/l10n/translation";
 
 import { getLeafCounts } from "./pivot_group_tree.js";
-import { getCellCurrency, getCellValue, getMeasuresRow } from "./pivot_measurements.js";
+import {
+    getCellCurrency,
+    getCellValue,
+    getMeasuresRow,
+    makeCellKey,
+} from "./pivot_measurements.js";
 
 /**
  * Returns the list of header rows of the pivot table: the col group rows
@@ -105,7 +110,10 @@ export function getTableHeaders(data, metaData) {
  */
 export function getTableRows(tree, columns, data, metaData) {
     const rows = [];
-    _collectTableRows(tree, columns, data, metaData, rows);
+    // Stringify each column's group values once per table build instead of
+    // once per cell (rows × columns × 2 JSON.stringify otherwise).
+    const columnKeys = columns.map((column) => JSON.stringify(column.groupId[1]));
+    _collectTableRows(tree, columns, columnKeys, data, metaData, rows);
     return rows;
 }
 
@@ -117,25 +125,28 @@ export function getTableRows(tree, columns, data, metaData) {
  *
  * @param {Object} tree
  * @param {Object[]} columns
+ * @param {string[]} columnKeys stringified column group values, one per column
  * @param {Object} data
  * @param {Object} metaData
  * @param {Object[]} rows accumulator, mutated in place
  */
-function _collectTableRows(tree, columns, data, metaData, rows) {
+function _collectTableRows(tree, columns, columnKeys, data, metaData, rows) {
     const group = tree.root;
     const rowGroupId = [group.values, []];
+    const rowKey = JSON.stringify(group.values);
     const title = group.labels.length ? group.labels.at(-1) : _t("Total");
     const indent = group.labels.length;
     const isLeaf = !tree.directSubTrees.size;
     const rowGroupBys = metaData.fullRowGroupBys;
 
-    const subGroupMeasurements = columns.map((column) => {
+    const subGroupMeasurements = columns.map((column, columnIndex) => {
         const colGroupId = column.groupId;
         const groupIntersectionId = [rowGroupId[0], colGroupId[1]];
+        const cellKey = makeCellKey(rowKey, columnKeys[columnIndex]);
         const measure = column.measure;
 
-        const value = getCellValue(groupIntersectionId, measure, data);
-        const currencyIds = getCellCurrency(groupIntersectionId, measure, data);
+        const value = getCellValue(cellKey, measure, data);
+        const currencyIds = getCellCurrency(cellKey, measure, data);
 
         return {
             groupId: groupIntersectionId,
@@ -162,6 +173,6 @@ function _collectTableRows(tree, columns, data, metaData, rows) {
     const subTreeKeys = tree.sortedKeys || [...tree.directSubTrees.keys()];
     for (const subTreeKey of subTreeKeys) {
         const subTree = tree.directSubTrees.get(subTreeKey);
-        _collectTableRows(subTree, columns, data, metaData, rows);
+        _collectTableRows(subTree, columns, columnKeys, data, metaData, rows);
     }
 }

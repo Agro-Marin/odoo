@@ -26,6 +26,8 @@ import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
 import { Deferred } from "@web/core/utils/concurrency";
 import { markEventHandled } from "@web/core/utils/dom/events";
+import { normalize } from "@web/core/l10n/utils";
+import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 /**
@@ -46,6 +48,38 @@ export function useEmojiPicker(
     /** @type {any} */ options,
 ) {
     return usePicker(EmojiPicker, ref, props, options);
+}
+
+/**
+ * Precomputed, normalized fuzzy-search candidate strings per emoji.
+ *
+ * ``fuzzyLookup`` normalizes every candidate string on every call; over the
+ * ~8.7k emojis × ~4 strings each, rebuilding the candidate arrays per lookup
+ * dominated the search cost. The emoji objects are module-level singletons
+ * (``getEmojis()`` caches its parse), so the candidate arrays can be built
+ * once. ``normalize`` is idempotent, so pre-normalizing here changes neither
+ * scores nor result ordering.
+ *
+ * @type {WeakMap<Emoji, string[]>}
+ */
+const searchStringsByEmoji = new WeakMap();
+
+/**
+ * @param {Emoji} emoji
+ * @returns {string[]}
+ */
+function getEmojiSearchStrings(emoji) {
+    let strings = searchStringsByEmoji.get(emoji);
+    if (!strings) {
+        strings = [
+            emoji.name,
+            ...emoji.keywords,
+            ...emoji.emoticons,
+            ...emoji.shortcodes,
+        ].map(normalize);
+        searchStringsByEmoji.set(emoji, strings);
+    }
+    return strings;
 }
 
 export const loader = reactive({
@@ -74,13 +108,15 @@ export async function loadEmoji() {
             const emojiValueToShortcodes = {};
             for (const emoji of res.emojis) {
                 emojiValueToShortcodes[emoji.codepoints] = emoji.shortcodes;
+                // Precompute the normalized search strings once at data load.
+                getEmojiSearchStrings(emoji);
             }
             loader.loaded = {
                 emojiValueToShortcodes,
                 emojiRegex: new RegExp(
                     Object.keys(emojiValueToShortcodes).length
                         ? Object.keys(emojiValueToShortcodes)
-                              .map((c) => c.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"))
+                              .map(escapeRegExp)
                               .sort((a, b) => b.length - a.length) // Sort to get composed emojis first
                               .join("|")
                         : /(?!)/,
@@ -137,6 +173,11 @@ export class EmojiPicker extends Component {
     _recentEmojis;
     /** @type {Emoji[] | undefined} */
     _emojis;
+    // Fuzzy-search result cache for computeEmojis (see there).
+    /** @type {string | undefined} */
+    _emojisCacheKey;
+    /** @type {Emoji[] | undefined} */
+    _emojisCache;
     /** @type {{name: string, displayName: string, title: string, sortId: number}} */
     recentCategory;
     /** @type {ResizeObserver | undefined} */
@@ -355,12 +396,7 @@ export class EmojiPicker extends Component {
             .sort(([, usage_1], [, usage_2]) => usage_2 - usage_1)
             .map(([codepoints]) => this.emojiByCodepoints[codepoints]);
         if (this.searchTerm && recent.length) {
-            return fuzzyLookup(this.searchTerm, recent, (emoji) => [
-                emoji.name,
-                ...emoji.keywords,
-                ...emoji.emoticons,
-                ...emoji.shortcodes,
-            ]);
+            return fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings);
         }
         return recent.slice(0, 42);
     }
@@ -521,21 +557,33 @@ export class EmojiPicker extends Component {
     }
 
     computeEmojis() {
-        let emojisToDisplay = [...this.emojis];
         const recentEmojis = this.recentEmojis;
+        // The fuzzy search runs over ~8.7k emojis; without a cache it would
+        // re-run on EVERY render, including per-emoji hover renders
+        // (state.hoveredEmoji writes). Cache the result keyed on everything
+        // it depends on: the search term and (when searching) the recent
+        // emojis excluded from the results.
+        const cacheKey = this.searchTerm
+            ? `${this.searchTerm}\x00${recentEmojis.map((e) => e.codepoints).join(",")}`
+            : "";
+        if (this._emojisCache && this._emojisCacheKey === cacheKey) {
+            return this._emojisCache;
+        }
+        let emojisToDisplay = [...this.emojis];
         if (recentEmojis.length && this.searchTerm) {
             emojisToDisplay = emojisToDisplay.filter(
                 (emoji) => !recentEmojis.includes(emoji),
             );
         }
         if (this.searchTerm.length) {
-            return fuzzyLookup(this.searchTerm, emojisToDisplay, (emoji) => [
-                emoji.name,
-                ...emoji.keywords,
-                ...emoji.emoticons,
-                ...emoji.shortcodes,
-            ]);
+            emojisToDisplay = fuzzyLookup(
+                this.searchTerm,
+                emojisToDisplay,
+                getEmojiSearchStrings,
+            );
         }
+        this._emojisCacheKey = cacheKey;
+        this._emojisCache = emojisToDisplay;
         return emojisToDisplay;
     }
 

@@ -18,6 +18,7 @@ import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { useReactiveModel } from "@web/model/model";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
 import { Widget } from "@web/views/widgets/widget";
 
@@ -43,7 +44,11 @@ export class GraphRenderer extends Component {
 
     setup() {
         useRenderCounter("graph.GraphRenderer");
-        this.model = this.props.model;
+        // Subscribe directly to model.notify(): the model prop is stable,
+        // so this renderer only re-rendered (and re-evaluated the chart
+        // effect deps below) through the legacy deep-render listener
+        // before (GraphModel now opts out via ``reactiveRenderers``).
+        this.model = useReactiveModel(this.props.model);
 
         this.rootRef = useRef("root");
         this.canvasRef = useRef("canvas");

@@ -97,31 +97,45 @@ export function getCurrencyIds(group, config, measureSpecs) {
 }
 
 /**
- * @param {Array[]} groupId
- * @param {string} measure
- * @param {Object} data
- * @returns {number|undefined}
+ * Builds the key under which a cell's values are stored in
+ * ``data.measurements`` / ``data.currencyIds`` from its already-stringified
+ * row and column parts.  Equivalent to ``JSON.stringify([rowValues,
+ * colValues])`` without re-serializing both parts for every cell: callers
+ * stringify each row part once per row and each column part once per table
+ * build.
+ *
+ * @param {string} rowKey ``JSON.stringify(rowValues)``
+ * @param {string} colKey ``JSON.stringify(colValues)``
+ * @returns {string}
  */
-export function getCellValue(groupId, measure, data) {
-    const key = JSON.stringify(groupId);
-    if (!data.measurements[key]) {
-        return;
-    }
-    return data.measurements[key][measure];
+export function makeCellKey(rowKey, colKey) {
+    return `[${rowKey},${colKey}]`;
 }
 
 /**
- * @param {Array[]} groupId
+ * @param {string} cellKey see ``makeCellKey``
  * @param {string} measure
  * @param {Object} data
  * @returns {number|undefined}
  */
-export function getCellCurrency(groupId, measure, data) {
-    const key = JSON.stringify(groupId);
-    if (!data.currencyIds[key]) {
+export function getCellValue(cellKey, measure, data) {
+    if (!data.measurements[cellKey]) {
         return;
     }
-    return data.currencyIds[key][measure];
+    return data.measurements[cellKey][measure];
+}
+
+/**
+ * @param {string} cellKey see ``makeCellKey``
+ * @param {string} measure
+ * @param {Object} data
+ * @returns {number|undefined}
+ */
+export function getCellCurrency(cellKey, measure, data) {
+    if (!data.currencyIds[cellKey]) {
+        return;
+    }
+    return data.currencyIds[cellKey][measure];
 }
 
 /**
@@ -133,9 +147,15 @@ export function getCellCurrency(groupId, measure, data) {
  */
 export function getMeasuresRow(columns, metaData) {
     const sortedColumn = metaData.sortedColumn || {};
+    const sortedColumnKey = sortedColumn.groupId
+        ? JSON.stringify(sortedColumn.groupId)
+        : undefined;
     const measureRow = [];
 
     for (const column of columns) {
+        const isSortedColumn =
+            sortedColumnKey !== undefined &&
+            sortedColumnKey === JSON.stringify(column.groupId);
         for (const measureName of metaData.activeMeasures) {
             const measureCell = {
                 groupId: column.groupId,
@@ -144,10 +164,7 @@ export function getMeasuresRow(columns, metaData) {
                 title: metaData.measures[measureName].string,
                 width: 1,
             };
-            if (
-                sortedColumn.measure === measureName &&
-                JSON.stringify(sortedColumn.groupId) === JSON.stringify(column.groupId)
-            ) {
+            if (isSortedColumn && sortedColumn.measure === measureName) {
                 measureCell.order = sortedColumn.order;
             }
             measureRow.push(measureCell);

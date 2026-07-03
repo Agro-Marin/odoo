@@ -3,7 +3,7 @@
 
 /** @module @web/views/kanban/kanban_record - Individual kanban card component with compiled template, color strips, cover images, and action handling */
 
-import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, useRef } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -17,7 +17,6 @@ import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { Field } from "@web/fields/field";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
-import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewCompiler } from "@web/views/view_compiler";
 import { getFormattedValue } from "@web/views/view_utils";
@@ -99,21 +98,66 @@ function getValue(record, fieldName) {
     return formatter(value, { field, data: record.data });
 }
 
+/**
+ * Returns a lazily formatted version of a record, for use in the card
+ * template's rendering context.
+ *
+ * The returned object exposes, for `id` and each active field, an entry with
+ * `value` (formatted) and `raw_value` accessors — the historical rendering
+ * contract of kanban-like card templates. Values are computed on access from
+ * the record's current data instead of being eagerly formatted for every
+ * fetched field: templates typically only read a few fields, and reading
+ * through the record's reactive `data` in the render path subscribes the
+ * component to exactly the accessed fields.
+ *
+ * @param {any} record
+ * @returns {any}
+ */
 export function getFormattedRecord(record) {
-    const formattedRecord = {
-        id: {
-            value: record.resId,
-            raw_value: record.resId,
-        },
+    const entries = Object.create(null);
+    const getEntry = (fieldName) => {
+        if (!entries[fieldName]) {
+            if (fieldName === "id") {
+                entries[fieldName] = {
+                    get value() {
+                        return record.resId;
+                    },
+                    get raw_value() {
+                        return record.resId;
+                    },
+                };
+            } else {
+                entries[fieldName] = {
+                    get value() {
+                        return getValue(record, fieldName);
+                    },
+                    get raw_value() {
+                        return getRawValue(record, fieldName);
+                    },
+                };
+            }
+        }
+        return entries[fieldName];
     };
-
-    for (const fieldName of record.fieldNames) {
-        formattedRecord[fieldName] = {
-            value: getValue(record, fieldName),
-            raw_value: getRawValue(record, fieldName),
-        };
-    }
-    return formattedRecord;
+    const isField = (p) =>
+        typeof p === "string" && (p === "id" || record.fieldNames.includes(p));
+    return new Proxy(Object.create(null), {
+        get(target, p) {
+            return isField(p) ? getEntry(p) : Reflect.get(target, p);
+        },
+        has(target, p) {
+            return isField(p) || Reflect.has(target, p);
+        },
+        ownKeys(target) {
+            return [...new Set(["id", ...record.fieldNames, ...Reflect.ownKeys(target)])];
+        },
+        getOwnPropertyDescriptor(target, p) {
+            if (isField(p)) {
+                return { enumerable: true, configurable: true, value: getEntry(p) };
+            }
+            return Reflect.getOwnPropertyDescriptor(target, p);
+        },
+    });
 }
 
 /**
@@ -209,12 +253,22 @@ export class KanbanRecord extends Component {
         this.showMenu =
             /** @type {any} */ (this.constructor).KANBAN_MENU_ATTRIBUTE in templates;
 
-        this.dataState = useState({ record: {}, widget: {} });
         this.createWidget(this.props);
-        onWillUpdateProps(this.createWidget);
-        useRecordObserver((record) => {
-            Object.assign(this.dataState.record, getFormattedRecord(record));
+        this.formattedRecord = getFormattedRecord(this.props.record);
+        onWillUpdateProps((nextProps) => {
+            this.createWidget(nextProps);
+            if (nextProps.record !== this.props.record) {
+                this.formattedRecord = getFormattedRecord(nextProps.record);
+            }
         });
+        // Mount across a microtask boundary — previously an implicit effect
+        // of the (now removed) record-observer hook's async onWillStart.
+        // Without it, a card created by a render fiber that a concurrent
+        // state write is about to supersede would execute its first render
+        // on the discarded fiber (wasted formatting work, and a render-count
+        // change pinned by the kanban test suite); the boundary defers that
+        // first render to the settled fiber.
+        onWillStart(() => Promise.resolve());
         this.rootRef = useRef("root");
         this.hasTouch = hasTouch();
 
@@ -223,7 +277,7 @@ export class KanbanRecord extends Component {
     }
 
     get record() {
-        return this.dataState.record;
+        return this.formattedRecord;
     }
 
     getFormattedValue(fieldId) {
@@ -246,7 +300,7 @@ export class KanbanRecord extends Component {
             (!groupByField || groupByField.type !== "many2many") &&
             !props.readonly;
         const editable = activeActions.edit && !props.readonly;
-        this.dataState.widget = {
+        this.widget = {
             deletable,
             editable,
         };
@@ -419,9 +473,9 @@ export class KanbanRecord extends Component {
             context: this.props.record.context,
             JSON,
             luxon,
-            record: this.dataState.record,
+            record: this.formattedRecord,
             selection_mode: this.props.forceGlobalClick,
-            widget: this.dataState.widget,
+            widget: this.widget,
             __comp__: Object.assign(Object.create(this), { this: this }),
         };
         return renderingContext;

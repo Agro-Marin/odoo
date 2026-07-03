@@ -22,7 +22,7 @@ import {
     pruneTree,
     sortTree,
 } from "./pivot_group_tree.js";
-import { getCellValue, getMeasureSpecs } from "./pivot_measurements.js";
+import { getCellValue, getMeasureSpecs, makeCellKey } from "./pivot_measurements.js";
 import { aggregateSubdivisions } from "./pivot_aggregation.js";
 import { getTableHeaders, getTableRows } from "./pivot_table.js";
 import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
@@ -327,6 +327,10 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
  */
 
 export class PivotModel extends Model {
+    // The renderer subscribes to notify() itself via useReactiveModel;
+    // the legacy deep-render bus listener is not needed (model.js).
+    static reactiveRenderers = true;
+
     /**
      * @override
      * @param {Object} params
@@ -942,13 +946,13 @@ export class PivotModel extends Model {
         const metaData = config.metaData || this.metaData;
         const data = config.data || this.data;
         const colGroupValues = sortedColumn.groupId[1];
+        const colKey = JSON.stringify(colGroupValues);
         metaData.sortedColumn = sortedColumn;
 
         const sortFunction = (tree) => (subTreeKey) => {
             const subTree = tree.directSubTrees.get(subTreeKey);
-            const groupIntersectionId = [subTree.root.values, colGroupValues];
-            const value =
-                getCellValue(groupIntersectionId, sortedColumn.measure, data) || 0;
+            const cellKey = makeCellKey(JSON.stringify(subTree.root.values), colKey);
+            const value = getCellValue(cellKey, sortedColumn.measure, data) || 0;
             return sortedColumn.order === "asc" ? value : -value;
         };
 

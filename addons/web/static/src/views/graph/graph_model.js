@@ -24,6 +24,10 @@ const SEQUENTIAL_TYPES = ["date", "datetime"];
  */
 
 export class GraphModel extends Model {
+    // The renderer subscribes to notify() itself via useReactiveModel;
+    // the legacy deep-render bus listener is not needed (model.js).
+    static reactiveRenderers = true;
+
     /**
      * @override
      */

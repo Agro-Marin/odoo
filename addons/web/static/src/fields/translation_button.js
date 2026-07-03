@@ -12,6 +12,11 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 
 import { TranslationDialog } from "./translation_dialog.js";
 
+// Lazy module-level memo: ``new Intl.Locale`` per render is measurable on
+// list views with many translatable cells; ``user.lang`` is keyed to stay
+// correct across test environments that swap the user.
+const _langCache = { code: undefined, language: "" };
+
 /**
  * Prepares a function that will open the dialog that allows to edit translation
  * values for a given field.
@@ -83,7 +88,11 @@ export class TranslationButton extends Component {
     }
     /** @returns {string} Uppercase language code (e.g. "EN") */
     get lang() {
-        return new Intl.Locale(user.lang).language.toUpperCase();
+        if (_langCache.code !== user.lang) {
+            _langCache.code = user.lang;
+            _langCache.language = new Intl.Locale(user.lang).language.toUpperCase();
+        }
+        return _langCache.language;
     }
 
     onClick() {

@@ -62,8 +62,11 @@ export const fieldService = {
             // disk cache already accepts staleness — one retry smooths
             // the cold-fetch path while capping persistent-outage delay
             // at a single backoff interval.
+            // ``immutable``: warm hits share the deep-frozen cached payload
+            // instead of paying a structuredClone per hit — consumers must
+            // treat field definitions as read-only.
             return orm
-                .cache({ type: "disk" })
+                .cache({ type: "disk", immutable: true })
                 .retry(1)
                 .call(resModel, "fields_get", [options.fieldNames, options.attributes]);
         }

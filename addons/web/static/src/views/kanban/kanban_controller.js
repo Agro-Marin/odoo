@@ -463,7 +463,7 @@ export class KanbanController extends MultiRecordController {
             const group = this.model.root.groups.find((l) =>
                 l.records.find((r) => r.id === record.id),
             );
-            this.progressBarState?.updateCounts(group);
+            this.progressBarState?.updateCounts(group, record);
         }
     }
 

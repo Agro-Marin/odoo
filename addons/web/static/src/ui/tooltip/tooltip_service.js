@@ -82,11 +82,38 @@ export const tooltipService = {
          */
         function cleanup() {
             target = null;
+            stopCleanupInterval();
             browser.clearTimeout(openTooltipTimeout);
             openTooltipTimeout = null;
             if (closeTooltip) {
                 closeTooltip();
                 closeTooltip = null;
+            }
+        }
+
+        /** @type {number | null} */
+        let cleanupIntervalId = null;
+
+        /**
+         * While a tooltip is pending or open, regularly check that its target
+         * is still in the DOM and close the tooltip otherwise.  The interval
+         * only runs during that window (see ``cleanup``): keeping it alive
+         * forever would wake the main thread 5 times per second for nothing.
+         */
+        function startCleanupInterval() {
+            if (cleanupIntervalId === null) {
+                cleanupIntervalId = browser.setInterval(() => {
+                    if (shouldCleanup()) {
+                        cleanup();
+                    }
+                }, CLOSE_DELAY);
+            }
+        }
+
+        function stopCleanupInterval() {
+            if (cleanupIntervalId !== null) {
+                browser.clearInterval(cleanupIntervalId);
+                cleanupIntervalId = null;
             }
         }
 
@@ -124,6 +151,7 @@ export const tooltipService = {
             }
 
             target = el;
+            startCleanupInterval();
             // Prevent title from showing on a parent at the same time
             target.title = "";
             const timeoutDelay = isHelpNode(el) ? 0 : delay;
@@ -205,6 +233,23 @@ export const tooltipService = {
                 ev.preventDefault();
             }
             cleanupTooltip(ev);
+            if (
+                openTooltipTimeout &&
+                !closeTooltip &&
+                target &&
+                !target.contains(/** @type {Node} */ (ev.target))
+            ) {
+                // A tooltip is pending (scheduled, not yet shown) and the
+                // click landed outside its target: cancel it. With a real
+                // pointer this never triggers — moving the mouse off the
+                // target fires "mouseleave" (handled above) before any click
+                // elsewhere can happen. It matters for synthetic pointers
+                // (tours, tests): they don't dispatch "mouseleave" when the
+                // hovered element goes away (e.g. a popover closed by this
+                // very click), which would otherwise let the stale tooltip
+                // open after the click.
+                cleanup();
+            }
         }
 
         function cleanupTooltip(/** @type {Event} */ ev) {
@@ -246,16 +291,7 @@ export const tooltipService = {
             }
         }
 
-        /** @type {number} */
-        let cleanupIntervalId;
         whenReady(() => {
-            // Regularly check that the target is still in the DOM and if not, close the tooltip
-            cleanupIntervalId = browser.setInterval(() => {
-                if (shouldCleanup()) {
-                    cleanup();
-                }
-            }, CLOSE_DELAY);
-
             if (hasTouch()) {
                 document.body.addEventListener("touchstart", onTouchStart);
                 document.body.addEventListener("touchend", onTouchEnd);
@@ -284,7 +320,7 @@ export const tooltipService = {
                 };
             },
             destroy() {
-                browser.clearInterval(cleanupIntervalId);
+                stopCleanupInterval();
                 browser.clearTimeout(openTooltipTimeout);
                 browser.clearTimeout(showTimer);
             },

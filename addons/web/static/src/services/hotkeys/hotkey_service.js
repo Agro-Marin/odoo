@@ -50,8 +50,28 @@ export const hotkeyService = {
     start(env, { ui }) {
         /** @type {Map<number, HotkeyRegistration>} */
         const registrations = new Map();
+        /**
+         * Secondary index for dispatch: registrations grouped by hotkey, in
+         * insertion order (Sets preserve it), so a keydown only inspects the
+         * registrations that can actually match instead of all of them.
+         * @type {Map<string, Set<HotkeyRegistration>>}
+         */
+        const registrationsByHotkey = new Map();
         let nextToken = 0;
         let overlaysVisible = false;
+
+        /**
+         * Whether the hotkey contains every part of the overlay modifier —
+         * the precondition for both the [accesskey] takeover and the DOM
+         * [data-hotkey] registrations.
+         * @param {string} hotkey
+         * @returns {boolean}
+         */
+        function includesOverlayModifier(hotkey) {
+            return hotkeyService.overlayModifier
+                .split("+")
+                .every((part) => hotkey.includes(part));
+        }
 
         addListeners(/** @type {any} */ (browser));
 
@@ -102,12 +122,16 @@ export const hotkeyService = {
 
             // Replace all [accesskey] attrs by [data-hotkey] on all elements.
             // This is needed to take over on the default accesskey behavior
-            // and also to avoid any conflict with it.
-            const elementsWithAccessKey = document.querySelectorAll("[accesskey]");
-            for (const el of elementsWithAccessKey) {
-                if (el instanceof HTMLElement) {
-                    el.dataset.hotkey = el.accessKey;
-                    el.removeAttribute("accesskey");
+            // and also to avoid any conflict with it.  Only overlay-modifier
+            // presses can reach those elements (overlays and DOM dispatch
+            // both require it), so skip the full-document scan otherwise.
+            if (includesOverlayModifier(hotkey)) {
+                const elementsWithAccessKey = document.querySelectorAll("[accesskey]");
+                for (const el of elementsWithAccessKey) {
+                    if (el instanceof HTMLElement) {
+                        el.dataset.hotkey = el.accessKey;
+                        el.removeAttribute("accesskey");
+                    }
                 }
             }
 
@@ -180,15 +204,24 @@ export const hotkeyService = {
             const { activeElement, hotkey, isRepeated, target, shouldProtectEditable } =
                 infos;
 
-            // Prepare registrations and the common filter
-            const reversedRegistrations = Array.from(registrations.values()).reverse();
+            // Only registrations indexed under this exact hotkey can match;
+            // DOM [data-hotkey] registrations additionally require the
+            // overlay modifier, so bail out early when neither can apply.
+            const matchingRegistrations = registrationsByHotkey.get(hotkey);
+            if (!matchingRegistrations?.size && !includesOverlayModifier(hotkey)) {
+                return false;
+            }
+
+            // Prepare registrations (newest first) and the common filter
+            const reversedRegistrations = matchingRegistrations
+                ? Array.from(matchingRegistrations).reverse()
+                : [];
             const domRegistrations = getDomRegistrations(hotkey, activeElement);
             const allRegistrations = [...reversedRegistrations, ...domRegistrations];
 
             // Find all candidates
             const candidates = allRegistrations.filter(
                 (reg) =>
-                    reg.hotkey === hotkey &&
                     (reg.allowRepeat || !isRepeated) &&
                     (reg.bypassEditableProtection || !shouldProtectEditable) &&
                     (reg.global || reg.activeElement === activeElement) &&
@@ -230,13 +263,13 @@ export const hotkeyService = {
          * @returns {HotkeyRegistration[]}
          */
         function getDomRegistrations(hotkey, activeElement) {
-            const overlayModParts = hotkeyService.overlayModifier.split("+");
-            if (!overlayModParts.every((el) => hotkey.includes(el))) {
+            if (!includesOverlayModifier(hotkey)) {
                 return [];
             }
 
             // Get all elements having a data-hotkey attribute  and matching
             // the actual hotkey without the overlayModifier.
+            const overlayModParts = hotkeyService.overlayModifier.split("+");
             const cleanHotkey = hotkey
                 .split("+")
                 .filter((key) => !overlayModParts.includes(key))
@@ -410,6 +443,12 @@ export const hotkeyService = {
             });
 
             registrations.set(token, registration);
+            let sameHotkeyRegistrations = registrationsByHotkey.get(registration.hotkey);
+            if (!sameHotkeyRegistrations) {
+                sameHotkeyRegistrations = new Set();
+                registrationsByHotkey.set(registration.hotkey, sameHotkeyRegistrations);
+            }
+            sameHotkeyRegistrations.add(registration);
             return token;
         }
 
@@ -419,6 +458,10 @@ export const hotkeyService = {
          * @param {number} token
          */
         function unregisterHotkey(token) {
+            const registration = registrations.get(token);
+            if (registration) {
+                registrationsByHotkey.get(registration.hotkey)?.delete(registration);
+            }
             registrations.delete(token);
         }
 

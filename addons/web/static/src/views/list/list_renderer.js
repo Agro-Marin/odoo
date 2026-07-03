@@ -45,6 +45,7 @@ import {
     processAllColumns,
 } from "./list_column_utils.js";
 import { ListGridState } from "./list_grid_state.js";
+import { getRowComponentClass } from "./list_record_row.js";
 import { listGroupRenderingMixin } from "./list_group_rendering.js";
 import {
     containsActiveElement,
@@ -153,9 +154,23 @@ export class ListRenderer extends Component {
     activeElement;
     /** @type {any[]} */
     dialogClose;
+    /** @type {Set<string> | undefined} record ids rendered since the last full render (row cache invalidation) */
+    _renderedRowIds;
+    /** @type {any[] | undefined} previous identity-stable columns array */
+    _stableColumns;
+    /** @type {any} stable fallback for the activeActions getter */
+    _defaultActiveActions;
+    /** @type {any} identity-stable self reference (see setup) */
+    _rendererInstance;
 
     setup() {
         useRenderCounter("list.ListRenderer");
+        // Stable reference to the component instance itself: template
+        // expressions run against a per-render sub-context object
+        // (``Object.create(component)``), so ``this`` inside methods called
+        // from the template is NOT identity-stable across renders. Row
+        // skipping requires the ``renderer`` prop to be stable.
+        this._rendererInstance = this;
         this.actionService = useService("action");
         this.uiService = useService("ui");
         this.notificationService = useService("notification");
@@ -164,6 +179,8 @@ export class ListRenderer extends Component {
         this.keyOptionalFields = `optional_fields,${key}`;
         this.keyDebugOpenView = `debug_open_view,${key}`;
         this.cellClassByColumn = {};
+        this.tooltipInfoByColumn = {};
+        this.tooltipInfoDebug = this.isDebugMode;
         this.groupByButtons = this.props.archInfo.groupBy.buttons;
         useExternalListener(
             document,
@@ -270,6 +287,7 @@ export class ListRenderer extends Component {
         onWillRender(() => {
             this.editedRecord = this.props.list.editedRecord;
             this._readonlyCache = new Map();
+            this._renderedRowIds = new Set();
 
             mark("list:processAllColumns:start");
             this.allColumns = /** @type {Column[]} */ (
@@ -286,7 +304,11 @@ export class ListRenderer extends Component {
             this.debugOpenView = this.opt.debugOpenView;
 
             mark("list:getActiveColumns:start");
-            this.columns = this.getActiveColumns();
+            // Keep the columns array identity-stable across renders when its
+            // content is unchanged: it is passed to each ListRecordRow as a
+            // prop, and referential stability is what lets OWL skip unchanged
+            // rows on renderer re-renders.
+            this.columns = this._toStableColumns(this.getActiveColumns());
             measure("list:getActiveColumns", "list:getActiveColumns:start");
 
             this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
@@ -481,7 +503,117 @@ export class ListRenderer extends Component {
     }
 
     get activeActions() {
-        return this.props.activeActions || {};
+        // The fallback object must be identity-stable: it is passed to each
+        // ListRecordRow as a prop (referential stability drives row skipping).
+        return this.props.activeActions || (this._defaultActiveActions ||= {});
+    }
+
+    /**
+     * Row component class used by the rows template. Derived per renderer
+     * class so sub-component resolution inside the row body goes through this
+     * renderer's ``static components`` (as the historical ``t-call`` did).
+     */
+    get rowComponent() {
+        return getRowComponentClass(/** @type {any} */ (this.constructor));
+    }
+
+    /**
+     * Props for one ``ListRecordRow``.
+     *
+     * Every value must be referentially stable across renders for unchanged
+     * rows — that is what lets OWL skip them. The renderer's own props are
+     * spread in so ``props.X`` expressions in record-row templates (including
+     * subclass extensions: ``props.readonly``, ``props.subsections``,
+     * ``props.archInfo``…) keep resolving inside the row component.
+     *
+     * Scalar keys (``editedRecord``, ``canResequence``, ``canSelectRecord``,
+     * ``hasSelectors``, ``rowIndex``…) are computed here — with virtual
+     * dispatch through subclass getters — and double as invalidation
+     * channels: when one changes, the affected rows re-render.
+     *
+     * @param {RelationalRecord} record
+     * @param {Group | undefined} group
+     * @param {string | undefined} groupId
+     */
+    getRowProps(record, group, groupId) {
+        return {
+            ...this.props,
+            renderer: this._rendererInstance,
+            record,
+            group,
+            groupId,
+            recordRowTemplate: /** @type {any} */ (this.constructor).recordRowTemplate,
+            columns: this.columns,
+            activeActions: this.activeActions,
+            editedRecord: this.editedRecord,
+            canResequence: this.canResequenceRows,
+            canSelectRecord: this.canSelectRecord,
+            hasSelectors: this.hasSelectors,
+            hasOpenFormViewColumn: this.hasOpenFormViewColumn,
+            displayOptionalFields: this.displayOptionalFields,
+            isX2Many: this.isX2Many,
+            rowIndex: this.gridState.findRowByRecordId(String(record.id))?.globalIndex,
+        };
+    }
+
+    /**
+     * Reuse the previous columns array when the recomputed one is elementwise
+     * identical (see comment at the ``onWillRender`` call site).
+     *
+     * @param {any[]} columns
+     * @returns {any[]}
+     */
+    _toStableColumns(columns) {
+        const previous = this._stableColumns;
+        if (
+            previous &&
+            previous.length === columns.length &&
+            columns.every((col, i) => col === previous[i])
+        ) {
+            return previous;
+        }
+        this._stableColumns = columns;
+        return columns;
+    }
+
+    /**
+     * Called by ``ListRecordRow`` at the start of each row render. When a row
+     * re-renders WITHOUT a full renderer render (its own record changed), the
+     * per-render ``_readonlyCache`` may hold stale entries for that record —
+     * drop them so the styling helpers recompute. The first row render after
+     * a full renderer render is skipped (the cache was just recreated empty).
+     *
+     * @param {string} recordId
+     */
+    markRowRender(recordId) {
+        if (!this._renderedRowIds) {
+            return;
+        }
+        if (this._renderedRowIds.has(recordId)) {
+            this.clearRecordCaches(recordId);
+        } else {
+            this._renderedRowIds.add(recordId);
+        }
+    }
+
+    /**
+     * Evict all ``_readonlyCache`` entries for one record. Cache keys are
+     * ``"<columnId>,<recordId>"`` and ``"cell:<columnId>,<recordId>"`` (see
+     * ``list_styling.js``).
+     *
+     * @param {string} recordId
+     */
+    clearRecordCaches(recordId) {
+        const cache = this._readonlyCache;
+        if (!cache) {
+            return;
+        }
+        const suffix = `,${recordId}`;
+        for (const key of [...cache.keys()]) {
+            if (key.endsWith(suffix)) {
+                cache.delete(key);
+            }
+        }
     }
 
     get canResequenceRows() {
@@ -991,7 +1123,18 @@ export class ListRenderer extends Component {
      * @param {Column} column
      */
     makeTooltip(column) {
-        return getTooltipInfo({
+        // Memoized per column id: the tooltip info only depends on the arch,
+        // the field definition and the debug flag — all stable for the
+        // renderer's lifetime except the debug flag (invalidates the cache)
+        // and property columns, whose definitions can change at runtime.
+        if (this.tooltipInfoDebug !== this.isDebugMode) {
+            this.tooltipInfoDebug = this.isDebugMode;
+            this.tooltipInfoByColumn = {};
+        }
+        if (!column.relatedPropertyField && this.tooltipInfoByColumn[column.id]) {
+            return this.tooltipInfoByColumn[column.id];
+        }
+        const tooltipInfo = getTooltipInfo({
             viewMode: "list",
             resModel: this.props.list.resModel,
             field: this.fields[column.name],
@@ -1001,6 +1144,8 @@ export class ListRenderer extends Component {
             // ``FieldInfo``-shaped subset.
             fieldInfo: /** @type {any} */ (column),
         });
+        this.tooltipInfoByColumn[column.id] = tooltipInfo;
+        return tooltipInfo;
     }
 
     onColumnTitleMouseUp() {
