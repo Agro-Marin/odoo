@@ -676,20 +676,23 @@ class TestEsbuildSettingLoader(TransactionCase):
 
 
 class TestExternalLibsValidator(TransactionCase):
-    """Cross-file validator catches drift between _ODOO_EXTERNAL_LIBS and _LIB_CANDIDATES."""
+    """Cross-file validator catches drift between ODOO_EXTERNAL_LIBS,
+    EXTERNAL_BARE_SPECIFIERS and _LIB_CANDIDATES."""
 
     def test_valid_configuration_passes(self):
         """The real configuration at import time must pass the validator."""
         IrQweb = self.env["ir.qweb"]
-        # Does not raise — proves the live configuration is consistent.
-        AssetsBundle._validate_external_libs(
-            set(IrQweb._ODOO_EXTERNAL_LIBS),
-        )
+        # Does not raise — proves the live configuration is consistent,
+        # including the on-disk existence of every import-map URL.
+        AssetsBundle._validate_external_libs(IrQweb._ODOO_EXTERNAL_LIBS)
 
     def test_missing_alias_raises(self):
         """Import-map spec without a matching alias must be rejected."""
         with self.assertRaises(ValueError) as ctx:
-            AssetsBundle._validate_external_libs({"@invented/lib"})
+            AssetsBundle._validate_external_libs(
+                {"@invented/lib": "/web/static/lib/owl/owl.es.js"},
+                bare_specifiers=set(),
+            )
         self.assertIn("@invented/lib", str(ctx.exception))
         self.assertIn("no per-lib alias", str(ctx.exception))
 
@@ -698,11 +701,71 @@ class TestExternalLibsValidator(TransactionCase):
         # Does not raise even though none are in _LIB_CANDIDATES.
         AssetsBundle._validate_external_libs(
             {
-                "@odoo/owl",
-                "@odoo/hoot",
-                "@odoo/hoot-dom",
-                "@odoo/hoot-mock",
-            }
+                "@odoo/owl": "/web/static/lib/owl/owl.es.js",
+                "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
+                "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
+                "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
+            },
+            bare_specifiers=set(),
+        )
+
+    def test_bare_specifier_without_import_map_url_raises(self):
+        """An esbuild external bare specifier missing its import-map URL
+        must fail fast: esbuild would emit the import verbatim and the
+        browser would die on "Failed to resolve module specifier"."""
+        with self.assertRaises(ValueError) as ctx:
+            AssetsBundle._validate_external_libs(
+                {"@odoo/owl": "/web/static/lib/owl/owl.es.js"},
+                bare_specifiers={"luxon"},
+            )
+        self.assertIn("luxon", str(ctx.exception))
+        self.assertIn("no import-map URL", str(ctx.exception))
+
+    def test_import_map_url_missing_on_disk_raises(self):
+        """A typo'd import-map URL (existing addon, nonexistent file) must
+        be caught at startup instead of surfacing as a browser 404."""
+        with self.assertRaises(ValueError) as ctx:
+            AssetsBundle._validate_external_libs(
+                {"@odoo/owl": "/web/static/lib/owl/owl_typo.es.js"},
+                bare_specifiers=set(),
+            )
+        self.assertIn("owl_typo", str(ctx.exception))
+        self.assertIn("404", str(ctx.exception))
+
+    def test_import_map_url_in_absent_addon_skipped(self):
+        """URLs under an addon absent from addons_path are skipped — the
+        lib is unreachable but so is any code importing it."""
+        # Does not raise.
+        AssetsBundle._validate_external_libs(
+            {"@odoo/owl": "/nonexistent_addon_xyz/static/lib/foo.js"},
+            bare_specifiers=set(),
+        )
+
+    def test_lib_candidate_missing_on_disk_raises(self):
+        """A ``_LIB_CANDIDATES`` alias whose target file is missing must be
+        caught at startup — the esbuild addon scan silently skips it and
+        every bundle importing the alias fails to build."""
+        with self.assertRaises(ValueError) as ctx:
+            AssetsBundle._validate_external_libs(
+                {},
+                bare_specifiers=set(),
+                lib_candidates={
+                    "@odoo/typo-lib": ("web", "static", "lib", "owl", "typo.js"),
+                },
+            )
+        self.assertIn("@odoo/typo-lib", str(ctx.exception))
+        self.assertIn("silently skip", str(ctx.exception))
+
+    def test_lib_candidate_in_absent_addon_skipped(self):
+        """Alias targets under an absent addon are skipped, mirroring the
+        import-map URL rule."""
+        # Does not raise.
+        AssetsBundle._validate_external_libs(
+            {},
+            bare_specifiers=set(),
+            lib_candidates={
+                "@odoo/optional": ("nonexistent_addon_xyz", "static", "x.js"),
+            },
         )
 
 

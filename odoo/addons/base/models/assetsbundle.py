@@ -7,7 +7,7 @@ import re
 import subprocess
 import textwrap
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import suppress
 from datetime import UTC
 from pathlib import Path
@@ -32,7 +32,12 @@ from odoo.libs.constants import (
 )
 from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
 from odoo.tools import SQL, OrderedSet, misc, profiler
-from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult, minify_js
+from odoo.tools.assets.esbuild import (
+    EXTERNAL_BARE_SPECIFIERS,
+    EsbuildCompiler,
+    EsbuildResult,
+    minify_js,
+)
 from odoo.tools.assets.esm_bridges import BridgeShimManager
 from odoo.tools.assets.esm_graph import (
     _bridge_shim_source,
@@ -1143,9 +1148,19 @@ class XmlTemplatePipeline:
         def get_template(element: etree._Element) -> str:
             element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
             string = etree.tostring(element, encoding="unicode")
-            return (
+            string = (
                 string.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
             )
+            # The rendered JS may be emitted as an INLINE
+            # ``<script type="module">`` (``?debug=assets``, read-only
+            # renders, satellite template nodes).  The HTML parser ends a
+            # script element at the first ``</script`` (case-insensitive)
+            # REGARDLESS of JS string/template-literal context, so a
+            # template carrying a ``<script>`` child would truncate the
+            # surrounding tag and break the page.  ``<\/script`` is an
+            # identity escape inside a JS template literal, so the emitted
+            # string is unchanged.
+            return re.sub(r"(?i)</script", r"<\\/script", string)
 
         names = OrderedSet()
         primary_parents = OrderedSet()
@@ -1379,35 +1394,62 @@ class AssetsBundle:
     # and invalidated alongside the esbuild addon scan below.
 
     @classmethod
-    def _validate_external_libs(cls, import_map_keys: set[str]) -> None:
-        """Cross-check ``ODOO_EXTERNAL_LIBS`` against the esbuild alias list.
+    def _validate_external_libs(
+        cls,
+        import_map: Mapping[str, str],
+        bare_specifiers: Collection[str] = EXTERNAL_BARE_SPECIFIERS,
+        lib_candidates: Mapping[str, tuple[str, ...]] | None = None,
+    ) -> None:
+        """Cross-check ``ODOO_EXTERNAL_LIBS`` against the esbuild externals.
 
-        Fails fast at server startup if the two declaration sites drift
-        apart in a way that would break production builds.  The check
-        raises on one invariant only:
+        Fails fast at server startup if the declaration sites drift apart
+        in a way that would break production builds.  Four invariants:
 
         * Every ``ODOO_EXTERNAL_LIBS`` entry must have a matching
           esbuild resolution (:meth:`EsbuildCompiler.resolves_specifier`:
-          a per-lib alias or pattern-level external coverage).  Otherwise
-          esbuild fails to resolve the specifier during production
-          bundling.
+          a per-lib alias, ``EXTERNAL_BARE_SPECIFIERS`` membership or
+          pattern-level external coverage).  Otherwise esbuild fails to
+          resolve the specifier during production bundling.
 
-        The reverse direction is asymmetric and intentionally NOT
-        enforced: ``_LIB_CANDIDATES`` entries exist for esbuild to
-        INLINE (e.g. ``luxon`` adapter, ``@odoo/o-spreadsheet``), so
-        they don't need import-map entries in production.  Debug-mode
-        consumers of those specifiers are expected to inject their own
-        import-map entry or avoid bare imports — Enterprise handles
-        this via its own pragma/transform layer.
+        * Every ``EXTERNAL_BARE_SPECIFIERS`` entry must have an
+          import-map URL.  esbuild emits those imports verbatim
+          (``--external:<spec>``); without a map entry the browser dies
+          on "Failed to resolve module specifier" the first time any
+          bundle (or dynamic ``import()``) touches the lib.
 
-        :param import_map_keys: the import-map specifiers to validate —
-            ``set(ODOO_EXTERNAL_LIBS)`` at module load; tests pass
+        * Every import-map URL must point at a file that exists on disk
+          — a typo'd URL would otherwise surface only as a browser 404
+          at import time.  URLs under an addon that is absent from the
+          configured ``addons_path`` are skipped (optional addon on a
+          slim deployment), so only genuinely broken paths raise.
+
+        * Every ``_LIB_CANDIDATES`` alias must point at a file that
+          exists on disk (same addon-absent skip rule).  The addon scan
+          in ``_get_esbuild_addon_flags`` silently skips an alias whose
+          target is missing, so a typo'd path would otherwise surface
+          as an esbuild resolution failure on every build instead of
+          one clear startup error.
+
+        The ``_LIB_CANDIDATES``-to-import-map direction is asymmetric and
+        intentionally NOT enforced: those entries exist for esbuild to
+        INLINE (e.g. ``@odoo/o-spreadsheet``), so they don't need
+        import-map entries in production.  Debug-mode consumers of those
+        specifiers are expected to inject their own import-map entry or
+        avoid bare imports — Enterprise handles this via its own
+        pragma/transform layer.
+
+        :param import_map: the import map to validate —
+            ``ODOO_EXTERNAL_LIBS`` at module load; tests pass fabricated
+            mappings.
+        :param bare_specifiers: esbuild's external bare specifiers —
+            defaults to the live ``EXTERNAL_BARE_SPECIFIERS``; tests pass
             fabricated sets.
+        :param lib_candidates: esbuild's inline-alias table — defaults to
+            the live ``EsbuildCompiler._LIB_CANDIDATES``; tests pass
+            fabricated mappings.
         """
         missing_alias = [
-            spec
-            for spec in import_map_keys
-            if not EsbuildCompiler.resolves_specifier(spec)
+            spec for spec in import_map if not EsbuildCompiler.resolves_specifier(spec)
         ]
         if missing_alias:
             raise ValueError(
@@ -1416,6 +1458,57 @@ class AssetsBundle:
                 f"no pattern-level external coverage). Production builds "
                 f"will fail to resolve these specifiers.",
             )
+        missing_url = sorted(set(bare_specifiers) - set(import_map))
+        if missing_url:
+            raise ValueError(
+                f"EXTERNAL_BARE_SPECIFIERS declares {missing_url} but "
+                f"ODOO_EXTERNAL_LIBS has no import-map URL for them. "
+                f"esbuild leaves these imports verbatim, so the browser "
+                f"cannot resolve them without a map entry.",
+            )
+        missing_files = []
+        for spec, url in import_map.items():
+            if not cls._addon_relative_path_exists(url.lstrip("/")):
+                missing_files.append(f"{spec} -> {url}")
+        if missing_files:
+            raise ValueError(
+                f"ODOO_EXTERNAL_LIBS URLs point at files that do not exist "
+                f"on disk: {missing_files}. Browsers would 404 on the "
+                f"import-map fetch.",
+            )
+        if lib_candidates is None:
+            lib_candidates = EsbuildCompiler._LIB_CANDIDATES
+        missing_aliases = [
+            f"{alias} -> {'/'.join(parts)}"
+            for alias, parts in lib_candidates.items()
+            if not cls._addon_relative_path_exists("/".join(parts))
+        ]
+        if missing_aliases:
+            raise ValueError(
+                f"_LIB_CANDIDATES aliases point at files that do not exist "
+                f"on disk: {missing_aliases}. The esbuild addon scan would "
+                f"silently skip them and every bundle importing the alias "
+                f"would fail to build.",
+            )
+
+    @staticmethod
+    def _addon_relative_path_exists(rel: str) -> bool:
+        """Whether the addon-relative path ``rel`` exists on disk.
+
+        Returns ``True`` (i.e. "do not flag") when the addon itself —
+        ``rel``'s first segment — is absent from the configured
+        ``addons_path``: the file is unreachable but so is any code that
+        would reference it (optional addon on a slim deployment).
+        """
+        try:
+            file_path(rel)
+        except FileNotFoundError:
+            try:
+                file_path(rel.split("/", 1)[0])
+            except FileNotFoundError:
+                return True
+            return False
+        return True
 
     def __init__(
         self,
@@ -2697,4 +2790,4 @@ class ScssStylesheetAsset(PreprocessedCSS):
 # alias list.  Both declaration sites now live outside ir_qweb
 # (``odoo.libs.constants`` / ``odoo.tools.assets.esbuild``), so the check runs
 # here instead of at the bottom of ir_qweb.
-AssetsBundle._validate_external_libs(set(ODOO_EXTERNAL_LIBS))
+AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
