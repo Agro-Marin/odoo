@@ -22,7 +22,6 @@
  *     fails.
  *   - ``requestDiscard`` calls ``record.discard`` and returns to clean.
  *   - Multi-company recovery is invoked transparently before the dialog UX.
- *   - ``onWillSave`` returning false aborts the save before the RPC fires.
  *
  * Module under test: views/form/form_save_coordinator.js
  */
@@ -68,8 +67,6 @@ function makeContext({
     const model = { root: record };
     const hooks = {
         onSaveError: async () => true,
-        onWillSave: async () => undefined,
-        onSaved: async () => undefined,
         onUrgentSaveFailed: () => undefined,
         recoverFromSaveError: () => false,
         ...hookOverrides,
@@ -146,12 +143,8 @@ describe("FormSaveCoordinator — requestSave (checkDirty)", () => {
 describe("FormSaveCoordinator — requestSave (status transitions)", () => {
     test("transitions clean → saving → clean on success", async () => {
         // Capture status from INSIDE the save mock to observe the
-        // in-flight value.  Reading ``coordinator.status`` synchronously
-        // after kicking off ``requestSave()`` is race-y because
-        // ``requestSave`` has an ``await onWillSave?()`` step before the
-        // ``status = "saving"`` assignment — by the time the test code
-        // runs synchronously, only the prefix-up-to-first-await has
-        // executed and status is still ``"clean"``.
+        // in-flight value — the only post-``begin`` observation point
+        // that doesn't race the awaits in ``requestSave``.
         let statusDuringSave = null;
         const { coordinator } = makeContext({
             save: async () => {
@@ -394,45 +387,6 @@ describe("FormSaveCoordinator — requestDiscard", () => {
 });
 
 // ---------------------------------------------------------------------------
-// onWillSave gate
-// ---------------------------------------------------------------------------
-
-describe("FormSaveCoordinator — onWillSave gate", () => {
-    test("aborts when onWillSave returns false (no record.save call)", async () => {
-        let saveCalls = 0;
-        const { coordinator } = makeContext({
-            save: async () => {
-                saveCalls++;
-                return true;
-            },
-            hooks: {
-                onWillSave: async () => false,
-            },
-        });
-        const result = await coordinator.requestSave();
-        expect(result).toBe(false);
-        expect(saveCalls).toBe(0);
-        // No RPC fired → coordinator stays in pre-save state.
-        expect(coordinator.status).toBe("dirty");
-    });
-
-    test("proceeds when onWillSave returns undefined (default)", async () => {
-        let saveCalls = 0;
-        const { coordinator } = makeContext({
-            save: async () => {
-                saveCalls++;
-                return true;
-            },
-            hooks: {
-                onWillSave: async () => undefined,
-            },
-        });
-        await coordinator.requestSave();
-        expect(saveCalls).toBe(1);
-    });
-});
-
-// ---------------------------------------------------------------------------
 // Transition guard
 // ---------------------------------------------------------------------------
 
@@ -653,40 +607,4 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         expect(coordinator.status).toBe("clean"); // discard's settlement preserved
     });
 
-    test("a veto while a save is in flight does not reject the in-flight save", async () => {
-        // Scenario: a save is in flight when a second ``requestSave`` runs and
-        // its ``onWillSave`` vetoes (external validation rejected the newer
-        // edits).  The veto moves ``saving → dirty``; without epoch
-        // invalidation the in-flight save's terminal ``_finishTransition("ok")``
-        // would then attempt an illegal ``dirty → ok`` and reject a *successful*
-        // save (re-throwing from its own catch as an unhandled rejection).
-        let resolveFirst;
-        const firstPromise = new Promise((r) => (resolveFirst = r));
-        let willSaveCall = 0;
-        const { coordinator } = makeContext({
-            save: () => firstPromise,
-            hooks: {
-                onWillSave: async () => (++willSaveCall === 1 ? undefined : false),
-            },
-        });
-
-        const firstSave = coordinator.requestSave();
-        // Pump microtasks so the first save has entered save() (begin fired).
-        await Promise.resolve();
-        await Promise.resolve();
-        expect(coordinator.isSaving).toBe(true);
-
-        // Second save vetoes while the first is still in flight.
-        const vetoed = await coordinator.requestSave();
-        expect(vetoed).toBe(false);
-        expect(coordinator.status).toBe("dirty");
-
-        // The in-flight save now succeeds — it must resolve cleanly (returning
-        // its saved value), not reject.
-        resolveFirst(true);
-        const firstResult = await firstSave;
-        expect(firstResult).toBe(true);
-        // The veto's ``dirty`` status stands: there are newer, un-saved edits.
-        expect(coordinator.status).toBe("dirty");
-    });
 });

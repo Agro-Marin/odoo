@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/monetary/monetary_field - Currency-aware numeric input field for Monetary columns */
 
-import { Component, useEffect, useState } from "@odoo/owl";
+import { useEffect } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
@@ -11,13 +11,13 @@ import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { formatMonetary } from "@web/fields/formatters";
-import { useInputField } from "@web/fields/input_field_hook";
-import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { parseMonetary } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getCurrency } from "@web/services/currency";
 
-export class MonetaryField extends Component {
+import { NumericInputFieldBase } from "../numeric_input_field_base.js";
+
+export class MonetaryField extends NumericInputFieldBase {
     static template = "web.MonetaryField";
     static props = {
         ...standardFieldProps,
@@ -33,15 +33,16 @@ export class MonetaryField extends Component {
         trailingZeros: true,
     };
 
-    /** @type {{value: string | undefined}} */
+    /** @type {{ hasFocus: boolean, value?: string }} */
     state;
 
     setup() {
         useRenderCounter("fields.MonetaryField");
-        this.inputRef = useInputField(this.inputOptions);
-        this.state = useState({ value: /** @type {string | undefined} */ (undefined) });
+        super.setup();
+        // Mirrors the input's current text so the template's ghost <span> can
+        // size the currency symbol placement (kept in sync via onInput below).
+        this.state.value = /** @type {string | undefined} */ (undefined);
         this.nbsp = nbsp;
-        useNumpadDecimal();
         useEffect(() => {
             if (this.inputRef?.el) {
                 this.state.value = this.inputRef.el.value;
@@ -49,13 +50,9 @@ export class MonetaryField extends Component {
         });
     }
 
-    /** @returns {{ getValue: () => string, refName: string, parse: (v: string) => number }} */
-    get inputOptions() {
-        return {
-            getValue: () => this.formattedValue,
-            refName: "numpadDecimal",
-            parse: (v) => parseMonetary(v, { allowOperation: true }),
-        };
+    /** @param {string} v @returns {number} */
+    parse(v) {
+        return parseMonetary(v, { allowOperation: true });
     }
 
     /** @returns {number | undefined} */
@@ -91,11 +88,6 @@ export class MonetaryField extends Component {
             return null;
         }
         return currency.digits;
-    }
-
-    /** @returns {number | false} */
-    get value() {
-        return this.props.record.data[this.props.name];
     }
 
     /** @returns {string} */

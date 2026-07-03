@@ -8,6 +8,7 @@ import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/dom
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
+import { SearchModelEvent } from "@web/core/events";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 
@@ -83,7 +84,7 @@ export class WithSearch extends Component {
             : null;
         useSubEnv({ searchModel: this.searchModel, searchPanelState });
 
-        useBus(this.searchModel, "update", /** @type {any} */ (this.render));
+        useBus(this.searchModel, SearchModelEvent.UPDATE, /** @type {any} */ (this.render));
         useSetupAction({
             getGlobalState: () => ({
                 searchModel: JSON.stringify(this.searchModel.exportState()),

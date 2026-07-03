@@ -39,11 +39,11 @@
 
                     <t t-set-slot="control-panel-status-indicator">
                         <t t-if="canEdit">
-                            <FormStatusIndicator model="model" discard.bind="discard" save.bind="saveButtonClicked" />
+                            <FormStatusIndicator model="model" coordinator="saveCoordinator" discard.bind="discard" save.bind="saveButtonClicked" />
                         </t>
                     </t>
 
-                    <t t-component="props.Renderer" record="model.root" Compiler="props.Compiler" readonly="props.readonly" archInfo="archInfo" translateAlert="translateAlert" onNotebookPageChange.bind="onNotebookPageChange" activeNotebookPages="props.state and props.state.activeNotebookPages"/>
+                    <t t-component="props.Renderer" record="model.root" Compiler="props.Compiler" readonly="props.readonly" archInfo="archInfo" translateAlert="translateAlert" onNotebookPageChange="onNotebookPageChange" activeNotebookPages="props.state and props.state.activeNotebookPages"/>
                 </Layout>
             </div>
         </div>

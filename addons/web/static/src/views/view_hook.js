@@ -5,6 +5,7 @@
 
 import { useComponent, useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { SearchModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { rpc } from "@web/core/network/rpc";
@@ -156,7 +157,7 @@ export function useBounceButton(containerRef, shouldBounce) {
 export function useExportRecords(env, context, getDefaultExportList) {
     const { model, searchModel } = env;
     const dialog = useService("dialog");
-    useBus(searchModel, "direct-export-data", async () => {
+    useBus(searchModel, SearchModelEvent.DIRECT_EXPORT_DATA, async () => {
         _downloadExport(getDefaultExportList(), false, "xlsx");
     });
     const _getExportedFields = async (isCompatible, parentParams) => {

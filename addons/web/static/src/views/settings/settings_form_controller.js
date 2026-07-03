@@ -89,7 +89,14 @@ export class SettingsFormController extends formView.Controller {
         ) {
             return this._confirmSave();
         } else {
-            return this.model.root.save();
+            // Route through the save coordinator so its observable
+            // ``status`` reflects settings saves too.  ``rethrow``
+            // preserves the historical semantics of the bare
+            // ``model.root.save()`` this replaces: errors propagate to
+            // ``useViewButtons``' executeButtonCallback (which surfaces
+            // the server-error UX), and the boolean result is returned
+            // as-is to gate the button action.
+            return this.saveCoordinator.requestSave({ errorMode: "rethrow" });
         }
     }
 
@@ -168,8 +175,13 @@ export class SettingsFormController extends formView.Controller {
                     resolve();
                 },
                 cancel: async () => {
-                    await this.model.root.discard();
-                    await this.model.root.save();
+                    // Discard the pending edits, then persist the reverted
+                    // values so the button's action executes against a
+                    // saved record — same discard-then-save sequence as
+                    // before, now via the coordinator so ``status`` stays
+                    // accurate.
+                    await this.saveCoordinator.requestDiscard();
+                    await this.saveCoordinator.requestSave({ errorMode: "rethrow" });
                     _continue = true;
                     resolve();
                 },

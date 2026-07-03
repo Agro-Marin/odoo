@@ -7,150 +7,49 @@ import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
-import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
-import { makeContext } from "@web/core/context";
+import { SearchModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-import { useSortable } from "@web/core/utils/dnd/sortable_owl";
-import { useService } from "@web/core/utils/hooks";
+import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Breadcrumbs } from "@web/search/breadcrumbs/breadcrumbs";
+import {
+    EmbeddedActionsBar,
+    useEmbeddedActions,
+} from "@web/search/embedded_actions_bar/embedded_actions_bar";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useCommand } from "@web/services/commands/command_hook";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { user } from "@web/services/user";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 const STICKY_CLASS = "o_mobile_sticky";
 
 /**
- * @typedef EmbeddedAction
- * @property {number} id
- * @property {[number, string]} parent_action_id
- * @property {string} name
- * @property {number} [sequence]
- * @property {number} [parent_res_id]
- * @property {string} parent_res_model
- * @property {[number, string]} action_id
- * @property {string} [python_method]
- * @property {number} [user_id]
- * @property {boolean} [is_deletable]
- * @property {string} [default_view_mode]
- * @property {string} [filter_ids]
- * @property {string} [domain]
- * @property {string} [context]
- * @property {any} [groups_ids]
+ * Default embedded infos used when the current action has no embedded
+ * actions: template guards (and inheriting templates) can keep reading
+ * `state.embeddedInfos.*` without any embedded machinery being set up.
  */
-
-/**
- * Manages per-user embedded action visibility, ordering, and configuration.
- *
- * Persists settings to `res.users.settings` keyed by `parentActionId+activeId`.
- */
-class EmbeddedActionsConfigHandler {
-    /**
-     * @param {number|string} parentActionId
-     * @param {number|false} currentActiveId
-     * @param {string} parentResModel
-     * @param {Object} ormService
-     * @param {Object} notificationService
-     */
-    constructor(
-        parentActionId,
-        currentActiveId,
-        parentResModel,
-        ormService,
-        notificationService,
-    ) {
-        this.parentActionId = parentActionId;
-        this.currentActiveId = currentActiveId;
-        this.parentResModel = parentResModel;
-        this.embeddedActionsKey = `${this.parentActionId}+${this.currentActiveId || ""}`;
-        this.embeddedActionsConfig = user.settings.embedded_actions_config_ids || {};
-        this.orm = ormService;
-        this.notification = notificationService;
-    }
-
-    /**
-     * @param {Object} config - partial config to merge (e.g. { embedded_visibility: true })
-     * @returns {Promise<void>} never rejects: on failure, the local cache is
-     *  reverted and a notification is shown
-     */
-    async setEmbeddedActionsConfig(config) {
-        const hadConfig = this.embeddedActionsKey in this.embeddedActionsConfig;
-        const previousConfig = hadConfig
-            ? { ...this.embeddedActionsConfig[this.embeddedActionsKey] }
-            : null;
-        if (hadConfig) {
-            Object.assign(this.embeddedActionsConfig[this.embeddedActionsKey], config);
-        } else {
-            this.embeddedActionsConfig[this.embeddedActionsKey] = config;
-        }
-        try {
-            await this.orm.call("res.users.settings", "set_embedded_actions_setting", [
-                user.settings.id,
-                this.parentActionId,
-                this.currentActiveId,
-                config,
-            ]);
-        } catch {
-            // Revert the local cache so it stays in sync with the server.
-            if (hadConfig) {
-                this.embeddedActionsConfig[this.embeddedActionsKey] = previousConfig;
-            } else {
-                delete this.embeddedActionsConfig[this.embeddedActionsKey];
-            }
-            this.notification.add(
-                _t("Failed to save the embedded actions configuration."),
-                { type: "danger" },
-            );
-        }
-    }
-
-    /**
-     * @param {string} key - config key (e.g. "embedded_visibility", "embedded_actions_order")
-     * @returns {any}
-     */
-    getEmbeddedActionsConfig(key) {
-        return this.embeddedActionsConfig[this.embeddedActionsKey]?.[key];
-    }
-
-    /** @returns {boolean} whether a config entry exists for this action+activeId key */
-    hasEmbeddedActionsConfig() {
-        return this.embeddedActionsKey in this.embeddedActionsConfig;
-    }
-
-    /** @returns {Promise<Object>} embedded actions settings from the database */
-    async fetchEmbeddedActionsConfig() {
-        return await this.orm.call(
-            "res.users.settings",
-            "get_embedded_actions_settings",
-            [user.settings.id],
-            {
-                context: {
-                    res_model: this.parentResModel,
-                    res_id: this.currentActiveId,
-                },
-            },
-        );
-    }
-
-    /** @param {Object} newSettings - settings map to merge into local cache */
-    updateEmbeddedActionsConfig(newSettings) {
-        for (const [key, value] of Object.entries(newSettings)) {
-            this.embeddedActionsConfig[key] = value;
-        }
-    }
-}
+const NO_EMBEDDED_INFOS = {
+    showEmbedded: false,
+    embeddedActions: [],
+    visibleEmbeddedActions: [],
+    newActionIsShared: false,
+    newActionName: "",
+    currentEmbeddedAction: undefined,
+};
 
 /**
  * Main control panel component that renders breadcrumbs, search bar, view
  * switcher, pager, embedded actions tabs, and layout action buttons.
  *
- * Handles mobile sticky scroll behavior, embedded action CRUD, drag-and-drop
- * reordering of embedded action tabs, and keyboard navigation.
+ * Handles mobile sticky scroll behavior and keyboard navigation. The
+ * embedded-actions machinery lives in the {@link EmbeddedActions} model and
+ * the {@link EmbeddedActionsBar} sub-component, and is only instantiated
+ * when the current action provides embedded actions; the thin delegating
+ * methods kept here are the extension surface for inheriting control panels
+ * (and back the mobile `web.embeddedActionsDropdown` render).
  */
 export class ControlPanel extends Component {
     static template = "web.ControlPanel";
@@ -162,7 +61,7 @@ export class ControlPanel extends Component {
         Breadcrumbs,
         AccordionItem,
         CheckBox,
-        Transition,
+        EmbeddedActionsBar,
     };
     static props = {
         display: { type: Object, optional: true },
@@ -183,16 +82,16 @@ export class ControlPanel extends Component {
     breadcrumbs;
     /** @type {any} */
     orm;
-    /** @type {any} */
-    dialogService;
+    /** @type {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedActions | null} */
+    embeddedActions;
+    /** @type {import("@web/components/dropdown/dropdown_hooks").DropdownState} */
+    embeddedActionsDropdown;
     /** @type {{el: HTMLElement | null}} */
     root;
     /** @type {{el: HTMLElement | null}} */
     newActionNameRef;
-    /** @type {any[] | undefined} */
-    defaultEmbeddedActions;
-    /** @type {EmbeddedActionsConfigHandler} */
-    embeddedActionsConfigHandler;
+    /** @type {any} */
+    adaptiveMenuRef;
     /** @type {{embeddedInfos: {showEmbedded: boolean, embeddedActions: any[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: any[], currentEmbeddedAction: any}}} */
     state;
     /** @type {(ev: Event) => void} */
@@ -215,62 +114,24 @@ export class ControlPanel extends Component {
             : undefined;
         this.notificationService = useService("notification");
         this.breadcrumbs = useState(this.env.config.breadcrumbs);
+        // Kept although unused here: inheriting control panels rely on it
+        // (e.g. account_accountant's BankRecKanbanControlPanel).
         this.orm = useService("orm");
-        this.dialogService = useService("dialog");
 
         this.root = useRef("root");
+        this.adaptiveMenuRef = useChildRef();
+
+        // `null` when the current action has no embedded actions: the bar is
+        // not rendered and none of the embedded machinery is instantiated.
+        this.embeddedActions = useEmbeddedActions();
+        // Shared with the `web.embeddedActionsDropdown` template rendered on
+        // mobile from this component (desktop renders it in the bar).
+        this.embeddedActionsDropdown = useDropdownState();
         this.newActionNameRef = useRef("newActionNameRef");
-        this.defaultEmbeddedActions = this.env.config.embeddedActions;
-        if (
-            this.env.config.embeddedActions?.length > 0 &&
-            !this.env.config.parentActionId
-        ) {
-            const { parent_res_model, parent_action_id } =
-                this.env.config.embeddedActions[0];
-            this.defaultEmbeddedActions = [
-                {
-                    id: false,
-                    name: this.env.config?.actionName,
-                    parent_action_id,
-                    parent_res_model,
-                    action_id: parent_action_id,
-                    user_id: false,
-                    context: {},
-                },
-                ...this.env.config.embeddedActions,
-            ];
-            this.env.config.setEmbeddedActions(this.defaultEmbeddedActions);
-        }
-
-        const parentActionId =
-            this.env.config.parentActionId ||
-            this.env.config.embeddedActions?.[0]?.parent_action_id[0] ||
-            this.env.config.embeddedActions?.[0]?.parent_action_id ||
-            "";
-        const currentActiveId = this.env.searchModel?.globalContext.active_id || false;
-        this.embeddedActionsConfigHandler = new EmbeddedActionsConfigHandler(
-            parentActionId,
-            currentActiveId,
-            this.currentEmbeddedAction?.parent_res_model,
-            this.orm,
-            this.notificationService,
-        );
-
         this.state = useState({
-            embeddedInfos: {
-                showEmbedded:
-                    !!this.embeddedActionsConfigHandler.getEmbeddedActionsConfig(
-                        "embedded_visibility",
-                    ),
-                embeddedActions: this.defaultEmbeddedActions || [],
-                newActionIsShared: false,
-                newActionName: this.newActionNameGetter,
-                visibleEmbeddedActions:
-                    this.embeddedActionsConfigHandler.getEmbeddedActionsConfig(
-                        "embedded_actions_visibility",
-                    ) || [],
-                currentEmbeddedAction: this.currentEmbeddedAction,
-            },
+            embeddedInfos: this.embeddedActions
+                ? this.embeddedActions.embeddedInfos
+                : { ...NO_EMBEDDED_INFOS },
         });
 
         this.onScrollThrottledBound = this.onScrollThrottled.bind(this);
@@ -316,43 +177,27 @@ export class ControlPanel extends Component {
                 return;
             }
             const scrollingEl = this.getScrollingElement();
-            this.scrollingElementResizeObserver.observe(scrollingEl);
+            const resizeObserver = new ResizeObserver((entries) => {
+                for (const entry of entries) {
+                    const target = /** @type {any} */ (entry.target);
+                    if (this.scrollingElementHeight !== target.scrollHeight) {
+                        this.oldScrollTop +=
+                            target.scrollHeight - this.scrollingElementHeight;
+                        this.scrollingElementHeight = target.scrollHeight;
+                    }
+                }
+            });
+            resizeObserver.observe(scrollingEl);
             scrollingEl.addEventListener("scroll", this.onScrollThrottledBound);
             this.root.el.style.top = "0px";
             this.scrollingElementHeight = scrollingEl.scrollHeight;
             return () => {
-                this.scrollingElementResizeObserver.unobserve(scrollingEl);
+                resizeObserver.disconnect();
                 scrollingEl.removeEventListener("scroll", this.onScrollThrottledBound);
             };
         });
 
-        // The goal is to automatically open the dropdown menu of embedded actions if there is only one visible embedded action
-        // We use a timer to delay the display of that dropdown menu to avoid flicker issues
-        useEffect(
-            (el, showEmbedded) => {
-                const timer = browser.setTimeout(() => {
-                    if (
-                        showEmbedded &&
-                        this.state.embeddedInfos.visibleEmbeddedActions.length === 1
-                    ) {
-                        el.querySelector(".btn[name='openEmbeddedActions']")?.click();
-                    }
-                }, 100);
-                return () => browser.clearTimeout(timer);
-            },
-            () => [this.root.el, this.state.embeddedInfos.showEmbedded],
-        );
-
         onMounted(() => {
-            if (this.state.embeddedInfos.embeddedActions?.length > 0) {
-                const embeddedOrder =
-                    this.embeddedActionsConfigHandler.getEmbeddedActionsConfig(
-                        "embedded_actions_order",
-                    );
-                if (embeddedOrder) {
-                    this._sortEmbeddedActions(embeddedOrder);
-                }
-            }
             if (
                 !this.env.isSmall ||
                 ("adaptToScroll" in this.display && !this.display.adaptToScroll)
@@ -363,71 +208,11 @@ export class ControlPanel extends Component {
             this.lastScrollTop = 0;
             this.initialScrollTop = this.getScrollingElement().scrollTop;
         });
-
-        useSortable(
-            /** @type {any} */ ({
-                enable: true,
-                ref: this.root,
-                elements: ".o_draggable",
-                cursor: "move",
-                delay: 200,
-                tolerance: 10,
-                onWillStartDrag: (params) => this._sortEmbeddedActionStart(params),
-                onDrop: (params) => this._sortEmbeddedActionDrop(params),
-            }),
-        );
-    }
-
-    scrollingElementResizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-            const target = /** @type {any} */ (entry.target);
-            if (this.scrollingElementHeight !== target.scrollHeight) {
-                this.oldScrollTop +=
-                    target.scrollHeight - this.scrollingElementHeight;
-                this.scrollingElementHeight = target.scrollHeight;
-            }
-        }
-    });
-
-    /**
-     * @param {EmbeddedAction} action
-     * @returns {string} CSS class ("selected" or "")
-     */
-    getDropdownClass(action) {
-        return (!this.env.isSmall && this._isEmbeddedActionVisible(action)) ||
-            (this.env.isSmall &&
-                this.state.embeddedInfos.currentEmbeddedAction?.id === action.id)
-            ? "selected"
-            : "";
     }
 
     /** @returns {HTMLElement} the scrollable parent element */
     getScrollingElement() {
         return this.root.el.parentElement;
-    }
-
-    /**
-     * @returns {EmbeddedAction}
-     */
-    get currentEmbeddedAction() {
-        if (!this.env.config) {
-            return /** @type {any} */ ({});
-        }
-        const { currentEmbeddedActionId } = this.env.config;
-        return (
-            this.defaultEmbeddedActions?.find(
-                ({ id }) => id === currentEmbeddedActionId,
-            ) || this.defaultEmbeddedActions?.[0]
-        );
-    }
-
-    /** @returns {string} default name for a new embedded action */
-    get newActionNameGetter() {
-        if (this.currentEmbeddedAction?.name) {
-            return _t("Custom %s", this.currentEmbeddedAction.name);
-        } else {
-            return _t("Custom Embedded Action");
-        }
     }
 
     /**
@@ -440,71 +225,66 @@ export class ControlPanel extends Component {
         };
     }
 
+    /**
+     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
+     * @returns {boolean}
+     */
+    _isEmbeddedActionVisible(action) {
+        return this.state.embeddedInfos.visibleEmbeddedActions.includes(action.id);
+    }
+
+    /**
+     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
+     * @returns {string} CSS class ("selected" or "")
+     */
+    getDropdownClass(action) {
+        return (!this.env.isSmall && this._isEmbeddedActionVisible(action)) ||
+            (this.env.isSmall &&
+                this.state.embeddedInfos.currentEmbeddedAction?.id === action.id)
+            ? "selected"
+            : "";
+    }
+
+    /** Show or hide the embedded actions bar. */
     async onClickShowEmbedded() {
-        if (
-            !this.state.embeddedInfos.showEmbedded &&
-            !this.embeddedActionsConfigHandler.hasEmbeddedActionsConfig()
-        ) {
-            // If there are embedded actions and no config has been found in the settings, we will fetch it from DB
-            // We need to fetch because it's possible that the config from DB was changed while it wasn't in the browser user settings
-            // We then need to keep the browser user settings up to date with the DB
-            const embeddedSettings =
-                await this.embeddedActionsConfigHandler.fetchEmbeddedActionsConfig();
-            if (
-                this.embeddedActionsConfigHandler.embeddedActionsKey in embeddedSettings
-            ) {
-                this.embeddedActionsConfigHandler.updateEmbeddedActionsConfig(
-                    embeddedSettings,
-                );
-                this.state.embeddedInfos.visibleEmbeddedActions =
-                    this.embeddedActionsConfigHandler.getEmbeddedActionsConfig(
-                        "embedded_actions_visibility",
-                    ) || [];
-                const embeddedOrder =
-                    this.embeddedActionsConfigHandler.getEmbeddedActionsConfig(
-                        "embedded_actions_order",
-                    );
-                if (embeddedOrder) {
-                    this._sortEmbeddedActions(embeddedOrder);
-                }
-                await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
-                    embedded_visibility: true,
-                });
-            } else {
-                // Store a new embedded actions config if still not found in the settings
-                const config = {
-                    res_model:
-                        this.state.embeddedInfos.currentEmbeddedAction.parent_res_model,
-                    embedded_actions_visibility: [],
-                    embedded_visibility: true,
-                    embedded_actions_order: [],
-                };
-                // If there is no visible embedded actions, the current action (if it exists) is put by default
-                if (this.state.embeddedInfos.embeddedActions?.length > 0) {
-                    const embeddedActionKey =
-                        this.state.embeddedInfos.currentEmbeddedAction?.id || false;
-                    if (
-                        !this.state.embeddedInfos.visibleEmbeddedActions.includes(
-                            embeddedActionKey,
-                        )
-                    ) {
-                        this.state.embeddedInfos.visibleEmbeddedActions.push(
-                            embeddedActionKey,
-                        );
-                        config.embedded_actions_visibility =
-                            this.state.embeddedInfos.visibleEmbeddedActions;
-                    }
-                }
-                await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig(
-                    config,
-                );
-            }
-        } else {
-            await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
-                embedded_visibility: !this.state.embeddedInfos.showEmbedded,
-            });
+        await this.embeddedActions.toggleBar();
+    }
+
+    /**
+     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
+     */
+    async onEmbeddedActionClick(action) {
+        return this.embeddedActions.openAction(action);
+    }
+
+    /**
+     * @param {number|false} actionId
+     */
+    _setVisibility(actionId) {
+        return this.embeddedActions.toggleActionVisibility(actionId);
+    }
+
+    /**
+     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
+     */
+    openConfirmationDialog(action) {
+        return this.embeddedActions.confirmDelete(action);
+    }
+
+    _onShareCheckboxChange() {
+        this.state.embeddedInfos.newActionIsShared =
+            !this.state.embeddedInfos.newActionIsShared;
+    }
+
+    /**
+     * @param {Event} ev
+     */
+    async _saveNewAction(ev) {
+        const saved = await this.embeddedActions.saveNewAction();
+        if (!saved) {
+            ev.stopPropagation();
+            this.newActionNameRef.el?.focus();
         }
-        this.state.embeddedInfos.showEmbedded = !this.state.embeddedInfos.showEmbedded;
     }
 
     /**
@@ -573,280 +353,18 @@ export class ControlPanel extends Component {
     onMainButtonsKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "arrowdown") {
-            this.env.searchModel.trigger("focus-view");
+            this.env.searchModel.trigger(SearchModelEvent.FOCUS_VIEW);
             ev.preventDefault();
             ev.stopPropagation();
         }
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     */
-    _isEmbeddedActionVisible(action) {
-        return this.state.embeddedInfos.visibleEmbeddedActions.includes(action.id);
-    }
-
-    /**
-     * The selected action is put into (or removed from) the user settings and its visibility changes.
-     * The state variable visibleEmbeddedActions keeps track of the visible actions to avoid  having to parse
-     * the user settings values every time we want to access them.
-     * @param {number} actionId
-     */
-    _setVisibility(actionId) {
-        if (this.state.embeddedInfos.visibleEmbeddedActions.includes(actionId)) {
-            const embeddedActionIndex =
-                this.state.embeddedInfos.visibleEmbeddedActions.indexOf(actionId);
-            if (embeddedActionIndex !== -1) {
-                this.state.embeddedInfos.visibleEmbeddedActions.splice(
-                    embeddedActionIndex,
-                    1,
-                );
-            }
-        } else {
-            this.state.embeddedInfos.visibleEmbeddedActions.push(actionId);
-        }
-        this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility:
-                this.state.embeddedInfos.visibleEmbeddedActions,
-        });
-    }
-
-    _onShareCheckboxChange() {
-        this.state.embeddedInfos.newActionIsShared =
-            !this.state.embeddedInfos.newActionIsShared;
-    }
-
-    /**
-     * @param {Event} ev
-     */
-    async _saveNewAction(ev) {
-        const {
-            newActionName,
-            newActionIsShared,
-            embeddedActions,
-            currentEmbeddedAction,
-            visibleEmbeddedActions,
-        } = this.state.embeddedInfos;
-        if (!newActionName) {
-            this.notificationService.add(
-                _t("A name for your new action is required."),
-                {
-                    type: "danger",
-                },
-            );
-            ev.stopPropagation();
-            return this.newActionNameRef.el.focus();
-        }
-        const duplicateName = embeddedActions.some(
-            ({ name }) => name === newActionName,
-        );
-        if (duplicateName) {
-            this.notificationService.add(
-                _t("An action with the same name already exists."),
-                {
-                    type: "danger",
-                },
-            );
-            ev.stopPropagation();
-            return this.newActionNameRef.el.focus();
-        }
-        const userId = newActionIsShared ? false : user.userId;
-
-        const {
-            parent_action_id,
-            action_id,
-            parent_res_model,
-            python_method,
-            domain,
-            context,
-            groups_ids,
-        } = currentEmbeddedAction;
-        const values = {
-            parent_action_id: parent_action_id[0],
-            parent_res_model,
-            parent_res_id: this.env.searchModel.globalContext.active_id,
-            user_id: userId,
-            is_deletable: true,
-            default_view_mode: this.env.config.viewType,
-            domain,
-            context,
-            groups_ids,
-            name: newActionName,
-        };
-        if (python_method) {
-            values.python_method = python_method;
-        } else {
-            values.action_id = action_id[0] || this.env.config.actionId;
-        }
-        const embeddedActionId = await this.orm.create("ir.embedded.actions", [values]);
-        const description = `${newActionName}`;
-        await this.env.searchModel.createNewFavorite({
-            description,
-            isDefault: true,
-            isShared: newActionIsShared,
-            embeddedActionId: embeddedActionId[0],
-        });
-        Object.assign(this.state.embeddedInfos, {
-            newActionName: "",
-            newActionIsShared: false,
-        });
-        const enrichedNewEmbeddedAction = /** @type {EmbeddedAction} */ ({
-            ...values,
-            parent_action_id,
-            action_id,
-            id: embeddedActionId[0],
-        });
-        this.state.embeddedInfos.embeddedActions.push(enrichedNewEmbeddedAction);
-        const embeddedActionResId = embeddedActionId[0];
-        visibleEmbeddedActions.push(embeddedActionResId);
-        const order = this.state.embeddedInfos.embeddedActions.map((el) => el.id);
-        await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: visibleEmbeddedActions,
-            embedded_actions_order: order,
-        });
-        this.env.config.setCurrentEmbeddedAction(embeddedActionId);
-        this.state.embeddedInfos.currentEmbeddedAction = enrichedNewEmbeddedAction;
-        this.state.embeddedInfos.newActionName = `${newActionName} Custom`;
-    }
-
-    /**
-     * @param {EmbeddedAction} action
-     */
-    openConfirmationDialog(action) {
-        const dialogProps = {
-            title: _t("Warning"),
-            body: action.user_id
-                ? _t("Are you sure that you want to remove this embedded action?")
-                : _t(
-                      "This embedded action is global and will be removed for everyone.",
-                  ),
-            confirmLabel: _t("Delete"),
-            confirm: async () => await this._deleteEmbeddedAction(action),
-            cancel: () => {},
-        };
-        this.dialogService.add(ConfirmationDialog, dialogProps);
-    }
-
-    /**
-     * @param {EmbeddedAction} action
-     */
-    async _deleteEmbeddedAction(action) {
-        const { visibleEmbeddedActions, embeddedActions, currentEmbeddedAction } =
-            this.state.embeddedInfos;
-        const embeddedActionIndex = visibleEmbeddedActions.indexOf(action.id);
-        if (embeddedActionIndex !== -1) {
-            visibleEmbeddedActions.splice(embeddedActionIndex, 1);
-        }
-        this.state.embeddedInfos.embeddedActions = embeddedActions.filter(
-            ({ id }) => id !== action.id,
-        );
-        const order = this.state.embeddedInfos.embeddedActions.map((el) => el.id);
-        await this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: visibleEmbeddedActions,
-            embedded_actions_order: order,
-        });
-        await this.orm.unlink("ir.embedded.actions", [action.id]);
-        if (action.id === currentEmbeddedAction?.id) {
-            const { active_id, active_model } = this.env.searchModel.globalContext;
-            const actionContext = action.context ? makeContext([action.context]) : {};
-            const additionalContext = {
-                ...actionContext,
-                active_id,
-                active_model,
-            };
-            this.actionService.doAction(
-                action.parent_action_id[0] || action.parent_action_id,
-                {
-                    additionalContext,
-                    stackPosition: "replaceCurrentAction",
-                },
-            );
-        }
-    }
-
-    /**
-     * @param {EmbeddedAction} action
-     */
-    async onEmbeddedActionClick(action) {
-        this.env.config.setEmbeddedActions(this.state.embeddedInfos.embeddedActions);
-        const { active_id, active_model } = this.env.searchModel.globalContext;
-        const actionContext = action.context ? makeContext([action.context]) : {};
-        const context = {
-            ...actionContext,
-            active_id,
-            active_model,
-            current_embedded_action_id: action.id,
-            parent_action_embedded_actions: this.state.embeddedInfos.embeddedActions,
-            parent_action_id: action.parent_action_id[0] || action.parent_action_id,
-        };
-        this.actionService.doActionButton(
-            {
-                type: action.python_method ? "object" : "action",
-                resId: this.env.searchModel?.globalContext.active_id,
-                name: action.python_method || action.action_id[0] || action.action_id,
-                resModel: action.parent_res_model,
-                context,
-                stackPosition: "replaceCurrentAction",
-                viewType: action.default_view_mode,
-            },
-            { isEmbeddedAction: true },
-        );
-    }
-
-    /**
-     * @param {number[]} order
-     */
-    _sortEmbeddedActions(order) {
-        this.state.embeddedInfos.embeddedActions =
-            this.state.embeddedInfos.embeddedActions.sort((a, b) => {
-                const indexA = order.indexOf(a.id);
-                const indexB = order.indexOf(b.id);
-                if (indexA === -1) {
-                    return 1;
-                }
-                if (indexB === -1) {
-                    return -1;
-                }
-                return indexA - indexB;
-            });
-    }
-
-    /**
-     * @param {Object} params
-     * @param {HTMLElement} params.element
-     * @param {Function} params.addClass
-     */
-    _sortEmbeddedActionStart({ element, addClass }) {
-        addClass(element, "o_dragged_embedded_action");
-    }
-
-    /**
-     * @param {Object} params
-     * @param {HTMLElement} params.element
-     * @param {HTMLElement} params.previous
-     */
-    _sortEmbeddedActionDrop({ element, previous }) {
-        const order = this.state.embeddedInfos.embeddedActions.map((el) => el.id);
-        const elementId = Number(element.dataset.id) || false;
-        const elementIndex = order.indexOf(elementId);
-        order.splice(elementIndex, 1);
-        if (previous) {
-            const prevIndex = order.indexOf(Number(previous.dataset.id) || false);
-            order.splice(prevIndex + 1, 0, elementId);
-        } else {
-            order.splice(0, 0, elementId);
-        }
-        this._sortEmbeddedActions(order);
-        this.embeddedActionsConfigHandler.setEmbeddedActionsConfig({
-            embedded_actions_order: order,
-        });
-    }
-
     /** Convert button elements inside the adaptive dropdown into dropdown-item styling. */
     dropdownifyButtons() {
-        const adaptiveMenu = document.querySelector(
-            ".o-control-panel-adaptive-dropdown.dropdown-menu",
-        );
+        const adaptiveMenu = this.adaptiveMenuRef.el;
+        if (!adaptiveMenu) {
+            return;
+        }
         const meaningfulElements = this.getBoxedElements(adaptiveMenu.children);
         for (const el of meaningfulElements) {
             el.classList.add("dropdown-item");

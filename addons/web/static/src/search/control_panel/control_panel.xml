@@ -3,29 +3,14 @@
 
     <t t-name="web.ControlPanel">
         <div class="o_control_panel d-flex flex-column gap-3 px-3 pt-2 pb-3" t-ref="root" data-command-category="actions">
-            <Transition t-if="!env.isSmall" visible="state.embeddedInfos.showEmbedded" name="'o-fade'" t-slot-scope="transition" leaveDuration="500">
-                <div class="o_embedded_actions d-flex flex-wrap w-100 align-items-center justify-content-center gap-2" t-att-class="transition.className">
-                    <t t-foreach="state.embeddedInfos.embeddedActions" t-as="action" t-key="action.id">
-                        <t t-if="_isEmbeddedActionVisible(action)">
-                            <button class="btn btn-secondary o_draggable"
-                                    t-att-class="{ 'active': state.embeddedInfos.currentEmbeddedAction?.id === action.id}"
-                                    t-on-click="() => this.onEmbeddedActionClick(action)"
-                                    t-att-data-id="action.id"
-                            >
-                                <span t-out="action.name"/>
-                            </button>
-                        </t>
-                    </t>
-                    <t t-call="web.embeddedActionsDropdown" />
-                </div>
-            </Transition>
+            <EmbeddedActionsBar t-if="!env.isSmall and embeddedActions" embeddedActions="embeddedActions" isActionVisible.bind="_isEmbeddedActionVisible"/>
             <div class="o_control_panel_main d-flex flex-wrap flex-lg-nowrap justify-content-between align-items-lg-start gap-2 gap-lg-3 flex-grow-1">
                 <div class="o_control_panel_breadcrumbs d-flex align-items-center gap-1 order-0 h-lg-100">
                     <div class="o_control_panel_main_buttons d-flex gap-1 d-empty-none d-print-none" t-on-keydown="onMainButtonsKeydown">
                         <t t-slot="control-panel-create-button"/>
                         <t t-slot="layout-buttons"/>
                         <t t-slot="control-panel-always-buttons"/>
-                        <Dropdown t-if="env.isSmall" menuClass="'o-control-panel-adaptive-dropdown'" onOpened.bind="dropdownifyButtons">
+                        <Dropdown t-if="env.isSmall" menuClass="'o-control-panel-adaptive-dropdown'" menuRef="adaptiveMenuRef" onOpened.bind="dropdownifyButtons">
                             <button class="btn btn-secondary o-control-panel-adaptive-dropdown" title="More">
                                 <i class="oi oi-fw oi-ellipsis-v" />
                             </button>
@@ -124,46 +109,6 @@
                 </div>
             </div>
         </div>
-    </t>
-
-    <t t-name="web.embeddedActionsDropdown">
-        <Dropdown menuClass="'o_embedded_actions_dropdown_menu'">
-            <button name="openEmbeddedActions" class="btn btn-secondary">
-                <i class="fa-solid fa-sliders"/>
-            </button>
-            <t t-set-slot="content">
-                <t t-foreach="state.embeddedInfos.embeddedActions" t-as="action" t-key="action.id">
-                    <DropdownItem
-                        class="this.getDropdownClass(action)"
-                        onSelected="() => this.env.isSmall ? this.onEmbeddedActionClick(action) : this._setVisibility(action.id)"
-                        closingMode="'none'"
-                    >
-                        <div class="d-flex p-0 pe-1 align-items-center justify-content-between">
-                            <span t-out="action.name"/>
-                            <i t-if="action.is_deletable" class="o_icon_right btn btn-link text-danger p-0 position-absolute end-0 fa-regular fa-trash-can" title="Delete item" t-on-click.stop="() => this.openConfirmationDialog(action)" />
-                        </div>
-                    </DropdownItem>
-                </t>
-                <div role="separator" class="dropdown-divider"/>
-                <AccordionItem class="'o_save_current_view'" description.translate="Save View">
-                    <div class="px-2 py-2">
-                        <input type="text"
-                            t-ref="newActionNameRef"
-                            class="o_input mb-2"
-                            t-model.trim="state.embeddedInfos.newActionName"
-                        />
-                        <CheckBox value="state.embeddedInfos.newActionIsShared" onChange.bind="_onShareCheckboxChange">
-                            <span data-tooltip="Make this embedded action available to other users">Shared</span>
-                        </CheckBox>
-                    </div>
-                    <div class="px-3 py-2">
-                        <button class="o_save_favorite btn btn-primary w-100" t-on-click="_saveNewAction">
-                            Save
-                        </button>
-                    </div>
-                </AccordionItem>
-            </t>
-        </Dropdown>
     </t>
 
 </templates>

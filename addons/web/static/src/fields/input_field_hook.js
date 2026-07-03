@@ -83,39 +83,16 @@ export function useInputField(params) {
     /**
      * On blur, we consider the field no longer dirty, even if it were to be invalid.
      * However, if the field is invalid, the new value will not be committed to the model.
+     *
+     * Delegates to ``commitChanges`` so blur and Tab/Enter/urgent share a single
+     * commit pipeline (parse → setInvalidField → hasValueChanged → update/reset).
+     * The two used to be hand-maintained copies and drifted (see
+     * ``hasValueChanged``). ``onInput`` maintains the invariant
+     * ``isDirty ⇔ inputRef.el.value !== lastSetValue``, so the dirty recompute
+     * inside ``commitChanges`` is equivalent to the old ``if (isDirty)`` guard.
      */
-    async function onChange(ev) {
-        if (isDirty) {
-            isDirty = false;
-            let isInvalid = false;
-            let val = ev.target.value;
-            if (params.parse) {
-                try {
-                    val = params.parse(val);
-                } catch {
-                    component.props.record.setInvalidField(fieldName);
-                    isInvalid = true;
-                }
-            }
-
-            if (!isInvalid) {
-                if (hasValueChanged(val)) {
-                    lastSetValue = inputRef.el.value;
-                    pendingUpdate = true;
-                    await component.props.record.update(
-                        { [fieldName]: val },
-                        { save: shouldSave() },
-                    );
-                    pendingUpdate = false;
-                    component.props.record.model.bus.trigger(
-                        ModelEvent.FIELD_IS_DIRTY,
-                        isDirty,
-                    );
-                } else {
-                    inputRef.el.value = params.getValue();
-                }
-            }
-        }
+    function onChange() {
+        return commitChanges(false);
     }
     function onKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
@@ -184,7 +161,13 @@ export function useInputField(params) {
     );
 
     /**
-     * Roughly the same as onChange, but called at more specific / critical times. (See bus events)
+     * Single commit pipeline, shared by blur (``onChange``), Tab/Enter
+     * (``onKeydown``) and the urgent-save/local-changes bus events.
+     *
+     * @param {boolean} [urgent] re-commit even when not dirty if an update is
+     *   still unacknowledged (``pendingUpdate``), so the value lands in the
+     *   changes that the urgent save serialises; parse errors are silently
+     *   dropped instead of flagging the field (the UI is going away).
      */
     async function commitChanges(urgent) {
         if (!inputRef.el) {
@@ -193,32 +176,27 @@ export function useInputField(params) {
 
         isDirty = inputRef.el.value !== lastSetValue;
         if (isDirty || (urgent && pendingUpdate)) {
-            let isInvalid = false;
             isDirty = false;
             let val = inputRef.el.value;
             if (params.parse) {
                 try {
                     val = params.parse(val);
                 } catch {
-                    isInvalid = true;
-                    if (urgent) {
-                        return;
-                    } else {
+                    if (!urgent) {
                         component.props.record.setInvalidField(fieldName);
                     }
+                    return;
                 }
-            }
-
-            if (isInvalid) {
-                return;
             }
 
             if (hasValueChanged(val)) {
                 lastSetValue = inputRef.el.value;
+                pendingUpdate = true;
                 await component.props.record.update(
                     { [fieldName]: val },
                     { save: shouldSave() },
                 );
+                pendingUpdate = false;
                 component.props.record.model.bus.trigger(
                     ModelEvent.FIELD_IS_DIRTY,
                     false,

@@ -13518,6 +13518,58 @@ test(`cached web_read - don't loose changes`, async () => {
     expect.verifySteps(["web_read", "web_read", "web_read"]);
 });
 
+test(`cached web_read - record stays dirty when revalidation lands after an edit`, async () => {
+    // Regression: the keepChanges reload path used to reset the reactive
+    // ``dirty`` flag while preserving ``_changes``; every isDirty() gate
+    // (pager, action buttons, save button) then silently discarded the
+    // pending edit.
+    let def = null;
+    onRpc("web_read", async () => def);
+    onRpc("web_save", ({ args }) => {
+        expect.step(`web_save:${JSON.stringify(args[1])}`);
+    });
+
+    Partner._views = {
+        form: `<form><field name="foo"/></form>`,
+    };
+
+    defineActions([
+        {
+            id: 1,
+            name: "Partner",
+            res_model: "partner",
+            res_id: 1,
+            views: [[false, "form"]],
+            cache: true,
+        },
+        {
+            id: 2,
+            name: "Partner",
+            res_model: "partner",
+            res_id: 2,
+            views: [[false, "form"]],
+        },
+    ]);
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+    await getService("action").doAction(2);
+
+    def = new Deferred();
+    getService("action").doAction(1);
+    await animationFrame();
+    expect(`.o_field_char input`).toHaveValue("yop");
+
+    // Edit while the revalidation web_read is pending, then let it land
+    await contains(`.o_field_widget[name=foo] input`).edit("This is yop");
+    def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
+    await animationFrame();
+
+    // The pending edit must still be flagged: saving must send it
+    await clickSave();
+    expect.verifySteps([`web_save:${JSON.stringify({ foo: "This is yop" })}`]);
+});
+
 test(`cached onchange - don't loose changes`, async () => {
     let def = null;
     onRpc("onchange", async () => {

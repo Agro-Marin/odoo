@@ -25,9 +25,18 @@
  * coordinator does the dispatch + status tracking + error routing.
  *
  * The status field is the single observable surface for external readers
- * (form status indicator, dialog blockers, route guards) instead of each
- * one reverse-engineering state from ``record.dirty`` + scattered
- * ``isSaving`` flags.
+ * instead of each one reverse-engineering state from ``record.dirty`` +
+ * scattered ``isSaving`` flags.  Current consumer: ``FormStatusIndicator``
+ * (subscribes via ``useState`` and derives its saving / post-error display
+ * states from ``status``); it remains open for dialog blockers and route
+ * guards.
+ *
+ * Out-of-contract callers: code that invokes ``model.root.save()`` /
+ * ``root.discard()`` directly (several field widgets, e.g.
+ * ``@web/fields/translation_button``, and assorted addon widgets) bypasses
+ * the coordinator entirely — ``status`` will not reflect those saves.
+ * New form-level save paths must go through ``requestSave`` /
+ * ``requestDiscard`` / ``requestUrgentSave``.
  *
  * Compares to React Admin's ``<SaveContextProvider>`` and Refine's
  * ``useForm`` — both expose ``{ saving, isDirty, mutationMode }`` as a
@@ -39,12 +48,10 @@ import { SignalStore } from "@web/core/utils/reactive";
 /**
  * @typedef {"clean" | "dirty" | "saving" | "error"} FormSaveStatus
  *
- * @typedef {"veto" | "begin" | "ok" | "recoverable" | "failed" | "discard"} FormSaveEvent
+ * @typedef {"begin" | "ok" | "recoverable" | "failed" | "discard"} FormSaveEvent
  *
  * @typedef {{
  *   onSaveError: (error: any, callbacks: { discard: () => any, retry: () => any }) => any,
- *   onWillSave?: (record: any) => Promise<boolean | undefined>,
- *   onSaved?: (record: any, params: any) => Promise<void>,
  *   onUrgentSaveFailed?: () => void,
  *   recoverFromSaveError?: (error: any, model: any) => boolean,
  * }} FormSaveHooks
@@ -67,9 +74,6 @@ import { SignalStore } from "@web/core/utils/reactive";
  * status.
  *
  * Notable non-obvious cells:
- *   - ``saving → veto → dirty``: a second ``requestSave`` whose
- *     ``onWillSave`` veto resolves while the first save is still in
- *     flight through the model mutex.
  *   - ``saving → begin → saving``: concurrent ``requestSave`` re-entry
  *     under the mutex; status is already ``"saving"`` so this is a
  *     no-op assignment that the guard must permit.
@@ -83,10 +87,10 @@ import { SignalStore } from "@web/core/utils/reactive";
  * @type {Record<FormSaveStatus, Partial<Record<FormSaveEvent, FormSaveStatus>>>}
  */
 const TRANSITIONS = {
-    clean:  { veto: "dirty", begin: "saving", discard: "clean" },
-    dirty:  { veto: "dirty", begin: "saving", discard: "clean" },
-    saving: { veto: "dirty", begin: "saving", ok: "clean", recoverable: "dirty", failed: "error", discard: "clean" },
-    error:  { veto: "dirty", begin: "saving", discard: "clean" },
+    clean:  { begin: "saving", discard: "clean" },
+    dirty:  { begin: "saving", discard: "clean" },
+    saving: { begin: "saving", ok: "clean", recoverable: "dirty", failed: "error", discard: "clean" },
+    error:  { begin: "saving", discard: "clean" },
 };
 
 export class InvalidFormSaveTransitionError extends Error {
@@ -179,7 +183,10 @@ export class FormSaveCoordinator extends SignalStore {
 
     /**
      * Save the form record.  All save-related entry points in
-     * ``form_controller.js`` route through here.
+     * ``form_controller.js`` (and ``settings_form_controller.js``) route
+     * through here.  Note: field widgets that call ``model.root.save()``
+     * directly are out-of-contract — ``status`` / ``isSaving`` do not
+     * reflect those saves (see the module docstring).
      *
      * Resolves to:
      *   - ``true`` on a successful save (or ``checkDirty`` short-circuit)
@@ -206,20 +213,6 @@ export class FormSaveCoordinator extends SignalStore {
         if (checkDirty && !(await this.model.root.isDirty())) {
             // Nothing to save — the caller's pre-flight returned clean.
             return true;
-        }
-        const willSave = await this.hooks.onWillSave?.(this.model.root);
-        if (willSave === false) {
-            // Caller-side guard vetoed the save (e.g. external validation).
-            // If a save is already in flight, invalidate its epoch (as
-            // concurrent begin/discard do) before the ``saving → dirty``
-            // veto: otherwise the in-flight save's terminal
-            // ``_finishTransition("ok", ...)`` would attempt an illegal
-            // ``dirty → ok`` and reject a *successful* save.
-            if (this.isSaving) {
-                this._saveEpoch++;
-            }
-            this._transition("veto");
-            return false;
         }
         this.lastError = null;
         this._transition("begin");
@@ -250,12 +243,6 @@ export class FormSaveCoordinator extends SignalStore {
             }
             if (saved !== false) {
                 this._finishTransition("ok", ownerEpoch);
-                if (ownerEpoch === this._saveEpoch) {
-                    // Only the winning save runs ``onSaved`` — duplicate
-                    // ``onSaved`` calls from stale saves could re-emit
-                    // navigation actions, action menu toasts, etc.
-                    await this.hooks.onSaved?.(this.model.root, opts);
-                }
                 return saved;
             }
             // ``saved === false`` means validation failed pre-RPC, or the
