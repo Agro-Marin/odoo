@@ -30,26 +30,68 @@ export const menuService = {
         let currentAppId;
         let menusData;
 
-        const fetchMenus = async (reload) => {
+        /**
+         * Fetch the menu tree from the server.
+         *
+         * Conditional-fetch contract: when ``cachedHash`` (the value of the
+         * ``X-Menus-Hash`` header persisted alongside the localStorage copy)
+         * is passed, the server answers an empty ``304`` if the payload is
+         * unchanged — resolved here as ``null`` — instead of re-sending the
+         * full payload (base64 app icons included) on every boot.
+         *
+         * @param {boolean} [reload]
+         * @param {string} [cachedHash]
+         * @returns {Promise<{menus: Object, hash?: string} | null>} the menus
+         *  and their server-side hash, or ``null`` when the cached copy is
+         *  confirmed up-to-date (304)
+         */
+        const fetchMenus = async (reload, cachedHash) => {
             if (!reload && /** @type {any} */ (odoo).loadMenusPromise) {
+                // Parse-time preload from web.webclient_bootstrap: already
+                // normalized to the same `{menus, hash} | null` shape (and
+                // already carries the stored hash when it was valid).
                 return /** @type {any} */ (odoo).loadMenusPromise;
             }
-            const res = await browser.fetch(loadMenusUrl, {
+            const url = cachedHash
+                ? `${loadMenusUrl}?hash=${encodeURIComponent(cachedHash)}`
+                : loadMenusUrl;
+            const res = await browser.fetch(url, {
                 cache: "no-store",
             });
+            if (res.status === 304) {
+                return null;
+            }
             if (!res.ok) {
                 throw new Error("Error while fetching menus");
             }
-            return res.json();
+            return {
+                menus: await res.json(),
+                hash: res.headers.get("X-Menus-Hash") || undefined,
+            };
         };
-        /** @param {Object} data */
-        const persistMenus = (data) => {
+        /**
+         * @param {Object} data
+         * @param {string} [hash] server-side hash of ``data`` (``X-Menus-Hash``)
+         */
+        const persistMenus = (data, hash) => {
             try {
                 browser.localStorage.setItem(
                     "webclient_menus_version",
                     session.registry_hash,
                 );
                 browser.localStorage.setItem("webclient_menus", JSON.stringify(data));
+                if (hash) {
+                    browser.localStorage.setItem("webclient_menus_hash", hash);
+                } else if (
+                    browser.localStorage.getItem("webclient_menus_hash") !== null
+                ) {
+                    // No hash available (e.g. mocked route): drop any stale
+                    // one so the next boot fetches the full payload. Only
+                    // touch the storage when a hash is actually stored, so
+                    // environments that never stored one (tests spying on
+                    // localStorage) don't observe a spurious removeItem.
+                    browser.localStorage.removeItem("webclient_menus_hash");
+                }
             } catch (error) {
                 console.error("Error while storing menus in localStorage", error);
             }
@@ -58,26 +100,24 @@ export const menuService = {
         const storedMenusVersion = browser.localStorage.getItem(
             "webclient_menus_version",
         );
+        const storedMenusHash =
+            browser.localStorage.getItem("webclient_menus_hash") || undefined;
 
         if (storedMenus && storedMenusVersion === session.registry_hash) {
-            fetchMenus()
+            fetchMenus(false, storedMenusHash)
                 .then((res) => {
-                    if (res) {
-                        const fetchedMenus = JSON.stringify(res);
+                    // res === null → 304: cached copy confirmed up-to-date.
+                    if (res && res.menus) {
+                        const fetchedMenus = JSON.stringify(res.menus);
                         if (fetchedMenus !== storedMenus) {
-                            try {
-                                browser.localStorage.setItem(
-                                    "webclient_menus",
-                                    fetchedMenus,
-                                );
-                            } catch (error) {
-                                console.error(
-                                    "Error while storing menus in localStorage",
-                                    error,
-                                );
-                            }
-                            menusData = res;
+                            persistMenus(res.menus, res.hash);
+                            menusData = res.menus;
                             env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
+                        } else if (res.hash && res.hash !== storedMenusHash) {
+                            // Same payload but the hash is new (e.g. first boot
+                            // after upgrading to the conditional-fetch server):
+                            // persist it so the next boot gets a 304.
+                            persistMenus(res.menus, res.hash);
                         }
                     }
                 })
@@ -89,9 +129,10 @@ export const menuService = {
                 });
             menusData = JSON.parse(storedMenus);
         } else {
-            menusData = await fetchMenus();
-            if (menusData) {
-                persistMenus(menusData);
+            const res = await fetchMenus();
+            if (res && res.menus) {
+                menusData = res.menus;
+                persistMenus(res.menus, res.hash);
             }
         }
 
@@ -146,13 +187,15 @@ export const menuService = {
             },
             setCurrentMenu,
             async reload() {
-                // fetchMenus is a const arrow defined above — always truthy, so
-                // the old `if (fetchMenus)` guard was dead.
-                menusData = await fetchMenus(true);
-                if (menusData) {
+                // Explicit reload (e.g. after app install): don't send the
+                // cached hash — a change is expected, always take the full
+                // payload.
+                const res = await fetchMenus(true);
+                if (res && res.menus) {
+                    menusData = res.menus;
                     // Persist so the next boot doesn't serve stale menus from
                     // localStorage.
-                    persistMenus(menusData);
+                    persistMenus(res.menus, res.hash);
                 }
                 env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
             },

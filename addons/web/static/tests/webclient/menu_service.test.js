@@ -104,6 +104,84 @@ test(`use stored menus, and don't update on load_menus return (if identical)`, a
 });
 
 test.tags("desktop");
+test(`send stored hash and keep stored menus on 304 not modified`, async () => {
+    const def = new Deferred();
+    redirect("/odoo/action-666");
+    onRpc("/web/webclient/load_menus", async (request) => {
+        expect.step(`hash=${new URL(request.url).searchParams.get("hash")}`);
+        await def;
+        // Server-side payload hash matches: 304-equivalent, empty body.
+        return new Response(null, { status: 304 });
+    });
+
+    // Initial stored values, including the persisted X-Menus-Hash value
+    browser.localStorage.webclient_menus_version =
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_hash = "abcdef123456";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [2, 3], name: "App1", id: 1, actionID: 666 },
+        2: { appID: 1, children: [], name: "Test1", id: 2, actionID: 666 },
+        3: { appID: 1, children: [], name: "Test2", id: 3, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+
+    const webClient = await mountWebClient();
+    webClient.env.bus.addEventListener("MENUS:APP-CHANGED", () =>
+        expect.step("Don't Update"),
+    );
+    expect(`.o_menu_brand`).toHaveText("App1");
+    expect(".o_menu_sections").toHaveText("Test1\nTest2");
+    expect.verifySteps(["hash=abcdef123456"]);
+    def.resolve();
+    await animationFrame();
+    expect(".o_menu_sections").toHaveText("Test1\nTest2");
+    expect(browser.localStorage.webclient_menus_hash).toBe("abcdef123456");
+    expect.verifySteps([]);
+});
+
+test.tags("desktop");
+test(`update menus and persist new hash on changed payload`, async () => {
+    const def = new Deferred();
+    redirect("/odoo/action-666");
+    onRpc("/web/webclient/load_menus", async (request) => {
+        expect.step(`hash=${new URL(request.url).searchParams.get("hash")}`);
+        await def;
+        return new Response(
+            JSON.stringify({
+                1: { appID: 1, children: [2], name: "App1", id: 1, actionID: 666 },
+                2: { appID: 1, children: [], name: "Test1", id: 2, actionID: 666 },
+                root: { id: "root", name: "root", appID: "root", children: [1] },
+            }),
+            { headers: { "X-Menus-Hash": "newhash789" } },
+        );
+    });
+
+    // Stored copy contains an extra menu (Test2): the server payload differs
+    browser.localStorage.webclient_menus_version =
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_hash = "oldhash123";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [2, 3], name: "App1", id: 1, actionID: 666 },
+        2: { appID: 1, children: [], name: "Test1", id: 2, actionID: 666 },
+        3: { appID: 1, children: [], name: "Test2", id: 3, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+
+    const webClient = await mountWebClient();
+    webClient.env.bus.addEventListener("MENUS:APP-CHANGED", () =>
+        expect.step("Update Menus"),
+    );
+    // Stored copy is rendered without waiting for the revalidation
+    expect(".o_menu_sections").toHaveText("Test1\nTest2");
+    expect.verifySteps(["hash=oldhash123"]);
+    def.resolve();
+    await animationFrame();
+    expect(".o_menu_sections").toHaveText("Test1");
+    expect(browser.localStorage.webclient_menus_hash).toBe("newhash789");
+    expect.verifySteps(["Update Menus"]);
+});
+
+test.tags("desktop");
 test(`use stored menus, and update on load_menus return`, async () => {
     const def = new Deferred();
     redirect("/odoo/action-666");

@@ -51,6 +51,32 @@ export const localizationService = {
         );
 
         /**
+         * Synchronous localStorage mirror of the (asynchronous) IndexedDB
+         * translations cache, consumed by the parse-time preload script in
+         * `web.webclient_bootstrap` (webclient_templates.xml). The inline
+         * script cannot await an IndexedDB read, so it checks this marker
+         * instead: when it equals `${registry_hash}/${lang}` the IndexedDB
+         * read will (almost certainly) hit and no early fetch is started;
+         * otherwise (first visit, deploy that bumped registry_hash, language
+         * change) the fetch starts at parse time and is adopted below.
+         * A stale/lost marker is always safe: it only costs one redundant
+         * prefetch (marker stale) or a later fetch (marker lost with IDB
+         * intact — same as before this optimization).
+         */
+        const translationsCacheMarker = `${session.registry_hash}/${lang}`;
+        const markTranslationsCached = () => {
+            try {
+                browser.localStorage.setItem(
+                    "webclient_translations_version",
+                    translationsCacheMarker,
+                );
+            } catch {
+                // localStorage unavailable/full: only disables the cold-boot
+                // preload optimization, never breaks translations.
+            }
+        };
+
+        /**
          * Fetch translations from the server. If the hash matches the cached
          * version, no update is performed.
          * @param {string | undefined} hash - hash of the currently cached translations
@@ -59,10 +85,31 @@ export const localizationService = {
             let queryString = objectToUrlEncodedString({ hash, lang });
             queryString = queryString.length ? `?${queryString}` : queryString;
             const url = `${translationURL}${queryString}`;
-            l10nLog("fetch", "fetchTranslations begin", `url=${url}`);
-            const response = await browser.fetch(url, {
-                cache: "no-store",
-            });
+            const preload = /** @type {any} */ (odoo);
+            let responsePromise;
+            if (!hash && preload.loadTranslationsPromise && preload.loadTranslationsURL === url) {
+                // Cold boot: adopt the parse-time preload started by
+                // web.webclient_bootstrap instead of fetching again.
+                l10nLog("fetch", "fetchTranslations adopting preload", `url=${url}`);
+                responsePromise = preload.loadTranslationsPromise;
+            } else {
+                if (preload.loadTranslationsPromise) {
+                    // Unused preload (IndexedDB hit despite a stale marker, or
+                    // URL mismatch): discard it cheaply — release the response
+                    // body and swallow its errors.
+                    preload.loadTranslationsPromise.then(
+                        (/** @type {Response} */ res) => res.body?.cancel(),
+                        () => {},
+                    );
+                }
+                l10nLog("fetch", "fetchTranslations begin", `url=${url}`);
+                responsePromise = browser.fetch(url, {
+                    cache: "no-store",
+                });
+            }
+            preload.loadTranslationsPromise = null;
+            preload.loadTranslationsURL = null;
+            const response = await responsePromise;
             l10nLog(
                 "fetch",
                 "fetchTranslations response",
@@ -75,6 +122,7 @@ export const localizationService = {
             const result = await response.json();
             if (result.hash !== hash) {
                 localizationDB.write(translationURL, JSON.stringify({ lang }), result);
+                markTranslationsCached();
                 updateTranslations(result);
                 l10nLog(
                     "fetch",
@@ -154,6 +202,10 @@ export const localizationService = {
             console.warn("Background translation fetch failed:", e),
         );
         if (storedTranslations) {
+            // Refresh the localStorage mirror: the IndexedDB cache provably
+            // holds translations for this registry_hash/lang, so the next
+            // boot can skip the parse-time preload.
+            markTranslationsCached();
             updateTranslations(storedTranslations);
         } else {
             l10nLog("cache", "no cache, awaiting fetch");
