@@ -151,21 +151,14 @@ export async function triggerEvents(selector, events, options) {
 }
 
 function log(ok, message) {
-    if (window.QUnit) {
-        QUnit.assert.ok(ok, message);
+    if (ok) {
+        console.log(message);
     } else {
-        if (ok) {
-            console.log(message);
-        } else {
-            console.error(message);
-        }
+        console.error(message);
     }
 }
 
 let hasUsedContainsPositively = false;
-if (window.QUnit) {
-    QUnit.testStart(() => (hasUsedContainsPositively = false));
-}
 /**
  * @typedef {[string, ContainsOptions]} ContainsTuple tuple representing params of the contains
  *  function, where the first element is the selector, and the second element is the options param.
@@ -273,7 +266,7 @@ class Contains {
      * match, or registering appropriate listeners and waiting until there is a
      * match or a timeout (resolving or rejecting respectively).
      *
-     * Success or failure messages will be logged with QUnit as well.
+     * Success or failure messages will be logged to the console as well.
      *
      * @returns {Promise}
      */
@@ -311,7 +304,7 @@ class Contains {
     /**
      * Runs this contains check once, immediately returning the result (or
      * undefined), and possibly resolving or rejecting the main promise
-     * (and printing QUnit log) depending on options.
+     * (and printing to the console) depending on options.
      * If undefined is returned it means the check was not successful.
      *
      * @param {string} whenMessage
@@ -611,75 +604,3 @@ export async function contains(selector, options) {
     await new Contains(selector, options).run();
 }
 
-const stepState = {
-    expectedSteps: null,
-    deferred: null,
-    timeout: null,
-    currentSteps: [],
-
-    clear() {
-        clearTimeout(this.timeout);
-        this.timeout = null;
-        this.deferred = null;
-        this.currentSteps = [];
-        this.expectedSteps = null;
-    },
-
-    check({ crashOnFail = false } = {}) {
-        const success =
-            this.expectedSteps.length === this.currentSteps.length &&
-            this.expectedSteps.every((s, i) => s === this.currentSteps[i]);
-        if (!success && !crashOnFail) {
-            return;
-        }
-        QUnit.config.current.assert.verifySteps(this.expectedSteps);
-        if (success) {
-            this.deferred.resolve();
-        } else {
-            this.deferred.reject(new Error("Steps do not match."));
-        }
-        this.clear();
-    },
-};
-
-if (window.QUnit) {
-    QUnit.testStart(() =>
-        registerCleanup(() => {
-            if (stepState.expectedSteps) {
-                stepState.check({ crashOnFail: true });
-            } else {
-                stepState.clear();
-            }
-        })
-    );
-}
-
-/**
- * Indicate the completion of a test step. This step must then be verified by
- * calling `assertSteps`.
- *
- * @param {string} step
- */
-export function step(step) {
-    stepState.currentSteps.push(step);
-    QUnit.config.current.assert.step(step);
-    if (stepState.expectedSteps) {
-        stepState.check();
-    }
-}
-
-/**
- * Wait for the given steps to be executed or for the timeout to be reached.
- *
- * @param {string[]} steps
- */
-export function assertSteps(steps) {
-    if (stepState.expectedSteps) {
-        stepState.check({ crashOnFail: true });
-    }
-    stepState.expectedSteps = steps;
-    stepState.deferred = makeDeferred();
-    stepState.timeout = setTimeout(() => stepState.check({ crashOnFail: true }), 2000);
-    stepState.check();
-    return stepState.deferred;
-}

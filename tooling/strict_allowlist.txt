@@ -68,7 +68,6 @@ addons/web/static/src/core/tree/expression_from_tree.js
 addons/web/static/src/core/tree/in_range_options.js
 addons/web/static/src/core/tree/operator_labels.js
 addons/web/static/src/core/tree/operators.js
-addons/web/static/src/core/tree/tree_from_domain.js
 addons/web/static/src/core/tree/tree_from_expression.js
 addons/web/static/src/core/tree/utils.js
 addons/web/static/src/core/tree/virtual_operators.js
@@ -144,5 +143,4 @@ addons/web/static/src/ui/notification/notification_service.js
 addons/web/static/src/ui/popover/popover_hook.js
 addons/web/static/src/ui/popover/popover_service.js
 addons/web/static/src/ui/tooltip/tooltip.js
-addons/web/static/src/ui/tooltip/tooltip_hook.js
 addons/web/static/src/ui/tooltip/tooltip_service.js

@@ -3,7 +3,7 @@
 
 /** @module @web/core/domain - Domain expression AST: parsing, combining, evaluation, and conversion to string */
 
-import { shallowEqual } from "@web/core/utils/collections/arrays";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 
 import { evaluate, formatAST, parseExpr } from "./py_js/py.js";

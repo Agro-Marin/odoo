@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/rpc_dedup - Stable key builders for RPC dedup/cache (buildKey, stableStringify) */
+/** @module @web/core/network/rpc_dedup - Stable key builder for RPC dedup/cache (buildKey) */
 
 /**
  * JSON-stringify with object keys serialized in sorted order at every depth.
@@ -21,7 +21,7 @@
  * @param {any} value
  * @returns {string | undefined}
  */
-export function stableStringify(value) {
+function stableStringify(value) {
     if (value && typeof value.toJSON === "function") {
         value = value.toJSON();
     }

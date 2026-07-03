@@ -163,14 +163,7 @@ export function patchWithCleanup(obj, patchValue) {
  * @returns {Element}
  */
 export function getFixture() {
-    if (!window.QUnit) {
-        return document;
-    }
-    if (QUnit.config.debug) {
-        return document.body;
-    } else {
-        return document.getElementById("qunit-fixture");
-    }
+    return document;
 }
 
 export async function nextTick() {
@@ -377,13 +370,6 @@ export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
     const [Constructor, processParams] = getEventConstructor(eventType);
     const event = new Constructor(eventType, processParams(eventInit));
     target.dispatchEvent(event);
-
-    if (window.QUnit && QUnit.config.debug) {
-        const group = `%c[${event.type.toUpperCase()}]`;
-        console.groupCollapsed(group, "color: #b52c9b");
-        console.log(target, event);
-        console.groupEnd(group, "color: #b52c9b");
-    }
 
     if (options.sync) {
         return event;

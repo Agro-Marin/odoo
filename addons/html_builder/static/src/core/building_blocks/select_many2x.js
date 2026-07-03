@@ -5,7 +5,7 @@ import { useCachedModel } from "@html_builder/core/cached_model_utils";
 import { _t } from "@web/core/l10n/translation";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
-import { shallowEqual } from "@web/core/utils/collections/arrays";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 
 class SelectMany2XCreate extends Component {
     static template = "html_builder.SelectMany2XCreate";

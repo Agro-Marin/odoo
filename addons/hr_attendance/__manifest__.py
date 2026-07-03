@@ -42,9 +42,6 @@ actions(Check in/Check out) performed by them.
             'hr_attendance/static/src/**/*.xml',
             'hr_attendance/static/src/scss/views/*.scss'
         ],
-        'web.qunit_suite_tests': [
-            'hr_attendance/static/tests/hr_attendance_mock_server.js',
-        ],
         'web.assets_unit_tests': [
             'hr_attendance/static/tests/*.test.js',
         ],
