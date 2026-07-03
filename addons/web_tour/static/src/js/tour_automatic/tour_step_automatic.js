@@ -8,7 +8,7 @@ import { serializeChanges, serializeMutation } from "@web_tour/js/utils/tour_uti
 // The import has to be explicit here because nothing in
 // ``tour_helpers.js`` exports forces this module to load — esbuild
 // keeps it inside concatenated bundles by virtue of being in the
-// glob, but ``DYNAMIC_ESM_BUNDLES`` children (web_tour.automatic) are
+// glob, but ``esm.dynamic_children`` bundles (web_tour.automatic) are
 // served as individual specs to the browser's import map and the
 // browser only loads modules that are statically reachable from the
 // dynamic ``import()`` entry points.  Without this line, every
