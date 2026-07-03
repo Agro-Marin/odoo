@@ -744,9 +744,10 @@ Browser                          Server (Python)                       Cache/Dis
   │  └─ Live-bound `Chart` export populated; one shared fetch app-wide   │
   │     (FullCalendar: same pattern via loadFullCalendar())              │
   │                                │                                     │
-  LAZY LIBRARY — classic bundle (ACE / signature_pad):
-  │  ├─ profiling_qweb / name_and_signature call                         │
-  │  │   loadBundle("web.ace_lib") / loadBundle("web.assets_signature_pad_lib")
+  LAZY LIBRARY — classic bundle (ACE; signature_pad moved to the
+  import-map `import("signature_pad")` pattern above):
+  │  ├─ profiling_qweb / code_editor call                                │
+  │  │   loadBundle("web.ace_lib")                                       │
   │  │  GET /web/bundle/<name>    │                                      │
   │  ├───────────────────────────▶│                                      │
   │  │                             │  webclient.py:bundle()              │

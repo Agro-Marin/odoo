@@ -78,9 +78,9 @@ Top-level layout of `core/addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 23 `.py` — HTTP endpoints (21 Controller classes) | `ROUTE_MAP.md` |
 | `models/` | 22 `.py` — ORM extensions (web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 657 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 658 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 19 vendored JS libraries — DO NOT MODIFY | versions table below |
-| `static/tests/` | 407 `.js` (incl. 351 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
+| `static/tests/` | 408 `.js` (incl. 352 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
 | `tests/` | 44 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 | `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) | — |
@@ -94,7 +94,7 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | App entry points: main.js, start.js (env.js, session.js, module_loader.js, service_worker.js at src/ root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/), lib/ lazy ESM loaders (chartjs, fullcalendar) | 110 JS |
+| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/), lib/ lazy ESM loaders (chartjs, fullcalendar) | 111 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, colorpicker, etc.) — shrank by ~15 after tree utilities moved to core/ | 74 JS |
 | **Services** | `services/` | Data & input singletons: orm, hotkey, field, file_upload, sortable, debug, web_vitals, multi_company_recovery, form_dialog_stack, slow_rpc, etc. | 37 JS |
 | **UI** | `ui/` | Overlay services & components: dialog, popover, tooltip, notification, effects, block | 19 JS |
@@ -307,7 +307,15 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 | Bundle | Library | Version |
 |--------|---------|---------|
 | `web.ace_lib` | ACE code editor (Python, XML, QWeb, JS, SCSS, JSON modes) | 1.43.6 |
-| `web.assets_signature_pad_lib` | signature_pad UMD (lazy-loaded by `components/signature/name_and_signature.js`) | 5.1.3 |
+
+> **`web.assets_signature_pad_lib` was removed.** signature_pad is now the
+> upstream ESM build resolved through the `signature_pad` import-map bare
+> specifier and lazy-loaded via dynamic `import()` in
+> `components/signature/name_and_signature.js`. DOMPurify likewise dropped
+> its eager UMD `<script>` (was in `web.assets_backend`, html_editor,
+> project, and two enterprise manifests) for the `dompurify` bare
+> specifier, imported directly by its consumers (html_editor sanitize
+> plugin, web_tour, website_forum, ai_website_livechat).
 
 > **`web.chartjs_lib` and `web.fullcalendar_lib` were removed.** Chart.js
 > (+ its luxon adapter) and FullCalendar are now real ES modules resolved
@@ -333,17 +341,17 @@ and the version string in the source file.
 | `Chart` | 4.5.1 | Chart.js — graph view, gauge/journal-dashboard fields |
 | `chartjs-adapter-luxon` | 1.3.1 | Luxon date-adapter for Chart.js |
 | `diff_match_patch` | forked-from-google-diff-match-patch | Text diff/merge utility |
-| `dompurify` | 3.3.1 | HTML sanitization for Html fields and markup helpers |
+| `dompurify` | 3.3.1 | HTML sanitization (upstream ESM build; `dompurify` import-map external) |
 | `fullcalendar` | 7.0.0 | Calendar view engine |
 | `hoot` | internal | Odoo's in-house JS test framework |
 | `hoot-dom` | internal | DOM helpers for Hoot |
 | `luxon` | 3.7.2 | DateTime library (all date/datetime field widgets) |
 | `odoo_ui_icons` | 1.2 | Icon font (replaces FontAwesome for most UI icons) |
 | `owl` | internal | OWL component framework (loaded non-deferred before ESM bundle via import map) |
-| `pdfjs` | 4.8.69 | PDF viewer field |
+| `pdfjs` | 4.8.69 | PDF viewer field (`build/pdf.js` is the upstream ESM build; `pdfjs-dist` import-map external, lazy-loaded via `@web/core/utils/pdfjs.loadPDFJS`; `web/viewer.html` iframe app is self-contained) |
 | `popper` | 2.11.8 | Popover positioning (dropdown, tooltip, popover services) |
 | `prismjs` | 1.30.0 | Syntax highlighting in test setup UI |
-| `signature_pad` | 5.1.3 | Signature component |
+| `signature_pad` | 5.1.3 | Signature component (upstream ESM build; `signature_pad` import-map external) |
 | `stacktracejs` | 2.0-unknown | Traceback annotation in error_utils.js |
 | `zxing-library` | 0.21.3 | BarcodeDetector polyfill (barcode scanner) |
 
@@ -363,9 +371,9 @@ and the version string in the source file.
 | Python (controllers) | 23 (21 Controller classes + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 22 (21 model files + `__init__.py`) |
 | Python (tests) | 44 |
-| JavaScript (src) | 657 |
-| JavaScript (tests) | 407 (incl. 351 `*.test.js` Hoot suites) |
-| JavaScript (vendored libs) | 92 |
+| JavaScript (src) | 658 |
+| JavaScript (tests) | 408 (incl. 352 `*.test.js` Hoot suites) |
+| JavaScript (vendored libs) | 91 |
 | SCSS/CSS | 193 (25 in `static/src/scss/` shared base; remaining 168 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 275 (12 views + 3 data + 260 OWL templates) |
 | i18n (.po + .pot) | 61 |
