@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-
 def _set_fiscal_country(env):
     """Sets the fiscal country on existing companies when installing the module.
     That field is an editable computed field. It doesn't automatically get computed
