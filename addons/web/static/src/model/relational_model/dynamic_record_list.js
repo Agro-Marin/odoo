@@ -165,7 +165,7 @@ export class DynamicRecordList extends DynamicList {
     }
 
     async _load(offset, limit, orderBy, domain) {
-        await this.model._updateConfig(
+        await this.model._reloadWithConfig(
             this.config,
             { offset, limit, orderBy, domain },
             { commit: this._setData.bind(this) },
@@ -179,7 +179,7 @@ export class DynamicRecordList extends DynamicList {
         if (this.offset && !this.records.length) {
             // we weren't on the first page, and we removed all records of the current page
             const offset = Math.max(this.offset - this.limit, 0);
-            this.model._updateConfig(this.config, { offset }, { reload: false });
+            this.model._patchConfig(this.config, { offset });
         }
     }
 

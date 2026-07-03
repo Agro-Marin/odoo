@@ -12,10 +12,14 @@ import { ModelEvent } from "@web/core/events";
  * {@link RelationalModel}.
  *
  * Replaces the bare ``model._urgentSave`` boolean with the same
- * Coordinator pattern used by {@link RelationalModelLoadCoordinator}
- * and {@link FormSaveCoordinator}: explicit status field, guarded
+ * Coordinator pattern used by ``FormSaveCoordinator`` (views/form)
+ * and ``SampleDataCoordinator``: explicit status field, guarded
  * transitions, observable via SignalStore so external readers
  * (debug overlay, future feature-flag-gated UI) can subscribe.
+ * (There is no coordinator for the *load* axis: that axis is governed
+ * by ``loadId`` epochs stamped in ``_loadData`` plus the root-swap /
+ * ``loadId`` guards in ``_getCacheParams``, with ``keepLast``
+ * cancelling stale loads — see ``relational_model.js``.)
  *
  * **Scope** — what this coordinator does AND does NOT do:
  *
@@ -44,9 +48,12 @@ import { ModelEvent } from "@web/core/events";
  *   2. Observability: SignalStore reactivity means a future
  *      "saving urgently…" indicator binds without bus plumbing.
  *
- *   3. Symmetry with ``RelationalModelLoadCoordinator`` and
- *      ``FormSaveCoordinator``: the three mode axes of the model
- *      (load, save, urgent-save) now follow the same shape.
+ *   3. Symmetry with ``FormSaveCoordinator`` and
+ *      ``SampleDataCoordinator``: the mode axes that are plain flags
+ *      (save, sample-data, urgent-save) follow the same shape. The
+ *      load axis intentionally has no coordinator — it is not a flag
+ *      but a sequence of epochs (``config.loadId``) guarded in
+ *      ``_getCacheParams`` against root swaps and superseded loads.
  *
  * @typedef {"idle" | "active"} UrgentSaveStatus
  *

@@ -587,11 +587,17 @@ describe("parseServerValues — x2many command list", () => {
             data: [{ id: 1 }],
             _appliedInitialCommands: null,
             _appliedCommands: null,
+            _trackedResults: [],
             _applyInitialCommands(commands) {
                 this._appliedInitialCommands = commands;
             },
             _applyCommands(commands) {
                 this._appliedCommands = commands;
+            },
+            // the possibly-async result is tracked on the list (see
+            // StaticList._trackCommandsPromise)
+            _trackCommandsPromise(result) {
+                this._trackedResults.push(result);
             },
         };
         const rec = makeParseRecord({

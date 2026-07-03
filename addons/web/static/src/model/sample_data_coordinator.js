@@ -10,8 +10,11 @@ import { SignalStore } from "@web/core/utils/reactive";
  *
  * Replaces the bare ``model.useSampleModel`` boolean with the
  * Coordinator pattern used elsewhere in the model layer
- * ({@link RelationalModelLoadCoordinator}, {@link UrgentSaveCoordinator},
- * {@link FormSaveCoordinator}).
+ * ({@link UrgentSaveCoordinator}, ``FormSaveCoordinator`` in
+ * views/form). Note that the *load* axis of RelationalModel has no
+ * coordinator: it is governed by ``loadId`` epochs stamped in
+ * ``_loadData`` plus the root-swap / ``loadId`` guards in
+ * ``_getCacheParams`` (with ``keepLast`` cancelling stale loads).
  *
  * **Backward compatibility**: ``Model`` keeps ``useSampleModel`` as
  * a getter/setter pair that delegates to this coordinator. The
@@ -32,10 +35,11 @@ import { SignalStore } from "@web/core/utils/reactive";
  *     the specific Model subclass (RelationalModel, PivotModel,
  *     GraphModel each have their own activation policy).
  *
- * The state machine is intentionally simpler than the Load
- * coordinator: only ``off ⇄ active`` with no epoch counter, because
- * sample mode is set/cleared from synchronous code paths (no async
- * race between concurrent entries to worry about).
+ * The state machine is intentionally simpler than the load axis of
+ * RelationalModel (which needs ``loadId`` epochs to detect superseded
+ * loads): only ``off ⇄ active`` with no epoch counter, because sample
+ * mode is set/cleared from synchronous code paths (no async race
+ * between concurrent entries to worry about).
  *
  * @typedef {"off" | "active"} SampleStatus
  */

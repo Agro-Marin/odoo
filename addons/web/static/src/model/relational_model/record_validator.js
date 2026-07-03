@@ -137,6 +137,20 @@ export function findUnsetRequiredFields(
  *     {@link setInvalidField}) are NOT touched — only the unset-required
  *     subset is reconciled. Used by ``_applyChanges`` to re-validate
  *     after edits without wiping user-input-validation flags.
+ *
+ *     Because this mode only ever *prunes* (never adds), the scan is
+ *     scoped for performance: it re-evaluates only fields currently in
+ *     ``_unsetRequiredFields`` — no other field can be pruned — and,
+ *     when ``scopedFields`` is provided (from ``_applyChanges``), further
+ *     skips flagged fields that provably cannot have changed status
+ *     because neither their value nor any modifier they depend on was in
+ *     the change set. x2many fields are always re-checked while flagged
+ *     (a child's validity may depend on a ``parent.*`` reference that is
+ *     invisible to the parent-level scope) — the isChildListValid
+ *     recursion is itself scoped to avoid O(rows) cost (see below).
+ *     Equivalence to the original full scan holds because unset-required
+ *     status is per-field-local (own type/value/required/invisible, or —
+ *     for x2many — its children).
  *   - **default**: replace the entire ``_unsetRequiredFields`` subset
  *     with the freshly scanned set. Invalid-input flags (set via
  *     {@link setInvalidField}) survive across the scan because they
@@ -149,46 +163,108 @@ export function findUnsetRequiredFields(
  * override at a deeper level remains in effect.
  *
  * @param {RelationalRecord} record
- * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean }} [options]
+ * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
  * @returns {boolean} ``true`` when the record has no invalid fields
  *  after the scan, ``false`` otherwise
  */
-export function checkValidity(record, { silent, displayNotification, removeInvalidOnly } = {}) {
+export function checkValidity(
+    record,
+    { silent, displayNotification, removeInvalidOnly, scopedFields } = {},
+) {
+    const callbacks = {
+        isInvisible: (fieldName) => record._isInvisible(fieldName),
+        isRequired: (fieldName) => record._isRequired(fieldName),
+        isChildListValid: (_fieldName, list) =>
+            list.records.every((r) => {
+                if (!r.dirty) {
+                    return true;
+                }
+                // ``removeInvalidOnly`` only prunes stale invalid flags; an
+                // already-valid child has nothing to prune and cannot become
+                // invalid on this path, so it can be skipped. This is what
+                // turns the parent's post-commit re-validation from
+                // O(dirtyRows × rowFields) into O(dirtyRows) cheap checks plus
+                // a full re-scan of only the still-invalid row(s) — typically
+                // just the row that was edited. ``silent`` and default modes
+                // keep the exact full re-scan (they answer a fresh query /
+                // may add newly-invalid fields respectively).
+                if (removeInvalidOnly && r.isValid) {
+                    return true;
+                }
+                return r._checkValidity({ silent, removeInvalidOnly });
+            }),
+    };
+
+    if (removeInvalidOnly) {
+        // Prune-only, scoped path. Only fields already flagged in
+        // ``_unsetRequiredFields`` can be pruned, and of those only the ones
+        // whose status could have changed (in ``scopedFields``, or any x2many
+        // — conservative for ``parent.*`` child dependencies) need
+        // re-evaluation. Everything else provably keeps its flagged status.
+        const candidates = [];
+        for (const fieldName of Array.from(record._unsetRequiredFields)) {
+            if (!(fieldName in record.activeFields)) {
+                // No longer an active field: the original full scan (which only
+                // iterates activeFields) could never re-flag it, so it was
+                // pruned. Preserve that exactly.
+                record._unsetRequiredFields.delete(fieldName);
+                record._invalidFields.delete(fieldName);
+                continue;
+            }
+            const field = record.fields[fieldName];
+            const isX2many =
+                field &&
+                (field.type === "one2many" || field.type === "many2many");
+            if (scopedFields && !scopedFields.has(fieldName) && !isX2many) {
+                continue;
+            }
+            candidates.push(fieldName);
+        }
+        if (candidates.length) {
+            const restrictedActiveFields = {};
+            for (const fieldName of candidates) {
+                restrictedActiveFields[fieldName] = record.activeFields[fieldName];
+            }
+            const freshUnset = findUnsetRequiredFields(
+                restrictedActiveFields,
+                record.fields,
+                record.data,
+                callbacks,
+            );
+            for (const fieldName of candidates) {
+                if (!freshUnset.has(fieldName)) {
+                    record._unsetRequiredFields.delete(fieldName);
+                    record._invalidFields.delete(fieldName);
+                }
+            }
+        }
+        const isValid = !record._invalidFields.size;
+        if (!isValid && displayNotification) {
+            record._closeInvalidFieldsNotification =
+                displayInvalidFieldNotification(record);
+        }
+        return isValid;
+    }
+
+    // silent / default: full scan over all active fields.
     const unsetRequiredFields = findUnsetRequiredFields(
         record.activeFields,
         record.fields,
         record.data,
-        {
-            isInvisible: (fieldName) => record._isInvisible(fieldName),
-            isRequired: (fieldName) => record._isRequired(fieldName),
-            isChildListValid: (_fieldName, list) =>
-                list.records.every(
-                    (r) =>
-                        !r.dirty || r._checkValidity({ silent, removeInvalidOnly }),
-                ),
-        },
+        callbacks,
     );
 
     if (silent) {
         return !unsetRequiredFields.size;
     }
 
-    if (removeInvalidOnly) {
-        for (const fieldName of Array.from(record._unsetRequiredFields)) {
-            if (!unsetRequiredFields.has(fieldName)) {
-                record._unsetRequiredFields.delete(fieldName);
-                record._invalidFields.delete(fieldName);
-            }
-        }
-    } else {
-        for (const fieldName of Array.from(record._unsetRequiredFields)) {
-            record._invalidFields.delete(fieldName);
-        }
-        record._unsetRequiredFields.clear();
-        for (const fieldName of unsetRequiredFields) {
-            record._unsetRequiredFields.add(fieldName);
-            record._invalidFields.add(fieldName);
-        }
+    for (const fieldName of Array.from(record._unsetRequiredFields)) {
+        record._invalidFields.delete(fieldName);
+    }
+    record._unsetRequiredFields.clear();
+    for (const fieldName of unsetRequiredFields) {
+        record._unsetRequiredFields.add(fieldName);
+        record._invalidFields.add(fieldName);
     }
     const isValid = !record._invalidFields.size;
     if (!isValid && displayNotification) {
@@ -237,7 +313,9 @@ export async function setInvalidField(record, fieldName) {
     if (
         record.selected &&
         record.model.multiEdit &&
-        record.model.root._recordToDiscard !== record
+        // narrow list-owned interface — don't read root._recordToDiscard
+        // directly (no-op when the root isn't a DynamicList)
+        !record.model.root._isRecordToDiscard?.(record)
     ) {
         displayInvalidFieldNotification(record);
         await record.discard();

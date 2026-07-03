@@ -269,6 +269,28 @@ export class RelationalModel extends Model {
     }
 
     /**
+     * Multi-edit dispatch: a selected record whose changes are committed
+     * while ``multiEdit`` is enabled routes them through the model, which
+     * forwards to the root list's multi-save — records must not reach into a
+     * DynamicList subclass's protected state themselves.
+     *
+     * NB: this must stay a prototype method called through the record's own
+     * reference chain (``record.model.multiEditDispatch(...)``): datapoints
+     * are reactive proxies (SignalStore), and ``_multiSave`` compares record
+     * identities (``editedRecord`` vs ``this.selection`` /
+     * ``this._recordToDiscard``), which only match within a single reactive
+     * domain. A closure capturing a list at construction time would run in
+     * the base domain and break those comparisons.
+     *
+     * @param {import("./record").RelationalRecord} record
+     * @param {Object} changes
+     * @returns {Promise<any>}
+     */
+    multiEditDispatch(record, changes) {
+        return this.root._multiSave(record, changes);
+    }
+
+    /**
      * @override
      * @type {Model["load"]}
      */
@@ -653,30 +675,59 @@ export class RelationalModel extends Model {
     }
 
     /**
+     * Synchronously applies ``patch`` to ``config`` (no reload, no promise).
+     *
+     * SYNCHRONY IS LOAD-BEARING: 20+ call sites (mode switches, resId
+     * commits after save, limit/offset bookkeeping, group fold state, …)
+     * rely on the patched config being visible in the very next statement,
+     * without awaiting. This method MUST NOT become async and MUST NOT
+     * await anything — that's the whole reason it is split from
+     * ``_reloadWithConfig``, whose historical ``{ reload: false }`` mode
+     * only happened to be synchronously visible because no ``await``
+     * preceded the assign. Pinned by a unit test
+     * (relational_model_config.test.js).
+     *
+     * @param {RelationalModelConfig} config
+     * @param {Partial<RelationalModelConfig>} patch
+     */
+    _patchConfig(config, patch) {
+        const tmpConfig = { ...config, ...patch };
+        markRaw(tmpConfig.activeFields);
+        markRaw(tmpConfig.fields);
+        Object.assign(config, tmpConfig);
+    }
+
+    /**
+     * Asynchronously applies ``patch`` to ``config`` and reloads the
+     * corresponding data. The data is loaded against a candidate config and
+     * only committed into ``config`` (via ``_patchConfig``) once the load
+     * has succeeded, so a rejected load leaves ``config`` untouched.
+     *
+     * For a pure config patch with no reload, use the synchronous
+     * ``_patchConfig`` instead.
+     *
      * @param {RelationalModelConfig} config
      * @param {Partial<RelationalModelConfig>} patch
      * @param {{
      *  commit?: (data: Record<string, unknown>) => unknown;
-     *  reload?: boolean;
      * }} [options]
      */
-    async _updateConfig(config, patch, { reload = true, commit } = {}) {
+    async _reloadWithConfig(config, patch, { commit } = {}) {
         const tmpConfig = { ...config, ...patch };
         markRaw(tmpConfig.activeFields);
         markRaw(tmpConfig.fields);
-
-        let data;
-        if (reload) {
-            if (tmpConfig.isRoot) {
-                this.hooks.lifecycle.onWillLoadRoot(tmpConfig);
-            }
-            data = await this._loadData(tmpConfig);
+        if (tmpConfig.isRoot) {
+            this.hooks.lifecycle.onWillLoadRoot(tmpConfig);
         }
-        Object.assign(config, tmpConfig);
+        // Note: ``_loadData`` mutates ``tmpConfig`` (loadId, limit, offset,
+        // countLimit, groups, …), so the whole candidate — not just
+        // ``patch`` — is committed below.
+        const data = await this._loadData(tmpConfig);
+        this._patchConfig(config, tmpConfig);
         if (data && commit) {
             commit(data);
         }
-        if (reload && config.isRoot) {
+        if (config.isRoot) {
             await this.hooks.lifecycle.onRootLoaded(this.root);
         }
     }

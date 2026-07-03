@@ -3,6 +3,7 @@
 
 /** @module @web/core/py_js/py - Public API for parsing and evaluating Python expressions in JS */
 
+import { ASTType } from "./ast_type.js";
 import { evaluate } from "./py_interpreter.js";
 import { parse } from "./py_parser.js";
 import { tokenize } from "./py_tokenizer.js";
@@ -106,4 +107,77 @@ export function evaluateBooleanExpr(expr, context = {}) {
         return true;
     }
     return evaluateExpr(`bool(${expr})`, context);
+}
+
+/**
+ * Recursively collect the free-variable *root* names referenced by an AST node
+ * into ``acc``.
+ *
+ * A "root name" is the top-level identifier of a reference: for a plain
+ * ``ASTName`` it is the name itself; for an attribute access (``ASTObjLookup``,
+ * e.g. ``parent.state``) it is the base name (``parent``) — attribute keys are
+ * stored as plain strings on the node, never as ``ASTName`` children, so they
+ * are naturally excluded. Function-call callees (``bool``, ``len``, …) are
+ * ``ASTName`` nodes and therefore included; callers that only care about a
+ * bounded universe (e.g. field names) filter those out downstream.
+ *
+ * The walk is intentionally structural and type-agnostic: any object carrying a
+ * numeric ``type`` discriminant is treated as an AST node and all of its
+ * non-``type`` properties are traversed (arrays, dictionary/kwargs value maps,
+ * and nested nodes alike). This keeps the walker correct across every
+ * {@link ASTType} without an exhaustive per-type switch.
+ *
+ * @param {any} node
+ * @param {Set<string>} acc
+ */
+function collectFreeVariables(node, acc) {
+    if (Array.isArray(node)) {
+        for (const child of node) {
+            collectFreeVariables(child, acc);
+        }
+        return;
+    }
+    if (node && typeof node === "object") {
+        if (typeof node.type === "number") {
+            if (node.type === ASTType.Name) {
+                acc.add(node.value);
+                return;
+            }
+            for (const [key, value] of Object.entries(node)) {
+                if (key === "type") {
+                    continue;
+                }
+                collectFreeVariables(value, acc);
+            }
+            return;
+        }
+        // Plain value map (Dictionary.value, FunctionCall.kwargs): traverse values.
+        for (const value of Object.values(node)) {
+            collectFreeVariables(value, acc);
+        }
+    }
+    // Primitives (strings, numbers, booleans, null) carry no free variables.
+}
+
+/**
+ * Extract the set of free-variable root names referenced by a Python
+ * expression, reusing the bounded AST cache in {@link parseExpr}.
+ *
+ * Attribute accesses collapse to their base name (``parent.state`` →
+ * ``"parent"``, ``context.foo`` → ``"context"``) and subscripts contribute both
+ * operands (``a[b]`` → ``"a"``, ``"b"``). Builtins referenced as call callees
+ * (``bool``, ``len``) are included; downstream callers filter against their own
+ * name universe.
+ *
+ * @param {string} expr
+ * @returns {Set<string>}
+ * @throws re-throws the tokenizer/parser error from {@link parseExpr} when
+ *  ``expr`` cannot be parsed — callers that want a conservative fallback
+ *  should catch it and treat the dependency set as unknown.
+ */
+export function getExprFreeVariables(expr) {
+    const ast = parseExpr(expr);
+    const acc = new Set();
+    collectFreeVariables(ast, acc);
+    return acc;
 }

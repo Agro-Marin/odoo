@@ -117,11 +117,7 @@ export async function deleteRecord(record) {
     if (resId) {
         await record.model.load({ resId, resIds });
     } else {
-        record.model._updateConfig(
-            record.config,
-            { resId: false },
-            { reload: false },
-        );
+        record.model._patchConfig(record.config, { resId: false });
         record._values = markRaw(
             record._parseServerValues(record._getDefaultValues()),
         );

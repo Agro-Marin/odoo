@@ -94,11 +94,7 @@ export class Group extends DataPoint {
             await this.list.load({ domain: this.groupDomain });
             this.count = this.list.isGrouped ? this.list.recordCount : this.list.count;
         }
-        this.model._updateConfig(
-            this.config,
-            { extraDomain: filter },
-            { reload: false },
-        );
+        this.model._patchConfig(this.config, { extraDomain: filter });
     }
 
     deleteRecords(records) {
@@ -110,11 +106,9 @@ export class Group extends DataPoint {
             await this.list.load();
         }
         this._useGroupCountForList();
-        this.model._updateConfig(
-            this.config,
-            { isFolded: !this.config.isFolded },
-            { reload: false },
-        );
+        this.model._patchConfig(this.config, {
+            isFolded: !this.config.isFolded,
+        });
     }
 
     // -------------------------------------------------------------------------

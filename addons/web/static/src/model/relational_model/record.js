@@ -28,6 +28,7 @@ import { save } from "./record_save.js";
 import { addSavePoint, discard } from "./record_savepoint.js";
 import {
     computeChangeset,
+    computeRevalidationScope,
     isFieldInvisible,
     isFieldReadonly,
     isFieldRequired,
@@ -105,9 +106,9 @@ export class RelationalRecord extends DataPoint {
         //      the record is still considered modified — also routed
         //      through ``_markDirty()``).
         //   3. Whenever ``_changes`` is cleared, ``dirty`` MUST be reset
-        //      on the same atomic step. Use ``_clearChanges()`` (drops
-        //      the bag and resets the flag) or ``_resetDirty()`` (resets
-        //      the flag only — for the ``keepChanges`` reload path).
+        //      on the same atomic step — use ``_clearChanges()``. The
+        //      ``keepChanges`` reload path instead derives ``dirty`` from
+        //      the preserved change set (see ``_setData``).
         //
         // Field components debounce typing locally; ``isDirty()`` (async)
         // first calls ``model._askChanges()`` to flush pending field-level
@@ -174,12 +175,15 @@ export class RelationalRecord extends DataPoint {
             this._clearChanges();
         } else {
             // ``keepChanges`` preserves ``_changes`` across a server reload
-            // but resets the reactive ``dirty`` signal — callers that pass
-            // ``keepChanges`` are expected to re-flag dirtiness explicitly
-            // if needed. See the ``keepChanges: true`` cache callbacks in
-            // ``relational_model.js`` (the mono-record ``root._setData``
-            // reload paths).
-            this._resetDirty();
+            // (stale-while-revalidate cache callbacks in
+            // ``relational_model.js``): ``dirty`` must be derived from the
+            // preserved change set, not reset — a user edit racing the
+            // network revalidation would otherwise end up with
+            // ``dirty=false`` while ``_changes`` still holds the edit,
+            // and every ``isDirty()`` gate (pager, action buttons) would
+            // silently discard it.
+            this.dirty = !this._changeSet.isEmpty;
+            this._assertChangeSetInvariant();
         }
         this.data = { ...this._values, ...this._changes };
         this._setEvalContext();
@@ -406,16 +410,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Reset the reactive ``dirty`` signal without touching ``_changes``.
-     * Used by the ``_setData(..., { keepChanges: true })`` reload path
-     * which preserves pending edits across a server-side refresh and
-     * leaves it to the caller to re-flag dirtiness if needed.
-     */
-    _resetDirty() {
-        this.dirty = false;
-    }
-
-    /**
      * Set the reactive ``dirty`` signal without touching ``_changes``.
      * Used by paths that consider the record modified before the change
      * bag is populated — ``setInvalidField()`` (invariant 2; invalid
@@ -440,24 +434,20 @@ export class RelationalRecord extends DataPoint {
      *
      * The state that MUST NEVER persist past an atomic checkpoint is
      * ``(dirty=false, _changes non-empty)`` — the desync this assertion
-     * exists to catch.  Call sites are restricted to checkpoints where
-     * the invariant must strictly hold (after ``_clearChanges``, after
-     * ``_setData({keepChanges: false})``).  The intentional asymmetry of
-     * the ``keepChanges: true`` reload path skips the call.
+     * exists to catch.  Call sites are checkpoints where the invariant
+     * must strictly hold: after ``_clearChanges`` and after both
+     * ``_setData`` branches (the ``keepChanges: true`` path derives
+     * ``dirty`` from the preserved change set, so it upholds the
+     * invariant too).
      *
      * Production: silent (assertion skipped entirely).  Debug: emits
      * ``console.warn`` with a structured payload so the offending
      * mutation can be traced.  Chosen over ``throw`` because crashing
      * the page on a desync is worse UX than the desync itself; the
      * warning surfaces the bug to the developer without losing user data.
-     *
-     * @param {{ allowKeepChanges?: boolean }} [options]
      */
-    _assertChangeSetInvariant({ allowKeepChanges = false } = {}) {
+    _assertChangeSetInvariant() {
         if (!odoo.debug) {
-            return;
-        }
-        if (allowKeepChanges) {
             return;
         }
         if (!this.dirty && !this._changeSet.isEmpty) {
@@ -524,12 +514,20 @@ export class RelationalRecord extends DataPoint {
         this._setEvalContext();
 
         // mark changed fields as valid if they were not, and re-evaluate required attributes
-        // for all fields, as some of them might still be unset but become valid with those changes
-        this._removeInvalidFields(
+        // for the fields whose unset-required status could actually change with those changes
+        // (the changed fields plus those whose invisible/required/readonly modifier references
+        // one of them). ``removeInvalidOnly`` only *prunes* newly-valid fields, so scoping the
+        // scan cannot miss a field: a field outside the scope cannot have flipped status.
+        const changedFieldNames = [
             ...Object.keys(changes),
             ...Object.keys(serverChanges),
+        ];
+        this._removeInvalidFields(...changedFieldNames);
+        const scopedFields = computeRevalidationScope(
+            changedFieldNames,
+            this.activeFields,
         );
-        this._checkValidity({ removeInvalidOnly: true });
+        this._checkValidity({ removeInvalidOnly: true, scopedFields });
         return undoChanges;
     }
 
@@ -562,7 +560,7 @@ export class RelationalRecord extends DataPoint {
         this._setEvalContext();
     }
 
-    /** @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean }} [options] */
+    /** @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options] */
     _checkValidity(options) {
         return checkValidity(this, options);
     }
@@ -709,7 +707,7 @@ export class RelationalRecord extends DataPoint {
         if ("resId" in nextConfig && this.resId) {
             throw new Error("Cannot change resId of a record");
         }
-        await this.model._updateConfig(this.config, nextConfig, {
+        await this.model._reloadWithConfig(this.config, nextConfig, {
             commit: (values) => {
                 if (this.resId) {
                     this.model._updateSimilarRecords(this, values);
@@ -748,13 +746,9 @@ export class RelationalRecord extends DataPoint {
         if (!this._activeFieldsToRestore) {
             return;
         }
-        this.model._updateConfig(
-            this.config,
-            {
-                activeFields: { ...this._activeFieldsToRestore },
-            },
-            { reload: false },
-        );
+        this.model._patchConfig(this.config, {
+            activeFields: { ...this._activeFieldsToRestore },
+        });
         this._activeFieldsToRestore = undefined;
     }
 
@@ -804,7 +798,7 @@ export class RelationalRecord extends DataPoint {
      * @param {Mode} mode
      */
     _switchMode(mode) {
-        this.model._updateConfig(this.config, { mode }, { reload: false });
+        this.model._patchConfig(this.config, { mode });
         if (mode === "readonly") {
             this._noUpdateParent = false;
             this._invalidFields.clear();
@@ -817,8 +811,11 @@ export class RelationalRecord extends DataPoint {
         } else {
             this.selected = !this.selected;
         }
-        if (!this.selected && this.model.root.isDomainSelected) {
-            this.model.root._selectDomain(false);
+        if (!this.selected) {
+            // Deselecting invalidates a "whole domain selected" state; the
+            // bookkeeping is owned by the root list (no-op when the root
+            // isn't a list, e.g. form views).
+            this.model.root._onRecordDeselected?.();
         }
     }
 
@@ -893,7 +890,9 @@ export class RelationalRecord extends DataPoint {
         // because the browser may kill us before they settle.
         await this.model.urgentSave.awaitUnlessUrgent(prom);
         if (this.selected && this.model.multiEdit) {
-            return this.model.root._multiSave(this, changes);
+            // Model-level dispatch installed by the root DynamicList — a
+            // record must not reach into the list's protected ``_multiSave``.
+            return this.model.multiEditDispatch(this, changes);
         }
         let onchangeServerValues = {};
         if (!withoutOnchange) {

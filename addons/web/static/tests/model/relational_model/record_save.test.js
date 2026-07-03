@@ -90,7 +90,7 @@ function makeRecord({
             useSendBeaconToSaveUrgently: false,
             env: { inDialog: false },
             load: async () => {},
-            _updateConfig: () => {},
+            _patchConfig: () => {},
             _updateSimilarRecords: () => {},
             hooks: {
                 lifecycle: {

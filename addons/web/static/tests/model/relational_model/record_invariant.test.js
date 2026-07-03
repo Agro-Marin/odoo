@@ -77,10 +77,14 @@ test("DESYNC state is silent in production (odoo.debug=false)", () => {
     expect(warnings).toEqual([]);
 });
 
-test("DESYNC state is silent when allowKeepChanges=true (the reload path)", () => {
+test("keepChanges reload derives dirty, so the invariant holds on that path too", () => {
+    // The former ``allowKeepChanges`` escape hatch is gone: _setData's
+    // keepChanges branch now sets ``dirty = !changeSet.isEmpty`` instead
+    // of blindly resetting the flag, so the desync state can no longer
+    // be produced by the reload path.
     odoo.debug = "1";
-    const rec = makeFakeRecord({ dirty: false, changes: { name: "alice" } });
-    rec._assertChangeSetInvariant({ allowKeepChanges: true });
+    const rec = makeFakeRecord({ dirty: true, changes: { name: "alice" } });
+    rec._assertChangeSetInvariant();
     expect(warnings).toEqual([]);
 });
 

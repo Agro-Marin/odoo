@@ -13,7 +13,10 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { resequence } from "@web/model/relational_model/resequence";
+import {
+    computeResequencePlan,
+    resequence,
+} from "@web/model/relational_model/resequence";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,7 +56,11 @@ function makeRecords(specs) {
 describe("resequence — move forward", () => {
     test("moves a record from index 0 to index 2", async () => {
         const orm = makeMockOrm();
-        const records = makeRecords([[1, 10], [2, 20], [3, 30]]);
+        const records = makeRecords([
+            [1, 10],
+            [2, 20],
+            [3, 30],
+        ]);
 
         await resequence({
             records,
@@ -73,7 +80,11 @@ describe("resequence — move forward", () => {
 
     test("moves a record from index 2 to index 0", async () => {
         const orm = makeMockOrm();
-        const records = makeRecords([[1, 10], [2, 20], [3, 30]]);
+        const records = makeRecords([
+            [1, 10],
+            [2, 20],
+            [3, 30],
+        ]);
 
         await resequence({
             records,
@@ -96,7 +107,10 @@ describe("resequence — move forward", () => {
 describe("resequence — ORM call parameters", () => {
     test("passes fieldName as field_name param", async () => {
         const orm = makeMockOrm();
-        const records = makeRecords([[1, 10], [2, 20]]);
+        const records = makeRecords([
+            [1, 10],
+            [2, 20],
+        ]);
 
         await resequence({
             records,
@@ -112,7 +126,11 @@ describe("resequence — ORM call parameters", () => {
 
     test("offset is the minimum sequence of affected records", async () => {
         const orm = makeMockOrm();
-        const records = makeRecords([[1, 5], [2, 10], [3, 15]]);
+        const records = makeRecords([
+            [1, 5],
+            [2, 10],
+            [3, 15],
+        ]);
 
         // Move record 3 before record 1 (targetId = null)
         await resequence({
@@ -131,7 +149,10 @@ describe("resequence — ORM call parameters", () => {
 
     test("passes context to ORM when provided", async () => {
         const orm = makeMockOrm();
-        const records = makeRecords([[1, 1], [2, 2]]);
+        const records = makeRecords([
+            [1, 1],
+            [2, 2],
+        ]);
         const context = { company_id: 1 };
 
         await resequence({
@@ -205,7 +226,11 @@ describe("resequence — custom callbacks", () => {
 describe("resequence — rollback on ORM error", () => {
     test("restores original order when ORM throws", async () => {
         const orm = makeMockOrm({ reject: true });
-        const records = makeRecords([[1, 10], [2, 20], [3, 30]]);
+        const records = makeRecords([
+            [1, 10],
+            [2, 20],
+            [3, 30],
+        ]);
         const originalOrder = records.map((r) => r.id);
 
         let thrown = false;
@@ -229,13 +254,140 @@ describe("resequence — rollback on ORM error", () => {
 });
 
 // ---------------------------------------------------------------------------
+// computeResequencePlan — shared pure plan (also consumed by static_list_sort)
+// ---------------------------------------------------------------------------
+
+describe("computeResequencePlan", () => {
+    const getSequence = (r) => r.sequence;
+
+    test("partial reorder on monotonic sequences only touches the moved span", () => {
+        const records = makeRecords([
+            [1, 10],
+            [2, 20],
+            [3, 30],
+            [4, 40],
+        ]);
+
+        const plan = computeResequencePlan({
+            records,
+            movedId: 1,
+            targetId: 3, // move record 1 after record 3
+            getSequence,
+        });
+
+        expect(plan.reorderAll).toBe(false);
+        // Only records 2, 3 and the moved record 1 are rewritten — 4 is untouched
+        expect(plan.toReorder.map((r) => r.id)).toEqual([2, 3, 1]);
+        expect(plan.offset).toBe(10);
+        expect(plan.fromIndex).toBe(0);
+        expect(plan.toIndex).toBe(2);
+        // Pure: the input array is not mutated
+        expect(records.map((r) => r.id)).toEqual([1, 2, 3, 4]);
+    });
+
+    test("non-monotonic (duplicate) sequences force a full reorder", () => {
+        const records = makeRecords([
+            [1, 10],
+            [2, 10],
+            [3, 10],
+        ]);
+
+        const plan = computeResequencePlan({
+            records,
+            movedId: 3,
+            targetId: null,
+            getSequence,
+        });
+
+        expect(plan.reorderAll).toBe(true);
+        expect(plan.toReorder.map((r) => r.id)).toEqual([3, 1, 2]);
+    });
+
+    test("a record with an undefined sequence forces a full reorder", () => {
+        const records = [
+            { id: 1, sequence: 10 },
+            { id: 2 }, // no sequence value
+            { id: 3, sequence: 30 },
+        ];
+
+        const plan = computeResequencePlan({
+            records,
+            movedId: 3,
+            targetId: 1,
+            getSequence,
+        });
+
+        expect(plan.reorderAll).toBe(true);
+        expect(plan.toReorder.length).toBe(3);
+    });
+
+    test("offset ignores null/NaN sequence values", () => {
+        const records = [
+            { id: 1, sequence: null },
+            { id: 2, sequence: 7 },
+            { id: 3, sequence: 12 },
+        ];
+
+        const plan = computeResequencePlan({
+            records,
+            movedId: 3,
+            targetId: null,
+            getSequence,
+        });
+
+        // null coerces to 0 in Math.min — it must be filtered out, so the
+        // offset comes from the real numeric sequences (7), not 0.
+        expect(plan.offset).toBe(7);
+    });
+
+    test("offset falls back to 0 when no record has a numeric sequence", () => {
+        const records = [{ id: 1 }, { id: 2 }];
+
+        const plan = computeResequencePlan({
+            records,
+            movedId: 2,
+            targetId: null,
+            getSequence,
+        });
+
+        expect(plan.offset).toBe(0);
+    });
+
+    test("descending order reverses the write order", () => {
+        const records = makeRecords([
+            [1, 30],
+            [2, 20],
+            [3, 10],
+        ]);
+
+        const plan = computeResequencePlan({
+            records,
+            movedId: 1,
+            targetId: 2, // move first record after the second one
+            getSequence,
+            asc: false,
+        });
+
+        expect(plan.reorderAll).toBe(false);
+        // Visual order after the move is [2, 1, 3]; writes are emitted in
+        // ascending sequence order, i.e. reversed for a descending list.
+        expect(plan.toReorder.map((r) => r.id)).toEqual([1, 2]);
+        expect(plan.offset).toBe(20);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Descending order
 // ---------------------------------------------------------------------------
 
 describe("resequence — descending order", () => {
     test("asc=false reverses the sequence direction", async () => {
         const orm = makeMockOrm();
-        const records = makeRecords([[1, 30], [2, 20], [3, 10]]);
+        const records = makeRecords([
+            [1, 30],
+            [2, 20],
+            [3, 10],
+        ]);
 
         await resequence({
             records,
