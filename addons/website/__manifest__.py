@@ -369,9 +369,6 @@
             'google_recaptcha/static/src/js/recaptcha.js',
             'website/static/src/js/content/generate_video_iframe.js',
         ],
-        'web.tests_assets': [
-            'website/static/tests/website_service_mock.js',
-        ],
         'web._assets_frontend_helpers': [
             ('prepend', 'website/static/src/scss/bootstrap_overridden.scss'),
         ],

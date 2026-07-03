@@ -125,7 +125,6 @@ export class Many2OneField extends Component {
         nameCreateField: { type: String, optional: true },
         openActionContext: { type: String, optional: true },
         placeholder: { type: String, optional: true },
-        searchLimit: { type: Number, optional: true },
         searchThreshold: { type: Number, optional: true },
         string: { type: String, optional: true },
     };

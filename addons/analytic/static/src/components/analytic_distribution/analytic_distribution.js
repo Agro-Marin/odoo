@@ -5,7 +5,7 @@ import { evaluateExpr } from "@web/core/py_js/py";
 import { getNextTabableElement, getPreviousTabableElement } from "@web/core/utils/dom/ui";
 import { usePosition } from "@web/core/position/position_hook";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { shallowEqual } from "@web/core/utils/collections/arrays";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 import { roundDecimals } from "@web/core/utils/format/numbers";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";

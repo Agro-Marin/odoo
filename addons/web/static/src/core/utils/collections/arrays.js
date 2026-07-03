@@ -3,8 +3,6 @@
 
 /** @module @web/core/utils/collections/arrays - Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip */
 
-import { shallowEqual as _shallowEqual } from "./objects.js";
-
 /**
  * @template T
  * @template {string | number | symbol} K
@@ -193,8 +191,6 @@ export function cartesian(...args) {
         return _cartesian(...args);
     }
 }
-
-export const shallowEqual = _shallowEqual;
 
 /**
  * Returns all initial sections of a given array, e.g. for [1, 2] the array

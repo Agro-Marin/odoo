@@ -5,7 +5,7 @@
 
 // ─── Error types ─────────────────────────────────────────────────────────────
 
-export class AssertionError extends Error {}
+class AssertionError extends Error {}
 export class ValueError extends Error {}
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
@@ -55,10 +55,10 @@ export function assert(bool, message = "AssertionError") {
 // ─── Calendar constants ──────────────────────────────────────────────────────
 
 /** @type {(number | null)[]} */
-export const DAYS_IN_MONTH = [null, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const DAYS_IN_MONTH = [null, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 /** @type {(number | null)[]} */
-export const DAYS_BEFORE_MONTH = [null];
+const DAYS_BEFORE_MONTH = [null];
 for (let dbm = 0, i = 1; i < DAYS_IN_MONTH.length; ++i) {
     DAYS_BEFORE_MONTH.push(dbm);
     dbm += /** @type {number} */ (DAYS_IN_MONTH[i]);
@@ -71,7 +71,7 @@ for (let dbm = 0, i = 1; i < DAYS_IN_MONTH.length; ++i) {
  * @param {number} month - 1-indexed
  * @returns {number}
  */
-export function daysInMonth(year, month) {
+function daysInMonth(year, month) {
     if (month === 2 && isLeap(year)) {
         return 29;
     }
@@ -84,7 +84,7 @@ export function isLeap(year) {
 }
 
 /** @param {number} year */
-export function daysBeforeYear(year) {
+function daysBeforeYear(year) {
     const y = year - 1;
     return y * 365 + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400);
 }
@@ -93,7 +93,7 @@ export function daysBeforeYear(year) {
  * @param {number} year
  * @param {number} month - 1-indexed
  */
-export function daysBeforeMonth(year, month) {
+function daysBeforeMonth(year, month) {
     const postLeapFeb = month > 2 && isLeap(year);
     return /** @type {number} */ (DAYS_BEFORE_MONTH[month]) + (postLeapFeb ? 1 : 0);
 }
@@ -114,16 +114,16 @@ export function ymd2ord(year, month, day) {
     return daysBeforeYear(year) + daysBeforeMonth(year, month) + day;
 }
 
-export const DI400Y = daysBeforeYear(401);
-export const DI100Y = daysBeforeYear(101);
-export const DI4Y = daysBeforeYear(5);
+const DI400Y = daysBeforeYear(401);
+const DI100Y = daysBeforeYear(101);
+const DI4Y = daysBeforeYear(5);
 
 /**
  * Convert an ordinal number to {year, month, day}.
  * @param {number} n
  * @returns {{ year: number, month: number, day: number }}
  */
-export function ord2ymd(n) {
+function ord2ymd(n) {
     --n;
     let n400 = 0,
         n100 = 0,

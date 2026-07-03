@@ -96,12 +96,6 @@ export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
     }
 }
 
-export const many2ManyTagsAvatarFieldPopover = {
-    ...many2ManyTagsAvatarField,
-    component: Many2ManyTagsAvatarFieldPopover,
-};
-registerField("many2many_tags_avatar_popover", many2ManyTagsAvatarFieldPopover);
-
 export class KanbanMany2ManyTagsAvatarFieldTagsList extends TagsList {
     static template = "web.KanbanMany2ManyTagsAvatarFieldTagsList";
 
