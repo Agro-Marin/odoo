@@ -75,7 +75,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 |--------|-------|------|---------|---------|
 | HTTP | `/` | none | `index()` | Redirect to `/odoo` or login |
 | HTTP | `/odoo`, `/odoo/<path>`, `/web`, `/scoped_app/<path>` | none (readonly=dynamic) | `web_client()` | Main webclient SPA bootstrap page |
-| HTTP GET | `/web/webclient/load_menus` | user (readonly) | `web_load_menus()` | Sidebar menu tree |
+| HTTP GET | `/web/webclient/load_menus` | user (readonly) | `web_load_menus()` | Sidebar menu tree. Conditional fetch: 200 responses carry `X-Menus-Hash` (SHA-256 of JSON body); client echoes it back as `?hash=` and gets an empty `304` when unchanged. Always `Cache-Control: no-store` (payload is session-dependent) |
 | HTTP | `/web/login` | none (readonly=False) | `web_login()` | Login page (GET = form, POST = authenticate) |
 | HTTP | `/web/login_successful` | user | `login_successful_external_user()` | External user landing page |
 | HTTP | `/web/become` | user (readonly) | `switch_to_admin()` | Switch session to admin (debug) |
@@ -93,7 +93,8 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | JSONRPC | `/web/webclient/version_info` | none | `version_info()` | Odoo version metadata |
 | HTTP GET | `/web/bundle/<bundle_name>` | public (readonly) | `bundle()` | JS/CSS bundle definition |
 | HTTP | `/web/tests` | user (readonly) | `unit_tests_suite()` | HOOT test runner page |
-| HTTP | `/web/tests/legacy` | user (readonly) | `test_suite()` | Legacy QUnit test runner |
+
+> `/web/tests/legacy` (the QUnit runner) was **removed** along with the whole legacy QUnit chain — see `TEST_TAGS.md`.
 
 ## Binary Content (Images, Files, Assets)
 
@@ -215,7 +216,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 
 | Method | Route | Auth | Handler | Purpose |
 |--------|-------|------|---------|---------|
-| HTTP POST | `/web/observability/cwv` | public (csrf=False, sitemap=False) | `cwv()` | Core Web Vitals beacon (LCP/FCP/CLS/TTFB) sent via `navigator.sendBeacon` from `web_vitals_service.js` on `pagehide`. Validates and clamps payload, persists to `web.cwv.metric`, emits `[cwv]`-tagged INFO log. |
+| HTTP POST | `/web/observability/cwv` | public (csrf=False, sitemap=False) | `cwv()` | Core Web Vitals beacon (LCP/FCP/CLS/TTFB/INP — INP as worst-observed P100 interaction duration) sent via `navigator.sendBeacon` from `web_vitals_service.js` on `pagehide`. Validates and clamps payload, persists to `web.cwv.metric`, emits `[cwv]`-tagged INFO log. |
 | HTTP POST | `/web/observability/js_error` | public (csrf=False, sitemap=False) | `js_error()` | JS error beacon sent via `navigator.sendBeacon` from the inline `module_loader.js` shim's pre-bundle error handler. Throttled JS-side to one beacon per `(message,line,col)` per page lifetime. Clamps payload fields to length caps, emits a `[js_error]` WARNING log. No model persistence in Phase 1 — operators triage from the log. |
 
 ## Route Count Summary
@@ -227,7 +228,7 @@ A single `@http.route(routes=[...])` counts as one handler but several URL varia
 |----------|-----------------|------------|
 | RPC/Data | 8 / 10 | dataset, action, domain, view, model |
 | Session | 8 / 8 | session |
-| Bootstrap | 16 / 19 | home (10 handlers; web_client has 4 URLs), webclient (6) |
+| Bootstrap | 15 / 18 | home (10 handlers; web_client has 4 URLs), webclient (5 — `/web/tests/legacy` removed) |
 | Binary/Assets | 7 / 32 | binary (17 image + 7 content + 3 logo + 2 fonts + upload + assets + filestore) |
 | Export | 6 / 6 | export (5), pivot (1) |
 | Reports | 3 / 5 | report |
@@ -238,4 +239,4 @@ A single `@http.route(routes=[...])` counts as one handler but several URL varia
 | vCard | 1 / 2 | vcard (one handler, two URLs) |
 | Settings | 2 / 2 | settings |
 | Observability | 2 / 2 | observability (CWV beacon + JS error beacon) |
-| **Total** | **73 handlers / ~105 URL variants** | **21 controller classes** (across 23 files; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |
+| **Total** | **72 handlers / ~104 URL variants** | **21 controller classes** (across 23 files; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |

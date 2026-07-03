@@ -1,4 +1,4 @@
 {
-  "count": 122843,
-  "note": "npx eslint . --format=json; sum errorCount. Vendored libs now ignored STRUCTURALLY via **/static/lib/** (eslint.config.mjs) \u2014 no per-lib allowlist. Remaining floor is fork code: ~76k src + ~46k tests (the test count is largely missing test globals \u2014 separate follow-up). Measured 2026-06-25 clean HEAD. Warnings: 13."
+  "count": 123299,
+  "note": "npx eslint . --format=json; sum errorCount. Vendored libs ignored STRUCTURALLY via **/static/lib/** (eslint.config.mjs). Measured 2026-07-02 on a clean worktree at HEAD, eslint 10.6.0 / prettier 3.9.4 (CI installs by caret range, so the toolchain version is part of the measurement: the previous floor 122843 re-measures as 123039 at its own commit with today's toolchain, +196 pure version skew). Delta vs previous floor: +196 toolchain skew, +566 drift from commits landed 06-27..07-02, -283 from the static/tests globals block added to eslint.config.mjs. NOTE: the earlier claim that the ~46k test-file errors were 'largely missing test globals' was wrong - test files carry ~45.5k prettier/prettier and only ~300 no-undef (all browser globals in non-whitelisted modules' tests, now declared). Warnings: 4. Re-measured 2026-07-02 after the full audit fix waves: 123,299 (further -23 net from the wave code changes)."
 }

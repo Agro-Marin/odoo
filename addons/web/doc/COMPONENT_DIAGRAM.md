@@ -262,7 +262,7 @@ Files are listed with approximate line counts.
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
 | PY | `controllers/action.py` | ~165 | `/web/action/load`, `/run`, `/load_breadcrumbs` |
-| JS | `static/src/webclient/actions/action_service.js` | ~1250 | `doAction()`, controller stack |
+| JS | `static/src/webclient/actions/action_service.js` | ~905 | `doAction()`, controller stack (per-type executors extracted to `action_executors/`; cache invalidation to `action_cache_invalidation.js`) |
 | JS | `static/src/webclient/actions/action_container.js` | ~45 | Render current action |
 | JS | `static/src/webclient/actions/action_dialog.js` | ~40 | Action in modal |
 | JS | `static/src/webclient/actions/action_state.js` | ~190 | Serialize/deserialize URL state |
@@ -311,19 +311,20 @@ Files are listed with approximate line counts.
 >   forwarded context. **Applied only in `action_button_executor.js:171-175`** —
 >   NOT in `_preprocessAction`. Direct `doAction(actionRequest)` calls do NOT
 >   get their context scrubbed.
-> - **`_preprocessAction` cached-object mutation** (`action_service.js:299-342`):
->   lines 301-316 mutate the CACHED action (delete/re-add `_originalAction`,
->   merge `context`, coerce `domain`, drop empty `help`) **before** the shallow
->   copy at line 317. So `_originalAction` snapshots only the pre-mutation
->   state for the current call; subsequent mutations DO persist on the cached
->   object. A re-preprocess of the same cached action re-runs `makeContext`
->   on already-merged context. `action.views` is rebuilt on the copy at line
->   326, so view-array changes are safe, but top-level action fields aren't.
+> - **`preprocessAction` no longer mutates the cached action** (moved to
+>   `action_loader.js:106`; `action_service.js:_preprocessAction` is a thin
+>   delegator): the shallow copy now happens FIRST (`action = { ...action }`
+>   at `action_loader.js:107`), so `_originalAction`, `context` merge,
+>   `domain` coercion and `help` drop all land on a fresh object and the
+>   cached descriptor stays unmodified. The historical footgun (mutations
+>   before the copy persisting on the cached object) is fixed — do not
+>   reintroduce mutation above the copy line. `action.views` is also
+>   rebuilt on the copy.
 > - **`call_button` sentinel** (`dataset.py:62-66`): server returning
 >   `{type: ""}` → JS receives `False` (no action). Absent `type` →
 >   `setdefault("type", "ir.actions.act_window_close")` at `utils.py:35`.
 >   Normalizing falsy returns will break Python buttons that rely on this.
-> - **`action_handlers` registry extension point** (`action_service.js:1034`):
+> - **`action_handlers` registry extension point** (registry at `action_service.js:50`, dispatch at `:702`):
 >   zero registrations in core web — pure addon hook. Shape:
 >   `(params: {env, action, options}) => void | Promise<void>`. Register with
 >   `registry.category("action_handlers").add("my.type", handler)`.
@@ -342,7 +343,7 @@ Files are listed with approximate line counts.
 | JS | `static/src/views/list/` | 17 direct + 1 subdir file | List controller, renderer, group |
 | JS | `static/src/views/kanban/` | 14 direct + 2 subdir files | Kanban controller, renderer, column |
 | JS | `static/src/views/calendar/` | 8 direct + 7 subdir files | Calendar view (FullCalendar). NOTE: Chart.js lazy — see Flow 10. Calendar + graph + pivot view code all ship in `assets_backend`. |
-| JS | `static/src/views/graph/` | 6 files | Graph/chart view. Chart.js library is lazy-loaded via `loadBundle("web.chartjs_lib")`, but view code itself ships in `assets_backend`. |
+| JS | `static/src/views/graph/` | 6 files | Graph/chart view. Chart.js library is lazy-loaded via `loadChartJS()` (`core/lib/chartjs.js`, dynamic `import("chart.js")` through the import map), but view code itself ships in `assets_backend`. |
 | JS | `static/src/views/pivot/` | 11 files | Pivot table view. XLSX export uses lazy-loaded library; pivot view code ships in `assets_backend`. |
 
 **Key invariants to check**:
@@ -436,6 +437,7 @@ Files are listed with approximate line counts.
 | JS | `static/src/search/search_state.js` | ~ | Reactive shared state consumed by ControlPanel + WithSearch |
 | JS | `static/src/search/search_properties.js` | ~ | Lazy property-field support in search model |
 | JS | `static/src/search/control_panel/` | 6 files | ControlPanel component (top-level search UI) |
+| JS | `static/src/search/embedded_actions_bar/` | 3 files | EmbeddedActionsBar (extracted from ControlPanel): embedded-action tabs, visibility/order via res.users.settings |
 | JS | `static/src/search/search_bar/` | 6 files | Search input + suggestions |
 | JS | `static/src/search/search_panel/` | 7 files | Sidebar filter panel |
 

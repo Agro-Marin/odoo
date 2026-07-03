@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { localization } from "@web/core/l10n/localization";
 import {
     formatList,
     jsToPyLocale,
@@ -9,24 +10,24 @@ import {
     normalizedMatch,
     pyToJsLocale,
 } from "@web/core/l10n/utils";
-import { user } from "@web/services/user";
 
 describe.current.tags("headless");
 
 describe("formatList", () => {
-    test("defaults to the current user's locale", () => {
-        patchWithCleanup(user, { lang: "es-ES" });
+    test("defaults to the current locale", () => {
+        patchWithCleanup(localization, { code: "es_ES" });
         const list = ["A", "B", "C"];
         expect(formatList(list)).toBe("A, B y C");
     });
 
-    test("defaults to English if the user's locale can't be retrieved", () => {
-        patchWithCleanup(user, { lang: "" });
+    test("defaults to English if the locale can't be retrieved", () => {
+        patchWithCleanup(localization, { code: "" });
         const list = ["A", "B", "C"];
         expect(formatList(list)).toBe("A, B, and C");
     });
 
     test("takes style into account", () => {
+        patchWithCleanup(localization, { code: "en_US" });
         const list = ["A", "B", "C"];
         expect(formatList(list, { style: "or" })).toBe("A, B, or C");
     });

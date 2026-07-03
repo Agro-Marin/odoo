@@ -1,6 +1,6 @@
 # Directory Map
 
-> **237 directories** | Maps directory → layer + responsibility
+> **238 directories** | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 
@@ -52,6 +52,7 @@
 | `core/errors/` | shared | 1 | 215 | Traceback formatting, source-map annotation, and error chain utilities |
 | `core/l10n/` | shared | 7 | 1,214 | Luxon-based date/datetime parsing, formatting, serialization, and locale-awar... |
 | `core/l10n/utils/` | shared | 3 | 395 | Locale-aware list formatting via Intl.ListFormat (conjunction, disjunction, u... |
+| `core/lib/` | shared | 2 | 108 | Lazy ESM loaders for import-map libraries: `chartjs.js` (`loadChartJS`) and `fullcalendar.js` (`loadFullCalendar`) — dynamic `import()` + live-bound exports; replaced `web.chartjs_lib` / `web.fullcalendar_lib` bundles |
 | `core/network/` | shared | 5 | 1,191 | Content-Disposition header parser (RFC 6266/5987) |
 | `core/position/` | shared | 2 | 558 | OWL hook for auto-repositioning a popper element relative to a target |
 | `core/py_js/` | shared | 9 | 2,573 | Public API for parsing and evaluating Python expressions in JS |
@@ -147,16 +148,16 @@
 | `libs/fontawesome7/` | misc | 0 | — | Vendored FontAwesome 7 — icon CSS + webfonts |
 | `libs/fontawesome7/css/` | misc | 0 | — | FontAwesome 7 stylesheets |
 | `libs/fontawesome7/webfonts/` | misc | 0 | — | FontAwesome 7 webfont files |
-| `model/` | entities | 6 | 1,594 | Sample server, property field definitions, and shared model utilities |
-| `model/relational_model/` | entities | 26 | 7,058 | x2many ORM command serialization and deduplication (CREATE, UPDATE, LINK, SET... |
-| `polyfills/` | misc | 1 | 138 | (generated/vendored — no description) |
+| `model/` | entities | 8 | 2,073 | Model base class + useReactiveModel hook, sample server/coordinator, property field definitions, shared model utilities |
+| `model/relational_model/` | entities | 34 | 8,970 | Relational data model: Record/lists/groups, save & validation orchestration, x2many ORM command serialization (CREATE, UPDATE, LINK, SET...) |
 | `public/` | pages | 11 | 1,922 | Interaction that detects Caps Lock state and toggles a warning on password in... |
-| `search/` | widgets | 14 | 3,492 | CallbackRecorder utility and useSetupAction hook for persisting view state across filters |
+| `search/` | widgets | 14 | 3,579 | CallbackRecorder utility and useSetupAction hook for persisting view state across filters |
 | `search/action_menus/` | widgets | 1 | 217 | Action/Print dropdown menus for executing server actions on selected records |
 | `search/breadcrumbs/` | widgets | 1 | 29 | Navigation breadcrumb trail showing the action stack with back-navigation |
 | `search/cog_menu/` | widgets | 1 | 100 | Combined cog dropdown merging Action, Print, and registry-based menu items |
-| `search/control_panel/` | widgets | 1 | 861 | Control panel UI with search bar, breadcrumbs, filter/groupby menus, and embe... |
+| `search/control_panel/` | widgets | 1 | 399 | Control panel UI with search bar, breadcrumbs, filter/groupby menus (embedded-actions bar extracted to `search/embedded_actions_bar/`) |
 | `search/custom_favorite_item/` | widgets | 1 | 104 | Dropdown form for saving the current search as a named favorite filter |
+| `search/embedded_actions_bar/` | widgets | 1 | 722 | Embedded-actions bar (extracted from ControlPanel): renders/reorders the top-bar embedded action tabs, visibility + order persisted via res.users.settings |
 | `search/custom_group_by_item/` | widgets | 1 | 31 | Dropdown item for selecting a custom field to group by |
 | `search/properties_group_by_item/` | widgets | 1 | 84 | Group-by dropdown item that lazily loads property definitions for grouping |
 | `search/search_bar/` | widgets | 2 | 882 | Search bar with autocomplete suggestions, facet display, and keyboard navigation |
@@ -171,7 +172,7 @@
 | `services/install_scoped_app/` | shared | 1 | 63 | Public page component for installing scoped Progressive Web Apps |
 | `services/navigation/` | shared | 1 | 472 | Keyboard arrow-key navigation hook for selectable item lists |
 | `services/pwa/` | shared | 2 | 295 | Dialog showing Safari-specific PWA installation instructions (iOS and macOS) |
-| `services/web_vitals/` | shared | 1 | — | RUM Phase 1 Core Web Vitals beacon: PerformanceObserver captures LCP/FCP/CLS/TTFB and ships them via `navigator.sendBeacon` to `/web/observability/cwv` on `pagehide`. |
+| `services/web_vitals/` | shared | 1 | — | RUM Phase 1 Core Web Vitals beacon: PerformanceObserver captures LCP/FCP/CLS/TTFB/INP (INP = worst-observed P100 interaction duration) and ships them via `navigator.sendBeacon` to `/web/observability/cwv` on `pagehide`. |
 | `ui/` | shared | 0 | 0 | Top-level namespace — no direct JS files. All UI services live in subdirectories: `block/`, `bottom_sheet/`, `dialog/`, `effects/`, `notification/`, `overlay/`, `popover/`, `tooltip/`. |
 | `ui/block/` | shared | 2 | 380 | Full-screen overlay component that blocks UI during long-running operations |
 | `ui/bottom_sheet/` | shared | 2 | 437 | Mobile-friendly slide-up panel with drag-to-dismiss and snap points |
@@ -199,8 +200,8 @@
 | `views/form/setting/` | widgets | 1 | 74 | Individual setting row with label, help text, and company-dependent icon |
 | `views/form/status_bar_buttons/` | widgets | 1 | 29 | Renders action buttons in the form status bar with overflow dropdown |
 | `views/graph/` | widgets | 6 | 1,914 | Parses graph view XML arch into chart mode, measures, groupBy, and display flags |
-| `views/kanban/` | widgets | 14 | 3,685 | Parses kanban view XML arch into card templates, field nodes, progress bars, ... |
-| `views/list/` | widgets | 17 | 6,150 | Column width calculation, min/max enforcement, and resize-freeze hook for lis... |
+| `views/kanban/` | widgets | 19 | 4,338 | Kanban view: arch parser, renderer, progress-bar hook with local drag-move reconcile, quick create, ... |
+| `views/list/` | widgets | 21 | 6,815 | List view: renderer + per-row `ListRecordRow` component (renderer-delegation contract), column width calculation, keyboard nav/edit, styling |
 | `views/list/export_all/` | widgets | 1 | 46 | Cog-menu item triggering direct XLSX export of all records |
 | `views/pivot/` | widgets | 11 | 2,425 | Parses pivot view XML arch into measures, row/column groupBy, and display flags |
 | `views/view_button/` | widgets | 3 | 399 | ViewButton variant for list/kanban headers that operates on multiple selected... |
@@ -214,7 +215,7 @@
 | `views/widgets/signature/` | widgets | 1 | 98 | Widget opening a signature drawing dialog and writing the captured image to a... |
 | `views/widgets/week_days/` | widgets | 1 | 62 | Widget rendering seven day-of-week checkboxes respecting the locale's week st... |
 | `webclient/` | pages | 4 | 353 | Service that auto-reloads currencies when res.currency records are mutated |
-| `webclient/actions/` | pages | 13 | 2,778 | Executes action buttons (type=object/action/special) with RPC, context filter... |
+| `webclient/actions/` | pages | 18 | 3,034 | Executes action buttons (type=object/action/special) with RPC, context filter... |
 | `webclient/actions/action_executors/` | pages | 5 | 349 | Per-action-type executors: one module each for `act_url`, `act_window`, `client`, `close`, `server`, dispatched by the action service |
 | `webclient/actions/reports/` | pages | 4 | 327 | Client action rendering an HTML report in an iframe with print button and act... |
 | `webclient/actions/reports/layout_assets/` | pages | 0 | — | Report layout SCSS assets |

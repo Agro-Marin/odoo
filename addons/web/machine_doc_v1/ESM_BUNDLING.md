@@ -12,22 +12,23 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │   Pragma: /** @odoo-module native */                                 │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │  is_native_module() / is_odoo_module()
-                                │  assetsbundle.py:122 / :128
+                                │  odoo/tools/assets/esm_graph.py:57 / :63
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│ AssetsBundle.__init__()   assetsbundle.py:1036                       │
+│ AssetsBundle.__init__()   assetsbundle.py:1420                       │
 │   files partitioned into:                                            │
 │     • self.javascripts         (classic JS; legacy bundle)           │
 │     • self.native_modules      (@odoo-module [native]; esbuild fuel) │
 │     • self.templates           (XML for QWeb)                        │
 │     • self.stylesheets         (SCSS/CSS)                            │
-│   Only when bundle name ∈ ESM_BUNDLES.                               │
+│   Only when bundle name ∈ esm_registry().bundles                     │
+│   (assetsbundle.py:1446 sets self._is_esm_bundle).                   │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
 │ HTTP GET /odoo                                                       │
-│   ir_qweb._get_asset_nodes(bundle, debug)  ir_qweb.py:3505           │
+│   ir_qweb._get_asset_nodes(bundle, debug)  ir_qweb.py:3496           │
 └──────────┬────────────────────────────────┬──────────────────────────┘
            │  debug mode                    │  production
            ▼                                ▼
@@ -40,7 +41,7 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │       /<addon>/static/... │                     ▼
 └────────────┬──────────────┘   ┌────────────────────────────────────────┐
              │                  │ esbuild_native_bundle()                │
-             │                  │   assetsbundle.py:1290                 │
+             │                  │   assetsbundle.py:1754                 │
              │                  │                                        │
              │                  │ 1. Generate entry.js (tempfile):       │
              │                  │      import * as __m0 from "./path0";  │
@@ -88,27 +89,50 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Classification sets (assetsbundle.py)
+## Declarative ESM registry (`odoo.tools.assets.esm_registry`)
 
-| Set | Purpose | Edits go to |
-|-----|---------|-------------|
-| `_ESM_APP_BUNDLES` | Primary app-shell bundles | assetsbundle.py:581 |
-| `_ESM_ADDON_BUNDLES` | Feature/addon bundles | assetsbundle.py:603 |
-| `ESM_BUNDLES` | Union of the two | assetsbundle.py:676 (derived) |
-| `DYNAMIC_ESM_BUNDLES` | Parent → lazy children (pre-registered in import map) | assetsbundle.py:688 |
-| `IMPORT_MAP_INCLUDES` | Parent → satellites reusing parent's import map | assetsbundle.py:713 |
-| `_LIB_CANDIDATES` | Vendored `@odoo/*` + `luxon` esbuild alias paths | assetsbundle.py:786 |
+The old hardcoded frozensets in `assetsbundle.py`
+(`_ESM_APP_BUNDLES` / `_ESM_ADDON_BUNDLES` / `ESM_BUNDLES` /
+`DYNAMIC_ESM_BUNDLES` / `IMPORT_MAP_INCLUDES`) are **gone**. Each module now
+declares its own ESM bundle relationships in its `__manifest__.py` under an
+`esm` key; the aggregate is built once per process from
+`Manifest.all_addon_manifests()` by `esm_registry()`
+(odoo/tools/assets/esm_registry.py:92, returning an `EsmRegistry`
+NamedTuple, :75) and invalidated by `invalidate_esm_registry()` (:107),
+wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
+"addons on disk changed" signal from `ir.module.module.update_list()`).
 
-Invariants enforced at class-load by `_validate_esm_config` (assetsbundle.py:966):
-- `_ESM_APP_BUNDLES` and `_ESM_ADDON_BUNDLES` are disjoint
-- Every `DYNAMIC_ESM_BUNDLES` parent and child is in `ESM_BUNDLES`
-- Every `IMPORT_MAP_INCLUDES` parent and include is in `ESM_BUNDLES`
+| `esm` manifest key | Purpose (old equivalent) |
+|-----|---------|
+| `bundles` | This module's esbuild-compiled bundles (old `ESM_BUNDLES` membership) |
+| `dynamic_children` | Parent → lazy children pre-registered in the parent's import map for runtime `import()` via `loadBundle` (old `DYNAMIC_ESM_BUNDLES`); declared by the CHILD's module |
+| `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild (old `IMPORT_MAP_INCLUDES`); used for test-runner bundles |
+| `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map |
+
+Example (`point_of_sale/__manifest__.py` style):
+
+```python
+'esm': {
+    'bundles': ['point_of_sale._assets_pos'],
+    'dynamic_children': {'web.assets_web': ['web_tour.automatic']},
+}
+```
+
+Invariants (same as the old class-level `_validate_esm_config`) are enforced
+by `validate_esm_config` (esm_registry.py:205) when the registry is built:
+- Every `dynamic_children` parent and child is a registered ESM bundle
+- Every `import_map_includes` parent and include is a registered ESM bundle
 - No bundle is both dynamic child AND include-satellite of the same parent
 - No duplicate names within a children list
+- Unknown keys under `esm` are rejected (`_ESM_MANIFEST_KEYS`, esm_registry.py:65)
 
-Cross-file invariant enforced at module-load (ir_qweb.py:5396) by
-`_AssetsBundle._validate_external_libs(set(IrQweb._ODOO_EXTERNAL_LIBS))`:
-- Every `_ODOO_EXTERNAL_LIBS` entry has either a matching `_LIB_CANDIDATES`
+The esbuild alias table `_LIB_CANDIDATES` (vendored `@odoo/*` + `luxon`
+paths) lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py:271).
+Cross-file invariant enforced at module-load
+(`AssetsBundle._validate_external_libs(set(ODOO_EXTERNAL_LIBS))`,
+assetsbundle.py:1382, invoked at :2700; `ODOO_EXTERNAL_LIBS` itself is
+defined in odoo/libs/constants.py:68 with a class alias at ir_qweb.py:3799):
+- Every `ODOO_EXTERNAL_LIBS` entry has either a matching `_LIB_CANDIDATES`
   alias or is covered by the `--external:@odoo/*` pattern flag
 
 ## Logger taxonomy (Python ↔ JS)
@@ -162,13 +186,13 @@ unset or unparseable.
 
 | Key | Default | Class constant (file:line) | Effect |
 |-----|---------|---------------------------|--------|
-| `timeout_s` | `30` | `AssetsBundle._ESBUILD_TIMEOUT_S` (assetsbundle.py:1254) | subprocess timeout (seconds) |
-| `target` | `"es2023"` | `AssetsBundle._ESBUILD_TARGET` (assetsbundle.py:1258) | esbuild `--target=`. es2023 so esbuild stops downlevel-polyfilling `Promise.withResolvers`; all es2023 features have >18mo support on Chrome 110+/Safari 16+/FF 115+. |
-| `source_maps` | `""` | `AssetsBundle._ESBUILD_SOURCE_MAPS` (assetsbundle.py:1280) | esbuild `--sourcemap=<mode>`. `""` (off), `"linked"` (sidecar `.js.map` + `sourceMappingURL` comment — DevTools fetches only when opened), `"external"` (sidecar without comment), `"inline"` (base64 data URL appended — ~2x bundle size). Unknown modes silently fall back to `""`. |
-| `cooldown_s` | `60.0` | `IrQweb._ESBUILD_COOLDOWN_S` (ir_qweb.py:3928) | Circuit-breaker cooldown after 1st failure |
-| `extended_cooldown_s` | `600.0` | `IrQweb._ESBUILD_EXTENDED_COOLDOWN_S` (ir_qweb.py:3929) | Cooldown after 2nd consecutive failure |
-| `lock_retries` | `1` | `IrQweb._ESBUILD_LOCK_RETRIES` (ir_qweb.py:4120) | Advisory-lock retry count |
-| `lock_retry_sleep_s` | `0.2` | `IrQweb._ESBUILD_LOCK_RETRY_SLEEP_S` (ir_qweb.py:4121) | Sleep between lock attempts |
+| `timeout_s` | `30` | `EsbuildCompiler._ESBUILD_TIMEOUT_S` (odoo/tools/assets/esbuild.py:412) | subprocess timeout (seconds) |
+| `target` | `"es2023"` | `EsbuildCompiler._ESBUILD_TARGET` (esbuild.py:416) | esbuild `--target=`. es2023 so esbuild stops downlevel-polyfilling `Promise.withResolvers`; all es2023 features have >18mo support on Chrome 110+/Safari 16+/FF 115+. |
+| `source_maps` | `""` | `EsbuildCompiler._ESBUILD_SOURCE_MAPS` (esbuild.py:444) | esbuild `--sourcemap=<mode>`. `""` (off), `"linked"` (sidecar `.js.map` + `sourceMappingURL` comment — DevTools fetches only when opened), `"external"` (sidecar without comment), `"inline"` (base64 data URL appended — ~2x bundle size). Unknown modes silently fall back to `""`. |
+| `cooldown_s` | `60.0` | `IrQweb._ESBUILD_COOLDOWN_S` (ir_qweb.py:3959) | Circuit-breaker cooldown after 1st failure |
+| `extended_cooldown_s` | `600.0` | `IrQweb._ESBUILD_EXTENDED_COOLDOWN_S` (ir_qweb.py:3960) | Cooldown after 2nd consecutive failure |
+| `lock_retries` | `1` | `IrQweb._ESBUILD_LOCK_RETRIES` (ir_qweb.py:4151) | Advisory-lock retry count |
+| `lock_retry_sleep_s` | `0.2` | `IrQweb._ESBUILD_LOCK_RETRY_SLEEP_S` (ir_qweb.py:4152) | Sleep between lock attempts |
 | `force_fallback_bundles` | `""` | — | Comma-separated bundle names to force into debug path |
 
 Operators set these via the UI (Settings → Technical → System Parameters)
@@ -187,7 +211,7 @@ env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
 | Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
 | `DuplicatedKeyError` in registry | Module loaded twice (separate instances) | Missing data-URI bridge; check `_build_native_to_legacy_bridge` |
-| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py:22` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[spec] = shim` override at `ir_qweb.py:4637`. |
+| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py:22` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override at `ir_qweb.py:4735`. |
 
 ## Service worker
 

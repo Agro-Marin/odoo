@@ -19,7 +19,7 @@ Core web CRUD operations: the primary data interface between JS and Python.
 
 **Key Methods:**
 - `web_read(specification)` — Main frontend data fetcher. Recursively resolves relational fields (m2o, x2m, reference, properties) per a specification tree. Handles NewId, co-record prefetch, x2many ordering/limiting.
-- `web_save(vals, specification, next_id=None, last_write_date=None)` — Create or write + web_read in one call. Returns formatted record. The `last_write_date` kwarg enables optimistic concurrency checking — if provided and the server-side `write_date` has advanced, the save is rejected.
+- `web_save(vals, specification, next_id=None, last_write_date=None, known_values=None)` — Create or write + web_read in one call. Returns formatted record. Optimistic concurrency: `known_values` (`{field: baseline_value}` as the client read them) triggers a **field-scoped** check via `_check_concurrent_field_changes` — `UserError` only if one of *those* fields moved server-side since the client read it; concurrent writes to other fields are ignored; comparison is type-aware (`SAFE_TYPES`: integer/boolean/char/text/selection/float/monetary/many2one, jsonb columns excluded) and **fails open**. `last_write_date` survives as the legacy coarser row-level `write_date` fallback, only consulted when `known_values` is absent (the JS client always sends `known_values` now).
 - `web_save_multi(vals_list, specification)` — Batch write grouped by identical vals. Returns formatted records.
 - `web_search_read(domain, specification, ...)` — search + web_read. Reuses search query for count optimization.
 - `web_name_search(name, specification, ...)` — name_search + formatting per specification. Batches display_name fetches.
@@ -255,7 +255,7 @@ high-volume; `recorded_at` captures beacon arrival).
 - `lcp` (Float, ms, readonly) — Largest Contentful Paint
 - `fcp` (Float, ms, readonly) — First Contentful Paint
 - `ttfb` (Float, ms, readonly) — Time To First Byte
-- `inp` (Float, ms, readonly) — Interaction to Next Paint; reserved for a future phase that vendors the `web-vitals` library, currently always null
+- `inp` (Float, ms, readonly) — Interaction to Next Paint, reported by `web_vitals_service.js` as the **worst-observed interaction duration over the page lifetime** (a P100 running max — a strict upper bound on the canonical Chromium P98 INP, actionable as a regression signal; swap the reducer for a proper P98 if the `web-vitals` library is ever vendored). Server-clamped like the other latencies (`_clamp_latency`, `controllers/observability.py:99`)
 - `cls` (Float, unitless, readonly) — Cumulative Layout Shift (0 is best; not capped at 1)
 
 **Key Methods:**

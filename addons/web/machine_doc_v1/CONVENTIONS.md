@@ -160,12 +160,16 @@ classes rather than bare boolean flags. Each owns its state machine, exposes
 in a single ``run(fn)`` / ``enter()`` / ``exit()`` API so consumers cannot leak
 the flag past the operation's lifetime.
 
+(A fourth coordinator, `RelationalModelLoadCoordinator`, was removed as dead
+code — nothing ever read its status. The load axis is covered by
+`model.keepLast` + the reactive `model.isReady` flag; see
+STATE_MANAGEMENT.md "Model Load Lifecycle".)
+
 | Coordinator | File | Replaces | Used by |
 |---|---|---|---|
-| `RelationalModelLoadCoordinator` | `model/relational_model/load_coordinator.js` | (none — never had a bare flag) | `model.load()` |
 | `UrgentSaveCoordinator` | `model/relational_model/urgent_save_coordinator.js` | the `model._urgentSave` bool + `_withUrgentSaveScope` helper | `record.update`, `record._update`, `record.checkValidity`, `record_save.save`, `dynamic_list._askChanges`, `record.urgentSave` |
 | `SampleDataCoordinator` | `model/sample_data_coordinator.js` | the `model.useSampleModel` bool (kept as backward-compat getter/setter) | pivot_controller, list_renderer, list_keyboard_nav, list_controller, list_styling, kanban renderer (read); PivotModel, GraphModel (write) |
-| `FormSaveCoordinator` | `views/form/form_save_coordinator.js` | per-controller `isSaving` + `record.isDirty` plumbing | form_controller (9 entry points) |
+| `FormSaveCoordinator` | `views/form/form_save_coordinator.js` | per-controller `isSaving` + `record.isDirty` plumbing | form_controller (9 entry points), settings_form_controller (Apply / discard-then-save); FormStatusIndicator (reads `status`/`isSaving`) |
 
 **`multiEdit` is NOT a coordinator** — it is a config-time-only
 boolean assigned once during model construction (from
@@ -358,7 +362,7 @@ static/src/<layer>/<name>/
     <name>.scss     # Optional component-scoped styles
 ```
 
-About 255 of the 649 JS files in `static/src/` (~39.3%) have a sibling `.xml`.
+About 257 of the 657 JS files in `static/src/` (~39.1%) have a sibling `.xml`.
 Templates are registered by the asset pipeline — the manifest's glob
 patterns (e.g. `web/static/src/fields/**/*`) pull `.js`, `.xml`, `.scss`
 together, and `ir.qweb` collects every `.xml` into the template registry
@@ -383,12 +387,15 @@ When refactoring a widget:
 
 3. **SCSS order matters; JS order mostly doesn't** — SCSS files in `__manifest__.py`
    asset lists are concatenated in order, so variable definitions must come before rules
-   that reference them. JS bundles in `AssetsBundle.ESM_BUNDLES` (nearly every webclient
-   bundle: `assets_web`, `assets_backend`, `assets_frontend`, report/test bundles, most
-   addon asset bundles) are built by **esbuild**, which derives load order from `import`
-   statements, not manifest order. Non-ESM bundles still concatenate JS in order. See
-   `ESM_BUNDLES` (assetsbundle.py:676), `DYNAMIC_ESM_BUNDLES` (assetsbundle.py:688),
-   and `IMPORT_MAP_INCLUDES` (assetsbundle.py:713) before relying on positional placement.
+   that reference them. ESM bundles (nearly every webclient bundle: `assets_web`,
+   `assets_backend`, `assets_frontend`, report/test bundles, most addon asset bundles)
+   are built by **esbuild**, which derives load order from `import` statements, not
+   manifest order. Non-ESM bundles still concatenate JS in order. ESM membership is
+   **declarative**: each module lists its bundles under an `esm` key in its own
+   `__manifest__.py` (`bundles` / `dynamic_children` / `import_map_includes` /
+   `secondary_import_map_includes`), aggregated by
+   `odoo.tools.assets.esm_registry.esm_registry()` (`esm_registry.py:92`). Check a
+   bundle's membership there before relying on positional placement.
 
 4. **`readonly=True` on routes** — This is not about user permissions. It tells the
    load balancer/proxy to route to a read replica. A `readonly=True` route that
@@ -401,12 +408,20 @@ When refactoring a widget:
 
 6. **Lazy-loaded libraries (not views)** — Graph and Pivot view code lives in the
    main `assets_backend` bundle; there is NO `assets_backend_lazy` bundle. What IS
-   lazy-loaded is the *Chart.js library*: `views/graph/graph_renderer.js` calls
-   `loadBundle("web.chartjs_lib")` the first time a graph renders. Pivot export has
-   no analogous lazy-load (no `loadBundle` / `loadJS` in `views/pivot/` or
-   `views/list/export_all/`); XLSX export is server-side via the
+   lazy-loaded is the *Chart.js library*: `views/graph/graph_renderer.js` (and the
+   gauge / journal-dashboard fields) call `loadChartJS()` from
+   `core/lib/chartjs.js`, which dynamic-`import()`s the `chart.js` +
+   `chartjs-adapter-luxon` import-map bare specifiers on first graph render and
+   populates the live-bound `Chart` export (one shared runtime fetch; no
+   `<script>` injection, no `window.Chart` global). FullCalendar follows the same
+   pattern via `core/lib/fullcalendar.js` `loadFullCalendar()`. The old
+   `web.chartjs_lib` / `web.fullcalendar_lib` classic-script bundles are gone.
+   Pivot export has no analogous lazy-load (no `loadBundle` / `loadJS` in
+   `views/pivot/` or `views/list/export_all/`); XLSX export is server-side via the
    `/web/pivot/export_xlsx` controller. When adding code that depends on a heavy
-   library, prefer `loadBundle()` over adding the library to the main bundle.
+   library: if the library is a real ES module, prefer the `core/lib/` lazy-ESM
+   loader pattern (import-map entry + dynamic `import()` + live-bound export);
+   for classic scripts, prefer `loadBundle()` over adding to the main bundle.
 
    **`loadBundle` vs `loadJS` — which to use?** `core/assets.js` exports both;
    they are *not* alternatives. `loadBundle` fetches `/web/bundle/<name>`, parses
@@ -420,8 +435,9 @@ When refactoring a widget:
      pipeline's circuit breaker and observability log
      (`makeAssetLog("js")`), single source of truth in the manifest.
      Examples: `web.assets_signature_pad_lib`,
-     `survey.assets_chartjs_datalabels_lib`, `web.ace_lib`, `web.chartjs_lib`,
-     `web.fullcalendar_lib`.
+     `survey.assets_chartjs_datalabels_lib`, `web.ace_lib`.
+     (Libraries that ship as real ES modules — Chart.js, FullCalendar — use
+     the `core/lib/` lazy-ESM loader pattern instead; see above.)
 
    - **External SDKs delivered via vendor CDN** (payment processors, Maps
      APIs, video player APIs, reCAPTCHA, etc.): use `loadJS(url)` directly.
@@ -501,24 +517,39 @@ When refactoring a widget:
    global (`session.js:10-20`). Never add sensitive data (passwords, API keys) to
    `session_info()` — it's visible in page source.
 
-9. **`urgentSave` optimistic-locking parity** — Both the normal save path
-   (`model/relational_model/record_save.js:150`) and the urgent (sendBeacon)
-   path (`record_save.js:89`) send `kwargs.last_write_date = wd.toISO()` when
-   `record._values.write_date` is present, so the server can reject concurrent
-   edits in either flow. The urgent path's ~30-byte ISO-string overhead is well
-   within the typical 64 KB `sendBeacon` budget.
+9. **Field-scoped optimistic locking (`known_values`), with urgent-save
+   parity** — The client no longer sends a whole-record `last_write_date`
+   (the server keeps that kwarg only as a legacy fallback). Instead
+   `record_save.js` builds a `concurrencyBaseline` map (`record_save.js:129`):
+   for each field being written, the originally-loaded value from
+   `record._values` — skipping types that can't be compared safely (x2many,
+   binary, html, date/datetime, json, properties, reference) and jsonb-backed
+   `translate` / `company_dependent` fields. It is sent as
+   `kwargs.known_values` on BOTH the normal path (`record_save.js:243`) and
+   the urgent sendBeacon path (`urgentKwargs`, `record_save.js:179-183`), for
+   existing records only (`resId` truthy). Server side,
+   `models/web_read.py:_check_concurrent_field_changes` rejects only a
+   genuine per-field conflict and ignores concurrent writes to OTHER fields
+   (e.g. background stored-compute recomputations); a field with no baseline
+   is skipped — the check **fails open**, so an empty baseline (only x2many
+   changed) means no check, which is the right call on tab close where the
+   user's work must never be dropped.
 
-10. **`archiveEnabled` derivations differ between form and multi-record by
-    design** — `form_controller.js:591-600` checks `"active" in
-    activeFields` AND `!props.fields.active.readonly`, with a fallback to
-    `"x_active"` for custom no-active-field models. `multi_record_controller.js:61`
-    calls `computeArchiveEnabled(this.props.fields)` which only checks
-    `"active" in fields` AND `!fields.active.readonly` (no `activeFields`
-    gate, no `x_active` fallback).
+10. **`archiveEnabled` is consolidated in
+    `view_utils.computeArchiveEnabled(readonlySource, presenceSource = readonlySource)`
+    — form and multi-record differ only in the presence source** — the helper
+    checks `"active" in presenceSource` (with `"x_active"` fallback for custom
+    no-active-field models) and returns `!readonlySource.<field>.readonly`.
+    `form_controller.js:606-608` calls it as
+    `computeArchiveEnabled(this.props.fields, this.model.root.activeFields)` —
+    presence is gated on the field actually being **in the view**.
+    `multi_record_controller.js:86` calls
+    `computeArchiveEnabled(this.props.fields)` — presence and writability both
+    come from the model-level fields definition.
 
     **Why the form needs the stricter `activeFields` gate**: the form
     conditions archive vs unarchive on `model.root.isActive`
-    (`form_controller.js:547,556`). If `active` is not in `activeFields`,
+    (`form_controller.js:562,571`). If `active` is not in `activeFields`,
     the view never loads it, so `record.data.active` is `undefined` and
     `record.isActive` is falsy. Without the gate, `archiveEnabled` would still
     be true and the form would show "Unarchive" on a record whose active state
@@ -571,17 +602,35 @@ When refactoring a widget:
 
 12. **`FormSaveCoordinator` owns the form save lifecycle** —
     `views/form/form_save_coordinator.js`. Every save / discard / urgent-save entry
-    point in `form_controller.js` (lines 477, 500, 510, 522, 605, 655, 672,
-    698, 721) calls `this.saveCoordinator.requestSave({...})` /
+    point in `form_controller.js` calls `this.saveCoordinator.requestSave({...})` /
     `requestUrgentSave()` / `requestDiscard()` with named options.
+    `settings_form_controller.js` routes its Apply / discard-then-save flows
+    through the same API (`requestSave({errorMode: "rethrow"})` and
+    `requestDiscard()`).
 
     The hook signature is `onSaveError(error, callbacks: { discard, retry })`;
     the coordinator dispatches between *render error dialog*, *rethrow*, and
     *swallow* via the named option `errorMode: "dialog" | "rethrow" | "silent"`
     (not a positional boolean). It also exposes `status: "clean" | "dirty" |
-    "saving" | "error"` and `isSaving` as a single observable surface so external
-    readers (form status indicator, route guards) don't reverse-engineer state
-    from `record.dirty` plus scattered `isSaving` flags.
+    "saving" | "error"` and `isSaving` as a single observable surface
+    (SignalStore-reactive). **Consumer**: `FormStatusIndicator` subscribes via
+    `useState(props.coordinator)` and derives its *saving* / post-error display
+    states from it; the *typing* signal (indicator reacting before a change is
+    committed to the record) still comes from the `FIELD_IS_DIRTY` model bus
+    event + `record.dirty` — a deliberate two-source design, because the
+    coordinator only observes committed changes. Route guards / dialog blockers
+    remain potential future readers.
+
+    **Out-of-contract callers**: field widgets that call `model.root.save()`
+    directly (e.g. `fields/translation_button.js`, several addon widgets)
+    bypass the coordinator; `status` does not reflect those saves. New
+    form-level save paths must go through `requestSave`.
+
+    The coordinator has no pre/post-save hooks: pre-save vetoes belong to the
+    model-level `onWillSaveRecord` lifecycle hook (fired after validation), and
+    `props.onSave` is invoked explicitly by the controller entry points that
+    historically called it. (An unwired `onWillSave`/`onSaved` veto mechanism
+    was removed as dead code.)
 
 13. **`patch()` targets prototypes and plain objects, never namespace
     imports** — `core/utils/patch.js:79`. Native ES module namespaces
@@ -602,3 +651,51 @@ When refactoring a widget:
     import * as urlUtils from "@html_editor/utils/url";
     patch(urlUtils, { isAbsoluteURLInCurrentDomain(url) { ... } });
     ```
+
+14. **`/web/webclient/load_menus` is a conditional fetch — don't break the
+    hash round-trip** — every 200 response carries an `X-Menus-Hash` header
+    (SHA-256 of the exact JSON bytes sent; `controllers/home.py:web_load_menus`).
+    `menu_service.js` persists the hash in localStorage
+    (`webclient_menus_hash`) alongside the cached menus and echoes it back as
+    `?hash=` on the next boot; a match returns an empty `304` (headers only —
+    the payload includes base64 app icons, so warm boots skip it entirely).
+    `Cache-Control: no-store` is deliberate: the payload is session-dependent
+    (access rights, debug mode), so the explicit hash round-trip *replaces*
+    HTTP caching. If a mocked route or new code path serves menus without the
+    header, the client drops the stored hash and the next boot fetches the
+    full payload — degraded, not broken.
+
+15. **`ListRecordRow` renders each list row as a component with a renderer-
+    delegation compatibility contract** — `views/list/list_record_row.js`.
+    Rows used to be a `t-call` inside `ListRenderer`, so ANY reactive change
+    re-evaluated every cell of every row; as a component with referentially
+    stable props, OWL's `arePropsDifferent` skips unchanged rows. The
+    extraction is deliberately invisible to the ~15 addons that customize
+    rows: (a) the row body stays at t-name `web.ListRenderer.RecordRow` and
+    subclasses keep overriding `static recordRowTemplate` on their
+    `ListRenderer`; (b) `this.X` / bare names in row templates still resolve
+    against the RENDERER — every renderer member is lazily delegated through
+    prototype accessors, methods run with `this` bound to a proxy over the
+    renderer that also resolves `record`/`group`/`groupId` to the row's
+    values, and writes land on the renderer instance; (c) the template
+    exposes the renderer's reactive proxies for `record`/`group` (identity
+    matters for `editedRecord` comparisons etc.) while the row subscribes
+    itself via `_touchRecordDependencies()` so only the changed row
+    re-renders. When adding renderer state read from row templates, nothing
+    special is needed — but never store row-identity state keyed by the
+    row-wrapped prop proxy.
+
+16. **Kanban progress bars reconcile drag-and-drop moves locally** —
+    `views/kanban/progress_bar_hook.js`. A drag between groups registers the
+    move up-front (`registerRecordMove(recordId, sourceGroupId,
+    targetGroupId)`, capturing the record's progress-field value *before* the
+    save can rewrite it); the save-triggered `updateCounts` then calls
+    `_reconcileMove` to decrement/increment the two affected groups' bars and
+    refetch aggregates for those two groups only — instead of firing
+    `read_progress_bar` + `formatted_read_group` over the full domain.
+    Falls back to the full refresh when local reconcile is impossible (bars
+    not loaded, groups reloaded, progress field not fetched) or ambiguous
+    (grouped on the progress field itself). A trailing authoritative refresh
+    fires `MOVE_RECONCILE_DELAY` (300 ms) after the last reconciled move, so
+    local arithmetic can never drift from the server for long. Failed or
+    reverted moves must call `cancelRecordMove(recordId)`.
