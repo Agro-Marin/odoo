@@ -250,18 +250,13 @@ class TestContentAddressableUrl(TransactionCase):
 
     def test_identical_content_produces_identical_url(self):
         # We drive _save_esm_attachment directly so we can compare URLs
-        # without spawning esbuild. A minimal asset_bundle stub suffices.
-        class _Stub:
-            name = "test.cas.same"
-            _last_metafile = None
-            _last_sourcemap = None
-
+        # without spawning esbuild (no metafile/sourcemap siblings).
         ir_qweb = self.env["ir.qweb"]
         content = "export const x = 1;"
-        url1 = ir_qweb._save_esm_attachment("test.cas.same", content, _Stub())
+        url1 = ir_qweb._save_esm_attachment("test.cas.same", content)
         # Second call with identical content must hit the "reuse" branch
         # and return the same URL.
-        url2 = ir_qweb._save_esm_attachment("test.cas.same", content, _Stub())
+        url2 = ir_qweb._save_esm_attachment("test.cas.same", content)
         self.assertEqual(url1, url2)
         self.assertRegex(
             url1,
@@ -270,21 +265,14 @@ class TestContentAddressableUrl(TransactionCase):
         )
 
     def test_different_content_produces_different_url(self):
-        class _Stub:
-            name = "test.cas.diff"
-            _last_metafile = None
-            _last_sourcemap = None
-
         ir_qweb = self.env["ir.qweb"]
         url_a = ir_qweb._save_esm_attachment(
             "test.cas.diff",
             "export const x = 1;",
-            _Stub(),
         )
         url_b = ir_qweb._save_esm_attachment(
             "test.cas.diff",
             "export const x = 2;",
-            _Stub(),
         )
         self.assertNotEqual(url_a, url_b)
         # Stale-version deletion is DEFERRED (grace window): right after
@@ -323,18 +311,12 @@ class TestMetafileSidecar(TransactionCase):
     """Metafile attachment is created alongside the bundle."""
 
     def test_metafile_saved_as_sibling_when_present(self):
-        class _Stub:
-            name = "test.meta.present"
-            # Simulate esbuild having populated this attribute with a
-            # minimal valid metafile JSON.
-            _last_metafile = json.dumps({"inputs": {}, "outputs": {}})
-            _last_sourcemap = None
-
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
             "test.meta.present",
             "/* bundle */",
-            _Stub(),
+            # Simulate esbuild having produced a minimal valid metafile.
+            metafile=json.dumps({"inputs": {}, "outputs": {}}),
         )
         meta_url = url[: -len(".esm.js")] + ".meta.json"
         meta = (
@@ -355,16 +337,10 @@ class TestMetafileSidecar(TransactionCase):
         self.assertIn("outputs", parsed)
 
     def test_metafile_absent_when_esbuild_did_not_run(self):
-        class _Stub:
-            name = "test.meta.absent"
-            _last_metafile = None
-            _last_sourcemap = None
-
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
             "test.meta.absent",
             "/* bundle */",
-            _Stub(),
         )
         meta_url = url[: -len(".esm.js")] + ".meta.json"
         meta = (
@@ -592,28 +568,28 @@ class TestEsbuildIntegration(TransactionCase):
             ),
         )
 
-        code = bundle.esbuild_native_bundle()
+        result = bundle.esbuild_native_bundle()
 
         # The esbuild entry point always calls registerNativeModules —
         # the presence of this string is the structural-integrity check.
         self.assertIn(
             "odoo.loader.registerNativeModules",
-            code,
+            result.code,
             msg="bundle output must register modules via the loader API",
         )
         # Minified output still has substance (emoji_data.js is ~36k
         # lines); a suspiciously small output means esbuild silently
         # dropped input — surface that as a test failure, not a warning.
         self.assertGreater(
-            len(code),
+            len(result.code),
             1000,
-            msg=f"bundle output suspiciously small ({len(code)} bytes)",
+            msg=f"bundle output suspiciously small ({len(result.code)} bytes)",
         )
         # Metafile is a side effect we expose to consumers; the real
         # esbuild path MUST populate it.  Skipping this check would
         # mask a regression where we lose the analysis side-channel.
         self.assertIsNotNone(
-            bundle._last_metafile,
+            result.metafile,
             msg="metafile sidecar must be captured after successful build",
         )
 
@@ -639,8 +615,8 @@ class TestEsbuildIntegration(TransactionCase):
         )
         # Explicit non-default args — smoke test that the overrides are
         # accepted without raising TypeError.
-        code = bundle.esbuild_native_bundle(timeout_s=60, target="es2022")
-        self.assertIn("odoo.loader.registerNativeModules", code)
+        result = bundle.esbuild_native_bundle(timeout_s=60, target="es2022")
+        self.assertIn("odoo.loader.registerNativeModules", result.code)
 
 
 class TestEsbuildSettingLoader(TransactionCase):
@@ -764,9 +740,9 @@ class TestEsbuildSourceMaps(TransactionCase):
     def test_off_by_default(self):
         """Default mode is empty string — no source map captured."""
         bundle = self._bundle()
-        bundle.esbuild_native_bundle()
+        result = bundle.esbuild_native_bundle()
         self.assertIsNone(
-            bundle._last_sourcemap,
+            result.sourcemap,
             msg="default behavior must not capture a source map",
         )
 
@@ -778,18 +754,18 @@ class TestEsbuildSourceMaps(TransactionCase):
         ``test_external_mode_emits_map_without_directive``.
         """
         bundle = self._bundle()
-        code = bundle.esbuild_native_bundle(source_maps="linked")
+        result = bundle.esbuild_native_bundle(source_maps="linked")
         self.assertIsNotNone(
-            bundle._last_sourcemap,
-            msg="linked mode must populate _last_sourcemap",
+            result.sourcemap,
+            msg="linked mode must capture the sourcemap sibling",
         )
         # esbuild source maps are JSON; minimal sanity check that we
         # captured the right bytes (not e.g. the metafile).
-        parsed = json.loads(bundle._last_sourcemap)
+        parsed = json.loads(result.sourcemap)
         self.assertIn("version", parsed)
         self.assertIn("mappings", parsed)
         # Bundle references the sidecar so devtools fetches it on open.
-        self.assertIn("//# sourceMappingURL=", code)
+        self.assertIn("//# sourceMappingURL=", result.code)
 
     def test_external_mode_emits_map_without_directive(self):
         """``source_maps='external'`` writes the map but omits the
@@ -799,26 +775,26 @@ class TestEsbuildSourceMaps(TransactionCase):
         and we don't want devtools auto-fetching it.
         """
         bundle = self._bundle()
-        code = bundle.esbuild_native_bundle(source_maps="external")
+        result = bundle.esbuild_native_bundle(source_maps="external")
         self.assertIsNotNone(
-            bundle._last_sourcemap,
+            result.sourcemap,
             msg="external mode still writes the sidecar, just doesn't link it",
         )
-        self.assertNotIn("//# sourceMappingURL=", code)
+        self.assertNotIn("//# sourceMappingURL=", result.code)
 
     def test_inline_mode_embeds_in_bundle(self):
         """``source_maps='inline'`` embeds a base64 data URL in the bundle."""
         bundle = self._bundle()
-        code = bundle.esbuild_native_bundle(source_maps="inline")
+        result = bundle.esbuild_native_bundle(source_maps="inline")
         self.assertIsNone(
-            bundle._last_sourcemap,
+            result.sourcemap,
             msg="inline mode embeds in bundle, no sidecar to capture",
         )
         # Inline maps are appended as a data URL ``//# sourceMappingURL=
         # data:application/json;base64,...``.
         self.assertIn(
             "//# sourceMappingURL=data:application/json;base64,",
-            code,
+            result.code,
         )
 
     def test_unknown_mode_silently_falls_back(self):
@@ -832,7 +808,7 @@ class TestEsbuildSourceMaps(TransactionCase):
         with self.assertLogs(
             f"{ASSET_ROOT}.esbuild", level=logging.WARNING
         ) as captured:
-            code = bundle.esbuild_native_bundle(source_maps="yes please")
+            result = bundle.esbuild_native_bundle(source_maps="yes please")
         self.assertTrue(
             any(
                 "event=source_maps_unknown_mode" in r.getMessage()
@@ -841,22 +817,16 @@ class TestEsbuildSourceMaps(TransactionCase):
             ),
             msg="invalid source_maps mode must emit a structured warning",
         )
-        self.assertIsNone(bundle._last_sourcemap)
-        self.assertIn("odoo.loader.registerNativeModules", code)
+        self.assertIsNone(result.sourcemap)
+        self.assertIn("odoo.loader.registerNativeModules", result.code)
 
     def test_external_mode_persists_sidecar_attachment(self):
         """``_save_esm_attachment`` writes a ``.esm.js.map`` sibling."""
-
-        class _Stub:
-            name = "test.sm.sidecar"
-            _last_metafile = None
-            _last_sourcemap = '{"version":3,"sources":[],"mappings":""}'
-
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
             "test.sm.sidecar",
             "/* bundle */",
-            _Stub(),
+            sourcemap='{"version":3,"sources":[],"mappings":""}',
         )
         sm_url = url + ".map"
         sm = (
@@ -874,18 +844,11 @@ class TestEsbuildSourceMaps(TransactionCase):
         self.assertEqual(sm.mimetype, "application/json")
 
     def test_no_sourcemap_no_sidecar(self):
-        """When ``_last_sourcemap is None`` no ``.map`` sidecar is created."""
-
-        class _Stub:
-            name = "test.sm.absent"
-            _last_metafile = None
-            _last_sourcemap = None
-
+        """When no sourcemap is passed, no ``.map`` sidecar is created."""
         ir_qweb = self.env["ir.qweb"]
         url = ir_qweb._save_esm_attachment(
             "test.sm.absent",
             "/* bundle */",
-            _Stub(),
         )
         sm_url = url + ".map"
         sm = (
