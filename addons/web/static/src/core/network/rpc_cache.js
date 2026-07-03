@@ -401,13 +401,16 @@ export class RPCCache {
                 const fromCache = new Deferred();
                 /** @type {any} */
                 let fromCacheValue;
+                // Distinguishes "no cached value" from a cached falsy payload
+                // (e.g. false, 0, ""): fromCacheValue alone can't tell them apart.
+                let hasCacheValue = false;
                 const onFulfilled = (/** @type {any} */ result) => {
                     resolve(result);
                     // Always notify pending callbacks — subscribers explicitly
                     // requested server data via `update: "always"`. The RPC result
                     // is fresh regardless of whether the cache was invalidated.
                     const hasChanged =
-                        !!fromCacheValue && payloadChanged(fromCacheValue, result);
+                        hasCacheValue && payloadChanged(fromCacheValue, result);
                     request.callbacks.forEach((cb) => cb(shape(result), hasChanged));
                     if (request.invalidated) {
                         // Cache was invalidated mid-flight: don't persist stale
@@ -451,11 +454,11 @@ export class RPCCache {
                     await fromCache;
                     if (!request.invalidated) {
                         delete this.pendingRequests[requestKey];
-                        if (!fromCacheValue) {
+                        if (!hasCacheValue) {
                             this.ramCache.delete(table, key); // remove rejected prom from ram cache
                         }
                     }
-                    if (fromCacheValue) {
+                    if (hasCacheValue) {
                         // Promise was already fulfilled with cached value — the
                         // caller already got its data, so don't reject.  But if
                         // the failure is a ConnectionLostError we must still
@@ -477,9 +480,8 @@ export class RPCCache {
                 // `onFulfilled`.  Otherwise — when both promises are
                 // pre-resolved (typical mocked-RPC test, but also any
                 // sufficiently fast cache hit) — `onFulfilled` would
-                // observe `fromCacheValue === undefined` and short-circuit
-                // `hasChanged` to false via the `!!fromCacheValue` guard,
-                // silently masking real refreshes.
+                // observe `hasCacheValue === false` and short-circuit
+                // `hasChanged` to false, silently masking real refreshes.
                 if (ramValue) {
                     // ramValue is always already resolved here, as it can't be pending (otherwise
                     // we would have early returned because of `pendingRequests`) and it would have
@@ -488,6 +490,7 @@ export class RPCCache {
                     ramValue.then((/** @type {any} */ value) => {
                         resolve(value);
                         fromCacheValue = value;
+                        hasCacheValue = true;
                         fromCache.resolve();
                     });
                 } else if (type === "disk") {
@@ -505,6 +508,7 @@ export class RPCCache {
                                 }
                                 resolve(decrypted);
                                 fromCacheValue = decrypted;
+                                hasCacheValue = true;
                             }
                         })
                         .finally(() => fromCache.resolve());

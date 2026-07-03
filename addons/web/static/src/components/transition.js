@@ -5,6 +5,7 @@
 
 import {
     Component,
+    onWillDestroy,
     onWillUpdateProps,
     status,
     useComponent,
@@ -81,6 +82,9 @@ export function useTransition({
     });
 
     let prevState, timer;
+    // Clear any pending leave timer so onLeave never fires against a
+    // destroyed component.
+    onWillDestroy(() => browser.clearTimeout(timer));
     const transition = {
         get shouldMount() {
             return state.shouldMount;

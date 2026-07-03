@@ -9,6 +9,7 @@ import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { useChildRef } from "@web/core/utils/hooks";
@@ -133,6 +134,7 @@ export class SelectMenu extends Component {
         });
         this.inputRef = useRef("inputRef");
         this.menuRef = useChildRef();
+        this.onInputKeepLast = new KeepLast();
         this.onScrollListener = (ev) => this.onScroll(ev);
         this.scrollListenerEl = null;
         this.props.menuRef?.(this.menuRef);
@@ -145,6 +147,14 @@ export class SelectMenu extends Component {
         this.dropdownState = useDropdownState();
 
         this.selectedChoice = this.getSelectedChoice(this.props);
+        // Cache of props.choices sorted by label, keyed on the props.choices
+        // array identity. filterOptions re-sorts ALL choices on every open;
+        // for a stable choices array this recomputes an identical result each
+        // time. Invalidate whenever the choices reference changes.
+        /** @type {any[] | null} */
+        this._sortedChoicesCache = null;
+        /** @type {any[] | null} */
+        this._sortedChoicesSource = null;
         onWillUpdateProps((nextProps) => {
             const choicesChanged = this.props.choices !== nextProps.choices;
             if (choicesChanged) {
@@ -336,7 +346,9 @@ export class SelectMenu extends Component {
     async onInput(searchString) {
         this.filterOptions(searchString);
         if (this.props.onInput) {
-            await this.props.onInput(searchString);
+            await this.onInputKeepLast.add(
+                Promise.resolve(this.props.onInput(searchString)),
+            );
         }
     }
 
@@ -415,9 +427,7 @@ export class SelectMenu extends Component {
                 );
             } else {
                 if (this.props.autoSort) {
-                    filteredOptions = filteredOptions.toSorted((optionA, optionB) =>
-                        collator.compare(optionA.label, optionB.label),
-                    );
+                    filteredOptions = this.getSortedChoices(filteredOptions);
                 }
             }
 
@@ -441,6 +451,28 @@ export class SelectMenu extends Component {
 
         this.state.choices = _choices;
         this.sliceDisplayedOptions();
+    }
+
+    /**
+     * Returns ``choices`` sorted by label. The result for ``props.choices``
+     * (the common case: the same array is re-filtered on every open) is
+     * cached against the array's identity so the sort runs once per distinct
+     * choices reference instead of on every open. Other arrays (per-group
+     * choices) are sorted without caching.
+     *
+     * @param {any[]} choices
+     * @returns {any[]}
+     */
+    getSortedChoices(choices) {
+        const sortByLabel = (a, b) => collator.compare(a.label, b.label);
+        if (choices !== this.props.choices) {
+            return choices.toSorted(sortByLabel);
+        }
+        if (this._sortedChoicesSource !== choices) {
+            this._sortedChoicesSource = choices;
+            this._sortedChoicesCache = choices.toSorted(sortByLabel);
+        }
+        return this._sortedChoicesCache;
     }
 
     // ==========================================================================================

@@ -129,6 +129,9 @@ class DefaultField extends Component {
     static props = ["*"];
 }
 
+// Warn once per widget/type miss, not once per component instance.
+const warnedWidgetMisses = new Set();
+
 /**
  * Resolves a field descriptor from the field registry, searching with optional
  * jsClass and viewType prefixes (e.g. "list.char", "char").
@@ -152,15 +155,24 @@ export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
     };
     if (widget) {
         const field = findInRegistry(widget);
+        const warningKey = `${widget}|${fieldType}`;
         if (field) {
-            if (field.supportedTypes && !field.supportedTypes.includes(fieldType)) {
+            if (
+                field.supportedTypes &&
+                !field.supportedTypes.includes(fieldType) &&
+                !warnedWidgetMisses.has(warningKey)
+            ) {
+                warnedWidgetMisses.add(warningKey);
                 console.warn(
                     `The widget: ${widget} don't support the type ${fieldType}`,
                 );
             }
             return field;
         }
-        console.warn(`Missing widget: ${widget} for field of type ${fieldType}`);
+        if (!warnedWidgetMisses.has(warningKey)) {
+            warnedWidgetMisses.add(warningKey);
+            console.warn(`Missing widget: ${widget} for field of type ${fieldType}`);
+        }
     }
     return /** @type {any} */ (
         findInRegistry(fieldType) || { component: DefaultField }
@@ -319,7 +331,7 @@ export class Field extends Component {
             o_field_invalid: invalid,
             o_field_empty: empty,
             [`o_field_${this.type}`]: true,
-            [_class]: Boolean(_class),
+            ...(_class ? { [_class]: true } : {}),
         };
         if (this.field.additionalClasses) {
             for (const cls of this.field.additionalClasses) {

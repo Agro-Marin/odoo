@@ -104,6 +104,7 @@ export function makeController(params, am) {
  * @returns {Action} the normalized action (a fresh copy)
  */
 export function preprocessAction(action, context, am) {
+    action = { ...action }; // manipulate a copy to keep cached action unmodified
     try {
         delete action._originalAction;
         action._originalAction = JSON.stringify(action);
@@ -121,7 +122,6 @@ export function preprocessAction(action, context, am) {
             delete action.help;
         }
     }
-    action = { ...action }; // manipulate a copy to keep cached action unmodified
     action.jsId = `action_${am._nextId()}`;
     if (
         action.type === "ir.actions.act_window" ||
@@ -144,8 +144,6 @@ export function preprocessAction(action, context, am) {
                 : false;
             action.views.push([searchViewId, "search"]);
         }
-        // context is assigned above, but the {...action} spread reset TS's
-        // narrowing; the guard restores it without changing behavior.
         if (action.context && "no_breadcrumbs" in action.context) {
             action._noBreadcrumbs = action.context.no_breadcrumbs;
             delete action.context.no_breadcrumbs;

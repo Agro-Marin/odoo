@@ -44,7 +44,7 @@ bsSanitizeAllowList.colgroup = ["span"];
 bsSanitizeAllowList.table = [];
 bsSanitizeAllowList.thead = [];
 bsSanitizeAllowList.tbody = [];
-bsSanitizeAllowList.tfooter = [];
+bsSanitizeAllowList.tfoot = [];
 bsSanitizeAllowList.tr = [];
 bsSanitizeAllowList.th = ["colspan", "rowspan"];
 bsSanitizeAllowList.td = ["colspan", "rowspan"];
@@ -62,11 +62,14 @@ bsSanitizeAllowList.del = [];
  * types in this fork, so widen via cast). */
 const TooltipDefault = /** @type {any} */ (Tooltip.Default);
 TooltipDefault.placement = "auto";
-TooltipDefault.fallbackPlacement = ["bottom", "right", "left", "top"];
+TooltipDefault.fallbackPlacements = ["bottom", "right", "left", "top"];
 TooltipDefault.html = true;
 TooltipDefault.trigger = "hover";
 TooltipDefault.container = "body";
-TooltipDefault.boundary = "window";
+// Constrain to the window, as the BS4-era "window" value intended: the
+// vendored Popper maps the "viewport" string to the viewport rect in
+// getClientRectFromMixedType (Popper 2 has no "window" boundary).
+TooltipDefault.boundary = "viewport";
 TooltipDefault.delay = { show: 1000, hide: 0 };
 
 const bootstrapShowFunction = Tooltip.prototype.show;

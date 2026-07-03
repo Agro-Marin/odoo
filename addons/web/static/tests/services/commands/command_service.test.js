@@ -78,6 +78,30 @@ test("commands evilness 👹", async () => {
     }).toThrow(/A Command must have a name and an action function/);
 });
 
+test("same-name commands with distinct identifiers are disambiguated at read time", async () => {
+    const command = getService("command");
+    const ui = getService("ui");
+    const remove1 = command.add("Assign to", () => {}, {
+        global: true,
+        identifier: "Salesperson",
+    });
+    const remove2 = command.add("Assign to", () => {}, {
+        global: true,
+        identifier: "Technician",
+    });
+    expect(command.getCommands(ui.activeElement).map((c) => c.name)).toEqual([
+        "Assign to (Salesperson)",
+        "Assign to (Technician)",
+    ]);
+    // Registrations are not renamed in place: the name heals once the
+    // clashing command unregisters.
+    remove2();
+    expect(command.getCommands(ui.activeElement).map((c) => c.name)).toEqual([
+        "Assign to",
+    ]);
+    remove1();
+});
+
 test("useCommand hook", async () => {
     class MyComponent extends TestComponent {
         setup() {

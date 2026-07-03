@@ -61,21 +61,25 @@ async function performAction(trigger, action) {
 
 /**
  * @param {Function | string} [trigger]
+ * @param {AbortSignal} [signal]
  */
-async function waitForTrigger(trigger) {
+async function waitForTrigger(trigger, signal) {
     if (!trigger) {
         return;
     }
     try {
         await delay(50);
-        return await waitUntil(() => {
-            if (typeof trigger === "function") {
-                return trigger();
-            } else if (typeof trigger === "string") {
-                const triggerEl = document.querySelector(trigger);
-                return isVisible(triggerEl) && triggerEl;
-            }
-        });
+        return await waitUntil(
+            () => {
+                if (typeof trigger === "function") {
+                    return trigger();
+                } else if (typeof trigger === "string") {
+                    const triggerEl = document.querySelector(trigger);
+                    return isVisible(triggerEl) && triggerEl;
+                }
+            },
+            { signal },
+        );
     } catch (error) {
         throw new MacroError(
             "Trigger",
@@ -92,16 +96,26 @@ async function waitForTrigger(trigger) {
  *
  * @template T
  * @param {() => T} predicate
+ * @param {{ signal?: AbortSignal }} [options] abort the polling loop through
+ *  `signal` (the returned promise then rejects with an "AbortError")
  * @returns {Promise<T>}
  */
-export async function waitUntil(predicate) {
+export async function waitUntil(predicate, { signal } = {}) {
+    if (signal?.aborted) {
+        throw new DOMException("waitUntil has been aborted", "AbortError");
+    }
     const result = predicate();
     if (result) {
         return Promise.resolve(result);
     }
     /** @type {number} */
     let handle;
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+        signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("waitUntil has been aborted", "AbortError")),
+            { once: true },
+        );
         const runCheck = () => {
             const result = predicate();
             if (result) {
@@ -128,6 +142,8 @@ export class Macro {
     timeout = undefined;
     /** @type {MacroStep[]} */
     steps = [];
+    /** @type {AbortController | undefined} */
+    abortController;
     /** @type {Function} */
     onComplete = () => {};
     /** @type {Function} */
@@ -170,22 +186,31 @@ export class Macro {
         try {
             const step = this.steps[this.currentIndex];
             const timeoutDelay = step.timeout || this.timeout || 10000;
+            const abortController = new AbortController();
+            this.abortController = abortController;
             const executeStep = async () => {
-                const trigger = await waitForTrigger(step.trigger);
+                const trigger = await waitForTrigger(step.trigger, abortController.signal);
                 const result = await performAction(trigger, step.action);
                 await this.onStep({ step, trigger, index: this.currentIndex });
                 return result;
             };
             const launchTimer = async () => {
                 await delay(timeoutDelay);
+                // Cancel the trigger polling loop, which would otherwise keep
+                // running (and leak) after losing the race.
+                abortController.abort();
                 throw new MacroError(
                     "Timeout",
                     `TIMEOUT step failed to complete within ${timeoutDelay} ms.`,
                 );
             };
+            const stepPromise = executeStep();
+            // The race may settle with the timer's rejection: keep the losing
+            // step promise's abort rejection from being reported as unhandled.
+            stepPromise.catch(() => {});
             // If falsy action result, it means the action worked properly.
             // So we can proceed to the next step.
-            const actionResult = await Promise.race([executeStep(), launchTimer()]);
+            const actionResult = await Promise.race([stepPromise, launchTimer()]);
             if (actionResult) {
                 this.stop();
                 return;
@@ -206,6 +231,7 @@ export class Macro {
             return;
         }
         this.isComplete = true;
+        this.abortController?.abort();
         if (error) {
             const step = this.steps[this.currentIndex];
             this.onError({ error, step, index: this.currentIndex });

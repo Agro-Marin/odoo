@@ -57,14 +57,17 @@ class DropdownNestingState {
     }
 
     handleChange(other) {
+        // O(1) guard first: every mounted dropdown receives this broadcast,
+        // and on list/kanban pages ~all of them are closed — don't pay the
+        // recursive children walk (with its array spread) for those.
+        if (!(other.isOpen && this.isOpen)) {
+            return;
+        }
         // Prevents closing the dropdown when a change is coming from itself or from a children.
         if (this.shouldIgnoreChanges(other)) {
             return;
         }
-
-        if (other.isOpen && this.isOpen) {
-            this.close();
-        }
+        this.close();
     }
 }
 

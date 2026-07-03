@@ -100,6 +100,15 @@ export class Mutex {
         this._unlock = undefined;
     }
     /**
+     * Whether a computation is currently running or queued. Lets callers
+     * skip an ``await`` (and its microtask delay) when the mutex is
+     * already free.
+     */
+    get locked() {
+        return this._queueSize > 0;
+    }
+
+    /**
      * Add a computation to the queue, it will be executed as soon as the
      * previous computations are completed.
      *

@@ -65,7 +65,13 @@ export function makeAsyncHandler(fct) {
         }
 
         _lock();
-        const result = fct.apply(this, arguments);
+        let result;
+        try {
+            result = fct.apply(this, arguments);
+        } catch (error) {
+            _unlock();
+            throw error;
+        }
         Promise.resolve(result).finally(_unlock);
         return result;
     };
