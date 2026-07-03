@@ -31,6 +31,7 @@ from odoo.tools.assets.esm_graph import (
     _BridgeExportResolver,
     _extract_esm_exports,
 )
+from odoo.tools.assets.esm_lexer import lex_module
 
 __all__ = ["BridgeShimManager", "NativeModuleLike"]
 
@@ -341,31 +342,57 @@ class BridgeShimManager:
         discovered: dict[str, set[str]] = {}
         ignored = native_specifiers | {"@odoo/owl"} | ext_lib_names
         ext_seen: set[str] = set()
+
+        def record(specifier: str, kind: str | None) -> None:
+            if specifier in ext_lib_names:
+                ext_seen.add(specifier)
+                return
+            if specifier in ignored:
+                return
+            if kind:
+                discovered.setdefault(specifier, set()).add(kind)
+            else:
+                # Named import OR bindingless side-effect import: register
+                # the specifier with no kind. For a side-effect import the
+                # shim still reads the source file's export surface, and the
+                # side effect itself already ran in the parent bundle, so an
+                # import-map entry to a valid (even export-only) shim is all
+                # the child needs to resolve the specifier.
+                discovered.setdefault(specifier, set())
+
         for asset in modules:
-            # Single pass over each module's source: _IMPORT_ANY_RE matches the
-            # named / default / namespace / bindingless-side-effect import shapes
-            # in one finditer (was three separate full-source scans). The kind is
-            # read from whichever named group matched; ``spec`` (binding+from)
-            # and ``side`` (side-effect) are mutually exclusive per match.
+            # Primary path: the es-module-lexer worker (spec-compliant,
+            # also catches the mixed ``import X, { y } from "@a/b"`` shape
+            # the regex misses).  Only ``@addon`` specifiers travel via
+            # bridges — relative imports resolve inside the bundle, other
+            # bare specifiers only through ``ODOO_EXTERNAL_LIBS`` (checked
+            # against ``ext_lib_names`` for observability parity).
+            lexed = lex_module(asset.raw_content)
+            if lexed is not None:
+                for imp in lexed["imports"]:
+                    specifier = imp["n"]
+                    if not specifier.startswith("@"):
+                        continue
+                    kind = {
+                        "default": "__default__",
+                        "star": "__star__",
+                    }.get(imp["kind"])
+                    record(specifier, kind)
+                continue
+            # Regex fallback — single pass over each module's source:
+            # _IMPORT_ANY_RE matches the named / default / namespace /
+            # bindingless-side-effect import shapes in one finditer. The
+            # kind is read from whichever named group matched; ``spec``
+            # (binding+from) and ``side`` (side-effect) are mutually
+            # exclusive per match.
             for match in _IMPORT_ANY_RE.finditer(asset.raw_content):
                 specifier = match.group("spec") or match.group("side")
-                if specifier in ext_lib_names:
-                    ext_seen.add(specifier)
-                    continue
-                if specifier in ignored:
-                    continue
                 if match.group("default") is not None:
-                    discovered.setdefault(specifier, set()).add("__default__")
+                    record(specifier, "__default__")
                 elif match.group("star") is not None:
-                    discovered.setdefault(specifier, set()).add("__star__")
+                    record(specifier, "__star__")
                 else:
-                    # Named import OR bindingless side-effect import: register
-                    # the specifier with no kind. For a side-effect import the
-                    # shim still reads the source file's export surface, and the
-                    # side effect itself already ran in the parent bundle, so an
-                    # import-map entry to a valid (even export-only) shim is all
-                    # the child needs to resolve the specifier.
-                    discovered.setdefault(specifier, set())
+                    record(specifier, None)
         return discovered, ext_seen
 
     def _build_native_to_legacy_bridge(

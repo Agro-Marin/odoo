@@ -2,6 +2,7 @@
   "private": true,
   "description": "Odoo 19.0 JS tooling",
   "devDependencies": {
+    "es-module-lexer": "^1.7.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.2"
   }

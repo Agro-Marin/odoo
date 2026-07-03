@@ -16,6 +16,7 @@ from pathlib import Path
 
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
+from odoo.tools.assets.esm_lexer import lex_module
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_open, file_path
 
@@ -309,13 +310,25 @@ def _extract_esm_exports(
 ) -> tuple[set[str], bool]:
     """Return ``(named_exports, has_default)`` parsed from a JS source file.
 
-    Robust against the common ES module export shapes used in the fork:
-    declarations, re-export lists (with ``as`` renames), destructured
-    declarations, ``export {x} from "..."``, ``export * from "..."``, and
-    ``export * as ns from "..."``.  Not a full parser — won't catch
-    deeply nested destructuring or ``export const x = (function(){...})();``
-    style but covers every shape currently in ``addons/core`` and
-    ``addons/agromarin``.
+    Primary path: the spec-compliant ``es-module-lexer`` worker
+    (``odoo.tools.assets.esm_lexer.lex_module``) — a real lexer, immune
+    to the comment/string false-positive class by construction.  When the
+    worker is unavailable (no node, package missing, worker died) or the
+    source doesn't lex, the historical regex extractor below takes over.
+    Both paths share the same recursive ``export * from`` expansion,
+    visited-set and memoization semantics.  Corpus cross-check
+    2026-07-03: lexer and regex agree on every ``static/src`` file across
+    all five addon roots.
+
+    The regex path is robust against the common ES module export shapes
+    used in the fork: declarations, re-export lists (with ``as``
+    renames), destructured declarations, ``export {x} from "..."``,
+    ``export * from "..."``, and ``export * as ns from "..."``.  Not a
+    full parser — block comments and template literals are stripped first
+    (``_JS_OPAQUE_RE``, same as ``has_module_syntax``) so an ``export``
+    quoted in a docstring cannot inject a spurious name — the shim would
+    emit ``export const Foo = _m?.Foo;`` (silently ``undefined``) or a
+    false ``has_default``.
 
     :param src: Raw JS source as a string.
     :param source_map: Optional dict mapping module specifier → raw source.
@@ -338,6 +351,52 @@ def _extract_esm_exports(
     """
     visited = _visited if _visited is not None else set()
     names: set[str] = set()
+
+    def expand_star(raw_target: str) -> None:
+        """Union the transitive surface of ``export * from raw_target``.
+
+        Shared by the lexer and regex paths.  Memoized expansion (opt-in
+        via ``_exports_cache``): a barrel reached through several modules'
+        chains is parsed once.  The cache is checked BEFORE ``visited``
+        because a cached entry is the target's COMPLETE transitive
+        surface — correct to reuse even where ``visited`` would otherwise
+        skip it.  Safe for the acyclic ``export *`` graphs the fork has;
+        callers that might introduce a circular ``export *`` simply pass
+        no cache.
+        """
+        target_spec = _resolve_export_specifier(importing_specifier, raw_target)
+        if _exports_cache is not None and target_spec in _exports_cache:
+            names.update(_exports_cache[target_spec])
+            return
+        # ``source_map is None`` (not falsy!): a lazy source map is an
+        # empty dict at first call but becomes non-empty as entries are
+        # populated.  Bool-checking the dict would short-circuit the very
+        # first recursion that would populate it.
+        if not target_spec or source_map is None or target_spec in visited:
+            return
+        target_src = source_map.get(target_spec)
+        if target_src is None:
+            return
+        visited.add(target_spec)
+        child_names, _ = _extract_esm_exports(
+            target_src,
+            source_map=source_map,
+            importing_specifier=target_spec,
+            _visited=visited,
+            _exports_cache=_exports_cache,
+        )
+        names.update(child_names)
+        if _exports_cache is not None:
+            _exports_cache[target_spec] = child_names
+
+    lexed = lex_module(src)
+    if lexed is not None:
+        names.update(lexed["names"])
+        for raw_target in lexed["starFrom"]:
+            expand_star(raw_target)
+        return names, lexed["hasDefault"]
+
+    src = _JS_OPAQUE_RE.sub("", src)
     for kind, pattern in _ESM_EXPORT_PATTERNS_COMPILED:
         for match in pattern.finditer(src):
             if kind == "decl":
@@ -366,41 +425,7 @@ def _extract_esm_exports(
                 names.add(match.group(1))
             elif kind == "star_from":
                 # ``export * from "X"`` — must resolve X and recurse.
-                target_spec = _resolve_export_specifier(
-                    importing_specifier,
-                    match.group(1),
-                )
-                # Memoized expansion (opt-in via ``_exports_cache``): a barrel
-                # reached through several modules' chains is parsed once. The
-                # cache is checked BEFORE ``visited`` because a cached entry is
-                # the target's COMPLETE transitive surface — correct to reuse
-                # even where ``visited`` would otherwise skip it. Safe for the
-                # acyclic ``export *`` graphs the fork has; callers that might
-                # introduce a circular ``export *`` simply pass no cache.
-                if _exports_cache is not None and target_spec in _exports_cache:
-                    names.update(_exports_cache[target_spec])
-                    continue
-                # ``source_map is None`` (not falsy!): a lazy source map
-                # is an empty dict at first call but becomes non-empty as
-                # entries are populated.  Bool-checking the dict would
-                # short-circuit the very first recursion that would
-                # populate it.
-                if not target_spec or source_map is None or target_spec in visited:
-                    continue
-                target_src = source_map.get(target_spec)
-                if target_src is None:
-                    continue
-                visited.add(target_spec)
-                child_names, _ = _extract_esm_exports(
-                    target_src,
-                    source_map=source_map,
-                    importing_specifier=target_spec,
-                    _visited=visited,
-                    _exports_cache=_exports_cache,
-                )
-                names.update(child_names)
-                if _exports_cache is not None:
-                    _exports_cache[target_spec] = child_names
+                expand_star(match.group(1))
     has_default = bool(_ESM_EXPORT_DEFAULT_RE.search(src))
     return names, has_default
 
@@ -566,9 +591,24 @@ def _bridge_shim_source(
 ) -> tuple[str, bool]:
     """Build the bridge shim JS for one specifier.
 
+    The default-export block is emitted UNCONDITIONALLY — not only when the
+    source has a default or a consumer requested one.  The runtime
+    counterpart (``@web/core/module_bridge.buildBridgeModuleSource``) cannot
+    know consumer kinds, so it always emits the block; the two generators
+    must produce the same shape for a server bridge attachment and a
+    client-built ``data:`` bridge to be interchangeable.  For a module with
+    no default export ``_m?.default`` is ``undefined`` and ``_d`` falls back
+    to the namespace itself — esbuild's ESM-default interop.  (The old
+    conditional emission could even produce a DUPLICATE ``export default``
+    — a SyntaxError — for an unreadable source consumed via ``import *``:
+    ``__star__`` triggered the first branch and the star fallback appended
+    a second one.)
+
     Returns ``(shim_js, is_star_fallback)`` — ``is_star_fallback`` is True
-    when the source couldn't be read and no default was requested, so only
-    the ``export default _m`` star bridge is emitted.
+    when the export surface is empty (source couldn't be read) and no
+    default was requested; the shim then carries only the default/namespace
+    fallback.  The flag feeds the ``star_fallback`` telemetry counter in
+    ``esm_bridges``.
     """
     # Shim target: the import map entry for this specifier.  The
     # runtime looks the module up in ``odoo.loader.modules``; the
@@ -576,22 +616,14 @@ def _bridge_shim_source(
     # exact specifier string.
     lines = [
         f"const _m = odoo.loader.modules.get({json.dumps(specifier)});",
-    ]
-    if has_default or "__default__" in kinds or "__star__" in kinds:
-        # Covers all three cases:
+        # Covers all consumers:
         #  * real default export → _m.default exists
         #  * consumer imports ``import X from`` → fall back to _m
         #    itself (matches esbuild's ESM-default interop)
         #  * ``import * as`` → the namespace IS _m
-        lines.append("const _d = _m?.default ?? _m;")
-        lines.append("export default _d;")
+        "const _d = _m?.default ?? _m;",
+        "export default _d;",
+    ]
     lines.extend(f"export const {name} = _m?.{name};" for name in sorted(src_names))
-    is_star_fallback = False
-    if not src_names and not has_default and "__default__" not in kinds:
-        # Source couldn't be read and no default requested — emit
-        # a star bridge so at least ``import * as x from …`` works.
-        # ``export default _m`` gives something callable for the
-        # common "got nothing" path, preferable to a broken shim.
-        lines.append("export default _m;")
-        is_star_fallback = True
+    is_star_fallback = not src_names and not has_default and "__default__" not in kinds
     return "\n".join(lines), is_star_fallback

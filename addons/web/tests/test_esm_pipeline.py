@@ -1147,18 +1147,37 @@ class TestBridgeHelpers(TransactionCase):
         self.assertLess(shim.index("export const a"), shim.index("export const b"))
 
     def test_shim_source_star_fallback(self):
-        """No names and no default -> the ``export default _m`` star fallback."""
+        """No names and no default -> flagged, but same interop default shape."""
         shim, star = AssetsBundle._bridge_shim_source("@web/bar", set(), set(), False)
         self.assertTrue(star)
-        self.assertIn("export default _m;", shim)
-        self.assertNotIn("_m?.default", shim)
+        self.assertIn("const _d = _m?.default ?? _m;", shim)
+        self.assertIn("export default _d;", shim)
+        self.assertNotIn("export const", shim)
 
-    def test_shim_source_named_only_no_default(self):
-        """Named exports without a default emit no ``export default``."""
+    def test_shim_source_named_only_still_exports_default(self):
+        """Named-only surfaces still emit the interop default block.
+
+        The runtime bridge builder (``@web/core/module_bridge``) always
+        emits it — the two generators must stay field-for-field identical
+        for server attachments and ``data:`` bridges to be interchangeable.
+        """
         shim, star = AssetsBundle._bridge_shim_source("@web/baz", set(), {"x"}, False)
         self.assertFalse(star)
         self.assertIn("export const x = _m?.x;", shim)
-        self.assertNotIn("export default", shim)
+        self.assertIn("export default _d;", shim)
+
+    def test_shim_source_star_kind_no_duplicate_default(self):
+        """``__star__`` consumers of an unreadable source get ONE default.
+
+        The old conditional emission appended a second ``export default``
+        (a SyntaxError in the shim) when ``__star__`` was in the consumer
+        kinds but the export surface was empty.
+        """
+        shim, star = AssetsBundle._bridge_shim_source(
+            "@web/qux", {"__star__"}, set(), False
+        )
+        self.assertTrue(star)
+        self.assertEqual(shim.count("export default"), 1)
 
     def test_shim_source_default_kind_triggers_export(self):
         """A ``__default__`` consumer kind forces a default export even when the
@@ -1169,3 +1188,119 @@ class TestBridgeHelpers(TransactionCase):
         )
         self.assertFalse(star)
         self.assertIn("export default _d;", shim)
+
+
+class TestEsmLexer(TransactionCase):
+    """The es-module-lexer worker and its wiring into export extraction.
+
+    The worker requires node + ``npm install`` (same prerequisites as
+    esbuild).  ``test_worker_available`` pins that expectation for dev/CI
+    environments; the extraction tests exercise BOTH paths explicitly so
+    a regression in either cannot hide behind the other.
+    """
+
+    SRC = (
+        'import { q } from "@web/other";\n'
+        "export const alpha = 1;\n"
+        "export function beta() {}\n"
+        "export default class Gamma {}\n"
+        'export * as ns from "@web/ns_target";\n'
+        # NOTE: no line-commented export here — that is the one shape the
+        # two paths legitimately DIVERGE on (the regex extractor keeps
+        # line comments; the lexer ignores them by construction).  The
+        # lexer-only behavior is pinned by
+        # ``test_lexer_line_comment_immunity``.
+        "/* export const block_commented = 2; */\n"
+        "const tpl = `export const in_template = 3;`;\n"
+    )
+
+    def test_worker_available(self):
+        """The lexer worker must be functional where esbuild is (dev/CI)."""
+        from odoo.tools.assets.esm_lexer import lex_module
+
+        result = lex_module("export const x = 1;")
+        self.assertIsNotNone(
+            result,
+            msg="es-module-lexer worker unavailable — run `npm install` "
+            "in the Odoo root (same prerequisite as esbuild)",
+        )
+        self.assertEqual(result["names"], ["x"])
+        self.assertFalse(result["hasDefault"])
+
+    def test_lexer_and_regex_paths_agree(self):
+        """Both extraction paths return the same surface on lexable source.
+
+        The lexer is immune to comment/template false positives by
+        construction; the regex path via ``_JS_OPAQUE_RE`` stripping.
+        """
+        from odoo.tools.assets import esm_graph
+
+        expected = ({"alpha", "beta", "ns"}, True)
+        # Lexer path (primary).
+        self.assertEqual(esm_graph._extract_esm_exports(self.SRC), expected)
+        # Regex path (fallback), forced by stubbing the worker out.
+        with patch.object(esm_graph, "lex_module", return_value=None):
+            self.assertEqual(esm_graph._extract_esm_exports(self.SRC), expected)
+
+    def test_lexer_line_comment_immunity(self):
+        """A ``// export const x`` line comment fools neither path into a
+        spurious name — the lexer by construction; this documents the one
+        false-positive class (line comments) the regex path still has,
+        which the lexer now shields in practice."""
+        from odoo.tools.assets import esm_graph
+
+        names, has_default = esm_graph._extract_esm_exports(
+            "// export const ghost = 1;\nexport const real = 2;\n"
+        )
+        self.assertEqual(names, {"real"})
+        self.assertFalse(has_default)
+
+    def test_star_expansion_shared_by_both_paths(self):
+        """``export * from`` recursion works identically via lexer and regex."""
+        from odoo.tools.assets import esm_graph
+
+        source_map = {
+            "@web/barrel": 'export * from "@web/leaf";\nexport const own = 1;',
+            "@web/leaf": "export const leaf_a = 1;\nexport const leaf_b = 2;",
+        }
+        expected = ({"own", "leaf_a", "leaf_b"}, False)
+        result = esm_graph._extract_esm_exports(
+            source_map["@web/barrel"],
+            source_map=source_map,
+            importing_specifier="@web/barrel",
+        )
+        self.assertEqual(result, expected)
+        with patch.object(esm_graph, "lex_module", return_value=None):
+            result = esm_graph._extract_esm_exports(
+                source_map["@web/barrel"],
+                source_map=source_map,
+                importing_specifier="@web/barrel",
+            )
+        self.assertEqual(result, expected)
+
+    def test_unlexable_source_falls_back_to_regex(self):
+        """A syntax error in the source degrades to the regex path, not to
+        an empty surface."""
+        from odoo.tools.assets import esm_graph
+
+        broken = "export const good = 1;\nfunction ( { invalid syntax\n"
+        names, _ = esm_graph._extract_esm_exports(broken)
+        self.assertIn("good", names)
+
+    def test_discovery_catches_mixed_default_named_import(self):
+        """``import X, { y } from "@a/b"`` is discovered by the lexer path.
+
+        The regex ``_IMPORT_ANY_RE`` misses this shape entirely (latent
+        gap: no bridge was built, the satellite bundle failed to resolve
+        the specifier at runtime).
+        """
+        from odoo.tools.assets.esm_bridges import BridgeShimManager
+
+        asset = SimpleNamespace(
+            module_path="@web/consumer",
+            raw_content='import Def, { named } from "@other/mixed";\n',
+        )
+        manager = BridgeShimManager(self.env, "test.bundle", [asset])
+        discovered, _ext = manager._discover_bridge_specifiers(set(), set())
+        self.assertIn("@other/mixed", discovered)
+        self.assertIn("__default__", discovered["@other/mixed"])
