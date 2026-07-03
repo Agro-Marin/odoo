@@ -1,6 +1,6 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { after, describe, expect, test } from "@odoo/hoot";
 
 /**
  * ``module_loader.js`` has been in continuous simplification since the
@@ -146,4 +146,90 @@ test("ambient odoo.loader exposes the full loader contract", () => {
     expect(odoo.loader.modules).toBeInstanceOf(Map);
     expect(odoo.loader.bus).toBeInstanceOf(EventTarget);
     expect(typeof odoo.loader.registerNativeModules).toBe("function");
+});
+
+describe("asset load self-heal", () => {
+    const GUARD_KEY = "odoo-asset-reload-ts";
+
+    /** @param {string | null} value */
+    function withGuard(value) {
+        const previous = sessionStorage.getItem(GUARD_KEY);
+        if (value === null) {
+            sessionStorage.removeItem(GUARD_KEY);
+        } else {
+            sessionStorage.setItem(GUARD_KEY, value);
+        }
+        after(() => {
+            if (previous === null) {
+                sessionStorage.removeItem(GUARD_KEY);
+            } else {
+                sessionStorage.setItem(GUARD_KEY, previous);
+            }
+        });
+    }
+
+    /** @param {Record<string, string>} [attrs] */
+    function makeScript(attrs = {}) {
+        const script = document.createElement("script");
+        for (const [name, value] of Object.entries(attrs)) {
+            script.setAttribute(name, value);
+        }
+        return script;
+    }
+
+    test("failing bundle script triggers one reload", () => {
+        withGuard(null);
+        const loader = new ModuleLoader();
+        const reloads = [];
+        loader._reloadPage = () => reloads.push(1);
+
+        const script = makeScript({
+            src: "/web/assets/esm/abc123/web.assets_web.esm.js",
+        });
+        expect(loader.handleAssetLoadError(script)).toBe(true);
+        expect(reloads).toHaveLength(1);
+        // Second failure inside the guard window: no second reload.
+        expect(loader.handleAssetLoadError(script)).toBe(false);
+        expect(reloads).toHaveLength(1);
+    });
+
+    test("expired guard window allows a fresh reload", () => {
+        withGuard(String(Date.now() - 120_000));
+        const loader = new ModuleLoader();
+        const reloads = [];
+        loader._reloadPage = () => reloads.push(1);
+
+        const script = makeScript({ src: "/web/assets/1/web.assets_web.js" });
+        expect(loader.handleAssetLoadError(script)).toBe(true);
+        expect(reloads).toHaveLength(1);
+    });
+
+    test("non-bundle script failures are ignored", () => {
+        withGuard(null);
+        const loader = new ModuleLoader();
+        loader._reloadPage = () => expect.step("reload");
+
+        expect(
+            loader.handleAssetLoadError(makeScript({ src: "/some/other/app.js" })),
+        ).toBe(false);
+        expect(loader.handleAssetLoadError(makeScript())).toBe(false);
+        expect(loader.handleAssetLoadError(document.createElement("link"))).toBe(
+            false,
+        );
+        expect(loader.handleAssetLoadError(null)).toBe(false);
+        expect.verifySteps([]);
+    });
+
+    test("lazy-load scripts (data-src) are covered", () => {
+        withGuard(null);
+        const loader = new ModuleLoader();
+        const reloads = [];
+        loader._reloadPage = () => reloads.push(1);
+
+        const script = makeScript({
+            "data-src": "/web/assets/1/web.assets_web_print.js",
+        });
+        expect(loader.handleAssetLoadError(script)).toBe(true);
+        expect(reloads).toHaveLength(1);
+    });
 });

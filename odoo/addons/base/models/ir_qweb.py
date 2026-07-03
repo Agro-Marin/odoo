@@ -3728,7 +3728,6 @@ class IrQweb(models.AbstractModel):
         is_css = ext in STYLE_EXTENSIONS
 
         if is_js:
-            is_asset_bundle = path and path.startswith("/web/assets/")
             attributes = {
                 "type": "text/javascript",
             }
@@ -3744,9 +3743,11 @@ class IrQweb(models.AbstractModel):
                 else:
                     attributes["src"] = path
 
-            if is_asset_bundle:
-                attributes["onerror"] = "__odooAssetError=1"
-
+            # NOTE: bundle scripts used to carry ``onerror="__odooAssetError=1"``
+            # — a vestige of a removed reload mechanism; no runtime reader
+            # existed.  Load-failure self-healing now lives in the module
+            # loader shim (``module_loader.js`` captures script error events
+            # for ``/web/assets/`` URLs and triggers one guarded reload).
             return ("script", attributes)
 
         if is_css:

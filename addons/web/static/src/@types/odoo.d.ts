@@ -40,6 +40,16 @@ class OdooModuleLoader {
      * emits ``rebind`` on ``bus``.
      */
     registerNativeModules(modulesByName: Record<string, OdooModule>): void;
+
+    /**
+     * Self-heal a failed bundle-asset script load (GC'd content-addressed
+     * URL on a stale cached page) with ONE rate-limited page reload.
+     * Returns whether a reload was triggered.
+     */
+    handleAssetLoadError(target: EventTarget | null): boolean;
+
+    /** Reload seam — overridden in tests; reloads only THIS document. */
+    _reloadPage(): void;
 }
 
 type OdooModule = Record<string, any>;

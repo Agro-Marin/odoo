@@ -44,9 +44,10 @@
  *   1. Provide a shared ``Map`` of module specifier → namespace so
  *      sibling bundles (e.g. ``website.assets_inside_builder_iframe``)
  *      resolve ``@web/core/registry`` to the SAME object as the parent
- *      bundle via ``data:`` URI bridges built in
- *      ``@web/core/assets``.  This preserves registry singleton
- *      identity across bundle boundaries.
+ *      bundle via bridge modules (server-built attachments under
+ *      ``/web/assets/esm/bridges/``, or runtime ``data:`` bridges
+ *      built by ``@web/core/module_bridge``).  This preserves
+ *      registry singleton identity across bundle boundaries.
  *   2. Remain idempotent: if two bundles on the same page both inline
  *      the shim, the second one must no-op so all bundles share the
  *      same Map.
@@ -57,6 +58,10 @@
  *      this by identity and surfaces it on ``bus`` (event ``rebind``)
  *      plus the debug-gated asset log, without ever failing the
  *      bundle's top-level evaluation.
+ *   4. Self-heal stale asset URLs.  A content-addressed bundle URL
+ *      swept by the attachment GC 404s on a stale cached page;
+ *      ``handleAssetLoadError`` reacts with ONE rate-limited reload
+ *      so the page re-renders with fresh URLs (see its docstring).
  *
  * Everything else the old loader did is provably unused across the
  * entire fork (core, enterprise, design-themes, agromarin).  The
@@ -112,11 +117,14 @@
          *
          * Populated by ``registerNativeModules`` from the esbuild
          * bundle's auto-generated top-level entry.  Sibling bundles
-         * (lazy children listed in ``DYNAMIC_ESM_BUNDLES``, cross-doc
-         * iframes loaded via ``@web/core/assets.loadESMBundle``) look
-         * up this Map through ``data:`` URI bridges constructed in
-         * Python (``assetsbundle._build_native_to_legacy_bridge``)
-         * and in JS (``core/assets.js``).  Singleton identity for
+         * (lazy children declared in the manifests'
+         * ``esm.dynamic_children``, cross-doc iframes loaded via
+         * ``@web/core/assets.loadESMBundle``) look up this Map through
+         * bridge modules constructed in Python
+         * (``odoo.tools.assets.esm_bridges.BridgeShimManager``:
+         * attachment URLs under ``/web/assets/esm/bridges/``, with a
+         * ``data:`` URI fallback on read-only cursors) and in JS
+         * (``@web/core/module_bridge``).  Singleton identity for
          * ``@web/core/registry``, ``@web/services/*``, view type
          * registrations, etc. depends on every consumer resolving
          * the same specifier to the same object — which only works
@@ -198,6 +206,54 @@
                 }
             }
         }
+
+        /**
+         * Self-heal a failed bundle-asset load with ONE guarded reload.
+         *
+         * Bundle and bridge URLs are content-addressed
+         * (``/web/assets/<unique>/...``, ``/web/assets/esm/<hash>/...``);
+         * when the attachment garbage collector sweeps a row while a
+         * stale cached page still references its URL, the script 404s
+         * and the page white-screens with no recovery path.  Reloading
+         * re-renders through ``ir.qweb``, which regenerates the bundle
+         * and mints fresh URLs.
+         *
+         * Guard: at most one reload per minute per tab, recorded in
+         * ``sessionStorage`` — a persistent failure (server down,
+         * genuine bundle error) degrades to the normal error surface
+         * instead of a reload loop.  No storage access (sandboxed
+         * iframe) means no rate limit is possible, so no reload either.
+         *
+         * @param {EventTarget | null} target the element whose load failed
+         * @returns {boolean} whether a reload was triggered
+         */
+        handleAssetLoadError(target) {
+            const el = /** @type {HTMLScriptElement | null} */ (target);
+            const src = el?.tagName === "SCRIPT" && (el.src || el.dataset?.src);
+            if (!src || !src.includes("/web/assets/")) {
+                return false;
+            }
+            const GUARD_KEY = "odoo-asset-reload-ts";
+            try {
+                const storage = globalThis.sessionStorage;
+                const last = parseInt(storage.getItem(GUARD_KEY) ?? "", 10) || 0;
+                const now = Date.now();
+                if (now - last < 60_000) {
+                    return false;
+                }
+                storage.setItem(GUARD_KEY, String(now));
+            } catch {
+                return false;
+            }
+            _loaderDebug("asset load failed, reloading once:", src);
+            this._reloadPage();
+            return true;
+        }
+
+        /** Reload seam — overridden in tests; reloads only THIS document. */
+        _reloadPage() {
+            globalThis.location.reload();
+        }
     }
 
     o.loader = new OdooModuleLoader();
@@ -253,6 +309,38 @@
             user_agent: globalThis.navigator?.userAgent || "",
         });
     });
+    // Resource load failures don't bubble — this capture-phase listener
+    // sees them with ``ev.target`` = the failing element (runtime errors
+    // have ``target === window`` and are handled by the reporter above).
+    // A failing bundle-asset script triggers the loader's one-shot reload
+    // self-heal; the beacon is sent regardless of the reload because
+    // ``sendBeacon`` is designed to survive navigation.
+    globalThis.addEventListener?.(
+        "error",
+        (ev) => {
+            const target = ev.target;
+            if (
+                target &&
+                target !== globalThis &&
+                o.loader.handleAssetLoadError(target)
+            ) {
+                reportError({
+                    phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
+                    kind: "asset_load_error",
+                    message: "bundle asset failed to load; reloading once",
+                    filename: String(
+                        /** @type {HTMLScriptElement} */ (target).src || "",
+                    ),
+                    line: 0,
+                    col: 0,
+                    stack: "",
+                    url: globalThis.location?.href || "",
+                    user_agent: globalThis.navigator?.userAgent || "",
+                });
+            }
+        },
+        true,
+    );
     globalThis.addEventListener?.("unhandledrejection", (ev) => {
         const reason = ev.reason;
         const message = reason instanceof Error
