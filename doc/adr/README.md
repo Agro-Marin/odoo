@@ -26,6 +26,7 @@ enforce them.
 | [0008](0008-enforce-facade-boundary.md) | Enforce the public façade boundary (`odoo.addons` → `odoo.orm`) | Accepted |
 | [0009](0009-close-the-enforcement-loop.md) | Close the enforcement loop (mainline gating, full façade scope, true floors) | Accepted |
 | [0010](0010-consolidate-cache-compute-access-surfaces.md) | Consolidate the internal cache/compute access surfaces around `env._core` | Accepted |
+| [0011](0011-persistence-backend-port.md) | Persistence backend port (`env.backend`) | Accepted |
 
 ## Template
 

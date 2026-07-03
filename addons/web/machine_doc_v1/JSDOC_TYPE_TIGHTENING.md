@@ -259,10 +259,16 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
   hardcoding `.js` extension in URL stripping and forced-suffix logic.
   Would need 6+ pipeline patches across `assetsbundle.py` and
   `ir_qweb.py` plus a `--loader=ts:` esbuild flag.
-- **CI gating** — `.github/workflows/typecheck.yml` runs
-  `npx tsc --project tsconfig.json --noEmit` on every PR touching JS/TS, in
-  **warn-only mode** (`continue-on-error: true`): it annotates the PR and
-  tracks drift against a ~6,575-error baseline without blocking merges.
+- ~~**CI gating**~~ — no longer a gap: `.github/workflows/typecheck.yml`
+  runs `npx tsc --project tsconfig.json --noEmit` on every PR touching
+  JS/TS (and on every push to `19.0-marin` / `19.0`) as a **blocking
+  drift-zero ratchet** (no `continue-on-error`). The committed floor lives
+  in `tooling/ratchet/baselines/tsc.json` (**2002** errors as of
+  2026-06-25 — down from the stale ~6,575 the old warn-only gate hardcoded
+  and never enforced) and only moves one way. To lower it after a fix
+  wave: run tsc locally, count `error TS` lines, then
+  `python tooling/ratchet/ratchet.py tsc --count "$N" --update` and commit
+  the baseline. See `tooling/ratchet/README.md`.
 - **The `@types/registries` / `@types/models` ambient typeRoots** — declare
   framework-wide interfaces but loading them implicitly errors out without
   the full tooling install. The seam-file checker bypasses them via

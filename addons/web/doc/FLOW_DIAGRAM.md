@@ -427,10 +427,17 @@ Form Controller                  RelationalModel                 Server
   │                                │  ├─ RPC: web_save()          │
   │                                │  │  POST /web/dataset/call_kw
   │                                │  │  {model, "web_save",      │
-  │                                │  │   [ids, vals, spec]}      │
+  │                                │  │   [ids, vals, spec],      │
+  │                                │  │   kwargs.known_values =   │
+  │                                │  │   per-field baselines     │
+  │                                │  │   (field-scoped optimistic│
+  │                                │  │    lock; fails open)}     │
   │                                │  ├──────────────────────────▶│
   │                                │  │                           │  web_read.py:
   │                                │  │                           │  web_save(vals, spec)
+  │                                │  │                           │  ├─ known_values? →
+  │                                │  │                           │  │  _check_concurrent_
+  │                                │  │                           │  │  field_changes()
   │                                │  │                           │  ├─ if new record:
   │                                │  │                           │  │  create(vals)     ──▶ INSERT
   │                                │  │                           │  ├─ else:
@@ -449,9 +456,10 @@ Form Controller                  RelationalModel                 Server
   │                                │  └─ Notify OWL re-render     │
   │                                │                              │
   │                                │  NOTE: save() does NOT emit  │
-  │                                │  CLEAR-CACHES. Only unlink() │
-  │                                │  triggers cache invalidation │
-  │                                │  (see Flow 14).              │
+  │                                │  CLEAR-CACHES. Only result-  │
+  │                                │  set-removing methods do     │
+  │                                │  (unlink / action_archive /  │
+  │                                │  action_unarchive — Flow 14).│
   │  ◀─── Re-render with saved ────│                              │
   │        data from server        │                              │
 ```
@@ -721,15 +729,25 @@ Browser                          Server (Python)                       Cache/Dis
   │  ◀─── JS/CSS bundle ───────────│                                     │
   │                                │                                     │
 
-  LAZY LIBRARY (Chart.js / FullCalendar / ACE):
+  LAZY LIBRARY — ESM (Chart.js / FullCalendar):
   │                                │                                     │
   │  (User opens graph view — the  │                                     │
   │   view code lives in           │                                     │
   │   assets_backend; only the     │                                     │
   │   heavy library is lazy)       │                                     │
   │  ├─ graph_renderer calls      │                                      │
-  │  │   loadBundle("web.chartjs_lib")                                   │
-  │  │  GET /web/bundle/web.chartjs_lib                                  │
+  │  │   loadChartJS()  (core/lib/chartjs.js)                            │
+  │  ├─ dynamic import("chart.js") + import("chartjs-adapter-luxon")     │
+  │  │   resolved via the page's import map (bare specifiers)            │
+  │  ├───────────────────────────▶│  (static file serve of the           │
+  │  │                             │   vendored ESM builds)              │
+  │  └─ Live-bound `Chart` export populated; one shared fetch app-wide   │
+  │     (FullCalendar: same pattern via loadFullCalendar())              │
+  │                                │                                     │
+  LAZY LIBRARY — classic bundle (ACE / signature_pad):
+  │  ├─ profiling_qweb / name_and_signature call                         │
+  │  │   loadBundle("web.ace_lib") / loadBundle("web.assets_signature_pad_lib")
+  │  │  GET /web/bundle/<name>    │                                      │
   │  ├───────────────────────────▶│                                      │
   │  │                             │  webclient.py:bundle()              │
   │  │                             │  └─ Return file list as JSON        │
@@ -933,37 +951,47 @@ Write Operation                  Cache Layers                    State
   │                                │                               │
   │  orm.unlink("res.partner", [1])│                               │
   │  (write / create do NOT emit   │                               │
-  │   CLEAR-CACHES — only unlink)  │                               │
+  │   CLEAR-CACHES — only result-  │                               │
+  │   set-removing methods: unlink,│                               │
+  │   action_archive/_unarchive)   │                               │
   ├───────────────────────────────▶│                               │
   │                                │                               │
   │  1. RPC completes              │                               │
   │  ├─ Server returns OK          │                               │
   │                                │                               │
-  │  2. ORM service triggers       │                               │
-  │     CLEAR-CACHES event         │                               │
-  │  │  (ONLY on unlink — write/   │                               │
-  │  │   create do not emit it)    │                               │
+  │  2. result_set_cache_          │                               │
+  │     invalidator_service        │                               │
+  │     triggers CLEAR-CACHES      │                               │
+  │  │  (method ∈ RESULT_SET_      │                               │
+  │  │   REMOVING_METHODS, :31;    │                               │
+  │  │   lang_install instead      │                               │
+  │  │   fires an unscoped full    │                               │
+  │  │   clear, :95)               │                               │
   │  ├─ rpcBus.trigger(            │                               │
   │  │   "CLEAR-CACHES",           │                               │
   │  │   {model: <unlinked model>, │                               │
   │  │    tables: ["web_read",     │                               │
   │  │             "web_search_read",                              │
   │  │             "web_read_group"]})                             │
-  │  │  (relational_model.js:132) │                                │
+  │  │  (result_set_cache_invalidator_service.js:101)              │
   │  │                             │                               │
   │  │  ┌─ RAM cache (Map) ───────▶│  Purge entries matching       │
   │  │  │                          │  model=<unlinked model>       │
   │  │  │                          │  AND key ∈ {web_read,         │
   │  │  │                          │   web_search_read,            │
   │  │  │                          │   web_read_group}             │
+  │  │  │                          │  (O(1) model→keys reverse     │
+  │  │  │                          │   index)                      │
   │  │  │                          │                               │
-  │  │  ┌─ IndexedDB RPC Cache ───▶│  FULL table clear for the     │
-  │  │  │                          │  three keys — NOT model-      │
-  │  │  │                          │  scoped (rpc_cache.js:320-322).│
-  │  │  │                          │  Code comment acknowledges    │
-  │  │  │                          │  the over-invalidation as a   │
-  │  │  │                          │  deliberate trade-off to      │
-  │  │  │                          │  avoid async key iteration.   │
+  │  │  ┌─ IndexedDB RPC Cache ───▶│  ALSO model-scoped now:       │
+  │  │  │                          │  _invalidateByModel walks an  │
+  │  │  │                          │  openCursor and deletes only  │
+  │  │  │                          │  cursor.value.model matches   │
+  │  │  │                          │  (indexed_db.js:397; model    │
+  │  │  │                          │  stored plaintext beside the  │
+  │  │  │                          │  ciphertext). Pre-migration   │
+  │  │  │                          │  entries without a model prop │
+  │  │  │                          │  are silently kept.           │
   │  │  │                          │                               │
   │  │  ┌─ RelationalModel ───────▶│  Mark related records dirty   │
   │  │  │  (view data layer)       │  Trigger re-fetch on next     │
@@ -972,16 +1000,17 @@ Write Operation                  Cache Layers                    State
   │  │  └─ Any listening           │                               │
   │  │     component re-renders    │                               │
   │                                │                               │
-  │  IMPORTANT: partially model-   │                               │
-  │  scoped. RAM cache filters by  │                               │
-  │  model; IndexedDB clears the   │                               │
-  │  whole web_read/web_search_    │                               │
-  │  read/web_read_group tables    │                               │
-  │  (affecting all models cached  │                               │
-  │  in those tables). The model   │                               │
-  │  field on the event is passed  │                               │
-  │  but IndexedDB implementation  │                               │
-  │  chooses to over-invalidate.   │                               │
+  │  IMPORTANT: model-scoped on    │                               │
+  │  BOTH layers now. RAM uses an  │                               │
+  │  O(1) model→keys reverse index;│                               │
+  │  IndexedDB cursor-filters on   │                               │
+  │  cursor.value.model. Only      │                               │
+  │  pre-migration IDB entries     │                               │
+  │  (no model prop) survive a     │                               │
+  │  model-scoped clear — they     │                               │
+  │  stay reachable for            │                               │
+  │  invalidate(table) and self-   │                               │
+  │  heal on the next refresh.     │                               │
   │                                │                               │
   │  SPECIAL CASE: registry change │                               │
   │  └─ registry_hash is embedded  │                               │

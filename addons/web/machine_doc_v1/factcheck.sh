@@ -1,7 +1,12 @@
 #!/bin/bash
-# Web module architecture fact-check (round 3 — doc-consistency assertions added)
+# Web module architecture fact-check (round 5 — 2026-07-02 audit-wave reconcile)
 # Run from any cwd. Read-only. CI-safe.
-# Today: 2026-05-09
+# Round 5 highlights: declarative esm_registry (manifest 'esm' key) replaced the
+# assetsbundle.py frozensets; known_values field-scoped optimistic locking
+# replaced last_write_date; chartjs/fullcalendar lazy ESM loaders replaced the
+# lib bundles; legacy QUnit chain fully removed; View Transitions removed;
+# load_coordinator removed; useReactiveModel/ListRecordRow/EmbeddedActionsBar/
+# conditional load_menus added.
 
 set -u
 WEB="/home/marin/Odoo/addons/core/addons/web"
@@ -26,27 +31,39 @@ assert_range() {
 }
 
 # ------- Module size -------
-# 630 = 621 baseline (round 3, 2026-05-09)
-#       + 9 from the 2026-05-19 action-executors extraction:
-#            8 new files in webclient/actions (action_constants.js,
-#            action_executors/{act_url,act_window,client,close,server}.js,
-#            action_state.js, action_button_executor.js, client_actions.js)
-#            and 1 new file in core/ alongside the executor extraction.
-assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "649"
+# 657 (round 5, 2026-07-02): +8 over the 649 round-4 baseline from this
+# audit wave (core/lib/{chartjs,fullcalendar}.js, search/embedded_actions_bar,
+# views/list/list_record_row.js, model/relational_model split files, ...)
+# minus the deleted polyfills/ file and load_coordinator.js.
+assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "657"
 
 # ------- Type coverage -------
-# 628 = 630 total - 2 intentional exclusions (module_loader + service_worker)
+# 655 = 657 total - 2 intentional exclusions (module_loader + service_worker)
 assert_eq "@ts-check coverage" \
-    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "647"
+    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "655"
 assert_eq "Untyped JS files (intentional: module_loader + service_worker)" \
     "$(find "$WEB/static/src" -name "*.js" -type f -exec grep -L "@ts-check" {} + 2>/dev/null | wc -l)" "2"
 
 # ------- Test scope -------
-# 332 = 331 baseline + 1 paired test for the executor extraction.
-assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "344"
-assert_eq "Legacy QUnit JS files" "$(find "$WEB/static/tests/legacy" -name "*.js" 2>/dev/null | wc -l)" "28"
-assert_eq "Files with QUnit. references" \
-    "$(grep -rl "QUnit\." "$WEB/static/tests" --include="*.js" 2>/dev/null | wc -l)" "14"
+assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "351"
+# Legacy QUnit chain REMOVED (see TEST_TAGS.md): static/tests/legacy/ tree,
+# vendored static/lib/qunit/, the web.tests_assets / web.__assets_tests_call__ /
+# web.qunit_suite_tests bundles and the /web/tests/legacy route are all gone.
+# The two production-relevant suites were ported to HOOT under tests/legacy_js/.
+assert_eq "Legacy QUnit tree deleted (static/tests/legacy)" \
+    "$([ -d "$WEB/static/tests/legacy" ] && echo 1 || echo 0)" "0"
+assert_eq "Vendored QUnit deleted (static/lib/qunit)" \
+    "$([ -d "$WEB/static/lib/qunit" ] && echo 1 || echo 0)" "0"
+assert_eq "No qunit bundles left in manifest" \
+    "$(grep -c "qunit" "$WEB/__manifest__.py")" "0"
+# One historical comment in module_set.hoot.js still says the word "QUnit.";
+# no executable QUnit API usage remains.
+assert_eq "Files with QUnit. references (1 historical comment)" \
+    "$(grep -rl "QUnit\." "$WEB/static/tests" --include="*.js" 2>/dev/null | wc -l)" "1"
+assert_eq "No QUnit.test/QUnit.module calls anywhere in static/" \
+    "$(grep -rE "QUnit\.(test|module)\(" "$WEB/static" --include="*.js" 2>/dev/null | wc -l)" "0"
+assert_eq "Ported legacy suites live in tests/legacy_js" \
+    "$(find "$WEB/static/tests/legacy_js" -name "*.test.js" 2>/dev/null | wc -l)" "2"
 
 # ------- Reactivity migration progress -------
 # Sharpened from round-1: count actual class declarations, not file matches.
@@ -80,13 +97,20 @@ reactive_prod=$(count_prod_decls "$REACTIVE_PATTERN")
 #   the historical positional-boolean onSaveError pattern documented in
 #   CONVENTIONS.md gotcha #12).  It extends SignalStore so its `status`
 #   and `lastError` fields are observable from external readers.
+#   Round 5 (2026-07-02): 27 → 26. RelationalModelLoadCoordinator was deleted
+#   as dead code (commit b906a0295d6 — nothing ever read its status); the load
+#   axis is keepLast + the reactive model.isReady flag.
 assert_eq "Reactive class declarations (production)" "$reactive_prod" "0"
 
 reactive_web=$(grep -rEln "$REACTIVE_PATTERN" "$WEB/static/src" 2>/dev/null | wc -l)
 assert_eq "Reactive class declarations in core/addons/web" "$reactive_web" "0"
 
 signalstore=$(count_prod_decls "$SIGNALSTORE_PATTERN")
-assert_eq "SignalStore class declarations (production code)" "$signalstore" "27"
+assert_eq "SignalStore class declarations (production code)" "$signalstore" "26"
+assert_eq "load_coordinator.js stays deleted" \
+    "$([ -f "$WEB/static/src/model/relational_model/load_coordinator.js" ] && echo 1 || echo 0)" "0"
+assert_eq "STATE_MANAGEMENT.md records the load-coordinator removal" \
+    "$(grep -c 'RelationalModelLoadCoordinator. was REMOVED' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 
 # Verify web_studio's parallel Reactive class is gone — replaced by SignalStore + toRaw().
 web_studio_reactive_class=$(grep -c "^export class Reactive {" \
@@ -99,23 +123,35 @@ web_studio_raw_calls=$(grep -rc "\.raw()" /home/marin/Odoo/addons/enterprise/web
 assert_eq "web_studio .raw() callers (replaced by toRaw(this))" "$web_studio_raw_calls" "0"
 
 # ------- RUM Phase 1 — landed 2026-05-02 -------
-# web_vitals_service.js captures LCP/FCP/CLS/TTFB via PerformanceObserver and
-# beacons to /web/observability/cwv on pagehide.  See research doc Recommendation #9.
-# Phase 2 (queryable model + dashboard) is tracked separately.
+# web_vitals_service.js captures LCP/FCP/CLS/TTFB/INP via PerformanceObserver
+# (INP as a worst-observed P100 running max — a strict upper bound on the
+# canonical Chromium P98) and beacons to /web/observability/cwv on pagehide.
+# 2 matching files: the service itself + core/browser/browser.js, which now
+# exposes window.PerformanceObserver through the browser abstraction.
 rum_telemetry=$(grep -rln "PerformanceObserver\|web-vitals" "$WEB/static/src" 2>/dev/null | wc -l)
-assert_eq "PerformanceObserver/web-vitals (RUM Phase 1)" "$rum_telemetry" "1"
+assert_eq "PerformanceObserver/web-vitals (service + browser abstraction)" "$rum_telemetry" "2"
+assert_eq "web_vitals INP reducer is worst-observed (P100), not always-null" \
+    "$(grep -c "worst-observed" "$WEB/static/src/services/web_vitals/web_vitals_service.js")" "4"
+assert_eq "MODEL_MAP.md inp row no longer claims 'currently always null'" \
+    "$(grep -c 'currently always null' "$WEB/machine_doc_v1/MODEL_MAP.md")" "0"
+assert_eq "MODEL_MAP.md inp row documents the P100 running max" \
+    "$(grep -c 'worst-observed interaction duration' "$WEB/machine_doc_v1/MODEL_MAP.md")" "1"
 
-# sendBeacon usages: 5 files since the FormSaveCoordinator extraction
-# pulled the urgent-save flow up one layer.  Inventory:
+# sendBeacon usages: 11 files. Inventory:
 #   1. record_save.js              — actual sendBeacon() call (data persistence)
 #   2. web_vitals_service.js       — CWV telemetry on pagehide (RUM)
 #   3. form_save_coordinator.js    — coordinator's requestUrgentSave() entry point
 #   4. form_controller.js          — controller delegates to the coordinator
-#   5. relational_model.js         — model-level _urgentSave plumbing
-# All five are part of the same urgent-save call graph; only #1 actually
-# invokes navigator.sendBeacon().  #2 is the unrelated RUM beacon.
+#   5. relational_model.js         — model-level urgent-save plumbing
+#   6. urgent_save_coordinator.js  — UrgentSaveCoordinator (urgent-save mode axis)
+#   7. record.js                   — record-level urgent-save fast paths
+#   8. core/events.js              — WILL_SAVE_URGENTLY event doc references
+#   9. core/errors/error_beacon.js — error telemetry beacon
+#  10. module_loader.js            — loader shim beacon plumbing
+#  11. fields/input_field_hook.js  — urgent-save comment on input commit
+# Only #1, #2, #9 and #10 actually invoke navigator.sendBeacon().
 sendbeacon_files=$(grep -rln "sendBeacon" "$WEB/static/src" 2>/dev/null | wc -l)
-assert_eq "sendBeacon usages (record_save + web_vitals + coordinator chain)" "$sendbeacon_files" "10"
+assert_eq "sendBeacon usages (record_save + web_vitals + error_beacon + urgent-save chain)" "$sendbeacon_files" "11"
 
 # Verify the observability controller is wired in.
 observability_controller=$([ -f "$WEB/controllers/observability.py" ] && echo 1 || echo 0)
@@ -212,16 +248,15 @@ assert_eq "eval()/new Function() usages" \
 assert_eq "markup() trust-hatch import sites" \
     "$(grep -rln "{ markup" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "9"
 
-# ------- View Transitions wrap on action navigation (G3, verified 2026-05-08) -------
-# action_container.js wraps controller swaps in document.startViewTransition so
-# the browser handles the cross-fade.  Falls through to plain render when the
-# API is unavailable or the user prefers reduced motion.  Lock the actual
-# call (not comments/docstrings mentioning the API) and the reduced-motion
-# guard so a future refactor cannot silently strip them.
-assert_eq "ActionContainer invokes document.startViewTransition" \
-    "$(grep -cE 'document\.startViewTransition\(' "$WEB/static/src/webclient/actions/action_container.js")" "1"
-assert_eq "ActionContainer respects prefers-reduced-motion" \
-    "$(grep -c 'prefers-reduced-motion' "$WEB/static/src/webclient/actions/action_container.js")" "1"
+# ------- View Transitions REMOVED (2026-07-02 audit wave) -------
+# The G3 startViewTransition wrap was removed from action_container.js; only
+# an explanatory comment remains (it explains why the API can't wrap OWL's
+# render directly).  Lock the removal so the feature doesn't half-return
+# without docs/factcheck being updated.
+assert_eq "ActionContainer no longer calls document.startViewTransition" \
+    "$(grep -cE 'document\.startViewTransition\(' "$WEB/static/src/webclient/actions/action_container.js")" "0"
+assert_eq "No startViewTransition call anywhere in static/src" \
+    "$(grep -rE 'startViewTransition\(' "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "0"
 
 # ------- patch() architecture (G14, 2026-05-08) -------
 # Convention enforced via CONVENTIONS.md gotcha #13 (prototype-only patching
@@ -277,15 +312,27 @@ fi
 # makes the doc-vs-code drift fail loud at CI time instead of silently
 # misleading the next code reader.
 
-# 1. Urgent-save optimistic locking — STATE_MANAGEMENT.md must reflect the fix.
+# 1. Optimistic locking is now FIELD-SCOPED (known_values baseline map,
+#    commits 4ecbac1e7cb + d08cb6b77a8) — the client no longer sends
+#    last_write_date; the server keeps it only as a legacy fallback.
+#    Both save paths must send the baseline, and the docs must describe
+#    the new mechanism.
 assert_eq "STATE_MANAGEMENT urgent-save: stale 'divergence' wording removed" \
     "$(grep -c 'Optimistic-locking divergence' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "0"
 assert_eq "STATE_MANAGEMENT urgent-save: optimistic-locking parity documented" \
     "$(grep -c 'Optimistic-locking parity' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
-# Cite-fingerprint: the doc cites record_save.js:79-83; verify that line range
-# still actually contains the urgentKwargs.last_write_date assignment.
-assert_eq "record_save.js urgent path sets last_write_date (parity with normal path)" \
-    "$(grep -c 'urgentKwargs.last_write_date' "$WEB/static/src/model/relational_model/record_save.js")" "1"
+assert_eq "record_save.js builds the concurrencyBaseline map" \
+    "$(grep -c 'const concurrencyBaseline = {}' "$WEB/static/src/model/relational_model/record_save.js")" "1"
+assert_eq "record_save.js sends known_values on BOTH paths (urgent + normal)" \
+    "$(grep -c 'known_values' "$WEB/static/src/model/relational_model/record_save.js")" "2"
+assert_eq "record_save.js no longer sends last_write_date" \
+    "$(grep -c 'last_write_date' "$WEB/static/src/model/relational_model/record_save.js")" "0"
+assert_eq "server: web_read.py implements _check_concurrent_field_changes" \
+    "$(grep -c 'def _check_concurrent_field_changes' "$WEB/models/web_read.py")" "1"
+assert_eq "CONVENTIONS gotcha #9 documents known_values (field-scoped locking)" \
+    "$(grep -c 'known_values' "$WEB/machine_doc_v1/CONVENTIONS.md")" "2"
+assert_eq "STATE_MANAGEMENT documents known_values" \
+    "$(grep -c 'known_values' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "3"
 
 # 2. FormSaveCoordinator — CONVENTIONS.md gotcha #12 must reflect the rewrite.
 assert_eq "CONVENTIONS gotcha #12: stale '5 \`true\` call sites' wording removed" \
@@ -304,18 +351,16 @@ assert_eq "form_save_coordinator.js exports FormSaveCoordinator class" \
 assert_eq "FormSaveCoordinator errorMode typedef declares three modes" \
     "$(grep -cE '^\s\*\s+errorMode\?: "dialog" \| "rethrow" \| "silent"' "$WEB/static/src/views/form/form_save_coordinator.js")" "1"
 
-# 3. ARCHITECTURE.md JS file counts — sites previously cited 615 then 621;
-#    should now be 630 after the 2026-05-19 action-executors extraction.
-assert_eq "ARCHITECTURE.md no stale '615' JS file count" \
-    "$(grep -cE '615 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
-assert_eq "ARCHITECTURE.md no stale '621' JS file count" \
-    "$(grep -cE '621 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
+# 3. ARCHITECTURE.md JS file counts — sites previously cited 615/621/649;
+#    now 657 after the 2026-07-02 audit wave.
+assert_eq "ARCHITECTURE.md no stale JS file counts (615/621/649)" \
+    "$(grep -cE '(615|621|649) (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
 assert_eq "ARCHITECTURE.md JS count cited in prose" \
-    "$(grep -cE '649 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-# (The third site is in a markdown table cell `| JavaScript (src) | 630 |` —
+    "$(grep -cE '657 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+# (The other site is in a markdown table cell `| JavaScript (src) | 657 |` —
 # pattern above won't match because of the pipe layout, so check it separately.)
 assert_eq "ARCHITECTURE.md JS table cell" \
-    "$(grep -cE '\| JavaScript \(src\) \| 649 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+    "$(grep -cE '\| JavaScript \(src\) \| 657 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
 # 4. Pattern 4 inventory — STATE_MANAGEMENT.md should enumerate verified sites
 #    rather than implying an open population.
@@ -346,13 +391,16 @@ assert_eq "eslint.config.mjs no longer carries the Reactive-import rule" \
 # the others held.  Lock all eight so future drift trips on commit.
 for section_check in \
     "components/:74" \
-    "core/:103" \
+    "core/:110" \
     "fields/:112" \
-    "views/:149" \
-    "webclient/:55" \
-    "model/:43" \
+    "views/:151" \
+    "webclient/:56" \
+    "model/:42" \
     "services/:37" \
-    "ui/:20"; do
+    "ui/:19" \
+    "search/:32" \
+    "legacy/:6" \
+    "libs/:1"; do
     section="${section_check%:*}"
     expected="${section_check##*:}"
     actual=$(find "$WEB/static/src/$section" -name "*.js" -type f 2>/dev/null | wc -l)
@@ -360,35 +408,49 @@ for section_check in \
         "$actual" "$expected"
 done
 
-# 7. Gotcha #10 cite-fingerprint: archiveEnabled getter shape.
-#    The form_controller.js:586 getter must check both "active" and "x_active";
-#    multi_record_controller.js delegates to computeArchiveEnabled().  These
-#    are the cited code surfaces; if either changes shape the doc needs review.
+# 7. Gotcha #10 cite-fingerprint: archiveEnabled consolidated into
+#    view_utils.computeArchiveEnabled(readonlySource, presenceSource).
+#    Form gates presence on model.root.activeFields; multi-record passes
+#    only props.fields.  The x_active fallback now lives in the shared
+#    helper, not in form_controller.
+assert_eq "view_utils exports computeArchiveEnabled(readonlySource, presenceSource)" \
+    "$(grep -c 'export function computeArchiveEnabled(readonlySource, presenceSource = readonlySource)' "$WEB/static/src/views/view_utils.js")" "1"
+assert_eq "computeArchiveEnabled has the x_active fallback" \
+    "$(grep -cE '"x_active" in presenceSource' "$WEB/static/src/views/view_utils.js")" "1"
 assert_eq "form_controller has archiveEnabled getter" \
     "$(grep -c 'get archiveEnabled()' "$WEB/static/src/views/form/form_controller.js")" "1"
-assert_eq "form_controller archiveEnabled checks 'active' field" \
-    "$(grep -cE '"active" in activeFields' "$WEB/static/src/views/form/form_controller.js")" "1"
-assert_eq "form_controller archiveEnabled has x_active fallback" \
-    "$(grep -cE '"x_active" in activeFields' "$WEB/static/src/views/form/form_controller.js")" "1"
+assert_eq "form_controller delegates with the activeFields presence gate" \
+    "$(grep -c 'computeArchiveEnabled(this.props.fields, this.model.root.activeFields)' "$WEB/static/src/views/form/form_controller.js")" "1"
 assert_eq "multi_record_controller delegates to computeArchiveEnabled" \
     "$(grep -c 'computeArchiveEnabled(this.props.fields)' "$WEB/static/src/views/multi_record_controller.js")" "1"
-assert_eq "CONVENTIONS gotcha #10 cite line range corrected (591-600)" \
-    "$(grep -c 'form_controller.js:591-600' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
-assert_eq "CONVENTIONS gotcha #10 stale line range (544-551) gone" \
-    "$(grep -c 'form_controller.js:544-551' "$WEB/machine_doc_v1/CONVENTIONS.md")" "0"
+assert_eq "CONVENTIONS gotcha #10 cites current getter lines (606-608)" \
+    "$(grep -c 'form_controller.js:606-608' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
+assert_eq "CONVENTIONS gotcha #10 stale line ranges gone (544-551 / 591-600)" \
+    "$(grep -cE 'form_controller.js:(544-551|591-600)' "$WEB/machine_doc_v1/CONVENTIONS.md")" "0"
 
 # 8. Gotcha #5 cite-fingerprint: /web/image route count (claim: 17 patterns).
 assert_eq "binary.py /web/image route mentions match doc claim (17)" \
     "$(grep -cE '/web/image' "$WEB/controllers/binary.py")" "17"
 
-# 9. Gotcha #6 cite-fingerprint: graph view lazy-loads chartjs_lib bundle.
-#     Doc claims this lazy-load defers Chart.js until first graph render.
-#     If someone adds chartjs_lib to a parent bundle's static asset list,
-#     this assertion is fine but the doc's framing becomes misleading; if
-#     someone removes the loadBundle call (e.g. by inlining Chart.js
-#     statically), this assertion fires.
-assert_eq "graph_renderer.js lazy-loads web.chartjs_lib" \
-    "$(grep -c 'loadBundle("web.chartjs_lib")' "$WEB/static/src/views/graph/graph_renderer.js")" "1"
+# 9. Gotcha #6 cite-fingerprint: Chart.js is lazy-loaded as a real ES module
+#     via core/lib/chartjs.js (dynamic import of the `chart.js` import-map
+#     specifier + live-bound `Chart` export).  The old
+#     loadBundle("web.chartjs_lib") classic-script path is gone, as is the
+#     manifest bundle itself.  FullCalendar follows the same pattern.
+assert_eq "graph_renderer.js awaits loadChartJS()" \
+    "$(grep -c 'await loadChartJS()' "$WEB/static/src/views/graph/graph_renderer.js")" "1"
+assert_eq "graph_renderer.js imports from @web/core/lib/chartjs" \
+    "$(grep -c '@web/core/lib/chartjs' "$WEB/static/src/views/graph/graph_renderer.js")" "1"
+assert_eq "core/lib/chartjs.js dynamic-imports chart.js" \
+    "$(grep -c 'import("chart.js")' "$WEB/static/src/core/lib/chartjs.js")" "1"
+assert_eq "core/lib/fullcalendar.js exports loadFullCalendar" \
+    "$(grep -c 'export async function loadFullCalendar' "$WEB/static/src/core/lib/fullcalendar.js")" "1"
+assert_eq "manifest no longer declares web.chartjs_lib / web.fullcalendar_lib" \
+    "$(grep -cE 'chartjs_lib|fullcalendar_lib' "$WEB/__manifest__.py")" "0"
+assert_eq "no loadBundle(chartjs_lib) call sites remain in static/src" \
+    "$(grep -rc 'loadBundle("web.chartjs_lib")' "$WEB/static/src" --include="*.js" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
+assert_eq "CONVENTIONS gotcha #6 documents loadChartJS" \
+    "$(grep -c 'loadChartJS' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
 # Cite-fingerprint: kanban_controller.js:163 is the *canonical exception* to
 # Pattern 4 — the setter must clear sample data on the same microtask as
 # the groupId mutation; a useEffect rewrite was reverted (commit 19fb5d01bb81)
@@ -446,15 +508,15 @@ assert_eq "ARCHITECTURE.md documents orm.dedup proxy" \
 assert_eq "ARCHITECTURE.md rpc.js whitelist mentions all 6 keys" \
     "$(grep -cE 'cache, silent, headers, timeout, retry, dedup' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
-# 12. fullcalendar version — pre-2026-05-19 the vendored libs table said 6.1.20
-#     while the bundles table said 7.0.0-rc.3 and the code shipped v7.  Lock
-#     the table to 7.0.0-rc.3 (matches the code) and ban the stale 6.1.20 cite.
-assert_eq "ARCHITECTURE.md fullcalendar row says 7.0.0-rc.3" \
-    "$(grep -cE '\| .fullcalendar. \| 7\.0\.0-rc\.3 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md no stale fullcalendar 6.1.20" \
-    "$(grep -cE 'fullcalendar.{0,30}6\.1\.20' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
-assert_eq "fullcalendar vendored bundle is v7" \
-    "$(grep -cE 'FullCalendar v7' "$WEB/static/lib/fullcalendar/fullcalendar.esm.js")" "1"
+# 12. fullcalendar version — the vendored bundle is now the final v7.0.0
+#     (was 7.0.0-rc.3 in round 4; before that the table said 6.1.20).  Lock
+#     the table to 7.0.0 and ban both stale cites.
+assert_eq "ARCHITECTURE.md fullcalendar row says 7.0.0" \
+    "$(grep -cE '\| .fullcalendar. \| 7\.0\.0 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md no stale fullcalendar 6.1.20 / 7.0.0-rc.3" \
+    "$(grep -cE 'fullcalendar.{0,30}(6\.1\.20|7\.0\.0-rc)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
+assert_eq "fullcalendar vendored bundle is v7 (final 7.0.0 present in source)" \
+    "$(grep -c 'FullCalendar v7' "$WEB/static/lib/fullcalendar/fullcalendar.esm.js"):$(grep -m1 -coE 'v7\.0\.0' "$WEB/static/lib/fullcalendar/fullcalendar.esm.js")" "1:1"
 
 # 13. STATE_MANAGEMENT.md phantom AppEvent.FORM_DIALOG_* events removed.
 #     The 2026-05-09 service refactor replaced bus indirection with direct
@@ -467,35 +529,55 @@ assert_eq "STATE_MANAGEMENT.md no phantom FORM_DIALOG_REMOVE row" \
 assert_eq "core/events.js does not export FORM_DIALOG_ADD" \
     "$(grep -cE 'FORM_DIALOG_ADD\s*:' "$WEB/static/src/core/events.js")" "0"
 
-# 14. ARCHITECTURE.md table counts — 6 numeric claims locked.  Catches the
+# 14. ARCHITECTURE.md table counts — numeric claims locked.  Catches the
 #     drift pattern that motivated this audit (counts grew, doc lagged).
-assert_eq "ARCHITECTURE.md File Counts: Python tests = 40" \
-    "$(grep -cE '\| Python \(tests\) \| 40 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md File Counts: JS tests = 428/344" \
-    "$(grep -cE '\| JavaScript \(tests\) \| 428 \(incl\. 344' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md File Counts: vendored libs = 94" \
-    "$(grep -cE '\| JavaScript \(vendored libs\) \| 94 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md File Counts: Python tests = 44" \
+    "$(grep -cE '\| Python \(tests\) \| 44 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "Python test file count = 44 (reality check)" \
+    "$(find "$WEB/tests" -name "test_*.py" | wc -l)" "44"
+assert_eq "ARCHITECTURE.md File Counts: JS tests = 407/351" \
+    "$(grep -cE '\| JavaScript \(tests\) \| 407 \(incl\. 351' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "static/tests JS file count = 407 (reality check)" \
+    "$(find "$WEB/static/tests" -name "*.js" | wc -l)" "407"
+assert_eq "ARCHITECTURE.md File Counts: vendored libs = 92" \
+    "$(grep -cE '\| JavaScript \(vendored libs\) \| 92 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "static/lib JS file count = 92 (reality check)" \
+    "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "92"
 
 # 15. ARCHITECTURE.md JavaScript Architecture table — lock the Layer subtotals.
-#     These mirror the per-section JS_FILE_INDEX assertions but for the
+#     These mirror the per-section filesystem assertions but for the
 #     ARCHITECTURE doc's view of the same numbers.
-assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 103" \
-    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 103 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Webclient = 55" \
-    "$(grep -cE '\| \*\*Webclient\*\* \| .webclient/. \|.*\| 55 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Views = 149" \
-    "$(grep -cE '\| \*\*Views\*\* \| .views/. \|.*\| 149 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Model = 43" \
-    "$(grep -cE '\| \*\*Model\*\* \| .model/. \|.*\| 43 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 110" \
+    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 110 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Webclient = 56" \
+    "$(grep -cE '\| \*\*Webclient\*\* \| .webclient/. \|.*\| 56 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Views = 151" \
+    "$(grep -cE '\| \*\*Views\*\* \| .views/. \|.*\| 151 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Model = 42" \
+    "$(grep -cE '\| \*\*Model\*\* \| .model/. \|.*\| 42 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer table covers legacy/" \
+    "$(grep -cE '\| \*\*Legacy\*\* \| .legacy/. \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer table covers libs/" \
+    "$(grep -cE '\| .libs/. \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
 # 16. DIRECTORY_MAP.md header count — single source of truth for the dir total.
-assert_eq "DIRECTORY_MAP.md header says 237 directories" \
-    "$(grep -cE '\*\*237 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "1"
-assert_eq "DIRECTORY_MAP.md no stale '235 directories'" \
-    "$(grep -cE '\*\*235 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "0"
+#     238 (round 5): 237 - polyfills/ (DELETED entirely) + core/lib/
+#     + search/embedded_actions_bar/.
+assert_eq "DIRECTORY_MAP.md header says 238 directories" \
+    "$(grep -cE '\*\*238 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "1"
+assert_eq "DIRECTORY_MAP.md no stale '237 directories'" \
+    "$(grep -cE '\*\*237 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "0"
 # Cite-fingerprint: confirm the underlying count.
-assert_eq "static/src has 237 directories (excl. gitignored .claude cruft)" \
-    "$(find "$WEB/static/src" -type d -not -path '*/.claude*' | wc -l)" "237"
+assert_eq "static/src has 238 directories (excl. gitignored .claude cruft)" \
+    "$(find "$WEB/static/src" -type d -not -path '*/.claude*' | wc -l)" "238"
+assert_eq "polyfills/ directory deleted" \
+    "$([ -d "$WEB/static/src/polyfills" ] && echo 1 || echo 0)" "0"
+assert_eq "DIRECTORY_MAP.md dropped the polyfills row" \
+    "$(grep -c 'polyfills' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "0"
+assert_eq "DIRECTORY_MAP.md has a core/lib row" \
+    "$(grep -cE '^\| .core/lib/. \|' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "1"
+assert_eq "DIRECTORY_MAP.md has a search/embedded_actions_bar row" \
+    "$(grep -cE '^\| .search/embedded_actions_bar/. \|' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "1"
 
 # 17. TEST_TAGS.md untagged-files claim — exactly three files lack a web_* topic
 #     tag.  Corrected 2026-06-01: the prior "ten files / nine with no @tagged"
@@ -508,37 +590,60 @@ assert_eq "TEST_TAGS.md says 'three test files' lack web_*" \
 assert_eq "TEST_TAGS.md no stale 'ten test files' claim" \
     "$(grep -cE 'ten test files currently carry no' "$WEB/machine_doc_v1/TEST_TAGS.md")" "0"
 
-# 18. Python line-number cites — assetsbundle.py and ir_qweb.py grew enough
-#     between rounds to shift every cite by 14-70 lines.  Lock the canonical
-#     symbols against their line numbers so the next bulk shift fails loud.
+# 18. ESM pipeline moved to the declarative registry (odoo/tools/assets/):
+#     the assetsbundle.py frozensets (_ESM_APP_BUNDLES / ESM_BUNDLES /
+#     DYNAMIC_ESM_BUNDLES / IMPORT_MAP_INCLUDES) are GONE — bundle membership
+#     is declared per-module under the manifest 'esm' key and aggregated by
+#     esm_registry().  Lock the new symbols + the cited line numbers in
+#     ESM_BUNDLING.md so the next shift fails loud.
 PYBASE="/home/marin/Odoo/addons/core/odoo/addons/base/models"
-assert_eq "assetsbundle.py: _ESM_APP_BUNDLES at line 581" \
-    "$(grep -cE '^    _ESM_APP_BUNDLES = ' "$PYBASE/assetsbundle.py")" "1"
-assert_eq "assetsbundle.py: _ESM_APP_BUNDLES on cited line 581" \
-    "$(sed -n '581p' "$PYBASE/assetsbundle.py" | grep -c '_ESM_APP_BUNDLES = ')" "1"
-assert_eq "assetsbundle.py: ESM_BUNDLES on cited line 676" \
-    "$(sed -n '676p' "$PYBASE/assetsbundle.py" | grep -c 'ESM_BUNDLES = ')" "1"
-assert_eq "assetsbundle.py: DYNAMIC_ESM_BUNDLES on cited line 688" \
-    "$(sed -n '688p' "$PYBASE/assetsbundle.py" | grep -c 'DYNAMIC_ESM_BUNDLES = ')" "1"
-assert_eq "assetsbundle.py: IMPORT_MAP_INCLUDES on cited line 713" \
-    "$(sed -n '713p' "$PYBASE/assetsbundle.py" | grep -c 'IMPORT_MAP_INCLUDES = ')" "1"
-assert_eq "assetsbundle.py: esbuild_native_bundle on cited line 1290" \
-    "$(sed -n '1290p' "$PYBASE/assetsbundle.py" | grep -c 'def esbuild_native_bundle')" "1"
-assert_eq "ir_qweb.py: _get_native_module_nodes on cited line 4261" \
-    "$(sed -n '4261p' "$PYBASE/ir_qweb.py" | grep -c 'def _get_native_module_nodes')" "1"
+PYTOOLS="/home/marin/Odoo/addons/core/odoo/tools/assets"
+assert_eq "assetsbundle.py: hardcoded ESM frozensets are gone" \
+    "$(grep -cE '_ESM_APP_BUNDLES|DYNAMIC_ESM_BUNDLES|IMPORT_MAP_INCLUDES = ' "$PYBASE/assetsbundle.py")" "0"
+assert_eq "esm_registry.py: esm_registry() on cited line 92" \
+    "$(sed -n '92p' "$PYTOOLS/esm_registry.py" | grep -c 'def esm_registry')" "1"
+assert_eq "esm_registry.py: EsmRegistry NamedTuple on cited line 75" \
+    "$(sed -n '75p' "$PYTOOLS/esm_registry.py" | grep -c 'class EsmRegistry')" "1"
+assert_eq "esm_registry.py: validate_esm_config on cited line 205" \
+    "$(sed -n '205p' "$PYTOOLS/esm_registry.py" | grep -c 'def validate_esm_config')" "1"
+assert_eq "esbuild.py: _LIB_CANDIDATES on cited line 271" \
+    "$(sed -n '271p' "$PYTOOLS/esbuild.py" | grep -c '_LIB_CANDIDATES')" "1"
+assert_eq "esm_graph.py: is_native_module on cited line 57" \
+    "$(sed -n '57p' "$PYTOOLS/esm_graph.py" | grep -c 'def is_native_module')" "1"
+assert_eq "assetsbundle.py: membership via esm_registry().bundles (line 1446)" \
+    "$(sed -n '1446p' "$PYBASE/assetsbundle.py" | grep -c 'esm_registry().bundles')" "1"
+assert_eq "assetsbundle.py: esbuild_native_bundle on cited line 1754" \
+    "$(sed -n '1754p' "$PYBASE/assetsbundle.py" | grep -c 'def esbuild_native_bundle')" "1"
+assert_eq "ir_qweb.py: _get_native_module_nodes on cited line 4292" \
+    "$(sed -n '4292p' "$PYBASE/ir_qweb.py" | grep -c 'def _get_native_module_nodes')" "1"
+assert_eq "ESM_BUNDLING.md documents the manifest 'esm' key" \
+    "$(grep -c 'dynamic_children' "$WEB/machine_doc_v1/ESM_BUNDLING.md")" "3"
+assert_eq "ESM_BUNDLING.md no stale _ESM_APP_BUNDLES table row" \
+    "$(grep -c '_ESM_APP_BUNDLES' "$WEB/machine_doc_v1/ESM_BUNDLING.md")" "1"
 
 # 19. JS line-number cites for STATE_MANAGEMENT.md "Key files" block.
 #     Pre-2026-05-19 every cite was stale by 20-50 lines; lock them.
-assert_eq "form_controller.js:696 is save()" \
-    "$(sed -n '696p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async save\(')" "1"
-assert_eq "form_controller.js:716 is discard()" \
-    "$(sed -n '716p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async discard\(')" "1"
-assert_eq "form_controller.js:506 is beforeLeave()" \
-    "$(sed -n '506p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async beforeLeave\(')" "1"
-assert_eq "record.js:471 is _applyChanges()" \
-    "$(sed -n '471p' "$WEB/static/src/model/relational_model/record.js" | grep -cE '_applyChanges\(')" "1"
-assert_eq "record.js:248 is discard()" \
-    "$(sed -n '248p' "$WEB/static/src/model/relational_model/record.js" | grep -cE 'async discard\(')" "1"
+assert_eq "form_controller.js:704 is save()" \
+    "$(sed -n '704p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async save\(')" "1"
+assert_eq "form_controller.js:724 is discard()" \
+    "$(sed -n '724p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async discard\(')" "1"
+assert_eq "form_controller.js:521 is beforeLeave()" \
+    "$(sed -n '521p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async beforeLeave\(')" "1"
+assert_eq "record.js:472 is _applyChanges()" \
+    "$(sed -n '472p' "$WEB/static/src/model/relational_model/record.js" | grep -cE '_applyChanges\(')" "1"
+assert_eq "record.js:263 is discard()" \
+    "$(sed -n '263p' "$WEB/static/src/model/relational_model/record.js" | grep -cE 'async discard\(')" "1"
+# CLEAR-CACHES inventory cites (STATE_MANAGEMENT "All 6 emission sites").
+assert_eq "invalidator service: scoped emission on cited line 101" \
+    "$(sed -n '101p' "$WEB/static/src/services/result_set_cache_invalidator_service.js" | grep -c 'CLEAR_CACHES')" "1"
+assert_eq "invalidator service: lang_install full clear on cited line 95" \
+    "$(sed -n '95p' "$WEB/static/src/services/result_set_cache_invalidator_service.js" | grep -c 'CLEAR_CACHES')" "1"
+assert_eq "action_cache_invalidation.js:40 emits CLEAR-CACHES" \
+    "$(sed -n '40p' "$WEB/static/src/webclient/actions/action_cache_invalidation.js" | grep -c 'CLEAR_CACHES')" "1"
+assert_eq "webclient.js:240 emits CLEAR-CACHES on SW hard refresh" \
+    "$(sed -n '240p' "$WEB/static/src/webclient/webclient.js" | grep -c 'CLEAR_CACHES')" "1"
+assert_eq "rpc.js:271 is the CLEAR-CACHES listener" \
+    "$(sed -n '271p' "$WEB/static/src/core/network/rpc.js" | grep -c 'addEventListener(RpcEvent.CLEAR_CACHES')" "1"
 
 # 21. TEST_TAGS.md test-method counts — converted from approximate ("~37") to
 #     precise on 2026-05-19.  Lock both the doc text AND the codebase reality
@@ -570,8 +675,8 @@ print(total)
 PY
 }
 for spec in \
-    "web_unit:70" \
-    "web_http:61" \
+    "web_unit:85" \
+    "web_http:62" \
     "web_tour:5" \
     "web_js:36" \
     "web_perf:25" \
@@ -589,8 +694,110 @@ done
 # 20. (removed) JS_FILE_INDEX body-header assertions — JS_FILE_INDEX.md deleted
 #     2026-06-02.  Per-section counts are verified by the filesystem loop (§6).
 
+# ------- Round 5 (2026-07-02): new mechanisms from this audit wave -------
+
+# 22. CI typecheck gate is a BLOCKING drift-zero ratchet (floor committed in
+#     tooling/ratchet/baselines/tsc.json), not the old warn-only annotate job.
+TYPECHECK_YML="/home/marin/Odoo/addons/core/.github/workflows/typecheck.yml"
+assert_eq "typecheck.yml has no continue-on-error key (blocking gate)" \
+    "$(grep -c 'continue-on-error:' "$TYPECHECK_YML")" "0"
+assert_eq "typecheck.yml enforces via tooling/ratchet" \
+    "$(grep -c 'tooling/ratchet/ratchet.py tsc' "$TYPECHECK_YML")" "3"
+assert_eq "JSDOC doc: warn-only claim replaced by blocking ratchet" \
+    "$(grep -c 'continue-on-error: true' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
+assert_eq "JSDOC doc cites the 2002 floor" \
+    "$(grep -c '2002' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "1"
+tsc_floor=$(python3 -c "import json;print(json.load(open('/home/marin/Odoo/addons/core/tooling/ratchet/baselines/tsc.json'))['count'])" 2>/dev/null || echo "missing")
+assert_eq "committed tsc ratchet floor is 2002" "$tsc_floor" "2002"
+
+# 23. Conditional /web/webclient/load_menus (X-Menus-Hash round-trip).
+assert_eq "home.py sends X-Menus-Hash" \
+    "$(grep -c '"X-Menus-Hash"' "$WEB/controllers/home.py")" "1"
+assert_eq "home.py returns empty 304 on hash match" \
+    "$(grep -c 'status=304' "$WEB/controllers/home.py")" "1"
+assert_eq "menu_service.js echoes the hash back as ?hash=" \
+    "$(grep -c '?hash=' "$WEB/static/src/webclient/menus/menu_service.js")" "1"
+assert_eq "ROUTE_MAP.md load_menus row documents the conditional fetch" \
+    "$(grep -c 'X-Menus-Hash' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
+assert_eq "CONVENTIONS gotcha #14 covers the load_menus hash round-trip" \
+    "$(grep -c 'X-Menus-Hash' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
+
+# 24. useReactiveModel + Model._updateEpoch + reactiveRenderers opt-out.
+assert_eq "model.js exports useReactiveModel" \
+    "$(grep -c 'export function useReactiveModel' "$WEB/static/src/model/model.js")" "1"
+assert_eq "model.js notify() bumps _updateEpoch" \
+    "$(grep -c 'this._updateEpoch++' "$WEB/static/src/model/model.js")" "1"
+assert_eq "reactiveRenderers opt-out is checked in the model hook" \
+    "$(grep -c 'reactiveRenderers' "$WEB/static/src/model/model.js")" "4"
+assert_eq "pivot + graph renderers/models use useReactiveModel (4 files)" \
+    "$(grep -rln 'useReactiveModel' "$WEB/static/src/views" --include='*.js' | wc -l)" "4"
+assert_eq "STATE_MANAGEMENT documents useReactiveModel" \
+    "$(grep -c 'useReactiveModel' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "2"
+
+# 25. _updateConfig was renamed to _patchConfig / _reloadWithConfig — docs must
+#     not cite the old name.
+assert_eq "no _updateConfig left in model/" \
+    "$(grep -rc '_updateConfig' "$WEB/static/src/model" --include='*.js' 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
+assert_eq "docs do not cite _updateConfig" \
+    "$(grep -rc '_updateConfig' "$WEB/machine_doc_v1"/*.md "$WEB/doc"/*.md 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
+
+# 26. ListRecordRow extraction (per-row component, renderer-delegation contract).
+assert_eq "list_record_row.js exports ListRecordRow" \
+    "$(grep -c 'export class ListRecordRow extends Component' "$WEB/static/src/views/list/list_record_row.js")" "1"
+assert_eq "row body template keeps its historical t-name (compat contract)" \
+    "$(grep -rc 'web.ListRenderer.RecordRow' "$WEB/static/src/views/list/list_renderer.xml" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "1"
+assert_eq "CONVENTIONS gotcha #15 covers ListRecordRow" \
+    "$(grep -c 'ListRecordRow' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
+
+# 27. Scoped re-validation dep-maps.
+assert_eq "record_utils.js exports computeRevalidationScope" \
+    "$(grep -c 'export function computeRevalidationScope' "$WEB/static/src/model/relational_model/record_utils.js")" "1"
+assert_eq "record.js passes scopedFields to the removeInvalidOnly re-check" \
+    "$(grep -c 'removeInvalidOnly: true, scopedFields' "$WEB/static/src/model/relational_model/record.js")" "1"
+assert_eq "STATE_MANAGEMENT documents computeRevalidationScope" \
+    "$(grep -c 'computeRevalidationScope' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
+
+# 28. Kanban progress bars: local drag-move reconcile.
+assert_eq "progress_bar_hook has registerRecordMove" \
+    "$(grep -c 'registerRecordMove(recordId, sourceGroupId, targetGroupId)' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "1"
+assert_eq "progress_bar_hook has _reconcileMove (JSDoc + definition)" \
+    "$(grep -c '_reconcileMove(record, move)' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "2"
+assert_eq "CONVENTIONS gotcha #16 covers the local reconcile" \
+    "$(grep -c '_reconcileMove' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
+
+# 29. SearchModelEvent enum (typed events table row must match the export).
+assert_eq "core/events.js exports SearchModelEvent" \
+    "$(grep -c 'export const SearchModelEvent' "$WEB/static/src/core/events.js")" "1"
+assert_eq "STATE_MANAGEMENT typed-events table has the 4 SearchModelEvent rows" \
+    "$(grep -c 'SearchModelEvent\.' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "4"
+
+# 30. rpc_cache 'immutable' option — deep-frozen shared payloads, adopted by
+#     field_service's fields_get disk cache.
+assert_eq "rpc_cache.js implements the immutable option (deepFreeze)" \
+    "$(grep -c 'immutable ? deepFreeze : deepCopy' "$WEB/static/src/core/network/rpc_cache.js")" "1"
+assert_eq "field_service uses cache({type:'disk', immutable:true})" \
+    "$(grep -c 'immutable: true' "$WEB/static/src/services/field_service.js")" "1"
+
+# 31. EmbeddedActionsBar extracted out of ControlPanel.
+assert_eq "embedded_actions_bar component exists" \
+    "$([ -f "$WEB/static/src/search/embedded_actions_bar/embedded_actions_bar.js" ] && echo 1 || echo 0)" "1"
+
+# 31b. ROUTE_MAP totals + removed QUnit runner route.
+assert_eq "webclient.py no longer serves /web/tests/legacy" \
+    "$(grep -c '/web/tests/legacy' "$WEB/controllers/webclient.py")" "0"
+assert_eq "ROUTE_MAP notes the /web/tests/legacy removal" \
+    "$(grep -c 'was \*\*removed\*\* along with the whole legacy QUnit chain' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
+assert_eq "route handler count = 72 (reality check)" \
+    "$(cat "$WEB"/controllers/*.py | grep -cE '@(http\.)?route\(')" "72"
+assert_eq "ROUTE_MAP total row says 72 handlers" \
+    "$(grep -c '72 handlers / ~104 URL variants' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
+
+# 32. ADR index (core-root doc/adr) lists ADR-0011.
+assert_eq "doc/adr/README.md indexes ADR-0011" \
+    "$(grep -c '0011-persistence-backend-port' /home/marin/Odoo/addons/core/doc/adr/README.md)" "1"
+
 echo ""
 echo "================================================================"
-echo "TOTAL: $PASS passed, $FAIL failed (round 4 — 2026-05-19 audit fixes)"
+echo "TOTAL: $PASS passed, $FAIL failed (round 5 — 2026-07-02 audit-wave reconcile)"
 echo "================================================================"
 exit $FAIL

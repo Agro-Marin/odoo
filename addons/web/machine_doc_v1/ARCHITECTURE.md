@@ -5,7 +5,7 @@ High-level structure, data flow, and component organization for `core/addons/web
 > **See also**: `doc/COMPONENT_DIAGRAM.md` — 18 audit areas with file lists,
 > invariants, and cross-cutting concerns. `doc/FLOW_DIAGRAM.md` — 14 end-to-end
 > sequence diagrams (bootstrap, RPC, auth, view loading, onchange, save, etc.).
-> `DIRECTORY_MAP.md` — All 240 directories mapped to FSD layers and responsibilities.
+> `DIRECTORY_MAP.md` — All 238 directories mapped to FSD layers and responsibilities.
 > `STATE_MANAGEMENT.md` — Decision tree for state patterns, record architecture, typed events.
 
 ## Module Identity
@@ -78,10 +78,10 @@ Top-level layout of `core/addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 23 `.py` — HTTP endpoints (21 Controller classes) | `ROUTE_MAP.md` |
 | `models/` | 22 `.py` — ORM extensions (web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 649 JavaScript/OWL source files across 240 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 657 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 19 vendored JS libraries — DO NOT MODIFY | versions table below |
-| `static/tests/` | 428 `.js` (incl. 344 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
-| `tests/` | 40 Python test files | `TEST_TAGS.md` |
+| `static/tests/` | 407 `.js` (incl. 351 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
+| `tests/` | 44 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 | `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) | — |
 
@@ -94,16 +94,18 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | App entry points: main.js, start.js (env.js, session.js, module_loader.js, service_worker.js at src/ root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/) | 103 JS |
+| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/), lib/ lazy ESM loaders (chartjs, fullcalendar) | 110 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, colorpicker, etc.) — shrank by ~15 after tree utilities moved to core/ | 74 JS |
 | **Services** | `services/` | Data & input singletons: orm, hotkey, field, file_upload, sortable, debug, web_vitals, multi_company_recovery, form_dialog_stack, slow_rpc, etc. | 37 JS |
-| **UI** | `ui/` | Overlay services & components: dialog, popover, tooltip, notification, effects, block | 20 JS |
+| **UI** | `ui/` | Overlay services & components: dialog, popover, tooltip, notification, effects, block | 19 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants | 112 JS |
-| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 149 JS |
-| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 55 JS |
-| **Search** | `search/` | Search bar, facets, filters, group-by, favorites | 31 JS |
-| **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 43 JS |
+| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 151 JS |
+| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 56 JS |
+| **Search** | `search/` | Search bar, facets, filters, group-by, favorites, embedded actions bar | 32 JS |
+| **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 42 JS |
 | **Public** | `public/` | Public (anonymous) page features | 11 JS |
+| **Legacy** | `legacy/` | Legacy compatibility namespace: Resig `Class` inheritance + public-widget loader (`legacy/js/core/`, `legacy/js/public/`) | 6 JS |
+| **Vendored-in-src** | `libs/` | FontAwesome 7 icon CSS/webfonts + its JS glue — vendored inside `src/` (unlike `static/lib/`) | 1 JS |
 
 ## JavaScript Services
 
@@ -114,12 +116,12 @@ Services are registered in `registry.category("services")` and injected via `use
 |---------|------|---------|
 | `orm` | `services/orm_service.js` | ORM gateway — see full API table below |
 | `http` | `services/http_service.js` | Low-level HTTP fetch wrapper (GET/POST) |
-| `field` | `services/field_service.js` | Field metadata loader (calls `fields_get` via `orm.cache({type:"disk"})`) |
+| `field` | `services/field_service.js` | Field metadata loader (calls `fields_get` via `orm.cache({type:"disk", immutable:true})` — warm hits share one deep-frozen payload instead of deep-copying per caller) |
 | `name` | `services/name_service.js` | Display name caching with microtask batching; clears cache on `ACTION_MANAGER:UPDATE` (not CLEAR-CACHES) |
 
 #### `orm` full public API
 
-16 methods on the `ORM` class (`orm_service.js:67-416`). All return a Promise.
+16 methods on the `ORM` class (`orm_service.js:82` onward). All return a Promise.
 
 | Method | Python call | Notes |
 |---|---|---|
@@ -139,21 +141,21 @@ Services are registered in `registry.category("services")` and injected via `use
 | `webResequence(model, ids, kwargs)` | `web_resequence` | **Forces `specification: {}`** if caller omits |
 | `formattedReadGroup` / `formattedReadGroupingSets` | same | Result is mutated: each group gets `__domain` built from `Domain.and([domain, __extra_domain])` |
 
-**Methods NOT on `orm`**: `nameSearch`, `name_create`, `readGroup` (use `orm.call(model, "name_search", ...)` etc.). `UPDATE_METHODS` constant (create/write/unlink/web_save/web_save_multi/action_archive/action_unarchive) is declared but **not used inside orm_service** — exported for cache-invalidation consumers.
+**Methods NOT on `orm`**: `nameSearch`, `name_create`, `readGroup` (use `orm.call(model, "name_search", ...)` etc.). `UPDATE_METHODS` constant (create/write/unlink/web_save/web_save_multi/action_archive/action_unarchive) is exported for cache-invalidation consumers AND used inside orm_service itself: it seeds the private `NON_IDEMPOTENT_METHODS` superset (`orm_service.js:76`), which `call()` checks to hard-reject `retry`/`dedup`/`cache` on write-class methods (throws before anything reaches the network).
 
-**`orm.cache({type:"disk"})`** — proxy pattern (`orm_service.js:86`): `Object.assign(Object.create(this), {_cache: options})`. Every `call()` passes `cache: this._cache` to `rpc()`, where `rpcCache.read(table, key, fetcher, options)` is invoked. **table** = python method name (e.g. `"fields_get"`). **key** = `JSON.stringify({url, params})`. Options pass through — `{type:"disk"}` and `{type:"ram"}` both valid; `cache:true` uses defaults.
+**`orm.cache({type:"disk"})`** — proxy pattern (`orm_service.js:101`): `Object.assign(Object.create(this), {_cache: options})`. Every `call()` passes `cache: this._cache` to `rpc()`, where `rpcCache.read(table, key, fetcher, options)` is invoked. **table** = python method name (e.g. `"fields_get"`). **key** = `JSON.stringify({url, params})`. Options pass through — `{type:"disk"}` and `{type:"ram"}` both valid; `cache:true` uses defaults. `{immutable:true}` makes warm hits share a single deep-frozen cached payload (`rpc_cache.js` — `immutable ? deepFreeze : deepCopy`) instead of deep-copying per read; only for consumers that never mutate the result (adopted by `field_service`).
 
-**`orm.silent`** — same proxy pattern (`orm_service.js:78`) adds `_silent:true` for the downstream error_service to suppress dialogs. **Composable but not chainable with itself**: `orm.silent.cache({type:"disk"})` works; re-invoking `.silent` or `.cache()` re-creates, doesn't stack.
+**`orm.silent`** — same proxy pattern (`orm_service.js:93`) adds `_silent:true` for the downstream error_service to suppress dialogs. **Composable but not chainable with itself**: `orm.silent.cache({type:"disk"})` works; re-invoking `.silent` or `.cache()` re-creates, doesn't stack.
 
-**`orm.dedup`** — same proxy pattern (`orm_service.js:114`) adds `_dedup: true` to subsequent calls. Concurrent callers issuing the same `(url, params)` key share a single in-flight fetch (stampede prevention for **uncached** reads). Redundant when chained onto `.cache(...)` — the cache layer already prevents duplicate fires. Abort semantics are shared: aborting any caller cancels the underlying fetch and rejects every observer with `ConnectionAbortedError`. Never apply to writes.
+**`orm.dedup`** — same proxy pattern (`orm_service.js:128`) adds `_dedup: true` to subsequent calls. Concurrent callers issuing the same `(url, params)` key share a single in-flight fetch (stampede prevention for **uncached** reads). Redundant when chained onto `.cache(...)` — the cache layer already prevents duplicate fires. Abort semantics are shared: aborting any caller cancels the underlying fetch and rejects every observer with `ConnectionAbortedError`. Never apply to writes.
 
-**`orm.retry(options)`** — same proxy pattern (`orm_service.js:137`) adds `_retry: options` to subsequent calls. Accepts a number (interpreted as retries with default backoff) or a partial config `{retries, baseMs, maxMs}`. Composes with `silent` and `cache`: `orm.silent.cache({type:"disk"}).retry(1).call(...)` is the canonical boot-path-resilient idiom (see `services/field_service.js`, `views/view_service.js`). Caller is responsible for ensuring the call is idempotent — never apply to writes (create/write/unlink/web_save/web_save_multi/web_resequence).
+**`orm.retry(options)`** — same proxy pattern (`orm_service.js:152`) adds `_retry: options` to subsequent calls. Accepts a number (interpreted as retries with default backoff) or a partial config `{retries, baseMs, maxMs}`. Composes with `silent` and `cache`: `orm.silent.cache({type:"disk"}).retry(1).call(...)` is the canonical boot-path-resilient idiom (see `services/field_service.js`, `views/view_service.js`). Caller is responsible for ensuring the call is idempotent — never apply to writes (create/write/unlink/web_save/web_save_multi/web_resequence).
 
-**Context merging rule** (`orm_service.js:151`): `fullContext = {...user.context, ...(kwargs.context||{})}`. Spread order means **caller keys win on collision** — `user.context` values can be overridden, though the keys themselves cannot be deleted (omit from caller context to inherit, set to a new value to override).
+**Context merging rule** (`orm_service.js:190`): `fullContext = {...user.context, ...(kwargs.context||{})}`. Spread order means **caller keys win on collision** — `user.context` values can be overridden, though the keys themselves cannot be deleted (omit from caller context to inherit, set to a new value to override).
 
-**rpc.js settings whitelist** (`rpc.js:23`): `cache, silent, headers, timeout, retry, dedup`. Any other key throws. The previous `xhr` setting (XHR injection escape hatch) was dropped along with the migration to `fetch`. `cache` + `retry` compose: cache wraps retry so warm hits skip the retry layer entirely. `timeout` (milliseconds) installs an `AbortSignal.timeout()` that combines with the caller-controlled abort signal via `AbortSignal.any()`. No `credentials`.
+**rpc.js settings whitelist** (`rpc.js:109`): `cache, silent, headers, timeout, retry, dedup`. Any other key throws. The previous `xhr` setting (XHR injection escape hatch) was dropped along with the migration to `fetch`. `cache` + `retry` compose: cache wraps retry so warm hits skip the retry layer entirely. `timeout` (milliseconds) installs an `AbortSignal.timeout()` that combines with the caller-controlled abort signal via `AbortSignal.any()`. No `credentials`.
 
-**Error class hierarchy** (`rpc.js:43-92`):
+**Error class hierarchy** (`rpc.js:129-235`):
 - `NetworkError` (base) — all network/RPC failures
 - `RPCError extends NetworkError` — server-returned errors; `{name:"RPC_ERROR", type:"server", code, data, exceptionName, subType}`. **Never retryable** (server-deterministic).
 - `ConnectionLostError extends NetworkError` — HTTP 502/503/504, JSON parse failure under an ``application/json`` content-type, missing content-type, or fetch network failure (DNS, CORS, server unreachable). Frontend never sees a status code for these. **Retryable**.
@@ -235,7 +237,7 @@ Shared logic extracted from form, list, and kanban controllers to eliminate dupl
 
 ## Asset Pipeline (ESM + esbuild)
 
-The web module ships **native ES modules**, delivered to the browser via an inline `module_loader.js` shim plus an esbuild-bundled `<script type="module">`. Marker convention: every native source carries `/** @odoo-module native */`; **zero** `odoo.define()` calls remain. Full pipeline — loader contract, classification sets (`ESM_BUNDLES`/`DYNAMIC_ESM_BUNDLES`/`IMPORT_MAP_INCLUDES`), esbuild flags, import-map bridging, failure modes, and tunable `web.esbuild.*` params — is in **`ESM_BUNDLING.md`**.
+The web module ships **native ES modules**, delivered to the browser via an inline `module_loader.js` shim plus an esbuild-bundled `<script type="module">`. Marker convention: every native source carries `/** @odoo-module native */`; **zero** `odoo.define()` calls remain. ESM bundle membership is **declarative**: each module lists its bundles under an `esm` manifest key, aggregated and validated by `odoo.tools.assets.esm_registry.esm_registry()` (the old hardcoded frozensets in `assetsbundle.py` are gone). Full pipeline — loader contract, the `esm` manifest schema (`bundles` / `dynamic_children` / `import_map_includes` / `secondary_import_map_includes`), esbuild flags, import-map bridging, failure modes, and tunable `web.esbuild.*` params — is in **`ESM_BUNDLING.md`**.
 
 ### `remove` and `after` directives (manifest bundle composition)
 
@@ -288,20 +290,34 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 |--------|---------|
 | `web.assets_unit_tests_setup` | HOOT framework + all backend assets + clickbot |
 | `web.assets_unit_tests_setup_ui` | HOOT framework + minimal UI (no backend) — mobile/public test subset |
-| `web.assets_unit_tests` | All JS test files (except tours and legacy) |
-| `web.assets_tests` | Legacy test utilities and tour definitions |
-| `web.tests_assets` | **Legacy QUnit-runner aggregator** — includes `web.assets_backend` + QUnit + FullCalendar + ACE + chartjs_lib + clickbot + legacy test helpers. Distinct from the HOOT unit-test bundle chain. |
-| `web.__assets_tests_call__` | Internal test-assets composition shim (do not reference directly) |
-| `web.qunit_suite_tests` | Legacy QUnit test suite runner |
+| `web.assets_unit_tests` | All JS test files (except tours) — the HOOT unit-test bundle |
+| `web.assets_tests` | Tour test utilities and tour definitions (loaded on backend + frontend pages via `web.conditional_assets_tests`) |
 | `web.assets_clickbot` | Click-everywhere automated UI testing bot |
+
+> **Legacy QUnit chain removed.** The vendored QUnit 2.9.1 runner and the
+> `web.tests_assets`, `web.__assets_tests_call__` and `web.qunit_suite_tests`
+> bundles (plus the `/web/tests/legacy` controller route and `static/tests/legacy/`
+> suite tree) were deleted. All JS unit testing now runs through HOOT
+> (`web.assets_unit_tests*`). The two production-relevant legacy suites (`Class`
+> and `publicWidget.Widget`) were ported to HOOT under
+> `web/static/tests/legacy_js/`.
 
 ### Library Bundles
 
 | Bundle | Library | Version |
 |--------|---------|---------|
-| `web.chartjs_lib` | Chart.js + chartjs-adapter-luxon | 4.5.1 + 1.3.1 |
-| `web.fullcalendar_lib` | FullCalendar (Vanilla JS bundle: core + interaction + daygrid + timegrid + list + multimonth), skeleton.css, locales-all | 7.0.0 |
 | `web.ace_lib` | ACE code editor (Python, XML, QWeb, JS, SCSS, JSON modes) | 1.43.6 |
+| `web.assets_signature_pad_lib` | signature_pad UMD (lazy-loaded by `components/signature/name_and_signature.js`) | 5.1.3 |
+
+> **`web.chartjs_lib` and `web.fullcalendar_lib` were removed.** Chart.js
+> (+ its luxon adapter) and FullCalendar are now real ES modules resolved
+> through import-map bare specifiers (`chart.js`, `chartjs-adapter-luxon`,
+> `@fullcalendar/core`) and lazy-loaded via dynamic `import()` in
+> `core/lib/chartjs.js` (`loadChartJS()`) and `core/lib/fullcalendar.js`
+> (`loadFullCalendar()`). No `<script>` injection, no `window.Chart` /
+> `window.FullCalendar` globals — importers read the live-bound `Chart` /
+> `FullCalendar` exports after the loader resolves. See CONVENTIONS.md
+> gotcha #6.
 
 ### Vendored libraries (`static/lib/`)
 
@@ -327,7 +343,6 @@ and the version string in the source file.
 | `pdfjs` | 4.8.69 | PDF viewer field |
 | `popper` | 2.11.8 | Popover positioning (dropdown, tooltip, popover services) |
 | `prismjs` | 1.30.0 | Syntax highlighting in test setup UI |
-| `qunit` | 2.9.1 | Legacy test runner (`web.qunit_suite_tests` bundle) |
 | `signature_pad` | 5.1.3 | Signature component |
 | `stacktracejs` | 2.0-unknown | Traceback annotation in error_utils.js |
 | `zxing-library` | 0.21.3 | BarcodeDetector polyfill (barcode scanner) |
@@ -347,10 +362,10 @@ and the version string in the source file.
 |----------|-------|
 | Python (controllers) | 23 (21 Controller classes + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 22 (21 model files + `__init__.py`) |
-| Python (tests) | 40 |
-| JavaScript (src) | 649 |
-| JavaScript (tests) | 428 (incl. 344 `*.test.js` Hoot suites) |
-| JavaScript (vendored libs) | 94 |
+| Python (tests) | 44 |
+| JavaScript (src) | 657 |
+| JavaScript (tests) | 407 (incl. 351 `*.test.js` Hoot suites) |
+| JavaScript (vendored libs) | 92 |
 | SCSS/CSS | 193 (25 in `static/src/scss/` shared base; remaining 168 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 275 (12 views + 3 data + 260 OWL templates) |
 | i18n (.po + .pot) | 61 |

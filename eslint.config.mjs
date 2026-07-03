@@ -310,6 +310,31 @@ export default [
     },
 
     // =========================================================================
+    // Test files (Hoot environment) — all modules, whitelisted or not
+    //
+    // Hoot's primitives (test/expect/describe…) are IMPORTED from "@odoo/hoot",
+    // so they never need to be globals. What test files in NON-whitelisted
+    // modules were missing is the base browser environment: they are linted by
+    // `js.configs.recommended` (which has no `files` key, so it applies
+    // repo-wide) but only whitelisted modules got `globals.browser` above —
+    // every `no-undef` hit in static/tests was a browser global (document,
+    // window, console, Event, …) or `odoo`. Declare them here for every
+    // module's test tree; for whitelisted modules this merges harmlessly with
+    // the main block.
+    // =========================================================================
+    {
+        files: ["**/static/tests/**/*.js"],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+                odoo: "readonly",
+                luxon: "readonly",
+                QUnit: "readonly",
+            },
+        },
+    },
+
+    // =========================================================================
     // Service Worker override — `self` is the standard global
     // =========================================================================
     {

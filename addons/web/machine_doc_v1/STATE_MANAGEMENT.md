@@ -32,7 +32,7 @@ scheduler batches renders within a tick.
 **SignalStore.**  ``SignalStore`` is the canonical class name.  Only
 `SignalStore` is exported; the `Reactive` alias was removed.  Attempting
 `import { Reactive } from "@web/core/utils/reactive"` fails at module-load
-with a native "no such export" error.  All 27 production sites use
+with a native "no such export" error.  All 26 production sites use
 ``extends SignalStore``.
 
 ## Decision Tree
@@ -216,6 +216,32 @@ remains fine on a `SignalStore` getter.
 > kind), the state-machine timing kind (transition kind), or genuinely an
 > effect masquerading as state?" Only the third is a refactor.
 
+## Model → renderer subscription: `useReactiveModel`
+
+`model/model.js` gives view models a reactive re-render path that replaces
+the legacy "deep render on every `ModelEvent.UPDATE`" bus listener:
+
+- `Model` extends `SignalStore` and owns `_updateEpoch`, a counter bumped by
+  every `notify()` (`model.js` — `this._updateEpoch++` right before the bus
+  trigger; the bus event is kept for legacy/cross-addon consumers but is no
+  longer load-bearing for local re-renders).
+- `useReactiveModel(model)` (exported from `model/model.js`) wraps the model
+  in `useState()` and reads `_updateEpoch` in `onWillRender`, so the calling
+  component subscribes to the epoch: every `model.notify()` re-renders it
+  directly — no parent deep render required. Use it in renderers that
+  snapshot derived state from the model (e.g. PivotRenderer's `getTable()`).
+- A model class whose whole view tree is on this pattern opts out of the
+  legacy listener with `static reactiveRenderers = true` (checked in
+  `useModelWithSampleData`; pivot and graph are opted out).
+
+**CAUTION before opting a model out**: the legacy deep-render listener IS
+load-bearing for any renderer that (a) receives the model as a stable prop
+(OWL props-equality skips it on reactive controller renders) and (b)
+snapshots derived state in `onWillUpdateProps` / `useEffect` deps. Still
+depending on it: calendar, plus enterprise `web_map`, `web_cohort`,
+`web_grid`, `web_gantt`, `social`. Audit the full renderer tree against
+(a)+(b) first.
+
 ## Record State Architecture
 
 Records maintain a three-layer state model:
@@ -238,6 +264,19 @@ Records maintain a three-layer state model:
 
 **Save flow**: `_changes` → RPC write → server returns new `_values` → `_changes` cleared → `data` rebuilt.
 **Discard flow**: `_changes` cleared → `data` rebuilt from `_values` only → `dirty = false`.
+
+**Scoped re-validation on commit**: committing changes re-checks
+unset-required status only for fields whose status could actually have
+changed. `computeRevalidationScope(changedFieldNames, activeFields)`
+(`model/relational_model/record_utils.js:220`) returns the changed fields
+plus every field whose `invisible` / `required` / `readonly` modifier
+expression references one of them (a per-`activeFields` memoized dependency
+map), plus fields with an unparseable modifier (always re-validated as a
+fallback — fails safe). The scope is passed as `scopedFields` to
+`_checkValidity({ removeInvalidOnly: true, scopedFields })`
+(`record.js:526-530`; orchestration lives in
+`model/relational_model/record_validator.js`), so a keystroke does not
+re-evaluate the modifier expressions of every field in a large form.
 
 ## Form Save State Diagram
 
@@ -288,89 +327,61 @@ only one save/discard/load runs at a time.
 `navigator.sendBeacon()` to fire-and-forget unsaved changes. This bypasses
 the mutex and normal flow.
 
-> **Optimistic-locking parity**: the urgent path
-> (`model/relational_model/record_save.js:87-89`) sets
-> `urgentKwargs.last_write_date` whenever `record._values.write_date` is
-> present, mirroring the normal path 60 lines later (`record_save.js:147-150`).
-> The code carries an explicit comment at `record_save.js:81-85` tying the
-> two paths together: *"Optimistic locking: mirror the normal-save path
-> (see :135) so the server can reject concurrent edits even when the save
-> was initiated by sendBeacon on tab close."*
+> **Optimistic-locking parity — field-scoped baseline values**: both paths
+> send `kwargs.known_values`, a `{field: originally-loaded value}` map built
+> once per save (`concurrencyBaseline`, `record_save.js:123-146`) from
+> `record._values` for the fields being written — skipping uncomparable types
+> (x2many, binary, html, date/datetime, json, properties, reference) and
+> jsonb-backed `translate` / `company_dependent` fields. The urgent
+> (sendBeacon) path attaches it via `urgentKwargs`
+> (`record_save.js:179-183`); the normal path via `kwargs.known_values`
+> (`record_save.js:239-244`); both only for existing records (`resId`
+> truthy). Server side, `models/web_read.py:_check_concurrent_field_changes`
+> rejects only genuine per-field conflicts, ignores concurrent writes to
+> other fields, and **fails open** for fields with no baseline (an empty
+> baseline means no check — correct on tab close, where the user's work must
+> never be dropped). The client no longer sends the whole-record
+> `last_write_date`; the server keeps that kwarg only as a legacy fallback,
+> consulted when `known_values` is absent.
 
 **Key files**:
-- `views/form/form_controller.js:696` — `save()` entry point
-- `views/form/form_controller.js:716` — `discard()` entry point
-- `views/form/form_controller.js:506` — `beforeLeave()` auto-save
-- `model/relational_model/record.js:471` — `_applyChanges()` (dirty tracking)
-- `model/relational_model/record.js:248` — `discard()` (mutex-wrapped)
-- `services/result_set_cache_invalidator_service.js:84` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined at `:31` `RESULT_SET_REMOVING_METHODS`; RAM filtered by model, IndexedDB does full table clear — see Flow 14).
+- `views/form/form_controller.js:704` — `save()` entry point
+- `views/form/form_controller.js:724` — `discard()` entry point
+- `views/form/form_controller.js:521` — `beforeLeave()` auto-save
+- `model/relational_model/record.js:472` — `_applyChanges()` (dirty tracking)
+- `model/relational_model/record.js:263` — `discard()` (mutex-wrapped)
+- `services/result_set_cache_invalidator_service.js:101` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined at `:31` `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).
 
-**All 5 CLEAR-CACHES emission sites in the web module:**
+**All 6 CLEAR-CACHES emission sites in the web module:**
 
 | File:Line | Trigger | Scope |
 |---|---|---|
-| `services/result_set_cache_invalidator_service.js:84` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined at `:31` `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
+| `services/result_set_cache_invalidator_service.js:101` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined at `:31` `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
+| `services/result_set_cache_invalidator_service.js:95` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
 | `search/search_query_mutations.js:51` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
-| `webclient/actions/action_service.js:171` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
+| `webclient/actions/action_cache_invalidation.js:40` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
 | `views/view_service.js:65` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
-| `webclient/webclient.js:234` | Post-service-worker-registration on hard refresh | all |
+| `webclient/webclient.js:240` | Post-service-worker-registration on hard refresh | all |
 
-Plus **one listener** at `core/network/rpc.js:234` that routes the event to `rpc_cache.js` for cache invalidation.
+Plus **one listener** at `core/network/rpc.js:271` that routes the event to `rpc_cache.js` for cache invalidation.
 
-## Model Load State Diagram
+## Model Load Lifecycle
 
-The relational model's load lifecycle is formalized by
-{@link RelationalModelLoadCoordinator} (file:
-`model/relational_model/load_coordinator.js`), mirroring the
-`FormSaveCoordinator` template for the save axis.
+> **`RelationalModelLoadCoordinator` was REMOVED** (commit `b906a0295d6` —
+> "Dead code: load_coordinator (inlined)"). No component or service ever
+> read its `status`, so the narration layer was deleted and
+> `model/relational_model/load_coordinator.js` no longer exists. Do not
+> cite it.
 
-```
-                    ┌──────────┐
-              ┌────►│  idle    │◄────┐
-              │     │          │     │
-              │     └────┬─────┘     │
-              │          │ begin     │
-              │          ▼           │
-              │     ┌──────────┐ ok  │
-              │     │ loading  │─────┘
-       discard│     │          │
-              │     └────┬─────┘
-              │          │ failed
-              │          ▼
-              │     ┌──────────┐
-              └─────│  error   │
-                    │          │
-                    └────┬─────┘
-                         │ begin (retry)
-                         ▼
-                      loading
-```
+The load lifecycle is now carried by three primitives on
+`RelationalModel` plus one observable flag:
 
-**Allowed transitions** (full TRANSITIONS table):
-
-| From\Event | begin     | ok    | failed | discard |
-|---         |---        |---    |---     |---      |
-| `idle`     | `loading` | —     | —      | `idle`  |
-| `loading`  | `loading` | `idle`| `error`| `idle`  |
-| `error`    | `loading` | —     | —      | `idle`  |
-
-**Epoch counter for stale terminals**: every `begin` and `discard`
-increments `_loadEpoch`. Each load captures its owner epoch on entry;
-its terminal (`ok` / `failed`) is silently dropped when the current
-epoch has moved on (superseded by a newer load or by a `discard`).
-This is the only legitimate source of stale terminals — misrouted
-outcomes still throw `InvalidLoadTransitionError`.
-
-**What this coordinator does NOT replace**:
-
-| Primitive | Lives | Why kept |
+| Primitive | Lives | Role |
 |---|---|---|
-| `model.keepLast` | RelationalModel | Cancellation: drops in-flight loads when a newer one starts. Different axis from status tracking. |
-| `model.mutex` | RelationalModel | Per-record save/discard serialization. Used across `RelationalRecord.save` / `.discard` / `.delete` / `.update`. A model-level state machine cannot replace mutex usage scattered across the record class without an unrelated re-architecting. |
-| `model._urgentSave` | RelationalModel | Cross-cutting mode flag read by ~5 fast-paths in record/save/preprocessors. Different axis (urgent save vs. load). |
-
-These three primitives have concerns orthogonal to load-status tracking;
-the coordinator keeps them and ADDS itself as a narration layer.
+| `model.keepLast` | `relational_model.js:190` (`markRaw(new KeepLast())`) | Cancellation: `load()` wraps `_loadData` in `keepLast.add(...)` (`relational_model.js:316`) so an in-flight load is dropped when a newer one starts. |
+| `model.mutex` | RelationalModel | Per-record save/discard serialization. Used across `RelationalRecord.save` / `.discard` / `.delete` / `.update`. |
+| `model.urgentSave` (`UrgentSaveCoordinator`) | `model/relational_model/urgent_save_coordinator.js` | Cross-cutting urgent-save mode, orthogonal to loading. |
+| `model.isReady` | `model.js:59` / `relational_model.js:331-332` | Reactive "first load done" flag. Before the first load resolves, `load()` installs an **empty root** (`_createEmptyRoot`) so the control panel renders immediately; `isReady = true` is promoted in the same synchronous block as the real-root + config writes so OWL batches them into a single render. |
 
 ## Typed Events
 
@@ -391,6 +402,10 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `RpcEvent.REQUEST` / `RESPONSE` | `RPC:REQUEST` / `RPC:RESPONSE` | rpcBus | RPC lifecycle |
 | `RpcEvent.CLEAR_CACHES` | `CLEAR-CACHES` | rpcBus | Invalidate caches |
 | `RouterEvent.ROUTE_CHANGE` | `ROUTE_CHANGE` | routerBus | URL changed |
+| `SearchModelEvent.UPDATE` | `update` | env.searchModel | Search state changed |
+| `SearchModelEvent.FOCUS_VIEW` | `focus-view` | env.searchModel | Focus the view |
+| `SearchModelEvent.FOCUS_SEARCH` | `focus-search` | env.searchModel | Focus the search bar |
+| `SearchModelEvent.DIRECT_EXPORT_DATA` | `direct-export-data` | env.searchModel | Export all records |
 
 ## Server-side `__version` stamp for cached endpoints
 

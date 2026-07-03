@@ -6,10 +6,10 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python) | 70 methods | ~30s |
-| `web_http` | HttpCase (url_open, no browser) | 61 methods | ~5 min |
+| `web_unit` | TransactionCase (pure Python) | 85 methods | ~30s |
+| `web_http` | HttpCase (url_open, no browser) | 62 methods | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 methods | ~2 min |
-| `web_js` | Full JS suites (HOOT/QUnit) | 36 methods | ~1-2 hr |
+| `web_js` | Full JS suites (HOOT) | 36 methods | ~1-2 hr |
 | `web_perf` | Query count regression (@warmup) | 25 methods | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 methods | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 methods (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
@@ -93,40 +93,48 @@ to run individual groups instead of the full 1-2 hour suite.
 | `web_users` | test_res_users, test_res_users_settings | User settings, name_search |
 | `web_controllers_audit` | test_controllers_audit | Controller conventions: docstrings, auth, readonly, methods |
 | `web_read_group` | test_web_read_group | `web_read_group` API correctness |
+| `web_read` | test_web_read, test_web_read_group, test_search_panel_version, test_web_benchmark, test_web_perf_regression | `web_read` family correctness + perf (cross-cutting tag) |
+| `web_save` | test_web_save, test_web_benchmark, test_web_perf_regression | `web_save` correctness (incl. `known_values` field-scoped concurrency) + perf |
+| `web_onchange` | test_onchange | Form onchange simulation |
+| `web_search_panel` | test_search_panel_version, test_web_benchmark | Search panel endpoints + `__version` stamps |
+| `web_cwv` | test_web_cwv_metric | Core Web Vitals beacon model, clamping, retention cron |
+| `web_feature_flags` | test_feature_flags | Feature flag resolution cascade |
+| `web_typed_services` | test_typed_services_consistency | `@types/registries/services.d.ts` ↔ runtime registry consistency |
 | `assets_bundle` | test_assets | Bundle generation timings and asset cursors (sub-tag alongside `web_assets`) |
 | `web_bundle_size` | test_web_bundle_size | ESM bundle byte-size regression gate; pins upper-bound budgets per bundle (sub-tag alongside `web_perf` and `web_assets`) |
 
-## JS Legacy QUnit File Taxonomy
+## JS Legacy QUnit chain — REMOVED
 
-`tests/legacy/` contains 28 `.js` files; only **6 of them are actual test
-suites**. The others are helpers and bundle entry points that the legacy
-QUnit chain still references.
+The legacy QUnit test chain has been fully removed from this fork. All JS unit
+testing now runs through **HOOT** (`web.assets_unit_tests*` bundles, driven by
+`/web/tests` and `test_js.py`'s `_run_hoot`).
 
-### Real legacy QUnit suites (6, by full path)
+What was deleted:
 
-```
-tests/legacy/mock_server_tests.js
-tests/legacy/public/public_widget_tests.js
-tests/legacy/views/graph_view_tests.js
-tests/legacy/legacy_tests/helpers/test_utils_tests.js  (meta-test of helpers)
-tests/legacy/core/utils/nested_sortable_tests.js
-tests/legacy/legacy_tests/core/class_tests.js
-```
+- `static/tests/legacy/` (the whole 28-file, ~9,081 LOC tree: 6 QUnit suites +
+  ~22 helper/glue files)
+- Vendored `static/lib/qunit/` (QUnit 2.9.1, css + 6,612 LOC js, ~200 KB)
+- Bundles `web.tests_assets`, `web.__assets_tests_call__`,
+  `web.qunit_suite_tests` (in `web/__manifest__.py`) and the per-consumer
+  contributions to them (calendar, hr, hr_calendar, hr_attendance, mail,
+  barcodes, l10n_ro_edi, website, im_livechat `qunit_embed_suite`;
+  enterprise: web_enterprise, web_map, web_studio, web_grid, pos_settle_due
+  `point_of_sale.assets_qunit_tests`)
+- Controller route `/web/tests/legacy` and templates `web.qunit_suite` /
+  `web.test_helpers` (`web/controllers/webclient.py`,
+  `web/views/webclient_templates.xml`)
+- `web.qunit_suite_tests.js` entry in the `test_assets.py` bundle-timing budget
 
-### Everything else under `tests/legacy/` (the remaining ~22 files) is bundle-only support code:
+Disposition of the 6 former QUnit suites:
 
-- `main.js`, `qunit.js`, `setup.js`, `patch_translations.js` — runner glue
-- `ignore_missing_deps_{start,stop}.js` — ESM bridge shims
-- `helpers/**`, `views/**`, `search/**`, `webclient/**` — fixtures and
-  helper functions consumed only by the 6 suites above
-
-LOC inventory:
-
-| Subset | LOC |
+| Former suite | Disposition |
 |---|---|
-| `tests/legacy/` total tree | 9,081 |
-| `tests/legacy/{helpers,views,search}/` subdirectories alone | 3,656 |
-| QUnit library file (`static/lib/qunit/qunit-2.9.1.js`) | 6,612 (~200 KB on disk) |
+| `legacy_tests/core/class_tests.js` | **Ported** → `tests/legacy_js/class.test.js` (Class is production code) |
+| `public/public_widget_tests.js` | **Ported** → `tests/legacy_js/public_widget.test.js` (publicWidget.Widget is production code) |
+| `core/utils/nested_sortable_tests.js` | Deleted — helper-only file (no `QUnit.test`); HOOT coverage in `tests/core/utils/nested_sortable.test.js` |
+| `views/graph_view_tests.js` | Deleted — helper-only file (no `QUnit.test`); HOOT coverage in `tests/views/graph/graph_view.test.js` |
+| `legacy_tests/helpers/test_utils_tests.js` | Deleted — meta-test of the deleted legacy `patchDate` helper (obsolete under HOOT's mock clock) |
+| `mock_server_tests.js` | Deleted — tested the legacy `MockServer`; superseded by HOOT's server-model mocking framework |
 
 ## Examples
 

@@ -1,4 +1,4 @@
 {
-  "count": 2002,
-  "note": "npx tsc --project tsconfig.json --noEmit 2>&1 | grep -c 'error TS'. tsc has no incremental cache here (deterministic). Measured 2026-06-25 on clean HEAD; was 6575 on 2026-04-29 (stale baseline in old typecheck.yml)."
+  "count": 1917,
+  "note": "npx tsc --project tsconfig.json --noEmit 2>&1 | grep -c 'error TS'. tsc has no incremental cache here (deterministic). Measured 2026-07-02 after the web JS audit fix waves (was 2002 on 2026-06-25; net -85 from the audit refactors)."
 }
