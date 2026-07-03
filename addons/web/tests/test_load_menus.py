@@ -93,3 +93,31 @@ class LoadMenusTests(HttpCase):
             expected,
             "load_menus didn't return the expected value",
         )
+
+    def test_load_menus_conditional(self):
+        """Matching ``?hash=`` → empty 304; stale hash → full payload."""
+        res = self.url_open("/web/webclient/load_menus")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers.get("Cache-Control"), "no-store")
+        current_hash = res.headers.get("X-Menus-Hash")
+        self.assertTrue(current_hash, "200 response must expose X-Menus-Hash")
+        full_payload = res.json()
+        self.assertIn("root", full_payload)
+
+        # Matching hash → 304-equivalent, no payload re-download
+        res_cached = self.url_open(f"/web/webclient/load_menus?hash={current_hash}")
+        self.assertEqual(res_cached.status_code, 304)
+        self.assertFalse(
+            res_cached.content,
+            "304 response must have an empty body",
+        )
+
+        # Stale hash → full payload again, with the current hash
+        res_stale = self.url_open("/web/webclient/load_menus?hash=0deadbeef0")
+        self.assertEqual(res_stale.status_code, 200)
+        self.assertEqual(res_stale.headers.get("X-Menus-Hash"), current_hash)
+        self.assertEqual(
+            res_stale.json(),
+            full_payload,
+            "stale hash must return the full menus payload",
+        )

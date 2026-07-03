@@ -14,6 +14,7 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import {
     _t as basic_t,
     translatedTerms,
@@ -184,6 +185,106 @@ test("[cache] read from cache, and don't wait to render", async () => {
     def.resolve();
     await animationFrame();
     expect.verifySteps(["hash: 30b70a0e"]); //Fetch with the hash of the translation in cache
+});
+
+test.tags("headless");
+test("[preload] adopt the parse-time preloaded fetch on cold boot", async () => {
+    patchWithCleanup(IndexedDB.prototype, {
+        // Cold boot: IndexedDB miss
+        read() {
+            return undefined;
+        },
+        write() {},
+    });
+    onRpc("/web/webclient/translations", () => {
+        // The service must adopt the preloaded fetch instead of re-fetching
+        expect.step("unexpected service fetch");
+    });
+    const preloadedResult = {
+        lang: "en",
+        lang_parameters: {
+            date_format: "%m/%d/%Y",
+            decimal_point: ".",
+            direction: "ltr",
+            grouping: "[3,0]",
+            time_format: "%H:%M:%S",
+            thousands_sep: ",",
+            week_start: 7,
+        },
+        modules: {
+            web: { messages: [{ id: "Hello", string: "Bonjour (preloaded)" }] },
+        },
+        multi_lang: false,
+        hash: "preload123",
+    };
+    // Same globals as the inline script of web.webclient_bootstrap
+    /** @type {any} */ (odoo).loadTranslationsURL =
+        "/web/webclient/translations?hash=&lang=en";
+    /** @type {any} */ (odoo).loadTranslationsPromise = Promise.resolve(
+        new Response(JSON.stringify(preloadedResult)),
+    );
+    await makeMockEnv();
+    // The preload handle is consumed exactly once
+    expect(/** @type {any} */ (odoo).loadTranslationsPromise).toBe(null);
+    expect(/** @type {any} */ (odoo).loadTranslationsURL).toBe(null);
+    expect(_t("Hello")).toBe("Bonjour (preloaded)");
+    expect.verifySteps([]);
+});
+
+test.tags("headless");
+test("[preload] discard the preload and revalidate by hash when the cache hits", async () => {
+    patchWithCleanup(IndexedDB.prototype, {
+        // Warm boot: IndexedDB hit despite a (stale) preload being present
+        read() {
+            return {
+                lang: "en",
+                lang_parameters: {
+                    date_format: "%m/%d/%Y",
+                    decimal_point: ".",
+                    direction: "ltr",
+                    grouping: "[3,0]",
+                    time_format: "%H:%M:%S",
+                    thousands_sep: ",",
+                    week_start: 7,
+                },
+                modules: { web: { messages: [{ id: "Hello", string: "Bonjour" }] } },
+                multi_lang: false,
+                hash: "30b70a0e",
+            };
+        },
+        write() {},
+    });
+    onRpc("/web/webclient/translations", (request) => {
+        expect.step(`hash: ${new URL(request.url).searchParams.get("hash")}`);
+    });
+    /** @type {any} */ (odoo).loadTranslationsURL =
+        "/web/webclient/translations?hash=&lang=en";
+    /** @type {any} */ (odoo).loadTranslationsPromise = Promise.resolve(
+        new Response(JSON.stringify({})),
+    );
+    await makeMockEnv();
+    expect(/** @type {any} */ (odoo).loadTranslationsPromise).toBe(null);
+    // Background revalidation used the cached hash, not the preload
+    expect.verifySteps(["hash: 30b70a0e"]);
+});
+
+test.tags("headless");
+test("[preload] localStorage marker mirrors the IndexedDB cache state", async () => {
+    patchWithCleanup(IndexedDB.prototype, {
+        read() {
+            return undefined;
+        },
+        write() {},
+    });
+    defineParams({
+        translations: frenchTerms,
+    });
+    await makeMockEnv();
+    // Written when the fetched translations are cached; the inline preload
+    // script of web.webclient_bootstrap uses it to skip the prefetch.
+    expect(browser.localStorage.getItem("webclient_translations_version")).toBe(
+        `${session.registry_hash}/en`,
+    );
 });
 
 test("[cache] update the cache if hash are different - template", async () => {

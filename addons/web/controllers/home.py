@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 from typing import Any
@@ -13,6 +14,7 @@ from odoo.http import Response, request
 from odoo.libs.json import dumps as json_dumps
 from odoo.service import security
 from odoo.tools import config, str2bool
+from odoo.tools.json import orjson_default
 from odoo.tools.misc import hmac
 from odoo.tools.translate import LazyTranslate, _
 
@@ -137,22 +139,49 @@ class Home(http.Controller):
         methods=["GET"],
         readonly=True,
     )
-    def web_load_menus(self, lang: str | None = None) -> Response:
+    def web_load_menus(
+        self, lang: str | None = None, hash: str | None = None
+    ) -> Response:
         """
-        Loads the menus for the webclient
+        Loads the menus for the webclient.
+
+        Conditional-fetch contract (mirrors ``/web/webclient/translations``):
+        every 200 response carries an ``X-Menus-Hash`` header (SHA-256 of the
+        JSON body). The client persists it next to its localStorage copy of
+        the menus and sends it back as the ``hash`` query parameter on the
+        next boot; when it still matches, an empty ``304 Not Modified``
+        response is returned instead of the full payload (which includes the
+        base64 app icons), so warm boots only transfer headers.
+
+        ``Cache-Control: no-store`` is kept on purpose: the payload depends
+        on session state (user access rights, debug mode), so it must never
+        be stored by the browser HTTP cache or intermediaries — the explicit
+        hash round-trip replaces HTTP caching.
+
+        Follow-up (out of scope here): serve app icons as URLs instead of
+        inlining them in base64 to shrink the cold-boot payload itself.
+
         :param lang: language in which the menus should be loaded (only works if language is installed)
-        :return: the menus (including the images in Base64)
+        :param hash: hash of the menus payload currently cached by the client
+        :return: the menus (including the images in Base64), or an empty 304
+            response when ``hash`` matches the current payload
         """
         if lang:
             request.update_context(lang=lang)
 
         menus = request.env["ir.ui.menu"].load_web_menus(request.session.debug)
-        return request.make_json_response(
-            menus,
-            [
-                ("Cache-Control", "no-store"),
-            ],
-        )
+        # Serialize with the same helper as make_json_response() so the
+        # hashed bytes are exactly the bytes sent on the wire.
+        body = json_dumps(menus, default=orjson_default)
+        current_hash = hashlib.sha256(body.encode()).hexdigest()
+        headers = [
+            ("Cache-Control", "no-store"),
+            ("X-Menus-Hash", current_hash),
+        ]
+        if hash and hash == current_hash:
+            return request.make_response("", headers, status=304)
+        headers.append(("Content-Type", "application/json; charset=utf-8"))
+        return request.make_response(body, headers)
 
     def _login_redirect(self, uid: int, redirect: str | None = None) -> str:
         return _get_login_redirect_url(uid, redirect)

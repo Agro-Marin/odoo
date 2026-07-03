@@ -10,5 +10,5 @@ class Home(web_home.Home):
     # Only `rpc` is overriden to catch `CheckIdentityException` to display the screen lock dialog.
     # `fetch` isn't and therefore raises an error upon receiving a `CheckIdentityException`.
     @http.route(check_identity=False)
-    def web_load_menus(self, lang=None):
-        return super().web_load_menus(lang)
+    def web_load_menus(self, lang=None, hash=None):
+        return super().web_load_menus(lang, hash)

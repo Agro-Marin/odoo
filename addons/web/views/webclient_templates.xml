@@ -2,11 +2,7 @@
 <odoo>
 
     <!-- Call this template instead of "web.assets_tests" to have the proper conditional check.
-         ``ignore_missing_deps`` is accepted for backwards compatibility with frontend-layout
-         callers but no longer branches: with ESM the legacy
-         ``window.__odooIgnoreMissingDependencies`` flag (set by ``web.__assets_tests_call__``)
-         is moot — there's no AMD-era "missing dep" tracking for the runtime to ignore.  Both
-         backend and frontend pages now load the same ``web.assets_tests`` bundle, which is a
+         Both backend and frontend pages load the same ``web.assets_tests`` bundle, which is a
          DYNAMIC_ESM_BUNDLES child of ``web.assets_web`` AND ``web.assets_frontend`` so the
          page-specific import map carries the bridge entries that preserve singleton identity
          (Registry, TourHelpers, …) across the test bundle and the parent. -->
@@ -227,27 +223,6 @@ debug: "<t t-out="debug" />",
         </div>
     </template>
 
-    <template id="web.test_helpers">
-        <t t-call-assets="web.tests_assets" t-js="false" />
-        <style>
-            body {
-                position: relative; /* bootstrap-datepicker needs this */
-            }
-            body:not(.debug) .modal-backdrop, body:not(.debug) .modal:not(.o_module_error), body:not(.debug) .ui-autocomplete {
-                opacity: 0 !important;
-            }
-            #qunit-testrunner-toolbar label {
-                font-weight: inherit;
-                margin-bottom: inherit;
-            }
-            #qunit-testrunner-toolbar input[type=text] {
-                width: inherit;
-                display: inherit;
-            }
-        </style>
-        <t t-call-assets="web.tests_assets" t-css="false" />
-    </template>
-
     <template id="web.unit_tests_suite">
         <t t-call="web.layout">
             <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
@@ -261,23 +236,6 @@ debug: "<t t-out="debug" />",
         </t>
     </template>
 
-    <template id="web.qunit_suite">
-        <t t-call="web.layout">
-            <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
-            <t t-set="title">Web Tests</t>
-            <t t-set="head">
-                <script> odoo.__session_info__ = <t t-out="json.dumps(session_info)" />; </script>
-
-                <t t-call="web.test_helpers" />
-
-                <t t-call-assets="web.qunit_suite_tests" t-js="false" />
-                <t t-call-assets="web.qunit_suite_tests" t-css="false" />
-            </t>
-            <div id="qunit" />
-            <div id="qunit-fixture" />
-        </t>
-    </template>
-
     <template id="web.webclient_bootstrap" name="Web Client Bootstrap">
         <t t-call="web.layout">
             <t t-set="head_web">
@@ -288,15 +246,70 @@ debug: "<t t-out="debug" />",
                 <script> // Block to avoid leaking variables in the script scope
                     {
                         odoo.__session_info__ = <t t-out="json.dumps(session_info)" />;
-                        const { user_context } = odoo.__session_info__;
+                        const { user_context, registry_hash, translationURL } = odoo.__session_info__;
                         const lang = new URLSearchParams(document.location.search).get("lang");
                         let menuURL = "/web/webclient/load_menus";
                         if (lang) {
                             user_context.lang = lang;
                             menuURL += `?lang=${lang}`;
                         }
-                        odoo.reloadMenus = () =&gt; fetch(menuURL, { cache: "no-store" }).then(res =&gt; res.json());
-                        odoo.loadMenusPromise = odoo.reloadMenus();
+                        // Conditional menus preload: pass the hash of the localStorage
+                        // copy (persisted by menu_service) so the server can answer an
+                        // empty 304 instead of the full payload (base64 icons included)
+                        // when nothing changed. Resolves to `{ menus, hash }`, or
+                        // `null` when the cached copy is confirmed up-to-date (304).
+                        odoo.reloadMenus = (menusHash) =&gt; {
+                            let url = menuURL;
+                            if (menusHash) {
+                                url += (url.includes("?") ? "&amp;" : "?") + `hash=${encodeURIComponent(menusHash)}`;
+                            }
+                            return fetch(url, { cache: "no-store" }).then((res) =&gt; {
+                                if (res.status === 304) {
+                                    return null;
+                                }
+                                if (!res.ok) {
+                                    throw new Error("Error while fetching menus");
+                                }
+                                return res.json().then((menus) =&gt; ({
+                                    menus,
+                                    hash: res.headers.get("X-Menus-Hash") || undefined,
+                                }));
+                            });
+                        };
+                        let storedMenusHash;
+                        try {
+                            // Same validity check as menu_service: only revalidate by
+                            // hash when a menus copy for this registry version exists.
+                            if (localStorage.getItem("webclient_menus_version") === registry_hash
+                                &amp;&amp; localStorage.getItem("webclient_menus")) {
+                                storedMenusHash = localStorage.getItem("webclient_menus_hash") || undefined;
+                            }
+                        } catch (e) { /* localStorage unavailable: plain full fetch */ }
+                        odoo.loadMenusPromise = odoo.reloadMenus(storedMenusHash);
+
+                        // Translations preload — cold boot only. localization_service
+                        // mirrors its IndexedDB translations cache with a synchronous
+                        // localStorage marker ("webclient_translations_version" =
+                        // `${registry_hash}/${lang}`). Marker present and matching →
+                        // the IndexedDB read will hit, no early fetch needed (the
+                        // service still revalidates in the background with ?hash=).
+                        // Marker absent/stale (first visit, deploy that bumped
+                        // registry_hash, language change) → start the fetch at parse
+                        // time so it overlaps with asset download/eval instead of
+                        // starting after them. localization_service adopts the
+                        // promise only when its own URL matches odoo.loadTranslationsURL.
+                        const transLang = user_context.lang || "";
+                        let translationsCached = false;
+                        try {
+                            translationsCached = localStorage.getItem("webclient_translations_version") === `${registry_hash}/${transLang}`;
+                        } catch (e) { /* localStorage unavailable: preload anyway */ }
+                        if (!translationsCached) {
+                            const transBase = translationURL || "/web/webclient/translations";
+                            // Must match the URL built by localization_service
+                            // (objectToUrlEncodedString keeps the empty hash key).
+                            odoo.loadTranslationsURL = `${transBase}?hash=&amp;lang=${encodeURIComponent(transLang)}`;
+                            odoo.loadTranslationsPromise = fetch(odoo.loadTranslationsURL, { cache: "no-store" });
+                        }
                     }
                 </script>
                 <t t-call-assets="web.assets_web_print" media="print" t-js="false" />
