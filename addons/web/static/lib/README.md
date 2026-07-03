@@ -23,10 +23,8 @@ Each subdirectory contains a `VERSION.txt` with the upstream version string (or 
 | `pdfjs/` | 4.8.69 | https://mozilla.github.io/pdf.js/ — `pdfjsVersion` constant in `build/pdf.js` |
 | `popper/` | 2.11.8 | https://popper.js.org — `@popperjs/core` |
 | `prismjs/` | 1.30.0 | https://prismjs.com — header comment in `prism.js` |
-| `qunit/` | 2.9.1 | https://qunitjs.com — version in filename |
 | `signature_pad/` | 5.1.3 | https://github.com/szimek/signature_pad |
-| `stacktracejs/` | 2.0 (verify) | https://www.stacktracejs.com — minified, no inline version marker; verify against upstream before updating |
-| `zxing-library/` | 0.21.3 | https://github.com/zxing-js/library — see `version` file |
+| `zxing-library/` | 0.21.3 | https://github.com/zxing-js/library — see `version` file. **Not a pristine upstream file**: single-file ESM bundle built from the npm package's `esm/` sources (upstream ships no single-file ESM build); the build command is in the banner comment of `zxing-library.js` — re-run it when bumping the version. |
 
 ## Update procedure
 

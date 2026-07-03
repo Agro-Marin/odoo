@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { selectElements } from "@html_editor/utils/dom_traversal";
+
 import { Plugin } from "../plugin.js";
+
+import DOMPurify from "dompurify";
 
 /**
  * @typedef { Object } SanitizeShared
@@ -17,9 +20,9 @@ export class SanitizePlugin extends Plugin {
     };
 
     setup() {
-        if (!window.DOMPurify) {
-            throw new Error("DOMPurify is not available");
-        }
+        // DOMPurify's default export doubles as a factory: calling it with
+        // another window returns an instance bound to that document (the
+        // editable may live in an iframe).
         this.DOMPurify = DOMPurify(this.window);
     }
     /**
@@ -47,7 +50,7 @@ export class SanitizePlugin extends Plugin {
     normalize(element) {
         for (const el of selectElements(
             element,
-            ".o-contenteditable-false, .o-contenteditable-true"
+            ".o-contenteditable-false, .o-contenteditable-true",
         )) {
             el.contentEditable = el.matches(".o-contenteditable-true");
         }
@@ -72,7 +75,7 @@ export class SanitizePlugin extends Plugin {
     cleanForSave({ root }) {
         for (const el of selectElements(
             root,
-            ".o-contenteditable-false, .o-contenteditable-true"
+            ".o-contenteditable-false, .o-contenteditable-true",
         )) {
             el.removeAttribute("contenteditable");
         }

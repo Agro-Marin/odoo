@@ -122,7 +122,6 @@
             "web/static/src/fields/translation_dialog.scss",
             "web/static/src/scss/rtl_icon_flip.scss",
             "web/static/src/session.js",
-            "web/static/lib/dompurify/DOMpurify.js",
             "web/static/src/libs/bootstrap.js",
             "base/static/src/css/modules.css",
             "web/static/src/core/utils/transitions.scss",

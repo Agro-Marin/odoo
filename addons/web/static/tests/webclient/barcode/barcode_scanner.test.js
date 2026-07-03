@@ -14,7 +14,7 @@ import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scann
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
 
-/* global ZXing */
+import * as ZXing from "zxing-library";
 
 test("Barcode scanner crop overlay", async () => {
     const env = await makeMockEnv();

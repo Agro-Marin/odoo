@@ -9,9 +9,10 @@
             <html>
                 <head>
                     <title><t t-out="slide.name"/></title>
+                    <!-- pdf.js is lazy-loaded by slides_embed.js via a
+                         dynamic import("pdfjs-dist") resolved through the
+                         bundle's import map; no eager script tags needed. -->
                     <t t-call-assets="website_slides.slide_embed_assets"/>
-                    <script type="module" src="/web/static/lib/pdfjs/build/pdf.js"/>
-                    <script type="module" src="/web/static/lib/pdfjs/build/pdf.worker.js"/>
                 </head>
                 <body>
                     <div id="PDFViewer" class="o_wslides_fs_pdf_viewer d-flex flex-column h-100">

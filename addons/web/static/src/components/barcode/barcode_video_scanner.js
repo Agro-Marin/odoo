@@ -15,7 +15,6 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { loadJS } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { pick } from "@web/core/utils/collections/objects";
@@ -68,8 +67,8 @@ export class BarcodeVideoScanner extends Component {
             if ("BarcodeDetector" in window) {
                 DetectorClass = BarcodeDetector;
             } else {
-                await loadJS("/web/static/lib/zxing-library/zxing-library.js");
-                DetectorClass = buildZXingBarcodeDetector(window.ZXing);
+                const ZXing = await import("zxing-library");
+                DetectorClass = buildZXingBarcodeDetector(ZXing);
             }
             const formats = await DetectorClass.getSupportedFormats();
             this.detector = new DetectorClass({ formats });

@@ -3,7 +3,6 @@
 
 /** @module @web/core/utils/pdfjs - PDF.js viewer button visibility control and library lazy-loading */
 
-import { loadJS } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 
 /**
@@ -70,9 +69,51 @@ export function hidePDFJSButtons(rootElement, options = {}) {
     }
 }
 
-export async function loadPDFJSAssets() {
-    return Promise.all([
-        loadJS("/web/static/lib/pdfjs/build/pdf.js"),
-        loadJS("/web/static/lib/pdfjs/build/pdf.worker.js"),
-    ]);
+/**
+ * Live-bound pdf.js namespace (`{ getDocument, GlobalWorkerOptions, ... }`).
+ *
+ * `null` until {@link loadPDFJS} has resolved at least once; thereafter
+ * importers read the loaded namespace through the ES-module live binding.
+ * Evaluating the module also assigns `globalThis.pdfjsLib` (a build
+ * artifact of the upstream ESM bundle), which the classic
+ * `PDFSlidesViewer.js` helper in website_slides still reads.
+ *
+ * @type {any}
+ */
+export let pdfjsLib = null;
+
+/** @type {Promise<any> | null} de-dupes concurrent loads into one fetch. */
+let loadPromise = null;
+
+/**
+ * Lazily load pdf.js, then populate the live-bound {@link pdfjsLib} export.
+ *
+ * The library is a real ES module resolved through the `pdfjs-dist`
+ * import-map external bare specifier — replacing the old
+ * `loadJS(".../pdf.js")` + `window.pdfjsLib` global pattern, which also
+ * evaluated the 2.2 MB `pdf.worker.js` ON THE MAIN THREAD merely to seed
+ * pdf.js's "fake worker" fallback.  `GlobalWorkerOptions.workerSrc` is set
+ * centrally here instead: pdf.js spawns the worker itself (as a module
+ * worker) and PDFs are parsed off the UI thread.
+ *
+ * @returns {Promise<any>} the pdf.js namespace
+ */
+export async function loadPDFJS() {
+    if (!pdfjsLib) {
+        loadPromise ??= (async () => {
+            const lib = await import("pdfjs-dist");
+            lib.GlobalWorkerOptions.workerSrc =
+                "/web/static/lib/pdfjs/build/pdf.worker.js";
+            pdfjsLib = lib;
+            return lib;
+        })().catch((error) => {
+            // Never cache a rejection: a transient fetch failure would
+            // otherwise disable every future PDF preview until a full
+            // page reload.
+            loadPromise = null;
+            throw error;
+        });
+        await loadPromise;
+    }
+    return pdfjsLib;
 }

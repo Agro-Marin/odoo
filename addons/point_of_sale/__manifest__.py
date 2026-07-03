@@ -156,7 +156,6 @@
             # JS boot
             # libs (should be loaded before framework)
             'point_of_sale/static/lib/**/*',
-            'web/static/lib/zxing-library/zxing-library.js',
 
             ('include', 'point_of_sale.base_app'),
 

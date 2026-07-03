@@ -668,9 +668,7 @@ export const assets = {
         log("loadJS", url);
         const scriptEl = targetDoc.createElement("script");
         scriptEl.setAttribute("src", url);
-        scriptEl.type = url.includes("web/static/lib/pdfjs/")
-            ? "module"
-            : "text/javascript";
+        scriptEl.type = "text/javascript";
         const promise = new Promise((resolve, reject) =>
             onLoadAndError(scriptEl, resolve, (error) => {
                 cacheMap.delete(url);

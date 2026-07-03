@@ -119,6 +119,7 @@
         "**/lib/bootstrap",
         "**/lib/Chart",
         "**/lib/chartjs-adapter-luxon",
+        "**/lib/dompurify",
         "**/lib/fullcalendar",
         "**/lib/jquery",
         "**/lib/luxon",

@@ -3,12 +3,9 @@
 
 /** @module @web/components/signature/name_and_signature - Signature pad component with draw, auto-generate, and load modes */
 
-/* global SignaturePad */
-
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { loadBundle } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { rpc } from "@web/core/network/rpc";
 import { useAutofocus } from "@web/core/utils/hooks";
@@ -70,14 +67,20 @@ export class NameAndSignature extends Component {
         });
 
         onWillStart(async () => {
-            await loadBundle("web.assets_signature_pad_lib");
+            // signature_pad is an external ESM lib resolved through the
+            // import map; the dynamic import() keeps its ~26 KB payload out
+            // of web.assets_web until a signature component first mounts
+            // (same laziness the old ``web.assets_signature_pad_lib``
+            // classic bundle provided, minus the ``window.SignaturePad``
+            // global).
+            this.SignaturePad = (await import("signature_pad")).default;
         });
 
         this.signatureRef = useRef("signature");
         useEffect(
             (el) => {
                 if (el) {
-                    this.signaturePad = new SignaturePad(el, {
+                    this.signaturePad = new this.SignaturePad(el, {
                         penColor: this.props.fontColor,
                         backgroundColor: "rgba(255,255,255,0)",
                         minWidth: 2,

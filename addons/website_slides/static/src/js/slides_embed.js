@@ -33,9 +33,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
             this.pdf_viewer = new globalThis.PDFSlidesViewer(this.slide_url, this.canvas);
             this.hasSuggestions = !!this.viewer.querySelector(".oe_slides_suggestion_media");
-            this.pdf_viewer.loadDocument().then(function () {
-                self.on_loaded_file();
-            });
+            // pdf.js is an ES module resolved through the page's import
+            // map ("pdfjs-dist" — a dynamic import() is legal in this
+            // classic script).  Evaluating it assigns globalThis.pdfjsLib,
+            // which PDFSlidesViewer reads; workerSrc makes pdf.js spawn a
+            // real (module) worker instead of the old pattern of eagerly
+            // evaluating the 2.2 MB pdf.worker.js on the main thread as a
+            // fake-worker fallback.
+            import("pdfjs-dist")
+                .then(function (pdfjsLib) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc =
+                        "/web/static/lib/pdfjs/build/pdf.worker.js";
+                    return self.pdf_viewer.loadDocument();
+                })
+                .then(function () {
+                    self.on_loaded_file();
+                });
         };
         EmbeddedViewer.prototype.__proto__ = {
             // querySelector inside the viewer element (like Widget.$)
