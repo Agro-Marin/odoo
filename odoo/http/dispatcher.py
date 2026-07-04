@@ -95,9 +95,18 @@ class Dispatcher(ABC):
 
         if cors and self.request.httprequest.method == "OPTIONS":
             set_header("Access-Control-Max-Age", CORS_MAX_AGE)
+            # Reflect the exact headers the browser asks for (the standard
+            # answer for a route that already opted into CORS) instead of a
+            # hand-maintained allow-list — the static list silently broke
+            # streaming clients until ``Range`` was added, and would break the
+            # next custom header the same way. Header allowance is not an auth
+            # boundary: forbidden headers stay browser-enforced and the actual
+            # request still passes the route's own auth. The static list is
+            # kept as fallback for preflights that name no headers.
             set_header(
                 "Access-Control-Allow-Headers",
-                "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
+                self.request.httprequest.headers.get("Access-Control-Request-Headers")
+                or "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
             )
             # ``abort`` raises an HTTPException carrying our 204; _serve.py
             # catches it (``code is None`` branch), runs ``post_dispatch`` to add

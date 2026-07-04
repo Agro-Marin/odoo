@@ -345,6 +345,22 @@ class TestHttpCors(TestHttpBase):
             res_post.headers.get("Access-Control-Allow-Methods"), "GET, PUT"
         )
 
+    def test_cors1_preflight_reflects_requested_headers(self):
+        # A preflight naming specific headers gets them reflected verbatim
+        # (any header a CORS-opted route is asked for is allowed); the static
+        # fallback list only serves preflights that name none.
+        res_opt = self.url_open(
+            f"{self.base_url()}/test_http/cors_http_default",
+            timeout=10,
+            method="OPTIONS",
+            headers={"Access-Control-Request-Headers": "x-custom-header, range"},
+        )
+        self.assertIn(res_opt.status_code, (200, 204))
+        self.assertEqual(
+            res_opt.headers.get("Access-Control-Allow-Headers"),
+            "x-custom-header, range",
+        )
+
     def test_cors2_json(self):
         res_opt = self.url_open(
             f"{self.base_url()}/test_http/cors_json",
