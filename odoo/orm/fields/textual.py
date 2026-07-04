@@ -556,8 +556,11 @@ class BaseString(Field[str | typing.Literal[False]]):
         self, records: BaseModel, cache_value: typing.Any, lang: str
     ) -> None:
         """Non-stored (or all-new-record) path: update the cache only, no SQL."""
-        if self.compute and self.inverse:
-            # invalidate the values in other languages to force their recomputation
+        if self.compute and self.inverse and any(records._ids):
+            # invalidate the values in other languages to force their
+            # recomputation — but only for real records. On new records
+            # (onchange) this would wrongly drop the other-language
+            # translations kept in cache, so fall through to a plain update.
             if self.translate is True:
                 self._invalidate_cache(records.env, records._ids)
             self._update_cache(

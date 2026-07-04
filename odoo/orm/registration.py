@@ -441,7 +441,7 @@ def _patch_company_dependent_field(
         # validate column type in case it was changed by an upgrade script
         col = sql.table_columns(env.cr, model_cls._table).get(name)
         if col and col["udt_name"] == "jsonb":
-            _logger.warning(
+            _logger.debug(
                 "Patching %s.%s with company_dependent=True",
                 model_cls._name,
                 name,
@@ -602,13 +602,21 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
 def _add_manual_models(env: Environment):
     """Add extra models to the registry."""
     # clean up registry first
+    removed_fields = OrderedSet()
     for name, model_cls in list(env.registry.items()):
         if model_cls._custom:
+            removed_fields.update(model_cls._fields.values())
             del env.registry.models[name]
             # remove the model's name from its parents' _inherit_children
             for parent_cls in model_cls.__bases__:
                 if hasattr(parent_cls, "pool"):
                     parent_cls._inherit_children.discard(name)
+
+    if removed_fields:
+        # discard removed custom fields from the registry's dependency maps
+        # (notably field_setup_dependents); otherwise they leak and duplicate
+        # across successive registry setups
+        env.registry._discard_fields(list(removed_fields))
 
     # can't use self._fields for translated fields: not set up yet
     env.cr.execute(

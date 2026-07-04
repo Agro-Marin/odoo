@@ -12,7 +12,6 @@ from odoo.libs.filesystem.mimetypes import guess_mimetype
 from odoo.tools import SQL, human_size
 from odoo.tools.image import image_process
 
-from ..primitives import SQL_OPERATORS
 from .base import Field
 
 if typing.TYPE_CHECKING:
@@ -283,12 +282,15 @@ class Binary(Field[bytes | typing.Literal[False]]):
         assert operator in ("in", "not in") and set(value) == {False}, (
             "Should have been done in Domain optimization"
         )
+        # Use a correlated NOT EXISTS/EXISTS rather than NOT IN/IN: on a large
+        # ir_attachment, materializing the full res_id list is a bottleneck,
+        # while EXISTS lets PostgreSQL short-circuit on the first match.
         return SQL(
-            "%s%s(SELECT res_id FROM ir_attachment WHERE res_model = %s AND res_field = %s)",
-            model._field_to_sql(alias, "id", query),
-            SQL_OPERATORS["not in" if operator in ("in", "=") else "in"],
+            "%sEXISTS (SELECT 1 FROM ir_attachment WHERE res_model = %s AND res_field = %s AND res_id = %s)",
+            SQL("NOT ") if operator == "in" else SQL(),
             model._name,
             self.name,
+            model._field_to_sql(alias, "id", query),
         )
 
 
@@ -370,8 +372,17 @@ class Image(Binary):
     def _image_process(
         self, value: typing.Any, env: typing.Any
     ) -> bytes | typing.Literal[False]:
-        if self.readonly and not self.max_width and not self.max_height:
+        if self.readonly and (
+            (not self.max_width and not self.max_height)
+            or (
+                isinstance(self.related_field, Image)
+                and self.max_width == self.related_field.max_width
+                and self.max_height == self.related_field.max_height
+            )
+        ):
             # no need to process images for computed fields, or related fields
+            # (when the related field already applies the same resizing) —
+            # excess Pillow processing quickly leads to MemoryError on upgrades
             return value
         try:
             img = base64.b64decode(value or "") or False
