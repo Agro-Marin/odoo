@@ -321,9 +321,12 @@ class Domain:
         if len(arg) == 1:
             item = arg[0]
             if isinstance(item, (tuple, list)) and len(item) == 3:
+                # operators are matched case-insensitively (they are lowercased
+                # later in DomainCondition.checked)
+                op = item[1].lower()
                 if internal:
                     # parse subdomain values for any/any!/not any/not any!
-                    if item[1] in SUBDOMAIN_OPERATORS and isinstance(
+                    if op in SUBDOMAIN_OPERATORS and isinstance(
                         item[2], (list, tuple)
                     ):
                         item = (
@@ -331,7 +334,7 @@ class Domain:
                             item[1],
                             Domain(item[2], internal=True),
                         )
-                elif item[1] in INTERNAL_CONDITION_OPERATORS:
+                elif op in INTERNAL_CONDITION_OPERATORS:
                     raise ValueError(f"Domain() invalid item in domain: {item!r}")
                 return Domain(*item)
             if isinstance(item, Domain):
@@ -340,8 +343,11 @@ class Domain:
         try:
             for item in reversed(arg):
                 if isinstance(item, (tuple, list)) and len(item) == 3:
+                    # operators are matched case-insensitively (lowercased later
+                    # in DomainCondition.checked)
+                    op = item[1].lower()
                     if internal:
-                        if item[1] in SUBDOMAIN_OPERATORS and isinstance(
+                        if op in SUBDOMAIN_OPERATORS and isinstance(
                             item[2], (list, tuple)
                         ):
                             item = (
@@ -349,7 +355,7 @@ class Domain:
                                 item[1],
                                 Domain(item[2], internal=True),
                             )
-                    elif item[1] in INTERNAL_CONDITION_OPERATORS:
+                    elif op in INTERNAL_CONDITION_OPERATORS:
                         raise ValueError(f"Domain() invalid item in domain: {item!r}")
                     stack.append(Domain(*item))
                 elif item == DomainAnd.OPERATOR:
