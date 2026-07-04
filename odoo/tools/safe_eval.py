@@ -57,6 +57,7 @@ _UNSAFE_ATTRIBUTES = [
     "f_code",
     "f_globals",
     "f_locals",
+    "f_generator",  # Python 3.14 frame attribute
     # Legacy Python 2 names: don't exist in Python 3, blocked for defence-in-depth
     "func_code",
     "func_globals",

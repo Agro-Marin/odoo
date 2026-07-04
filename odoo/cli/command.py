@@ -227,6 +227,13 @@ class DatabaseCommand(Command, register=False):
             default=None,
             help="database name, connection details will be taken from the config file",
         )
+        parser.add_argument(
+            "-D",
+            "--data-dir",
+            dest="data_dir",
+            default=None,
+            help="directory where to store Odoo data",
+        )
 
     def bootstrap_config(
         self,
@@ -243,7 +250,14 @@ class DatabaseCommand(Command, register=False):
         :return: the single validated database name (also written back to
             ``parsed_args.db_name``)
         """
-        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
+        extra_args = None
+        if getattr(parsed_args, "data_dir", None):
+            # let a platform enforce --data-dir even when the config file is
+            # user-controlled (the odoorc file remains the preferred way)
+            extra_args = ["-D", parsed_args.data_dir]
+        config_args = build_config_args(
+            parsed_args.config, parsed_args.db_name, extra_args=extra_args
+        )
         config.parse_config(config_args, setup_logging=True)
         return self.require_single_database(parsed_args, allow_none=allow_none)
 
