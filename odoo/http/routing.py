@@ -82,9 +82,10 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
         route will be routed to this decorated method. See `werkzeug
         routing documentation <https://werkzeug.palletsprojects.com/en/stable/routing/>`_
         for the format of route expressions.
-    :param str type: The type of request, either ``'jsonrpc'`` or
-        ``'http'``. It describes where to find the request parameters
-        and how to serialize the response.
+    :param str type: The type of request: ``'http'`` (the default),
+        ``'jsonrpc'`` (JSON-RPC 2.0 envelope) or ``'json2'`` (plain JSON
+        body in, plain JSON out). It describes where to find the request
+        parameters and how to serialize the response.
     :param str auth: The authentication method, one of the following:
 
         * ``'user'``: The user must be authenticated and the current

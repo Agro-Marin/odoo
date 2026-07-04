@@ -7,6 +7,7 @@ from typing import Any
 
 import babel.core
 import werkzeug.datastructures
+import werkzeug.exceptions
 
 import odoo
 from odoo.libs.json import loads as _fast_loads
