@@ -133,8 +133,20 @@ class Stream:
     @classmethod
     def from_binary_field(cls, record: Any, field_name: str) -> Stream:
         """Create a :class:`~Stream` from a binary field."""
-        data_b64 = record[field_name]
-        data = base64.b64decode(data_b64) if data_b64 else b""
+        data = record[field_name] or b""
+
+        # Image fields enforce base64 encoding. Binary fields don't enforce
+        # anything: raw bytes are fine, expected even. People nonetheless write
+        # base64-encoded bytes inside binary fields and expect automatic
+        # decoding when read, crazy! So attempt to decode and fall back to the
+        # raw bytes if it isn't valid base64.
+        with contextlib.suppress(ValueError):
+            data = base64.b64decode(
+                # Some libs add a linefeed every X (< 79) chars in the base64
+                # (email mime). validate=True rejects those, so strip them.
+                data.replace(b"\r", b"").replace(b"\n", b""),
+                validate=True,
+            )
         return cls(
             type="data",
             data=data,
