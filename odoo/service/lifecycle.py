@@ -254,8 +254,15 @@ def _limit_malloc_arenas() -> None:
 
         libc = ctypes.CDLL("libc.so.6")
         M_ARENA_MAX = -8
-        assert libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2))
+        # Explicit check, NOT ``assert``: under ``python -O`` an ``assert``
+        # statement — and the ``mallopt()`` call inside it — is stripped, so the
+        # arena cap would silently never be applied and the threaded worker's
+        # virtual-memory soft-limit accounting would degrade.  ``mallopt``
+        # returns 1 on success, 0 on failure.
+        ok = libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2)) == 1
     except Exception:
+        ok = False
+    if not ok:
         _logger.warning("Could not set ARENA_MAX through mallopt()")
 
 

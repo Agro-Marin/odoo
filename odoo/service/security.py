@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import TYPE_CHECKING
 
@@ -5,6 +6,8 @@ from odoo.tools.misc import consteq
 
 if TYPE_CHECKING:
     from odoo.api import Environment
+
+_logger = logging.getLogger(__name__)
 
 
 def compute_session_token(session: object, env: Environment) -> str | bool:
@@ -44,5 +47,20 @@ def check_session(
     if not expected or not isinstance(actual, str) or not consteq(expected, actual):
         return False
     if request:
-        env["res.device.log"]._update_device(request)
+        # Device-log bookkeeping is non-essential to authentication: the token
+        # already validated, so the session IS valid.  A failure updating the
+        # device log (lock contention, a transient DB error, a serialization
+        # conflict) must not reject it — the caller
+        # (``ir_http._authenticate_explicit``) converts *any* exception raised
+        # here into ``AccessDenied``, which would spuriously log out a valid user
+        # and swallow a retryable conflict before ``retrying`` could act on it.
+        # Log and continue.
+        try:
+            env["res.device.log"]._update_device(request)
+        except Exception:
+            _logger.warning(
+                "Device-log update failed for a valid session; keeping the "
+                "session authenticated",
+                exc_info=True,
+            )
     return True

@@ -40,6 +40,18 @@ PG_CONCURRENCY_ERRORS_TO_RETRY = PG_RETRY_SQLSTATES
 PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
 
+# Upper bound (seconds) on any single inter-retry sleep.  The backoff stays
+# exponential — ``random.uniform(0, 2 ** tryno)`` — but the range is capped so a
+# late retry cannot pin its connection for the full ``2 ** 4 == 16`` s.  In the
+# RPC path ``env.cr`` is a connection borrowed from the pool for the whole
+# ``retrying`` call (``service.model.dispatch``'s ``with registry.cursor()``);
+# the rollback between attempts frees the transaction's *locks* but not the pool
+# *slot*.  Under a serialization-failure storm — precisely when retries fire —
+# many workers sleeping on the uncapped tail saturate the pool and turn transient
+# contention into a cluster-wide stall.  A 2 s ceiling keeps meaningful jitter
+# (still decorrelates the thundering herd) while bounding the hold.
+MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
+
 
 def _integrity_error_to_validation(
     env: Environment, exc: IntegrityError
@@ -185,7 +197,9 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     _logger.info("%s, maximum number of tries reached!", error)
                     raise
 
-                wait_time = random.uniform(0.0, 2**tryno)
+                wait_time = random.uniform(
+                    0.0, min(2**tryno, MAX_CONCURRENCY_BACKOFF_SECONDS)
+                )
                 _logger.info(
                     "%s, %s tries left, try again in %.04f sec...",
                     error,
@@ -233,6 +247,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
 
 
 __all__ = (
+    "MAX_CONCURRENCY_BACKOFF_SECONDS",
     "MAX_TRIES_ON_CONCURRENCY_FAILURE",
     "PG_CONCURRENCY_ERRORS_TO_RETRY",
     "PG_CONCURRENCY_EXCEPTIONS_TO_RETRY",

@@ -40,6 +40,26 @@ from .lifecycle import _reexec, preload_registries
 
 _logger = logging.getLogger("odoo.service.server")
 
+# Overall deadline (seconds) for a graceful worker shutdown: after SIGINT is
+# sent, workers get this long to finish their current request and exit before
+# the master escalates to SIGKILL.  Without a hard ceiling a worker that ignores
+# SIGINT (wedged / uninterruptible) and has no watchdog (``limit_time_real <= 0``
+# -> ``watchdog_timeout is None``, so ``process_timeout`` never fires) spins the
+# graceful-stop loop forever, hanging both shutdown and reload.
+GRACEFUL_STOP_TIMEOUT_S = 60.0
+
+# Fork-storm throttle.  A worker that raises before serving real work dies
+# immediately, and the master otherwise refills its slot every main-loop
+# iteration with no delay — a dying child's SIGCHLD wakes ``sleep`` at once, so
+# the respawn rate is bounded only by fork+crash+reap latency (measured at
+# ~900 forks/s), a CPU-pinning storm plus log flood.  A worker that survives at
+# least ``WORKER_MIN_HEALTHY_LIFETIME_S`` counts as a successful boot and clears
+# the throttle; consecutive early crashes grow a ``2 ** n`` respawn backoff,
+# capped at ``WORKER_RESPAWN_BACKOFF_CAP_S``, during which ``process_spawn``
+# holds off refilling slots.
+WORKER_MIN_HEALTHY_LIFETIME_S = 30.0
+WORKER_RESPAWN_BACKOFF_CAP_S = 30.0
+
 
 class PreforkServer(CommonServer):
     """Multiprocessing inspired by (g)unicorn.
@@ -71,6 +91,10 @@ class PreforkServer(CommonServer):
         self.generation = 0
         self.queue = deque()
         self.long_polling_pid = None
+        # Fork-storm throttle (see the WORKER_* constants and process_spawn):
+        # consecutive early worker crashes push an exponential respawn backoff.
+        self._consecutive_fast_deaths = 0
+        self._respawn_not_before = 0.0  # monotonic deadline; 0.0 => spawn freely
 
     def pipe_new(self) -> tuple[int, int]:
         """Create a new non-blocking, close-on-exec pipe pair."""
@@ -150,6 +174,7 @@ class PreforkServer(CommonServer):
         pid = os.fork()
         if pid != 0:
             worker.pid = pid
+            worker.spawn_time = time.monotonic()  # for the fork-storm throttle
             self.workers[pid] = worker
             workers_registry[pid] = worker
             return worker
@@ -255,14 +280,51 @@ class PreforkServer(CommonServer):
         """Reap dead workers via ``waitpid(-1, WNOHANG)``."""
         while True:
             try:
-                wpid, _status = os.waitpid(-1, os.WNOHANG)
+                wpid, status = os.waitpid(-1, os.WNOHANG)
                 if not wpid:
                     break
+                self._note_worker_exit(wpid, status)
                 self.worker_pop(wpid)
             except OSError as e:
                 if e.errno == errno.ECHILD:
                     break
                 raise
+
+    def _note_worker_exit(self, pid: int, status: int) -> None:
+        """Feed a reaped worker's exit into the fork-storm respawn throttle.
+
+        Only an *unexpected, early* death arms the backoff.  A worker that lived
+        at least ``WORKER_MIN_HEALTHY_LIFETIME_S`` (a successful boot) — or one
+        still young but exiting cleanly (``exit 0``, a memory/request-limit
+        recycle) — clears the throttle; a master-initiated SIGKILL (watchdog
+        timeout, graceful-stop escalation) is neither counted nor cleared, as it
+        is not a boot crash.  Non-worker pids (the long-polling subprocess, an
+        already-popped entry) are ignored.
+        """
+        worker = self.workers.get(pid)
+        if worker is None:
+            return
+        lifetime = time.monotonic() - getattr(worker, "spawn_time", 0.0)
+        if lifetime >= WORKER_MIN_HEALTHY_LIFETIME_S:
+            self._consecutive_fast_deaths = 0
+            self._respawn_not_before = 0.0
+            return
+        if os.WIFEXITED(status) and os.WEXITSTATUS(status) != 0:
+            self._consecutive_fast_deaths += 1
+            backoff = min(
+                2.0**self._consecutive_fast_deaths, WORKER_RESPAWN_BACKOFF_CAP_S
+            )
+            self._respawn_not_before = time.monotonic() + backoff
+            self.logger.warning(
+                "%s (%s) died after %.1fs (exit %s); holding respawn for %.0fs "
+                "(%d consecutive early crashes)",
+                worker.__class__.__name__,
+                pid,
+                lifetime,
+                os.WEXITSTATUS(status),
+                backoff,
+                self._consecutive_fast_deaths,
+            )
 
     def process_timeout(self) -> None:
         """Kill workers that have exceeded their watchdog timeout."""
@@ -281,6 +343,11 @@ class PreforkServer(CommonServer):
                 self.worker_kill(pid, signal.SIGKILL)
 
     def process_spawn(self) -> None:
+        # Fork-storm throttle: while a respawn backoff is active (a worker just
+        # crashed young), skip refilling slots this cycle.  The main loop keeps
+        # turning, so spawning resumes automatically once the deadline passes.
+        if time.monotonic() < self._respawn_not_before:
+            return
         # Before spawning any process, check the registry signaling
         registries = Registry.registries.snapshot
 
@@ -453,6 +520,10 @@ class PreforkServer(CommonServer):
                     processes[pid] = psutil.Process(pid)
 
         self.beat = 0.1
+        # After ``GRACEFUL_STOP_TIMEOUT_S`` the master force-kills any survivor so
+        # a worker that ignores SIGINT with no watchdog can't hang this loop.
+        deadline = time.monotonic() + GRACEFUL_STOP_TIMEOUT_S
+        escalated = False
         while self.workers:
             try:
                 self.process_signals()
@@ -467,6 +538,23 @@ class PreforkServer(CommonServer):
                     if not proc.is_running():
                         self.worker_pop(pid)
                         processes.pop(pid)
+
+            if not escalated and time.monotonic() >= deadline:
+                escalated = True
+                self.logger.warning(
+                    "Workers still alive %.0fs after SIGINT; escalating to "
+                    "SIGKILL: %s",
+                    GRACEFUL_STOP_TIMEOUT_S,
+                    list(self.workers),
+                )
+                # Raw SIGKILL, not ``worker_kill`` (which pops the worker before
+                # the child is reaped): keep each worker registered so the next
+                # ``process_zombie`` / psutil pass reaps and pops it, draining the
+                # loop cleanly with no lingering zombie.  SIGKILL is uncatchable,
+                # so the survivors die and the loop terminates on the next tick.
+                for pid in list(self.workers):
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(pid, signal.SIGKILL)
 
             self.sleep()
             self.process_timeout()
