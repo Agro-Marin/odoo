@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 from datetime import timedelta
+
+from odoo import fields
+from odoo.tests import Form, new_test_user, tagged
+from odoo.tools import mute_logger
+
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.mail.tests.common import MailCase
-from odoo.tests import tagged, Form, new_test_user
-from odoo.tools import mute_logger, format_amount
-from odoo import fields
 
 
 @tagged("-at_install", "post_install")
@@ -60,7 +61,7 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
                 for i in range(3)
             ]
         )
-        for rfq, qty in zip(rfqs, [1, 2, 3]):
+        for rfq, qty in zip(rfqs, [1, 2, 3], strict=True):
             rfq_form = Form(rfq)
             with rfq_form.line_ids.new() as line_1:
                 line_1.product_id = self.product_100
@@ -113,8 +114,6 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         dashboard_result = rfqs.with_user(self.user_a).prepare_dashboard()
 
         # Check dashboard values
-        currency_id = self.env.company.currency_id
-
         self.assertFalse(dashboard_result["global"]["sent"]["all"])
         self.assertFalse(dashboard_result["my"]["late"]["all"])
         self.assertEqual(dashboard_result["global"]["draft"]["all"], 2)

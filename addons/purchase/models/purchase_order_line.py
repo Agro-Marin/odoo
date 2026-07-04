@@ -1,13 +1,14 @@
 from collections import defaultdict
 from datetime import datetime, time
+
 from dateutil.relativedelta import relativedelta
 from pytz import UTC
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
 from odoo.libs.numbers.float_utils import float_compare, float_is_zero
+from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
 from odoo.tools.translate import _
 
 from odoo.addons.purchase import const
@@ -560,7 +561,7 @@ class PurchaseOrderLine(models.Model):
     def _compute_allowed_uom_ids(self):
         for line in self:
             seller_uom = line.product_id.seller_ids.filtered(
-                lambda s: s.product_id.id in {False, line.product_id.id},
+                lambda s, line=line: s.product_id.id in {False, line.product_id.id},
             ).product_uom_id
             line.allowed_uom_ids = (
                 line.product_id.uom_id | line.product_id.uom_ids | seller_uom
@@ -687,7 +688,8 @@ class PurchaseOrderLine(models.Model):
                 sellers = line._get_sellers_for_partner(date=date)
                 # Further filter by product variant if specified
                 sellers = sellers.filtered(
-                    lambda s: not s.product_id or s.product_id == line.product_id
+                    lambda s, line=line: not s.product_id
+                    or s.product_id == line.product_id
                 ).sorted(key=lambda r: r.min_qty)
                 if sellers:
                     line.product_qty = sellers[0].min_qty or 1.0
@@ -1208,7 +1210,7 @@ class PurchaseOrderLine(models.Model):
 
     def _get_custom_compute_tax_cache_key(self):
         """Hook method to be able to set/get cached taxes while computing them"""
-        return tuple()
+        return ()
 
     @api.model
     def _get_date_planned(self, seller, po=False):
@@ -1428,11 +1430,9 @@ class PurchaseOrderLine(models.Model):
         )
 
         # Convert UoM
-        price_unit = seller.product_uom_id._compute_price(
+        return seller.product_uom_id._compute_price(
             price_unit, self.product_uom_id
         )
-
-        return price_unit
 
     def _get_price_from_product_cost(self):
         """Get price from product standard cost (fallback when no seller).
@@ -1462,15 +1462,13 @@ class PurchaseOrderLine(models.Model):
         )
 
         # Convert from product cost currency to line currency
-        price_unit = self.product_id.cost_currency_id._convert(
+        return self.product_id.cost_currency_id._convert(
             price_unit,
             self.currency_id,
             self.company_id,
             self.date_order or fields.Date.context_today(self),
             False,
         )
-
-        return price_unit
 
     def _get_qty_to_consider_for_billing(self):
         """Get quantity to consider based on product's billing policy.
@@ -1511,7 +1509,7 @@ class PurchaseOrderLine(models.Model):
         partner = self.partner_id
         parent = self.partner_id.parent_id
         sellers = sellers.filtered(
-            lambda s: s.partner_id == partner or s.partner_id == parent
+            lambda s: s.partner_id in (partner, parent)
         )
 
         # Filter by date validity if provided
@@ -1812,7 +1810,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             for inv_line in line._get_invoice_lines():
                 if (
-                    inv_line.move_id.state not in ["cancel"]
+                    inv_line.move_id.state != "cancel"
                     or inv_line.move_id.payment_state == "invoicing_legacy"
                 ):
                     if inv_line.move_id.move_type == "in_invoice":
@@ -2037,7 +2035,7 @@ class PurchaseOrderLine(models.Model):
 
     @api.model
     def _date_in_the_past(self):
-        if not "accrual_entry_date" in self.env.context:
+        if "accrual_entry_date" not in self.env.context:
             return False
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
         return accrual_date and accrual_date < fields.Date.today()
@@ -2132,18 +2130,15 @@ class PurchaseOrderLine(models.Model):
         # Check if current price was explicitly provided in vals
         # During precompute, vals values are loaded into cache before compute runs
         # If price_unit is non-zero and differs from auto, user provided explicit value
-        if (
+        # Explicit non-zero price during creation -> preserve it (do not auto).
+        # Default (0.0) or price matching auto -> switch to auto.
+        return not (
             self.price_unit
             and float_compare(
                 self.price_unit, new_auto_price, precision_digits=price_precision
             )
             != 0
-        ):
-            # Explicit non-zero price during creation, preserve it
-            return False
-
-        # Default (0.0) or matching auto price - set to auto
-        return True
+        )
 
     def _validate_analytic_distribution(self):
         for line in self:
@@ -2188,21 +2183,20 @@ class PurchaseOrderLine(models.Model):
                     line_id,
                 ),
             )
-        else:
-            # Multiple lines - show first 5 and count
-            line_ids = [self._get_line_identifier(l) for l in lines[:5]]
-            error_msg = ", ".join(line_ids)
-            if len(lines) > 5:
-                error_msg += _(" and %s more", len(lines) - 5)
+        # Multiple lines - show first 5 and count
+        line_ids = [self._get_line_identifier(l) for l in lines[:5]]
+        error_msg = ", ".join(line_ids)
+        if len(lines) > 5:
+            error_msg += _(" and %s more", len(lines) - 5)
 
-            raise UserError(
-                _(
-                    "You cannot change the type of %(count)s purchase order lines (%(lines)s). "
-                    "Instead, delete these lines and create new lines of the proper type.",
-                    count=len(lines),
-                    lines=error_msg,
-                ),
-            )
+        raise UserError(
+            _(
+                "You cannot change the type of %(count)s purchase order lines (%(lines)s). "
+                "Instead, delete these lines and create new lines of the proper type.",
+                count=len(lines),
+                lines=error_msg,
+            ),
+        )
 
     def _validate_write_locked_order(self, write_vals):
         """Validate that protected fields are not being modified on a locked order."""
@@ -2211,7 +2205,7 @@ class PurchaseOrderLine(models.Model):
             return
 
         protected_fields = self._get_protected_fields()
-        if not any(f in write_vals.keys() for f in protected_fields):
+        if not any(f in write_vals for f in protected_fields):
             return
 
         protected_fields_modified = list(set(protected_fields) & set(write_vals.keys()))

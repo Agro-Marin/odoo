@@ -1,7 +1,7 @@
 from odoo import Command, fields
+from odoo.tests import tagged
 
 from odoo.addons.purchase.tests.test_purchase_invoice import TestPurchaseToInvoiceCommon
-from odoo.tests import tagged
 
 
 @tagged("-at_install", "post_install")

@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.tools import Query, SQL
+from odoo.tools import SQL, Query
 
 from odoo.addons.purchase import const
 

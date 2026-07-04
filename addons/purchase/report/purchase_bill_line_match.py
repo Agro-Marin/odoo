@@ -253,7 +253,9 @@ class PurchaseBillLineMatch(models.Model):
                             break
 
                 # Pass 2: match remaining lines by order
-                for pol, aml in zip(list(remaining_po), list(remaining_aml)):
+                for pol, aml in zip(
+                    list(remaining_po), list(remaining_aml), strict=False
+                ):
                     aml.purchase_line_ids = [Command.link(pol.id)]
                     residual_purchase_order_lines -= pol
                     residual_account_move_lines -= aml
@@ -265,6 +267,7 @@ class PurchaseBillLineMatch(models.Model):
 
             # Add all remaining POL to the residual bill
             residual_bill._add_purchase_order_lines(residual_purchase_order_lines)
+        return None
 
     def action_add_to_po(self):
         if not self or not self.aml_id:
@@ -281,7 +284,7 @@ class PurchaseBillLineMatch(models.Model):
             raise UserError(
                 _("Vendor Bill lines can only be added to one Purchase Order.")
             )
-        elif self.purchase_order_id:
+        if self.purchase_order_id:
             context["default_purchase_order_id"] = self.purchase_order_id.id
         return {
             "type": "ir.actions.act_window",

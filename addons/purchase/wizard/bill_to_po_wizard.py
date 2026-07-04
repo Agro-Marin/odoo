@@ -1,4 +1,4 @@
-from odoo import _, Command, fields, models
+from odoo import Command, _, fields, models
 from odoo.exceptions import UserError
 
 
@@ -50,7 +50,7 @@ class BillToPoWizard(models.TransientModel):
         # Only confirm if the PO is still in draft state (not already confirmed)
         if self.purchase_order_id.state == "draft":
             self.purchase_order_id.action_confirm()
-        for aml, pol in zip(lines_to_add, new_po_lines):
+        for aml, pol in zip(lines_to_add, new_po_lines, strict=False):
             if aml.product_id == pol.product_id:
                 aml.purchase_line_ids = [Command.link(pol.id)]
         return {
@@ -94,7 +94,7 @@ class BillToPoWizard(models.TransientModel):
         ]
 
         downpayment_lines = self.purchase_order_id._create_downpayments(line_vals)
-        for aml, dpl in zip(lines_to_convert, downpayment_lines):
+        for aml, dpl in zip(lines_to_convert, downpayment_lines, strict=True):
             aml.purchase_line_ids = [Command.link(dpl.id)]
 
         return {
