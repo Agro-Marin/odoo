@@ -79,19 +79,33 @@ class IrDefault(models.Model):
                     )
                 )
 
+    def _check_accessible_field_id(self) -> None:
+        # a user may only set a default for a field they can write; called
+        # after record-level access has been checked
+        if self.env.su:
+            return
+        for record in self:
+            if field := record.field_id:
+                model = self.env[field.model]
+                model._check_field_access(model._fields[field.name], "write")
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         # invalidate all company dependent fields since their fallback value in cache may be changed
         self.env.invalidate_all()
         self.env.registry.clear_cache()
-        return super().create(vals_list)
+        new_defaults = super().create(vals_list)
+        new_defaults._check_accessible_field_id()
+        return new_defaults
 
     def write(self, vals: dict[str, Any]) -> bool:
         if self:
             # invalidate all company dependent fields since their fallback value in cache may be changed
             self.env.invalidate_all()
             self.env.registry.clear_cache()
-        return super().write(vals)
+        new_default = super().write(vals)
+        self._check_accessible_field_id()
+        return new_default
 
     def unlink(self) -> bool:
         if self:

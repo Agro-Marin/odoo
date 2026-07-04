@@ -1078,7 +1078,9 @@ class ResUsers(models.Model):
 
     @api.model
     def _get_email_domain(self, email: str) -> Domain:
-        return Domain("email", "=", email)
+        # case-insensitive, literal match (escape %/_): callers dedup accounts
+        # by email, which Postgres would otherwise compare byte-for-byte
+        return Domain("email", "=ilike", tools.escape_psql(email or ""))
 
     @api.model
     def _get_login_order(self) -> str:
