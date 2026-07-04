@@ -51,19 +51,20 @@ class StockPicking(models.Model):
 
     @api.depends(
         "reference_ids.sale_ids",
-        "reference_ids.production_ids",
         "move_ids.sale_line_id.order_id",
     )
     def _compute_sale_id(self):
         for picking in self:
             # Link the SO from the picking's own sale moves first. Only fall back
             # to the shared stock.reference for pickings that are NOT part of a
-            # manufacturing route (no production link): in a multi-step (pbm_sam)
-            # MO the intermediate pickings carry no sale move yet share the SO's
-            # stock.reference, so the fallback would pull them into
-            # sale.order.picking_ids and break its singleton expectation.
+            # manufacturing route: in a multi-step (pbm_sam) MO the intermediate
+            # pickings carry no sale move yet share the SO's stock.reference, so
+            # the fallback would pull them into sale.order.picking_ids and break
+            # its singleton expectation. sale_stock has no concept of a
+            # manufacturing route on its own (that's mrp, an optional
+            # dependency) — see _is_on_manufacturing_route().
             sale_order = picking.move_ids.sale_line_id.order_id[:1]
-            if not sale_order and not picking.reference_ids.production_ids:
+            if not sale_order and not picking._is_on_manufacturing_route():
                 sale_order = picking.reference_ids.sale_ids[:1]
             picking.sale_id = sale_order
 
@@ -97,6 +98,23 @@ class StockPicking(models.Model):
                 picking.days_to_deliver = picking.date_done
             else:
                 picking.days_to_deliver = False
+
+    # ------------------------------------------------------------
+    # HOOKS
+    # ------------------------------------------------------------
+
+    def _is_on_manufacturing_route(self):
+        """Whether this picking is part of a manufacturing route.
+
+        Base (no ``mrp``) pickings are never on a manufacturing route —
+        there is no such concept without it. ``sale_mrp`` (which depends
+        on both ``sale_stock`` and ``mrp``) overrides this once
+        ``stock.reference.production_ids`` actually exists, instead of
+        this module referencing that field directly: ``sale_stock`` must
+        stay installable with just ``sale`` + ``stock``, no ``mrp``.
+        """
+        self.ensure_one()
+        return False
 
     # ------------------------------------------------------------
     # INVERSE METHODS
