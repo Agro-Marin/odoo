@@ -5941,6 +5941,97 @@ class TestValidationTools(common.BaseCase):
         )
 
 
+class TestAccessibilityChecks(common.BaseCase):
+    """The arch accessibility/markup checks are pure functions of an lxml node,
+    so they can be exercised without a database or an ir.ui.view record. These
+    tests both document the rules and pin their behaviour after extraction from
+    IrUiView into odoo.tools.view_validation.
+    """
+
+    def test_dropdown_menu(self):
+        self.assertEqual(
+            view_validation.check_dropdown_menu(E.div({"class": "dropdown-menu"})),
+            ["dropdown-menu class must have menu role"],
+        )
+        # correct role -> no warning
+        self.assertEqual(
+            view_validation.check_dropdown_menu(
+                E.div({"class": "dropdown-menu", "role": "menu"})
+            ),
+            [],
+        )
+        # unrelated node -> no warning
+        self.assertEqual(view_validation.check_dropdown_menu(E.div()), [])
+        # dynamic t-attf-class variant is inspected too
+        self.assertEqual(
+            view_validation.check_dropdown_menu(
+                E.div({"t-attf-class": "dropdown-menu #{x}"})
+            ),
+            ["dropdown-menu class must have menu role"],
+        )
+
+    def test_progress_bar(self):
+        warnings = view_validation.check_progress_bar(E.div({"class": "o_progressbar"}))
+        self.assertEqual(
+            warnings,
+            [
+                "o_progressbar class must have progressbar role",
+                "o_progressbar class must have aria-valuenow attribute",
+                "o_progressbar class must have aria-valuemin attribute",
+                "o_progressbar class must have aria-valuemax attribute",
+            ],
+        )
+        fully_specified = E.div(
+            {
+                "class": "o_progressbar",
+                "role": "progressbar",
+                "aria-valuenow": "1",
+                "aria-valuemin": "0",
+                "aria-valuemax": "2",
+            }
+        )
+        self.assertEqual(view_validation.check_progress_bar(fully_specified), [])
+
+    def test_class_accessibility_modal_and_button(self):
+        self.assertEqual(
+            view_validation.check_class_accessibility(E.div({"class": "modal"}), "modal"),
+            ['"modal" class should only be used with "dialog" role'],
+        )
+        # a bare .btn on a <div> is not a real button
+        self.assertEqual(
+            len(view_validation.check_class_accessibility(E.div({"class": "btn"}), "btn")),
+            1,
+        )
+        # ...but on a <button> it is fine
+        self.assertEqual(
+            view_validation.check_class_accessibility(
+                E.button({"class": "btn"}), "btn"
+            ),
+            [],
+        )
+
+    def test_fa_accessibility(self):
+        # a lone <i class="fa-*"/> with no textual alternative warns
+        parent = E.div(E.i({"class": "fa-star"}))
+        warnings = view_validation.check_class_accessibility(parent[0], "fa-star")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("must have title", warnings[0])
+        # an aria-label on the icon itself satisfies the check
+        self.assertEqual(
+            view_validation.check_fa_class_accessibility(
+                E.div(E.i({"class": "fa-star", "aria-label": "Star"}))[0], "desc"
+            ),
+            [],
+        )
+        # neighbouring text also satisfies it
+        self.assertEqual(
+            view_validation.check_fa_class_accessibility(
+                E.div(E.i({"class": "fa-star"}), "  labelled  ")[0], "desc"
+            ),
+            [],
+        )
+
+
 class TestAccessRights(TransactionCaseWithUserDemo):
     @common.users("demo")
     def test_access(self):
