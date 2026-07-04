@@ -228,10 +228,11 @@ class IrQwebFieldFloat(models.AbstractModel):
             )
         elif options.get("precision") is None:
             int_digits = int(math.log10(abs(value))) + 1 if value != 0 else 1
-            # 14, not 15: float_round multiplies by the precision and adds an
-            # epsilon, pushing a 15-digit value to 16 and reintroducing the
-            # parasite digits this cap is meant to avoid
-            max_dec_digits = max(14 - int_digits, 0)
+            # Cap the total number of significant digits near a double's ~15-16
+            # digit limit. The value is always rendered through f"%.{precision}f"
+            # below, which emits exactly `precision` decimals, so any float_round
+            # noise beyond `precision` never reaches the output.
+            max_dec_digits = max(15 - int_digits, 0)
             # We display maximum 6 decimal digits or the number of significant decimal digits if it's lower
             precision = min(6, max_dec_digits)
             min_precision = min_precision or 1
