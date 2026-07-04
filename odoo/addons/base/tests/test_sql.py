@@ -143,6 +143,7 @@ class TestSQL(BaseCase):
         ``raise``.  Run a subprocess with ``-O`` to prove a crafted identifier
         cannot escape the double-quote wrapping into raw SQL.
         """
+        import os
         import subprocess
         import sys
 
@@ -155,11 +156,18 @@ class TestSQL(BaseCase):
             "except ValueError:\n"
             "    print('SAFE')\n"
         )
+        # Propagate the parent's import paths so the child can ``import odoo``
+        # whether odoo is pip-installed or run from source (where ``odoo-bin``
+        # injects ``addons/odoo`` into ``sys.path`` at runtime — a bare
+        # subprocess would otherwise ``ModuleNotFoundError`` and the security
+        # check would never actually run).
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
         out = subprocess.run(
             [sys.executable, "-O", "-c", snippet],
             capture_output=True,
             text=True,
             check=True,
+            env=env,
         )
         self.assertEqual(out.stdout.strip(), "SAFE", out.stderr)
 

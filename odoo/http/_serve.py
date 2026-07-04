@@ -28,7 +28,7 @@ from odoo.tools import config
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
 from .dispatcher import HttpDispatcher, JsonRPCDispatcher, _dispatchers
 from .exceptions import RegistryError
-from .helpers import is_cors_preflight
+from .helpers import is_cors_preflight, rewind_uploaded_files
 from .stream import Stream
 from .wrappers import Response
 
@@ -288,23 +288,14 @@ class _RequestServeMixin:
                 cr.close()
 
     def _rewind_input_files(self, cause: Exception | None = None) -> None:
-        """Seek every uploaded file back to the start before re-dispatching.
+        """Rewind uploaded files before re-dispatching on the RO→RW cursor swap.
 
-        After the body is read, ``files`` streams sit at EOF; a retry would re-read
-        empty content and drop the upload. Rewind seekable streams and refuse
-        loudly on a non-seekable one — the same contract
-        :func:`~odoo.service.transaction.retrying` enforces. ``cause`` is chained
-        onto the raised error.
+        Thin wrapper over :func:`~odoo.http.helpers.rewind_uploaded_files`, the
+        single rewind primitive shared with the serialization-retry path in
+        :func:`~odoo.service.transaction.retrying`, so the two cannot drift.
+        ``cause`` is chained onto the raised error.
         """
-        for filename, file in self.httprequest.files.items():
-            if hasattr(file, "seekable") and file.seekable():
-                file.seek(0)
-            else:
-                msg = (
-                    f"Cannot retry request on input file {filename!r} after a "
-                    "read-only transaction error"
-                )
-                raise RuntimeError(msg) from cause
+        rewind_uploaded_files(self.httprequest, cause=cause)
 
     def _update_served_exception(self, exc: Exception) -> None:
         """Attach an ``error_response`` to ``exc`` in place (side effect only).

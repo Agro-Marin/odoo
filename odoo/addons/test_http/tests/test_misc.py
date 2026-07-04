@@ -1,10 +1,15 @@
 import json
-from io import StringIO
+from io import BytesIO, StringIO
 from socket import gethostbyname
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from werkzeug.datastructures import MultiDict
+from werkzeug.test import EnvironBuilder
+from werkzeug.wrappers import Request
+
 import odoo
-from odoo.http import content_disposition, root
+from odoo.http import content_disposition, rewind_uploaded_files, root
 from odoo.tests import tagged
 from odoo.tests.common import HOST, BaseCase, get_db_name, new_test_user
 from odoo.tools import config, file_path, mute_logger
@@ -304,7 +309,7 @@ class TestHttpCors(TestHttpBase):
         )  # one day
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
         )
 
         res_get = self.url_open("/test_http/cors_http_default")
@@ -330,7 +335,7 @@ class TestHttpCors(TestHttpBase):
         )  # one day
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
         )
 
         res_post = self.url_open("/test_http/cors_http_methods")
@@ -354,7 +359,7 @@ class TestHttpCors(TestHttpBase):
         )  # one day
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
         )
 
         res_post = self.url_open(
@@ -481,3 +486,71 @@ class TestContentDisposition(BaseCase):
                 f"attachment; filename*=UTF-8''{pct_encoded}",
                 f"{hint} should be percent encoded",
             )
+
+
+class TestRewindUploadedFiles(BaseCase):
+    """Guards :func:`odoo.http.rewind_uploaded_files`, the single rewind
+    primitive shared by the serialization-retry loop
+    (``service.transaction.retrying``) and the RO→RW cursor-upgrade path
+    (``http._serve._rewind_input_files``).
+    """
+
+    def test_rewind_single_file(self):
+        """A single seekable upload is rewound so the replay re-reads it whole."""
+        builder = EnvironBuilder(
+            method="POST", data={"ufile": (BytesIO(b"Hello world!"), "a.txt")}
+        )
+        req = Request(builder.get_environ())
+        (upload,) = req.files.getlist("ufile")
+        upload.stream.read()  # first (failed) attempt consumed the stream
+
+        rewind_uploaded_files(req, cause=RuntimeError("serialization failure"))
+
+        self.assertEqual(upload.read(), b"Hello world!")
+
+    def test_rewind_multifile_same_field(self):
+        """Regression: ``<input type=file multiple>`` posts several files under
+        one field name. The old rewind used ``MultiDict.items()`` (one entry per
+        key), leaving every file after the first at EOF — a silent data loss on
+        any serialization retry. ``items(multi=True)`` must rewind them all.
+        """
+        contents = [b"AAAAA-file-one", b"BBBBB-file-two", b"CCCCC-file-three"]
+        builder = EnvironBuilder(
+            method="POST",
+            data={
+                "attachments": [
+                    (BytesIO(c), f"f{i}.txt") for i, c in enumerate(contents)
+                ]
+            },
+        )
+        req = Request(builder.get_environ())
+        uploads = req.files.getlist("attachments")
+        self.assertEqual(len(uploads), 3, "sanity: all three files parsed")
+
+        # simulate the first (failed) attempt consuming every stream to EOF
+        for upload in uploads:
+            upload.stream.read()
+        self.assertEqual(
+            [u.read() for u in uploads], [b"", b"", b""], "sanity: all at EOF"
+        )
+
+        rewind_uploaded_files(req, cause=RuntimeError("serialization failure"))
+
+        # the retried handler must see every file in full again — not just the first
+        self.assertEqual([u.read() for u in uploads], contents)
+
+    def test_rewind_nonseekable_raises_chained(self):
+        """A non-seekable upload cannot be replayed: raise, chaining the cause."""
+
+        class _NonSeekable:
+            def seekable(self):
+                return False
+
+        req = SimpleNamespace(files=MultiDict([("ufile", _NonSeekable())]))
+        cause = RuntimeError("serialization failure")
+
+        with self.assertRaises(RuntimeError) as cm:
+            rewind_uploaded_files(req, cause=cause)
+
+        self.assertIs(cm.exception.__cause__, cause)
+        self.assertIn("ufile", str(cm.exception))
