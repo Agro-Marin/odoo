@@ -514,15 +514,15 @@ class TestAngloSaxonValuation(TestStockValuationCommon, TestSaleStockCommon):
             # pylint: disable=bad-whitespace
             {'account_id': self.account_income.id,     'debit': 0,     'credit': 12},
             {'account_id': self.account_receivable.id,  'debit': 12,    'credit': 0},
-            {'account_id': self.account_stock_valuation.id,   'debit': 0,     'credit': 10},
-            {'account_id': self.account_expense.id,     'debit': 10,    'credit': 0},
+            {'account_id': self.account_stock_valuation.id,   'debit': 0,     'credit': 5},
+            {'account_id': self.account_expense.id,     'debit': 5,    'credit': 0},
         ])
         self.assertRecordValues(invoice02.line_ids, [
             # pylint: disable=bad-whitespace
             {'account_id': self.account_income.id,     'debit': 0,     'credit': 12},
             {'account_id': self.account_receivable.id,  'debit': 12,    'credit': 0},
-            {'account_id': self.account_stock_valuation.id,   'debit': 0,     'credit': 10},
-            {'account_id': self.account_expense.id,     'debit': 10,    'credit': 0},
+            {'account_id': self.account_stock_valuation.id,   'debit': 0,     'credit': 5},
+            {'account_id': self.account_expense.id,     'debit': 5,    'credit': 0},
         ])
 
     def test_avco_fully_owned_and_delivered_invoice_post_delivery(self):
@@ -887,9 +887,9 @@ class TestAngloSaxonValuation(TestStockValuationCommon, TestSaleStockCommon):
         self.assertEqual(len(amls_1), 4)
         stock_out_aml_1 = amls_1.filtered(lambda aml: aml.account_id == self.account_stock_valuation)
         self.assertEqual(stock_out_aml_1.debit, 0)
-        self.assertEqual(stock_out_aml_1.credit, 25)
+        self.assertEqual(stock_out_aml_1.credit, 30)
         cogs_aml_1 = amls_1.filtered(lambda aml: aml.account_id == self.account_expense)
-        self.assertEqual(cogs_aml_1.debit, 25)
+        self.assertEqual(cogs_aml_1.debit, 30)
         self.assertEqual(cogs_aml_1.credit, 0)
         receivable_aml_1 = amls_1.filtered(lambda aml: aml.account_id == self.account_receivable)
         self.assertEqual(receivable_aml_1.debit, 24)
@@ -1067,16 +1067,16 @@ class TestAngloSaxonValuation(TestStockValuationCommon, TestSaleStockCommon):
 
         amls = reverse_invoice.line_ids
         stock_out_aml = amls.filtered(lambda aml: aml.account_id == self.account_stock_valuation)
-        self.assertEqual(stock_out_aml.debit, 30, 'Should be to the value of the returned product')
+        self.assertEqual(stock_out_aml.debit, 20, 'Should be to the value of the returned product')
         self.assertEqual(stock_out_aml.credit, 0)
         cogs_aml = amls.filtered(lambda aml: aml.account_id == self.account_expense)
         self.assertEqual(cogs_aml.debit, 0)
-        self.assertEqual(cogs_aml.credit, 30, 'Should be to the value of the returned product')
+        self.assertEqual(cogs_aml.credit, 20, 'Should be to the value of the returned product')
 
         closing_move = self._close()
         self.assertRecordValues(closing_move.line_ids, [
-            {'account_id': self.account_stock_variation.id, 'debit': 0.0, 'credit': 180.0},
-            {'account_id': self.account_stock_valuation.id, 'debit': 180.0, 'credit': 0.0},
+            {'account_id': self.account_stock_variation.id, 'debit': 0.0, 'credit': 190.0},
+            {'account_id': self.account_stock_valuation.id, 'debit': 190.0, 'credit': 0.0},
         ])
 
     def test_fifo_return_and_create_invoice(self):
