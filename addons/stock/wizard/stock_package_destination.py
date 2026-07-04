@@ -25,6 +25,7 @@ class StockPackageDestination(models.TransientModel):
             wizard.filtered_location = wizard.move_line_ids.mapped("location_dest_id")
 
     def action_done(self):
-        # set the same location on each move line and pass again in action_put_in_pack
+        # This wizard only shows up because move lines had different destinations;
+        # unify them here so the re-triggered action_put_in_pack proceeds normally.
         self.move_line_ids.location_dest_id = self.location_dest_id
         return self.move_line_ids.action_put_in_pack()

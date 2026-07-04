@@ -115,7 +115,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             res["product"][product.id]["qty"]["out"] += qty_out.get(product.id, 0.0)
 
     def _get_product_leadtime(self, res, product_template_ids, product_ids):
-        """Return a dictionary with product lead times."""
+        """Populate res with each product's lead time."""
         products = self._get_products(product_template_ids, product_ids)
         location = self._get_warehouse().lot_stock_id
         for product in products:
@@ -129,7 +129,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             }
 
     def _get_report_header(self, product_template_ids, product_ids, wh_location_ids):
-        # Get the products we're working, fill the rendering context with some of their attributes.
         res = {}
         if product_template_ids:
             products = self.env["product.template"].browse(product_template_ids)
@@ -363,7 +362,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             for move in linked_moves:
                 if move.state not in ("partially_available", "assigned"):
                     continue
-                # count reserved stock.
                 reserved = move.product_uom._compute_quantity(
                     move.quantity, move.product_id.uom_id
                 )
@@ -371,7 +369,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 reserved = min(reserved - used_reserved_moves[move], out.product_qty)
                 if reserved and not reserved_move:
                     reserved_move = move
-                # add to reserved line data
                 reserved_out += reserved
                 used_reserved_moves[move] += reserved
                 # any sublocation qties needs to be reserved to the main stock location qty as well
@@ -405,7 +402,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 demand = min(demand, demand_out)
                 if move.product_id.uom_id.is_zero(demand):
                     continue
-                # check available qty for move if chained, move available is what was move by orig moves
+                # if chained, available qty is what the orig moves actually moved, not what's still in stock
                 if move.move_orig_ids:
                     move_in_qty = sum(
                         move.move_orig_ids.filtered(lambda m: m.state == "done").mapped(
@@ -423,8 +420,8 @@ class StockForecasted_Product_Product(models.AbstractModel):
                     move_available_qty = currents[
                         (out.product_id.id, move.location_id.id)
                     ]
-                # count taken from stock, but avoid taking more than whats in stock in case of move origs,
-                # this can happen if stock adjustment is done after orig moves are done
+                # count taken from stock, but avoid taking more than what's in stock in case of move origs,
+                # this can happen if a stock adjustment is done after the orig moves are done
                 taken_from_stock = min(
                     demand,
                     move_available_qty,
@@ -571,7 +568,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             currents[(product.id, location_id)] += quantity
         moves_data = {}
         for out_moves in outs_per_product.values():
-            # to handle multiple out wtih same in (ex: same pick/pack for 2 outs)
+            # to handle multiple outs with the same in (e.g. same pick/pack for 2 outs)
             used_reserved_moves = defaultdict(float)
             # for all out moves, check for linked moves and count reserved quantity
             for out in out_moves:
@@ -604,7 +601,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             lines_init_count = len(lines)
             product_rounding = product.uom_id.rounding
             unreconciled_outs = []
-            # remaining stock
             free_stock = currents[product.id, wh_stock_location.id]
             transit_stock = product_sum[product.id] - free_stock
             # add report lines and see if remaining demand can be reconciled by unreservable stock or ins
@@ -685,7 +681,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                     read=read,
                 )
                 if not float_is_zero(demand, precision_rounding=product_rounding):
-                    # Not reconciled
                     lines.append(
                         self._prepare_report_line(
                             demand, move_out=out, replenishment_filled=False, read=read

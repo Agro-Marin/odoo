@@ -223,14 +223,13 @@ class StockLot(models.Model):
     @api.model
     def generate_lot_names(self, first_lot, count):
         """Generate `lot_names` from a string."""
-        # We look if the first lot contains at least one digit.
         caught_initial_number = regex_findall(r"\d+", first_lot)
         if not caught_initial_number:
+            # No digit to increment: append one so a series can be built.
             return self.generate_lot_names(first_lot + "0", count)
         # We base the series on the last number found in the base lot.
         initial_number = caught_initial_number[-1]
         padding = len(initial_number)
-        # We split the lot name to get the prefix and suffix.
         splitted = regex_split(initial_number, first_lot)
         # initial_number could appear several times, e.g. BAV023B00001S00001
         prefix = initial_number.join(splitted[:-1])
@@ -289,10 +288,10 @@ class StockLot(models.Model):
 
     @api.depends("name")
     def _compute_display_complete(self):
-        """Defines if we want to display all fields in the stock.production.lot form view.
-        It will if the record exists (`id` set) or if we precised it into the context.
-        This compute depends on field `name` because as it has always a default value, it'll be
-        always triggered.
+        """Whether to display all fields on the lot form: true once the record is saved
+        (`id` set) or if forced via the `display_complete` context key.
+        Depends on `name` only because it always has a default value and is thus always
+        recomputed on creation.
         """
         for prod_lot in self:
             prod_lot.display_complete = prod_lot.id or self.env.context.get(
@@ -436,7 +435,8 @@ class StockLot(models.Model):
             if op(quantity_sum, value):
                 ids.append(lot_id)
 
-        # check if we need include zero values in result
+        # Lots with no quant at all have an implicit qty of 0 and aren't in lots_w_qty;
+        # include them when 0 itself matches the search operator/value.
         include_zero = op(0.0, value)
         if include_zero:
             return ["|", ("id", "in", ids), ("id", "not in", lot_ids_w_qty)]
@@ -544,8 +544,8 @@ class StockLot(models.Model):
                         lambda l: l.id not in lot_path
                     )
                     next_lots_ids = set(next_lots.ids)
-                    # If some producing lots are in lot_path, it means that they have been previously processed.
-                    # Their results are therefore already in delivery_by_lot and we add them to delivery_ids directly.
+                    # Producing lots already in lot_path were processed earlier in the
+                    # recursion; reuse their results from delivery_by_lot directly.
                     delivery_ids.update(
                         *(
                             delivery_by_lot.get(lot_id, [])
@@ -566,21 +566,18 @@ class StockLot(models.Model):
         return delivery_by_lot
 
     def _find_delivery_ids_by_lot_iterative(self):
-        """Retrieve all delivery IDs (outgoing picking) linked to the lots
-        in self and all the lots found when parcouring the produce lines.
-        :return: A dictionary where keys are the IDs of the original 'stock.lot'
-                  records (self) and values are lists of associated 'stock.picking' IDs.
-        :rtype: dict
+        """Retrieve all delivery IDs (outgoing picking) linked to the lots in self
+        and to any lot found while walking their produce lines.
+        :return: dict mapping each lot ID in self to a list of 'stock.picking' IDs.
         """
 
         all_lot_ids = set(self.ids)
         barren_lines = defaultdict(set)
         parent_map = defaultdict(set)
 
-        # Prefetch the lines linked to lots and split them between producing lines
-        # and barren lines (lines that have `produce_line_ids` and lines that don't
-        # have them respectively) and build the map of the parents of each lot (so we
-        # can browse the tree from the leaves to the root and propagate the pickings)
+        # Split move lines between producing (have produce_line_ids) and barren ones,
+        # and build the child->parent lot map so the tree can later be walked from the
+        # leaves up to propagate pickings.
         queue = list(self.ids)
         while queue:
             domain = Domain(
@@ -616,10 +613,8 @@ class StockLot(models.Model):
                 delivery_by_lot[lot_id].update(barren_move_lines.picking_id.ids)
                 lots_to_propagate.add(lot_id)
 
-        # Propagate the deliveries from the children to their parent lots.
-        # This loop processes lots whose delivery sets have just been updated,
-        # ensuring the new results are merged upward through the parent graph until
-        # all deliveries are propagated
+        # Propagate deliveries upward through the parent graph until no lot's
+        # delivery set changes anymore.
         while lots_to_propagate:
             lot_id = lots_to_propagate.pop()
 

@@ -471,8 +471,6 @@ class StockMove(models.Model):
         return res
 
     def write(self, vals):
-        # Handle the write on the initial demand by updating the reserved quantity and logging
-        # messages according to the state of the stock.move records.
         receipt_moves_to_reassign = self.env["stock.move"]
         move_to_recompute_state = self.env["stock.move"]
         move_to_check_location = self.env["stock.move"]
@@ -960,7 +958,6 @@ class StockMove(models.Model):
             self.env["stock.move.line"].browse(mls_to_unlink).unlink()
 
         def _process_increase(move, quantity):
-            # move._action_assign(quantity)
             move._set_quantity_done(move.quantity)
 
         err = []
@@ -1020,9 +1017,8 @@ Please change the quantity done or the rounding precision in your settings.""",
             elif not move.product_id:
                 move.availability = 0.0
 
-        # Batch: one _get_available_quantity call per unique (product, location)
-        # instead of one per move. Multiple moves sharing the same product+location
-        # get the same total_availability value.
+        # One _get_available_quantity call per unique (product, location) instead of
+        # one per move: moves sharing the same product+location share the cached value.
         non_done = self.filtered(lambda m: m.state != "done" and m.product_id)
         if not non_done:
             return
@@ -1073,7 +1069,8 @@ Please change the quantity done or the rounding precision in your settings.""",
             )
             return warehouse_id, max(move.date or now, now)
 
-        # Prefetch efficiently virtual_available for _is_consuming draft move.
+        # Batch-prefetch virtual_available/free_qty per (warehouse, date) key instead
+        # of reading it move by move.
         prefetch_virtual_available = defaultdict(set)
         virtual_available_dict = {}
         for move in product_moves:
@@ -1148,7 +1145,6 @@ Please change the quantity done or the rounding precision in your settings.""",
                     ):
                         move.forecast_availability = free_qty
                         continue
-                    # for move _is_consuming and in draft -> the forecast_availability > 0 if in stock
                     move.forecast_availability = free_qty - move.product_qty
                 elif move.state in ("waiting", "confirmed", "partially_available"):
                     outgoing_unreserved_moves_per_warehouse[
@@ -1174,7 +1170,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 move.forecast_availability = forecast_availability
 
         for warehouse, moves_ids in outgoing_unreserved_moves_per_warehouse.items():
-            if not warehouse:  # No prediction possible if no warehouse.
+            if not warehouse:
                 continue
             moves_per_location = self.browse(moves_ids).grouped("location_id")
             for location, mvs in moves_per_location.items():
@@ -1188,7 +1184,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                     )
 
     def _set_date_deadline(self, new_deadline):
-        # Handle the propagation of `date_deadline` fields (up and down stream - only update by up/downstream documents)
+        """Propagate the new deadline to linked moves upstream and downstream."""
         already_propagate_ids = self.env.context.get(
             "date_deadline_propagate_ids",
             set(),
@@ -1379,7 +1375,6 @@ Please change the quantity done or the rounding precision in your settings.""",
                                 else quantity_to_reserve - 1
                             )
                             reserved = True
-                    # If no reservation has been made from existing quant reserve a qty of 1 product.uom_id
                     if not reserved:
                         move_line_vals = self._prepare_move_line_vals(quantity=1.0)
                         move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
@@ -1490,10 +1485,8 @@ Please change the quantity done or the rounding precision in your settings.""",
 
     @api.model
     def default_get(self, fields):
-        # We override the default_get to make stock moves created after the picking was confirmed
-        # directly as available in immediate transfer mode. This allows to create extra move lines
-        # in the fp view. In planned transfer, the stock move are marked as `additional` and will be
-        # auto-confirmed.
+        # Moves added after the picking is confirmed are flagged `additional` so they get
+        # auto-confirmed (or marked done directly if the picking is already done).
         defaults = super().default_get(fields)
         if self.env.context.get("default_picking_id"):
             picking_id = self.env["stock.picking"].browse(
@@ -1595,10 +1588,9 @@ Please change the quantity done or the rounding precision in your settings.""",
             doc_orig[0]._get_html_link(),
         )
         msg_subject = _("Deadline updated due to delay on %s", doc_orig[0].name)
-        # write the message on each document
         for doc in documents:
             last_message = doc.message_ids[:1]
-            # Avoids to write the exact same message multiple times.
+            # Avoid posting the exact same message multiple times.
             if last_message and last_message.subject == msg_subject:
                 continue
             odoobot_id = self.env["ir.model.data"]._xmlid_to_res_id("base.partner_root")
@@ -1705,9 +1697,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         next_serial_count=False,
         location_id=False,
     ):
-        """This method will generate `lot_name` from a string (field
-        `next_serial`) and create a move line for each generated `lot_name`.
-        """
+        """Generate `lot_name` values from `next_serial` and create a move line for each."""
         self.ensure_one()
         if not location_id:
             location_id = self.location_dest_id
@@ -1738,7 +1728,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         product_id,
         company_id=False,
     ):
-        """This method will search or create the lot_id from the lot_name and set it in the vals_list"""
+        """Search or create the lot from `lot_name` and set `lot_id` in `vals_list`."""
         lot_names = [vals["lot_name"] for vals in vals_list if vals.get("lot_name")]
         lot_ids = self.env["stock.lot"].search(
             [
@@ -1800,7 +1790,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                     else:
                         move_line_vals.update(**field_data, lot_name=lot_text)
                 else:
-                    # At least this part of the string is erronous and can't be converted,
+                    # At least this part of the string is erroneous and can't be converted,
                     # don't try to guess and simply use the full string as the lot name.
                     move_line_vals["lot_name"] = lot_text
                     break
@@ -1833,7 +1823,6 @@ Please change the quantity done or the rounding precision in your settings.""",
                 qty_array.append(leftover)
             return qty_array
 
-        # Get default values
         def remove_prefix(text, prefix):
             if text.startswith(prefix):
                 return text[len(prefix) :]
@@ -2011,7 +2000,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         return new_moves
 
     def _merge_moves_fields(self):
-        """This method will return a dict of stock move’s values that represent the values of all moves in `self` merged."""
+        """Return a dict of stock move values merging all the moves in `self`."""
         merge_extra = self.env.context.get("merge_extra")
         state = self._get_relevant_state_among_moves()
         origin = "/".join(set(self.filtered(lambda m: m.origin).mapped("origin")))
@@ -2139,11 +2128,8 @@ Please change the quantity done or the rounding precision in your settings.""",
             self | self.env["stock.move"].concat(*candidate_moves_set)
         )._prepare_merge_moves_distinct_fields()
 
-        # Move removed after merge
         moves_to_unlink = self.env["stock.move"]
-        # Moves successfully merged
         merged_moves = self.env["stock.move"]
-        # Emptied moves
         moves_to_cancel = self.env["stock.move"]
 
         moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
@@ -2170,11 +2156,9 @@ Please change the quantity done or the rounding precision in your settings.""",
                 key=self._merge_move_itemgetter(distinct_fields),
             ):
                 moves = self.env["stock.move"].concat(*g)
-                # Merge all positive moves together
                 if len(moves) > 1:
-                    # link all move lines to record 0 (the one we will keep).
+                    # Link all move lines to record 0 (the one we will keep).
                     moves.mapped("move_line_ids").write({"move_id": moves[0].id})
-                    # merge move data
                     merge_extra = self.env.context.get("merge_extra") and bool(
                         merge_into,
                     )
@@ -2183,10 +2167,10 @@ Please change the quantity done or the rounding precision in your settings.""",
                             merge_extra=merge_extra,
                         )._merge_moves_fields(),
                     )
-                    # update merged moves dicts
                     moves_to_unlink |= moves[1:]
                     merged_moves |= moves[0]
-                # Add the now single positive move to its limited key record
+                # Index the resulting single positive move by its negative-move merge key
+                # so it can absorb matching negative moves below.
                 moves_by_neg_key[neg_key(moves[0])] |= moves[0]
 
         for neg_move in neg_qty_moves:
@@ -2240,7 +2224,8 @@ Please change the quantity done or the rounding precision in your settings.""",
                 pos_move.product_uom_qty = 0
                 moves_to_cancel |= pos_move
 
-        # We are using propagate to False in order to not cancel destination moves merged in moves[0]
+        # Reset propagate_cancel so cancelling/unlinking these moves doesn't cascade
+        # to the destination moves that got merged into moves[0].
         (moves_to_unlink | moves_to_cancel)._clean_merged()
 
         if moves_to_unlink:
@@ -2259,16 +2244,8 @@ Please change the quantity done or the rounding precision in your settings.""",
         return self.partner_id.id
 
     def _get_relevant_state_among_moves(self):
-        # We sort our moves by importance of state:
-        #     ------------- 0
-        #     | Assigned  |
-        #     -------------
-        #     |  Waiting  |
-        #     -------------
-        #     |  Partial  |
-        #     -------------
-        #     |  Confirm  |
-        #     ------------- len-1
+        # Sort moves from least to most advanced state (confirmed < partially_available
+        # < waiting < assigned) so index 0 is the one still blocking the picking.
         sort_map = {
             "assigned": 4,
             "waiting": 3,
@@ -2489,8 +2466,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         for _group, moves in grouped_moves:
             moves = self.env["stock.move"].concat(*moves)
             new_picking = False
-            # Could pass the arguments contained in group but they are the same
-            # for each move that why moves[0] is acceptable
+            # moves[0] is representative: all moves in the group share the same key fields.
             picking = moves[0]._search_picking_for_assignation()
             if picking:
                 # If a picking is found, we'll append `move` to its move list and thus its
@@ -2500,8 +2476,8 @@ Please change the quantity done or the rounding precision in your settings.""",
                 if vals:
                     picking.write(vals)
             else:
-                # Don't create picking for negative moves since they will be
-                # reverse and assign to another picking
+                # Don't create a picking for negative moves since they will be
+                # reversed and assigned to another picking.
                 moves = moves.filtered(
                     lambda m: m.product_uom.compare(m.product_uom_qty, 0.0) >= 0,
                 )
@@ -2556,7 +2532,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             "product_id": self.product_id.id,
             "product_uom_id": self.product_id.uom_id.id,
         }
-        # Select the right move lines depending of the picking type's configuration.
+        # Reuse existing move lines that don't have a lot/serial name set yet.
         move_lines = self.move_line_ids.filtered(
             lambda ml: not ml.lot_id and not ml.lot_name,
         )
@@ -2601,13 +2577,10 @@ Please change the quantity done or the rounding precision in your settings.""",
         return {}
 
     def _get_new_picking_values(self):
-        """Return create values for new picking that will be linked with group
-        of moves in self.
-        """
+        """Return the create values for a new picking linking the group of moves in self."""
         origins = self.filtered(lambda m: m.origin).mapped("origin")
-        origins = list(dict.fromkeys(origins))  # create a list of unique items
-        # Will display source document if any, when multiple different origins
-        # are found display a maximum of 5
+        origins = list(dict.fromkeys(origins))  # dedupe, preserving order
+        # Cap the displayed source document list at 5 origins when several differ.
         if len(origins) == 0:
             origin = False
         else:
@@ -2844,9 +2817,8 @@ Please change the quantity done or the rounding precision in your settings.""",
         return quantities
 
     def _prepare_procurement_vals(self):
-        """Prepare specific key for moves or other componenets that will be created from a stock rule
-        comming from a stock move. This method could be override in order to add other custom key that could
-        be used in move/po creation.
+        """Prepare values for the procurement created from this move by a stock rule.
+        Meant to be overridden to add custom keys used in move/PO creation.
         """
         self.ensure_one()
 
@@ -2969,11 +2941,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         owner_id=None,
         strict=True,
     ):
-        """Create or update move lines and reserves quantity from quants
-        Expects the need (qty to reserve) and location_id to reserve from.
-        `quant_ids` can be passed as an optimization since no search on the database
-        is performed and reservation is done on the passed quants set
-        """
+        """Create or update move lines to reserve `need` from quants at `location_id`."""
         self.ensure_one()
         move_line_vals, taken_quantity = self._update_reserved_quantity_vals(
             need,
@@ -3144,7 +3112,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             return picked_qty
         return self.quantity
 
-    # necessary hook to be able to override move reservation to a restrict lot, owner, pack, location...
+    # Hook so other modules can override reservation to restrict lot, owner, pack, location...
     def _get_available_quantity(
         self,
         location_id,
@@ -3247,7 +3215,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             key: grouped_move_lines_in[key] - grouped_move_lines_out.get(key, 0)
             for key in grouped_move_lines_in
         }
-        # pop key if the quantity available amount to 0
+        # Drop entries whose available quantity is not strictly positive.
         rounding = self.product_id.uom_id.rounding
         return dict(
             (k, v)
@@ -3392,7 +3360,6 @@ Please change the quantity done or the rounding precision in your settings.""",
                     if float_is_zero(need, precision_rounding=rounding):
                         assigned_moves_ids.add(move.id)
                         continue
-                    # Reserve new quants and create move lines accordingly.
                     taken_quantity = move._update_reserved_quantity(
                         need,
                         move.location_id,
@@ -3484,10 +3451,10 @@ Please change the quantity done or the rounding precision in your settings.""",
                     ), taken_quantity in taken_quantities.items():
                         # `quantity` is what is brought by chained done move lines. We double check
                         # here this quantity is available on the quants themselves. If not, this
-                        # could be the result of an inventory adjustment that removed totally of
-                        # partially `quantity`. When this happens, we chose to reserve the maximum
-                        # still available. This situation could not happen on MTS move, because in
-                        # this case `quantity` is directly the quantity on the quants themselves.
+                        # could be the result of an inventory adjustment that removed all or part
+                        # of `quantity`. When this happens, we choose to reserve the maximum still
+                        # available. This situation cannot happen on a MTS move, since in that case
+                        # `quantity` is directly the quantity on the quants themselves.
                         if float_is_zero(taken_quantity, precision_rounding=rounding):
                             continue
                         moves_to_redirect.add(move.id)
@@ -3525,8 +3492,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             and not (m.state == "done" and m.location_dest_usage == "inventory"),
         )
         moves_to_cancel.picked = False
-        # self cannot contain moves that are either cancelled or done, therefore we can safely
-        # unlink all associated move_line_ids
+        # moves_to_cancel excludes cancelled and done moves, so unreserving is always safe here.
         moves_to_cancel._do_unreserve()
         cancel_moves_origin = (
             self.env["ir.config_parameter"]
@@ -3646,7 +3612,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         if not cancel_backorder:
             moves_todo._create_backorder()
         moves_todo.mapped("move_line_ids").sorted()._action_done()
-        # Check the consistency of the result packages; there should be an unique location across
+        # Check the consistency of the result packages; there should be a unique location across
         # the contained quants.
         for result_package in (
             moves_todo.move_line_ids.filtered(lambda ml: ml.picked)
@@ -3707,7 +3673,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         return True
 
     def _create_backorder(self):
-        # Split moves where necessary and move quants
+        """Split off the undone quantity of each move in `self` into a backorder move."""
         backorder_moves_vals = []
         for move in self:
             # To know whether we need to create a backorder or not, round to the general product's
@@ -3721,7 +3687,6 @@ Please change the quantity done or the rounding precision in your settings.""",
                 )
                 < 0
             ):
-                # Need to do some kind of conversion here
                 qty_split = move.product_uom._compute_quantity(
                     move.product_uom_qty - move.quantity,
                     move.product_id.uom_id,
@@ -3731,7 +3696,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 backorder_moves_vals += new_move_vals
         backorder_moves = self.env["stock.move"].create(backorder_moves_vals)
         # The backorder moves are not yet in their own picking. We do not want to check entire packs for those
-        # ones as it could messed up the result_package_id of the moves being currently validated
+        # ones as it could mess up the result_package_id of the moves being currently validated
         backorder_moves.with_context(bypass_entire_pack=True)._action_confirm(
             merge=False,
             create_proc=False,
@@ -3784,7 +3749,7 @@ Please change the quantity done or the rounding precision in your settings.""",
 
         # `qty` passed as argument is the quantity to backorder and is always expressed in the
         # quants UOM. If we're able to convert back and forth this quantity in the move's and the
-        # quants UOM, the backordered move can keep the UOM of the move. Else, we'll create is in
+        # quants UOM, the backordered move can keep the UOM of the move. Else, we'll create it in
         # the UOM of the quants.
         uom_qty = self.product_id.uom_id._compute_quantity(
             qty,
@@ -3818,7 +3783,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         new_move_vals = self.copy_data(defaults)
 
         # Update the original `product_qty` of the move. Use the general product's decimal
-        # precision and not the move's UOM to handle case where the `quantity_done` is not
+        # precision and not the move's UOM to handle the case where `quantity` is not
         # compatible with the move's UOM.
         new_product_qty = self.product_id.uom_id._compute_quantity(
             max(0, self.product_qty - qty),
@@ -3838,9 +3803,9 @@ Please change the quantity done or the rounding precision in your settings.""",
         return new_move_vals
 
     def _post_process_created_moves(self):
-        # This method is meant to be overriden in order to execute post
-        # creation actions that would be bypassed since the move was
-        # and will probably never be confirmed
+        """Hook for moves auto-created alongside move lines (e.g. via the barcode app)
+        that bypass `_action_confirm` and so never run its post-creation logic.
+        """
         pass
 
     def _recompute_state(self):
@@ -3906,8 +3871,8 @@ Please change the quantity done or the rounding precision in your settings.""",
         )
 
     def _get_source_document(self):
-        """Return the move's document, used by `stock.forecasted_product_productt`
-        and must be overrided to add more document type in the report.
+        """Return the move's document, used by `stock.forecasted_product_product`;
+        override to add more document types to the report.
         """
         self.ensure_one()
         return self.picking_id or False
@@ -3982,7 +3947,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             if ml.result_package_id:
                 qty -= ml_qty
                 continue
-            # remove what already on the line
+            # remove what's already on the line
             taken_qty = min(qty, ml_qty)
             qty -= taken_qty
             if self.product_uom.compare(_move_qty(qty), 0) <= 0:
@@ -3999,7 +3964,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 strict=True,
             )
             avail_qty = sum(q[1] for q in ml_quants)
-            # the quant did not add the quantity reserved on this specific move line
+            # Mark these quants as consumed so they aren't reserved again for another move line below.
             consumed_quant |= {q[0].id for q in ml_quants}
             if self.product_uom.compare(avail_qty, qty) <= 0:
                 qty -= avail_qty  # decrease the target quantity for the next move lines
@@ -4012,7 +3977,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                     )
                 res.append(Command.update(ml.id, {"quantity": avail_qty}))
 
-        # First reserve on quants
+        # Reserve on quants before falling back to unreserved move lines.
         if self.product_uom.compare(_move_qty(qty), 0.0) > 0:
             quants = self.env["stock.quant"]._get_reserve_quantity(
                 self.product_id,
@@ -4022,7 +3987,6 @@ Please change the quantity done or the rounding precision in your settings.""",
             for quant, avail_qty in quants:
                 if quant.id in consumed_quant:
                     continue
-                # compare the stock move quantity with the product free quantity
                 taken_qty = min(qty, avail_qty)
                 qty -= taken_qty
                 res.append(
@@ -4036,7 +4000,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 if self.product_id.uom_id.compare(_move_qty(qty), 0.0) <= 0:
                     break
 
-        # If quant is not enough, create a(some) move lines from the move itself
+        # If quants aren't enough, create some move lines from the move itself
         if self.product_uom.compare(_move_qty(qty), 0.0) > 0:
             if self.product_id.tracking != "serial":
                 qty = _move_qty(qty)
@@ -4052,11 +4016,10 @@ Please change the quantity done or the rounding precision in your settings.""",
         return res
 
     def _set_quantity_done(self, qty):
-        """
-        Set the given quantity as quantity done on the move through the move lines. The method is
-        able to handle move lines with a different UoM than the move (but honestly, this would be
-        looking for trouble...).
-        @param qty: quantity in the UoM of move.product_uom
+        """Set the given quantity as done on the move through its move lines. Can handle move
+        lines with a different UoM than the move, though that's best avoided.
+
+        :param qty: quantity in the UoM of move.product_uom
         """
         existing_smls = self.move_line_ids
         self.move_line_ids = self._set_quantity_done_prepare_vals(qty)
@@ -4065,17 +4028,11 @@ Please change the quantity done or the rounding precision in your settings.""",
         (self.move_line_ids - existing_smls)._apply_putaway_strategy()
 
     def _adjust_procure_method(self, picking_type_code=False):
-        """This method will try to apply the procure method MTO on some moves if
-        a compatible MTO route is found. Else the procure method will be set to MTS
-        picking_type_code (str, optional): Adjusts the procurement method based on
-            the specified picking type code. The code to specify the picking type for
-            the procurement group. Defaults to False.
-        """
-        # Prepare the MTSO variables. They are needed since MTSO moves are handled separately.
-        # We need 2 dicts:
-        # - needed quantity per location per product
-        # - forecasted quantity per location per product
+        """Set procure_method to MTO if a compatible MTO route is found for the move,
+        else fall back to MTS.
 
+        :param picking_type_code: restrict the rule search to this picking type's code
+        """
         for move in self:
             product_id = move.product_id
             location = move.location_id
@@ -4209,10 +4166,9 @@ Please change the quantity done or the rounding precision in your settings.""",
         return self._rollup_moves(seen=seen)
 
     def _rollup_moves(self, origin=True, seen=False) -> OrderedSet[int]:
-        """
-        Find all moves in chain depending the direction (origin)
+        """Find all moves in the chain, depending on the direction.
 
-        origin: if set (default), returns the origin moves, else return the destinations
+        :param origin: if set (default), returns the origin moves, else the destination moves
         """
         target_field = "move_orig_ids" if origin else "move_dest_ids"
         if not seen:
@@ -4228,7 +4184,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         return seen
 
     def _get_forecast_availability_outgoing(self, warehouse, location_id=False):
-        """Get forcasted information (sum_qty_expected, max_date_expected) of self for the warehouse's locations.
+        """Get forecasted information (sum_qty_expected, max_date_expected) of self for the warehouse's locations.
         :param warehouse: warehouse to search under
         :param  location_id: location source of outgoing moves
         :return: a defaultdict of outgoing moves from warehouse for product_id in self, values are tuple (sum_qty_expected, max_date_expected)

@@ -17,7 +17,7 @@ _logger = logging.getLogger(__name__)
 
 
 class StockRule(models.Model):
-    """A rule describe what a procurement should do; produce, buy, move, ..."""
+    """A rule describes what a procurement should do: produce, buy, move, ..."""
 
     _name = "stock.rule"
     _description = "Stock Rule"
@@ -187,16 +187,13 @@ class StockRule(models.Model):
 
     @api.onchange("picking_type_id")
     def _onchange_picking_type(self):
-        """Modify locations to the default picking type's locations source and
-        destination.
-        Enable the delay alert if the picking type is a delivery
-        """
+        """Default the source/destination locations from the picking type."""
         self.location_src_id = self.picking_type_id.default_location_src_id.id
         self.location_dest_id = self.picking_type_id.default_location_dest_id.id
 
     @api.onchange("route_id", "company_id")
     def _onchange_route(self):
-        """Ensure that the rule's company is the same than the route's company."""
+        """Ensure that the rule's company is the same as the route's company."""
         if self.route_id.company_id:
             self.company_id = self.route_id.company_id
         if self.picking_type_id.warehouse_id.company_id != self.route_id.company_id:
@@ -229,9 +226,10 @@ class StockRule(models.Model):
 
     def _get_message_dict(self):
         """Return a dict with the different possible message used for the
-        rule message. It should return one message for each stock.rule action
-        (except push and pull). This function is override in mrp and
-        purchase_stock in order to complete the dictionary.
+        rule message. It has one entry per stock.rule action, except
+        'pull_push' which is built by combining the 'pull' and 'push'
+        messages in `_compute_action_message`. This function is overridden
+        in mrp and purchase_stock in order to complete the dictionary.
         """
         message_dict = {}
         source, destination, direct_destination, operation = self._get_message_values()
@@ -283,9 +281,7 @@ class StockRule(models.Model):
         "location_dest_from_rule",
     )
     def _compute_action_message(self):
-        """Generate dynamicaly a message that describe the rule purpose to the
-        end user.
-        """
+        """Generate a message describing the rule's purpose for the end user."""
         action_rules = self.filtered(lambda rule: rule.action)
         for rule in action_rules:
             message_dict = rule._get_message_dict()
@@ -300,23 +296,17 @@ class StockRule(models.Model):
         self.picking_type_code_domain = []
 
     def _get_push_new_date(self, move):
-        """Get the new date for a push rule.
-
-        :param move: The stock move being processed
-        :type move: stock.move
-        :return: The new date as a string
-        :rtype: str
-        """
+        """Return the move's date shifted by the rule's lead time."""
         return fields.Datetime.to_string(move.date + relativedelta(days=self.delay))
 
     def _run_push(self, move):
         """Apply a push rule on a move.
-        If the rule is 'no step added' it will modify the destination location
-        on the move.
-        If the rule is 'manual operation' it will generate a new move in order
-        to complete the section define by the rule.
-        Care this function is not call by method run. It is called explicitely
-        in stock_move.py inside the method _push_apply
+
+        If the rule is 'no step added' the move's destination location is
+        modified in place. If the rule is 'manual operation' a new move is
+        generated to cover the leg defined by the rule.
+
+        Not called from `run`: called directly by `stock_move._push_apply`.
         """
         self.ensure_one()
         new_date = self._get_push_new_date(move)
@@ -393,10 +383,7 @@ class StockRule(models.Model):
     def _run_pull(self, procurements):
         moves_values_by_company = defaultdict(list)
 
-        # To handle the `mts_else_mto` procure method, we do a preliminary loop to
-        # isolate the products we would need to read the forecasted quantity,
-        # in order to to batch the read. We also make a sanitary check on the
-        # `location_src_id` field.
+        # Sanity check: every rule must define a source location.
         for procurement, rule in procurements:
             if not rule.location_src_id:
                 msg = _("No source location defined on stock rule: %s!", rule.name)
@@ -424,14 +411,13 @@ class StockRule(models.Model):
                 .with_company(company_id)
                 .create(moves_values)
             )
-            # Since action_confirm launch following procurement_group we should activate it.
+            # create() doesn't auto-confirm; _action_confirm() is what triggers
+            # the next rule in the chain for make_to_order/mts_else_mto moves.
             moves._action_confirm()
         return True
 
     def _get_custom_move_fields(self):
-        """The purpose of this method is to be override in order to easily add
-        fields from procurement 'values' argument to move data.
-        """
+        """Override to add fields from the procurement `values` to the move values."""
         return []
 
     def _get_stock_move_values(
@@ -445,12 +431,10 @@ class StockRule(models.Model):
         company_id,
         values,
     ):
-        """Returns a dictionary of values that will be used to create a stock move from a procurement.
-        This function assumes that the given procurement has a rule (action == 'pull' or 'pull_push') set on it.
+        """Return the values used to create a stock move from a procurement.
 
-        :rtype: dictionary
+        Assumes the procurement's rule has action 'pull' or 'pull_push'.
         """
-
         date_scheduled = fields.Datetime.to_string(
             fields.Datetime.from_string(values["date_planned"])
             - relativedelta(days=self.delay or 0)
@@ -464,8 +448,6 @@ class StockRule(models.Model):
             or False
         )
         partner = self.partner_address_id.id or values.get("partner_id", False)
-        # it is possible that we've already got some move done, so check for the done qty and create
-        # a new move with the correct qty
         qty_left = product_qty
 
         move_dest_ids = (
@@ -487,7 +469,6 @@ class StockRule(models.Model):
                     or self.company_id.partner_id
                 )
 
-        # If the quantity is negative the move should be considered as a refund
         if product_uom.compare(product_qty, 0.0) < 0:
             values["to_refund"] = True
 
@@ -533,15 +514,10 @@ class StockRule(models.Model):
         return move_values
 
     def _serialize_procurement_values(self, values):
-        """Helper method to serialize procurement values for storage.
-
-        This method handles the serialization of different types of values:
+        """Serialize procurement values for storage on the move:
         - BaseModel instances are converted to their IDs
-        - Datetime and Date fields are converted to strings
+        - Datetime and Date values are converted to strings
         - Other values are kept as is
-
-        :param values: Dictionary of procurement values
-        :return: Dictionary with serialized values
         """
         serialized = {}
         for key, value in values.items():
@@ -613,9 +589,9 @@ class StockRule(models.Model):
         type of documents).
 
         :param procurements: the description of the procurement
-        :type procurements: list of `~odoo.addons.stock.models.stock_rule.ProcurementGroup.Procurement`
+        :type procurements: list of `~odoo.addons.stock.models.stock_procurement.Procurement`
         :param raise_user_error: will raise either an UserError or a ProcurementException
-        :type raise_user_error: boolan, optional
+        :type raise_user_error: bool, optional
         :raises UserError: if `raise_user_error` is True and a procurement isn't fulfillable
         :raises ProcurementException: if `raise_user_error` is False and a procurement isn't fulfillable
         """
@@ -716,9 +692,9 @@ class StockRule(models.Model):
     def _search_rule(
         self, route_ids, packaging_uom_id, product_id, warehouse_id, domain
     ):
-        """First find a rule among the ones defined on the procurement
-        group, then try on the routes defined for the product, finally fallback
-        on the default behavior
+        """First find a rule among the routes given in `route_ids`, then try
+        the packaging's routes, then the product's routes, finally fallback
+        on the warehouse's routes.
         """
         Rule = self.env["stock.rule"]
         res = self.env["stock.rule"]
@@ -829,8 +805,7 @@ class StockRule(models.Model):
             return res
 
         location = location_id
-        # Go through the location hierarchy again, this time breaking at the first valid stock.rule found
-        # in rules_by_location.
+        # Walk the location hierarchy again, breaking at the first valid rule found in rule_dict.
         inter_comp_location_checked = False
         while (not result) and location:
             candidate_locations = location

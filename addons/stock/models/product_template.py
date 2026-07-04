@@ -80,7 +80,6 @@ class ProductTemplate(models.Model):
         store=True,
         precompute=True,
         readonly=False,
-        # Not having a default value here causes issues when migrating.
         help="Ensure the traceability of a storable product in your warehouse.",
     )
     lot_sequence_id = fields.Many2one(
@@ -137,8 +136,8 @@ class ProductTemplate(models.Model):
         compute_sudo=False,
         search="_search_outgoing_qty",
     )
-    # The goal of these fields is to be able to put some keys in context from search view in order
-    # to influence computed field.
+    # Dummy fields: not stored, only used to inject 'location'/'warehouse_id' into the
+    # context from the search view so they can influence the computed quantity fields.
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Location",
@@ -189,7 +188,7 @@ class ProductTemplate(models.Model):
         compute="_compute_nbr_reordering_rules",
         compute_sudo=False,
     )
-    # TDE FIXME: seems only visible in a view - remove me ?
+    # Only used to show the category's routes on the product form view.
     route_from_categ_ids = fields.Many2many(
         related="categ_id.total_route_ids",
         string="Category Routes",
@@ -248,7 +247,6 @@ class ProductTemplate(models.Model):
                         ),
                     )
 
-                # Forbid changing a product's company when quant(s) exist in another company.
                 quant = (
                     self.env["stock.quant"]
                     .sudo()
@@ -290,13 +288,9 @@ class ProductTemplate(models.Model):
         return res
 
     def _reset_inventory(self):
-        """
-        This method creates quants to match the move history of products that
-        become storable and makes inventory adjustments to reset their inventory
-        quantities.
-
-        These adjustments are necessary to ensure the integrity of the product
-        valuation.
+        """Create quants matching the move history of products that just became
+        storable, then reset them via inventory adjustment. Needed to keep product
+        valuation consistent once stock tracking starts.
         """
         move_line_domain = Domain(
             [
@@ -588,7 +582,6 @@ class ProductTemplate(models.Model):
 
     @api.onchange("type")
     def _onchange_type(self):
-        # Return a warning when trying to change the product type
         res = super()._onchange_type()
         if (
             self.ids

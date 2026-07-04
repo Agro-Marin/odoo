@@ -285,9 +285,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         return [("picking_id", "not in", docs.ids)]
 
     def _get_formatted_scheduled_date(self, source):
-        """Unfortunately different source record types have different field names for their "Scheduled Date"
-        Therefore an extendable method is needed.
-        """
+        """Extendable since different source record types name their "Scheduled Date" field differently."""
         if source._name == "stock.picking":
             return format_date(self.env, source.date_planned)
         return False
@@ -388,7 +386,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                 quantity_remaining -= linked_qty
                 qty_to_link -= linked_qty
                 if out.product_id.uom_id.is_zero(qty_to_link):
-                    break  # we have satistfied the qty_to_link
+                    break  # qty_to_link is fully satisfied
 
         (outs | new_outs)._recompute_state()
 

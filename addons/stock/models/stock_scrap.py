@@ -240,7 +240,6 @@ class StockScrap(models.Model):
                     },
                 )
             ],
-            # 'restrict_partner_id': self.owner_id.id,
             "picked": True,
             "picking_id": self.picking_id.id,
         }

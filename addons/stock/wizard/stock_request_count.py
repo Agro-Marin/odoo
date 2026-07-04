@@ -65,7 +65,8 @@ class StockRequestCount(models.TransientModel):
             or not tracked_quants
         ):
             return quants_to_count
-        # Searches sibling quants for tracked product.
+        # Also count sibling quants (other lots) sharing product+location, since
+        # tracked products are counted as a whole per location.
         if tracked_quants:
             domain = {
                 Domain("product_id", "=", quant.product_id.id)

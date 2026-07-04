@@ -57,7 +57,6 @@ class ResCompany(models.Model):
          ('0 days') to avoid overstocking.""",
     )
 
-    # used for sending stock text confirmation
     stock_text_confirmation = fields.Boolean(string="Stock Text Confirmation")
     stock_confirmation_type = fields.Selection(
         selection=[("sms", "SMS")],
@@ -67,7 +66,7 @@ class ResCompany(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         companies = super().create(vals_list)
-        # Unarchive inter-company location when multi-company is enabled.
+        # The location ships archived; creating a company implies multi-company use, so reactivate it.
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
@@ -86,9 +85,8 @@ class ResCompany(models.Model):
         return companies
 
     def _create_transit_location(self):
-        """Create a transit location with company_id being the given company_id. This is needed
-        in case of resuply routes between warehouses belonging to the same company, because
-        we don't want to create accounting entries at that time.
+        """Create a per-company transit location for resupply routes between warehouses
+        of the same company, avoiding the accounting entries a cross-company transfer would trigger.
         """
         for company in self:
             location = self.env["stock.location"].create(
@@ -170,7 +168,7 @@ class ResCompany(models.Model):
 
     @api.model
     def create_missing_warehouse(self):
-        """This hook is used to add a warehouse on the first company of the database"""
+        """Create a warehouse for the first company if the database has none yet."""
         existing_warehouses = self.env["stock.warehouse"].search([])
         if len(existing_warehouses) == 0:
             first_company = self.env["res.company"].search([], limit=1)
