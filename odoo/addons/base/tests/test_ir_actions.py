@@ -1159,6 +1159,23 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertIn("help", values)
         self.assertIsNotNone(values["help"])
 
+    def test_read_help_only_field_enriches(self):
+        """read(['help']) enriches help identically to a full read.
+
+        Enrichment sources res_model/context from the record, so it no longer
+        depends on those fields being present in the requested field list.
+        """
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "HelpOnly",
+                "res_model": "res.partner",
+                "help": "<p>raw</p>",
+            }
+        )
+        full = action.read(["help", "res_model", "context"])[0]["help"]
+        only = action.read(["help"])[0]["help"]
+        self.assertEqual(only, full)
+
     def test_for_xml_id_valid_window(self):
         """_for_xml_id of a valid window returns a dict limited to readable fields."""
         action = self.env["ir.actions.act_window"].create(
@@ -1187,6 +1204,216 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         with self.assertRaises(ValidationError):
             # base.model_res_partner is an ir.model record, not an action.
             self.env["ir.actions.actions"]._for_xml_id("base.model_res_partner")
+
+    def test_get_action_dict_act_url_no_invalid_field_warning(self):
+        """act_url._get_action_dict() must not warn about virtual fields (IRA-L2).
+
+        'close' is in the readable-fields allowlist but is not an ORM field;
+        feeding it to read() used to log 'Invalid field(s) [...]' on every load.
+        """
+        action = self.env["ir.actions.act_url"].create(
+            {"name": "UrlAction", "url": "https://example.com"}
+        )
+        self.assertNotIn("close", action._fields)
+        with self.assertNoLogs("odoo.models", "WARNING"):
+            result = action._get_action_dict()
+        # the virtual key was never produced by read(), so it stays absent
+        self.assertNotIn("close", result)
+        # every returned key is a real, readable field
+        self.assertTrue(set(result) <= action._get_readable_fields())
+        self.assertTrue(set(result) <= set(action._fields))
+
+    def test_get_action_dict_window_close_no_invalid_field_warning(self):
+        """act_window_close._get_action_dict() must not warn (IRA-L2).
+
+        'effect'/'infos' are readable but virtual (not ORM fields).
+        """
+        action = self.env["ir.actions.act_window_close"].create({"name": "CloseAction"})
+        self.assertNotIn("effect", action._fields)
+        self.assertNotIn("infos", action._fields)
+        with self.assertNoLogs("odoo.models", "WARNING"):
+            result = action._get_action_dict()
+        self.assertNotIn("effect", result)
+        self.assertNotIn("infos", result)
+
+    def test_write_binding_irrelevant_field_skips_cache_clear(self):
+        """Writing only binding-irrelevant fields must not clear the cache (IRA-L3).
+
+        Writing a binding input (e.g. name) still must.
+        """
+        action = self.env["ir.actions.act_url"].create(
+            {"name": "CacheAction", "url": "https://example.com"}
+        )
+        Registry = type(self.env.registry)
+
+        def clears_for(vals):
+            with patch.object(Registry, "clear_cache") as spy:
+                action.write(vals)
+            return spy.call_count
+
+        self.assertEqual(
+            clears_for({"help": "<p>irrelevant to bindings</p>"}),
+            0,
+            "writing only binding-irrelevant fields should not clear the cache",
+        )
+        self.assertGreaterEqual(
+            clears_for({"name": "Renamed"}),
+            1,
+            "writing a binding input (name) must clear the cache",
+        )
+
+
+class TestClientActionParams(common.TransactionCase):
+    """Cover ir.actions.client params (de)serialization (IACT-T3)."""
+
+    def test_params_roundtrip_dict(self):
+        """A dict assigned to params is stored and read back unchanged."""
+        action = self.env["ir.actions.client"].create(
+            {"name": "ClientAction", "tag": "some_tag", "params": {"a": 1, "b": "x"}}
+        )
+        action.invalidate_recordset(["params"])
+        self.assertEqual(action.params, {"a": 1, "b": "x"})
+
+    def test_params_empty_store(self):
+        """An empty params_store yields a falsy params without evaluating."""
+        action = self.env["ir.actions.client"].create(
+            {"name": "ClientAction2", "tag": "some_tag"}
+        )
+        self.assertFalse(action.params)
+
+    def test_params_corrupt_store_degrades(self):
+        """A corrupt params_store must not crash the action (IRA-L5).
+
+        params_store is normally a repr()'d dict, but a malformed value (bad
+        import / manual DB edit) must degrade to False, not raise, so the
+        client action stays loadable via _get_action_dict/read.
+        """
+        action = self.env["ir.actions.client"].create(
+            {"name": "ClientAction3", "tag": "some_tag"}
+        )
+        # write an un-evaluable value directly to the stored field
+        action.params_store = "this is ( not valid python"
+        action.invalidate_recordset(["params"])
+        self.assertFalse(action.params)
+        # and it stays readable end-to-end (the path that used to crash)
+        with self.assertNoLogs("odoo.models", "WARNING"):
+            data = action._get_action_dict()
+        self.assertIn("params", data)
+
+
+class TestActionsBindings(common.TransactionCase):
+    """Cover get_bindings ordering and cache invalidation (IACT-T4)."""
+
+    def _partner_model_id(self):
+        return self.env["ir.model"]._get_id("res.partner")
+
+    def _server(self, name, binding_type, sequence):
+        return self.env["ir.actions.server"].create(
+            {
+                "name": name,
+                "model_id": self._partner_model_id(),
+                "state": "code",
+                "code": "pass",
+                "binding_model_id": self._partner_model_id(),
+                "binding_type": binding_type,
+                "sequence": sequence,
+            }
+        )
+
+    def _binding_names(self, bucket):
+        self.env.registry.clear_cache()
+        bindings = self.env["ir.actions.actions"]._get_bindings("res.partner")
+        return [d["name"] for d in bindings.get(bucket, ())]
+
+    def test_report_bucket_sorted_by_sequence(self):
+        """Server actions bound as 'report' are ordered by sequence.
+
+        Regression: _get_bindings previously sorted only the 'action' bucket,
+        leaving sequenced server-actions-as-reports in raw insertion order.
+        """
+        self._server("Zeta report", "report", 30)
+        self._server("Alpha report", "report", 10)
+        ordered = [
+            n
+            for n in self._binding_names("report")
+            if n in ("Zeta report", "Alpha report")
+        ]
+        self.assertEqual(ordered, ["Alpha report", "Zeta report"])
+
+    def test_action_bucket_sorted_by_sequence(self):
+        """The 'action' bucket stays ordered by sequence."""
+        self._server("Zeta action", "action", 30)
+        self._server("Alpha action", "action", 10)
+        ordered = [
+            n
+            for n in self._binding_names("action")
+            if n in ("Zeta action", "Alpha action")
+        ]
+        self.assertEqual(ordered, ["Alpha action", "Zeta action"])
+
+    def test_cache_safe_fields_disjoint_from_binding_inputs(self):
+        """_CACHE_SAFE_FIELDS must exclude every field _get_bindings consumes.
+
+        If a binding input were wrongly marked cache-safe, write() would skip
+        invalidation and get_bindings would serve stale data. This locks the
+        invariant that the _CACHE_SAFE_FIELDS comment only states informally.
+        """
+        binding_inputs = {
+            "name",
+            "type",
+            "binding_model_id",
+            "binding_type",
+            "binding_view_types",
+            "res_model",
+            "group_ids",
+            "sequence",
+            "domain",
+        }
+        safe = self.env["ir.actions.actions"]._CACHE_SAFE_FIELDS
+        overlap = safe & binding_inputs
+        self.assertFalse(
+            overlap,
+            "cache-safe set overlaps binding inputs %s; writing them would "
+            "leave stale bindings" % sorted(overlap),
+        )
+
+    def test_rename_bound_action_invalidates_bindings(self):
+        """Renaming a bound action surfaces in get_bindings (no stale cache).
+
+        This is the functional guard behind test_cache_safe_fields_disjoint:
+        it fails outright if 'name' ever becomes cache-safe.
+        """
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "BindOrig",
+                "res_model": "res.partner",
+                "binding_model_id": self._partner_model_id(),
+            }
+        )
+        self.assertIn("BindOrig", self._binding_names("action"))
+        action.write({"name": "BindRenamed"})
+        names = self._binding_names("action")
+        self.assertIn("BindRenamed", names)
+        self.assertNotIn("BindOrig", names)
+
+    def test_group_ids_resolved_to_xml_ids(self):
+        """group_ids in bindings are external-id strings across many actions."""
+        gid = self.env.ref("base.group_user").id
+        for i in range(3):
+            self.env["ir.actions.act_window"].create(
+                {
+                    "name": "Grp%d" % i,
+                    "res_model": "res.partner",
+                    "binding_model_id": self._partner_model_id(),
+                    "group_ids": [Command.set([gid])],
+                }
+            )
+        self.env.registry.clear_cache()
+        raw = self.env["ir.actions.actions"]._get_bindings("res.partner")
+        ours = [d for d in raw.get("action", ()) if d["name"].startswith("Grp")]
+        self.assertEqual(len(ours), 3)
+        for data in ours:
+            self.assertEqual(data["group_ids"], ["base.group_user"])
 
 
 class TestCommonCustomFields(common.TransactionCase):

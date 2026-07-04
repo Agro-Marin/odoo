@@ -5,6 +5,7 @@ import inspect
 import logging
 import pprint
 import re
+import types
 import typing
 import uuid
 from collections.abc import Callable
@@ -58,6 +59,10 @@ MOVABLE_BRANDING = [
     "data-oe-source-id",
 ]
 VIEW_MODIFIERS = ("column_invisible", "invisible", "readonly", "required")
+
+# Attributes on a <calendar> view whose value names a field on the view's model
+# (shared by calendar postprocessing and validation so both stay in sync).
+CALENDAR_DATE_ATTRS = ("date_start", "date_delay", "date_stop", "color", "all_day")
 
 # Writing any of these fields can change how views resolve into combined archs
 # or compiled templates, so it must invalidate the "templates" ormcache (a
@@ -189,6 +194,23 @@ xpath_utils["hasclass"] = _hasclass
 
 TRANSLATED_ATTRS_RE = re.compile(rf"@({'|'.join(TRANSLATED_ATTRS)})\b")
 WRONGCLASS = re.compile(r"(@class\s*=|=\s*@class|contains\(@class)")
+
+# XML encoding declaration, e.g. <?xml version="1.0" encoding="utf-8"?>.
+_XML_ENCODING_DECL_RE = re.compile(r"<\?xml[^>]*encoding=.*?\?>", re.IGNORECASE)
+
+# External-id reference inside a file arch, e.g. %(module.record)s or %(record)d.
+_ARCH_FS_REF_RE = re.compile(r"(?<!%)%\((?P<xmlid>.*?)\)[ds]")
+
+# Tooltip-related attribute forbidden in archs (optionally t-att-/t-attf- prefixed).
+_TOOLTIP_ATTR_RE = re.compile(r"^(t-att-|t-attf-)?data-tooltip(-template|-info)?$")
+
+# Owl/qweb directives allowed to appear verbatim in an arch. Matched with
+# re.match (prefix-anchored), preserving the historical per-entry list semantics.
+# Views compiling to an owl template (kanban) accept the extended set.
+_QWEB_DIRECTIVES_ALLOWED = re.compile(r"t-translation")
+_QWEB_DIRECTIVES_ALLOWED_TEMPLATE = re.compile(
+    r"t-(?:translation|name|esc|out|set|value|if|else|elif|foreach|as|key|att|call|debug)"
+)
 
 # Pre-compiled XPath expressions for view processing hot paths (lxml 6.0 best practice).
 # ETXPath objects are document-independent and thread-safe, so module-level constants
@@ -337,7 +359,7 @@ class IrUiView(models.Model):
             # Negative look-behind on '%' so an escaped "%%(...)" is left
             # untouched. The previous *consuming* prefix char ("[^%]") also
             # skipped a ref at position 0 and the second of two adjacent refs.
-            return re.sub(r"(?<!%)%\((?P<xmlid>.*?)\)[ds]", replacer, arch_fs)
+            return _ARCH_FS_REF_RE.sub(replacer, arch_fs)
 
         lang = self.env.lang or "en_US"
         env_en = self.with_context(
@@ -464,7 +486,7 @@ class IrUiView(models.Model):
 
     def _search_model_data_id(
         self, operator: str, value: Any
-    ) -> list[tuple[str, str, Any]] | type[NotImplemented]:
+    ) -> list[tuple[str, str, Any]] | types.NotImplementedType:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
         name = "name" if isinstance(value, str) else "id"
@@ -822,9 +844,7 @@ class IrUiView(models.Model):
         return warning
 
     def _validate_xml_encoding(self, text: str | None) -> None:
-        if isinstance(text, str) and re.search(
-            r"<\?xml[^>]*encoding=.*?\?>", text, re.IGNORECASE
-        ):
+        if isinstance(text, str) and _XML_ENCODING_DECL_RE.search(text):
             raise UserError(
                 _(
                     "Unicode strings with encoding declaration are not supported in XML.\n"
@@ -834,7 +854,8 @@ class IrUiView(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        valid_types = self._fields["type"]._selection
+        # single source of truth for the valid view types (see _editable_node)
+        valid_types = self._get_view_type_tags()
         # Prefetch parent view types in batch to avoid N+1 queries
         inherit_ids = {
             v["inherit_id"]
@@ -868,7 +889,7 @@ class IrUiView(models.Model):
                                     "You might have used an invalid starting tag in the architecture.\n"
                                     "Allowed types are: %(valid_types)s",
                                     view_type=values["type"],
-                                    valid_types=", ".join(valid_types),
+                                    valid_types=", ".join(sorted(valid_types)),
                                 )
                             )
                     except (etree.ParseError, ValueError):
@@ -915,15 +936,23 @@ class IrUiView(models.Model):
         ):
             vals["arch_updated"] = True
 
-        # drop the corresponding view customizations (used for dashboards for example), otherwise
-        # not all users would see the updated views
-        custom_view = (
-            self.env["ir.ui.view.custom"].sudo().search([("ref_id", "in", self.ids)])
-        )
-        if custom_view:
-            custom_view.unlink()
-
+        # These are exactly the fields that change how a view resolves into a
+        # combined arch / compiled template (see _TEMPLATE_CACHE_FIELDS).
         if _TEMPLATE_CACHE_FIELDS.intersection(vals):
+            # Drop the corresponding view customizations (used for dashboards for
+            # example), otherwise not all users would see the updated views. A
+            # customization is an alternate arch relative to this view, so it
+            # only goes stale when the resolved arch changes; a pure metadata
+            # write (name, arch_fs, arch_prev, arch_updated, ...) leaves it valid
+            # and must not silently discard the user's customization.
+            custom_view = (
+                self.env["ir.ui.view.custom"]
+                .sudo()
+                .search([("ref_id", "in", self.ids)])
+            )
+            if custom_view:
+                custom_view.unlink()
+
             self.env.registry.clear_cache("templates")
         if "arch_db" in vals and not self.env.context.get("no_save_prev"):
             for view in self:
@@ -958,12 +987,14 @@ class IrUiView(models.Model):
         )
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
+        # Regenerate the key only when the caller passed an explicit (non-empty)
+        # default that does not already pin one. A bare copy() (default None/{})
+        # deliberately keeps the original key: qweb views legitimately share a
+        # key across website COW copies, differentiated by other fields.
         has_default_without_key = default and "key" not in default
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         for view, vals in zip(self, vals_list, strict=True):
-            # has_default_without_key guarantees 'key' is absent from default,
-            # so a fresh unique key is always generated here.
             if view.key and has_default_without_key:
                 vals["key"] = f"{view.key}_{str(uuid.uuid4())[:6]}"
         return vals_list
@@ -992,7 +1023,7 @@ class IrUiView(models.Model):
         )
 
     # ------------------------------------------------------
-    # Inheritance mecanism
+    # Inheritance mechanism
     # ------------------------------------------------------
     @api.model
     def _get_inheriting_views_domain(self) -> Domain:
@@ -1020,9 +1051,12 @@ class IrUiView(models.Model):
         domain = self._get_inheriting_views_domain()
         query = self._search(domain)
         where_clause = query.where_clause
-        assert query.from_clause == SQL.identifier("ir_ui_view"), (
-            f"Unexpected from clause: {query.from_clause}"
-        )
+        # This invariant is load-bearing: the recursive SQL below hardcodes
+        # "ir_ui_view" as its FROM table, so a _search() override injecting a
+        # JOIN/alias would silently build wrong SQL. Guard with a real raise
+        # (not assert, which -O would strip) rather than trust it.
+        if query.from_clause != SQL.identifier("ir_ui_view"):
+            raise AssertionError(f"Unexpected from clause: {query.from_clause}")
 
         field_names = [
             f.name for f in self._fields.values() if f.prefetch is True and not f.groups
@@ -1061,7 +1095,7 @@ class IrUiView(models.Model):
             where_clause=where_clause,
         )
         # ORDER BY v.priority, v.id:
-        # 1/ sort by priority: abritrary value set by developers on some
+        # 1/ sort by priority: arbitrary value set by developers on some
         #    views to solve "dependency hell" problems and force a view
         #    to be combined earlier or later. e.g. all views created via
         #    studio have a priority=99 to be loaded last.
@@ -1446,7 +1480,7 @@ class IrUiView(models.Model):
         giving the views to use for a field node.
 
         :param node: the field node as an etree
-        :return: a dictonary mapping the `[view_type]_view_ref` key to the xmlid of the view to use for that view type.
+        :return: a dictionary mapping the `[view_type]_view_ref` key to the xmlid of the view to use for that view type.
         """
         context = node.get("context")
         if not context:
@@ -1695,13 +1729,16 @@ class IrUiView(models.Model):
         # normalized to spaces by the XML parser, so they are unaffected).
         arch = etree.tostring(node, encoding="unicode").replace("\t", "")
 
-        fields_by_model = {}
-        name_managers = [name_manager]
-        for name_manager in name_managers:
-            fields_by_model.setdefault(name_manager.model._name, set()).update(
-                name_manager.available_fields
+        # Breadth-first walk over the name manager and its nested (comodel)
+        # children, collecting every model's available fields.
+        fields_by_model: dict[str, set[str]] = {}
+        queue = collections.deque([name_manager])
+        while queue:
+            manager = queue.popleft()
+            fields_by_model.setdefault(manager.model._name, set()).update(
+                manager.available_fields
             )
-            name_managers.extend(name_manager.children)
+            queue.extend(manager.children)
 
         return arch, fields_by_model
 
@@ -2078,7 +2115,7 @@ class IrUiView(models.Model):
 
     def _get_x2many_missing_view_archs(
         self, field: Any, field_node: _Element, node_info: dict[str, Any]
-    ) -> list[tuple[_Element, Self]]:
+    ) -> list[_Element]:
         """
         Return the multi-record view archs (kanban or list) needed to display
         the records of an x2many field whose node does not already embed one.
@@ -2108,8 +2145,10 @@ class IrUiView(models.Model):
             }
         )
 
+        # _get_view returns (arch, view); only the arch is embedded in the field.
         return [
-            comodel._get_view(view_type=view_type) for view_type in missing_view_types
+            comodel._get_view(view_type=view_type)[0]
+            for view_type in missing_view_types
         ]
 
     def _postprocess_attributes(
@@ -2129,26 +2168,34 @@ class IrUiView(models.Model):
     # ------------------------------------------------------
     # Specific node postprocessors
     # ------------------------------------------------------
+    def _calendar_field_names(self, node: _Element) -> typing.Iterator[str | None]:
+        """Yield the names of the fields referenced by a ``<calendar>`` node:
+        its date/color/all_day attributes (:data:`CALENDAR_DATE_ATTRS`), its
+        ``aggregate`` attribute, and its ``<filter>`` children.
+
+        Single source of truth shared by :meth:`_postprocess_tag_calendar` and
+        :meth:`_validate_tag_calendar` so the two phases can never drift on
+        *which* fields a calendar view references.
+        """
+        for attr in CALENDAR_DATE_ATTRS:
+            if value := node.get(attr):
+                # a date attribute may carry a dotted path (e.g. "line_ids.date");
+                # only its first segment names a field on the view's model.
+                yield value.split(".", 1)[0]
+        if aggregate := node.get("aggregate"):
+            yield aggregate.split(":")[0]
+        for child in node:
+            if child.tag == "filter":
+                yield child.get("name")
+
     def _postprocess_tag_calendar(
         self,
         node: _Element,
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        for additional_field in (
-            "date_start",
-            "date_delay",
-            "date_stop",
-            "color",
-            "all_day",
-        ):
-            if fname := node.get(additional_field):
-                name_manager.has_field(node, fname, node_info)
-        if fname := node.get("aggregate"):
-            name_manager.has_field(node, fname.split(":")[0], node_info)
-        for f in node:
-            if f.tag == "filter":
-                name_manager.has_field(node, f.get("name"), node_info)
+        for name in self._calendar_field_names(node):
+            name_manager.has_field(node, name, node_info)
 
     def _postprocess_tag_field(
         self,
@@ -2176,7 +2223,7 @@ class IrUiView(models.Model):
                 # if no widget or the widget requires it.
                 # So the web client doesn't have to call `get_views` for x2many fields not embedding their view
                 # in the main form view.
-                for arch, _view in self._get_x2many_missing_view_archs(
+                for arch in self._get_x2many_missing_view_archs(
                     field, node, node_info
                 ):
                     node.append(arch)
@@ -2445,6 +2492,8 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
+        # No form-specific validation by default; kept as an extension point for
+        # modules (and reused by _validate_tag_list, which shares form semantics).
         pass
 
     def _validate_tag_list(
@@ -2505,18 +2554,8 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        for additional_field in (
-            "date_start",
-            "date_delay",
-            "date_stop",
-            "color",
-            "all_day",
-        ):
-            if fnames := node.get(additional_field):
-                name_manager.has_field(node, fnames.split(".", 1)[0], node_info)
-        for f in node:
-            if f.tag == "filter":
-                name_manager.has_field(node, f.get("name"), node_info)
+        for name in self._calendar_field_names(node):
+            name_manager.has_field(node, name, node_info)
 
     def _validate_tag_search(
         self,
@@ -2987,9 +3026,7 @@ class IrUiView(models.Model):
                 msg = "attribute 'group' is not valid.  Did you mean 'groups'?"
                 self._log_view_warning(msg, node)
 
-            elif re.match(
-                r"^(t\-att\-|t\-attf\-)?data-tooltip(-template|-info)?$", attr
-            ):
+            elif _TOOLTIP_ATTR_RE.match(attr):
                 self._raise_view_error(
                     _("Forbidden attribute used in arch (%s).", attr), node
                 )
@@ -3020,30 +3057,12 @@ class IrUiView(models.Model):
         There are exceptions though, e.g. the kanban arch defines qweb templates.
         We thus here validate that the given directive is allowed, according to the view_type.
         """
-        allowed_directives = ["t-translation"]
-        if self._is_qweb_based_view(view_type):
-            allowed_directives.extend(
-                [
-                    "t-name",
-                    "t-esc",
-                    "t-out",
-                    "t-set",
-                    "t-value",
-                    "t-if",
-                    "t-else",
-                    "t-elif",
-                    "t-foreach",
-                    "t-as",
-                    "t-key",
-                    "t-att.*",
-                    "t-call",
-                    "t-debug",
-                ]
-            )
-        if not next(
-            filter(lambda regex: re.match(regex, directive), allowed_directives),
-            None,
-        ):
+        allowed = (
+            _QWEB_DIRECTIVES_ALLOWED_TEMPLATE
+            if self._is_qweb_based_view(view_type)
+            else _QWEB_DIRECTIVES_ALLOWED
+        )
+        if not allowed.match(directive):
             self._raise_view_error(
                 _("Forbidden owl directive used in arch (%s).", directive), node
             )
@@ -3348,7 +3367,7 @@ class IrUiView(models.Model):
         for that view's key.
         """
         self.ensure_one()
-        # Only qweb views have a specific conterpart
+        # Only qweb views have a specific counterpart
         if self.type != "qweb":
             return self.env["ir.ui.view"]
         # A specific view can have a xml_id if exported/imported but it will not be equals to it's key (only generic view will).
