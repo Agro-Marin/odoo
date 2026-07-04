@@ -2,6 +2,7 @@ import functools
 import logging
 import threading
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
@@ -47,6 +48,34 @@ def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
 
 
 _UNSET = object()
+
+
+@functools.lru_cache(maxsize=4096)
+def _resolve_static_resource(static_path: str, resource: str) -> str:
+    """Resolve ``resource`` under a module's validated ``static_path``, cached.
+
+    ``file_path`` costs ~150-300µs per call (it ``Path.resolve()``s every
+    ``addons_path`` entry to reject symlink/`..` escapes), and the url→file
+    mapping it computes is stable for the life of a deployment — so cache the
+    *positive* resolutions. Failures (``FileNotFoundError``) are NOT cached:
+    ``lru_cache`` doesn't memoise exceptions, so a file added on disk (dev mode)
+    is picked up on the next request, and an attacker probing distinct missing
+    paths cannot evict the useful entries. A cached file that is later *deleted*
+    still 404s: :meth:`Stream._from_trusted_path` stats it per request. Keyed by
+    ``static_path`` (not module name) so a manifest swap changes the key.
+
+    ``file_path`` only enforces the *addons-tree* boundary, so a ``..`` in
+    ``resource`` (``/web/static/../controllers/__init__.py``) escapes ``static/``
+    while staying inside the addon — disclosing Python source. Re-assert that the
+    resolved file is contained in ``static_path`` itself, matching the guarantee
+    ``werkzeug.security.safe_join`` gives on the cold path; the two static-serving
+    paths must not disagree on what is reachable. Comparison is
+    ``resolve()``-vs-``resolve()`` so a symlinked ``static/`` is not defeated.
+    """
+    resolved = file_path(f"{static_path}/{resource}")
+    if not Path(resolved).resolve().is_relative_to(Path(static_path).resolve()):
+        raise FileNotFoundError(resolved)
+    return resolved
 
 
 class _locked_cached_property(functools.cached_property):
@@ -154,7 +183,7 @@ class Application:
             return None
 
         try:
-            return file_path(f"{static_path}/{resource}")
+            return _resolve_static_resource(static_path, resource)
         except FileNotFoundError:
             return None
 

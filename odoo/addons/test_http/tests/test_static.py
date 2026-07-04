@@ -108,6 +108,24 @@ class TestHttpStatic(TestHttpStaticCommon):
         res = self.nodb_url_open("/test_http/static/i-dont-exist")
         self.assertEqual(res.status_code, 404)
 
+    def test_static02b_traversal_out_of_static_dir_is_404(self):
+        # A ``..`` in the resource escapes the addon's ``static/`` directory
+        # while staying inside the addon tree, so ``file_path``'s addons-boundary
+        # check alone would serve the module's Python source / manifest. The
+        # static gate must confine reachable files to ``static/`` (matching the
+        # cold path's ``safe_join``), else this is source disclosure.
+        root = http.root
+        for resource in (
+            "../__manifest__.py",
+            "../controllers/__init__.py",
+            "../../web/__manifest__.py",
+        ):
+            with self.subTest(resource=resource):
+                self.assertIsNone(
+                    root.get_static_file(f"/test_http/static/{resource}"),
+                    f"{resource!r} escaped the static/ directory",
+                )
+
     def test_static03_attachment_fallback(self):
         attachment = self.env.ref("test_http.gizeh_png")
 
