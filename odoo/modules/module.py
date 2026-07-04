@@ -411,11 +411,17 @@ class Manifest(Mapping[str, typing.Any]):
         return None
 
     @staticmethod
-    def _from_path(path: str) -> Manifest | None:
-        """Given a path, read the manifest file."""
+    def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
+        """Given a path, read the manifest file.
+
+        ``env`` is required to read a manifest located inside a temporary
+        directory created via ``file_open_temporary_directory()`` (e.g. when
+        importing a module from a zip file); ``file_open`` needs it to allow
+        that transient path.
+        """
         for manifest_name in MANIFEST_NAMES:
             try:
-                with tools.file_open(str(Path(path, manifest_name))) as f:
+                with tools.file_open(str(Path(path, manifest_name)), env=env) as f:
                     manifest_content = ast.literal_eval(f.read())
             except OSError:
                 pass
