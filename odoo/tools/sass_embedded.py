@@ -1,8 +1,10 @@
 """Embedded Sass Protocol client for Dart Sass.
 
 Provides a high-performance SCSS/Sass compiler using the Sass Embedded
-Protocol (protobuf over stdin/stdout). Falls back gracefully when the
-``sass --embedded`` binary is unavailable.
+Protocol (protobuf over stdin/stdout). Dart Sass is a required dependency
+of this fork (declared in ``package.json``, provisioned by ``npm install``):
+a missing or non-startable binary raises :class:`SassNotFoundError` /
+:class:`SassProtocolError` rather than silently degrading.
 
 See https://github.com/sass/embedded-protocol for the protocol specification.
 """
@@ -35,6 +37,15 @@ class SassCompileError(Exception):
 
 class SassProtocolError(Exception):
     """Raised on embedded protocol violations."""
+
+
+class SassNotFoundError(SassProtocolError):
+    """Raised when the required Dart Sass binary cannot be located.
+
+    Distinct from a protocol/compile error so callers can fail loudly on a
+    misconfigured deployment instead of mistaking a missing compiler for a
+    stylesheet error (Dart Sass is a hard dependency; see the module docstring).
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +156,6 @@ class SassEmbeddedCompiler:
             css = compiler.compile_string(source)
     """
 
-    _unavailable: bool = False  # class-level: skip retrying after first failure
-
     def __init__(self, sass_path: str | None = None) -> None:
         self._sass_path = sass_path
         self._process: Popen | None = None
@@ -158,13 +167,16 @@ class SassEmbeddedCompiler:
         """Spawn the ``sass --embedded`` subprocess."""
         if self._started:
             return
-        if SassEmbeddedCompiler._unavailable:
-            msg = "sass --embedded is unavailable"
-            raise SassProtocolError(msg)
 
         sass_path = self._sass_path
         if sass_path is None:
-            sass_path = find_sass() or "sass"
+            sass_path = find_sass()
+        if sass_path is None:
+            raise SassNotFoundError(
+                "Dart Sass not found. It is a required dependency of this fork: "
+                "run `npm install` in the Odoo root (declared in package.json) "
+                "or install a `sass` binary on PATH."
+            )
 
         try:
             self._process = Popen(
@@ -174,7 +186,6 @@ class SassEmbeddedCompiler:
                 stderr=PIPE,
             )
         except OSError as e:
-            SassEmbeddedCompiler._unavailable = True
             raise SassProtocolError(f"Could not start sass --embedded: {e}") from e
 
         # Verify the process started successfully
@@ -186,7 +197,6 @@ class SassEmbeddedCompiler:
                 with contextlib.suppress(OSError):
                     pipe.close()
             proc.wait()  # reap the zombie
-            SassEmbeddedCompiler._unavailable = True
             raise SassProtocolError(f"sass --embedded exited immediately: {stderr}")
         self._started = True
 
@@ -296,9 +306,11 @@ class SassEmbeddedCompiler:
             except SassCompileError:
                 raise
             except Exception:
-                # Process crashed during communication — mark unavailable
-                # and close to reap the zombie process.
-                SassEmbeddedCompiler._unavailable = True
+                # Process crashed mid-communication — close to reap the zombie
+                # process, then re-raise so the caller can react (the embedded
+                # → CLI fallback in ``SassStylesheetAsset.compile`` handles a
+                # transient embedded-protocol failure; a missing binary raises
+                # ``SassNotFoundError`` from ``_start`` and never reaches here).
                 self.close()
                 raise
 
