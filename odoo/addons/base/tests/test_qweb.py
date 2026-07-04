@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import markupsafe
 from lxml import etree
 
@@ -929,7 +931,7 @@ class TestQWebBasic(TransactionCase):
                 "<test>",
                 "exec",
             )
-            globals_dict = IrQweb._IrQweb__prepare_globals()
+            globals_dict = IrQweb._prepare_globals()
             values = {}
             unsafe_eval(compiled, globals_dict, values)
             test = values["test"]
@@ -1089,6 +1091,149 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(links[0].get("href"), "")
         # Second link: the whitelisted history.back() form is preserved.
         self.assertEqual(links[1].get("href"), "javascript:history.back()")
+
+    def test_post_processing_att_control_char_obfuscation(self):
+        """QWEB-T5b: C0 control characters (TAB/LF/CR/NUL/...) are stripped by
+        the browser *before* the scheme is resolved, so ``java&#9;script:``
+        collapses to ``javascript:`` and executes. `_post_processing_att` must
+        strip control chars before matching so these obfuscations are still
+        scrubbed. Covers the previously-untested ``URL_CONTROL_CHARS`` defense.
+        """
+        # Each payload embeds a C0 control char inside the scheme; all must be
+        # blanked. The benign anchor pins that a legitimate URL is untouched.
+        obfuscations = [
+            "java\tscript:alert(1)",
+            "java\nscript:alert(1)",
+            "java\rscript:alert(1)",
+            "java\x00script:alert(1)",
+            "java\x01script:alert(1)",
+        ]
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "malicious-scheme-ctrl",
+                "type": "qweb",
+                "arch_db": """<t t-name="malicious-scheme-ctrl">
+                    <a t-foreach="payloads" t-as="p" t-att-href="p" class="danger"/>
+                    <a t-att-href="ok" class="safe"/>
+                </t>""",
+            }
+        )
+        rendered = self.env["ir.qweb"]._render(
+            view.id, {"payloads": obfuscations, "ok": "https://example.com/x"}
+        )
+        doc = etree.fromstring("<root>%s</root>" % rendered)
+        danger = doc.findall(".//a[@class='danger']")
+        self.assertEqual(len(danger), len(obfuscations))
+        for link, payload in zip(danger, obfuscations, strict=True):
+            self.assertEqual(
+                link.get("href"),
+                "",
+                "control-char obfuscation %r was not scrubbed" % payload,
+            )
+        self.assertEqual(
+            doc.find(".//a[@class='safe']").get("href"), "https://example.com/x"
+        )
+
+    def test_directives_eval_order_precedence(self):
+        """QWEB-T7: pin the relative precedence of directives. Other modules
+        (e.g. html_editor) inject custom directives by overriding
+        ``_directives_eval_order``; a silent reordering here changes rendering
+        semantics (e.g. ``t-foreach`` must wrap ``t-if``) with no other guard.
+        """
+        order = self.env["ir.qweb"]._directives_eval_order()
+        self.assertEqual(
+            len(order), len(set(order)), "duplicate directive in eval order"
+        )
+        pos = {name: i for i, name in enumerate(order)}
+        # Documented invariants (see _directives_eval_order docstring).
+        pairs = [
+            ("elif", "if"),  # elif/else compiled by the preceding if
+            ("else", "if"),
+            ("foreach", "if"),  # foreach wraps if
+            ("as", "foreach"),
+            ("if", "call"),
+            ("options", "call"),  # options configure the call/out/field
+            ("call", "att"),
+            ("tag-open", "set"),
+            ("set", "inner-content"),
+            ("inner-content", "tag-close"),
+        ]
+        for earlier, later in pairs:
+            self.assertIn(earlier, pos)
+            self.assertIn(later, pos)
+            self.assertLess(
+                pos[earlier],
+                pos[later],
+                "%r must be evaluated before %r" % (earlier, later),
+            )
+
+    def test_tcall_compile_is_memoized_per_render(self):
+        """QWEB-P: a repeated ``t-call`` (same sub-template) must not re-enter
+        ``_compile`` once per iteration. ``t-call`` frames carry method=None so
+        the render-local compile memo (``__qweb_compiled_cache``), not the
+        per-function cache, is what bounds the work. Guards the memo against a
+        regression back to O(frames) compile look-ups."""
+        self.env["ir.ui.view"].create(
+            {
+                "name": "memo-child",
+                "key": "base.memo_child",
+                "type": "qweb",
+                "arch_db": """<t t-name="base.memo_child"><span t-out="i"/></t>""",
+            }
+        )
+        parent = self.env["ir.ui.view"].create(
+            {
+                "name": "memo-parent",
+                "key": "base.memo_parent",
+                "type": "qweb",
+                "arch_db": """<t t-name="base.memo_parent"><div>
+                    <t t-foreach="range(count)" t-as="i">
+                        <t t-call="base.memo_child"/>
+                    </t></div></t>""",
+            }
+        )
+        qweb = self.env["ir.qweb"]
+        real_compile = type(qweb)._compile
+        calls = []
+
+        def counting_compile(self, template):
+            calls.append(template)
+            return real_compile(self, template)
+
+        count = 40
+        with patch.object(type(qweb), "_compile", counting_compile):
+            rendered = qweb._render(parent.id, {"count": count})
+        self.assertEqual(rendered.count("<span>"), count)
+        # 2 distinct templates (parent + child) → a small constant number of
+        # compiles, NOT one per iteration.
+        self.assertLessEqual(
+            len(calls),
+            4,
+            "t-call compile not memoized: %d _compile calls for %d iterations"
+            % (len(calls), count),
+        )
+
+    def test_render_etree_tset_body_content(self):
+        """QWEB-P/etree: a ``t-set`` whose value is body content (wrapped in a
+        QwebContent) that is then output, inside an *etree*-provided template.
+        etree templates recompile with fresh, non-deterministic def_names
+        (ETREE_TEMPLATE_REF) and are NOT ormcached, so the render-local compile
+        memo must resolve the content function via the ``loaded_functions``
+        registration, never by re-``_compile``-ing the ref (which would mint a
+        different def_name and KeyError). Regression guard for that exact path.
+        """
+        template = etree.fromstring(
+            """<t>
+                <t t-foreach="range(3)" t-as="i">
+                    <t t-set="blk"><b t-out="i"/>!</t>
+                    <span t-out="blk"/>
+                </t>
+            </t>"""
+        )
+        rendered = self.env["ir.qweb"]._render(template, {})
+        self.assertEqual(rendered.count("<b>"), 3)
+        self.assertIn("<b>0</b>!", rendered)
+        self.assertIn("<b>2</b>!", rendered)
 
     def test_raw_stays_unescaped(self):
         """QWEB-T6: `t-raw` output must stay unescaped (the single intentional
