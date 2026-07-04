@@ -990,7 +990,7 @@ class ResCompany(models.Model):
     @api.model
     def _format_lock_dates(self, lock_dates):
         """Format a list of lock dates as a string.
-        :param lock_date_violations: list of tuple (lock_date, lock_date_field)
+        :param lock_dates: list of tuple (lock_date, lock_date_field)
         :return: a (localized) string listing all the lock date fields and their values
         """
         return format_list(

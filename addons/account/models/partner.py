@@ -1193,14 +1193,16 @@ class ResPartner(models.Model):
 
     @api.model
     def _run_vat_checks(self, country, vat, partner_name="", validation="error"):
-        """Checks a VAT number syntactically to ensure its validity upon saving.
+        """Hook for localization modules (e.g. ``base_vat``) to validate a VAT number's format.
 
-        :param country: a country to check for
-        :param vat: a string with the VAT number to check.
-        :param partner_name: to put into the error message
-        :param validation: if False, it will only return the formatted vat without checking if it valid.
-            if 'error', an incorrect number will raise and if 'setnull' it will just return an empty vat
+        The base implementation performs no validation and returns the vat unchanged.
 
+        :param country: country to validate the VAT number against.
+        :param vat: VAT number to check.
+        :param partner_name: partner name to include in the error message, if any is raised.
+        :param validation: contract expected from overrides — False: only return the
+            formatted vat without checking validity; 'error': raise on an invalid vat;
+            'setnull': return an empty vat instead of raising.
         :return: A two-elements tuple with:
 
             1. The vat number

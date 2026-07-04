@@ -4789,16 +4789,12 @@ class AccountMoveLine(models.Model):
     # Catalog
     # -------------------------------------------------------------------------
     def _get_product_catalog_lines_data(self, **kwargs):
-        """
-        Return information about account_move_line in `self`.
-        If `self` is empty, this method returns only the default value(s) needed for the product
-        catalog. In this case, the quantity that equals 0.
-        Otherwise, it returns a quantity and a price based on the product of the move line(s) and whether
-        the product is read-only or not.
-        A product is considered read-only if the order is considered read-only or if `self` contains multiple records.
-        Note: This method cannot be called with multiple records that have different products linked.
+        """Return the product catalog quantity/price/read-only state for the move line(s) in `self`.
 
-        :param products: Recordset of `product.product`.
+        If `self` is empty, only the default values are returned (quantity 0). A product is
+        read-only if the order is read-only or if `self` contains more than one line. All lines
+        in `self` must share the same product.
+
         :param dict kwargs: additional values given for inherited models.
         :rtype: dict
         :return: A dict with the following structure:

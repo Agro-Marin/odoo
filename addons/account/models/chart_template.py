@@ -181,7 +181,7 @@ class AccountChartTemplate(models.AbstractModel):
         :param template_code: code of the chart template to be loaded.
         :type template_code: str
         :param company: the company we try to load the chart template on.
-            If not provided, it is retrieved from the context.
+            No-op if falsy.
         :type company: int, Model<res.company>
         :param install_demo: whether or not we should load demo data right after loading the
             chart template.
