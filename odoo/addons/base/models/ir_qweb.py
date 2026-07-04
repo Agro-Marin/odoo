@@ -1673,6 +1673,10 @@ class IrQweb(models.AbstractModel):
             f"self._compile_to_str({self._compile_expr(m.group(1) or m.group(2))})"
             for m in FORMAT_REGEX.finditer(expr)
         ]
+        if not values:
+            # no placeholder: the '%'-escape below is never undone, so a literal
+            # '%' (e.g. "Save 50%") would leak as "%%" into the output
+            return repr(expr)
         code = repr(FORMAT_REGEX.sub("%s", expr.replace("%", "%%")))
         if values:
             code += f" % ({', '.join(values)},)"

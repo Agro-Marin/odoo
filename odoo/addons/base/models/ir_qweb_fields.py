@@ -228,7 +228,10 @@ class IrQwebFieldFloat(models.AbstractModel):
             )
         elif options.get("precision") is None:
             int_digits = int(math.log10(abs(value))) + 1 if value != 0 else 1
-            max_dec_digits = max(15 - int_digits, 0)
+            # 14, not 15: float_round multiplies by the precision and adds an
+            # epsilon, pushing a 15-digit value to 16 and reintroducing the
+            # parasite digits this cap is meant to avoid
+            max_dec_digits = max(14 - int_digits, 0)
             # We display maximum 6 decimal digits or the number of significant decimal digits if it's lower
             precision = min(6, max_dec_digits)
             min_precision = min_precision or 1
@@ -381,7 +384,7 @@ class IrQwebFieldSelection(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
         if value is None or value is False:
             return ""
-        return escape(options["selection"].get(value) or "")
+        return escape(options["selection"].get(value, value) or "")
 
     @api.model
     def record_to_html(
