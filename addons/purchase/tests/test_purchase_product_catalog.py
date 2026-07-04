@@ -1,8 +1,9 @@
+import json
+
 from odoo import Command, fields
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import HttpCase, tagged
 
-import json
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("-at_install", "post_install")

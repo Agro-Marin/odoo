@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
 from datetime import timedelta
 
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, tagged
-from odoo import Command, fields
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestPurchaseToInvoiceCommon, cls).setUpClass()
+        super().setUpClass()
         cls.other_currency = cls.setup_other_currency("EUR")
         cls.env.user.group_ids += cls.env.ref("uom.group_uom")
         uom_unit = cls.env.ref("uom.product_uom_unit")
@@ -139,7 +139,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         PurchaseOrderLine = self.env["purchase.order.line"].with_context(
             tracking_disable=True
         )
-        pol_prod_deliver = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.product_deliver.name,
                 "product_id": self.product_deliver.id,
@@ -150,7 +150,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 "tax_ids": False,
             }
         )
-        pol_serv_deliver = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.service_deliver.name,
                 "product_id": self.service_deliver.id,
@@ -203,7 +203,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         PurchaseOrderLine = self.env["purchase.order.line"].with_context(
             tracking_disable=True
         )
-        pol_prod_order = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.product_order.name,
                 "product_id": self.product_order.id,
@@ -214,7 +214,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 "tax_ids": False,
             }
         )
-        pol_serv_order = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.service_order.name,
                 "product_id": self.service_order.id,
@@ -261,7 +261,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         PurchaseOrderLine = self.env["purchase.order.line"].with_context(
             tracking_disable=True
         )
-        pol_prod_deliver = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.product_deliver.name,
                 "product_id": self.product_deliver.id,
@@ -272,7 +272,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 "tax_ids": False,
             }
         )
-        pol_serv_deliver = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.service_deliver.name,
                 "product_id": self.service_deliver.id,
@@ -322,7 +322,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         PurchaseOrderLine = self.env["purchase.order.line"].with_context(
             tracking_disable=True
         )
-        pol_prod_order = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.product_order.name,
                 "product_id": self.product_order.id,
@@ -333,7 +333,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 "tax_ids": False,
             }
         )
-        pol_serv_order = PurchaseOrderLine.create(
+        PurchaseOrderLine.create(
             {
                 "name": self.service_order.name,
                 "product_id": self.service_order.id,

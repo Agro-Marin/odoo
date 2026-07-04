@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from datetime import datetime, timedelta
+
 from odoo.fields import Command
 from odoo.tests import Form, tagged
 
-from datetime import datetime, timedelta
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -200,8 +200,6 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         )
         po.action_confirm()
 
-        # Get the note/section line ids to exclude from the check
-        non_product_lines = po.line_ids.filtered(lambda l: l.display_type)
         result_po = self.env["purchase.report"].search(
             [("order_reference", "=", f"purchase.order,{po.id}")]
         )

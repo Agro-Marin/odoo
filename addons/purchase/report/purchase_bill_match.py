@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.tools import formatLang, SQL
+from odoo.tools import SQL, formatLang
 
 
 class PurchaseBillUnion(models.Model):

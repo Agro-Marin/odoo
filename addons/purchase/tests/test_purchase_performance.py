@@ -35,10 +35,10 @@ import functools
 import logging
 import time
 
-from odoo import Command, fields
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tests.common import users, warmup
-from odoo.tools.profiler import Profiler, ExecutionContext
+from odoo.tools.profiler import ExecutionContext
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -55,8 +55,8 @@ def prepare(func, /):
     @functools.wraps(func)
     def wrapper(self):
         # Prefetch common data that might cause query count variations
-        self.env.company.country_id.code
-        self.env.company.currency_id.rate
+        self.env.company.country_id.code  # noqa: B018 (intentional prefetch)
+        self.env.company.currency_id.rate  # noqa: B018 (intentional prefetch)
         return func(self)
 
     return wrapper
@@ -660,7 +660,7 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
                     }
                 )
 
-            duration, queries, po = self._measure_operation(
+            duration, queries, _po = self._measure_operation(
                 f"Create PO with {line_count} lines", create_po
             )
             results.append(
@@ -727,7 +727,7 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
                     ]
                 )
 
-            duration, queries, pos = self._measure_operation(
+            duration, queries, _pos = self._measure_operation(
                 f"Batch create {po_count} POs x {lines_per_po} lines", create_batch
             )
             results.append(
