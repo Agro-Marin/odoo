@@ -286,12 +286,19 @@ def add_banner(
     watermark_pdf = PdfFileReader(packet)
     new_pdf = PdfFileWriter()
     for p in range(len(old_pdf.pages)):
-        new_page = old_pdf.pages[p]
+        # Add the source page to the writer first, then mutate the writer's
+        # writable copy. Mutating a reader page (merge_page/annotation removal)
+        # triggers pypdf's replace_contents deprecation and can corrupt object
+        # references, causing NullObject errors.
+        new_pdf.add_page(old_pdf.pages[p])
+        new_page = new_pdf.pages[-1]
         # Remove annotations (if any), to prevent errors in pypdf
         if "/Annots" in new_page:
             del new_page["/Annots"]
         new_page.merge_page(watermark_pdf.pages[p])
-        new_pdf.add_page(new_page)
+        # compress the merged page to bound peak memory and output size —
+        # pypdf keeps content streams uncompressed otherwise
+        new_page.compress_content_streams()
 
     # Write the new pdf into a new output stream
     output = io.BytesIO()
