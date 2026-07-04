@@ -1,3 +1,4 @@
+import ast
 from unittest.mock import patch
 
 import markupsafe
@@ -9,7 +10,11 @@ from odoo.tests.common import TransactionCase
 from odoo.tools import file_open, misc, mute_logger
 from odoo.tools.json import scriptsafe as json_scriptsafe
 
-from odoo.addons.base.models.ir_qweb import QWebError
+from odoo.addons.base.models.ir_qweb import (
+    ELEMENT_MARKER_REGEXP,
+    QWebError,
+    render,
+)
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 unsafe_eval = eval  # noqa: S307
@@ -1296,6 +1301,28 @@ class TestQWebBasic(TransactionCase):
 
         rendered = self.env["ir.qweb"]._render(t.id)
         self.assertEqual(rendered.strip(), result.strip())
+
+    def test_foreach_lazy_last_no_leak(self):
+        # A lazy generator is not Sized/int/Mapping, so ``*_last`` cannot be
+        # known. It must be reset to False on every iteration so a
+        # caller-provided (or outer-loop) ``x_last`` does not leak into the
+        # loop body. Regression: previously ``x_last`` was only assigned when
+        # the size was known, leaking the pre-existing value.
+        t = self.env["ir.ui.view"].create(
+            {
+                "name": "test",
+                "type": "qweb",
+                "arch_db": """<t t-name="lazy-last">"""
+                """<t t-foreach="gen" t-as="x">"""
+                """[<t t-esc="x"/>:<t t-esc="'Y' if x_last else 'N'"/>]</t>"""
+                """</t>""",
+            }
+        )
+        rendered = self.env["ir.qweb"]._render(
+            t.id, {"gen": (c for c in "ab"), "x_last": "STALE"}
+        )
+        self.assertEqual(rendered.strip(), "[a:N][b:N]")
+        self.assertNotIn("STALE", rendered)
 
     def test_att_escaping_1(self):
         t = self.env["ir.ui.view"].create(
@@ -3340,3 +3367,229 @@ class TestQWebCompileIsolation(TransactionCase):
             "re-rendering a reused etree produced different output — the caller's "
             "element was mutated during compilation",
         )
+
+
+class TestQWebHelpers(TransactionCase):
+    """Isolation tests for the pure/near-pure compiler helpers, which were
+    previously only exercised end-to-end through ``_render``."""
+
+    def test_compile_format(self):
+        qweb = self.env["ir.qweb"]
+        # no placeholder: a literal '%' must survive (not leak as '%%')
+        code = qweb._compile_format("Save 50%")
+        self.assertEqual(unsafe_eval(code, {"self": qweb}, {"values": {}}), "Save 50%")
+        # with placeholders + a literal '%' around them
+        code = qweb._compile_format("Hi #{name} 50%")
+        self.assertEqual(
+            unsafe_eval(code, {"self": qweb}, {"values": {"name": "Bob"}}),
+            "Hi Bob 50%",
+        )
+        code = qweb._compile_format("100% #{x}%")
+        self.assertEqual(
+            unsafe_eval(code, {"self": qweb}, {"values": {"x": 7}}), "100% 7%"
+        )
+
+    def test_is_static_node(self):
+        qweb = self.env["ir.qweb"]
+        ctx = {"nsmap": {}}
+        self.assertTrue(qweb._is_static_node(etree.fromstring('<div class="x"/>'), ctx))
+        # technical directives do not make a node dynamic
+        self.assertTrue(
+            qweb._is_static_node(etree.fromstring('<div t-tag-open="div"/>'), ctx)
+        )
+        # a <t> is never static
+        self.assertFalse(qweb._is_static_node(etree.fromstring("<t/>"), ctx))
+        self.assertFalse(
+            qweb._is_static_node(etree.fromstring('<div t-att-x="1"/>'), ctx)
+        )
+        self.assertFalse(
+            qweb._is_static_node(
+                etree.fromstring('<div groups="base.group_user"/>'), ctx
+            )
+        )
+
+    def test_namespace_helpers(self):
+        qweb = self.env["ir.qweb"]
+        el = etree.fromstring('<div xmlns:x="urn:x"/>')
+        # newly-declared namespace surfaces when not inherited...
+        self.assertEqual(qweb._new_namespaces(el, {"nsmap": {}}), {("x", "urn:x")})
+        # ...and is filtered out once inherited
+        self.assertEqual(qweb._new_namespaces(el, {"nsmap": {"x": "urn:x"}}), set())
+        # default namespace uses the None prefix
+        eld = etree.fromstring('<div xmlns="urn:d"/>')
+        self.assertEqual(qweb._new_namespaces(eld, {"nsmap": {}}), {(None, "urn:d")})
+        # uri -> prefix map inverts the nsmap
+        self.assertEqual(qweb._ns_prefix_map(el, {"nsmap": {}}), {"urn:x": "x"})
+
+    def test_compile_out_target(self):
+        qweb = self.env["ir.qweb"]
+        for attr, expr, expected in (
+            ("t-out", "foo", ("t-out", "foo")),
+            ("t-field", "rec.name", ("t-field", "rec.name")),
+            ("t-esc", "foo", ("t-esc", "foo")),
+            ("t-raw", "foo", ("t-raw", "foo")),
+        ):
+            el = etree.fromstring(f'<span {attr}="{expr}"/>')
+            self.assertEqual(qweb._compile_out_target(el), expected)
+            self.assertNotIn(attr, el.attrib)  # the attribute is consumed
+
+    def test_element_marker_roundtrip(self):
+        """The marker emitter and ``ELEMENT_MARKER_REGEXP`` parser must agree —
+        they are the coupling that maps generated code back to source nodes.
+
+        The payload is recovered with ``ast.literal_eval`` (as ``_scan_error_source``
+        does), so a ``' , '`` embedded in the xml round-trips intact instead of
+        truncating the fields."""
+        qweb = self.env["ir.qweb"]
+        for path, xml in (
+            ("/t/div", '<div class="x"/>'),
+            ("/t/div/span", '<span t-att-title="a , b" t-out="x + y"/>'),
+        ):
+            marker = qweb._element_marker(path, xml)
+            match = ELEMENT_MARKER_REGEXP.match(marker)
+            self.assertIsNotNone(match)
+            self.assertEqual(ast.literal_eval(match[1]), (path, xml))
+
+    def test_post_processing_att_all_url_attrs(self):
+        """Scheme scrubbing must cover every guarded attribute, not just href."""
+        qweb = self.env["ir.qweb"]
+        for attr in ("href", "src", "action", "formaction"):
+            self.assertEqual(
+                qweb._post_processing_att("a", {attr: "javascript:alert(1)"})[attr],
+                "",
+                f"{attr} malicious scheme not scrubbed",
+            )
+            self.assertEqual(
+                qweb._post_processing_att("a", {attr: "https://ok/"})[attr],
+                "https://ok/",
+                f"{attr} safe url wrongly scrubbed",
+            )
+        # control-character obfuscation collapses to javascript: and is caught
+        self.assertEqual(
+            qweb._post_processing_att("a", {"src": "java\tscript:alert(1)"})["src"], ""
+        )
+        # the history.back() allow-listed form is preserved
+        self.assertEqual(
+            qweb._post_processing_att("a", {"href": "javascript:history.back()"})[
+                "href"
+            ],
+            "javascript:history.back()",
+        )
+        # static node attributes come from the (trusted) template: not scrubbed
+        self.assertEqual(
+            qweb._post_processing_att(
+                "a", {"href": "javascript:alert(1)", "__is_static_node": True}
+            )["href"],
+            "javascript:alert(1)",
+        )
+
+    def test_generated_code_contracts(self):
+        """Pin two codegen contracts at the source level (not just via output):
+        the t-call slot is keyed by the integer 0, and ``*_last`` is reset for
+        lazy iterables (the leak fix)."""
+        View = self.env["ir.ui.view"]
+        qweb = self.env["ir.qweb"]
+
+        slot = View.create(
+            {"name": "s", "type": "qweb", "arch_db": '<t t-name="s"><t t-out="0"/></t>'}
+        )
+        self.assertIn("values.get(0, '')", qweb._generate_code(slot.id)[0])
+
+        loop = View.create(
+            {
+                "name": "l",
+                "type": "qweb",
+                "arch_db": '<t t-name="l"><span t-foreach="s" t-as="i" t-out="i"/></t>',
+            }
+        )
+        self.assertIn("values['i_last'] = False", qweb._generate_code(loop.id)[0])
+
+    def test_error_surrounding(self):
+        """The dev-mode code-framing helper marks the failing line and includes
+        the preceding and following context (previously uncovered)."""
+        qweb = self.env["ir.qweb"]
+        code_lines = [f"line{n}" for n in range(1, 11)]  # line1 .. line10
+        out = qweb._error_surrounding(code_lines, 5, None)
+        self.assertIn("Line triggering the error", out)
+        self.assertIn("line5", out)  # the failing line (code_lines[line_nb - 1])
+        self.assertIn("line4", out)  # preceding context
+        self.assertIn("line6", out)  # following context
+
+
+class TestQWebRenderStandalone(TransactionCase):
+    """The module-level ``render()`` — DB-less rendering used outside the
+    registry (previously untested). t-call/t-set-body are out of scope: that
+    path relies on a real template ref, absent in this sandbox."""
+
+    @staticmethod
+    def _load(templates):
+        def load(ref):
+            return (etree.fromstring(templates[ref]), ref)
+
+        return load
+
+    def test_render_standalone_static(self):
+        out = render("m", {}, self._load({"m": "<div><span>hi</span></div>"}))
+        self.assertEqual(str(out), "<div><span>hi</span></div>")
+
+    def test_render_standalone_directives(self):
+        templates = {
+            "m": '<t><span t-out="val"/><b t-if="flag">Y</b><i t-att-data-x="n"/></t>'
+        }
+        out = render("m", {"val": "hi", "flag": True, "n": 5}, self._load(templates))
+        self.assertEqual(str(out), '<span>hi</span><b>Y</b><i data-x="5"></i>')
+
+    def test_render_standalone_foreach(self):
+        templates = {"m": '<t><span t-foreach="items" t-as="i" t-out="i"/></t>'}
+        out = render("m", {"items": [1, 2, 3]}, self._load(templates))
+        self.assertEqual(str(out), "<span>1</span><span>2</span><span>3</span>")
+
+    @staticmethod
+    def _highlighted_line(surrounding):
+        """The generated-code line the dev-mode snippet frames as the culprit."""
+        lines = (surrounding or "").splitlines()
+        for i, line in enumerate(lines):
+            if "Line triggering the error" in line:
+                return lines[i + 1]
+        return None
+
+    def test_error_path_with_delimiter_in_failing_node_attrs(self):
+        """A failing node whose serialized attributes contain the marker's
+        ``' , '`` delimiter must still resolve to a clean xpath and an intact
+        element string. Regression: ``ELEMENT_MARKER_REGEXP``'s greedy
+        ``(.*) , (.*)`` split mangled both ``path`` and ``element`` into
+        garbage (e.g. path ``/t/div/span' , '<span t-att-title="a``)."""
+        templates = {"m": '<t><div><span t-att-title="a , b" t-out="x + y"/></div></t>'}
+        with self.assertRaises(QWebError) as cm:
+            str(render("m", {}, self._load(templates)))
+        qweb = cm.exception.qweb
+        self.assertEqual(qweb.path, "/t/div/span")
+        self.assertTrue(
+            qweb.element.startswith("<span"),
+            f"element corrupted: {qweb.element!r}",
+        )
+        self.assertIn('t-out="x + y"', qweb.element)
+
+    def test_error_surrounding_points_at_failing_line_out(self):
+        """The dev-mode snippet must frame the line that actually raises — the
+        ``content = ...`` value assignment — not the truthiness guard below it.
+        Regression: traceback line numbers are in wrapped-code coordinates but
+        the snippet indexes the unwrapped code, an off-by-one."""
+        templates = {"m": '<t><div><span t-out="x + y"/></div></t>'}
+        with self.assertRaises(QWebError) as cm:
+            str(render("m", {}, self._load(templates), dev_mode=True))
+        highlighted = self._highlighted_line(cm.exception.qweb.surrounding)
+        self.assertIsNotNone(highlighted)
+        self.assertIn("content =", highlighted)
+        self.assertNotIn("if content is not None", highlighted)
+
+    def test_error_surrounding_points_at_failing_line_if(self):
+        """The off-by-one fix must keep ``t-if`` correct too: the framed line is
+        the ``if (<condition>):`` that raises. Previously kept right only by a
+        directive-specific ``line_nb -= 1`` band-aid in ``_error_surrounding``."""
+        templates = {"m": '<t><div><span t-if="x + y">z</span></div></t>'}
+        with self.assertRaises(QWebError) as cm:
+            str(render("m", {}, self._load(templates), dev_mode=True))
+        highlighted = self._highlighted_line(cm.exception.qweb.surrounding)
+        self.assertIsNotNone(highlighted)
+        self.assertRegex(highlighted.strip(), r"^if \(")

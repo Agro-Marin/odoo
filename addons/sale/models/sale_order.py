@@ -25,11 +25,6 @@ from odoo.addons.sale import const
 
 
 class SaleOrder(models.Model):
-    """Management the sales order process from quotation to confirmation and invoicing.
-
-    Handles customer sales transactions, including pricing, payment terms, delivery methods,
-    and order lifecycle management."""
-
     _name = "sale.order"
     _inherit = [
         "account.document.import.mixin",
@@ -39,7 +34,7 @@ class SaleOrder(models.Model):
         "product.catalog.mixin",
         "utm.mixin",
     ]
-    _description = "Sales Order"
+    _description = "Sale Order"
     _check_company_auto = True
     _order = "date_order desc, id desc"
 
@@ -677,7 +672,8 @@ class SaleOrder(models.Model):
             if order.state not in ("draft", "cancel"):
                 raise UserError(
                     _(
-                        "You can not delete a confirmed sales order. You must first cancel it.",
+                        "You cannot delete confirmed orders. "
+                        "You must cancel them first.",
                     ),
                 )
 

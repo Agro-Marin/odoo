@@ -4735,6 +4735,67 @@ Forbidden use of `__comp__` in arch.""",
             str(catcher.exception.args[0]),
         )
 
+    def test_customization_dropped_only_on_arch_impacting_write(self):
+        """A stored ir.ui.view.custom is an alternate arch; a metadata-only
+        write (name, arch_fs, ...) must keep it, while an arch/combination
+        write (arch, priority, active, ...) must drop it as stale.
+        """
+        Custom = self.env["ir.ui.view.custom"]
+
+        def make():
+            view = self.View.create({
+                "name": "cust_base",
+                "model": "ir.ui.view",
+                "arch": '<form><field name="name"/></form>',
+            })
+            custom = Custom.create({
+                "ref_id": view.id,
+                "user_id": self.env.uid,
+                "arch": '<form><field name="name"/></form>',
+            })
+            return view, custom
+
+        # metadata-only writes must preserve the customization
+        view, custom = make()
+        view.write({"name": "renamed"})
+        self.assertTrue(custom.exists(), "name write must preserve customization")
+
+        view, custom = make()
+        view.write({"arch_fs": "base/foo.xml"})
+        self.assertTrue(custom.exists(), "arch_fs write must preserve customization")
+
+        # arch / combination-affecting writes must drop it
+        view, custom = make()
+        view.write({
+            "arch": '<form><field name="name"/><field name="create_uid"/></form>'
+        })
+        self.assertFalse(custom.exists(), "arch write must drop customization")
+
+        view, custom = make()
+        view.write({"priority": 42})
+        self.assertFalse(custom.exists(), "priority write must drop customization")
+
+    def test_calendar_aggregate_field_is_validated(self):
+        """<calendar aggregate="field:agg"> validates ``field`` like date_start,
+        so that postprocessing and validation stay in sync.
+        """
+        # res.users exposes login_date, a valid date_start candidate.
+        self.View.create({
+            "name": "cal ok",
+            "model": "res.users",
+            "arch": '<calendar date_start="login_date" aggregate="id:count">'
+                    '<field name="name"/></calendar>',
+        })
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                self.View.create({
+                    "name": "cal bad",
+                    "model": "res.users",
+                    "arch": '<calendar date_start="login_date" '
+                            'aggregate="nonexistent_field:count">'
+                            '<field name="name"/></calendar>',
+                })
+
 
 @tagged("post_install", "-at_install")
 class TestDebugger(common.TransactionCase):

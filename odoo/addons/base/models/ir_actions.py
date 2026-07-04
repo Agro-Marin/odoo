@@ -17,6 +17,19 @@ from odoo.tools.safe_eval import safe_eval
 _RX_ACTION_PATH = re.compile(r"[a-z][a-z0-9_-]*")
 
 
+def _readable_stored_field_names(records: models.Model) -> list[str]:
+    """Readable-field names (see ``_get_readable_fields``) that are real ORM
+    fields on ``records``' model.
+
+    ``_get_readable_fields()`` intentionally lists virtual, client-side keys
+    that are NOT stored fields (e.g. ``close`` on act_url, ``effect``/``infos``
+    on act_window_close) — see IRA-L2. Passing those to ``read()`` makes it log
+    a spurious "Invalid field" warning, so every caller fetches the real subset
+    only. Centralised here so the filter and its rationale live in one place.
+    """
+    return [name for name in records._get_readable_fields() if name in records._fields]
+
+
 class IrActionsActions(models.Model):
     _name = "ir.actions.actions"
     _description = "Actions"
@@ -50,40 +63,51 @@ class IrActionsActions(models.Model):
         "Path to show in the URL must be unique! Please choose another one.",
     )
 
+    # Path prefixes/values reserved by the web router; an action may not claim
+    # them (enforced by _check_path).
+    _RESERVED_PATH_PREFIXES = ("m-", "action-")
+    _RESERVED_PATHS = ("new",)
+
     @api.constrains("path")
     def _check_path(self) -> None:
         """Validate action path format and cross-table uniqueness."""
         for action in self:
-            if action.path:
-                if not _RX_ACTION_PATH.fullmatch(action.path):
-                    raise ValidationError(
-                        _(
-                            "The path should contain only lowercase alphanumeric characters, underscore, and dash, and it should start with a letter."
-                        )
+            if not action.path:
+                continue
+            if not _RX_ACTION_PATH.fullmatch(action.path):
+                raise ValidationError(
+                    _(
+                        "The path should contain only lowercase alphanumeric characters, underscore, and dash, and it should start with a letter."
                     )
-                if action.path.startswith("m-"):
-                    raise ValidationError(_("'m-' is a reserved prefix."))
-                if action.path.startswith("action-"):
-                    raise ValidationError(_("'action-' is a reserved prefix."))
-                if action.path == "new":
-                    raise ValidationError(
-                        _("'new' is reserved, and can not be used as path.")
-                    )
+                )
+            for prefix in self._RESERVED_PATH_PREFIXES:
+                if action.path.startswith(prefix):
+                    raise ValidationError(_("'%s' is a reserved prefix.", prefix))
+            if action.path in self._RESERVED_PATHS:
+                raise ValidationError(
+                    _("'%s' is reserved, and can not be used as path.", action.path)
+                )
 
         # Cross-table uniqueness: ir_act_window, ir_act_report_xml, etc. all
-        # inherit from ir_actions.  PostgreSQL unique indexes only apply per
-        # child table, so we check across all tables with a single grouped
-        # query instead of one search_count per action.
+        # inherit from ir_actions via PostgreSQL table inheritance, whose unique
+        # indexes only apply per child table (an act_window and an act_url can
+        # thus both claim the same path). One grouped query over the parent
+        # table — which, thanks to inheritance, spans every child — catches
+        # duplicates without a per-action search_count.
         # See https://www.postgresql.org/docs/14/ddl-inherit.html#DDL-INHERIT-CAVEATS
         paths = [action.path for action in self if action.path]
-        if paths and self.env["ir.actions.actions"]._read_group(
+        duplicates = paths and self.env["ir.actions.actions"]._read_group(
             [("path", "in", paths)],
             groupby=["path"],
             aggregates=["__count"],
             having=[("__count", ">", 1)],
-        ):
+        )
+        if duplicates:
             raise ValidationError(
-                _("Path to show in the URL must be unique! Please choose another one.")
+                _(
+                    "Path to show in the URL must be unique! Already in use: %s",
+                    ", ".join(path for path, __count in duplicates),
+                )
             )
 
     @api.model_create_multi
@@ -93,10 +117,41 @@ class IrActionsActions(models.Model):
         self.env.registry.clear_cache()
         return res
 
+    # IRA-L3: fields whose values never feed _get_bindings()/get_bindings(),
+    # so writing ONLY these cannot stale the bindings ormcache. This is a
+    # fail-safe allowlist: any field not listed here — including unknown or
+    # module-added fields — conservatively triggers a full cache clear.
+    # Do NOT add binding inputs: name, type, binding_model_id, binding_type,
+    # binding_view_types, res_model, group_ids, sequence, domain.
+    _CACHE_SAFE_FIELDS = frozenset(
+        {
+            "help",
+            "path",
+            "context",
+            "limit",
+            "target",
+            "view_mode",
+            "mobile_view_mode",
+            "res_id",
+            "view_id",
+            "view_ids",
+            "search_view_id",
+            "cache",
+            "filter",
+            "usage",
+            "url",
+            "tag",
+            "params",
+            "params_store",
+        }
+    )
+
     def write(self, vals: dict[str, Any]) -> bool:
         res = super().write(vals)
-        # self.get_bindings() depends on action records
-        self.env.registry.clear_cache()
+        # get_bindings() caches action data; refresh it unless this write
+        # touched only binding-irrelevant fields.
+        if not vals.keys() <= self._CACHE_SAFE_FIELDS:
+            self.env.registry.clear_cache()
         return res
 
     def unlink(self) -> bool:
@@ -135,7 +190,12 @@ class IrActionsActions(models.Model):
 
     @api.model
     def _get_eval_context(self, action: Any = None) -> dict[str, Any]:
-        """evaluation context to pass to safe_eval"""
+        """Evaluation context to pass to safe_eval.
+
+        ``action`` is unused at this level but kept in the signature for the
+        ``ir.actions.server`` override, which derives a record-aware context
+        from it; callers (e.g. web/controllers/json.py) pass it uniformly.
+        """
         return {
             "uid": self.env.uid,
             "user": self.env.user,
@@ -215,6 +275,9 @@ class IrActionsActions(models.Model):
         optional_fields = ("group_ids", "res_model", "sequence", "domain")
         fields_cache: dict[str, list[str]] = {}
 
+        # First pass: read each action type and collect the union of group ids.
+        pending: list[tuple[str, dict]] = []  # (binding_type, action_data)
+        all_group_ids: set[int] = set()
         for action_model, entries in by_model.items():
             if action_model not in self.env.registry:
                 continue
@@ -236,22 +299,38 @@ class IrActionsActions(models.Model):
                     *(f for f in optional_fields if f in model_fields),
                 ]
             for action_data in actions.read(fields_cache[action_model]):
-                binding_type = binding_map[action_data["id"]]
-                if action_data.get("group_ids"):
-                    groups = self.env["res.groups"].browse(action_data["group_ids"])
-                    action_data["group_ids"] = list(groups._ensure_xml_id().values())
                 if "domain" in action_data and not action_data.get("domain"):
                     action_data.pop("domain")
-                result[binding_type].append(frozendict(action_data))
+                if action_data.get("group_ids"):
+                    all_group_ids.update(action_data["group_ids"])
+                pending.append((binding_map[action_data["id"]], action_data))
 
-        # sort actions by their sequence if sequence available
-        if result.get("action"):
-            result["action"] = sorted(
-                result["action"], key=lambda vals: vals.get("sequence", 0)
-            )
-        # Freeze all binding lists to tuples — this method is ormcached and
-        # mutable lists would let callers corrupt the shared cache.
-        return frozendict({key: tuple(val) for key, val in result.items()})
+        # Resolve every group's external id in a single batch rather than once
+        # per action (the same groups are shared across many actions).
+        group_xmlids = (
+            self.env["res.groups"].browse(all_group_ids)._ensure_xml_id()
+            if all_group_ids
+            else {}
+        )
+        for binding_type, action_data in pending:
+            if action_data.get("group_ids"):
+                action_data["group_ids"] = [
+                    group_xmlids[gid] for gid in action_data["group_ids"]
+                ]
+            result[binding_type].append(frozendict(action_data))
+
+        # Sort every bucket by sequence. Server actions bound as either 'action'
+        # or 'report' carry a sequence; act_window/report do not and default to
+        # 0 for a stable order. Sorting only 'action' previously left sequenced
+        # server-actions-as-reports in raw insertion order. sorted() is stable,
+        # so the SQL "ORDER BY a.id" tie-break is preserved. Freezing to tuples
+        # keeps this ormcached result immutable against caller mutation.
+        return frozendict(
+            {
+                key: tuple(sorted(val, key=lambda vals: vals.get("sequence", 0)))
+                for key, val in result.items()
+            }
+        )
 
     @api.model
     def _for_xml_id(self, full_xml_id: str) -> dict[str, Any]:
@@ -262,6 +341,10 @@ class IrActionsActions(models.Model):
         :return: A read() view of the ir.actions.action safe for web use
         """
         record = self.env.ref(full_xml_id)
+        # Guard: the xml_id must resolve to an ir.actions.* record, not an
+        # arbitrary model that merely happens to own this external id.
+        # registry[self._name] is the ir.actions.actions class, and every
+        # action subtype is an instance of it.
         if not isinstance(self.env[record._name], self.env.registry[self._name]):
             raise ValidationError(
                 _("Record %s is not a valid action type", full_xml_id)
@@ -272,13 +355,13 @@ class IrActionsActions(models.Model):
         """Returns the action content for the provided action record.
 
         Sudo is required because ir.actions.* is restricted to group_system,
-        but any user needs to load action definitions to render the UI.
-        Only the fields declared in _get_readable_fields() are fetched —
-        sensitive fields never enter the cache.
+        but any user needs to load action definitions to render the UI. Only
+        the readable *stored* fields are fetched (see
+        ``_readable_stored_field_names`` / IRA-L2) — sensitive and virtual
+        client-side keys never enter the result.
         """
         self.ensure_one()
-        readable_fields = self._get_readable_fields()
-        return self.sudo().read(list(readable_fields))[0]
+        return self.sudo().read(_readable_stored_field_names(self))[0]
 
     def _get_readable_fields(self) -> set[str]:
         """return the set of fields that are safe to read
@@ -442,27 +525,31 @@ class IrActionsAct_Window(models.Model):
         can be set on the action.
         """
         for act in self:
-            views = []
-            got_modes = set()
-            for view in act.view_ids:
-                views.append((view.view_id.id, view.view_mode))
-                got_modes.add(view.view_mode)
+            views = [(view.view_id.id, view.view_mode) for view in act.view_ids]
+            got_modes = {view.view_mode for view in act.view_ids}
+            missing_modes = [
+                mode for mode in act.view_mode.split(",") if mode not in got_modes
+            ]
+            # If the reference view_id covers one of the missing modes, place it
+            # first so it takes precedence over a generic (False, mode) entry.
+            if act.view_id and act.view_id.type in missing_modes:
+                missing_modes.remove(act.view_id.type)
+                views.append((act.view_id.id, act.view_id.type))
+            views.extend((False, mode) for mode in missing_modes)
             act.views = views
-            all_modes = act.view_mode.split(",")
-            missing_modes = [mode for mode in all_modes if mode not in got_modes]
-            if missing_modes:
-                if act.view_id.type in missing_modes:
-                    # reorder missing modes to put view_id first if present
-                    missing_modes.remove(act.view_id.type)
-                    act.views.append((act.view_id.id, act.view_id.type))
-                act.views.extend([(False, mode) for mode in missing_modes])
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        self.env.registry.clear_cache()
         for vals in vals_list:
-            if not vals.get("name") and vals.get("res_model"):
+            # Default the action name to the target model's description.
+            # IRA-L4: guard membership so an invalid res_model surfaces as the
+            # friendly ValidationError from _check_model instead of a raw
+            # KeyError here.
+            if not vals.get("name") and vals.get("res_model") in self.env:
                 vals["name"] = self.env[vals["res_model"]]._description
+        # super() (ir.actions.actions.create) clears the registry cache; the
+        # previous pre-super clear here was redundant (and ran before the
+        # records even existed).
         return super().create(vals_list)
 
     def read(
@@ -470,28 +557,35 @@ class IrActionsAct_Window(models.Model):
         fields: collections.abc.Sequence[str] | None = None,
         load: str = "_classic_read",
     ) -> list[ValuesType]:
-        """call the method get_empty_list_help of the model and set the window action help message"""
+        """Enrich the ``help`` field with the target model's empty-list help."""
         result = super().read(fields, load=load)
-        if not fields or "help" in fields:
-            for values in result:
-                if (model := values.get("res_model")) in self.env:
-                    eval_ctx = dict(self.env.context)
-                    try:
-                        ctx = safe_eval(values.get("context", "{}"), eval_ctx)
-                        if not isinstance(ctx, dict):
-                            ctx = {}
-                    except Exception:
-                        ctx = {}
-                    values["help"] = (
-                        self.with_context(**ctx)
-                        .env[model]
-                        .get_empty_list_help(values.get("help", ""))
-                    )
+        if fields and "help" not in fields:
+            return result
+        # Source res_model/context from the record itself, not from `values`,
+        # so enrichment is consistent regardless of which fields were requested
+        # (read(['help']) must behave like a full read). eval_ctx is the same
+        # for every record and safe_eval copies it internally, so it is never
+        # mutated — build it once.
+        eval_ctx = dict(self.env.context)
+        records = {rec.id: rec for rec in self}
+        for values in result:
+            record = records.get(values["id"])
+            model = record.res_model if record else values.get("res_model")
+            if model not in self.env:
+                continue
+            raw_context = record.context if record else values.get("context", "{}")
+            try:
+                ctx = safe_eval(raw_context or "{}", eval_ctx)
+                if not isinstance(ctx, dict):
+                    ctx = {}
+            except Exception:
+                ctx = {}
+            values["help"] = (
+                self.with_context(**ctx)
+                .env[model]
+                .get_empty_list_help(values.get("help", ""))
+            )
         return result
-
-    def unlink(self) -> bool:
-        self.env.registry.clear_cache()
-        return super().unlink()
 
     def _get_readable_fields(self) -> set[str]:
         return super()._get_readable_fields() | {
@@ -519,11 +613,10 @@ class IrActionsAct_Window(models.Model):
         """
         result = super()._get_action_dict()
         if embedded_action_ids := result["embedded_action_ids"]:
-            EmbeddedActions = self.env["ir.embedded.actions"]
-            embedded_fields = EmbeddedActions._get_readable_fields()
-            result["embedded_action_ids"] = EmbeddedActions.browse(
-                embedded_action_ids
-            ).read(embedded_fields)
+            embedded = self.env["ir.embedded.actions"].browse(embedded_action_ids)
+            result["embedded_action_ids"] = embedded.read(
+                _readable_stored_field_names(embedded)
+            )
         return result
 
 
@@ -754,9 +847,18 @@ class IrActionsClient(models.Model):
     def _compute_params(self) -> None:
         self_bin = self.with_context(bin_size=False, bin_size_params_store=False)
         for record, record_bin in zip(self, self_bin, strict=True):
-            record.params = record_bin.params_store and safe_eval(
-                record_bin.params_store, {"uid": self.env.uid}
-            )
+            stored = record_bin.params_store
+            if not stored:
+                record.params = stored
+                continue
+            # IRA-L5: params_store is normally written by _inverse_params as a
+            # repr()'d dict, but a corrupt value (bad data import, manual DB
+            # edit) must not make the client action un-loadable — degrade to
+            # False rather than crash, consistent with read()/action_launch().
+            try:
+                record.params = safe_eval(stored, {"uid": self.env.uid})
+            except Exception:
+                record.params = False
 
     def _inverse_params(self) -> None:
         for record in self:
