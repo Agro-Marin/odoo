@@ -50,7 +50,7 @@ from odoo.tools.assets.esm_graph import (
 from odoo.tools.assets.esm_registry import esm_registry, invalidate_esm_registry
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_open, file_path
-from odoo.tools.sass_embedded import SassCompileError, find_sass
+from odoo.tools.sass_embedded import SassCompileError, SassNotFoundError, find_sass
 
 if TYPE_CHECKING:
     # Model-class imports must stay typing-only: base/models/__init__
@@ -2744,6 +2744,12 @@ class ScssStylesheetAsset(PreprocessedCSS):
             )
         except SassCompileError:
             raise
+        except SassNotFoundError:
+            # Dart Sass is a required dependency — a missing binary is a
+            # deployment misconfiguration, not a transient embedded-protocol
+            # failure.  Fail loudly instead of degrading to the CLI (which needs
+            # the same binary) or being mistaken for a stylesheet error.
+            raise
         except Exception as exc:
             # A broken/unavailable embedded compiler (SassProtocolError, a dead
             # subprocess, …) — NOT a real SCSS error, which is SassCompileError
@@ -2763,7 +2769,13 @@ class ScssStylesheetAsset(PreprocessedCSS):
         """Build the Dart Sass CLI command."""
         import odoo.addons
 
-        sass = find_sass() or "sass"
+        sass = find_sass()
+        if sass is None:
+            raise SassNotFoundError(
+                "Dart Sass not found. It is a required dependency of this fork: "
+                "run `npm install` in the Odoo root (declared in package.json) "
+                "or install a `sass` binary on PATH."
+            )
         load_paths = [self.bootstrap_path, *odoo.addons.__path__]
         cmd = [
             sass,
