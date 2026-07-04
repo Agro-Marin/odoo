@@ -1,7 +1,7 @@
 import json
 
 from contextlib import contextmanager
-from lxml import etree
+from lxml import html
 from unittest.mock import patch
 
 from odoo.http import request
@@ -225,7 +225,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
                 # Mimic a user login process
 
                 # 1. Open the /web/login page, and get the csrf token which is use to protect the POST request
-                csrf_token = etree.fromstring(
+                csrf_token = html.fromstring(
                     self.url_open('/web/login').content
                 ).xpath('//input[@name="csrf_token"]')[0].get('value')
 
@@ -253,7 +253,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
                     self.assertEqual(passkey['passkey'].sign_count, sign_count)
 
                 # Replay attacks raises an error
-                csrf_token = etree.fromstring(
+                csrf_token = html.fromstring(
                     self.url_open('/web/login').content
                 ).xpath('//input[@name="csrf_token"]')[0].get('value')
                 response = self.url_open('/web/login', data={
@@ -262,7 +262,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
                     'csrf_token': csrf_token,
                 })
                 self.assertEqual(response.status_code, 200)
-                error = etree.fromstring(response.content).xpath('//p[@class="alert alert-danger"]')[0].text.strip()
+                error = html.fromstring(response.content).xpath('//p[@class="alert alert-danger"]')[0].text.strip()
                 self.assertEqual(error, 'Cannot find a challenge for this session')
 
     def test_check_identity(self):
@@ -381,7 +381,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
         self.env['ir.config_parameter'].sudo().set_param('web.base.url', passkey['host'])
 
         with self.patch_start_auth(webauthn_challenge):
-            csrf_token = etree.fromstring(
+            csrf_token = html.fromstring(
                 self.url_open('/web/login').content
             ).xpath('//input[@name="csrf_token"]')[0].get('value')
             self.url_open('/auth/passkey/start-auth', '{}', headers={"Content-Type": "application/json"})
@@ -394,7 +394,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
             # Login unsuccessful, redirected back to /web/login
             self.assertTrue(response.url.endswith('/web/login'))
             # with the error message
-            error = etree.fromstring(response.content).xpath('//p[@class="alert alert-danger"]')[0].text.strip()
+            error = html.fromstring(response.content).xpath('//p[@class="alert alert-danger"]')[0].text.strip()
             self.assertEqual(error, 'User verification is required but user was not verified during authentication')
 
             # New authenticator data with the user verification bit turned on (+ counter increased)
@@ -428,7 +428,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
             # Signature changes as the authenticator data changed.
             webauthn_response['response']['signature'] = 'MEQCIAdcWwNtQVrklYo70p5eHjVdSkA4Pgk6hbCCT6O8-V0BAiBBVKgroyNNOqN5xwO6Rr4yJV61J1TGWoOyUsoUftjypw'
 
-            csrf_token = etree.fromstring(
+            csrf_token = html.fromstring(
                 self.url_open('/web/login').content
             ).xpath('//input[@name="csrf_token"]')[0].get('value')
             self.url_open('/auth/passkey/start-auth', '{}', headers={"Content-Type": "application/json"})
