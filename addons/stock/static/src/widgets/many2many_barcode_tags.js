@@ -5,10 +5,22 @@ import {
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
 import { registry } from "@web/core/registry";
+import { RPCError } from "@web/core/network/rpc";
 
 export class Many2XBarcodeTagsAutocomplete extends Many2XAutocomplete {
     onQuickCreateError(error, request) {
-        if (error.data?.debug && error.data.debug.includes("psycopg.errors.UniqueViolation")) {
+        // A duplicate/already-used barcode surfaces as a ValidationError (the
+        // `unique(barcode)` SQL constraint or the product-barcode check). Raise
+        // it so the error dialog is shown, instead of falling back to the
+        // slow-create dialog, which cannot resolve a barcode conflict. Detect
+        // via the RPC exception name rather than scraping `error.data.debug`:
+        // the server hides tracebacks from clients outside dev mode, so the
+        // traceback text (e.g. "psycopg.errors.UniqueViolation") is not
+        // reliably available.
+        if (
+            error instanceof RPCError &&
+            error.exceptionName === "odoo.exceptions.ValidationError"
+        ) {
             throw error;
         }
         super.onQuickCreateError(error, request);
