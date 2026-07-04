@@ -507,15 +507,14 @@ class StockLocation(models.Model):
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
-        """Returns the location where the product has to be put, if any compliant
-        putaway strategy is found. Otherwise returns self.
-        The quantity should be in the default UOM of the product, it is used when
-        no package is specified.
+        """Returns the location suggested by the first matching putaway rule.
+        Falls back to the first child location if self is a view location,
+        otherwise returns self. Quantity is expected in the product's default
+        UOM and is only used when no package is specified.
         """
         self = self._check_access_putaway()
         products = self.env.context.get("products", self.env["product.product"])
         products |= product
-        # find package type on package or packaging
         package_type = self.env["stock.package.type"]
         if package:
             package_type = package.package_type_id
@@ -638,11 +637,9 @@ class StockLocation(models.Model):
         return putaway_location
 
     def _get_next_inventory_date(self):
-        """Used to get the next inventory date for a quant located in this location. It is
-        based on:
-        1. Does the location have a cyclic inventory set?
-        2. If not 1, then is there an annual inventory date set (for its company)?
-        3. If not 1 and 2, then quants have no next inventory date."""
+        """Returns the next inventory date for a quant in this location: the
+        earlier of the location's cyclic inventory date and the company's
+        annual inventory date, whichever is set, or False if neither is."""
         if self.usage not in ["internal", "transit"]:
             return False
         next_inventory_date = False
@@ -741,20 +738,17 @@ class StockLocation(models.Model):
 
     def _check_can_be_used(self, product, quantity=0, package=None, location_qty=0):
         """Check if product/package can be stored in the location. Quantity
-        should in the default uom of product, it's only used when no package is
+        should be in the product's default UoM; only used when no package is
         specified."""
         self.ensure_one()
         if self.storage_category_id:
             positive_quant = self.quant_ids.filtered(
                 lambda q: q.product_id.uom_id.compare(q.quantity, 0) > 0,
             )
-            # check if only allow new product when empty
             if self.storage_category_id.allow_new_product == "empty" and positive_quant:
                 return False
-            # check if only allow same product
             if self.storage_category_id.allow_new_product == "same":
-                # In case it's a package, `product` is not defined, so try to get
-                # the package products from the context
+                # For a package, `product` isn't set, so fall back to the products from context
                 product = product or self.env.context.get("products")
                 if (positive_quant and positive_quant.product_id != product) or len(
                     product
@@ -772,9 +766,7 @@ class StockLocation(models.Model):
             forecast_weight = self._get_weight(
                 self.env.context.get("exclude_sml_ids", set()),
             )[self]["forecast_weight"]
-            # check if enough space
             if package and package.package_type_id:
-                # check weight
                 package_smls = self.env["stock.move.line"].search(
                     [
                         ("result_package_id", "=", package.id),
@@ -787,7 +779,6 @@ class StockLocation(models.Model):
                     ),
                 ):
                     return False
-                # check if enough space
                 package_capacity = (
                     self.storage_category_id.package_capacity_ids.filtered(
                         lambda pc: pc.package_type_id == package.package_type_id
@@ -796,7 +787,6 @@ class StockLocation(models.Model):
                 if package_capacity and location_qty >= package_capacity.quantity:
                     return False
             else:
-                # check weight
                 if (
                     self.storage_category_id.max_weight
                     < forecast_weight + product.weight * quantity
@@ -807,7 +797,7 @@ class StockLocation(models.Model):
                         lambda pc: pc.product_id == product,
                     )
                 )
-                # To handle new line without quantity in order to avoid suggesting a location already full
+                # Reject a location already at capacity even if quantity is 0 (e.g. a new, not yet filled-in move line)
                 if product_capacity and location_qty >= product_capacity.quantity:
                     return False
                 if (
@@ -821,7 +811,7 @@ class StockLocation(models.Model):
         self.ensure_one()
         if self.usage == "customer":
             return True
-        # Can also be True if location is inter-company transit
+        # Inter-company transit locations (and their descendants) also count as outgoing
         inter_comp_location = self.env.ref(
             "stock.stock_location_inter_company", raise_if_not_found=False
         )

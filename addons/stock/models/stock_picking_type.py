@@ -734,13 +734,9 @@ class StockPickingType(models.Model):
         ]
 
     def _prepare_graph_data(self, summaries):
-        """
-        Takes in summaries of picking types, each containing the name of the data
-        series and categories to display with their corresponding stock picking counts.
-        Converts each summary into data suitable for the dashboard graph and assigns
-        that data to the corresponding picking type from `self`.
+        """Convert each picking type summary into dashboard graph data.
 
-        If all values in a graph are 0, then they are assigned the "sample" type.
+        If all values in a graph are 0, it is assigned the "sample" type instead.
         """
         data_category_mapping = {
             "total_before": {"label": _("Before"), "type": "past"},
@@ -753,7 +749,6 @@ class StockPickingType(models.Model):
 
         for picking_type in self:
             picking_type_summary = summaries.get(picking_type.id)
-            # Graph is empty if all its "total_*" values are 0
             empty = all(picking_type_summary[k] == 0 for k in data_category_mapping)
             graph_data = [
                 {

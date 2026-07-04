@@ -250,7 +250,6 @@ class StockWarehouse(models.Model):
                     vals["code"] = company.name[:5]
                 if "partner_id" not in vals:
                     vals["partner_id"] = company.partner_id.id
-            # create view location for warehouse then create all locations
             loc_vals = {"name": vals.get("code"), "usage": "view"}
             if vals.get("company_id"):
                 loc_vals["company_id"] = vals.get("company_id")
@@ -268,28 +267,23 @@ class StockWarehouse(models.Model):
                     .id
                 )
 
-        # actually create WH
         warehouses = super().create(vals_list)
 
         for warehouse, vals in zip(warehouses, vals_list):
-            # create sequences and operation types
             new_vals = warehouse._create_or_update_sequences_and_picking_types()
             warehouse.write(new_vals)  # TDE FIXME: use super ?
-            # create routes and push/stock rules
             route_vals = warehouse._create_or_update_route()
             warehouse.write(route_vals)
 
-            # Update global route with specific warehouse rule.
             warehouse._create_or_update_global_routes_rules()
 
-            # create route selectable on the product to resupply the warehouse from another one
             warehouse.create_resupply_routes(warehouse.resupply_wh_ids)
 
-            # update partner data if partner assigned
             if vals.get("partner_id"):
                 self._update_partner_data(vals["partner_id"], vals.get("company_id"))
 
-            # manually update locations' warehouse since it didn't exist at their creation time
+            # warehouse_id wasn't set on these locations yet since the warehouse
+            # didn't exist when they were created above
             view_location_id = self.env["stock.location"].browse(
                 vals.get("view_location_id")
             )
@@ -356,7 +350,6 @@ class StockWarehouse(models.Model):
                 warehouse.id: warehouse.resupply_wh_ids for warehouse in warehouses
             }
 
-        # If another partner assigned
         if vals.get("partner_id"):
             if vals.get("company_id"):
                 warehouses._update_partner_data(
@@ -374,7 +367,6 @@ class StockWarehouse(models.Model):
         res = super().write(vals)
 
         for warehouse in warehouses:
-            # check if we need to delete and recreate route
             depends = [
                 depend
                 for depends in [
@@ -383,6 +375,8 @@ class StockWarehouse(models.Model):
                 ]
                 for depend in depends
             ]
+            # "code" isn't in any route's `depends` but picking type barcodes are
+            # derived from it, so it still needs a refresh.
             if "code" in vals or any(depend in vals for depend in depends):
                 picking_type_vals = (
                     warehouse._create_or_update_sequences_and_picking_types()
@@ -393,10 +387,8 @@ class StockWarehouse(models.Model):
                 route_vals = warehouse._create_or_update_route()
                 if route_vals:
                     warehouse.write(route_vals)
-            # Check if a global rule(mto, buy, ...) need to be modify.
-            # The field that impact those rules are listed in the
-            # _get_global_route_rules_values method under the key named
-            # 'depends'.
+            # Global routes (MTO, Buy, ...) are keyed by rule field name; the
+            # fields that should trigger an update are under each rule's 'depends'.
             global_rules = warehouse._get_global_route_rules_values()
             depends = [
                 depend
@@ -460,17 +452,16 @@ class StockWarehouse(models.Model):
                     .with_context(active_test=False)
                     .search([("warehouse_id", "=", warehouse.id)])
                 )
-                # Only modify route that apply on this warehouse.
+                # Don't archive routes shared with other warehouses.
                 warehouse.route_ids.filtered(lambda r: len(r.warehouse_ids) == 1).write(
                     {"active": vals["active"]}
                 )
                 rule_ids.write({"active": vals["active"]})
 
                 if warehouse.active:
-                    # Catch all warehouse fields that trigger a modfication on
-                    # routes, rules, picking types and locations (e.g the reception
-                    # steps). The purpose is to write on it in order to let the
-                    # write method set the correct field to active or archive.
+                    # Re-writing these fields on itself re-triggers the write()
+                    # logic above that (re)activates their dependent routes,
+                    # rules, picking types and locations.
                     depends = set([])
                     for (
                         rule_item
@@ -594,17 +585,15 @@ class StockWarehouse(models.Model):
             )
 
     def _create_or_update_sequences_and_picking_types(self):
-        """Create or update existing picking types for a warehouse.
-        Pikcing types are stored on the warehouse in a many2one. If the picking
-        type exist this method will update it. The update values can be found in
-        the method _get_picking_type_update_values. If the picking type does not
-        exist it will be created with a new sequence associated to it.
+        """Create the warehouse's picking types (with a dedicated sequence)
+        if they don't exist yet, otherwise update them via
+        _get_picking_type_update_values.
         """
         self.ensure_one()
         IrSequenceSudo = self.env["ir.sequence"].sudo()
         PickingType = self.env["stock.picking.type"]
 
-        # choose the next available color for the operation types of this warehouse
+        # Recycle colors 0-11 across warehouses instead of growing unbounded.
         all_used_colors = [
             res["color"]
             for res in PickingType.search_read(
@@ -619,7 +608,7 @@ class StockWarehouse(models.Model):
         warehouse_data = {}
         sequence_data = self._get_sequence_values()
 
-        # suit for each warehouse: reception, internal, pick, pack, ship
+        # New picking types are sequenced after every existing one, across all warehouses.
         max_sequence = self.env["stock.picking.type"].search_read(
             [("sequence", "!=", False)], ["sequence"], limit=1, order="sequence desc"
         )
@@ -720,16 +709,13 @@ class StockWarehouse(models.Model):
         return route
 
     def _get_global_route_rules_values(self):
-        """Method used by _create_or_update_global_routes_rules. It's
-        purpose is to return a dict with this format.
-        key: The rule contained in a global route that have to be create/update
-        entry a dict with the following values:
-            -depends: Field that impact the rule. When a field in depends is
-            write on the warehouse the rule set as key have to be update.
-            -create_values: values used in order to create the rule if it does
-            not exist.
-            -update_values: values used to update the route when a field in
-            depends is modify on the warehouse.
+        """Used by _create_or_update_global_routes_rules. Returns a dict keyed
+        by the rule field name (e.g. 'mto_pull_id') to create/update, each
+        mapping to:
+            - depends: warehouse fields that, when written, should trigger an
+              update of this rule.
+            - create_values: values used to create the rule if it doesn't exist.
+            - update_values: values used to update the rule otherwise.
         """
         vals = self._generate_global_route_rules_values()
         # `route_id` might be `False` if the user has deleted it, in such case we
@@ -742,8 +728,8 @@ class StockWarehouse(models.Model):
         }
 
     def _generate_global_route_rules_values(self):
-        # We use 0 since routing are order from stock to cust. If the routing
-        # order is modify, the mto rule will be wrong.
+        # The MTO rule always starts from stock, so pick the delivery step
+        # whose source is lot_stock_id regardless of its position in the chain.
         rule = self.get_rules_dict()[self.id][self.delivery_steps]
         rule = [r for r in rule if r.from_loc == self.lot_stock_id][0]
         location_id = rule.from_loc
@@ -773,36 +759,22 @@ class StockWarehouse(models.Model):
         }
 
     def _create_or_update_route(self):
-        """Create or update the warehouse's routes.
-        _get_routes_values method return a dict with:
-            - route field name (e.g: delivery_route_id).
-            - field that trigger an update on the route (key 'depends').
-            - routing_key used in order to find rules contained in the route.
-            - create values.
-            - update values when a field in depends is modified.
-            - rules default values.
-        This method do an iteration on each route returned and update/create
-        them. In order to update the rules contained in the route it will
-        use the get_rules_dict that return a dict:
-            - a receptions/delivery,... step value as key (e.g  'pick_ship')
-            - a list of routing object that represents the rules needed to
-            fullfil the pupose of the route.
-        The routing_key from _get_routes_values is match with the get_rules_dict
-        key in order to create/update the rules in the route
-        (_find_existing_rule_or_create method is responsible for this part).
+        """Create or update the warehouse's routes and their rules.
+        For each route field returned by _get_routes_values, resolve its rules
+        via get_rules_dict (matched on 'routing_key') and let
+        _find_existing_rule_or_create reuse or recreate them.
         """
-        # Create routes and active/create their related rules.
         self.ensure_one()
         routes = []
         rules_dict = self.get_rules_dict()
         for route_field, route_data in self._get_routes_values().items():
-            # If the route exists update it
             if self[route_field]:
                 route = self[route_field]
                 if "route_update_values" in route_data:
                     route.write(route_data["route_update_values"])
+                # Deactivate old rules; _find_existing_rule_or_create below will
+                # reactivate the ones still needed and create any missing one.
                 route.rule_ids.write({"active": False})
-            # Create the route
             else:
                 if "route_update_values" in route_data:
                     route_data["route_create_values"].update(
@@ -812,7 +784,6 @@ class StockWarehouse(models.Model):
                     route_data["route_create_values"]
                 )
                 self[route_field] = route
-            # Get rules needed for the route
             routing_key = route_data.get("routing_key")
             rules = rules_dict[self.id][routing_key]
             if "rules_values" in route_data:
@@ -820,7 +791,6 @@ class StockWarehouse(models.Model):
             else:
                 route_data["rules_values"] = {"route_id": route.id}
             rules_list = self._get_rule_values(rules, values=route_data["rules_values"])
-            # Create/Active rules
             self._find_existing_rule_or_create(rules_list)
             if route_data["route_create_values"].get(
                 "warehouse_selectable", False
@@ -831,19 +801,16 @@ class StockWarehouse(models.Model):
         }
 
     def _get_routes_values(self):
-        """Return information in order to update warehouse routes.
-        - The key is a route field sotred as a Many2one on the warehouse
-        - This key contains a dict with route values:
-            - routing_key: a key used in order to match rules from
-            get_rules_dict function. It would be usefull in order to generate
-            the route's rules.
-            - route_create_values: When the Many2one does not exist the route
-            is created based on values contained in this dict.
-            - route_update_values: When a field contained in 'depends' key is
-            modified and the Many2one exist on the warehouse, the route will be
-            update with the values contained in this dict.
-            - rules_values: values added to the routing in order to create the
-            route's rules.
+        """Return the warehouse's own routes (reception_route_id and
+        delivery_route_id) to create/update.
+        - The key is the route field name (Many2one on the warehouse).
+        - routing_key: matches the corresponding entry in get_rules_dict, used
+          to generate the route's rules.
+        - route_create_values: values used to create the route if the Many2one
+          isn't set yet.
+        - route_update_values: values used to update the route when a field
+          listed in 'depends' changes.
+        - rules_values: values added to the routing to create the route's rules.
         """
         return {
             "reception_route_id": {
@@ -884,17 +851,14 @@ class StockWarehouse(models.Model):
         }
 
     def _get_receive_routes_values(self, installed_depends):
-        """Return receive route values with 'procure_method': 'make_to_order'
-        in order to update warehouse routes.
+        """Same as _get_routes_values' reception_route_id, but forces
+        'procure_method': 'make_to_order' on the rules instead of letting
+        get_rules_dict default the first rule to make_to_stock. Used by modules
+        that extend stock with actions able to trigger the receive MTO rules;
+        meant to be used together with _get_receive_rules_dict().
 
-        This function has the same receive route values as _get_routes_values with the addition of
-        'procure_method': 'make_to_order' to the 'rules_values'. This is expected to be used by
-        modules that extend stock and add actions that can trigger receive 'make_to_order' rules (i.e.
-        we don't want any of the generated rules by get_rules_dict to default to 'make_to_stock').
-        Additionally this is expected to be used in conjunction with _get_receive_rules_dict().
-
-        args:
-        installed_depends - string value of installed (warehouse) boolean to trigger updating of reception route.
+        installed_depends: extra warehouse field (a module's install/enable
+        boolean) that should also trigger a reception route update.
         """
         return {
             "reception_route_id": {
@@ -920,7 +884,10 @@ class StockWarehouse(models.Model):
         }
 
     def _find_existing_rule_or_create(self, rules_list):
-        """This method will find existing rules or create new one."""
+        """Reactivate a matching archived rule if one exists, otherwise create
+        a new one. Callers are expected to have archived the rules that no
+        longer apply beforehand, so this never matches an active rule.
+        """
         for rule_vals in rules_list:
             existing_rule = self.env["stock.rule"].search(
                 [
@@ -938,7 +905,10 @@ class StockWarehouse(models.Model):
                 existing_rule.write({"active": True})
 
     def _get_locations_values(self, vals, code=False):
-        """Update the warehouse locations."""
+        """Return create/update values for the warehouse's sub-locations
+        (Stock, Input, Quality Control, Output, Packing Zone), activating each
+        one depending on the reception/delivery steps.
+        """
         def_values = self.default_get(["reception_steps", "delivery_steps"])
         reception_steps = vals.get("reception_steps", def_values["reception_steps"])
         delivery_steps = vals.get("delivery_steps", def_values["delivery_steps"])
@@ -1239,12 +1209,10 @@ class StockWarehouse(models.Model):
         }
 
     def _get_receive_rules_dict(self):
-        """Return receive route rules without initial pull rule in order to update warehouse routes.
-
-        This function has the same receive route rules as get_rules_dict without an initial pull rule.
-        This is expected to be used by modules that extend stock and add actions that can trigger receive
-        'make_to_order' rules (i.e. we don't expect the receive route to be able to pull on its own anymore).
-        This is also expected to be used in conjuction with _get_receive_routes_values()
+        """Same as get_rules_dict's reception steps, but without the initial
+        pull rule from the supplier: the receive route is meant to only push
+        internally, not to pull on its own. Used together with
+        _get_receive_routes_values().
         """
         return {
             "one_step": [],
@@ -1311,15 +1279,9 @@ class StockWarehouse(models.Model):
             rules_list.append(route_rule_values)
             first_rule = False
         if values and values.get("propagate_cancel") and rules_list:
-            # In case of rules chain with cancel propagation set, we need to stop
-            # the cancellation for the last step in order to avoid cancelling
-            # any other move after the chain.
-            # Example: In the following flow:
-            # Input -> Quality check -> Stock -> Customer
-            # We want that cancelling I->GC cancel QC -> S but not S -> C
-            # which means:
-            # Input -> Quality check should have propagate_cancel = True
-            # Quality check -> Stock should have propagate_cancel = False
+            # Don't propagate cancellation past the last rule of the chain, e.g.
+            # for Input -> QC -> Stock -> Customer, cancelling Input -> QC should
+            # cancel QC -> Stock but not Stock -> Customer.
             rules_list[-1]["propagate_cancel"] = False
         return rules_list
 
@@ -1332,7 +1294,7 @@ class StockWarehouse(models.Model):
             pull_rules["procure_method"] = (
                 self.lot_stock_id.id != pull_rules["location_src_id"]
                 and "make_to_order"
-            ) or "make_to_stock"  # first part of the resuply route is MTS
+            ) or "make_to_stock"  # first leg of the resupply route is MTS
         return rules_list
 
     def _update_reception_delivery_resupply(self, reception_new, delivery_new):
@@ -1353,8 +1315,10 @@ class StockWarehouse(models.Model):
                 warehouse._check_delivery_resupply(output_loc, change_to_multiple)
 
     def _check_delivery_resupply(self, new_location, change_to_multiple):
-        """Check if the resupply routes from this warehouse follow the changes of number of delivery steps
-        Check routes being delivery bu this warehouse and change the rule going to transit location
+        """Update the resupply routes/rules of warehouses supplied by this one
+        to follow a change between single-step ('ship_only') and multi-step
+        delivery: repoint the rule feeding the transit location, and
+        add/remove the extra Output-from-Stock leg and its MTO rule.
         """
         Rule = self.env["stock.rule"]
         routes = self.env["stock.route"].search([("supplier_wh_id", "=", self.id)])
@@ -1422,7 +1386,8 @@ class StockWarehouse(models.Model):
                 )
             Rule.create(missing_rule_vals)
 
-            # We need to delete all the MTO stock rules, otherwise they risk to be used in the system
+            # Deactivate the now-unneeded MTO rules from stock to transit, otherwise
+            # they risk being used since resupply is no longer single-step.
             Rule.search(
                 [
                     "&",
@@ -1552,10 +1517,9 @@ class StockWarehouse(models.Model):
         }
 
     def _get_picking_type_create_values(self, max_sequence):
-        """When a warehouse is created this method return the values needed in
-        order to create the new picking types for this warehouse. Every picking
-        type are created at the same time than the warehouse howver they are
-        activated or archived depending the delivery_steps or reception_steps.
+        """Return the creation values for a new warehouse's picking types. All
+        picking types are created together, but activated/archived based on
+        the delivery_steps/reception_steps in effect.
         """
         input_loc, output_loc = self._get_input_output_locations(
             self.reception_steps, self.delivery_steps

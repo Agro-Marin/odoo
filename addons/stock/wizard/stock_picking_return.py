@@ -29,7 +29,6 @@ class StockReturnPickingLine(models.TransientModel):
 
     @api.depends("move_id.product_uom", "product_id.uom_id")
     def _compute_uom_id(self):
-        """Compute the UoM based on the move's product UoM or the product's default UoM."""
         for line in self:
             line.uom_id = line.move_id.product_uom or line.product_id.uom_id
 
@@ -71,9 +70,8 @@ class StockReturnPickingLine(models.TransientModel):
                 # |       return pick(Add as dest)          return toLink                    return ship(Add as orig)
                 # +--------------------------------------------------------------------------------------------------------+
                 move_orig_to_link = self.move_id.move_dest_ids.returned_move_ids
-                # link to original move
                 move_orig_to_link |= self.move_id
-                # link to siblings of original move, if any
+                # siblings: moves sharing a destination move with the original move
                 move_orig_to_link |= self.move_id.move_dest_ids.filtered(
                     lambda m: m.state not in ("cancel")
                 ).move_orig_ids.filtered(lambda m: m.state not in ("cancel"))
@@ -141,8 +139,8 @@ class StockReturnPicking(models.TransientModel):
             product_return_moves = [Command.clear()]
             if not wizard.picking_id._can_return():
                 raise UserError(_("You may only return Done pickings."))
-            # In case we want to set specific default values (e.g. 'to_refund'), we must fetch the
-            # default values for creation.
+            # Fetch line default values (e.g. 'to_refund') since we build the Command.create
+            # dicts manually instead of letting the ORM apply them.
             line_fields = list(self.env["stock.return.picking.line"]._fields)
             product_return_moves_data_tmpl = self.env[
                 "stock.return.picking.line"
@@ -202,7 +200,6 @@ class StockReturnPicking(models.TransientModel):
                     lambda m: m.state not in ("done", "cancel")
                 )._do_unreserve()
 
-            # create new picking for returned products
             new_picking = self.picking_id.copy(self._prepare_picking_default_values())
             new_picking.user_id = False
             new_picking.message_post_with_source(
@@ -211,7 +208,6 @@ class StockReturnPicking(models.TransientModel):
                 subtype_xmlid="mail.mt_note",
             )
         else:
-            # if no picking is selected create a new return from scratch
             new_picking = self.env["stock.picking"].create(
                 self._prepare_picking_default_values()
             )
@@ -228,7 +224,6 @@ class StockReturnPicking(models.TransientModel):
         return new_picking
 
     def _create_exchange(self, return_picking):
-        # Create a new picking for exchanged products
         exchange_picking = return_picking.copy(
             self._prepare_picking_default_values_based_on(return_picking)
         )

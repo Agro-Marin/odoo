@@ -270,8 +270,8 @@ class StockQuant(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Override to handle the "inventory mode" and create a quant as
-        superuser the conditions are met.
+        """Override to handle "inventory mode": create/update the matching quant as
+        superuser when the conditions are met.
         """
 
         def _add_to_cache(quant):
@@ -378,7 +378,7 @@ class StockQuant(models.Model):
             field for field in forbidden_fields if field in vals.keys()
         ):
             if any(quant.location_id.usage == "inventory" for quant in self):
-                # Do nothing when user tries to modify manually a inventory loss
+                # Silently ignore edits on quants in an inventory adjustment location.
                 return None
             self = self.sudo()
             raise UserError(
@@ -602,6 +602,7 @@ class StockQuant(models.Model):
         quant_to_inventory.action_apply_inventory()
 
     def _search(self, domain, *args, **kwargs):
+        # lot_properties only exists on stock.lot; redirect searches through lot_id.
         domain = Domain(domain).map_conditions(
             lambda condition: (
                 Domain("lot_id", "any", [condition])
@@ -630,6 +631,7 @@ class StockQuant(models.Model):
 
     @api.model
     def name_create(self, name):
+        # Quants can't be quick-created (e.g. from a many2one dropdown).
         return False
 
     def _load_records_create(self, values):
@@ -646,7 +648,7 @@ class StockQuant(models.Model):
         )._load_records_create(values)
 
     def _load_records_write(self, values):
-        """Only allowed fields should be modified"""
+        """Set inventory_mode so write() restricts the fields editable by import."""
         return super(
             StockQuant, self.with_context(inventory_mode=True)
         )._load_records_write(values)
@@ -655,14 +657,17 @@ class StockQuant(models.Model):
         if aggregate_spec == "inventory_quantity:sum" and self.env.context.get(
             "inventory_report_mode"
         ):
+            # Not meaningful in report mode: hide it instead of aggregating.
             return SQL("NULL")
         if aggregate_spec == "available_quantity:sum":
+            # available_quantity isn't a stored column, derive it from its parts.
             sql_quantity = self._read_group_select("quantity:sum", query)
             sql_reserved_quantity = self._read_group_select(
                 "reserved_quantity:sum", query
             )
             return SQL("%s - %s", sql_quantity, sql_reserved_quantity)
         if aggregate_spec == "inventory_quantity_auto_apply:sum":
+            # Computed field mirroring quantity (see _compute_inventory_quantity_auto_apply).
             return self._read_group_select("quantity:sum", query)
         return super()._read_group_select(aggregate_spec, query)
 
@@ -757,7 +762,8 @@ class StockQuant(models.Model):
         return action
 
     def action_apply_inventory(self, date=None):
-        # for some reason if multi-record, env.context doesn't pass to wizards...
+        # env.context isn't reliably passed to the wizard for multi-record actions,
+        # so pass the quant ids explicitly.
         ctx = dict(self.env.context or {})
         ctx["default_quant_ids"] = self.ids
         quants_outdated = self.filtered(lambda quant: quant.is_outdated)
@@ -895,7 +901,7 @@ class StockQuant(models.Model):
             self.user_id = self.env.user.id
 
     def _run_least_packages_removal_strategy_astar(self, domain, qty):
-        # Fetch the available packages and contents
+        # Fetch available quantity per package.
         domain = Domain(domain).optimize(self)
         query = self._search(domain, bypass_access=True)
         query.groupby = SQL("package_id")
@@ -907,7 +913,7 @@ class StockQuant(models.Model):
             )
         )
 
-        # Items that do not belong to a package are added individually to the list, any empty packages get removed.
+        # Unpackaged quants are split into individual single-unit entries; empty packages are dropped.
         pkg_found = False
         new_qty_by_package = []
         none_elements = []
@@ -1037,8 +1043,8 @@ class StockQuant(models.Model):
         strict=False,
         qty=0,
     ):
-        """if records in self, the records are filtered based on the wanted characteristics passed to this function
-        if not, a search is done with all the characteristics passed.
+        """If records are in self, filter them on the requested characteristics; otherwise
+        search for quants matching all the characteristics passed.
         """
         removal_strategy = self._get_removal_strategy(product_id, location_id)
         domain = self._get_gather_domain(
@@ -1083,7 +1089,7 @@ class StockQuant(models.Model):
 
         # Once the new line is complete, fetch the new theoretical values.
         if self.product_id and self.location_id:
-            # Sanity check if a lot has been set.
+            # Clear the lot if it doesn't apply to (or match) the selected product.
             if self.lot_id:
                 if self.tracking == "none" or self.product_id != self.lot_id.product_id:
                     vals["lot_id"] = None
@@ -1193,7 +1199,8 @@ class StockQuant(models.Model):
             ).property_stock_inventory or default_loss_locations.get(
                 quant.company_id.id
             )
-            # Create and validate a move so that the quant matches its `inventory_quantity`.
+            # Positive diff (counted more than expected): receive stock from the loss location.
+            # Negative diff: send the missing stock to the loss location.
             if quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) > 0:
                 move_vals.append(
                     quant._get_inventory_move_values(
@@ -1239,15 +1246,9 @@ class StockQuant(models.Model):
         owner_id=None,
         in_date=None,
     ):
-        """Increase or decrease `quantity` or 'reserved quantity' of a set of quants for a given set of
+        """Increase or decrease `quantity` or `reserved_quantity` of a set of quants for a given
         product_id/location_id/lot_id/package_id/owner_id.
 
-        :param product_id:
-        :param location_id:
-        :param quantity:
-        :param lot_id:
-        :param package_id:
-        :param owner_id:
         :param datetime in_date: Should only be passed when calls to this method are done in
                                  order to move a quant. When creating a tracked quant, the
                                  current datetime will be used.
@@ -1268,7 +1269,7 @@ class StockQuant(models.Model):
             if product_id.uom_id.compare(quantity, 0) > 0:
                 quants = quants.filtered(lambda q: q.lot_id)
             else:
-                # Don't remove quantity from a negative quant without lot
+                # Don't remove quantity from a negative, untracked quant.
                 quants = quants.filtered(
                     lambda q: product_id.uom_id.compare(q.quantity, 0) > 0 or q.lot_id,
                 )
@@ -1292,8 +1293,7 @@ class StockQuant(models.Model):
 
         quant = None
         if quants:
-            # quants are already ordered in _gather
-            # lock the first available
+            # quants are already ordered by _gather; lock the first one.
             quant = quants.try_lock_for_update(allow_referencing=True, limit=1)
 
         if quant:
@@ -1343,16 +1343,8 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=True,
     ):
-        """Increase or decrease `reserved_quantity` of a set of quants for a given set of
+        """Increase or decrease `reserved_quantity` of a set of quants for a given
         product_id/location_id/lot_id/package_id/owner_id.
-
-        :param product_id:
-        :param location_id:
-        :param quantity:
-        :param lot_id:
-        :param package_id:
-        :param owner_id:
-        :return: available_quantity
         """
         self._update_available_quantity(
             product_id,
@@ -1388,6 +1380,7 @@ class StockQuant(models.Model):
 
     @api.model
     def _clean_reservations(self):
+        """Realign quants' `reserved_quantity` with the sum still reserved by active move lines."""
         reserved_quants = self.env["stock.quant"]._read_group(
             [("reserved_quantity", "!=", 0)],
             ["product_id", "location_id", "lot_id", "package_id", "owner_id"],
@@ -1484,7 +1477,6 @@ class StockQuant(models.Model):
                     hide_location=not self.env.context.get("always_show_loc", False),
                 )
 
-        # If user have rights to write on quant, we set quants in inventory mode.
         if self.env.user.has_group("stock.group_stock_user"):
             self = self.with_context(inventory_mode=True)
         return self
@@ -1545,13 +1537,12 @@ class StockQuant(models.Model):
                 previous_product = quant.product_id
                 if not quant.product_id.valid_ean:
                     barcode += quant.product_id.barcode
-            # Gets quant's barcode (either a GS1 barcode or only a serial number.)
+            # Fall back to the bare serial number if no GS1 barcode could be built.
             quant_gs1_barcode = quant._get_gs1_barcode(gs1_quantity_rules_ai_by_uom)
             if quant_gs1_barcode:
                 barcode += (barcode_separator if barcode else "") + quant_gs1_barcode
             elif quant.tracking == "serial":
                 barcode += (barcode_separator if barcode else "") + quant.lot_id.name
-            # If aggregate barcode will be too long, adds it to the result list and resets it.
             if (
                 aggregate_barcode
                 and len(aggregate_barcode + barcode) > agg_barcode_max_length
@@ -1847,7 +1838,7 @@ class StockQuant(models.Model):
                     ],
                 }
             )
-        # It's mainly define in the server action in order to call _get_quants_action when using the url
+        # Used by the server action so this action can be reached directly via URL.
         action["path"] = "stock-locations"
         return action
 
@@ -1912,9 +1903,9 @@ class StockQuant(models.Model):
     ):
         """Get the quantity available to reserve for the set of quants
         sharing the combination of `product_id, location_id` if `strict` is set to False or sharing
-        the *exact same characteristics* otherwise. If no quants are in self, `_gather` will do a search to fetch the quants
-        Typically, this method is called before the `stock.move.line` creation to know the reserved_qty that could be use.
-        It's also called by `_update_reserve_quantity` to find the quant to reserve.
+        the *exact same characteristics* otherwise. If no quants are in self, `_gather` will do a search to fetch the quants.
+        Typically, this method is called before the `stock.move.line` creation to know the reserved_qty that could be used.
+        It's also called by `_update_reserved_quantity` to find the quant to reserve.
 
         :return: a list of tuples (quant, quantity_reserved) showing on which quant the reservation
             could be done and how much the system is able to reserve on it
@@ -1931,12 +1922,13 @@ class StockQuant(models.Model):
             qty=quantity,
         )
 
-        # avoid quants with negative qty to not lower available_qty
+        # allow_negative defaults to False: quants left negative by another lot/package
+        # don't reduce the available quantity of the rest.
         available_quantity = quants._get_available_quantity(
             product_id, location_id, lot_id, package_id, owner_id, strict
         )
 
-        # do full packaging reservation when it's needed
+        # Packaging with a "full" reserve method can only reserve whole packages.
         if (
             self.env.context.get("packaging_uom_id")
             and product_id.product_tmpl_id.categ_id.packaging_reserve_method == "full"
@@ -1964,20 +1956,21 @@ class StockQuant(models.Model):
             )
 
         if product_id.tracking == "serial":
+            # Serial-tracked products can only be reserved in whole units.
             if product_id.uom_id.compare(quantity, int(quantity)) != 0:
                 quantity = 0
 
         reserved_quants = []
 
         if product_id.uom_id.compare(quantity, 0) > 0:
-            # if we want to reserve
+            # Positive quantity means reserving.
             available_quantity = sum(
                 quants.filtered(
                     lambda q: product_id.uom_id.compare(q.quantity, 0) > 0
                 ).mapped("quantity")
             ) - sum(quants.mapped("reserved_quantity"))
         elif product_id.uom_id.compare(quantity, 0) < 0:
-            # if we want to unreserve
+            # Negative quantity means unreserving.
             available_quantity = sum(quants.mapped("reserved_quantity"))
             if product_id.uom_id.compare(abs(quantity), available_quantity) > 0:
                 raise UserError(
@@ -1989,6 +1982,8 @@ class StockQuant(models.Model):
         else:
             return reserved_quants
 
+        # Group already-over-reserved (negative available) quantity by characteristics, so it can
+        # be absorbed first instead of letting other quants in the same group over-reserve too.
         negative_reserved_quantity = defaultdict(float)
         for quant in quants:
             if (
@@ -2140,6 +2135,7 @@ class StockQuant(models.Model):
     # ------------------------------------------------------------
 
     def check_quantity(self):
+        """Ensure no serial number is present more than once at a given location."""
         sn_quants = self.filtered(
             lambda q: q.product_id.tracking == "serial"
             and q.location_id.usage != "inventory"
@@ -2280,4 +2276,5 @@ class StockQuant(models.Model):
         package_id=False,
         owner_id=False,
     ):
+        """Hook for other modules to skip reservation clean-up for specific products."""
         return False

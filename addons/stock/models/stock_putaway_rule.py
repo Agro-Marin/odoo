@@ -196,7 +196,6 @@ class StockPutawayRule(models.Model):
         packaging=None,
         qty_by_location=None,
     ):
-        # find package type on package or packaging
         package_type = self.env["stock.package.type"]
         if package:
             package_type = package.package_type_id
@@ -226,7 +225,7 @@ class StockPutawayRule(models.Model):
                     == putaway_rule.storage_category_id
                 )
 
-            # check if already have the product/package type stored
+            # Prefer a location that already holds this product/package type
             for location in child_locations:
                 if location in checked_locations:
                     continue
@@ -252,7 +251,7 @@ class StockPutawayRule(models.Model):
                     else:
                         checked_locations.add(location)
 
-            # check locations with matched storage category
+            # Fall back to any location of the matching storage category, stocked or not
             for location in child_locations.filtered(
                 lambda l: l.storage_category_id == putaway_rule.storage_category_id
             ):

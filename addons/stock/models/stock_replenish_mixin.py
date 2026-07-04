@@ -17,7 +17,6 @@ class StockReplenishMixin(models.AbstractModel):
         compute="_compute_allowed_route_ids",
     )
 
-    # INHERITS in 'Drop Shipping', 'Dropship and Subcontracting Management' and 'Dropship and Subcontracting Management'
     @api.depends("product_id", "product_tmpl_id")
     def _compute_allowed_route_ids(self):
         domain = self._get_allowed_route_domain()
@@ -25,7 +24,8 @@ class StockReplenishMixin(models.AbstractModel):
         self.allowed_route_ids = route_ids
 
     # TODO: remove dynamic domain
-    # OVERWRITE in 'Drop Shipping', 'Dropship and Subcontracting Management' and 'Dropship and Subcontracting Management' to hide it
+    # Overridden in 'Drop Shipping' and 'Dropship and Subcontracting Management'
+    # to exclude the dropshipping route from the allowed routes.
     def _get_allowed_route_domain(self):
         stock_location_inter_company_id = self.env.ref(
             "stock.stock_location_inter_company"

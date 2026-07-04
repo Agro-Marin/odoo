@@ -32,11 +32,11 @@ class ProductProduct(models.Model):
     stock_quant_ids = fields.One2many(
         comodel_name="stock.quant",
         inverse_name="product_id",
-    )  # used to compute quantities
+    )
     stock_move_ids = fields.One2many(
         comodel_name="stock.move",
         inverse_name="product_id",
-    )  # used to compute quantities
+    )  # dependency of _compute_quantities
     qty_available = fields.Float(
         string="Quantity On Hand",
         digits="Product Unit",
@@ -297,7 +297,8 @@ class ProductProduct(models.Model):
             self.env.context.get("from_date"),
             self.env.context.get("to_date"),
         )
-        # Set qty fields to 0 for all products as services have 0 quantities. Also skips calling __setitem__ on products with 0 quantites in res.
+        # Services always have 0 quantities and are absent from res; set every field to 0
+        # first so those and the zero values filtered out below (`if val`) are still covered.
         self.with_context(skip_qty_available_update=True).qty_available = 0.0
         self.incoming_qty = 0.0
         self.outgoing_qty = 0.0
@@ -322,7 +323,8 @@ class ProductProduct(models.Model):
         product_domain = Domain([("product_id", "in", self.ids)])
         domain_quant = product_domain & domain_quant_loc
         dates_in_the_past = False
-        # only to_date as to_date will correspond to qty_available
+        # Only to_date needs this date-vs-datetime distinction: it is the point in time
+        # for which qty_available is reconstructed; from_date is just a range filter.
         original_value = to_date
         to_date = fields.Datetime.to_datetime(to_date)
         if (isinstance(original_value, date) and not isinstance(original_value, datetime)) or (
@@ -417,7 +419,8 @@ class ProductProduct(models.Model):
         moves_in_res_past = defaultdict(float)
         moves_out_res_past = defaultdict(float)
         if dates_in_the_past:
-            # Calculate the moves that were done before now to calculate back in time (as most questions will be recent ones)
+            # Reconstruct the qty at to_date by reversing the moves done between
+            # to_date and now, rather than replaying history from to_date forward.
             state_done_future = Domain(
                 [
                     ("state", "=", "done"),
@@ -548,10 +551,9 @@ class ProductProduct(models.Model):
             product.reordering_max_qty = product_max_qty_sum
 
     def _inverse_qty_available(self):
-        """
-        Inverse method for the 'qty_available' field, enabling manual adjustment of stock on hand quantity
-        in the product form. To prevent the automatic creation of stock quants when the
-        'compute_quantities' method is triggered, this method skips quant creation by custom context key.
+        """Allow manually adjusting qty_available from the product form by applying an
+        inventory adjustment at the default warehouse; skipped when the write comes from
+        _compute_quantities itself.
         """
         if self.env.context.get("skip_qty_available_update", False):
             return
@@ -581,10 +583,9 @@ class ProductProduct(models.Model):
                 )._apply_inventory()
 
     def _search_qty_available(self, operator, value):
-        # In the very specific case we want to retrieve products with stock available, we only need
-        # to use the quants, not the stock moves. Therefore, we bypass the usual
-        # '_search_product_quantity' method and call '_search_qty_available_new' instead. This
-        # allows better performances.
+        # Without a date range, qty_available only depends on quants, not moves, so we can
+        # bypass '_search_product_quantity' and use the quant-only '_search_qty_available_new'
+        # for better performance.
         if not ({"from_date", "to_date"} & set(self.env.context.keys())):
             product_ids = self._search_qty_available_new(
                 operator,
@@ -646,7 +647,7 @@ class ProductProduct(models.Model):
             domain_quant, ["product_id"], ["quantity:sum"]
         )
 
-        # check if we need include zero values in result
+        # Products with no quants at all are only relevant if 0 matches the search value.
         include_zero = op(0.0, value)
 
         processed_product_ids = set()
@@ -776,10 +777,9 @@ class ProductProduct(models.Model):
             no_at_date=True,
         )
 
-        # If user have rights to write on quant, we define the view as editable.
+        # inventory_mode makes the quant view editable, reserved to stock managers.
         if self.env.user.has_group("stock.group_stock_manager"):
             self = self.with_context(inventory_mode=True)
-            # Set default location id if multilocations is inactive
             if not self.env.user.has_group("stock.group_stock_multi_locations"):
                 user_company = self.env.company
                 warehouse = self.env["stock.warehouse"].search(
@@ -789,7 +789,6 @@ class ProductProduct(models.Model):
                     self = self.with_context(
                         default_location_id=warehouse.lot_stock_id.id
                     )
-        # Set default product id if quants concern only one product
         if len(self) == 1:
             self = self.with_context(default_product_id=self.id, single_product=True)
         else:
@@ -813,11 +812,8 @@ class ProductProduct(models.Model):
         return self.ids
 
     def _get_description(self, picking_type_id):
-        """
-        Return product description based on the picking type:
-        * For outgoing pickings, we always use the product name.
-        * For all other pickings, we try to use the product description (if one has been set),
-          otherwise we fall back to the product name.
+        """Outgoing pickings always use the product name; others use the product
+        description if set, falling back to the name.
         """
         self.ensure_one()
         if picking_type_id.code == "outgoing":
@@ -829,9 +825,7 @@ class ProductProduct(models.Model):
         )
 
     def _get_picking_description(self, picking_type_id):
-        """
-        Return product receipt/delivery/picking description depending on picking type passed as argument.
-        """
+        """Return the receipt/delivery/internal description matching the picking type."""
         return {
             "incoming": self.description_pickingin,
             "outgoing": self.description_pickingout,
@@ -839,14 +833,13 @@ class ProductProduct(models.Model):
         }.get(picking_type_id.code, "")
 
     def get_total_routes(self):
-        # Extend the total routes in other modules
+        # No routes by default; overridden by other modules (e.g. purchase, mrp) to add theirs.
         return self.env["stock.route"]
 
     def _get_domain_locations(self):
-        """
-        Parses the context and returns a list of location_ids based on it.
-        It will return all stock locations when no parameters are given
-        Possible parameters are shop, warehouse, location, compute_child
+        """Resolve the 'location'/'search_location' and 'warehouse_id'/'search_warehouse'
+        context keys into location domains; falls back to all stock locations of the
+        current companies' warehouses when none are given.
         """
         Location = self.env["stock.location"]
         Warehouse = self.env["stock.warehouse"]
@@ -863,9 +856,8 @@ class ProductProduct(models.Model):
                 ids |= set(self.env[model].search(Domain.OR(domains)).ids)
             return ids
 
-        # We may receive a location or warehouse from the context, either by explicit
-        # python code or by the use of dummy fields in the search view.
-        # Normalize them into a list.
+        # location/warehouse may come from python code (single value) or search view
+        # dummy fields (list); normalize to a list either way.
         location = self.env.context.get("location") or self.env.context.get(
             "search_location"
         )
@@ -876,7 +868,6 @@ class ProductProduct(models.Model):
         )
         if warehouse and not isinstance(warehouse, list):
             warehouse = [warehouse]
-        # filter by location and/or warehouse
         if warehouse:
             w_ids = set(
                 Warehouse.browse(_search_ids("stock.warehouse", warehouse))
@@ -909,10 +900,6 @@ class ProductProduct(models.Model):
         if not location_ids:
             return (Domain.FALSE,) * 3
         locations = self.env["stock.location"].browse(location_ids)
-        # TDE FIXME: should move the support of child_of + bypass_search_access directly in expression
-        # this optimizes [('location_id', 'child_of', locations.ids)]
-        # by avoiding the ORM to search for children locations and injecting a
-        # lot of location ids into the main query
         if self.env.context.get("strict"):
             loc_domain = Domain("location_id", "in", locations.ids)
             dest_loc_domain = Domain("location_dest_id", "in", locations.ids)
@@ -1046,10 +1033,8 @@ class ProductProduct(models.Model):
         }
 
     def _get_only_qty_available(self):
-        """Get only quantities available, it is equivalent to read qty_available
-        but avoid fetching other qty fields (avoid costly read group on moves)
-
-        :rtype: defaultdict(float)
+        """Equivalent to reading qty_available, but skips the read_group on moves
+        needed for the other quantity fields.
         """
         domain_quant = Domain.AND(
             [self._get_domain_locations()[0], [("product_id", "in", self.ids)]]
@@ -1131,11 +1116,9 @@ class ProductProduct(models.Model):
         or whose categ_id has total_route_ids.
         """
         products_with_routes = self.env["product.product"]
-        # retrieve products with route_ids
         products_with_routes += self.search(
             [("id", "in", self.ids), ("route_ids", "!=", False)]
         )
-        # retrive products with categ_ids having routes
         products_with_routes += self.search(
             [
                 ("id", "in", (self - products_with_routes).ids),

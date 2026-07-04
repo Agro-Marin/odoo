@@ -243,7 +243,7 @@ class StockTraceabilityReport(models.TransientModel):
             if move_lines:
                 lines = move_lines
             else:
-                # Traceability in case of consumed in.
+                # not produced/consumed by an override (e.g. MRP): trace the raw move chain instead
                 lines = self._get_move_lines(move_line, line_id=line_id)
         for line in lines:
             unfoldable = False

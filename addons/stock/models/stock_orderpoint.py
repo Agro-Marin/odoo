@@ -245,9 +245,8 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("warehouse_id")
     def _compute_allowed_location_ids(self):
-        # We want to keep only the locations
-        #  - strictly belonging to our warehouse
-        #  - not belonging to any warehouses
+        # Keep only locations strictly belonging to our warehouse, or not belonging
+        # to any warehouse at all (i.e. exclude locations of *other* warehouses).
         for orderpoint in self:
             loc_domain = Domain("usage", "in", ("internal", "view"))
             other_warehouses = self.env["stock.warehouse"].search(
@@ -280,11 +279,10 @@ class StockWarehouseOrderpoint(models.Model):
         "company_id.horizon_days",
     )
     def _compute_deadline_date(self):
-        """This function first checks if the qty_on_hand is less than the product_min_qty. If it is the case,
-        the deadline_date is set to the current day. Afterwards if there are still orderpoints to compute,
-        it retrieves all the outgoing and incoming moves until the lead_horizon_date and adds (or subtracts)
-        them to the qty_on_hand. The first instance when the qty_on_hand dips below the product_min_qty is
-        the deadline date.
+        """Set deadline_date to today if qty_on_hand is already below product_min_qty.
+        Otherwise, walk incoming/outgoing moves up to the horizon date (today + horizon_days),
+        applying them to qty_on_hand day by day, and use the date of the first move that brings
+        it below product_min_qty (shifted back by lead_days) as the deadline.
         """
         self.fetch(["qty_on_hand"])
         critical_orderpoints = self.filtered(
@@ -295,7 +293,7 @@ class StockWarehouseOrderpoint(models.Model):
         if not orderpoints_to_compute:
             return
 
-        # We have to filter by company here in case of multi-company and because horizon_days is a company setting
+        # horizon_days is a company setting, so the horizon date must be computed per company.
         for company in orderpoints_to_compute.company_id:
             company_orderpoints = orderpoints_to_compute.filtered(
                 lambda c: c.company_id == company,
@@ -380,17 +378,10 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("product_id", "warehouse_id")
     def _compute_lead_time_stats(self):
-        """Compute actual lead time statistics from completed incoming transfers.
-
-        Measures real procurement lead times by analyzing completed incoming
-        stock pickings (receipts) for each product/warehouse combination.
-        Lead time = date_done - create_date for each completed receipt.
-
-        Uses a single SQL query per batch for efficiency, limited to the
-        most recent 20 receipts per product/warehouse to reflect current
-        supplier performance rather than outdated historical data.
+        """Compute avg/stddev/count of actual lead times (date_done - create_date) from
+        the 20 most recent completed incoming transfers per product/warehouse.
         """
-        # Batch: group by warehouse to minimize queries
+        # Group by warehouse so one SQL query covers all products of a given warehouse.
         wh_orderpoints = defaultdict(lambda: self.env["stock.warehouse.orderpoint"])
         for op in self:
             if op.product_id and op.warehouse_id:
@@ -498,8 +489,8 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
-        # Small cache mapping (location_id, route_id, {all product routes}) -> stock.rule.
-        # This reduces calls to _get_rules_from_location for products without routes and products with the same routes.
+        # Cache rules per (location, route, product routes) to avoid repeated calls to
+        # _get_rules_from_location for products sharing the same routes.
         rules_cache = {}
         for orderpoint in orderpoints_to_compute:
             all_product_routes = (
@@ -872,8 +863,8 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_qty_to_order_computed(self):
         def to_compute(orderpoint):
             rounding = orderpoint.product_uom.rounding
-            # The check is on purpose. We only want to consider the horizon days if the forecast is negative and
-            # there is already something to resupply base on lead times.
+            # Only extend to the lead-time horizon when the plain forecast is already
+            # below product_min_qty; otherwise there is nothing to resupply.
             return (
                 orderpoint.id
                 and float_compare(
@@ -926,8 +917,7 @@ class StockWarehouseOrderpoint(models.Model):
         return self.env["stock.route"]
 
     def _get_replenishment_multiple_alternative(self, qty_to_order):
-        """
-        This method is used to get the alternative replenishment_uom_id for the orderpoint if not set manually.
+        """Return a fallback replenishment UoM when replenishment_uom_id isn't set manually.
         To be overridden in relevant modules.
         """
         return False
@@ -940,8 +930,8 @@ class StockWarehouseOrderpoint(models.Model):
         if qty_in_progress is None:
             qty_in_progress = self._quantity_in_progress()[self.id]
         rounding = self.product_uom.rounding
-        # The check is on purpose. We only want to consider the horizon days if the forecast is negative and
-        # there is already something to resupply base on lead times.
+        # Only extend to the lead-time horizon when the plain forecast is already below
+        # product_min_qty; otherwise there is nothing to resupply.
         if (
             float_compare(
                 self.qty_forecast,
@@ -979,14 +969,15 @@ class StockWarehouseOrderpoint(models.Model):
         }
 
     def _get_orderpoint_action(self):
-        """Create manual orderpoints for missing product in each warehouses. It also removes
-        orderpoints that have been replenish. In order to do it:
-        - It uses the report.stock.quantity to find missing quantity per product/warehouse
-        - It checks if orderpoint already exist to refill this location.
-        - It checks if it exists other sources (e.g RFQ) tha refill the warehouse.
-        - It creates the orderpoints for missing quantity that were not refill by an upper option.
+        """Create manual orderpoints for products projected to run short in replenishable
+        locations, and remove auto-created orderpoints that have already been resolved.
 
-        return replenish report ir.actions.act_window
+        For each product/location, the projected quantity (on hand + incoming - outgoing,
+        re-evaluated over each product's lead-time horizon) is netted against quantities
+        already covered by other sources (e.g. RFQs) or by other orderpoints on the same
+        product/location, before creating or updating orderpoints for the remaining shortage.
+
+        :return: the replenishment report action.
         """
 
         def is_parent_path_in(resupply_loc, path_dict, record_loc):
@@ -999,16 +990,14 @@ class StockWarehouseOrderpoint(models.Model):
             "stock.action_orderpoint_replenish",
         )
         action["context"] = self.env.context
-        # Search also with archived ones to avoid to trigger product_location_check SQL constraints later
-        # It means that when there will be a archived orderpoint on a location + product, the replenishment
-        # report won't take in account this location + product and it won't create any manual orderpoint
-        # In master: the active field should be remove
+        # Include archived orderpoints too: an archived orderpoint on a product/location still
+        # counts against the unique product_location_check constraint, so ignoring it here would
+        # make us try to create a duplicate manual orderpoint for that same product/location.
         orderpoints = (
             self.env["stock.warehouse.orderpoint"]
             .with_context(active_test=False)
             .search([])
         )
-        # Remove previous automatically created orderpoint that has been refilled.
         orderpoints_removed = orderpoints._unlink_processed_orderpoints()
         orderpoints = orderpoints - orderpoints_removed
         if self.env.context.get("force_orderpoint_recompute", False):
@@ -1018,7 +1007,6 @@ class StockWarehouseOrderpoint(models.Model):
         all_product_ids = self._get_orderpoint_products()
         all_replenish_location_ids = self._get_orderpoint_locations()
         ploc_per_day = defaultdict(set)
-        # For each replenish location get products with negative virtual_available aka forecast
 
         Move = self.env["stock.move"].with_context(active_test=False)
         Quant = self.env["stock.quant"].with_context(active_test=False)
@@ -1104,7 +1092,8 @@ class StockWarehouseOrderpoint(models.Model):
                         loc,
                     ].add(product.id)
 
-        # recompute virtual_available with lead days
+        # Refine the shortage with virtual_available bounded by each product's actual lead-time
+        # horizon, instead of the unbounded sum of all pending moves used above.
         today = fields.Datetime.now().replace(hour=23, minute=59, second=59)
         product_ids = set()
         location_ids = set()
@@ -1132,7 +1121,6 @@ class StockWarehouseOrderpoint(models.Model):
             ._get_quantity_in_progress(location_ids=location_ids)[0]
         )
         rounding = self.env["decimal.precision"].precision_get("Product Unit")
-        # Group orderpoint by product-location
         orderpoint_by_product_location = self.env[
             "stock.warehouse.orderpoint"
         ]._read_group(
@@ -1146,11 +1134,12 @@ class StockWarehouseOrderpoint(models.Model):
         }
         for (product, location), product_qty in to_refill.items():
             qty_in_progress = qty_by_product_loc.get((product, location)) or 0.0
+            # Also net out other orderpoints' pending qty_to_order on this product/location,
+            # so their planned replenishment isn't counted again as a shortage here.
             qty_in_progress += orderpoint_by_product_location.get(
                 (product, location),
                 0.0,
             )
-            # Add qty to order for other orderpoint under this location.
             if not qty_in_progress:
                 continue
             to_refill[product, location] = product_qty + qty_in_progress
@@ -1250,13 +1239,17 @@ class StockWarehouseOrderpoint(models.Model):
         return False
 
     def _quantity_in_progress(self):
-        """Return Quantities that are not yet in virtual stock but should be deduced from orderpoint rule
-        (example: purchases created from orderpoints)
+        """Return, per orderpoint id, the quantity not yet reflected in virtual stock but
+        already accounted for by this rule (e.g. purchases created from orderpoints).
+        To be overridden; returns 0 for all orderpoints by default.
         """
         return dict(self.mapped(lambda x: (x.id, 0.0)))
 
     @api.autovacuum
     def _unlink_processed_orderpoints(self):
+        """Delete auto-created manual orderpoints (create_uid=SUPERUSER_ID) that no longer
+        have anything to order, i.e. the shortage they were created for has been resolved.
+        """
         domain = Domain(
             [
                 ("create_uid", "=", SUPERUSER_ID),
@@ -1273,14 +1266,12 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints_to_remove = manual_orderpoints.filtered(
             lambda o: o.qty_to_order <= 0.0,
         )
-        # Remove previous automatically created orderpoint that has been refilled.
         orderpoints_to_remove.unlink()
         return orderpoints_to_remove
 
     def _prepare_procurement_vals(self, date=False):
-        """Prepare specific key for moves or other components that will be created from a stock rule
-        comming from an orderpoint. This method could be override in order to add other custom key that could
-        be used in move/po creation.
+        """Prepare procurement values for the stock rule triggered by this orderpoint.
+        Can be overridden to add custom keys used in move/PO creation.
         """
         date_deadline = date or fields.Date.today()
         dates_info = self.product_id._get_dates_info(
@@ -1454,7 +1445,8 @@ class StockWarehouseOrderpoint(models.Model):
             or self._get_replenishment_multiple_alternative(qty_to_order)
         )
         if replenishment_multiple:
-            # Replace the UP by DOWN if we don't want to order more quantity than product_max_qty
+            # Round UP so the ordered qty fully covers the shortage (use DOWN instead if
+            # overshooting product_max_qty must be avoided).
             qty_to_order = self.product_id.uom_id._compute_quantity(
                 qty_to_order,
                 replenishment_multiple,
@@ -1471,10 +1463,9 @@ class StockWarehouseOrderpoint(models.Model):
         return qty_to_order
 
     def get_horizon_days(self):
-        """Return the value for Horizon. This can be (in order of priority):
-        - the value set in context in the replenishment view
-        - the value set on the company of the all the records in self. There should be at most 1 company_id on self.
-        - the value set on the company of the user if all else fail.
+        """Return the horizon in days: the context value set by the replenishment view if
+        present, otherwise the horizon_days of self's company (self should have at most one
+        company), falling back to the current user's company.
         """
         return self.env.context.get(
             "global_horizon_days",

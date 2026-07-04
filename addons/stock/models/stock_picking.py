@@ -389,8 +389,8 @@ class StockPicking(models.Model):
                 if picking_type.sequence_id:
                     vals["name"] = picking_type.sequence_id.next_by_id()
 
-            # make sure to write `schedule_date` *after* the `stock.move` creation in
-            # order to get a determinist execution of `_inverse_date_planned`
+            # Defer writing `date_planned` until after the moves are created, so
+            # `_inverse_date_planned` runs deterministically on a fully-formed picking.
             date_planneds.append(vals.pop("date_planned", False))
 
         pickings = super().create(vals_list)
@@ -428,7 +428,6 @@ class StockPicking(models.Model):
         if vals.get("signature"):
             for picking in self:
                 picking._attach_sign()
-        # Change locations of moves if those of the picking change
         after_vals = {}
         if vals.get("location_id"):
             after_vals["location_id"] = vals["location_id"]
@@ -437,6 +436,7 @@ class StockPicking(models.Model):
         if "partner_id" in vals:
             after_vals["partner_id"] = vals["partner_id"]
         if after_vals:
+            # Scrap moves (dest usage "inventory") keep their own location, so exclude them.
             self.move_ids.filtered(
                 lambda move: move.location_dest_usage != "inventory",
             ).write(after_vals)
@@ -527,10 +527,10 @@ class StockPicking(models.Model):
         other_pickings.products_availability_state = False
 
         all_moves = pickings.move_ids
-        # Force to prefetch more than 1000 by 1000
+        # Compute forecast_availability for all moves in one batch instead of the default prefetch chunking.
         all_moves._fields["forecast_availability"].compute_value(all_moves)
         for picking in pickings:
-            # In case of draft the behavior of forecast_availability is different : if forecast_availability < 0 then there is a issue else not.
+            # For draft moves, forecast_availability is only checked against 0, not the full demand.
             if any(
                 move.product_id
                 and move.product_id.uom_id.compare(
@@ -760,7 +760,6 @@ class StockPicking(models.Model):
     )
     def _compute_shipping_weight(self):
         for picking in self:
-            # if shipping weight is not assigned => default to calculated product weight
             shipping_weight = picking.weight_bulk
             relevant_packages = (
                 picking.move_line_ids.result_package_id.outermost_package_id
@@ -770,6 +769,7 @@ class StockPicking(models.Model):
                 if package.shipping_weight:
                     shipping_weight += package.shipping_weight
                 else:
+                    # No explicit shipping weight on the package: fall back to its computed product weight.
                     shipping_weight += packages_weight.get(package, 0)
             picking.shipping_weight = shipping_weight
 
@@ -830,9 +830,7 @@ class StockPicking(models.Model):
 
     @api.depends("state", "move_ids.product_uom_qty", "picking_type_code")
     def _compute_show_check_availability(self):
-        """According to `picking.show_check_availability`, the "check availability" button will be
-        displayed in the form view of a picking.
-        """
+        """Whether the "Check Availability" button should be shown on the picking form."""
         for picking in self:
             if picking.state not in ("confirmed", "waiting", "assigned"):
                 picking.show_check_availability = False
@@ -993,21 +991,15 @@ class StockPicking(models.Model):
 
     def action_confirm(self):
         self._check_company()
-        # call `_action_confirm` on every draft move
         self.move_ids.filtered(lambda move: move.state == "draft")._action_confirm()
 
-        # run scheduler for moves forecasted to not have enough in stock
         self.move_ids.filtered(
             lambda move: move.state not in ("draft", "cancel", "done"),
         )._trigger_scheduler()
         return True
 
     def action_assign(self):
-        """Check availability of picking moves.
-        This has the effect of changing the state and reserve quants on available moves, and may
-        also impact the state of the picking as it is computed based on move's states.
-        @return: True
-        """
+        """Reserve quants for the picking's moves, updating move (and thus picking) state."""
         self.filtered(lambda picking: picking.state == "draft").action_confirm()
         moves = self.move_ids.filtered(
             lambda move: move.state not in ("draft", "cancel", "done"),
@@ -1132,19 +1124,16 @@ class StockPicking(models.Model):
             ):
                 move.quantity = move.product_uom_qty
 
-        # Sanity checks.
         if not self.env.context.get("skip_sanity_check", False):
             self._sanity_check()
 
-        # Run the pre-validation wizards. Processing a pre-validation wizard should work on the
-        # moves and/or the context and never call `_action_done`.
+        # Pre-validation wizards must only touch moves/context, never call `_action_done` themselves.
         if not self.env.context.get("button_validate_picking_ids"):
             self = self.with_context(button_validate_picking_ids=self.ids)
         res = self._pre_action_done_hook()
         if res is not True:
             return res
 
-        # Call `_action_done`.
         pickings_not_to_backorder = self.filtered(
             lambda p: p.picking_type_id.create_backorder == "never",
         )
@@ -1505,26 +1494,9 @@ class StockPicking(models.Model):
 
     @api.model
     def date_category_to_domain(self, field_name, date_category):
-        """
-        Given a date category, returns a list of tuples of operator and value
-        that can be used in a domain to filter records based on their scheduled date.
-
-        Args:
-            date_category (str): The date category to use for the computation.
-                Allowed values are:
-                * "before"
-                * "yesterday"
-                * "today"
-                * "day_1"
-                * "day_2"
-                * "after"
-
-        Returns:
-            a list of tuples:
-                each tuple consists of an operator and a value that can be used in
-                a domain to filter records based on their scheduled date.
-                The operator can be "<" or ">=". The value is a datetime object.
-                If an incorrect date category is passed, this method returns None.
+        """Build a domain on `field_name` matching the given date category (one of "before",
+        "yesterday", "today", "day_1", "day_2", "after"; see `calculate_date_category`).
+        Returns None if `date_category` is not one of these.
         """
         start_today = fields.Datetime.context_timestamp(
             self.env.user,
@@ -1554,18 +1526,9 @@ class StockPicking(models.Model):
 
     @api.model
     def calculate_date_category(self, datetime):
-        """
-        Assigns given datetime to one of the following categories:
-        - "before"
-        - "yesterday"
-        - "today"
-        - "day_1" (tomorrow)
-        - "day_2" (the day after tomorrow)
-        - "after"
-
-        The categories are based on current user's timezone (e.g. "today" will last
-        between 00:00 and 23:59 local time). The datetime itself is assumed to be
-        in UTC. If the datetime is falsy, this function returns "".
+        """Classify `datetime` (assumed UTC) as "before", "yesterday", "today", "day_1"
+        (tomorrow), "day_2" or "after", relative to the current user's timezone.
+        Returns "" if `datetime` is falsy.
         """
         start_today = fields.Datetime.context_timestamp(
             self.env.user,
@@ -1715,7 +1678,6 @@ class StockPicking(models.Model):
         """
 
         def get_relevant_move_line_ids(none_done_picking_ids, picking):
-            # Get all move_lines if picking has no quantity set, otherwise only get the move_lines with some quantity set.
             if picking.id in none_done_picking_ids:
                 return picking.move_line_ids.filtered(
                     lambda ml: ml.product_id and ml.product_id.tracking != "none",
@@ -1723,7 +1685,6 @@ class StockPicking(models.Model):
             return get_line_with_done_qty_ids(picking.move_line_ids)
 
         def get_line_with_done_qty_ids(move_lines):
-            # Get only move_lines that has some quantity set.
             return move_lines.filtered(
                 lambda ml: ml.product_id
                 and ml.product_id.tracking != "none"
@@ -1732,7 +1693,6 @@ class StockPicking(models.Model):
             ).ids
 
         if separate_pickings:
-            # If pickings are checked independently, get full/partial move_lines depending if each picking has no quantity set.
             lines_to_check_ids = [
                 line_id
                 for picking in self
@@ -1742,7 +1702,7 @@ class StockPicking(models.Model):
                 )
             ]
         else:
-            # If pickings are checked as one (like in a batch), then get only the move_lines with quantity across all pickings if there is at least one.
+            # Checked as one group (e.g. a batch): only fall back to all move lines if none has any quantity set.
             if any(picking.id not in none_done_picking_ids for picking in self):
                 lines_to_check_ids = get_line_with_done_qty_ids(self.move_line_ids)
             else:
@@ -1905,12 +1865,8 @@ class StockPicking(models.Model):
         return report_actions
 
     def _get_impacted_pickings(self, moves):
-        """This function is used in _log_less_quantities_than_expected
-        the purpose is to notify a user with all the pickings that are
-        impacted by an action on a chained move.
-        param: 'moves' contain moves that belong to a common picking.
-        return: all the pickings that contain a destination moves
-        (direct and indirect) from the moves given as arguments.
+        """Return all pickings reached by following `moves`' destination moves,
+        direct and indirect (used to notify users impacted by a chained move change).
         """
 
         def _explore(impacted_pickings, explored_moves, moves_to_explore):
@@ -1970,29 +1926,17 @@ class StockPicking(models.Model):
         stream,
         groupby_method=False,
     ):
-        """Generic method to log activity. To use with
-        _log_activity method. It either log on uppermost
-        ongoing documents or following documents. This method
-        find all the documents and responsible for which a note
-        has to be log. It also generate a rendering_context in
-        order to render a specific note by documents containing
-        only the information relative to the document it. For example
-        we don't want to notify a picking on move that it doesn't
-        contain.
+        """Find the (document, responsible) pairs to notify for the given changes, following
+        either the upstream ("UP") or downstream ("DOWN") documents, and build a rendering
+        context per document containing only the changes relevant to it (e.g. a picking is
+        only notified about the moves it actually contains).
 
-        :param dict orig_obj_changes: contain a record as key and the
-            change on this record as value.
-            eg: {'move_id': (new product_uom_qty, old product_uom_qty)}
-        :param str stream_field: It has to be a field of the
-            records that are register in the key of 'orig_obj_changes'
-            eg: 'move_dest_ids' if we use move as record (previous example)
-                - 'UP' if we want to log on the upper most ongoing
-                documents.
-                - 'DOWN' if we want to log on following documents.
-        :param str stream: ``'UP'`` or ``'DOWN'``
-        :param groupby_method: Only need when
-            stream is 'DOWN', it should group by tuple(object on
-            which the activity is log, the responsible for this object)
+        :param dict orig_obj_changes: record -> change on that record, e.g. {move: (new_qty, old_qty)}
+        :param str stream_field: field on the `orig_obj_changes` records to follow, e.g. 'move_dest_ids'
+        :param str stream: ``'UP'`` (log on the topmost ongoing document) or ``'DOWN'`` (log on
+            the following documents)
+        :param groupby_method: required when `stream` is 'DOWN'; groups objects by
+            (document to log on, responsible for that document)
         """
         if self.env.context.get("skip_activity"):
             return {}
@@ -2046,7 +1990,6 @@ class StockPicking(models.Model):
             if not parent:
                 continue
             moves = self.env[moves[0]._name].concat(*moves)
-            # Get the note
             rendering_context = {
                 move: (orig_object, orig_obj_changes[orig_object])
                 for move in moves
@@ -2062,23 +2005,12 @@ class StockPicking(models.Model):
         return documents
 
     def _log_activity(self, render_method, documents):
-        """Log a note for each documents, responsible pair in
-        documents passed as argument. The render_method is then
-        call in order to use a template and render it with a
-        rendering_context.
+        """Schedule a warning activity on each (document, responsible) pair in `documents`,
+        with the note rendered by `render_method(rendering_context)`.
 
-        :param dict documents: A tuple (document, responsible) as key.
-            An activity will be log by key. A rendering_context as value.
-            If used with _log_activity_get_documents. In 'DOWN' stream
-            cases the rendering_context will be a dict with format:
-            {'stream_object': ('orig_object', new_qty, old_qty)}
-            'UP' stream will add all the documents browsed in order to
-            get the final/upstream document present in the key.
-        :param callable render_method: a static function that will generate
-            the html note to log on the activity. The render_method should
-            use the args:
-                - rendering_context dict: value of the documents argument
-            the render_method should return a string with an html format
+        :param dict documents: (document, responsible) -> rendering_context, as returned by
+            `_log_activity_get_documents`
+        :param callable render_method: rendering_context -> html note string
         """
         for (parent, responsible), rendering_context in documents.items():
             note = render_method(rendering_context)
@@ -2090,23 +2022,18 @@ class StockPicking(models.Model):
             )
 
     def _log_less_quantities_than_expected(self, moves):
-        """Log an activity on picking that follow moves. The note
-        contains the moves changes and all the impacted picking.
+        """Log an activity on the pickings that follow `moves`, noting the quantity changes
+        and any picking impacted by them.
 
-        :param dict moves: a dict with a move as key and tuple with
-        new and old quantity as value. eg: {move_1 : (4, 5)}
+        :param dict moves: move -> (new_qty, old_qty)
         """
 
         def _keys_in_groupby(move):
-            """Group by picking and the responsible for the product the
-            move.
-            """
+            """Group by picking and the product's responsible."""
             return (move.picking_id, move.product_id.responsible_id)
 
         def _render_note_exception_quantity(rendering_context):
-            """:param rendering_context:
-            {'move_dest': (move_orig, (new_qty, old_qty))}
-            """
+            """:param rendering_context: {move_dest: (move_orig, (new_qty, old_qty))}"""
             origin_moves = self.env["stock.move"].browse(
                 [
                     move.id
@@ -2190,7 +2117,9 @@ class StockPicking(models.Model):
         return backorder_pickings
 
     def _check_entire_pack(self):
-        """This function check if entire packs are moved in the picking"""
+        """Detect entire packages being moved and set their move lines' result package
+        (and `is_entire_pack`) accordingly, unless the package type is reusable.
+        """
         for package, package_move_lines in self.move_line_ids.grouped(
             "package_id"
         ).items():
@@ -2241,7 +2170,7 @@ class StockPicking(models.Model):
             picking.has_scrap_move = picking._origin in result
 
     def _is_single_transfer(self):
-        # Overriden for batches.
+        # Overridden in stock.picking.batch, where a "single transfer" means a single picking.
         return len(self) == 1
 
     def _is_to_external_location(self):

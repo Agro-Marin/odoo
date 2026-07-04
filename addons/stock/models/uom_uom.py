@@ -16,7 +16,7 @@ class UomUom(models.Model):
     )
 
     def write(self, vals):
-        # Users can not update the factor if open stock moves are based on it
+        # Block conversion-ratio changes once moves/reservations/quants already depend on it.
         keys_to_protect = {"factor", "relative_factor", "relative_uom_id"}
         if any(key in vals for key in keys_to_protect):
             changed = self.filtered(
@@ -70,8 +70,8 @@ class UomUom(models.Model):
         return super().write(vals)
 
     def _adjust_uom_quantities(self, qty, quant_uom):
-        """This method adjust the quantities of a procurement if its UoM isn't the same
-        as the one of the quant and the parameter 'propagate_uom' is not set.
+        """Convert the procurement quantity to the quant's UoM, unless the
+        'stock.propagate_uom' system parameter forces keeping the procurement's own UoM.
         """
         procurement_uom = self
         computed_qty = qty
