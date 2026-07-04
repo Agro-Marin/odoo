@@ -56,7 +56,7 @@ from odoo.tools import OrderedSet, config
 
 # Process-control helpers and cron timing constants (see ``_cron`` and ``_helpers``).
 from ._cron import arm_cron_listen, drain_cron_notifies, order_notified_first
-from ._env import env_float
+from ._env import env_float, env_int
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
@@ -418,21 +418,42 @@ class WorkerCron(Worker):
         self._sleep_with_watchdog(backoff)
 
     def _connect_postgres(self) -> None:
-        """Open (or reopen) the persistent postgres connection used for LISTEN."""
+        """Open (or reopen) the persistent postgres connection used for LISTEN.
+
+        Atomic: the new cursor and selector are built in locals and only
+        published to ``self.dbcursor`` / ``self._pg_selector`` once every step
+        (connect, ``arm_cron_listen``, commit, selector registration) has
+        succeeded.  If any step raises (PG restart mid-``LISTEN``), the
+        half-open cursor is torn down and ``self.dbcursor`` keeps its prior
+        value — so the next ``process_work`` cycle sees the old, closed
+        connection, re-enters the reconnect path, and retries, instead of being
+        left with a live-but-not-listening connection paired with a selector
+        watching a stale fd (which would silently drop NOTIFY-driven cron and
+        risk an ``EBADF`` from ``sleep``'s ``select``).
+        """
         dbconn = db.db_connect("postgres")
-        self.dbcursor = dbconn.cursor()
-        # Arm LISTEN cron_trigger (no-op on a replica).  disable_idle_timeout:
-        # this connection sits idle by design waiting for NOTIFY and must
-        # survive PG 18's default idle-session reaper.
-        arm_cron_listen(self.dbcursor, self.logger, disable_idle_timeout=True)
-        self.dbcursor.commit()
-        # Rebuild the selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
-        # Called on initial connect and on reconnect after connection loss.
+        cursor = dbconn.cursor()
+        try:
+            # Arm LISTEN cron_trigger (no-op on a replica).  disable_idle_timeout:
+            # this connection sits idle by design waiting for NOTIFY and must
+            # survive PG 18's default idle-session reaper.
+            arm_cron_listen(cursor, self.logger, disable_idle_timeout=True)
+            cursor.commit()
+            # Selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
+            selector = selectors.DefaultSelector()
+            selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
+            selector.register(cursor.connection, selectors.EVENT_READ)
+        except Exception:
+            with contextlib.suppress(Exception):
+                cursor.connection.close()
+            with contextlib.suppress(Exception):
+                cursor.close()
+            raise
+        # All steps succeeded — publish atomically, closing the prior selector.
         if hasattr(self, "_pg_selector"):
             self._pg_selector.close()
-        self._pg_selector = selectors.DefaultSelector()
-        self._pg_selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
-        self._pg_selector.register(self.dbcursor.connection, selectors.EVENT_READ)
+        self.dbcursor = cursor
+        self._pg_selector = selector
 
     def process_work(self) -> None:
         """Process a single database."""
@@ -508,8 +529,17 @@ class WorkerCron(Worker):
         del self._selector
         if self.multi.socket:
             self.multi.socket.close()
-        if registries_size := os.environ.get("ODOO_REGISTRY_LRU_SIZE_CRON"):
-            Registry.registries.count = int(registries_size)
+        # ``env_int`` (not a raw ``int(...)``): a malformed or non-positive
+        # value would raise here — ``int("garbage")`` is ``ValueError`` and the
+        # ``LRU.count`` setter rejects <= 0 — killing the worker at boot and
+        # letting the master respawn it in a loop.  Guard-parse like every
+        # other ODOO_* knob; anything that doesn't yield a positive int keeps
+        # the default LRU size.
+        registries_size = env_int(
+            "ODOO_REGISTRY_LRU_SIZE_CRON", 0, minimum=0, logger=self.logger
+        )
+        if registries_size > 0:
+            Registry.registries.count = registries_size
 
         # Retry the initial PG connect with exponential backoff: booting while
         # PG is down would otherwise raise straight out of ``Worker.run()`` and

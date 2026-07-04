@@ -101,6 +101,8 @@ def prefork_server(srv):
     obj.population = 4
     obj.logger = MagicMock()
     obj.workers = {}
+    obj.long_polling_pid = None
+    obj.long_polling_spawn_time = 0.0
     # Fork-storm respawn-throttle state (consumed by process_zombie ->
     # _note_worker_exit and process_spawn).
     obj._consecutive_fast_deaths = 0
@@ -1160,17 +1162,75 @@ class TestPreforkRespawnBackoff:
         assert prefork_server._consecutive_fast_deaths == 2
         assert prefork_server._respawn_not_before == 555.0
 
-    def test_signal_killed_young_worker_not_counted(self, prefork_server):
-        # SIGKILL (watchdog timeout / graceful-stop escalation): WIFEXITED False.
+    def test_external_sigkill_young_worker_arms_backoff(self, prefork_server):
+        # A SIGKILL reaching _note_worker_exit with the worker STILL registered
+        # is external — the cgroup OOM-killer and ``kill -9`` both use signal 9.
+        # (The master's own watchdog SIGKILL worker_pop's the worker BEFORE it is
+        # reaped, so it never gets here — covered by test_unknown_pid_ignored.)
+        # An OOM crash-on-boot storm under a too-tight MemoryMax must arm the
+        # throttle, exactly like a segfault.
         prefork_server._consecutive_fast_deaths = 0
+        before = time.monotonic()
         self._worker(prefork_server, 8, age_s=1.0)
-        prefork_server._note_worker_exit(8, signal.SIGKILL)  # signalled, not exited
+        prefork_server._note_worker_exit(8, signal.SIGKILL)
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > before
+
+    def test_sigterm_killed_young_worker_not_counted(self, prefork_server):
+        # SIGTERM (final stop): master-initiated, excluded like SIGKILL.
+        prefork_server._consecutive_fast_deaths = 0
+        self._worker(prefork_server, 81, age_s=1.0)
+        prefork_server._note_worker_exit(81, signal.SIGTERM)
         assert prefork_server._consecutive_fast_deaths == 0
+
+    def test_segfault_young_worker_arms_backoff(self, prefork_server):
+        # A native crash (SIGSEGV/SIGABRT/OOM-kill) is a boot crash, not a
+        # master-initiated kill — it MUST arm the throttle, or a crash-on-boot
+        # C-extension storm dying by signal would refill its slot undetected.
+        prefork_server._consecutive_fast_deaths = 0
+        before = time.monotonic()
+        self._worker(prefork_server, 82, age_s=0.0)
+        prefork_server._note_worker_exit(82, signal.SIGSEGV)
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > before
 
     def test_unknown_pid_ignored(self, prefork_server):
         prefork_server._consecutive_fast_deaths = 1
         prefork_server._note_worker_exit(99999, 1 << 8)  # not in self.workers
         assert prefork_server._consecutive_fast_deaths == 1
+
+    def test_long_polling_young_crash_arms_backoff(self, prefork_server):
+        """The evented subprocess has no other respawn backoff: a young crash
+        (e.g. gevent_port already bound -> exit 1) must arm the shared throttle
+        so ``process_spawn`` stops exec-storming replacements."""
+        prefork_server.long_polling_pid = 4321
+        prefork_server.long_polling_spawn_time = time.monotonic() - 1.0
+        before = time.monotonic()
+        prefork_server._note_worker_exit(4321, 1 << 8)  # exited, code 1
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > before
+
+    def test_long_polling_clean_young_exit_neither_arms_nor_clears(
+        self, prefork_server
+    ):
+        """A clean exit 0 (EventServer memory-limit self-recycle) is not a
+        crash — but it must not reset a genuine worker crash streak either."""
+        prefork_server._consecutive_fast_deaths = 2
+        prefork_server.long_polling_pid = 4321
+        prefork_server.long_polling_spawn_time = time.monotonic() - 1.0
+        prefork_server._note_worker_exit(4321, 0)  # exit 0
+        assert prefork_server._consecutive_fast_deaths == 2
+
+    def test_long_polling_healthy_lifetime_clears_throttle(self, prefork_server):
+        prefork_server._consecutive_fast_deaths = 3
+        prefork_server._respawn_not_before = time.monotonic() + 100
+        prefork_server.long_polling_pid = 4321
+        prefork_server.long_polling_spawn_time = (
+            time.monotonic() - _prefork.WORKER_MIN_HEALTHY_LIFETIME_S - 5
+        )
+        prefork_server._note_worker_exit(4321, 1 << 8)
+        assert prefork_server._consecutive_fast_deaths == 0
+        assert prefork_server._respawn_not_before == 0.0
 
     def test_process_spawn_skips_during_backoff(self, prefork_server):
         prefork_server._respawn_not_before = time.monotonic() + 100
@@ -1179,6 +1239,39 @@ class TestPreforkRespawnBackoff:
         prefork_server.process_spawn()
         prefork_server.worker_spawn.assert_not_called()
         prefork_server.long_polling_spawn.assert_not_called()
+
+    def test_fork_oserror_returns_none_and_releases_pipes(
+        self, prefork_server, monkeypatch
+    ):
+        """A transient ``os.fork()`` failure (EAGAIN/ENOMEM) must not propagate
+        to the master's main loop (which would stop the supervisor).  It returns
+        None and releases the pipe fds the worker allocated."""
+        prefork_server.generation = 0
+        fake_worker = MagicMock()
+        klass = MagicMock(return_value=fake_worker)
+        monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EAGAIN")))
+        result = prefork_server.worker_spawn(klass, {})
+        assert result is None
+        fake_worker.close.assert_called_once()
+        assert prefork_server.workers == {}
+
+    def test_long_polling_spawn_oserror_does_not_propagate(
+        self, prefork_server, monkeypatch
+    ):
+        """A transient ``subprocess.Popen`` failure in ``long_polling_spawn``
+        must NOT propagate to the master loop (which would stop the supervisor).
+        It swallows the OSError and leaves ``long_polling_pid`` unset so the next
+        ``process_spawn`` cycle retries — mirroring the ``os.fork()`` guard in
+        ``worker_spawn``."""
+        prefork_server.long_polling_pid = None
+        monkeypatch.setattr(
+            _prefork.subprocess,
+            "Popen",
+            MagicMock(side_effect=OSError("EAGAIN")),
+        )
+        # Must not raise.
+        prefork_server.long_polling_spawn()
+        assert prefork_server.long_polling_pid is None
 
 
 class TestPreforkGracefulStopEscalation:
@@ -1213,6 +1306,26 @@ class TestPreforkGracefulStopEscalation:
 
         assert (321, signal.SIGKILL) in killed
         assert not prefork_server.workers  # loop drained, no infinite spin
+
+    def test_stop_timeout_env_override(self, monkeypatch):
+        """``ODOO_GRACEFUL_STOP_TIMEOUT`` raises the SIGKILL deadline for
+        deployments with long ``limit_time_real``; floored at 1s so "0" cannot
+        disable the escalation and reintroduce the infinite drain loop."""
+        logger = MagicMock()
+        monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "300")
+        assert _prefork._graceful_stop_timeout(logger) == 300.0
+        monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "0")
+        assert _prefork._graceful_stop_timeout(logger) == 1.0
+        monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "garbage")
+        assert (
+            _prefork._graceful_stop_timeout(logger)
+            == _prefork.GRACEFUL_STOP_TIMEOUT_S
+        )
+        monkeypatch.delenv("ODOO_GRACEFUL_STOP_TIMEOUT")
+        assert (
+            _prefork._graceful_stop_timeout(logger)
+            == _prefork.GRACEFUL_STOP_TIMEOUT_S
+        )
 
 
 # ---------------------------------------------------------------------------

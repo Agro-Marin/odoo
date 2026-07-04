@@ -57,6 +57,13 @@ def exp_authenticate(
     # db_connect; non-dict ``user_agent_env`` leaks TypeError from {**env, ...}.
     if not isinstance(db, str) or not db:
         return False
+    if not isinstance(login, str) or not isinstance(password, str):
+        # ``login``/``password`` were the only inputs left unchecked.  A non-str
+        # value can raise a type other than ``AccessDenied`` from deep inside
+        # ``authenticate`` (e.g. a ``TypeError``), which would leak a
+        # distinguishable exception to an unauthenticated caller and break the
+        # "every failure collapses to False" invariant this function documents.
+        return False
     if user_agent_env is None:
         user_agent_env = {}
     elif not isinstance(user_agent_env, dict):

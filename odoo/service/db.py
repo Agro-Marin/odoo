@@ -678,6 +678,13 @@ def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
         )
 
 
+# Grace (seconds) between the stall timer's SIGTERM and its follow-up SIGKILL
+# in ``_run_pg_dump_streaming``.  A backstop for a pg_dump that ignores SIGTERM,
+# not a user-tuning surface — kept small and fixed so a wedged dump can't hold a
+# worker much past the total timeout.
+_STALL_SIGKILL_GRACE_S = 10.0
+
+
 def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None:
     """Stream a custom-format ``pg_dump`` to ``stream`` while draining stderr.
 
@@ -719,6 +726,27 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         )
         with suppress(ProcessLookupError):
             proc.terminate()
+        # Escalate to SIGKILL if SIGTERM does not unblock the copy.  The
+        # SIGTERM -> wait -> SIGKILL ladder in the ``finally`` below only runs
+        # AFTER ``copyfileobj`` returns — i.e. only after stdout EOFs.  But a
+        # pg_dump wedged uninterruptibly (or ignoring SIGTERM) never EOFs
+        # stdout, so ``copyfileobj`` would block forever and that ladder would
+        # never run, degrading the documented hard wall-clock ceiling to a
+        # single best-effort signal.  Forcing SIGKILL here (from the Timer
+        # thread) makes stdout EOF, unblocking the copy so the ``finally`` can
+        # reap.  Concurrent ``proc.wait`` from the copy thread's ``finally`` is
+        # safe — CPython serialises waits and caches the returncode.  This makes
+        # the streaming path match the blocking path's ``subprocess.run(
+        # timeout=...)`` kill-and-reap guarantee.
+        try:
+            proc.wait(timeout=_STALL_SIGKILL_GRACE_S)
+        except subprocess.TimeoutExpired:
+            _logger.error(
+                "pg_dump ignored SIGTERM %.0fs after stall; sending SIGKILL",
+                _STALL_SIGKILL_GRACE_S,
+            )
+            with suppress(ProcessLookupError):
+                proc.kill()
 
     stall_timer = threading.Timer(total_timeout, _kill_on_stall)
     stall_timer.daemon = True
@@ -750,7 +778,12 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
                 proc.kill()
                 proc.wait()
     stderr_output = b"".join(stderr_chunks)
-    if stall_killed[0]:
+    if stall_killed[0] and proc.returncode != 0:
+        # ``and proc.returncode != 0``: the stall timer and a clean finish can
+        # race — pg_dump can reach stdout EOF (returncode 0) at the same instant
+        # the timer fires and sets ``stall_killed``.  A genuine stall kill leaves
+        # a signal returncode (negative), so gating on a non-zero exit keeps a
+        # successful dump from being reported as a spurious timeout.
         # Typed error so callers can distinguish "stalled" from "non-zero exit".
         raise RuntimeError(
             f"pg_dump exceeded {total_timeout:.0f}s wall-clock timeout and was "
@@ -903,6 +936,11 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
         data_file.close()
         restore_db(db_name, data_file.name, copy=copy)
     finally:
+        # Close before unlinking: on the decode-error path (malformed base64
+        # from an RPC client) the ``data_file.close()`` above is skipped, so the
+        # fd would leak until GC.  ``close()`` is idempotent, so calling it again
+        # on the success path is harmless.
+        data_file.close()
         # ``missing_ok`` so a racing deletion (e.g. tmp cleaner, concurrent
         # admin action) cannot replace a successful restore with a spurious
         # FileNotFoundError from the finally block.
@@ -993,7 +1031,15 @@ def restore_db(
             else:
                 # <= 7.0 format (raw pg_dump output)
                 pg_cmd = "pg_restore"
-                pg_args = ["--no-owner", dump_file]
+                # ``--exit-on-error`` for the same reason the zip path passes
+                # ``psql -v ON_ERROR_STOP=1``: pg_restore's DEFAULT is to
+                # CONTINUE past per-statement errors and still exit 0, which
+                # would restore a partially-populated database that the
+                # ``r.returncode != 0`` guard below never catches — a silent
+                # partial restore reported as success.  The target is a fresh
+                # empty DB (``_create_empty_database`` above), so a clean dump
+                # produces no errors and this only bites a genuinely broken one.
+                pg_args = ["--no-owner", "--exit-on-error", dump_file]
 
             _timeout = _pg_restore_total_timeout()
             try:

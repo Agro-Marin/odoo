@@ -13,6 +13,7 @@ operator-facing name, or omit it to parse silently.
 from __future__ import annotations
 
 import logging
+import math
 import os
 
 
@@ -64,6 +65,20 @@ def _parse(
         if logger is not None:
             logger.warning(
                 "%s=%r is not %s; using default %s", name, raw, label, default
+            )
+        return default
+    # ``float("nan")`` / ``float("inf")`` parse successfully but slip past both
+    # the fallback above and the ``value < minimum`` clamp below (every
+    # comparison with nan is False, and inf is never below a finite minimum), so
+    # a garbage ``ODOO_*=nan`` would propagate a non-finite timeout/interval to
+    # ``socket.settimeout`` etc. and crash far from the config point.  Treat
+    # non-finite as garbage.  (``int`` never yields non-finite, so this only
+    # bites the float path.)
+    if conv is float and not math.isfinite(value):
+        if logger is not None:
+            logger.warning(
+                "%s=%r is not a finite %s; using default %s",
+                name, raw, label, default,
             )
         return default
     if minimum is not None and value < minimum:

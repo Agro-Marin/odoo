@@ -2,7 +2,12 @@
 
 * ``ThreadedServer`` — the default single-process server: a threaded werkzeug
   WSGI server plus in-process cron threads.
-* ``EventServer`` — the gevent/evented long-polling server.
+* ``EventServer`` — the evented/websocket long-polling server, run as the
+  dedicated ``odoo-bin evented`` subprocess in prefork mode.  Despite the
+  legacy naming around it (``gevent_port``, ``limit_memory_soft_gevent`` —
+  kept for operator-config compatibility), this fork dropped gevent: it is a
+  plain threaded werkzeug server whose requests hold the socket open for
+  websocket traffic.
 
 Both subclass ``CommonServer`` (``_base_server.py``).
 """
@@ -41,6 +46,15 @@ from .lifecycle import preload_registries
 from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
+
+# Cadence of the main-loop limit monitor (``process_limit``) while no limit is
+# currently breached.  Decoupled from ``SLEEP_INTERVAL`` (60 s), which made
+# ``limit_time_real`` / memory-soft-limit enforcement up to a full minute late
+# in threaded mode; the check itself is microseconds (``threading.enumerate``
+# plus one ``/proc`` RSS read), so a 5 s cadence costs nothing measurable —
+# the prefork master polls its workers every 4 s (``beat``) for the same job.
+# Once a breach IS detected, ``run()`` switches to its own 1 s drain loop.
+LIMIT_MONITOR_INTERVAL_S = 5.0
 
 
 class ThreadedServer(CommonServer):
@@ -407,7 +421,7 @@ class ThreadedServer(CommonServer):
                     else:
                         time.sleep(1)
                 else:
-                    time.sleep(SLEEP_INTERVAL)
+                    time.sleep(LIMIT_MONITOR_INTERVAL_S)
         except KeyboardInterrupt:
             pass
 
@@ -453,8 +467,11 @@ class EventServer(CommonServer):
 
     def process_limits(self) -> None:
         restart = False
-        if self.ppid != os.getppid():
-            self.logger.warning("Parent changed: %s", self.pid)
+        new_ppid = os.getppid()
+        if self.ppid != new_ppid:
+            # Log the reparenting itself (old -> new ppid), not ``self.pid``
+            # which is unchanged and useless for diagnosing what happened.
+            self.logger.warning("Parent changed: %s -> %s", self.ppid, new_ppid)
             restart = True
         limit_memory_soft = (
             config["limit_memory_soft_gevent"] or config["limit_memory_soft"]

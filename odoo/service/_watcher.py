@@ -58,19 +58,6 @@ import odoo.addons  # noqa: E402
 _logger = logging.getLogger("odoo.service.server")  # operator log-config preserved
 
 
-def _trigger_restart() -> None:
-    """Call ``lifecycle.restart()`` via lazy import to avoid an import cycle.
-
-    ``lifecycle`` imports this module, so importing it back at top level would
-    cycle.  The per-call lookup is cheap — restart fires once per source edit.
-    """
-    from . import lifecycle
-
-    if not lifecycle.server_phoenix:
-        _logger.info("autoreload: python code updated, autoreload activated")
-        lifecycle.restart()
-
-
 class FSWatcherBase:
     """Common file-change handler for both backends.
 
@@ -102,7 +89,10 @@ class FSWatcherBase:
                 from . import lifecycle
 
                 if not lifecycle.server_phoenix:
-                    _trigger_restart()
+                    _logger.info(
+                        "autoreload: python code updated, autoreload activated"
+                    )
+                    lifecycle.restart()
                     return True
         return None
 
