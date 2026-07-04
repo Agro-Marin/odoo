@@ -22,6 +22,7 @@ without an HTTP stack, a registry, or a database.
 from __future__ import annotations
 
 import inspect
+import math
 import types
 import typing
 from typing import Any, NamedTuple
@@ -127,7 +128,13 @@ def _to_bool(name: str, value: Any) -> bool:
 
 def _coerce_scalar(name: str, value: Any, target: type) -> Any:
     if target is str:
-        return value if isinstance(value, str) else str(value)
+        if isinstance(value, str):
+            return value
+        # A JSON object/array for a str param would silently arrive as its
+        # Python ``repr`` — never what the caller meant; reject it instead.
+        if isinstance(value, (dict, list)):
+            raise BadRequest(f"parameter {name!r} must be a string")
+        return str(value)
     if target is bool:
         return _to_bool(name, value)
     if target is int:
@@ -135,17 +142,28 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
         # error, not silently 1.
         if isinstance(value, bool):
             raise BadRequest(f"parameter {name!r} must be an integer")
+        # ``int(3.7)`` truncates: a fractional JSON number for an int param is
+        # a caller bug, not a value to round silently. Integral floats (JS
+        # clients serialize 3 as 3.0) are accepted.
+        if isinstance(value, float) and not value.is_integer():
+            raise BadRequest(f"parameter {name!r} must be an integer")
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             raise BadRequest(f"parameter {name!r} must be an integer") from None
     if target is float:
         if isinstance(value, bool):
             raise BadRequest(f"parameter {name!r} must be a number")
         try:
-            return float(value)
-        except (TypeError, ValueError):
+            result = float(value)
+        except TypeError, ValueError:
             raise BadRequest(f"parameter {name!r} must be a number") from None
+        # ``float("nan")`` / ``float("inf")`` parse from a query string but are
+        # never a meaningful request value: NaN poisons comparisons downstream
+        # and neither round-trips through JSON. Fail closed.
+        if not math.isfinite(result):
+            raise BadRequest(f"parameter {name!r} must be a finite number")
+        return result
     return value  # unreachable: build_param_specs only stores primitives
 
 
