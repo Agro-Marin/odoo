@@ -108,7 +108,9 @@ class IrRule(models.Model):
         # Both sudos are intentional anti-recursion guards: loading ir.rules
         # must not itself trigger rule evaluation (infinite loop). Rules are
         # loaded with elevated access, then user groups are checked in Python.
-        Model = for_records.browse(()).sudo()
+        # disable active_test so rule evaluation considers inactive records;
+        # otherwise archived records are missed and failing rules are misreported
+        Model = for_records.browse(()).sudo().with_context(active_test=False)
         eval_context = self._eval_context()
 
         all_rules = self._get_rules(Model._name, mode=mode).sudo()
