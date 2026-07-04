@@ -12,7 +12,9 @@ The odoo.netsvc module is a backward-compatibility shim that re-exports from her
 """
 
 import contextlib
+import json
 import logging
+import logging.config
 import logging.handlers
 import os
 import platform
@@ -226,6 +228,75 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
+class JSONFormatter(logging.Formatter):
+    """Format log records as JSON, for structured/ingestible logs.
+
+    Reference it from a ``--log-config`` dictConfig as a handler's formatter,
+    e.g. ``{"()": "odoo.logutils.JSONFormatter"}``.
+    """
+
+    def __init__(
+        self, *args, record_keys=None, ignore_record_keys=None, **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.record_keys = record_keys
+        if ignore_record_keys is not None:
+            self.ignore_record_keys = set(ignore_record_keys)
+        else:
+            # keep only the lowest-level key to avoid duplicated information:
+            # 'message' is derived from msg+args, but once the args are
+            # stringified into JSON it can no longer be reformatted, so we keep
+            # the formatted message rather than msg/args.
+            self.ignore_record_keys = {
+                "msecs",  # derived from created
+                "relativeCreated",  # derived from created
+                "asctime",  # derived from created
+                "filename",  # derived from pathname
+                "module",  # derived from filename (pathname)
+                "msg",  # formatted in message
+                "args",  # formatted in message
+            }
+
+    def format(self, record: logging.LogRecord) -> str:
+        record_json = {}
+        record_keys = self.record_keys
+        if record_keys is None:
+            record_keys = self._get_default_record_keys(record)
+        for key in record_keys:
+            if key == "exc_info":
+                if record.exc_info:
+                    if not record.exc_text:
+                        record.exc_text = self.formatException(record.exc_info)
+                    record_json[key] = record.exc_text
+            elif key == "stack_info":
+                if record.stack_info:
+                    record_json[key] = self.formatStack(record.stack_info)
+            elif key == "message":
+                record.message = record.getMessage()
+                record_json[key] = record.message
+            elif key == "asctime":
+                record.asctime = self.formatTime(record, self.datefmt)
+                record_json[key] = record.asctime
+            elif key == "test":
+                from .modules import module
+
+                if module.current_test:
+                    with contextlib.suppress(Exception):
+                        record_json[key] = module.current_test.get_log_metadata()
+            else:
+                value = getattr(record, key, None)
+                if value is not None:
+                    record_json[key] = value
+
+        return json.dumps(record_json, default=str)
+
+    def _get_default_record_keys(self, record: logging.LogRecord) -> list:
+        # parenthesised so ignore_record_keys applies to the whole set (the
+        # unparenthesised upstream form binds '-' before '|', leaving the
+        # ignored msg/args/... keys in the output)
+        return list((record.__dict__.keys() | {"message"}) - self.ignore_record_keys)
+
+
 class LogRecord(logging.LogRecord):
     def __init__(
         self,
@@ -341,6 +412,18 @@ def init_logger() -> None:
     from .tools.translate import resetlocale
 
     resetlocale()
+
+    log_config = tools.config["log_config"]
+    if log_config:
+        with Path(log_config).open("rb") as fobj:
+            conf = json.load(fobj)
+            # loggers are created at import time; disabling existing loggers
+            # would silence everything created before this config is loaded
+            conf["disable_existing_loggers"] = False
+        logging.config.dictConfig(conf)
+        # unless the config opts back in, its handlers fully replace Odoo's
+        if not conf.get("keep_odoo_default", False):
+            return
 
     # create a format for log messages and dates
     format = "%(asctime)s %(pid)s %(levelname)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
