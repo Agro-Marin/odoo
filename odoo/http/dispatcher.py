@@ -97,7 +97,7 @@ class Dispatcher(ABC):
             set_header("Access-Control-Max-Age", CORS_MAX_AGE)
             set_header(
                 "Access-Control-Allow-Headers",
-                "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+                "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
             )
             # ``abort`` raises an HTTPException carrying our 204; _serve.py
             # catches it (``code is None`` branch), runs ``post_dispatch`` to add
