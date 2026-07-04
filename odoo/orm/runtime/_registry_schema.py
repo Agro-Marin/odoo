@@ -104,12 +104,26 @@ class _RegistrySchemaMixin(_RegistryStubs):
         if not expected:
             return
 
-        # retrieve existing indexes with their corresponding table
+        # retrieve existing indexes with their table and access method, scoped
+        # to the current schema (a same-named index in another schema is not
+        # ours). The access method lets us detect an index whose kind no longer
+        # matches the field (e.g. btree left behind after index='trigram').
         cr.execute(
-            "SELECT indexname, tablename FROM pg_indexes WHERE indexname = ANY(%s)",
+            """
+            SELECT idx.relname, tbl.relname, am.amname
+              FROM pg_index ix
+              JOIN pg_class idx ON idx.oid = ix.indexrelid
+              JOIN pg_class tbl ON tbl.oid = ix.indrelid
+              JOIN pg_am am ON am.oid = idx.relam
+             WHERE idx.relname = ANY(%s)
+               AND idx.relnamespace = current_schema::regnamespace
+            """,
             [[row[0] for row in expected]],
         )
-        existing = dict(cr.fetchall())
+        existing = {
+            indexname: (tablename, method)
+            for indexname, tablename, method in cr.fetchall()
+        }
 
         for indexname, tablename, field in expected:
             index = field.index
@@ -121,16 +135,29 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 False,
                 None,
             )
-            if index and indexname not in existing:
-                if index == "trigram" and not self.has_trigram:
-                    # Ignore if trigram index is not supported
-                    continue
-                if field.translate and index != "trigram":
-                    _schema.warning(
-                        f"Index attribute on {field!r} ignored, only trigram index is supported for translated fields"
-                    )
-                    continue
 
+            if index and field.translate and index != "trigram":
+                _schema.warning(
+                    f"Index attribute on {field!r} ignored, only trigram index is supported for translated fields"
+                )
+                continue
+
+            # whether the field should be backed by an index, and the access
+            # method (gin for trigram, btree otherwise) it is expected to use
+            will_index = bool(index) and (
+                (not field.translate and index != "trigram")
+                or (index == "trigram" and self.has_trigram)
+            )
+            if indexname in existing:
+                # the index already exists; rebuild it only when its access
+                # method is stale (the field changed its index kind)
+                expected_method = "gin" if index == "trigram" else "btree"
+                stale = existing[indexname][1] != expected_method
+                will_index = will_index and stale
+            else:
+                stale = False
+
+            if will_index:
                 column_expression = f'"{field.name}"'
                 if index == "trigram":
                     if field.translate:
@@ -167,6 +194,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
                     )
                 try:
                     with cr.savepoint(flush=False):
+                        # drop the stale index in the same savepoint as the
+                        # recreation, so a failed rebuild rolls the drop back
+                        # and never leaves the column unindexed
+                        if stale:
+                            sql.drop_index(cr, indexname, tablename)
                         sql.create_index(
                             cr,
                             indexname,
@@ -178,7 +210,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 except psycopg.OperationalError:
                     _schema.error("Unable to add index %r for %s", indexname, self)
 
-            elif not index and tablename == existing.get(indexname):
+            elif not index and tablename == existing.get(indexname, (None, None))[0]:
                 _schema.info(
                     "Keep unexpected index %s on table %s", indexname, tablename
                 )

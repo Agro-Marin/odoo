@@ -6,6 +6,7 @@ from . import (
     test_env_operations,
     test_fields,
     test_hotpath_contracts,
+    test_index_method,
     test_indexed_translation,
     test_json_field,
     test_json_field_operations,

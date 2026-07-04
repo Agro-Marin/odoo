@@ -116,6 +116,10 @@ class _RegistryFieldsMixin(_RegistryStubs):
             # may be missing from these maps
             self.field_depends.pop(f, None)
 
+        # discard the fields from the setup-dependents map too, so removed
+        # custom fields don't leak and duplicate across successive setups
+        self.field_setup_dependents.discard_keys_and_values(fields)
+
         # Invalidate every field-derived cached_property so each rebuilds on next
         # access. ``_field_triggers`` reads ``field_inverses``/``field_computed``,
         # so stale caches there would feed it bad data.
