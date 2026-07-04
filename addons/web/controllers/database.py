@@ -6,7 +6,7 @@ import tempfile
 
 from lxml import html
 from werkzeug.datastructures import (
-    FileStorage,  # noqa: TC002 — runtime import required (PEP 649)
+    FileStorage,
 )
 
 import odoo
@@ -237,9 +237,12 @@ class Database(http.Controller):
         copy: bool | str = False,
         neutralize_database: bool | str = False,
     ) -> str | Response:
-        self._handle_insecure_password(master_pwd)
         tmp_path = None
         try:
+            # Inside the try so a failure here (e.g. the admin-password upgrade
+            # hitting the minimum-length rule) is logged and surfaced as a
+            # restore error instead of escaping as an unlogged 500.
+            self._handle_insecure_password(master_pwd)
             db.check_super(master_pwd)
             if not re.match(DBNAME_PATTERN, name):
                 raise ValueError(
@@ -288,7 +291,7 @@ class Database(http.Controller):
     # builtin in the class scope where PEP 649 evaluates ``__annotate__``,
     # so an unquoted ``list[str]`` resolves to the method and raises
     # ``TypeError: 'function' object is not subscriptable`` on Python 3.14.
-    def list(self) -> "list[str]":
+    def list(self) -> list[str]:
         """List available databases; used by the Mobile app.
 
         :return: list of database names
