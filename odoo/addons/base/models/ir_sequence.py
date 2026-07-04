@@ -392,7 +392,7 @@ class IrSequence(models.Model):
             return self._next_do()
         # date mode
         dt = sequence_date or self.env.context.get(
-            "ir_sequence_date", fields.Date.today()
+            "ir_sequence_date", fields.Datetime.now()
         )
         seq_date = self.env["ir.sequence.date_range"].search(
             [
@@ -404,7 +404,14 @@ class IrSequence(models.Model):
         )
         if not seq_date:
             seq_date = self._create_date_range_seq(dt)
-        return seq_date.with_context(ir_sequence_date_range=seq_date.date_from)._next()
+        # pass the full datetime (tz stripped) as ir_sequence_date so time-based
+        # placeholders (%(h24)s, %(min)s, ...) in the prefix/suffix interpolate
+        # against the sequence's own date, not datetime.now()
+        ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
+        return seq_date.with_context(
+            ir_sequence_date_range=seq_date.date_from,
+            ir_sequence_date=ir_sequence_date,
+        )._next()
 
     def next_by_id(self, sequence_date: Any = None) -> str:
         """Draw an interpolated string using the specified sequence."""

@@ -594,6 +594,9 @@ class ResCompany(models.Model):
             and not self.env.context.get(
                 "install_mode"
             )  # due to savepoint when importing the file
+            and not self.env.context.get(
+                "import_file"
+            )  # same: button_immediate_install commits, erasing import savepoints
         )
         if uninstalled_modules and is_ready_and_not_test:
             return uninstalled_modules.button_immediate_install()

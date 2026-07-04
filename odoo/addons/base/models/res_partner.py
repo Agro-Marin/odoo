@@ -510,13 +510,16 @@ class ResPartner(models.Model):
     def _compute_lang(self) -> None:
         """While creating / updating child contact, take the parent lang by
         default if any. Otherwise, fallback to default context / DB lang"""
-        partners = self.filtered("parent_id")
-        if not partners:
+        if not self:
             return
         # default_get does not depend on the partner; compute it once.
         default_lang = self.default_get(["lang"]).get("lang")
-        for partner in partners:
-            partner.lang = partner.parent_id.lang or default_lang or self.env.lang
+        for partner in self:
+            if partner.parent_id:
+                partner.lang = partner.parent_id.lang or default_lang or self.env.lang
+            elif not partner.lang:
+                # parent-less contacts (e.g. m2o quick-create) still get a lang
+                partner.lang = default_lang or self.env.lang
 
     @api.depends("lang")
     def _compute_active_lang_count(self) -> None:
@@ -1278,7 +1281,7 @@ class ResPartner(models.Model):
             updated = {
                 fname: fvalue
                 for fname, fvalue in vals.items()
-                if partner[fname] != pre_values[fname]
+                if partner[fname] != pre_values.get(fname)
             }
             if updated:
                 partner._fields_sync(updated)
@@ -1297,7 +1300,7 @@ class ResPartner(models.Model):
         # due to ir.default, compute is not called as there is a default value
         # hence calling the compute manually
         for partner, values in zip(partners, vals_list, strict=True):
-            if "lang" not in values and partner.parent_id:
+            if "lang" not in values:
                 partner._compute_lang()
 
         if self.env.context.get("_partners_skip_fields_sync"):
