@@ -84,6 +84,15 @@ def patch_module(name: str) -> None:
     module = importlib.import_module(f".{name}", __name__)
     patch = getattr(module, "patch_module", None)
     if not callable(patch):
+        # A patch submodule that imports its own target at top level (e.g.
+        # ``import bs4`` in bs4.py) re-enters this hook while the submodule is
+        # still initializing, before its ``patch_module()`` is defined. Skip the
+        # re-entrant call instead of raising on the half-built module: at runtime
+        # the target is first imported by application code (not by the patch
+        # submodule), so the patch is applied through that non-re-entrant path.
+        spec = getattr(module, "__spec__", None)
+        if spec is not None and getattr(spec, "_initializing", False):
+            return
         # Fail loud and actionable at startup rather than with a bare
         # AttributeError from deep in the import machinery: every submodule here
         # is, by contract (see README.md), a patch for the third-party/stdlib
