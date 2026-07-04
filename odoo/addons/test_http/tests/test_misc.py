@@ -309,7 +309,7 @@ class TestHttpCors(TestHttpBase):
         )  # one day
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
         )
 
         res_get = self.url_open("/test_http/cors_http_default")
@@ -335,7 +335,7 @@ class TestHttpCors(TestHttpBase):
         )  # one day
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
         )
 
         res_post = self.url_open("/test_http/cors_http_methods")
@@ -359,7 +359,7 @@ class TestHttpCors(TestHttpBase):
         )  # one day
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
         )
 
         res_post = self.url_open(
