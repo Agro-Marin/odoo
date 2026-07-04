@@ -2,13 +2,13 @@
 
 Receives Core Web Vitals beacons from ``services/web_vitals/web_vitals_service.js``
 and persists them to ``web.cwv.metric`` for dashboards (list/pivot/graph views
-under Settings → Technical → Core Web Vitals).  A short ``[cwv]`` INFO log line
-is also emitted per beacon as an ops-debug signal that does not require a DB
-query to inspect.
+under Settings → Technical → Performance → Core Web Vitals).  A short ``[cwv]``
+INFO log line is also emitted per beacon as an ops-debug signal that does not
+require a DB query to inspect.
 
 Recommendation #9 in
 ``knowledge/research/2026-04-28-web-module-js-architecture-assessment.md`` —
-Phase 1 (this controller, Phase 1) + Phase 2 (queryable model + dashboard).
+Phase 1 (this controller) + Phase 2 (queryable model + dashboard).
 """
 
 import logging
@@ -80,10 +80,6 @@ class Observability(Controller):
         token (no header control on the Blob path).  The endpoint is purely
         write-only and the validation drops malformed input, so the lack of
         CSRF here does not expand the attack surface meaningfully.
-
-        The model write goes through ``sudo()`` because beacons can arrive
-        from anonymous frontend visitors who don't have create access on
-        ``web.cwv.metric`` — this is a write-only endpoint by design.
         """
         try:
             payload = json_loads(request.httprequest.data or b"{}")

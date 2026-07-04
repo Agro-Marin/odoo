@@ -4,7 +4,7 @@ Covered:
 - binary.py  : company_logo fallback always serves logo.png (imgext mutation bug)
 - database.py: restore() logs exceptions via _logger.exception()
 - export.py  : groupby field validation returns clean error instead of raw KeyError
-- home.py    : _is_local_url() rejects /\\ open-redirect bypass
+- home.py    : web_client() rejects /\\ open-redirect bypass via _is_local_url()
 - pivot.py   : negative measure_count/width are clamped to 0
 - report.py  : invalid barcode → HTTP 400 (BadRequest), not malformed HTTPException
 - json_helpers.py: get_groupby default_group_by returns (None, [field]) without dead branch
@@ -86,7 +86,9 @@ class TestWebClientOpenRedirect(HttpCase):
     """home.py web_client() previously used bare urlsplit() which misses /\\ bypass."""
 
     def test_backslash_redirect_rejected(self):
-        """'/\\\\evil.com' must not be followed: browsers normalise '\\\\' to '/' giving '//evil.com'."""
+        """A leading backslash must not be followed: browsers normalise it to '/', turning
+        '/\\evil.com' into the protocol-relative '//evil.com'.
+        """
         self.authenticate("admin", "admin")
         # %2F%5C = /\ (URL-encoded)
         response = self.url_open(
@@ -114,17 +116,15 @@ class TestCompanyLogoFallback(TransactionCase):
     def test_fallback_uses_hardcoded_logo_png(self):
         """When send_file raises after imgext is mutated to '.svg', fallback must use logo.png.
 
-        The bug: file_path(f"web/static/img/{imgname}{imgext}") with imgext=".svg" →
+        Bug: file_path(f"web/static/img/{imgname}{imgext}") with imgext=".svg" raises
         FileNotFoundError inside the except handler (logo.svg does not exist).
-        The fix: hardcoded file_path("web/static/img/logo.png").
+        Fix: hardcoded file_path("web/static/img/logo.png").
 
-        This code-structure test directly verifies that the correct literal string is used,
-        avoiding the complexity of driving the HTTP path with an SVG-bearing company.
+        Checks the source directly rather than driving the HTTP path with an
+        SVG-bearing company, which would require a heavier fixture.
         """
         source = inspect.getsource(Binary.company_logo)
-        # Fix present: hardcoded fallback
         self.assertIn('file_path("web/static/img/logo.png")', source)
-        # Bug absent: imgext variable not used in fallback expression
         self.assertNotIn(
             'file_path(f"web/static/img/{imgname}{imgext}")',
             source,
@@ -243,7 +243,9 @@ class TestIsLocalUrl(BaseCase):
 
 @tagged("web_controllers_audit")
 class TestJsonHelpers(TransactionCase):
-    """Unit tests for json_helpers.py helper functions."""
+    """Regression tests for get_groupby's dead-branch removal and
+    get_view_id_and_type's return-type fix.
+    """
 
     def test_get_groupby_with_default_group_by(self):
         """get_groupby returns (None, [field]) for a view with default_group_by attribute.
@@ -280,7 +282,7 @@ class TestJsonHelpers(TransactionCase):
         """get_view_id_and_type returns (False, view_type) when no specific view is set.
 
         Return type annotation was corrected from tuple[int | None, str] to
-        tuple[int | bool, str] to reflect Odoo's 'False = no ID' convention.
+        tuple[int | Literal[False], str] to reflect Odoo's 'False = no ID' convention.
         """
         from odoo.addons.web.controllers.json_helpers import get_view_id_and_type
 

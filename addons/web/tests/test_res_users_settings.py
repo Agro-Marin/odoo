@@ -25,9 +25,9 @@ class TestResUsersSettings(TransactionCase):
         )
 
     def test_fields_validity_embedded_action_settings(self):
-        """
-        Test that the embedded actions fields 'embedded_actions_order' and 'embedded_actions_visibility' are valid
-        and raise ValidationError when necessary.
+        """Raise ValidationError for malformed ``embedded_actions_order``/
+        ``embedded_actions_visibility`` values: duplicated ids, or ids that
+        are neither integers nor ``"false"``.
         """
         embedded_action_settings_data = {
             "user_setting_id": self.user_settings.id,
@@ -91,9 +91,6 @@ class TestResUsersSettings(TransactionCase):
             )
 
     def test_set_and_get_embedded_action_settings(self):
-        """
-        Test setting and getting embedded action settings.
-        """
         settings_vals = {
             "embedded_actions_order": [False, 1, 2, 3],
             "embedded_actions_visibility": [2, False, 3],
@@ -107,7 +104,6 @@ class TestResUsersSettings(TransactionCase):
                 "res_model": "res.users",
             },
         )
-        # Check if the setting is correctly created
         embedded_actions_config = self.user_settings.embedded_actions_config_ids
         self.assertEqual(
             len(embedded_actions_config),
@@ -144,7 +140,6 @@ class TestResUsersSettings(TransactionCase):
             True,
             "The embedded visibility should be True.",
         )
-        # Check if the settings are correctly formatted from the getter
         embedded_settings = self.user_settings.get_embedded_actions_settings()
         expected_settings = {
             f"{self.window_action.id}+{self.user.id}": settings_vals,
@@ -155,7 +150,6 @@ class TestResUsersSettings(TransactionCase):
             "The settings should be correctly formatted with the given values.",
         )
 
-        # Edit the settings
         new_settings_vals = {
             "embedded_actions_order": [3, 1, False, 2],
             "embedded_actions_visibility": [1, 3],
@@ -166,7 +160,6 @@ class TestResUsersSettings(TransactionCase):
             res_id=self.user.id,
             vals=new_settings_vals,
         )
-        # Check if the setting is correctly updated
         embedded_actions_config = self.user_settings.embedded_actions_config_ids
         self.assertEqual(
             len(embedded_actions_config),
@@ -203,7 +196,6 @@ class TestResUsersSettings(TransactionCase):
             False,
             "The embedded visibility should be updated to False.",
         )
-        # Check if the settings are correctly formatted after the update
         embedded_settings = self.user_settings.get_embedded_actions_settings()
         expected_settings = {
             f"{self.window_action.id}+{self.user.id}": new_settings_vals,

@@ -31,7 +31,8 @@ class Export(http.Controller):
     def formats(self) -> list[dict[str, Any]]:
         """Return all valid export formats.
 
-        :returns: for each export format, a pair of identifier and printable name
+        :returns: for each export format, a dict with its identifier, printable
+            name and, for XLSX, an error message if the format is unavailable
         :rtype: list[dict]
         """
         try:
@@ -66,7 +67,8 @@ class Export(http.Controller):
                 Model._fields[definition_record].comodel_name
             ].sudo()
             domain_definition = [(definition_record_field, "!=", False)]
-            # Depends of the records selected to avoid showing useless Properties
+            # Restrict to property definitions actually used by the selected
+            # records, so unused properties aren't offered for export.
             if domain:
                 self_subquery = Model.with_context(active_test=False)._search(domain)
                 field_to_get = Model._field_to_sql(
@@ -178,7 +180,8 @@ class Export(http.Controller):
                 and import_compat
                 and parent_field_type in ["many2one", "many2many"]
             ):
-                # Add name field when expand m2o and m2m fields in import-compatible mode
+                # In import-compatible mode, a m2o/m2m's "name" field is the
+                # relation's own import path, not path + "/name".
                 val = prefix
             name = parent_name + ((parent_name and "/") or "") + field["string"]
             field_dict = {
@@ -279,7 +282,6 @@ class Export(http.Controller):
 class ExportFormat:
     @property
     def content_type(self) -> str:
-        """Provide the format's content type."""
         raise NotImplementedError
 
     @property
@@ -287,7 +289,7 @@ class ExportFormat:
         raise NotImplementedError
 
     def filename(self, base: str) -> str:
-        """Create a filename *without extension* for the item / format of model *base*."""
+        """Return the export filename, without extension, for model *base*."""
         if base not in request.env:
             return base
 
@@ -302,10 +304,9 @@ class ExportFormat:
     ) -> str | bytes:
         """Convert Odoo's export data to the current format's output.
 
-        :params list fields: a list of fields to export
-        :params list rows: a list of records to export
-        :returns:
-        :rtype: bytes
+        :param fields: field metadata to export
+        :param columns_headers: header label for each field
+        :param rows: exported values, one row per record
         """
         raise NotImplementedError
 
@@ -363,7 +364,6 @@ class ExportFormat:
                 domain, groupby, ["__count", "id:array_agg"]
             )
 
-            # Build a map from record ID to its export rows
             record_rows = {}
             current_id = None
             for row in export_data:
@@ -372,23 +372,19 @@ class ExportFormat:
                     record_rows[current_id] = []
                 record_rows[current_id].append(row[1:])
 
-            # To preserve the natural model order, base the data order on the result of `export_data`,
-            # which comes from a `Model.search`
-
-            # 1. Map each record ID to its group index
+            # Preserve the order records were fetched in (browse/search above)
+            # rather than the group order, by indexing rows through `export_data`.
             groups = [group["id:array_agg"] for group in groups_data]
             record_to_group = defaultdict(list)
             for group_index, group_record_ids in enumerate(groups):
                 for record_id in group_record_ids:
                     record_to_group[record_id].append(group_index)
 
-            # 2. Iterate on the result of `export_data` and assign each data to its right group
             grouped_rows = [[] for _ in groups]
             for record_id, rows in record_rows.items():
                 for group_index in record_to_group[record_id]:
                     grouped_rows[group_index].extend(rows)
 
-            # 3. Insert one leaf per group, providing the group information and its data
             for group_info, group_rows in zip(groups_data, grouped_rows, strict=True):
                 tree.insert_leaf(group_info, group_rows)
 

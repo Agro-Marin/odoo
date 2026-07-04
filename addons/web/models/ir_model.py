@@ -68,7 +68,7 @@ class IrModel(models.Model):
             model = self.env.get(model_name)
             if model is None:
                 continue
-            # get fields, relational fields are kept only if the related model is in model_names
+            # Keep relational fields only when their related model is also in model_names
             fields_data_by_fname = {
                 fname: field_data
                 for fname, field_data in model.fields_get(

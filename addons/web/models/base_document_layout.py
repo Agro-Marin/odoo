@@ -80,7 +80,7 @@ class BaseDocumentLayout(models.TransientModel):
     )
     is_company_details_empty = fields.Boolean(compute="_compute_empty_company_details")
 
-    # The paper format changes won't be reflected in the preview.
+    # Not in _compute_preview's @api.depends, so changing it does not refresh the preview.
     paperformat_id = fields.Many2one(
         related="company_id.paperformat_id",
         readonly=False,
@@ -105,9 +105,11 @@ class BaseDocumentLayout(models.TransientModel):
         readonly=False,
     )
     report_layout_id = fields.Many2one("report.layout")
-    # All the sanitization get disabled as we want true raw html to be passed to an iframe.
+    # sanitize=False: the raw HTML is rendered directly in an iframe.
     preview = fields.Html(compute="_compute_preview", sanitize=False)
-    # Those following fields are required as a company to create invoice report
+    # Report templates render `self` as the `company` variable (see
+    # _get_render_information); these related fields make that stand-in look
+    # enough like a res.company for the report to render.
     partner_id = fields.Many2one(related="company_id.partner_id", readonly=True)
     phone = fields.Char(related="company_id.phone", readonly=True)
     email = fields.Char(related="company_id.email", readonly=True)
@@ -126,7 +128,7 @@ class BaseDocumentLayout(models.TransientModel):
         for wizard in self:
             logo_primary = wizard.logo_primary_color or ""
             logo_secondary = wizard.logo_secondary_color or ""
-            # Force lower case on color to ensure that FF01AA == ff01aa
+            # Compare case-insensitively: FF01AA and ff01aa are the same color.
             wizard.custom_colors = (
                 wizard.logo
                 and wizard.primary_color
@@ -161,7 +163,7 @@ class BaseDocumentLayout(models.TransientModel):
         "company_details",
     )
     def _compute_preview(self) -> None:
-        """compute a qweb based preview to display on the wizard"""
+        """Render the QWeb-based preview shown on the wizard."""
         styles = self._get_asset_style()
 
         for wizard in self:
@@ -195,7 +197,9 @@ class BaseDocumentLayout(models.TransientModel):
         for wizard in self:
             wizard.logo = wizard.company_id.logo
             wizard.report_header = wizard.company_id.report_header
-            # company_details and report_footer can store empty strings (set by the user) or false (meaning the user didn't set a value). Since both are falsy values, we use isinstance of string to differentiate them
+            # report_footer/company_details are False when unset by the user, or
+            # "" when explicitly cleared; both are falsy, so isinstance(str) is
+            # the only way to tell "explicitly empty" from "not set".
             wizard.report_footer = (
                 wizard.company_id.report_footer
                 if isinstance(wizard.company_id.report_footer, str)
@@ -248,9 +252,10 @@ class BaseDocumentLayout(models.TransientModel):
     @api.onchange("logo")
     def _onchange_logo(self) -> None:
         for wizard in self:
-            # It is admitted that if the user puts the original image back, it won't change colors
             company = wizard.company_id
-            # at that point wizard.logo has been assigned the value present in DB
+            # Known limitation: if the user restores the original logo and the
+            # company already had colors set, wizard.logo now equals the
+            # persisted company.logo again, so this skips recomputing colors.
             if (
                 wizard.logo == company.logo
                 and company.primary_color
@@ -286,7 +291,7 @@ class BaseDocumentLayout(models.TransientModel):
             # Defensive: a non-text logo (e.g. memoryview) would crash the
             # padding/concat below, which runs *before* the try/except guard.
             return False, False
-        # Ensure correct base64 padding (must be multiple of 4)
+        # base64 requires padding to a multiple of 4.
         padding = -len(logo) % 4
         logo += b"=" * padding if isinstance(logo, bytes) else "=" * padding
         try:
@@ -321,7 +326,7 @@ class BaseDocumentLayout(models.TransientModel):
             and color[1][3] > 0
         ]
 
-        if not colors:  # May happen when the whole image is white
+        if not colors:  # e.g. an all-white or fully transparent image
             return False, False
         primary, remaining = tools.average_dominant_color(colors, mitigate=mitigate)
         secondary = (
@@ -379,8 +384,9 @@ class BaseDocumentLayout(models.TransientModel):
 
     @api.depends("company_details")
     def _compute_empty_company_details(self) -> None:
-        # In recent change when an html field is empty a <p> balise remains with a <br> in it,
-        # but when company details is empty we want to put the info of the company
+        # An "empty" HTML field still contains a stray "<p><br></p>" (truthy
+        # but visually blank), so strip tags to detect real emptiness. Report
+        # templates use this to fall back to the company's address block.
         for record in self:
             record.is_company_details_empty = not html2plaintext(
                 record.company_details or ""

@@ -60,7 +60,8 @@ class DataSet(http.Controller):
         if path != f"{model}.{method}":
             threading.current_thread().rpc_model_method = f"{model}.{method}"
         action = call_kw(request.env[model], method, args, kwargs)
-        # type="" is a sentinel meaning "no action"; absent type gets defaulted to act_window_close
+        # type="" is a sentinel meaning "no action"; a dict with no "type" key
+        # gets one defaulted to act_window_close by clean_action()
         if isinstance(action, dict) and action.get("type") != "":
             return clean_action(action, env=request.env)
         return False

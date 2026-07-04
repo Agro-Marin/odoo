@@ -12,8 +12,9 @@ from odoo.addons.http_routing.tests.common import MockRequest
 @odoo.tests.tagged("web_http", "web_report")
 class TestReports(odoo.tests.HttpCase):
     def test_report_session_cookie(self):
-        """Asserts the PDF engine forwards the user session when requesting resources from Odoo, such as images,
-        and that the resource is correctly returned as expected.
+        """Verify the PDF engine fetches embedded resources (e.g. images) under
+        the printing user's own session: as admin it gets the image, as the
+        public user it is denied, matching each user's actual access.
         """
         partner_id = self.env.user.partner_id.id
         img = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
@@ -83,7 +84,10 @@ class TestReports(odoo.tests.HttpCase):
             report.with_context(force_report_rendering=True)._render_qweb_pdf(
                 report.id, [partner_id]
             )
-        # Check that no device logs have been generated
+        # The PDF fetcher opens a temp session to self-fetch the image; it must
+        # keep _trace_disable set on that session, otherwise the different
+        # user-agent fingerprint would fail to match the existing trace and
+        # insert a phantom res.device.log row on every report render.
         admin_device_log_count_after = self.env["res.device.log"].search_count(
             [("user_id", "=", admin.id)]
         )
@@ -122,7 +126,7 @@ class TestReports(odoo.tests.HttpCase):
             report.with_context(force_report_rendering=True)._render_qweb_pdf(
                 report.id, [partner_id]
             )
-        # Check that no device logs have been generated
+        # Same phantom-device-log guard as above, for the public (unauthenticated) case.
         public_device_log_count_after = self.env["res.device.log"].search_count(
             [("user_id", "=", public.id)]
         )
@@ -179,10 +183,8 @@ class TestReports(odoo.tests.HttpCase):
         ):
             mock_request.session = self.authenticate(admin.login, admin.login)
 
-            # Simulate a WeasyPrint rendering failure.
-            # The refactored code calls HTML().render().write_pdf(), so
-            # the render() call is where _render_body catches and wraps
-            # exceptions as UserError.
+            # Fail on render(), not write_pdf(): _render_body separates the two
+            # calls and only wraps render() failures as UserError.
             mock_weasyprint.return_value.render.side_effect = Exception(
                 "rendering failed"
             )

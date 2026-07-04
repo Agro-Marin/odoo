@@ -89,10 +89,7 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def webmanifest(self) -> Response:
-        """Returns a WebManifest describing the metadata associated with a web application.
-        Using this metadata, user agents can provide developers with means to create user
-        experiences that are more comparable to that of a native application.
-        """
+        """Return the WebManifest describing this app for browser/OS-level PWA installation."""
         return request.make_json_response(
             self._get_webmanifest(),
             {"Content-Type": "application/manifest+json"},
@@ -146,7 +143,7 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def scoped_app(self, app_id: str, path: str = "", app_name: str = "") -> Response:
-        """Returns the app shortcut page to install the app given in parameters"""
+        """Return the shortcut page used to install app_id as a PWA."""
         app_name = unquote(app_name) if app_name else self._get_scoped_app_name(app_id)
         path = f"/{unquote(path)}"
         scoped_app_values = {
@@ -167,12 +164,12 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def scoped_app_icon_png(self, app_id: str, add_padding: bool = False) -> Response:
-        """Returns an app icon created with a fixed size in PNG. It is required for Safari PWAs"""
-        # To begin, we take the first icon available for the app
+        """Return a fixed-size (180x180) PNG app icon, required by Safari for PWA install."""
         app_icon = self._get_scoped_app_icons(app_id)[0]
 
         if app_icon["type"] == "image/svg+xml":
-            # We don't handle SVG images here, let's look for the module icon if possible
+            # SVG can't be rasterized below; fall back to the module's icon,
+            # or the default Odoo icon if the module has none.
             manifest = modules.Manifest.for_addon(app_id, display_warning=False)
             add_padding = True
             if manifest and manifest["icon"]:
@@ -182,10 +179,10 @@ class WebManifest(http.Controller):
         else:
             icon_src = app_icon["src"]
             if not add_padding:
-                # A valid icon is explicitly provided, we can use it directly
+                # No padding needed: serve the existing icon directly instead
+                # of reprocessing it.
                 return request.redirect(app_icon["src"])
 
-        # Now that we have the image source, we can generate a PNG image
         with file_open(icon_src.removeprefix("/"), "rb") as file:
             image = image_process(
                 file.read(),

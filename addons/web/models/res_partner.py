@@ -23,7 +23,7 @@ def _guess_image_vcard_type(data: bytes) -> str:
     for signature, vcard_type in _IMAGE_SIGNATURES.items():
         if data[: len(signature)] == signature:
             return vcard_type
-    return "JPEG"  # safe default — Odoo stores avatars as JPEG or PNG
+    return "JPEG"  # fallback when no known signature matches
 
 
 class VBaseProxy(Proxy):
@@ -55,7 +55,8 @@ class ResPartner(models.Model):
 
     def _build_vcard(self) -> Any:
         """Build the partner's vCard.
-        :returns a vobject.vCard object
+
+        :return: a vobject.vCard object
         """
         self.ensure_one()
         vcard = vobject.vCard()
@@ -79,7 +80,7 @@ class ResPartner(models.Model):
             email = vcard.add("email")
             email.value = self.email
             email.type_param = "INTERNET"
-        # Telephone numbers
+        # Telephone number
         if self.phone:
             tel = vcard.add("tel")
             tel.type_param = "work"

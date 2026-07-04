@@ -318,10 +318,9 @@ class Base(models.AbstractModel):
 
             group_domain = kwargs.get("group_domain")
 
-            # Pre-compute all m2m counters in a single _read_group query
-            # instead of N separate search_count() calls.  Falls back to
-            # per-record search_count when group_domain requires per-group
-            # domain customisation.
+            # Pre-compute all m2m counters in a single _read_group query. Only
+            # possible when every record shares the same count domain, i.e. no
+            # per-group `group_domain` override is requested (see below otherwise).
             count_image = None
             if enable_counters and not (group_by and group_domain):
                 count_domain = AND([model_domain, extra_domain])

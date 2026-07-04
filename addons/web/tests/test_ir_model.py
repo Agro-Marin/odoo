@@ -54,7 +54,7 @@ class IrModelAccessTest(TransactionCase):
         )
 
     def test_display_name_for(self):
-        # Internal User with access rights can access the business name
+        # Internal user with read access: gets the real display name.
         result = (
             self.env["ir.model"]
             .with_user(self.spreadsheet_user)
@@ -63,7 +63,9 @@ class IrModelAccessTest(TransactionCase):
         self.assertEqual(
             result, [{"display_name": "Companies", "model": "res.company"}]
         )
-        # external user with access rights cannot access business name
+        # Portal user: has perm_read=True on res.company, but
+        # _is_valid_for_model_selector() requires an internal user, so the
+        # real name is still withheld.
         result = (
             self.env["ir.model"]
             .with_user(self.portal_user)
@@ -72,7 +74,7 @@ class IrModelAccessTest(TransactionCase):
         self.assertEqual(
             result, [{"display_name": "res.company", "model": "res.company"}]
         )
-        # external user without access rights cannot access business name
+        # Public user: neither internal nor perm_read, same fallback as above.
         result = (
             self.env["ir.model"]
             .with_user(self.public_user)
@@ -81,17 +83,17 @@ class IrModelAccessTest(TransactionCase):
         self.assertEqual(
             result, [{"display_name": "res.company", "model": "res.company"}]
         )
-        # admin has all rights
+        # Admin (default env user): internal, sees the real name.
         result = self.env["ir.model"].display_name_for(["res.company"])
         self.assertEqual(
             result, [{"display_name": "Companies", "model": "res.company"}]
         )
-        # non existent model yields same result as a lack of access rights
+        # A non-existent model falls back the same way as an inaccessible one.
         result = self.env["ir.model"].display_name_for(["unexistent"])
         self.assertEqual(
             result, [{"display_name": "unexistent", "model": "unexistent"}]
         )
-        # non existent model comes after existent model
+        # Non-existent models are appended after existent ones, not interleaved.
         result = self.env["ir.model"].display_name_for(["res.company", "unexistent"])
         self.assertEqual(
             result,
@@ -100,7 +102,8 @@ class IrModelAccessTest(TransactionCase):
                 {"display_name": "unexistent", "model": "unexistent"},
             ],
         )
-        # transient models
+        # Transient models are excluded by _is_valid_for_model_selector(),
+        # so they fall back to their raw name like an inaccessible model.
         result = self.env["ir.model"].display_name_for(
             ["res.company", "base.language.export"]
         )
@@ -115,7 +118,7 @@ class IrModelAccessTest(TransactionCase):
             ],
         )
 
-        # do not return results for transient models
+        # Same exclusion applies to get_available_models().
         result = self.env["ir.model"].get_available_models()
         result = {values["model"] for values in result}
         self.assertIn("res.company", result)
@@ -128,15 +131,12 @@ class TestIrModel(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # The test mode is necessary in this case.  After each test, we call
-        # registry.reset_changes(), which opens a new cursor to retrieve custom
-        # models and fields.  A regular cursor would correspond to the state of
-        # the database before setUpClass(), which is not correct.  Instead, a
-        # test cursor will correspond to the state of the database of cls.cr at
-        # that point, i.e., before the call to setUp().
+        # Test mode is required here: each test's cleanup calls
+        # registry.reset_changes(), which opens a new cursor to retrieve the
+        # custom models/fields created below. A regular cursor would see the
+        # database state from before setUpClass() instead of cls.cr's state.
         cls.registry_enter_test_mode_cls()
 
-        # model and records for banana stages
         cls.env["ir.model"].create(
             {
                 "name": "Banana Ripeness",
@@ -159,7 +159,6 @@ class TestIrModel(TransactionCase):
             "Walked away on its own"
         )
 
-        # model and records for bananas
         cls.bananas_model = cls.env["ir.model"].create(
             {
                 "name": "Bananas",
@@ -198,7 +197,8 @@ class TestIrModel(TransactionCase):
                 ],
             }
         )
-        # add non-stored field that is not valid in order
+        # Non-stored field; test_model_order_constraint's INVALID_ORDERS
+        # uses it as an order-by target that must be rejected.
         cls.env["ir.model.fields"].create(
             {
                 "name": "x_is_yellow",
@@ -210,7 +210,6 @@ class TestIrModel(TransactionCase):
                 "compute": "for banana in self:\n    banana['x_is_yellow'] = banana.x_color == 9",
             }
         )
-        # default stage is ripeness_green
         cls.env["ir.default"].set("x_bananas", "x_ripeness_id", cls.ripeness_green[0])
         cls.env["x_bananas"].create(
             [
@@ -233,7 +232,10 @@ class TestIrModel(TransactionCase):
         )
 
     def setUp(self):
-        # this cleanup is necessary after each test, and must be done last
+        # Registered before super().setUp() so it runs last: addCleanup
+        # callbacks fire LIFO, and TransactionCase.setUp() registers its own
+        # cache-clearing cleanups afterwards, which must run before this one
+        # resets the registry.
         self.addCleanup(self.registry.reset_changes)
         super().setUp()
 
@@ -259,7 +261,8 @@ class TestIrModel(TransactionCase):
             with self.assertRaises(ValidationError):
                 self.bananas_model.order = order
 
-        # check that the constraint is checked at model creation
+        # The order constraint must also be enforced at model creation time,
+        # not just when assigning .order on an existing model.
         fields_value = [
             Command.create(
                 {"name": "x_name", "ttype": "char", "field_description": "Name"}
@@ -320,7 +323,7 @@ class TestIrModel(TransactionCase):
             )
 
     def test_model_fold_search(self):
-        """Check that custom orders are applied when querying a model."""
+        """Check that a custom model's ``fold_name`` maps to ``_fold_name``."""
         self.assertEqual(self.bananas_model.fold_name, False)
         self.assertEqual(self.env["x_bananas"]._fold_name, None)
 
@@ -351,7 +354,7 @@ class TestIrModel(TransactionCase):
         self.assertEqual(groups, expected, "should include 2 empty ripeness stages")
 
     def test_rec_name_deletion(self):
-        """Check that deleting 'x_name' does not crash."""
+        """Check that unlinking the field used as ``_rec_name`` does not crash."""
         record = self.env["x_bananas"].create({"x_name": "Ifan Ben-Mezd"})
         self.assertEqual(record._rec_name, "x_name")
         ClassRecord = self.registry[record._name]
@@ -360,7 +363,8 @@ class TestIrModel(TransactionCase):
         )
         self.assertEqual(record.display_name, "Ifan Ben-Mezd")
 
-        # unlinking x_name should fixup _rec_name and display_name
+        # _rec_name and display_name's dependency must be cleared, not left
+        # dangling on the removed field.
         self.env["ir.model.fields"]._get("x_bananas", "x_name").unlink()
         record = self.env["x_bananas"].browse(record.id)
         self.assertEqual(record._rec_name, None)

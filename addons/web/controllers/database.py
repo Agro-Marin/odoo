@@ -37,7 +37,6 @@ class Database(http.Controller):
         d["langs"] = odoo.service.db.exp_list_lang()
         d["countries"] = odoo.service.db.exp_list_countries()
         d["pattern"] = DBNAME_PATTERN
-        # databases list
         try:
             d["databases"] = http.db_list()
             d["incompatible_databases"] = odoo.service.db.list_db_incompatible(
@@ -99,7 +98,7 @@ class Database(http.Controller):
                         "Houston, we have a database naming issue! Make sure you only use letters, numbers, underscores, hyphens, or dots in the database name, and you'll be golden."
                     )
                 )
-            # country code could be = "False" which is actually True in python
+            # post.get() can return the string "False", which is truthy in Python
             country_code = post.get("country_code") or False
             dispatch_rpc(
                 "db",
@@ -290,9 +289,9 @@ class Database(http.Controller):
     # so an unquoted ``list[str]`` resolves to the method and raises
     # ``TypeError: 'function' object is not subscriptable`` on Python 3.14.
     def list(self) -> "list[str]":
-        """
-        Used by Mobile application for listing database
-        :return: List of databases
-        :rtype: list
+        """List available databases; used by the Mobile app.
+
+        :return: list of database names
+        :rtype: list[str]
         """
         return http.db_list()

@@ -25,10 +25,9 @@ class TestFeatureFlagsResolver(TransactionCase):
     def setUp(self):
         super().setUp()
         self.ICP = self.env["ir.config_parameter"].sudo()
-        # Wipe any leftover from previous tests so the assertion set is
-        # deterministic.  This runs inside a TransactionCase rollback,
-        # but other tests in the same module may have planted unrelated
-        # web.feature.* rows that would leak into our assertions.
+        # Clear any pre-existing web.feature.* rows so each test's assertion
+        # set (e.g. test_only_prefixed_keys_are_included) is self-contained
+        # rather than relying on TransactionCase's per-test savepoint rollback.
         self.ICP.search([("key", "=like", "web.feature.%")]).unlink()
         self.ir_http = self.env["ir.http"]
 
@@ -93,9 +92,10 @@ class TestFeatureFlagsResolver(TransactionCase):
 
     def test_empty_string_parses_to_truthy(self):
         # Mirror JS behaviour: bare ``features=name:`` is treated as enabling
-        # the flag, so an empty config value should also enable rather than
-        # silently disable.  ``ir.config_parameter.set_param`` treats empty
-        # values as deletions, so we write through ``create`` to keep the row.
+        # the flag, so a stored empty string must also resolve truthy, not
+        # falsy. Built directly via create() to make the empty value explicit;
+        # set_param() would store it identically (it only special-cases
+        # True/False/None, not "").
         self.ICP.create({"key": "web.feature.bare", "value": ""})
         result = self.ir_http._resolve_feature_flags(self.ICP)
         self.assertIs(result["bare"], True)

@@ -21,12 +21,12 @@ class TestDatabaseManager(HttpCase):
         res = self.url_open("/web/database/manager")
         self.assertEqual(res.status_code, 200)
 
-        # check that basic existing db actions are present
+        # Actions scoped to an existing database
         self.assertIn(".o_database_backup", res.text)
         self.assertIn(".o_database_duplicate", res.text)
         self.assertIn(".o_database_delete", res.text)
 
-        # check that basic db actions are present
+        # Actions not tied to an existing database
         self.assertIn(".o_database_create", res.text)
         self.assertIn(".o_database_restore", res.text)
 
@@ -53,7 +53,8 @@ class TestDatabaseOperations(BaseCase):
         self.assertEqual(len(config["db_name"]), 1)
         self.db_name = config["db_name"][0]
 
-        # monkey-patch db-filter
+        # Restrict dbfilter to this db's family so list_dbs_filtered() only
+        # ever sees databases this test itself creates/drops.
         self.addCleanup(operator.setitem, config, "dbfilter", config["dbfilter"])
         config["dbfilter"] = self.db_name + ".*"
 
@@ -94,10 +95,8 @@ class TestDatabaseOperations(BaseCase):
         return res
 
     def test_database_creation(self):
-        # check verify_admin_password patch
         self.assertTrue(odoo.tools.config.verify_admin_password(self.password))
 
-        # create a database
         test_db_name = self.db_name + "-test-database-creation"
         self.assertNotIn(test_db_name, self.list_dbs_filtered())
         res = self.session.post(
@@ -116,14 +115,12 @@ class TestDatabaseOperations(BaseCase):
         self.assertIn("/odoo", res.headers["Location"])
         self.assertDbs([test_db_name])
 
-        # delete the created database
         res = self.url_open_drop(test_db_name)
         self.assertEqual(res.status_code, 303)
         self.assertIn("/web/database/manager", res.headers["Location"])
         self.assertDbs([])
 
     def test_database_duplicate(self):
-        # duplicate this database
         test_db_name = self.db_name + "-test-database-duplicate"
         self.assertNotIn(test_db_name, self.list_dbs_filtered())
         res = self.session.post(
@@ -139,7 +136,6 @@ class TestDatabaseOperations(BaseCase):
         self.assertIn("/web/database/manager", res.headers["Location"])
         self.assertDbs([test_db_name])
 
-        # delete the created database
         res = self.url_open_drop(test_db_name)
         self.assertIn("/web/database/manager", res.headers["Location"])
         self.assertDbs([])
@@ -148,7 +144,6 @@ class TestDatabaseOperations(BaseCase):
         test_db_name = self.db_name + "-test-database-restore"
         self.assertNotIn(test_db_name, self.list_dbs_filtered())
 
-        # backup the current database inside a temporary zip file
         res = self.session.post(
             self.url("/web/database/backup"),
             data={
@@ -168,7 +163,7 @@ class TestDatabaseOperations(BaseCase):
         backup_file.write(res.content)
         self.assertGreater(backup_file.tell(), 0, "The backup seems corrupted")
 
-        # upload the backup under a new name (create a duplicate)
+        # Restore the backup under a different name (i.e. a duplicate)
         with (
             self.subTest(DEFAULT_MAX_CONTENT_LENGTH=None),
             patch.object(odoo.http, "DEFAULT_MAX_CONTENT_LENGTH", None),
@@ -189,9 +184,8 @@ class TestDatabaseOperations(BaseCase):
             self.assertDbs([test_db_name])
             self.url_open_drop(test_db_name)
 
-        # upload the backup again, this time simulating that the file is
-        # too large under the default size limit, the default size limit
-        # shouldn't apply to /web/database URLs
+        # /web/database routes set max_content_length=None, so the global
+        # DEFAULT_MAX_CONTENT_LENGTH must not reject this upload.
         with (
             self.subTest(DEFAULT_MAX_CONTENT_LENGTH=1024),
             patch.object(odoo.http, "DEFAULT_MAX_CONTENT_LENGTH", 1024),
@@ -221,10 +215,8 @@ class TestDatabaseOperations(BaseCase):
             data={"master_pwd": self.password, "name": nonexistent},
             allow_redirects=False,
         )
-        # Error page (200), not a redirect (303)
         self.assertEqual(res.status_code, 200)
         self.assertIn("error", res.text.lower())
-        # The database list must be unchanged
         self.assertDbs([])
 
     def test_backup_invalid_format_rejected(self):
@@ -243,14 +235,13 @@ class TestDatabaseOperations(BaseCase):
         self.assertIn("error", res.text.lower())
 
     def test_database_http_registries(self):
-        # This test is about dropping a connection inside one worker and
-        # make sure that the other workers behave correctly.
+        """Dropping a database's connection in one worker must not break
+        other workers that still hold a (now stale) registry for it."""
 
         #
         # Setup
         #
 
-        # duplicate this database
         test_db_name = self.db_name + "-test-database-duplicate"
         res = self.session.post(
             self.url("/web/database/duplicate"),
@@ -262,24 +253,25 @@ class TestDatabaseOperations(BaseCase):
             allow_redirects=False,
         )
 
-        # get a registry and a cursor on that new database
         registry = Registry(test_db_name)
         cr = registry.cursor()
         self.assertIn(test_db_name, Registry.registries)
 
-        # delete the created database but keep the cursor
+        # Drop the database, but stub out close_db so our cursor/registry
+        # objects survive to simulate a worker that still holds them.
         with patch("odoo.db.close_db") as close_db:
             res = self.url_open_drop(test_db_name)
         close_db.assert_called_once_with(test_db_name)
 
-        # simulate that some customers were connected to that dropped db
+        # Simulate a client session that was connected to the now-dropped db.
         session_store = odoo.http.root.session_store
         session = session_store.new()
         session.update(odoo.http.get_default_session(), db=test_db_name)
         session.context["lang"] = odoo.http.DEFAULT_LANG
         self.session.cookies["session_id"] = session.sid
 
-        # make it possible to inject the registry back
+        # Reinject the stale registry into the LRU cache to simulate the
+        # other worker still holding it after the drop.
         patcher = patch.dict(Registry.registries, {test_db_name: registry})
         registries = patcher.start()
         self.addCleanup(patcher.stop)

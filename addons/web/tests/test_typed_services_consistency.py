@@ -71,12 +71,9 @@ def _registered_service_keys() -> set[str]:
                 continue
             path = Path(dirpath) / filename
             text = path.read_text(encoding="utf-8")
-            # Pass 1: alias names local to this file.
             aliases = {m.group(1) for m in _ALIAS_BINDING_RE.finditer(text)}
-            # Pass 2a: direct chain registrations.
             for match in _CHAIN_REGISTRATION_RE.finditer(text):
                 keys.add(match.group(1))
-            # Pass 2b: aliased registrations.
             for alias in aliases:
                 alias_re = re.compile(
                     rf'\b{re.escape(alias)}\s*\.\s*add\s*\(\s*["\']([^"\']+)["\']',

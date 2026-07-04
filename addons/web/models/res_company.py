@@ -30,8 +30,8 @@ class ResCompany(models.Model):
 
     def _get_asset_style_b64(self) -> bytes:
         """Render the company-report stylesheet for all companies."""
-        # One bundle for everyone, so this method
-        # necessarily updates the style for every company at once
+        # One shared asset bundle serves every company, so it must be
+        # regenerated from all companies at once, not just the changed ones.
         company_ids = self.sudo().search([])
         company_styles = self.env["ir.qweb"]._render(
             "web.styles_company_report",

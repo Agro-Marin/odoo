@@ -69,7 +69,6 @@ class Home(http.Controller):
         return request.redirect_query("/odoo", query=request.params)
 
     def _web_client_readonly(self, rule: Any, args: Any) -> bool:
-        """Determine if the web client route should use a read-only cursor."""
         return False
 
     # ideally, this route should be `auth="user"` but that doesn't work in non-monodb mode.
@@ -84,9 +83,7 @@ class Home(http.Controller):
 
         Validates authentication, builds session info, and renders the
         ``web.webclient_bootstrap`` template with asset bundles.
-        Uses ``auth="none"`` to support non-monodb mode.
         """
-        # Ensure we have both a database and a user
         ensure_db()
         if not request.session.uid:
             return request.redirect_query(
@@ -102,21 +99,21 @@ class Home(http.Controller):
         if not is_user_internal(request.session.uid):
             return request.redirect("/web/login_successful", 303)
 
-        # Side-effect, refresh the session lifetime
+        # Return value unused; kept for the side effect of extending the session lifetime.
         request.session.touch()
 
-        # Restore the user on the environment, it was lost due to auth="none"
+        # auth="none" doesn't populate the env user; restore it now that we know the uid.
         request.update_env(user=request.session.uid)
         try:
             if request.env.user:
                 request.env.user._on_webclient_bootstrap()
             context = request.env["ir.http"].webclient_rendering_context()
 
-            # Add the browser_cache_secret here and not in session_info() to ensure that it is only in
-            # the webclient page, which is cache-control: "no-store" (see below)
-            # Reuse session security related fields, to change the key when a security event
-            # occurs for the user, like a password or 2FA change.
-            hmac_payload = request.env.user._session_token_get_values()  # already ordered
+            # Computed here rather than in session_info() so it's only ever sent on this
+            # page, which is Cache-Control: no-store (see below).
+            # Reuses the session-token fields so the secret rotates whenever a security
+            # event (password/2FA change) invalidates the session token too.
+            hmac_payload = request.env.user._session_token_get_values()  # order is stable, needed for a reproducible hmac
             session_info = context.get("session_info")
             session_info["browser_cache_secret"] = hmac(
                 request.env(su=True), "browser_cache_key", hmac_payload
@@ -157,9 +154,6 @@ class Home(http.Controller):
         on session state (user access rights, debug mode), so it must never
         be stored by the browser HTTP cache or intermediaries — the explicit
         hash round-trip replaces HTTP caching.
-
-        Follow-up (out of scope here): serve app icons as URLs instead of
-        inlining them in base64 to shrink the cold-boot payload itself.
 
         :param lang: language in which the menus should be loaded (only works if language is installed)
         :param hash: hash of the menus payload currently cached by the client
@@ -264,7 +258,7 @@ class Home(http.Controller):
         sitemap=False,
     )
     def login_successful_external_user(self, **kwargs: Any) -> Response:
-        """Landing page after successful login for external users (unused when portal is installed)."""
+        """Landing page shown after a successful login to non-internal (external) users."""
         valid_values = {k: v for k, v in kwargs.items() if k in LOGIN_SUCCESSFUL_PARAMS}
         return request.render("web.login_successful", valid_values)
 

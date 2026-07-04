@@ -12,7 +12,7 @@ from odoo.tests.common import HttpCase, tagged
 @tagged("web_http", "web_pivot")
 class TestPivotExport(HttpCase):
     def test_export_xlsx_with_integer_column(self):
-        """Test the export_xlsx method of the pivot controller with int columns"""
+        """Int header titles and cell values are written as numbers, not coerced to text."""
         self.authenticate("admin", "admin")
         jdata = {
             "title": "Sales Analysis",
@@ -56,7 +56,7 @@ class TestPivotExport(HttpCase):
         self.assertEqual(xml_data["B2"], "42")
 
     def test_export_xlsx_with_empty_data(self):
-        """Test the export_xlsx method of the pivot controller without jdata"""
+        """An empty request body is rejected with 422, not a 500."""
         self.authenticate("admin", "admin")
 
         response = self.url_open(

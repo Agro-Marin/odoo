@@ -1,16 +1,15 @@
 """Bundle-size regression tests for ESM bundles.
 
-Each test pins an upper-bound byte budget for a key bundle. If a future
-change inflates the bundle past the budget (added heavy dependency,
-forgot to lazy-load, accidental wildcard inclusion, un-tree-shaken
-dead code), the test fails so the regression is caught at PR time
-instead of surfacing later in production CWV telemetry from
+Each test pins an upper-bound byte budget for a key bundle, so a
+regression (heavy dependency added, forgot to lazy-load, wildcard
+glob pulled in too much, un-tree-shaken dead code) is caught at PR
+time instead of showing up later in production CWV telemetry from
 ``services/web_vitals/web_vitals_service.js``.
 
-Budgets are intentionally hardcoded inline (mirroring the
-``test_web_perf_regression.py`` convention for query counts) rather
-than externalized to JSON: bumping a budget should be a deliberate
-code review event with justification in the commit message.
+Budgets are hardcoded inline (mirroring ``test_web_perf_regression.py``'s
+convention for query counts) rather than externalized to JSON: bumping
+one should be a deliberate review event with justification in the
+commit message.
 
 Calibration workflow when adding a new bundle target:
 
@@ -26,33 +25,27 @@ Calibration workflow when adding a new bundle target:
   3. Read the ``actual`` byte count from the log line and tighten the
      budget to ``actual + ~10%`` headroom.
 
-When a real regression makes a test fail, the failure message names
-the bundle, the actual bytes, the budget, and the delta — enough to
-decide between trimming the regression and (rarely) raising the
-budget with justification.
+A failing test's message names the bundle, the actual bytes, the
+budget, and the delta.
 
 PER-INPUT DIAGNOSTIC
 --------------------
-On budget failure, the test parses ``_last_metafile`` (esbuild's JSON
-output describing per-input contributions) and prints the top-N files
-contributing to the bundle.  When a baseline file
-(``tooling/scripts/bundle_size_inputs_baseline.json``) is present, the
-diagnostic shows DELTAS vs that baseline so reviewers can see which
-file caused the regression.  Without a baseline, the diagnostic falls
-back to the top-N absolute contributions.
+On budget failure, the test parses the ``EsbuildResult.metafile`` field
+(esbuild's JSON output describing per-input contributions) and prints
+the top-N contributing files. With a baseline file
+(``tooling/scripts/bundle_size_inputs_baseline.json``) present, it
+shows deltas against that baseline instead of absolute sizes.
 
-To populate / refresh the per-input baseline (independent of BUDGETS
-calibration above)::
+To populate / refresh the per-input baseline::
 
   ODOO_BUNDLE_SIZE_UPDATE_BASELINE=1 ./core/odoo-bin \\
       -c ./conf/odoo.conf -d $DB \\
       --test-tags '/web:TestWebBundleSize' -u web \\
       --stop-after-init --workers=0
 
-In that mode each test method writes its current per-input map into
-the baseline JSON instead of asserting against the budget.  Commit
-the regenerated baseline alongside the PR that intentionally bumps
-``BUDGETS``, so the per-input view stays consistent with the totals.
+In that mode each test writes its current per-input map into the
+baseline JSON instead of asserting against the budget. Commit the
+regenerated baseline alongside any PR that bumps ``BUDGETS``.
 """
 
 import json
@@ -66,17 +59,14 @@ from odoo.tools import mute_logger
 
 _logger = logging.getLogger(__name__)
 
-# Per-input baseline location.  Optional — when absent, diagnostics
-# fall back to top-N absolute contributors.
+# Optional: when absent, diagnostics fall back to top-N absolute contributors.
 _BASELINE_PATH = (
     Path(__file__).resolve().parents[1]
     / "tooling" / "scripts" / "bundle_size_inputs_baseline.json"
 )
 
-# Number of top contributors to surface in the failure message.
 _DIAGNOSTIC_TOP_N = 10
 
-# Env var that flips the test into baseline-regeneration mode.
 _UPDATE_ENV_VAR = "ODOO_BUNDLE_SIZE_UPDATE_BASELINE"
 
 
@@ -87,13 +77,10 @@ _UPDATE_ENV_VAR = "ODOO_BUNDLE_SIZE_UPDATE_BASELINE"
 class TestWebBundleSize(TransactionCase):
     """Pin upper-bound byte sizes for ESM bundles to catch regressions."""
 
-    # Budget = current esbuild output bytes + ~10% headroom.
-    # Bump only with justification in the commit message.
-    # See module docstring for the recalibration workflow.
-    #
-    # Calibrated 2026-05-10 against the marin190 database. Bump entries
-    # here when intentional growth lands; leave them as-is otherwise so
-    # accidental regressions trip the test.
+    # Calibrated 2026-05-10 against the marin190 database (see module
+    # docstring for the calibration workflow). Bump entries here when
+    # intentional growth lands; leave them as-is otherwise so accidental
+    # regressions trip the test.
     BUDGETS = {
         # Primary backend entry — every backend page load pays this
         # bundle's TTI cost. 2026-05-13 actual: 3,940,406 bytes.
@@ -148,7 +135,7 @@ class TestWebBundleSize(TransactionCase):
         # work; not blocking.
         "web.assets_web_dark": 4_335_000,
         # CANARY: same shape as assets_web_dark — print bundle ships
-        # only CSS (line 302 of webclient_templates.xml uses
+        # only CSS (webclient_templates.xml loads it with
         # ``t-js="false"``). Build-only JS, pinned to assets_web's
         # footprint to catch unexpected JS contributions.
         # 2026-05-13 actual: 3,939,148 bytes (recalibrated with
@@ -182,8 +169,8 @@ class TestWebBundleSize(TransactionCase):
         ``TestWebBundleSize._parse_metafile_inputs(...)`` without
         instantiating a budget test.
 
-        :param str|None metafile_raw: raw JSON string captured from
-            ``bundle._last_metafile`` after ``esbuild_native_bundle()``
+        :param str|None metafile_raw: the ``metafile`` field of the
+            ``EsbuildResult`` returned by ``esbuild_native_bundle()``
         :rtype: dict[str, int]
         """
         if not metafile_raw:
@@ -232,10 +219,10 @@ class TestWebBundleSize(TransactionCase):
                 f"this installation; nothing to measure."
             )
         with mute_logger("odoo.addons.base.models.assetsbundle"):
-            content = bundle.esbuild_native_bundle()
+            result = bundle.esbuild_native_bundle()
         return (
-            len(content.encode("utf-8")),
-            self._parse_metafile_inputs(bundle._last_metafile),
+            len(result.code.encode("utf-8")),
+            self._parse_metafile_inputs(result.metafile),
         )
 
     def _load_baseline(self):
@@ -453,32 +440,17 @@ class TestWebBundleSize(TransactionCase):
     def test_assets_web_dark_under_budget(self):
         """``web.assets_web_dark`` — CANARY for build-only JS.
 
-        Despite this bundle producing ~2.83 MB of esbuild JS output,
-        none of it ships to users: ``webclient_templates.xml:306,310``
-        load this bundle with ``t-js="false"`` (CSS only). The JS exists
-        as a build artifact because the manifest's
-        ``("include", "web.assets_web")`` directive pulls JS along with
-        the SCSS variable-scope it actually needs.
-
-        This test pins the size at assets_web's footprint to catch
-        regressions where someone adds dark-mode-specific JS
-        contributions to this bundle — which would be a mistake, since
-        users never see this JS. If the test fails, the right answer is
-        almost always "remove the JS contribution", not "raise the
-        budget".
+        None of this bundle's JS ships to users (see the ``BUDGETS``
+        entry for why). If this fails, the right fix is almost always
+        "remove the JS contribution", not "raise the budget".
         """
         self._assert_bundle_under_budget("web.assets_web_dark")
 
     def test_assets_web_print_under_budget(self):
         """``web.assets_web_print`` — CANARY for build-only JS.
 
-        Same shape as ``test_assets_web_dark_under_budget``: the print
-        bundle ships only CSS to users (line 302 of
-        ``webclient_templates.xml`` uses ``t-js="false"``). The ~2.83 MB
-        of JS that esbuild produces here is build artifact, present
-        because the manifest's ``("include", "web.assets_backend")``
-        pulls in JS for SCSS variable scope. Pinned at assets_web's
-        footprint to catch unexpected print-specific JS additions.
+        Same shape as ``test_assets_web_dark_under_budget``; see the
+        ``BUDGETS`` entry for why this bundle's JS never reaches users.
         """
         self._assert_bundle_under_budget("web.assets_web_print")
 
@@ -575,7 +547,7 @@ class TestParseMetafileInputs(TransactionCase):
             "outputs": {
                 "/tmp/x.js": {
                     "inputs": {
-                        "a.js": {},  # no bytesInOutput key
+                        "a.js": {},
                         "b.js": {"bytesInOutput": 50},
                     },
                 },

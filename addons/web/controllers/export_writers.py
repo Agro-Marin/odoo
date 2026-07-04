@@ -31,9 +31,8 @@ def allow_empty_iterable[T](
 ) -> Callable[[Iterable[T]], T | None]:
     """Return ``None`` instead of raising when the iterable is empty.
 
-    Some functions do not accept empty iterables (e.g. max, min with no
-    default value).  This returns the function *func* such that it returns
-    ``None`` if the iterable is empty instead of raising a ``ValueError``.
+    ``max``/``min`` raise ``ValueError`` on an empty iterable with no
+    default; wrap *func* so it returns ``None`` instead.
     """
 
     @functools.wraps(func)
@@ -58,10 +57,8 @@ OPERATOR_MAPPING = {
 
 
 class GroupsTreeNode:
-    """An ordered tree of groups built from ``formatted_read_group`` results.
-
-    Each dictionary returned by ``formatted_read_group`` is used to build a
-    leaf.  The entire tree is built by inserting all leaves.
+    """An ordered tree of groups built from ``formatted_read_group`` results,
+    one leaf per group dict.
     """
 
     def __init__(
@@ -86,9 +83,9 @@ class GroupsTreeNode:
         self, field_name: str, data: Iterator[Any], aggregator: str
     ) -> Any:
         """Compute a single aggregate value for *field_name*."""
-        # When exporting one2many fields, multiple data lines might be exported for one record.
-        # Blank cells of additionnal lines are filled with an empty string. This could lead to '' being
-        # aggregated with an integer or float.
+        # One2many fields can export multiple lines per record; the extra
+        # lines' blank cells are empty strings, which must be filtered out
+        # before aggregating with an integer or float.
         data = (value for value in data if value != "")
 
         if aggregator == "avg":
@@ -124,27 +121,25 @@ class GroupsTreeNode:
         return aggregate_func(children_sums) / self.count
 
     def _get_aggregated_field_names(self) -> list[str]:
-        """Return field names of exported field having a group operator."""
+        """Return field names of exported fields having a group operator."""
         aggregated_field_names = []
         for field_name in self._export_field_names:
             if field_name == ".id":
                 field_name = "id"
             if "/" in field_name or field_name not in self._model:
-                # Currently no support of aggregated value for nested record fields
-                # e.g. line_ids/analytic_line_ids/amount
+                # Nested record fields aren't aggregated, e.g. line_ids/analytic_line_ids/amount
                 continue
             field = self._model._fields[field_name]
             if field.aggregator:
                 aggregated_field_names.append(field_name)
         return aggregated_field_names
 
-    # Lazy property to memoize aggregated values of children nodes to avoid useless recomputations
     @functools.cached_property
     def aggregated_values(self) -> dict[str, Any]:
         """Return a mapping of field names to their aggregated values."""
         aggregated_values = {}
 
-        # Transpose the data matrix to group all values of each field in one iterable
+        # zip(*matrix) transposes self.data into one iterable per field
         field_values = zip(*self.data, strict=True)
         aggregated_field_names = self._get_aggregated_field_names()
         for field_name in self._export_field_names:
@@ -187,9 +182,7 @@ class GroupsTreeNode:
         node = self  # root
         node.count += count
         for node_key in leaf_path:
-            # Go down to the next node or create one if it does not exist yet.
             node = node.child(node_key)
-            # Update count value and aggregated value.
             node.count += count
 
         node.data = data
@@ -223,12 +216,12 @@ class ExportXlsxWriter:
             {"text_wrap": True, "num_format": "yyyy-mm-dd hh:mm:ss"}
         )
         self.base_style = self.workbook.add_format({"text_wrap": True})
-        # FIXME: Should depends of the field digits
+        # FIXME: Should depend on the field's digits
         self.float_style = self.workbook.add_format(
             {"text_wrap": True, "num_format": "#,##0.00"}
         )
 
-        # FIXME: Should depends of the currency field for each row (also maybe add the currency symbol)
+        # FIXME: Should depend on each row's currency field (also maybe add the currency symbol)
         decimal_places = request.env["res.currency"]._read_group(
             [], aggregates=["decimal_places:max"]
         )[0][0]
@@ -293,7 +286,6 @@ class ExportXlsxWriter:
             self.value = self.output.getvalue()
 
     def write(self, row: int, column: int, cell_value: Any, style: Any = None) -> None:
-        """Write a single cell value."""
         self.worksheet.write(row, column, cell_value, style)
 
     def write_cell(self, row: int, column: int, cell_value: Any) -> None:
@@ -302,10 +294,8 @@ class ExportXlsxWriter:
 
         if isinstance(cell_value, bytes):
             try:
-                # because xlsx uses raw export, we can get a bytes object
-                # here. xlsxwriter does not support bytes values in Python 3 ->
-                # assume this is base64 and decode to a string, if this
-                # fails note that you can't export
+                # "raw" export can yield bytes; xlsxwriter only accepts str,
+                # so decode assuming base64/ASCII-safe content.
                 cell_value = cell_value.decode()
             except UnicodeDecodeError:
                 raise UserError(
@@ -360,7 +350,6 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
             row, column, group_name, group, group_depth
         )
 
-        # Recursively write sub-groups
         for child_group_name, child_group in group.children.items():
             row, column = self.write_group(
                 row, column, child_group_name, child_group, group_depth + 1
@@ -371,7 +360,6 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         return row, column
 
     def _write_row(self, row: int, column: int, data: list[Any]) -> tuple[int, int]:
-        """Write a single data row."""
         for value in data:
             self.write_cell(row, column, value)
             column += 1

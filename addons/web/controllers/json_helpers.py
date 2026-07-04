@@ -55,7 +55,8 @@ def get_default_domain(model, action, context, eval_context):
         model._name, action._origin.id
     ):
         if ir_filter["is_default"]:
-            # user filters, static parsing only
+            # Stored filter domain: substitute uid textually, then parse with
+            # literal_eval only — no arbitrary code execution.
             domain_str = ir_filter["domain"]
             domain_str = re.sub(r"\buid\b", str(model.env.uid), domain_str)
             default_domain = ast.literal_eval(domain_str)
@@ -86,10 +87,10 @@ def get_default_domain(model, action, context, eval_context):
                             None,
                         )
                     ) is not None:
-                        # parse the domain
                         if domain := element.attrib.get("domain"):
                             yield domain
-                        # not parsing context['group_by']
+                        # A filter's own context['group_by'] is intentionally
+                        # not applied here — only its domain is.
 
         default_domain = Domain.AND(
             safe_eval(domain, eval_context) for domain in filters_from_context()
@@ -129,7 +130,6 @@ def get_groupby(view_tree, groupby=None, fields=None):
         return groupby, fields
 
     if view_tree.tag in ("pivot", "graph"):
-        # extract groupby from the view if we don't have any
         field_by_type = defaultdict(list)
         for element in view_tree.findall(r"./field"):
             field_name = element.attrib.get("name")
@@ -137,7 +137,8 @@ def get_groupby(view_tree, groupby=None, fields=None):
                 field_by_type["invisible"].append(field_name)
             else:
                 field_by_type[element.attrib.get("type", "normal")].append(field_name)
-            # not reading interval from the attribute
+            # The date-grouping "interval" attribute (e.g. month/week) is not
+            # read here; groupby fields are returned without their interval.
         groupby = [
             *field_by_type.get("row", ()),
             *field_by_type.get("col", ()),
@@ -147,7 +148,8 @@ def get_groupby(view_tree, groupby=None, fields=None):
             fields = field_by_type.get("measure", [])
         return groupby, fields
     if field := view_tree.attrib.get("default_group_by"):
-        # in case the kanban view (or other) defines a default grouping
-        # return the field name so it is added to the spec
+        # Kanban (or other) views can declare a default grouping field, but
+        # this endpoint does not act on it as a groupby — return it as a
+        # `fields` entry instead, so the caller adds it to the read spec.
         return (None, [field])
     return None, None

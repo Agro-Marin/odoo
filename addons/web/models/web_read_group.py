@@ -44,7 +44,7 @@ class Base(models.AbstractModel):
         unfold_read_specification: dict[str, dict] | None = None,
         unfold_read_default_limit: (
             int | None
-        ) = 80,  # Limit of record by unfolded group by default
+        ) = 80,
         groupby_read_specification: dict[str, dict] | None = None,
     ) -> dict[str, int | list]:
         """
@@ -104,12 +104,12 @@ class Base(models.AbstractModel):
             raise ValueError(msg)
 
         aggregates = list(aggregates)
-        if "__count" not in aggregates:  # Used for computing length of sublevel groups
+        if "__count" not in aggregates:  # needed to detect empty/stale-offset groups when opening them
             aggregates.append("__count")
         domain = Domain(domain).optimize(self)
 
-        # dict to help creating order compatible with _read_group and for search
-        dict_order: dict[str, str] = {}  # {fname_and_property: "<direction> <nulls>"}
+        # Order spec shared by _read_group and search(): {fname_and_property: "<direction> <nulls>"}
+        dict_order: dict[str, str] = {}
         for order_part in order.split(",") if order else ():
             order_match = regex_order.match(order_part)
             if not order_match:
@@ -122,7 +122,6 @@ class Base(models.AbstractModel):
                 direction = f"{direction} {order_match['nulls'].upper()}"
             dict_order[fname_and_property] = direction
 
-        # First level of grouping
         first_groupby = [groupby[0]]
         read_group_order = self._get_read_group_order(
             dict_order, first_groupby, aggregates
@@ -136,7 +135,8 @@ class Base(models.AbstractModel):
             order=read_group_order,
         )
 
-        # Open sublevel of grouping (list) and get all subgroup to open into records.
+        # Filled by _open_groups (passed by reference) with one entry per leaf
+        # group whose records still need to be searched:
         # [{limit: int, offset: int, domain: domain, group: <group>}]
         records_opening_info: list[dict[str, Any]] = []
 
@@ -154,13 +154,14 @@ class Base(models.AbstractModel):
             parent_group_domain=Domain.TRUE,
         )
 
-        # Open last level of grouping, meaning read records of groups
+        # Fetch and format the records for every leaf group collected above.
         if records_opening_info:
             order_specs = [
                 f"{fname} {direction}"
                 for fname, direction in dict_order.items()
-                # Remove order that are already unique for each group,
-                # that may avoid a left join and simplify the order (not apply if granularity)
+                # A field already in groupby has one value per group, so ordering
+                # records by it is redundant; skipping it avoids an extra join.
+                # (Doesn't match when the groupby uses a granularity suffix.)
                 if fname not in groupby
                 if fname != "__count"
             ]
@@ -344,13 +345,14 @@ class Base(models.AbstractModel):
             )
 
         for group in groups:
-            # Remove __fold information, no need for the webclient,
-            # the groups is unfold if __groups/__records exists
+            # Drop __fold: the webclient infers a group's open state from the
+            # presence of __groups/__records instead.
             fold_info = "__fold" in group
             fold = group.pop("__fold", False)
 
             groupby_value = group[groupby_spec]
-            # For relational/date/datetime/property tags field
+            # Relational/date/datetime/property fields report (value, label)
+            # tuples; unwrap to the raw value.
             raw_groupby_value = (
                 groupby_value[0] if isinstance(groupby_value, tuple) else groupby_value
             )
@@ -407,9 +409,9 @@ class Base(models.AbstractModel):
                 subgroup_domain = parent_group_domain
                 if group["__extra_domain"]:
                     subgroup_domain &= Domain(group["__extra_domain"])
-                # That's not optimal but hard to batch because of limit/offset.
-                # Moreover it isn't critical since it is when user opens group manually, then
-                # the number of it should be small.
+                # One query per subgroup (can't batch limit/offset across
+                # subgroups), but acceptable: the user opens groups manually,
+                # so there are few of them.
                 subgroups, length = self._formatted_read_group_with_length(
                     domain=(subgroup_domain & domain),
                     groupby=[groupby[1]],
@@ -542,7 +544,9 @@ class Base(models.AbstractModel):
             if groupby and (fill_temporal or isinstance(fill_temporal, dict)):
                 if not isinstance(fill_temporal, dict):
                     fill_temporal = {}
-                # This assumes that existing data is sorted by field 'groupby_name'
+                # Assumes groups_list[groups_index] is already ordered by the
+                # groupby fields (the default order); ties on the same filled
+                # bucket keep that relative order.
                 groups_list[groups_index] = self._web_read_group_fill_temporal(
                     groups_list[groups_index],
                     groupby,
@@ -653,21 +657,22 @@ class Base(models.AbstractModel):
             order=order,
         )
 
-        # Note: group_expand is only done if the limit isn't reached and when the offset == 0
-        # to avoid inconsistency in the web client pager. Anyway, in practice, this feature should
-        # be used only when there are few groups (or without limit for the kanban view).
+        # group_expand only runs when the limit isn't reached and offset == 0,
+        # to avoid inconsistencies in the web client pager. In practice this
+        # feature is used with few groups (or without a limit, e.g. kanban view).
         if (
             not offset
             and (not limit or len(groups) < limit)
             and self._web_read_group_field_expand(groupby)
         ):
-            # It doesn't respect the order with aggregates inside
+            # Expansion doesn't respect an `order` that references aggregates.
             expand_groups = self._web_read_group_expand(
                 domain, groups, groupby[0], aggregates, order
             )
             if not limit or len(expand_groups) <= limit:
-                # Ditch the result of expand_groups because the limit is reached and to avoid
-                # returning inconsistent result inside length of web_read_group
+                # Adopt the expanded groups only while they still respect the
+                # limit; beyond that, keep the un-expanded `groups` so the
+                # count stays consistent with web_read_group's length.
                 groups = expand_groups
 
         fill_temporal = self.env.context.get("fill_temporal")
@@ -677,7 +682,8 @@ class Base(models.AbstractModel):
                 raise ValueError(msg)
             if not isinstance(fill_temporal, dict):
                 fill_temporal = {}
-            # This assumes that existing data is sorted by field 'groupby_name'
+            # Assumes `groups` is already ordered by the groupby fields (the
+            # default order); ties on the same filled bucket keep that order.
             groups = self._web_read_group_fill_temporal(
                 groups, groupby, aggregates, **fill_temporal
             )
@@ -701,9 +707,9 @@ class Base(models.AbstractModel):
         for groupby_spec, values in zip(
             groupby, column_iterator
         ):  # noqa: B905 - intentionally non-strict: column_iterator may yield fewer columns than groupby specs when groups are empty
-            # Detect simple scalar fields (selection, char, integer, boolean,
-            # float) where the formatter is just identity + equality domain.
-            # Inlining avoids closure creation and per-value call overhead.
+            # Fields other than many2one/many2many/date/datetime/properties (and
+            # not "id") format as identity + equality domain; skip building a
+            # formatter closure for them to save the call overhead.
             field_path = groupby_spec.split(":")[0]
             field_name = field_path.split(".")[0]
             field = self._fields[field_name]
@@ -731,7 +737,7 @@ class Base(models.AbstractModel):
                     dict_group[groupby_spec], additional_domain = formatter(value)
                     dict_group["__extra_domains"].append(additional_domain)
 
-            # Add fold information only if read_group_expand is activated (for kanban/list)
+            # __fold is only meaningful when read_group_expand is active (kanban/list).
             if expand_field and expand_field.relational:
                 model = self.env[expand_field.comodel_name]
                 fold_name = model._fold_name
@@ -740,7 +746,7 @@ class Base(models.AbstractModel):
                 for value, dict_group in zip(values, result, strict=True):
                     dict_group["__fold"] = value.sudo()[fold_name]
 
-        # Reconstruct groups domain part
+        # Flatten each group's collected __extra_domains into one __extra_domain.
         for dict_group in result:
             dict_group["__extra_domain"] = AND(dict_group.pop("__extra_domains"))
 
@@ -754,15 +760,15 @@ class Base(models.AbstractModel):
     @api.readonly
     def read_progress_bar(self, domain, group_by, progress_bar):
         """
-        Gets the data needed for all the kanban column progressbars.
-        These are fetched alongside read_group operation.
+        Return the data needed for the kanban column progress bars, fetched
+        alongside the read_group operation.
 
         :param domain: the domain used in the kanban view to filter records
         :param group_by: the name of the field used to group records into
             kanban columns
         :param progress_bar: the ``<progressbar/>`` declaration
             attributes (field, colors, sum)
-        :return: a dictionnary mapping group_by values to dictionnaries mapping
+        :return: a dictionary mapping group_by values to dictionaries mapping
             progress bar field values to the related number of records
         """
 

@@ -7,13 +7,15 @@ class IrUiMenu(models.Model):
     _inherit = "ir.ui.menu"
 
     def load_web_menus(self, debug: bool) -> dict[str | int, dict[str, Any]]:
-        """Loads all menu items (all applications and their sub-menus) and
-        processes them to be used by the webclient. Mainly, it associates with
-        each application (top level menu) the action of its first child menu
-        that is associated with an action (recursively), i.e. with the action
-        to execute when the opening the app.
+        """Load all menu items (all applications and their sub-menus) and
+        format them for the webclient.
 
-        :return: the menus (including the images in Base64)
+        For each app (top-level menu), resolve the action to run when
+        opening it: the action of the first child, grandchild, etc. along
+        the leftmost child chain that defines one.
+
+        :return: the menu tree, with icon fields formatted for the
+            webclient (custom icons embedded as base64 data URIs)
         """
         menus = self.load_menus(debug)
 
@@ -43,7 +45,7 @@ class IrUiMenu(models.Model):
                 web_icon_data = menu.get("web_icon_data")
 
                 if menu["id"] == menu["app_id"]:
-                    # if it's an app take action of first (sub)child having one defined
+                    # App: use the action of the first (sub)child that defines one
                     child = menu
                     while child and not action_id:
                         action_id = child["action_id"]

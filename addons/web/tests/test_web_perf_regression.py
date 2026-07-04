@@ -44,14 +44,12 @@ class TestWebPerfRegression(TransactionCase):
             }
         )
 
-        # Categories for many2many testing
         cls.categories = cls.env["res.partner.category"].create(
             [{"name": f"PerfCat_{i}"} for i in range(5)]
         )
 
         cls.country_be = cls.env.ref("base.be")
 
-        # 100 partners with many2one + many2many relationships
         cls.partners = cls.env["res.partner"].create(
             [
                 {
@@ -66,7 +64,6 @@ class TestWebPerfRegression(TransactionCase):
             ]
         )
 
-        # Parent-child hierarchy for x2many tests
         cls.parent_partner = cls.env["res.partner"].create(
             {
                 "name": "PerfParent",
@@ -84,7 +81,7 @@ class TestWebPerfRegression(TransactionCase):
             ]
         )
 
-        # Menu items for web_resequence test (ir.ui.menu has sequence field)
+        # ir.ui.menu has a native sequence field, needed by web_resequence
         cls.test_menus = cls.env["ir.ui.menu"].create(
             [{"name": f"PerfMenu_{i}", "sequence": i * 10} for i in range(10)]
         )

@@ -22,7 +22,7 @@ class TestWebLoginCommon(HttpCase):
         self.authenticate(None, None)
 
     def login(self, username, password, csrf_token=None):
-        """Log in with provided credentials and return response to POST request or raises for status."""
+        """Log in with the given credentials; return the POST response (raises if it failed)."""
         res_post = self.url_open(
             "/web/login",
             data={
@@ -39,30 +39,32 @@ class TestWebLoginCommon(HttpCase):
 class TestWebLogin(TestWebLoginCommon):
     def test_web_login(self):
         res_post = self.login("internal_user", "internal_user")
-        # ensure we are logged-in
+        # verify the session established by login() is actually authenticated
         self.url_open(
             "/web/session/check",
             headers={"Content-Type": "application/json"},
             data="{}",
         ).raise_for_status()
-        # ensure we end up on the right page for internal users.
         self.assertEqual(res_post.request.path_url, "/odoo")
 
     def test_web_login_external(self):
         res_post = self.login("portal_user", "portal_user")
-        # ensure we end up on the right page for external users. Valid without portal installed.
+        # Landing on /web/login_successful (rather than /my) depends on the
+        # portal addon not being installed here: portal overrides
+        # _login_redirect() to send non-internal users to /my instead.
         self.assertEqual(res_post.request.path_url, "/web/login_successful")
 
     def test_web_login_bad_xhr(self):
-        # simulate the user downloaded the login form
+        # grab the CSRF token as if the login form had just been downloaded
         csrf_token = http.Request.csrf_token(self)
 
-        # simulate that the JS sended a bad XHR to a route that is
-        # auth='none' using the same session (e.g. via a service worker)
+        # Simulate a stray XHR (e.g. a leftover service worker request)
+        # hitting /web/login_successful, an auth="user" route, while the
+        # session is still unauthenticated: it must redirect rather than
+        # succeed, and must not invalidate the CSRF token grabbed above.
         bad_xhr = self.url_open("/web/login_successful", allow_redirects=False)
         self.assertNotEqual(bad_xhr.status_code, 200)
 
-        # log in using the above form, it should still be valid
         self.login("internal_user", "internal_user", csrf_token)
 
 

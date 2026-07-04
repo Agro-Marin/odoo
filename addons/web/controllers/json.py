@@ -42,30 +42,29 @@ class WebJsonController(http.Controller):
 
     @http.route("/json/1/<path:subpath>", auth="bearer", type="http", readonly=True)
     def web_json_1(self, subpath, **kwargs):
-        """Simple JSON representation of the views.
-
-        Get the JSON representation of the action/view as it would be shown
-        in the web client for the same /odoo `subpath`.
+        """Get the JSON representation of the action/view for the same /odoo `subpath`.
 
         Behaviour:
-        - When, the action resolves to a pair (Action, id), `form` view_type.
-          Otherwise when it resolves to (Action, None), use the given view_type
-          or the preferred one.
-        - View form uses `web_read`.
-        - If a groupby is given, use a read group.
-          Views pivot, graph redirect to a canonical URL with a groupby.
-        - Otherwise use a search read.
-        - If any parameter is missing, redirect to the canonical URL (one where
-          all parameters are set).
+        - If the path resolves to a record (a record id is present), use the
+          `form` view_type; otherwise use the given view_type or the action's
+          preferred one.
+        - A form view reads through `web_read`.
+        - A groupby (explicit or from a pivot/graph view) reads through
+          `web_read_group`; otherwise falls back to a search read.
+        - Whenever a parameter gets a resolved default that wasn't in the
+          original URL (groupby, dates, domain, ...), redirect to the
+          canonical URL with that parameter made explicit.
 
         :param subpath: Path to the (window) action to execute
-        :param view_type: View type from which we generate the parameters
+        :param view_type: Requested view type
         :param domain: The domain for searches
-        :param offset: Offset for search
-        :param limit: Limit for search
+        :param offset: Result offset
+        :param limit: Result limit; falls back to the action's limit when
+                      unset or 0
         :param groupby: Comma-separated string; when set, executes a `web_read_group`
                         and groups by the given fields
-        :param fields: Comma-separates aggregates for the "group by" query
+        :param fields: Comma-separated field list; aggregated fields when
+                      grouping, extra fields added to the read spec otherwise
         :param start_date: When applicable, minimum date (inclusive bound)
         :param end_date: When applicable, maximum date (exclusive bound)
         """
@@ -75,11 +74,11 @@ class WebJsonController(http.Controller):
                 request.env._("You need export permissions to use the /json route")
             )
 
-        # redirect when the computed kwargs and the kwargs from the URL are different
+        # kwargs below may gain resolved defaults (domain, dates, groupby...);
+        # redirect once at the end to a canonical URL with everything explicit.
         param_list = set(kwargs)
 
         def check_redirect():
-            # when parameters were added, redirect
             if param_list == set(kwargs):
                 return None
             # for domains, make chars as safe
@@ -89,12 +88,10 @@ class WebJsonController(http.Controller):
                 HTTPStatus.TEMPORARY_REDIRECT,
             )
 
-        # Get the action
         env = request.env
         action, context, eval_context, record_id = self._get_action(subpath)
         model = env[action.res_model].with_context(context)
 
-        # Get the view
         view_type = kwargs.get("view_type")
         if not view_type and record_id:
             view_type = "form"
@@ -102,7 +99,6 @@ class WebJsonController(http.Controller):
         view = model.get_view(view_id, view_type)
         spec = model._get_fields_spec(view)
 
-        # Simple case: form view with record
         if view_type == "form" or record_id:
             if redirect := check_redirect():
                 return redirect
@@ -111,10 +107,10 @@ class WebJsonController(http.Controller):
             res = model.browse(int(record_id)).web_read(spec)[0]
             return request.make_json_response(res)
 
-        # Find domain and limits
         domains = [safe_eval(action.domain or "[]", eval_context)]
         if "domain" in kwargs:
-            # for the user-given domain, use only literal-eval instead of safe_eval
+            # User-supplied domain: literal_eval only, never safe_eval, since
+            # it comes from the URL and must not be able to run arbitrary code.
             user_domain = ast.literal_eval(kwargs.get("domain") or "[]")
             domains.append(user_domain)
         else:
@@ -132,10 +128,8 @@ class WebJsonController(http.Controller):
         if "limit" not in kwargs:
             kwargs["limit"] = limit
 
-        # Additional info from the view
         view_tree = etree.fromstring(view["arch"])
 
-        # Add date domain for some view types
         if view_type in ("calendar", "gantt", "cohort"):
             try:
                 start_date = date.fromisoformat(kwargs["start_date"])
@@ -157,10 +151,8 @@ class WebJsonController(http.Controller):
                     }
                 )
 
-        # Add explicitly activity fields for an activity view
         if view_type == "activity":
             domains.append([("activity_ids", "!=", False)])
-            # add activity fields
             for field_name, field in model._fields.items():
                 if (
                     field_name.startswith("activity_")
@@ -169,7 +161,6 @@ class WebJsonController(http.Controller):
                 ):
                     spec[field_name] = {}
 
-        # Group by
         groupby, fields = get_groupby(
             view_tree, kwargs.get("groupby"), kwargs.get("fields")
         )
@@ -195,20 +186,16 @@ class WebJsonController(http.Controller):
             aggregates = ["__count"]
 
         if groupby is not None and not kwargs.get("groupby"):
-            # add arguments to kwargs
             kwargs["groupby"] = ",".join(groupby)
             if "fields" not in kwargs and fields:
                 kwargs["fields"] = ",".join(fields)
         if groupby is None and fields:
-            # add fields to the spec
             for field in fields:
                 spec.setdefault(field, {})
 
-        # Last checks before the query
         if redirect := check_redirect():
             return redirect
         domain = Domain.AND(domains)
-        # Reading a group or a list
         if groupby:
             res = model.web_read_group(
                 domain,
@@ -217,7 +204,8 @@ class WebJsonController(http.Controller):
                 limit=limit,
                 offset=offset,
             )
-            # Remove internal routing domain; not for API consumers
+            # __extra_domain is for the JS client's own subgroup queries, not
+            # for /json API consumers — drop it from each group.
             for value in res["groups"]:
                 del value["__extra_domain"]
         else:
@@ -227,18 +215,16 @@ class WebJsonController(http.Controller):
                 limit=limit,
                 offset=offset,
             )
-        # ``web_read_group`` / ``web_search_read`` are ``@versioned`` (Plan-C
-        # rpc-cache optimisation): they stamp an internal ``__version`` sha256
-        # for the web client's JS cache. That key is not part of the public
-        # /json contract — strip it for API consumers, same as ``__extra_domain``
-        # above.
+        # web_read_group/web_search_read are @versioned (odoo.tools.cache_version):
+        # they stamp an internal __version sha256 hash for the web client's JS
+        # rpc cache. Not part of the public /json contract — strip it here too.
         res.pop("__version", None)
         return request.make_json_response(res)
 
     def _check_json_route_active(self):
         """Verify the /json route is enabled (demo mode or config param)."""
-        # experimental route, only enabled in demo mode or when explicitly set
-        # Use sudo() since user may not have access to ir.module.module
+        # su=True: reading base.module_base (ir.module.module) may be denied
+        # to the current user, but this check must run regardless.
         sudo_env = request.env(su=True)
         if not (
             sudo_env.ref("base.module_base").demo
@@ -269,14 +255,17 @@ class WebJsonController(http.Controller):
                         raise RuntimeError(msg)
                     action_data = action.with_env(action.env(cr=ro_cr, su=False)).run()
             except psycopg.errors.ReadOnlySqlTransaction as e:
-                # never retry on RO connection, just leave
+                # The server action tried to write. Reject instead of letting
+                # this escape: since /json is a readonly=True route, an
+                # uncaught ReadOnlySqlTransaction here would trigger the
+                # dispatcher's normal RO->RW retry and let the action write.
                 raise AccessError(action.env._("Unsupported server action")) from e
             except ValueError as e:
-                # safe_eval wraps the error into a ValueError (as str)
+                # safe_eval wraps any non-bubbled exception (ReadOnlySqlTransaction
+                # included) into a ValueError whose message embeds repr(exc).
                 if "ReadOnlySqlTransaction" not in e.args[0]:
                     raise
                 raise AccessError(action.env._("Unsupported server action")) from e
-            # transform data into a new record
             action = action.env[action_data["type"]]
             action = action.new(
                 action_data, origin=action.browse(action_data.pop("id"))
@@ -290,6 +279,5 @@ class WebJsonController(http.Controller):
             context=context,
             allowed_company_ids=request.env.user.company_ids.ids,
         )
-        # update the context and return
         context.update(safe_eval(action.context, eval_context))
         return action, context, eval_context, record_id

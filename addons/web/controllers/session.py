@@ -44,8 +44,8 @@ class Session(http.Controller):
 
         with ExitStack() as stack:
             if not request.db or request.db != db:
-                # Use a new env only when no db on the request, which means the env was not set on in through `_serve_db`
-                # or the db is different than the request db
+                # Build a new env only when no db is set on the request (env wasn't
+                # populated via `_serve_db`) or it differs from the requested db.
                 cr = stack.enter_context(odoo.modules.registry.Registry(db).cursor())
                 env = odoo.api.Environment(cr, None, {})
             else:
@@ -77,12 +77,12 @@ class Session(http.Controller):
 
     @http.route("/web/session/modules", type="jsonrpc", auth="user", readonly=True)
     def modules(self) -> list[str]:
-        # return all installed modules. Web client is smart enough to not load a module twice
+        # The web client de-duplicates, so listing already-loaded modules is harmless.
         return list(request.env.registry._init_modules)
 
     @http.route("/web/session/check", type="jsonrpc", auth="user", readonly=True)
     def check(self) -> None:
-        return  # ir.http@_authenticate does the job
+        return  # ir.http._authenticate already validated the session for this auth="user" route
 
     @http.route("/web/session/account", type="jsonrpc", auth="user", readonly=True)
     def account(self) -> str:

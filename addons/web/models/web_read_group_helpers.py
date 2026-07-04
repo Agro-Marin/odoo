@@ -69,14 +69,13 @@ class Base(models.AbstractModel):
         field_name = groupby_spec.split(".")[0].split(":")[0]
         field = self._fields[field_name]
 
-        # determine all groups that should be returned
+        # Existing non-empty group values; passed to group_expand so it can
+        # merge them with the full set it computes.
         values = [group_value for group_value, *__ in groups if group_value]
 
-        # field.group_expand is a callable or the name of a method, that returns
-        # the groups that we want to display for this field, in the form of a
-        # recordset or a list of values (depending on the type of the field).
-        # This is useful to implement kanban views for instance, where some
-        # columns should be displayed even if they don't contain any record.
+        # field.group_expand returns the full set of groups to display for this
+        # field (recordset or list of values, depending on the field type), so
+        # kanban columns without any record can still be shown.
         if field.relational:
             # groups is a recordset; determine order on groups's model
             values = self.env[field.comodel_name].browse(value.id for value in values)
@@ -229,11 +228,9 @@ class Base(models.AbstractModel):
             # locale, so filled groups should be too to avoid overlaps.
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
-        # existing non null date(time)
         existing = sorted(
             group_value for group in groups if (group_value := group[0])
         ) or [None]
-        # assumption: existing data is sorted by field 'groupby_name'
         existing_from, existing_to = existing[0], existing[-1]
 
         # Resolve the bounds via the shared ORM helper (parse by field type, snap
@@ -323,7 +320,7 @@ class Base(models.AbstractModel):
             return formatter_follow_many2one
 
         if field.type == "many2many":
-            # Special case for many2many because (<many2many>, '=', False) domain bypass ir.rule.
+            # many2many: (field, '=', False) would bypass ir.rule, so express "no value" as "not any" instead.
             def formatter_many2many(value):
                 if not value:
                     return False, [(field_name, "not any", [])]
@@ -441,8 +438,8 @@ class Base(models.AbstractModel):
 
             def formatter_property_selection(value):
                 if not value:
-                    # can not do ('selection', '=', False) because we might have
-                    # option in database that does not exist anymore
+                    # Can't use ('selection', '=', False): the database may have
+                    # an option that no longer exists in the current selection.
                     return value, [
                         "|",
                         (fullname, "=", False),
@@ -458,8 +455,8 @@ class Base(models.AbstractModel):
 
             def formatter_property_many2one(value):
                 if not value:
-                    # can not only do ('many2one', '=', False) because we might have
-                    # record in database that does not exist anymore
+                    # Can't use only ('many2one', '=', False): the database may
+                    # have a record that no longer exists.
                     return value, [
                         "|",
                         (fullname, "=", False),
@@ -513,7 +510,7 @@ class Base(models.AbstractModel):
                         else []
                     )
 
-                # replace tag raw value with tuple of raw value, label and color
+                # tags.get(value) is (raw value, label, color); replaces the raw value
                 return tags.get(value), [(fullname, "in", [value])]
 
             return formatter_property_tags
@@ -531,7 +528,7 @@ class Base(models.AbstractModel):
                 return formatter_property_date_number
 
             interval = READ_GROUP_TIME_GRANULARITY[func]
-            # Date / Datetime are not JSONifiable, so they are stored as raw text
+            # Date/Datetime values aren't JSON-serializable, so store them as raw text
             fmt = (
                 DEFAULT_SERVER_DATE_FORMAT
                 if property_type == "date"

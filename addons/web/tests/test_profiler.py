@@ -19,7 +19,7 @@ class ProfilingHttpCase(HttpCase):
     def profile_rpc(self, params=None):
         params = params or {}
         req = self.url_open(
-            "/web/dataset/call_kw/ir.profile/set_profiling",  # use model and method in route has web client does
+            "/web/dataset/call_kw/ir.profile/set_profiling",  # same call_kw shape the JS client uses
             headers={"Content-Type": "application/json"},
             data=json_dumps(
                 {
@@ -39,7 +39,6 @@ class ProfilingHttpCase(HttpCase):
 @tagged("post_install", "-at_install", "profiling", "web_http", "web_profiler")
 class TestProfilingWeb(ProfilingHttpCase):
     def test_profiling_enabled(self):
-        # since profiling will use a direct connection to the database patch 'db_connect' to ensure we are using the test cursor
         self.authenticate("admin", "admin")
         last_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
         # Trying to start profiling when not enabled
@@ -63,8 +62,7 @@ class TestProfilingWeb(ProfilingHttpCase):
             self.env["ir.profile"].search([], limit=1, order="id desc"),
             "profiling route shouldn't have been profiled",
         )
-        # Profile a page
-        res = self.url_open("/web/login")  # profile a light route
+        res = self.url_open("/web/login")  # a lightweight route, cheap to profile
         new_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
         self.assertNotEqual(
             last_profile, new_profile, "A new profile should have been created"
@@ -146,7 +144,7 @@ class TestProfilingPublic(ProfilingHttpCase):
 
         res = self.url_open(
             "/web/login"
-        )  # profile /web/login to avoid redirections of /
+        )  # avoids the redirect chain that GET / would trigger
         new_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
         self.assertNotEqual(
             last_profile, new_profile, "A route should have been profiled"

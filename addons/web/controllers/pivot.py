@@ -80,7 +80,6 @@ class TableExporter(http.Controller):
                     worksheet.write(y, x, measure["title"], style)
                     x = x + 1
                 x, y = 1, y + 1
-            # Freeze header rows
             worksheet.freeze_panes(y, 1)
 
             # Step 3: writing data

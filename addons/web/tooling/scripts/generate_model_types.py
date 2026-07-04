@@ -34,12 +34,19 @@ default; pass ``--output-dir`` to override.
 DESIGN CHOICES
 --------------
 
-- **Per-module file split**: each module that contributes fields to a
-  model emits its own ``.d.ts``.  TypeScript declaration merging
-  unions the field sets at compile time.  This mirrors the runtime
-  addon graph: install ``sale`` → only ``sale.d.ts`` exists; install
-  ``sale_management`` later → its overlay file lands without disturbing
-  the base.
+- **One file per model, filed under its defining module**: each model
+  gets exactly one ``.d.ts``, written to
+  ``<output_dir>/<original_module>/<model>.d.ts`` where
+  ``original_module`` is whichever module first declared the model
+  (``_original_module`` — set once, at class creation; ``_inherit``
+  extensions don't get their own entry).  Fields added later by an
+  extending module (e.g. ``sale_management`` on ``sale.order``) are
+  folded into that same file on the next regen, since ``fields_get()``
+  already returns the full merged field set — there is no per-module
+  overlay file.  Declaration merging is used across files at the
+  ``Models`` registry level (each file contributes one entry to the
+  global ``Models`` map), not to split one model's fields across
+  several files.
 
 - **No ``x_*`` custom fields**: those are per-deployment, not per-codebase.
   Including them would couple the type repo to a specific database.
@@ -56,8 +63,11 @@ DESIGN CHOICES
   Worth revisiting once we observe how often the tighter form bites.
 
 - **Selection unions**: ``selection`` fields emit a string-literal union
-  of their keys (``"draft" | "sent" | "sale"``).  Dynamic selections
-  (``selection=lambda``) fall back to ``string``.
+  of their keys (``"draft" | "sent" | "sale"``).  ``fields_get()``
+  already resolves callable/dynamic selections to a concrete list
+  before this script sees them, so the ``string`` fallback below is
+  for an empty/malformed selection or one over
+  ``_SELECTION_KEY_CAP`` keys — not for "is it dynamic."
 
 - **No regeneration order dependency**: each output file is independent
   and can be regenerated alone.  The codegen never reads back its own
@@ -137,7 +147,10 @@ def _render_field_type(field: dict[str, Any]) -> str:
     if ttype == "selection":
         sel = field.get("selection") or []
         if not sel or not isinstance(sel, list):
-            # Lambda / dynamic selection — server resolves at runtime.
+            # Defensive fallback only: fields_get() always resolves the
+            # selection (including callable/dynamic definitions) to a
+            # list of pairs, so this guards an empty/malformed value,
+            # not "the selection was a lambda."
             return "string"
         keys = [k for k, _ in sel if isinstance(k, str)]
         if not keys:
@@ -249,8 +262,7 @@ def _model_to_dts(
         ts_type = _render_field_type(field)
         marker = "" if _is_required(field) else "?"
         # Server help/string isn't carried into the type — too noisy and
-        # rots faster than the field shape.  IDE hover surfaces the
-        # ``@param`` from the codegen header instead.
+        # rots faster than the field shape.
         lines.append(f"        {fname}{marker}: {ts_type};\n")
 
     lines.append(f"    }}\n")
@@ -330,8 +342,13 @@ def generate(
         )
         if not ir_model:
             continue
-        # Skip transient/abstract — they don't have records to type
-        # at the data-layer.  Worth revisiting if wizards want types.
+        # Transient models are always skipped (no data-layer records to
+        # type).  Abstract models are skipped only when ``modules``
+        # (comma-joined list of contributing modules) is exactly
+        # ``"base"`` — due to operator precedence this is
+        # ``transient or (modules == "base" and abstract)``, so an
+        # abstract model extended by any non-base module is NOT
+        # skipped here.  Worth revisiting if wizards want types.
         if ir_model.transient or ir_model.modules == "base" and (
             getattr(env[model_name], "_abstract", False)
         ):

@@ -7,12 +7,12 @@ class View(Controller):
 
     @route("/web/view/edit_custom", type="jsonrpc", auth="user")
     def edit_custom(self, custom_id: int, arch: str) -> dict[str, bool]:
-        """
-        Edit a custom view
+        """Overwrite the arch of a custom view owned by the current user.
 
-        :param int custom_id: the id of the edited custom view
-        :param str arch: the edited arch of the custom view
-        :returns: dict with acknowledged operation (result set to True)
+        :param int custom_id: id of the custom view to update
+        :param str arch: new arch to write to the view
+        :returns: dict acknowledging the write (``{"result": True}``)
+        :raises AccessError: if the view belongs to a different user
         """
         custom_view = request.env["ir.ui.view.custom"].sudo().browse(custom_id)
         if custom_view.user_id != request.env.user:

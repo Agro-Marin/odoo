@@ -198,8 +198,9 @@ class TestWebBenchmark(TransactionCase):
     def test_bench_search_panel_m2m(self):
         """Benchmark: search_panel many2many with counters.
 
-        Quantifies the N+1 cost of per-record search_count() in
-        search_panel_select_multi_range (web_search_panel.py:318).
+        Measures the grouped-count path in search_panel_select_multi_range
+        (web_search_panel.py, ``count_image``/``group_count_images``), which
+        replaced an earlier per-record ``search_count()`` N+1.
         """
         Partners = self.env["res.partner"]
         domain = [("name", "like", "BenchPartner")]
@@ -220,8 +221,9 @@ class TestWebBenchmark(TransactionCase):
     def test_bench_web_save_multi(self):
         """Benchmark: web_save_multi on 20 records.
 
-        Quantifies the per-record write loop cost
-        (web_read.py:113-114).
+        Measures the grouped-write path in web_save_multi (web_read.py),
+        which batches records sharing identical vals into one write() per
+        group instead of one per record.
         """
         partners = self.partners[:20]
         vals_list = [{"name": f"BenchUpdate_{i}"} for i in range(20)]

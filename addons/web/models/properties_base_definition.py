@@ -11,7 +11,7 @@ class PropertiesBaseDefinition(models.Model):
     def get_properties_base_definition(
         self, model_name: str, field_name: str
     ) -> dict[str, Any]:
-        """Return the base properties definition if we can read the model."""
+        """Return the base properties definition, after checking read access on the model."""
         model = self.env.get(model_name)
         if model is None:
             raise ValidationError(

@@ -9,11 +9,9 @@ from odoo.tools import html_escape as escape
 
 
 class IrQwebFieldImage(models.AbstractModel):
-    """
-    Widget options:
-
-    ``class``
-        set as attribute on the generated <img> tag
+    """Render the ``image`` widget as an ``<img>`` tag served from
+    ``/web/image`` (resize, zoom, filename options) instead of the base
+    inline base64 data URI.
     """
 
     _inherit = "ir.qweb.field.image"
@@ -21,10 +19,9 @@ class IrQwebFieldImage(models.AbstractModel):
     def _get_src_urls(
         self, record: Any, field_name: str, options: dict[str, Any]
     ) -> tuple[str, str | None]:
-        """Considering the rendering options, returns the src and data-zoom-image urls.
+        """Build the ``src`` and ``data-zoom-image`` URLs from the given rendering options.
 
         :return: src, src_zoom urls
-        :rtype: tuple[str, str | None]
         """
         max_size = options.get("resize") or None
         if not max_size:

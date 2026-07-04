@@ -171,7 +171,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_change_logo(self):
-        """changes of the logo implies displaying the new computed colors"""
+        """Changing the logo updates the displayed colors to the newly computed ones."""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -224,7 +224,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["sweden"]["colors"])
 
     def test_parse_company_colors_grayscale(self):
-        """Grayscale images with transparency - make sure the color extraction does not crash"""
+        """Grayscale images with transparency must not crash color extraction."""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -258,14 +258,12 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
     def test_company_details_blank_lines(self):
         """Test that the company address is generated dynamically using only the fields that are defined,
         without leaving any blank lines."""
-        # Make sure there is no blank line in the company details.
         doc_layout_1 = self.env["base.document.layout"].create(
             {"company_id": self.company.id}
         )
         self.assertNotIn("\n<br>\n", doc_layout_1.company_details)
 
-        # Make sure that 'street2' (an optional field, initially blank),
-        # appears in the company details when it is defined.
+        # street2 is optional and blank by default; it must appear once set.
         self.company.write({"street2": "street_2_detail"})
         doc_layout_2 = self.env["base.document.layout"].create(
             {"company_id": self.company.id}
@@ -282,7 +280,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         doc_layout = self.env["base.document.layout"]
         company_data = {"street": "123 Main St", "city": "Springfield", "zip": False}
 
-        # Bug case: 'zip' ends the format string without a trailing newline.
+        # 'zip' is the trailing placeholder here (no \n after it).
         result = doc_layout._clean_address_format(
             "%(street)s\n%(city)s %(zip)s", company_data
         )

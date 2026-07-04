@@ -140,8 +140,9 @@ _JSDOC_CAST_RE = re.compile(
 )
 
 # ``export const factoryName = …`` declaration.  ``let`` and ``var``
-# are intentionally not matched — Odoo's coding standard mandates
-# ``const`` for module-level service factories.
+# are intentionally not matched — every in-tree service factory is
+# declared with ``export const``; widening the match would only invite
+# false positives.
 _EXPORT_CONST_RE = re.compile(
     r"^\s*export\s+const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=",
     re.MULTILINE,
@@ -223,8 +224,6 @@ def _build_registration_re(aliases: set[str]) -> re.Pattern[str]:
     """
     alts = [_DIRECT_CHAIN]
     for alias in sorted(aliases):
-        # ``\b`` left and right anchors to avoid matching ``services`` as
-        # a prefix of ``serviceRegistry`` (or any other identifier).
         alts.append(rf"\b{re.escape(alias)}\b")
     chain = "(?:" + "|".join(alts) + ")"
     return re.compile(
@@ -340,7 +339,8 @@ def render(registrations: list[Registration]) -> str:
     out.append('declare module "services" {\n')
     out.append('    import { ServicesRegistryShape } from "registries";\n')
 
-    # Group registrations by top-level directory, in canonical order.
+    # Group registrations by top-level directory; canonical ordering is
+    # applied below by walking _CATEGORY_ORDER rather than this dict.
     by_dir: dict[str, list[Registration]] = {}
     for reg in registrations:
         by_dir.setdefault(reg.top_level_dir, []).append(reg)
