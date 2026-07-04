@@ -304,6 +304,13 @@ def exp_create_database(
     has had for years.
     """
     validate_db_name(db_name)
+    # Pre-flight the destination filestore, exactly as duplicate/restore/rename
+    # do: a leftover ``filestore/<name>/`` (failed drop, manual ``dropdb``,
+    # crashed restore) would otherwise silently bind the fresh database to
+    # foreign attachments.  Create was the only name-creating op missing this.
+    _assert_filestore_dest_free(
+        odoo.tools.config.filestore(db_name), f"Cannot create {db_name!r}"
+    )
     _logger.info("Create database `%s`.", db_name)
     _create_empty_database(db_name)
     try:
@@ -1339,25 +1346,41 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
     incompatible_databases = []
     server_version = ".".join(str(v) for v in version_info[:2])
     for database_name in databases:
-        with closing(odoo.db.db_connect(database_name).cursor()) as cr:
-            if odoo.tools.sql.table_exists(cr, "ir_module_module"):
-                cr.execute(
-                    "SELECT db_version FROM ir_module_module WHERE name=%s",
-                    ("base",),
-                )
-                base_version = cr.fetchone()
-                if not base_version or not base_version[0]:
-                    incompatible_databases.append(database_name)
-                else:
-                    # e.g. 10.saas~15
-                    local_version = ".".join(base_version[0].split(".")[:2])
-                    if local_version != server_version:
+        # Isolate each database: a single unreachable / permission-denied DB
+        # (the input often comes from ``list_dbs()``, which can include DBs this
+        # role cannot open) must not abort the whole compatibility scan.  Treat a
+        # DB we cannot probe as incompatible so it surfaces for attention.
+        try:
+            with closing(odoo.db.db_connect(database_name).cursor()) as cr:
+                if odoo.tools.sql.table_exists(cr, "ir_module_module"):
+                    cr.execute(
+                        "SELECT db_version FROM ir_module_module WHERE name=%s",
+                        ("base",),
+                    )
+                    base_version = cr.fetchone()
+                    if not base_version or not base_version[0]:
                         incompatible_databases.append(database_name)
-            else:
-                incompatible_databases.append(database_name)
-    for database_name in incompatible_databases:
-        # release connection
-        odoo.db.close_db(database_name)
+                    else:
+                        # e.g. 10.saas~15
+                        local_version = ".".join(base_version[0].split(".")[:2])
+                        if local_version != server_version:
+                            incompatible_databases.append(database_name)
+                else:
+                    incompatible_databases.append(database_name)
+        except Exception:
+            _logger.warning(
+                "Could not check compatibility of database %r; treating it as "
+                "incompatible",
+                database_name,
+                exc_info=True,
+            )
+            incompatible_databases.append(database_name)
+        finally:
+            # Release the connection pool ``db_connect`` registered for EVERY
+            # database probed, not only the incompatible ones — the previous code
+            # closed pools solely for the incompatible set, leaking one idle pool
+            # per compatible database (the common all-compatible case).
+            odoo.db.close_db(database_name)
     return incompatible_databases
 
 

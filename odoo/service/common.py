@@ -99,8 +99,13 @@ def exp_authenticate(
 
 
 def exp_version() -> dict[str, Any]:
-    """Return the RPC version information dict."""
-    return RPC_VERSION_1
+    """Return the RPC version information dict.
+
+    Returns a fresh shallow copy: ``RPC_VERSION_1`` is a mutable module global,
+    and a client-facing serializer or middleware that mutates the returned dict
+    would otherwise corrupt the shared version state for every later caller.
+    """
+    return dict(RPC_VERSION_1)
 
 
 def dispatch(method: str, params: list | tuple) -> Any:

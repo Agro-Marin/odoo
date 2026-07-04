@@ -100,6 +100,11 @@ def prefork_server(srv):
     obj.queue = deque()
     obj.population = 4
     obj.logger = MagicMock()
+    obj.workers = {}
+    # Fork-storm respawn-throttle state (consumed by process_zombie ->
+    # _note_worker_exit and process_spawn).
+    obj._consecutive_fast_deaths = 0
+    obj._respawn_not_before = 0.0
     return obj
 
 
@@ -751,10 +756,13 @@ def _worker_check_limits_patches(memory_bytes=0, config_override=None):
     mock_resource.RUSAGE_SELF = 0
     return [
         # Worker.check_limits lives in odoo.service._worker after the extraction;
-        # its references to ``config`` / ``memory_info`` / ``resource`` resolve
-        # against ``_worker``'s module namespace, not ``server``'s.
+        # its ``config`` / ``resource`` references resolve against ``_worker``'s
+        # namespace.  The RSS read goes through ``over_memory_soft_limit`` (also
+        # imported into ``_worker``), which looks up ``memory_info`` in its
+        # defining module ``_helpers`` — so that is where the stub belongs, and
+        # patching it lets the real soft-limit threshold logic run.
         patch("odoo.service._worker.config", cfg),
-        patch("odoo.service._worker.memory_info", return_value=memory_bytes),
+        patch("odoo.service._helpers.memory_info", return_value=memory_bytes),
         patch("odoo.service._worker.resource", mock_resource),
     ], mock_resource
 
@@ -875,7 +883,7 @@ class TestWorkerCheckLimits:
         mem = MagicMock(return_value=0)
         with patch("odoo.service._worker.config",
                    {"limit_memory_soft": 0, "limit_time_cpu": 60}), \
-             patch("odoo.service._worker.memory_info", mem), \
+             patch("odoo.service._helpers.memory_info", mem), \
              patch("odoo.service._worker.resource", self._resource_stub()):
             bare_worker.check_limits()
         mem.assert_not_called()
@@ -887,7 +895,7 @@ class TestWorkerCheckLimits:
         mem = MagicMock(return_value=50)
         with patch("odoo.service._worker.config",
                    {"limit_memory_soft": 100, "limit_time_cpu": 60}), \
-             patch("odoo.service._worker.memory_info", mem), \
+             patch("odoo.service._helpers.memory_info", mem), \
              patch("odoo.service._worker.resource", self._resource_stub()):
             bare_worker.check_limits()
         mem.assert_called_once()
@@ -1094,6 +1102,117 @@ class TestPreforkProcessZombie:
         with patch("os.waitpid", side_effect=OSError(errno.EINTR, "interrupted")):
             with pytest.raises(OSError):
                 prefork_server.process_zombie()
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer respawn throttle (fork-storm guard)
+# ---------------------------------------------------------------------------
+
+
+class TestPreforkRespawnBackoff:
+    """``_note_worker_exit`` / ``process_spawn``: throttle respawns of workers
+    that die young so a boot-crash loop can't fork-storm the master."""
+
+    @staticmethod
+    def _worker(prefork_server, pid, *, age_s):
+        w = MagicMock()
+        w.__class__.__name__ = "WorkerHTTP"
+        w.spawn_time = time.monotonic() - age_s
+        prefork_server.workers[pid] = w
+        return w
+
+    def test_young_crash_arms_exponential_backoff(self, prefork_server):
+        self._worker(prefork_server, 1234, age_s=0.0)
+        before = time.monotonic()
+        prefork_server._note_worker_exit(1234, 1 << 8)  # exited, code 1
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > before
+        # a second consecutive young crash grows the backoff
+        self._worker(prefork_server, 1235, age_s=0.0)
+        prefork_server._note_worker_exit(1235, 1 << 8)
+        assert prefork_server._consecutive_fast_deaths == 2
+
+    def test_backoff_capped(self, prefork_server):
+        prefork_server._consecutive_fast_deaths = 20  # 2**20 >> cap
+        self._worker(prefork_server, 1, age_s=0.0)
+        t = time.monotonic()
+        prefork_server._note_worker_exit(1, 1 << 8)
+        assert (
+            prefork_server._respawn_not_before - t
+            <= _prefork.WORKER_RESPAWN_BACKOFF_CAP_S + 0.5
+        )
+
+    def test_healthy_exit_clears_throttle(self, prefork_server):
+        prefork_server._consecutive_fast_deaths = 3
+        prefork_server._respawn_not_before = time.monotonic() + 100
+        self._worker(
+            prefork_server, 42, age_s=_prefork.WORKER_MIN_HEALTHY_LIFETIME_S + 5
+        )
+        prefork_server._note_worker_exit(42, 1 << 8)  # crashed, but lived long
+        assert prefork_server._consecutive_fast_deaths == 0
+        assert prefork_server._respawn_not_before == 0.0
+
+    def test_clean_young_exit_neither_arms_nor_clears(self, prefork_server):
+        prefork_server._consecutive_fast_deaths = 2
+        prefork_server._respawn_not_before = 555.0
+        self._worker(prefork_server, 7, age_s=1.0)
+        prefork_server._note_worker_exit(7, 0)  # exit 0, recycle
+        assert prefork_server._consecutive_fast_deaths == 2
+        assert prefork_server._respawn_not_before == 555.0
+
+    def test_signal_killed_young_worker_not_counted(self, prefork_server):
+        # SIGKILL (watchdog timeout / graceful-stop escalation): WIFEXITED False.
+        prefork_server._consecutive_fast_deaths = 0
+        self._worker(prefork_server, 8, age_s=1.0)
+        prefork_server._note_worker_exit(8, signal.SIGKILL)  # signalled, not exited
+        assert prefork_server._consecutive_fast_deaths == 0
+
+    def test_unknown_pid_ignored(self, prefork_server):
+        prefork_server._consecutive_fast_deaths = 1
+        prefork_server._note_worker_exit(99999, 1 << 8)  # not in self.workers
+        assert prefork_server._consecutive_fast_deaths == 1
+
+    def test_process_spawn_skips_during_backoff(self, prefork_server):
+        prefork_server._respawn_not_before = time.monotonic() + 100
+        prefork_server.worker_spawn = MagicMock()
+        prefork_server.long_polling_spawn = MagicMock()
+        prefork_server.process_spawn()
+        prefork_server.worker_spawn.assert_not_called()
+        prefork_server.long_polling_spawn.assert_not_called()
+
+
+class TestPreforkGracefulStopEscalation:
+    """``stop_workers_gracefully``: force-SIGKILL survivors past the deadline so a
+    worker that ignores SIGINT with no watchdog can't hang shutdown/reload."""
+
+    def test_escalates_to_sigkill_after_deadline(self, prefork_server, monkeypatch):
+        prefork_server.pid = os.getpid()  # -> is_main_server, waitpid reaping path
+        prefork_server.long_polling_pid = None
+        wedged = MagicMock()
+        wedged.watchdog_timeout = None  # no watchdog: process_timeout never fires
+        prefork_server.workers = {321: wedged}
+        prefork_server.worker_kill = MagicMock()  # swallow the initial SIGINT
+        prefork_server.process_signals = MagicMock()
+        prefork_server.process_timeout = MagicMock()
+        prefork_server.sleep = MagicMock()
+
+        killed: list[tuple[int, int]] = []
+
+        def fake_zombie():
+            # The real process_zombie reaps the SIGKILLed child and pops it;
+            # simulate that so the loop can drain once escalation has fired.
+            if killed:
+                prefork_server.workers.pop(321, None)
+
+        prefork_server.process_zombie = MagicMock(side_effect=fake_zombie)
+        monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append((pid, sig)))
+        # deadline immediately in the past -> escalate on the first tick
+        monkeypatch.setattr(_prefork, "GRACEFUL_STOP_TIMEOUT_S", 0.0)
+
+        prefork_server.stop_workers_gracefully()
+
+        assert (321, signal.SIGKILL) in killed
+        assert not prefork_server.workers  # loop drained, no infinite spin
 
 
 # ---------------------------------------------------------------------------
@@ -1463,8 +1582,9 @@ class TestThreadedWSGIServerSemaphore:
 class TestServiceCommon:
     """``odoo.service.common``: RPC dispatch table and version endpoint."""
 
+    @staticmethod
     @pytest.fixture(scope="class")
-    def common(self):
+    def common():
         import odoo.service.common as mod  # noqa: PLC0415
 
         return mod
@@ -1493,8 +1613,9 @@ class TestServiceCommon:
 class TestServiceDb:
     """``odoo.service.db``: admin gate decorators."""
 
+    @staticmethod
     @pytest.fixture(scope="class")
-    def db_mod(self):
+    def db_mod():
         import odoo.service.db as mod  # noqa: PLC0415
 
         return mod
@@ -1576,7 +1697,7 @@ class TestThreadedServerProcessLimit:
             **(config_override or {}),
         }
         return [
-            patch("odoo.service._threaded.memory_info", return_value=memory),
+            patch("odoo.service._helpers.memory_info", return_value=memory),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._threaded.psutil"),
         ]
@@ -2428,7 +2549,7 @@ class TestProcessLimitRealTimeLog:
             "limit_time_real_cron": 0,
         }
         with patch.object(_threaded, "config", cfg), \
-             patch.object(_threaded, "memory_info", return_value=0), \
+             patch.object(_helpers, "memory_info", return_value=0), \
              patch.object(threading, "enumerate", return_value=[fake_thread]):
             ts.process_limit()
 
