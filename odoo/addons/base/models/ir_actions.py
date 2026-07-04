@@ -108,7 +108,11 @@ class IrActionsActions(models.Model):
         """
         todos = self.env["ir.actions.todo"].search([("action_id", "in", self.ids)])
         todos.unlink()
-        filters = self.env["ir.filters"].search([("action_id", "in", self.ids)])
+        filters = (
+            self.env["ir.filters"]
+            .with_context(active_test=False)
+            .search([("action_id", "in", self.ids)])
+        )
         filters.unlink()
         res = super().unlink()
         # self.get_bindings() depends on action records

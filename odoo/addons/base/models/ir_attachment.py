@@ -652,7 +652,9 @@ class IrAttachment(models.Model):
     def _get_pdf_raw(self) -> bytes | None:
         """Return raw PDF bytes if this attachment is a binary PDF, else None."""
         self.ensure_one()
-        if self.type != "binary" or self.mimetype != "application/pdf":
+        if self.type != "binary" or not (self.mimetype or "").startswith(
+            "application/pdf"
+        ):
             return None
         return self.raw or None
 
@@ -2043,6 +2045,21 @@ class IrAttachment(models.Model):
             raise ValidationError(
                 _("Sorry, you are not allowed to write on this document")
             )
+
+    @api.constrains("res_model", "res_id")
+    def _check_circular_attachment(self) -> None:
+        # an attachment pointing at itself causes a recursion-depth crash when
+        # its chain is walked
+        for record in self.sudo():
+            if record.res_model == "ir.attachment" and record.id == record.res_id:
+                raise ValidationError(
+                    _(
+                        "You cannot attach an attachment to itself.\n"
+                        "Attachment %(record)s cannot have res_id: %(res_id)s",
+                        record=record.display_name,
+                        res_id=record.res_id,
+                    )
+                )
 
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
         """Check access for attachments.
