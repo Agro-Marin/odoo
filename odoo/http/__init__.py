@@ -166,6 +166,7 @@ from .helpers import (
     dispatch_rpc,
     get_session_max_inactivity,
     is_cors_preflight,
+    rewind_uploaded_files,
     serialize_exception,
 )
 
@@ -307,6 +308,7 @@ __all__ = [
     "is_cors_preflight",
     "maxminddb",
     "request",
+    "rewind_uploaded_files",
     "root",
     "route",
     "rule_routing_kwargs",
