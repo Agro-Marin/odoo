@@ -43,6 +43,10 @@ def _to_ms(ns: int | float) -> float:
 
 def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
     """Record gc collection timings; called before and after each gc run, see gc_set_timing."""
+    # Avoid calling time's methods if the module has already been unloaded at
+    # interpreter shutdown (the imported global would be set to None).
+    if _gc_time is None:
+        return
     global _gc_start  # noqa: PLW0603
     gen = info["generation"]
     if event == "start":

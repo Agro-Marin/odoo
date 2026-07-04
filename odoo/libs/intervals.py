@@ -177,9 +177,13 @@ def invert_intervals[T](
     items = []
     prev_stop = first_start
     for start, stop in sorted(intervals):
-        if prev_stop < start <= last_stop:
+        if start > last_stop:
+            break
+        if prev_stop < start:
             items.append((prev_stop, start))
         prev_stop = max(prev_stop, stop)
+        if stop >= last_stop:
+            break
     if prev_stop < last_stop:
         items.append((prev_stop, last_stop))
     # abuse Intervals to merge contiguous intervals

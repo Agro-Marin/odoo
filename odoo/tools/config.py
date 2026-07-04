@@ -1428,6 +1428,17 @@ class configmanager:
     ) -> list[str]:
         ad_paths = []
         for path in map(cls._normalize, cls._check_comma(option, opt, value)):
+            if any(ch in path for ch in "*?["):
+                # expand glob patterns, keeping only valid addons directories;
+                # a literal path is handled by the branches below. `path` is
+                # already absolute (via _normalize), so glob from its anchor.
+                anchor = Path(path).anchor
+                ad_paths.extend(sorted(
+                    str(match)
+                    for match in Path(anchor).glob(str(Path(path).relative_to(anchor)))
+                    if match.is_dir() and cls._is_addons_path(str(match))
+                ))
+                continue
             if not Path(path).is_dir():
                 cls._log(
                     logging.WARNING,
