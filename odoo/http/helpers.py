@@ -36,6 +36,40 @@ def content_disposition(filename: str, disposition_type: str = "attachment") -> 
     return f"{disposition_type}; filename*=UTF-8''{url_quote(filename, safe='')}"
 
 
+def rewind_uploaded_files(
+    httprequest: Any, *, cause: BaseException | None = None
+) -> None:
+    """Seek every uploaded file back to offset 0 before a request is replayed.
+
+    Once the body has been read, the werkzeug ``FileStorage`` streams in
+    ``httprequest.files`` sit at EOF.  Any replay of the handler must rewind
+    them or the second run reads an empty upload and silently drops the file.
+    Two independent replay paths share this one primitive so they cannot drift:
+
+    * the serialization-failure retry loop in
+      :func:`odoo.service.transaction.retrying`, and
+    * the read-only → read-write cursor upgrade in
+      :meth:`odoo.http._serve._RequestServeMixin._rewind_input_files`.
+
+    ``.items(multi=True)`` is REQUIRED, not cosmetic: a
+    ``<input type="file" multiple>`` posts several files under one field name,
+    and the default ``MultiDict.items()`` yields only the *first* entry per key
+    — so every file after the first would be left at EOF and lost on replay
+    (silent data loss, only under a retry).
+
+    A non-seekable stream cannot be replayed, so this raises ``RuntimeError``
+    (chained onto ``cause`` when given) rather than truncating the upload.
+    """
+    for filename, file in httprequest.files.items(multi=True):
+        if hasattr(file, "seekable") and file.seekable():
+            file.seek(0)
+        else:
+            raise RuntimeError(
+                f"Cannot retry request on input file {filename!r} after a "
+                f"transaction error"
+            ) from cause
+
+
 def db_list(force: bool = False, host: str | None = None) -> list[str]:
     """
     Get the list of available databases.
@@ -177,7 +211,8 @@ def get_session_max_inactivity(env: Any) -> int:
         value = int(ICP.get_param("sessions.max_inactivity_seconds", SESSION_LIFETIME))
         if value <= 0:
             _logger.warning(
-                "Non-positive value for 'sessions.max_inactivity_seconds' (%r), using default value.",
+                "Non-positive value for 'sessions.max_inactivity_seconds' "
+                "(%r), using default value.",
                 value,
             )
             return SESSION_LIFETIME

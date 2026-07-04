@@ -41,7 +41,9 @@ PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
 
 
-def _integrity_error_to_validation(env: Environment, exc: IntegrityError) -> ValidationError:
+def _integrity_error_to_validation(
+    env: Environment, exc: IntegrityError
+) -> ValidationError:
     """Map a psycopg ``IntegrityError`` to a user-facing ``ValidationError``.
 
     Names the offending model by matching ``exc.diag.table_name`` against the
@@ -70,17 +72,20 @@ def _rewind_request_for_retry(request: typing.Any, exc: BaseException) -> None:
     is rewound to offset 0 — otherwise the replay reads a partially-consumed
     stream.  A non-seekable upload cannot be replayed, so this raises.
 
+    File rewinding delegates to :func:`odoo.http.helpers.rewind_uploaded_files`
+    — the single primitive also used by the RO→RW cursor-upgrade path
+    (``_serve._rewind_input_files``), so the ``multi=True`` handling of
+    same-field-name multi-file uploads cannot diverge between the two.  Imported
+    lazily for the same reason ``retrying`` imports ``http`` lazily: ``odoo.http``
+    pulls in this module, so a top-level import would cycle.
+
     Kept out of :func:`retrying`'s loop body so the SQL-retry primitive is not
     cluttered with HTTP-request knowledge.
     """
+    from odoo.http.helpers import rewind_uploaded_files
+
     request.session = request._get_session_and_dbname()[0]
-    for filename, file in request.httprequest.files.items():
-        if hasattr(file, "seekable") and file.seekable():
-            file.seek(0)
-        else:
-            raise RuntimeError(
-                f"Cannot retry request on input file {filename!r} after serialization failure"
-            ) from exc
+    rewind_uploaded_files(request.httprequest, cause=exc)
 
 
 def _reset_env_state(env: Environment) -> None:
