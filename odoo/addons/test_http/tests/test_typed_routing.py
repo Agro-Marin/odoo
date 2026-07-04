@@ -13,9 +13,17 @@ from odoo.tests import BaseCase, tagged
 from odoo.addons.test_http.tests.test_common import TestHttpBase
 
 
-def _all_optional(self, n: int = 0, x: float = 1.0, flag: bool = False,
-                  name: str = "", ids: list[int] | None = None, raw=None,
-                  opt: int | None = None, **kw):
+def _all_optional(
+    self,
+    n: int = 0,
+    x: float = 1.0,
+    flag: bool = False,
+    name: str = "",
+    ids: list[int] | None = None,
+    raw=None,
+    opt: int | None = None,
+    **kw,
+):
     return None
 
 
@@ -40,7 +48,9 @@ class TestTypedParams(BaseCase):
             {"n": "5", "x": "2.5", "flag": "on", "name": 7, "raw": "kept"},
             build_param_specs(_all_optional),
         )
-        self.assertEqual(out, {"n": 5, "x": 2.5, "flag": True, "name": "7", "raw": "kept"})
+        self.assertEqual(
+            out, {"n": 5, "x": 2.5, "flag": True, "name": "7", "raw": "kept"}
+        )
 
     def test_bool_tokens(self):
         specs = build_param_specs(_all_optional)
@@ -68,6 +78,28 @@ class TestTypedParams(BaseCase):
         for bad in ({"n": "abc"}, {"flag": "maybe"}, {"n": True}, {"x": "NaNN"}):
             with self.assertRaises(BadRequest):
                 coerce_params(bad, specs)
+
+    def test_fractional_float_for_int_param_is_rejected(self):
+        # ``int(3.7)`` truncates; a fractional JSON number for an int param is
+        # a caller bug and must 400, not silently round toward zero. Integral
+        # floats (JS clients serialize 3 as 3.0) still coerce.
+        specs = build_param_specs(_all_optional)
+        with self.assertRaises(BadRequest):
+            coerce_params({"n": 3.7}, specs)
+        self.assertEqual(coerce_params({"n": 3.0}, specs)["n"], 3)
+
+    def test_non_finite_float_is_rejected(self):
+        specs = build_param_specs(_all_optional)
+        for bad in ("nan", "inf", "-inf", float("nan"), float("inf")):
+            with self.assertRaises(BadRequest):
+                coerce_params({"x": bad}, specs)
+
+    def test_container_for_str_param_is_rejected(self):
+        # A JSON object/array for a str param must not arrive as its repr.
+        specs = build_param_specs(_all_optional)
+        for bad in ({"a": 1}, [1, 2]):
+            with self.assertRaises(BadRequest):
+                coerce_params({"name": bad}, specs)
 
     def test_unannotated_route_has_no_specs(self):
         self.assertEqual(build_param_specs(lambda self, **kw: None), {})
