@@ -161,6 +161,10 @@ safe_attrs = defs.safe_attrs | frozenset(
     ]
 )
 
+# xlink:href is URL-scheme checked (like href) rather than stripped, so SVG
+# links survive sanitization
+defs.link_attrs |= {"xlink:href"}
+
 SANITIZE_TAGS = {
     # allow new semantic HTML5 tags
     "allow_tags": defs.tags
