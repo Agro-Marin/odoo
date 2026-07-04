@@ -237,7 +237,11 @@ class _Response(werkzeug.wrappers.Response):
         if isinstance(result, (bytes, str, type(None))):
             return Response(result)
 
-        raise TypeError(f"{fname} returns an invalid value: {result}")
+        raise TypeError(
+            f"{fname} returns an invalid value: {result!r}. type='http' routes "
+            "return str/bytes/None/Response; for a dict or list, return "
+            "request.make_json_response(...) or use a jsonrpc/json2 route."
+        )
 
     def set_default(
         self,

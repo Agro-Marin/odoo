@@ -109,11 +109,6 @@ class SessionStore:
     def save(self, session):
         """Save a session."""
 
-    def save_if_modified(self, session):
-        """Save if a session class wants an update."""
-        if session.should_save:
-            self.save(session)
-
     def delete(self, session):
         """Delete a session."""
 
@@ -220,15 +215,8 @@ class FilesystemSessionStore(SessionStore):
             data = {}
         return self.session_class(data, sid, False)
 
-    def list(self):
-        """Lists all sessions in the store."""
-        before, after = self.filename_template.split("%s", 1)
-        filename_re = re.compile(rf"{re.escape(before)}(.{{5,}}){re.escape(after)}$")
-        result = []
-        for filename in os.listdir(self.path):
-            if filename.endswith(_fs_transaction_suffix):
-                continue
-            match = filename_re.match(filename)
-            if match is not None:
-                result.append(match.group(1))
-        return result
+    # NOTE: the upstream ``list()`` (glob by filename_template in self.path) and
+    # ``SessionStore.save_if_modified()`` were removed: odoo.http's subclass
+    # scatters files into <path>/<sid[:2]>/ subdirectories and uses a Session
+    # class without ``should_save``, so both were silently broken for every
+    # store in this codebase.

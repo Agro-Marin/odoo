@@ -152,8 +152,16 @@ class MemorySessionStore(SessionStore):
     def delete(self, session):
         self.store.pop(session.sid, None)
 
-    def delete_from_identifiers(self, identifiers):
-        sid_to_remove = [sid for sid in self.store if any(sid.startswith(identifier) for identifier in identifiers)]
+    def delete_from_identifiers(self, identifiers, exclude_sid=None):
+        # Mirror FilesystemSessionStore's signature: ``delete_old_sessions``
+        # (delegated to below) passes ``exclude_sid=`` to keep the current
+        # session alive; without this parameter that path TypeErrors.
+        sid_to_remove = [
+            sid
+            for sid in self.store
+            if sid != exclude_sid
+            and any(sid.startswith(identifier) for identifier in identifiers)
+        ]
         for sid in sid_to_remove:
             self.store.pop(sid)
 
