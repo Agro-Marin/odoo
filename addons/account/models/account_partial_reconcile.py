@@ -394,11 +394,10 @@ class AccountPartialReconcile(models.Model):
                     "counterpart_move": counterpart_move,
                 }
 
-                # Add partials.
                 move_values.setdefault("partials", [])
                 move_values["partials"].append(partial_vals)
 
-        # Clean-up moves having nothing to process.
+        # Some moves may end up with no cash basis entries to create; drop them.
         return {k: v for k, v in tax_cash_basis_values_per_move.items() if v}
 
     @api.model

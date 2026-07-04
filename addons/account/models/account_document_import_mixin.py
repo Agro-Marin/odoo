@@ -93,7 +93,7 @@ def split_etree_on_tag(tree, tag):
     tree = deepcopy(tree)
     nodes_to_split = tree.findall(f".//{tag}")
 
-    # Remove all nodes with the tag
+    # Detach the nodes first so each can be re-inserted alone below.
     parent_node = nodes_to_split[0].getparent()
     for node in nodes_to_split:
         parent_node.remove(node)
@@ -151,7 +151,6 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
         files_data = self._to_files_data(attachments)
 
-        # Extract embedded attachments
         files_data.extend(self._unwrap_attachments(files_data))
 
         # Perform a grouping to determine how many invoices to create

@@ -543,9 +543,9 @@ class AccountMoveSend(models.AbstractModel):
 
     @api.model
     def _prepare_invoice_pdf_report(self, invoices_data):
-        """Prepare the pdf report for the invoice passed as parameter.
-        :param invoice:         An account.move record.
-        :param invoice_data:    The collected data for the invoice so far.
+        """Generate the pdf report for each invoice and attach it to its `invoice_data`.
+
+        :param invoices_data: dict mapping each account.move record to its collected data so far.
         """
 
         company_id = next(iter(invoices_data)).company_id
@@ -618,9 +618,9 @@ class AccountMoveSend(models.AbstractModel):
 
     @api.model
     def _link_invoice_documents(self, invoices_data):
-        """Create the attachments containing the pdf/electronic documents for the invoice passed as parameter.
-        :param invoice:         An account.move record.
-        :param invoice_data:    The collected data for the invoice so far.
+        """Create the attachments containing the pdf/electronic documents for each invoice.
+
+        :param invoices_data: dict mapping each account.move record to its collected data so far.
         """
         # create an attachment that will become 'invoice_pdf_report_file'
         # note: Binary is used for security reason

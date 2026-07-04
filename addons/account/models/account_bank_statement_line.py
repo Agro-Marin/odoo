@@ -338,7 +338,6 @@ class AccountBankStatementLine(models.Model):
         for st_line in self:
             _liquidity_lines, suspense_lines, _other_lines = st_line._seek_for_lines()
 
-            # Compute residual amount
             if not st_line.checked:
                 st_line.amount_residual = (
                     -st_line.amount_currency
@@ -352,19 +351,20 @@ class AccountBankStatementLine(models.Model):
             else:
                 st_line.amount_residual = sum(suspense_lines.mapped("amount_currency"))
 
-            # Compute is_reconciled
             if not st_line.id:
                 # New record: The journal items are not yet there.
                 st_line.is_reconciled = False
             elif suspense_lines:
-                # In case of the statement line comes from an older version, it could have a residual amount of zero.
+                # Zero residual on the suspense lines means they've been fully matched,
+                # even though the statement line itself may predate that check.
                 st_line.is_reconciled = suspense_lines.currency_id.is_zero(
                     st_line.amount_residual
                 )
             elif st_line.currency_id.is_zero(st_line.amount):
                 st_line.is_reconciled = True
             else:
-                # The journal entry seems reconciled.
+                # No suspense lines left and a non-zero amount: the full amount was
+                # already allocated to real accounts, so the line counts as reconciled.
                 st_line.is_reconciled = True
 
     # -------------------------------------------------------------------------
