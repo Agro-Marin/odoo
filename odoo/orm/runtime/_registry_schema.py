@@ -41,6 +41,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 # already-existing constraint.
                 with cr.savepoint(flush=False):
                     func(cr)
+            else:
+                # already queued (module A failed to apply it): keep the latest
+                # definition so finalize applies module B's version, not the
+                # stale one from module A
+                self._constraint_queue[key] = func
         except Exception as e:
             # "%s" % e, not *e.args: an empty-args exception would raise inside
             # this handler, and args[0] as a format string mangles messages that
