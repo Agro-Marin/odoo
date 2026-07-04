@@ -355,3 +355,162 @@ def schema_valid(arch, **kwargs):
             _logger.warning("%s", error)
         return False
     return True
+
+
+# ---------------------------------------------------------------------------
+# Accessibility / markup checks (pure, DB-free)
+#
+# Each returns a list of human-readable warning messages for a single arch
+# node, so they can be unit-tested without an ir.ui.view record or an
+# environment. ir.ui.view wraps every call with _log_view_warning() to attach
+# the offending view's error context.
+# ---------------------------------------------------------------------------
+
+def att_names(name):
+    """Yield an attribute name and its ``t-att-``/``t-attf-`` dynamic variants."""
+    yield name
+    yield f"t-att-{name}"
+    yield f"t-attf-{name}"
+
+
+def check_dropdown_menu(node):
+    """Return accessibility warnings for a ``dropdown-menu`` node."""
+    warnings = []
+    if any("dropdown-menu" in node.get(cl, "") for cl in att_names("class")):
+        if node.get("role") != "menu":
+            warnings.append("dropdown-menu class must have menu role")
+    return warnings
+
+
+def check_progress_bar(node):
+    """Return accessibility warnings for an ``o_progressbar`` node."""
+    warnings = []
+    if any("o_progressbar" in node.get(cl, "") for cl in att_names("class")):
+        if node.get("role") != "progressbar":
+            warnings.append("o_progressbar class must have progressbar role")
+        if not any(node.get(at) for at in att_names("aria-valuenow")):
+            warnings.append("o_progressbar class must have aria-valuenow attribute")
+        if not any(node.get(at) for at in att_names("aria-valuemin")):
+            warnings.append("o_progressbar class must have aria-valuemin attribute")
+        if not any(node.get(at) for at in att_names("aria-valuemax")):
+            warnings.append("o_progressbar class must have aria-valuemax attribute")
+    return warnings
+
+
+def check_fa_class_accessibility(node, description):
+    """Return a 0- or 1-element list of warnings for a Font Awesome node that
+    lacks an accessible text alternative (in itself, a sibling, an ancestor or
+    a descendant).
+    """
+    valid_aria_attrs = {
+        *att_names("title"),
+        *att_names("aria-label"),
+        *att_names("aria-labelledby"),
+    }
+    valid_t_attrs = {"t-value", "t-raw", "t-field", "t-esc", "t-out"}
+
+    ## Following or preceding text
+    if (node.tail or "").strip() or (node.getparent().text or "").strip():
+        # text<i class="fa-..."/> or <i class="fa-..."/>text
+        return []
+
+    ## Following or preceding text in span
+    def has_text(elem):
+        if elem is None:
+            return False
+        if elem.tag == "span" and elem.text:
+            return True
+        if elem.tag in ["field", "label"] and elem.get("string"):
+            return True
+        return bool(elem.tag == "t" and (elem.get("t-esc") or elem.get("t-raw")))
+
+    if has_text(node.getnext()) or has_text(node.getprevious()):
+        return []
+
+    def has_title_or_aria_label(node):
+        return any(node.get(attr) for attr in valid_aria_attrs)
+
+    ## Aria label can be on ancestors
+    if any(map(has_title_or_aria_label, node.iterancestors())):
+        return []
+
+    if node.get("string"):
+        return []
+
+    ## And we ignore all elements with describing in children
+    def contains_description(node, depth=0):
+        if depth > 2:
+            _logger.warning("excessive depth in fa")
+        if any(node.get(attr) for attr in valid_t_attrs):
+            return True
+        if has_title_or_aria_label(node):
+            return True
+        if node.tag in ("label", "field"):
+            return True
+        if node.text:  # not sure, does it match *[text()]
+            return True
+        return any(contains_description(child, depth + 1) for child in node)
+
+    if contains_description(node):
+        return []
+
+    return ["%s must have title in its tag, parents, descendants or have text" % description]
+
+
+def check_class_accessibility(node, expr):
+    """Return accessibility warnings for the classes in ``expr`` on ``node``.
+
+    ``expr`` is the raw ``class`` attribute value, which may be a dynamic
+    ``t-attf-class`` expression, hence the best-effort whitespace splitting.
+    Font Awesome findings are appended before the button findings, preserving
+    the original emission order.
+    """
+    warnings = []
+    classes = set(expr.split(" "))
+    if "modal" in classes and node.get("role") != "dialog":
+        warnings.append('"modal" class should only be used with "dialog" role')
+    if "modal-header" in classes and node.tag != "header":
+        warnings.append('"modal-header" class should only be used in "header" tag')
+    if "modal-body" in classes and node.tag != "main":
+        warnings.append('"modal-body" class should only be used in "main" tag')
+    if "modal-footer" in classes and node.tag != "footer":
+        warnings.append('"modal-footer" class should only be used in "footer" tag')
+    if "tab-pane" in classes and node.get("role") != "tabpanel":
+        warnings.append('"tab-pane" class should only be used with "tabpanel" role')
+    if "nav-tabs" in classes and node.get("role") != "tablist":
+        warnings.append('A tab list with class nav-tabs must have role="tablist"')
+    if any(klass.startswith("alert-") for klass in classes):
+        if (
+            node.get("role") not in ("alert", "alertdialog", "status")
+            and "alert-link" not in classes
+        ):
+            warnings.append(
+                "An alert (class alert-*) must have an alert, alertdialog or "
+                "status role or an alert-link class. Please use alert and "
+                "alertdialog only for what expects to stop any activity to "
+                "be read immediately."
+            )
+    if any(klass.startswith("fa-") for klass in classes):
+        description = f"A <{node.tag}> with fa class ({expr})"
+        warnings += check_fa_class_accessibility(node, description)
+    if any(klass.startswith("btn") for klass in classes):
+        if (
+            node.tag in ("a", "button", "select")
+            or (
+                node.tag == "input"
+                and node.get("type") in ("button", "submit", "reset")
+            )
+            or any(
+                klass in classes
+                for klass in ("btn-group", "btn-toolbar", "btn-addr")
+            )
+            or (node.tag == "field" and node.get("widget") == "url")
+        ):
+            pass
+        else:
+            warnings.append(
+                "A simili button must be in tag a/button/select or tag `input` "
+                "with type button/submit/reset or have class in "
+                "btn-group/btn-toolbar/btn-addr"
+            )
+    return warnings

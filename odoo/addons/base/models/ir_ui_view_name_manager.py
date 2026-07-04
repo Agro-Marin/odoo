@@ -49,6 +49,11 @@ class NameManager:
         # this maps field names to the group of users that have access to the field
         self.field_groups = {}
 
+        # group-inconsistency warning HTML built during postprocessing when the
+        # view is rendered for its warning_info (see
+        # IrUiView._group_inconsistency_warning); empty otherwise.
+        self.warning: Markup = Markup("")
+
     @functools.cached_property
     def field_info(self) -> dict[str, Any]:
         field_info = self.model.fields_get(attributes=["readonly", "required"])
@@ -89,7 +94,11 @@ class NameManager:
     ) -> None:
         """Record fields referenced by an expression on ``node`` for validation."""
         access_groups = node_info["model_groups"] & node_info["view_groups"]
-        for name in names:
+        # ``names`` is a set: iterate it sorted so that used_fields insertion
+        # order (and everything derived from it -- the auto-appended missing
+        # fields in the arch, warning messages, validation errors) is stable
+        # across processes regardless of PYTHONHASHSEED.
+        for name in sorted(names):
             if name == "id":
                 continue
             if not name.startswith("parent."):
