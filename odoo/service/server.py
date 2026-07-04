@@ -5,7 +5,7 @@ import surface (``odoo.addons``, ``cli/`` and ``bus/`` import these names from
 ``odoo.service.server``, so they are re-exported here):
 
     _base_server.py   CommonServer + the process-global on-stop registry
-    _threaded.py      ThreadedServer (dev/threaded) + EventServer (gevent)
+    _threaded.py      ThreadedServer (dev/threaded) + EventServer (evented/websocket)
     _prefork.py       PreforkServer (multiprocess master/worker supervisor)
     _worker.py        Worker / WorkerHTTP / WorkerCron child classes
     wsgi.py           WSGI request handlers + threaded WSGI server

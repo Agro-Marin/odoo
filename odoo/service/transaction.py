@@ -76,27 +76,38 @@ def _integrity_error_to_validation(
     return ValidationError(message)
 
 
-def _rewind_request_for_retry(request: typing.Any, exc: BaseException) -> None:
-    """Prepare an in-flight HTTP request for a transaction retry.
+def _refresh_request_session(request: typing.Any) -> None:
+    """Re-fetch the session of an in-flight HTTP request after a failed attempt.
 
-    A retry re-runs the handler from the top, so the session is re-fetched
-    (the rolled-back attempt may have invalidated it) and every uploaded file
-    is rewound to offset 0 — otherwise the replay reads a partially-consumed
-    stream.  A non-seekable upload cannot be replayed, so this raises.
+    Runs on EVERY failure path — retry or raise — because the rolled-back
+    attempt may have mutated the in-memory session (e.g. a login handler that
+    set ``session.uid`` before the failing write): the http layer persists a
+    modified session even when the response is an error, so without this
+    re-fetch those transaction-coupled mutations would outlive the rollback.
+    """
+    request.session = request._get_session_and_dbname()[0]
 
-    File rewinding delegates to :func:`odoo.http.helpers.rewind_uploaded_files`
-    — the single primitive also used by the RO→RW cursor-upgrade path
+
+def _rewind_request_files_for_retry(request: typing.Any, exc: BaseException) -> None:
+    """Rewind every uploaded file to offset 0 before replaying the handler.
+
+    Retry-path only: a retry re-runs the handler from the top, which re-reads
+    the request body — without the rewind the replay reads a partially-consumed
+    stream.  A non-seekable upload cannot be replayed, so this raises; that is
+    why it must NOT run on the raise paths (IntegrityError → ValidationError,
+    non-retryable OperationalError, retries exhausted), where it would mask the
+    real error with a spurious ``RuntimeError`` for no benefit — nothing
+    re-reads the files there.
+
+    Delegates to :func:`odoo.http.helpers.rewind_uploaded_files` — the single
+    primitive also used by the RO→RW cursor-upgrade path
     (``_serve._rewind_input_files``), so the ``multi=True`` handling of
     same-field-name multi-file uploads cannot diverge between the two.  Imported
     lazily for the same reason ``retrying`` imports ``http`` lazily: ``odoo.http``
     pulls in this module, so a top-level import would cycle.
-
-    Kept out of :func:`retrying`'s loop body so the SQL-retry primitive is not
-    cluttered with HTTP-request knowledge.
     """
     from odoo.http.helpers import rewind_uploaded_files
 
-    request.session = request._get_session_and_dbname()[0]
     rewind_uploaded_files(request.httprequest, cause=exc)
 
 
@@ -170,7 +181,9 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 _reset_env_state(env)
                 request = http.request
                 if request:
-                    _rewind_request_for_retry(request, exc)
+                    # Session re-fetch on EVERY failure path; the upload rewind
+                    # waits until a retry is certain (see both helpers).
+                    _refresh_request_session(request)
                 if isinstance(exc, IntegrityError):
                     if env.cr.closed:
                         # Connection died between the integrity error and
@@ -197,6 +210,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     _logger.info("%s, maximum number of tries reached!", error)
                     raise
 
+                if request:
+                    _rewind_request_files_for_retry(request, exc)
                 wait_time = random.uniform(
                     0.0, min(2**tryno, MAX_CONCURRENCY_BACKOFF_SECONDS)
                 )

@@ -753,6 +753,117 @@ class TestRetrying:
 
 
 # ---------------------------------------------------------------------------
+# TestRetryingRequestSideEffects — session refresh vs upload rewind ordering
+# ---------------------------------------------------------------------------
+
+
+class TestRetryingRequestSideEffects:
+    """``retrying()`` with an in-flight HTTP request: the session re-fetch runs
+    on EVERY failure path (transaction-coupled session mutations must not
+    outlive the rollback), but the upload rewind runs ONLY when a retry is
+    certain — on the raise paths it would be wasted work, and a non-seekable
+    upload would raise RuntimeError and mask the real error."""
+
+    @staticmethod
+    def _request():
+        request = MagicMock()
+        request._get_session_and_dbname.return_value = ("fresh-session", "db")
+        return request
+
+    def test_retry_refreshes_session_and_rewinds_files(self, mod, mock_env) -> None:
+        exc = psycopg.errors.SerializationFailure()
+        exc.sqlstate = "40001"
+        calls = 0
+
+        def func():
+            nonlocal calls
+            calls += 1
+            if calls < 2:
+                raise exc
+            return "ok"
+
+        request = self._request()
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind, \
+             patch("odoo.service.transaction.time"), \
+             patch("odoo.service.transaction.random") as mock_random:
+            mock_http.request = request
+            mock_random.uniform.return_value = 0.0
+            assert mod.retrying(func, mock_env) == "ok"
+
+        assert request.session == "fresh-session"
+        mock_rewind.assert_called_once_with(request.httprequest, cause=exc)
+
+    def test_integrity_error_refreshes_session_but_skips_rewind(
+        self, mod, mock_env
+    ) -> None:
+        """A non-seekable upload used to turn the friendly ValidationError into
+        an opaque RuntimeError; the rewind must not run on this path at all."""
+        from odoo.exceptions import ValidationError  # noqa: PLC0415
+
+        exc = _FakeIntegrityError(table_name="some_table")
+        matching_model = MagicMock()
+        matching_model._name = "some.model"
+        matching_model._table = "some_table"
+        matching_model._sql_error_to_message.return_value = "Unique constraint"
+        mock_env.registry.values.return_value = [matching_model]
+        mock_env.__getitem__ = MagicMock(return_value=matching_model)
+
+        def func():
+            raise exc
+
+        request = self._request()
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind:
+            mock_http.request = request
+            with pytest.raises(ValidationError):
+                mod.retrying(func, mock_env)
+
+        request._get_session_and_dbname.assert_called()
+        mock_rewind.assert_not_called()
+
+    def test_non_retryable_operational_error_skips_rewind(
+        self, mod, mock_env
+    ) -> None:
+        exc = psycopg.OperationalError("connection reset")
+        exc.sqlstate = None
+
+        def func():
+            raise exc
+
+        request = self._request()
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind:
+            mock_http.request = request
+            with pytest.raises(psycopg.OperationalError):
+                mod.retrying(func, mock_env)
+
+        request._get_session_and_dbname.assert_called()
+        mock_rewind.assert_not_called()
+
+    def test_retries_exhausted_skips_final_rewind(self, mod, mock_env, tx) -> None:
+        """The rewind pairs with a replay: after the LAST failure there is no
+        replay, so N attempts rewind N-1 times."""
+        exc = psycopg.errors.SerializationFailure()
+        exc.sqlstate = "40001"
+
+        def func():
+            raise exc
+
+        request = self._request()
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind, \
+             patch("odoo.service.transaction.time"), \
+             patch("odoo.service.transaction.random") as mock_random:
+            mock_http.request = request
+            mock_random.uniform.return_value = 0.0
+            with pytest.raises(psycopg.errors.SerializationFailure):
+                mod.retrying(func, mock_env)
+
+        assert mock_rewind.call_count == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
+
+
+# ---------------------------------------------------------------------------
 # TestCallKw — result shaping + access-control, no live DB
 # ---------------------------------------------------------------------------
 

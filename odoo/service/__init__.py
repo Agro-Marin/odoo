@@ -17,7 +17,7 @@ Module layout:
     wsgi.py         WSGI request handlers + threaded WSGI server
     server.py       Public facade re-exporting the server/worker classes
     _base_server.py CommonServer base + process-global on-stop registry
-    _threaded.py    ThreadedServer (threaded) + EventServer (gevent)
+    _threaded.py    ThreadedServer (threaded) + EventServer (evented/websocket)
     _prefork.py     PreforkServer (multiprocess master/worker supervisor)
     lifecycle.py    Process-lifecycle entry points (start / restart / preload)
     _watcher.py     Filesystem watcher backends (autoreload)

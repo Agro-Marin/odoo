@@ -216,10 +216,14 @@ class ThreadedWSGIServerReloadable(
         # controllers borrow two. ODOO_MAX_HTTP_THREADS overrides this default;
         # set it to "0" to opt out of the bound.
         auto_limit = max((config["db_maxconn"] - config["max_cron_threads"]) // 2, 1)
-        # Silent fallback (no logger): a malformed value drops to the computed
-        # default.  No ``minimum`` — "0" is a meaningful opt-out of the bound
-        # (the ``if self.max_http_threads:`` guard below skips the semaphore).
-        self.max_http_threads = env_int("ODOO_MAX_HTTP_THREADS", auto_limit)
+        # ``minimum=0``: a malformed value drops to the computed default; "0" is
+        # a meaningful opt-out of the bound (the ``if self.max_http_threads:``
+        # guard below skips the semaphore), and a negative value clamps to that
+        # same opt-out rather than reaching ``threading.Semaphore(-N)``, which
+        # raises ``ValueError`` and aborts server startup with an opaque error.
+        self.max_http_threads = env_int(
+            "ODOO_MAX_HTTP_THREADS", auto_limit, minimum=0, logger=_logger
+        )
         if self.max_http_threads:
             self.http_threads_sem = threading.Semaphore(self.max_http_threads)
             # Per-request release tracking so a duplicate ``shutdown_request``

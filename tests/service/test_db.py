@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import zipfile
 from contextlib import ExitStack
 from subprocess import CompletedProcess
@@ -587,6 +588,54 @@ class TestDumpWaitTimeoutGuard:
         with patch.dict(os.environ, {"ODOO_PG_DUMP_WAIT_TIMEOUT": "garbage"}):
             with pytest.raises(RuntimeError, match="disk-full-during-copy"):
                 db_mod._run_pg_dump_streaming(cmd, dict(os.environ), _ExplodingStream())
+
+
+class TestDumpStallSigkillEscalation:
+    """A stalled pg_dump that IGNORES SIGTERM must still be SIGKILLed.
+
+    The stall ``Timer`` used to send only SIGTERM; the SIGKILL escalation lived
+    in the ``finally`` block, reachable only AFTER ``copyfileobj`` returns (i.e.
+    after stdout EOFs).  A child wedged with stdout held open never EOFs on a
+    SIGTERM it ignores, so the copy — and the escalation — blocked forever,
+    degrading the documented hard wall-clock ceiling to a best-effort signal.
+    ``_kill_on_stall`` now escalates to SIGKILL itself after a grace period.
+    """
+
+    def test_sigterm_ignoring_dump_is_sigkilled_and_does_not_hang(
+        self, db_mod, monkeypatch
+    ):
+        # Child mimics a wedged pg_dump: ignore SIGTERM, emit a few bytes, then
+        # block forever holding stdout open (so ``copyfileobj`` never sees EOF).
+        child = (
+            "import signal, sys, time\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "sys.stdout.buffer.write(b'partial'); sys.stdout.buffer.flush()\n"
+            "time.sleep(3600)\n"
+        )
+        cmd = [sys.executable, "-c", child]
+        monkeypatch.setattr(db_mod, "_pg_dump_total_timeout", lambda: 0.5)
+        monkeypatch.setattr(db_mod, "_STALL_SIGKILL_GRACE_S", 0.5)
+        out = io.BytesIO()
+
+        result: dict = {}
+
+        def _run() -> None:
+            try:
+                db_mod._run_pg_dump_streaming(cmd, dict(os.environ), out)
+                result["ok"] = True
+            except BaseException as exc:  # record for the main-thread assert
+                result["exc"] = exc
+
+        t = threading.Thread(target=_run)
+        t.start()
+        # The fix makes this finish in ~total_timeout + grace (~1s); without it
+        # the copy blocks forever.  Generous join so a slow CI box isn't flaky.
+        t.join(timeout=30)
+        assert not t.is_alive(), (
+            "streaming dump hung: a SIGTERM-ignoring pg_dump was never SIGKILLed"
+        )
+        assert isinstance(result.get("exc"), RuntimeError)
+        assert "wall-clock timeout" in str(result["exc"])
 
 
 # ---------------------------------------------------------------------------

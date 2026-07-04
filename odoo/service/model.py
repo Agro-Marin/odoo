@@ -17,8 +17,16 @@ from odoo.tools import lazy
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
 
 # ``retrying`` is the project-wide SQL-retry primitive (in ``service.transaction``);
-# ``execute_cr`` runs every RPC call through it.
-from .transaction import retrying
+# ``execute_cr`` runs every RPC call through it.  The PG_CONCURRENCY_* retry
+# vocabulary is re-exported because addons historically catch it via
+# ``odoo.service.model`` (queue_job, sale_amazon/lazada/shopee) — the aliases
+# live in ``transaction`` (see its docstring), this import keeps that public
+# path working.
+from .transaction import (
+    PG_CONCURRENCY_ERRORS_TO_RETRY,
+    PG_CONCURRENCY_EXCEPTIONS_TO_RETRY,
+    retrying,
+)
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -83,7 +91,10 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     # the security model — and is pinned by ``test_api_private_blocked_when_defined_in_base_class``
     # in tests/service/test_model.py. To override a private method as public,
     # rename it (give the public method a different name).
-    for mro_cls in cls.mro():
+    # ``cls.__mro__`` (the cached tuple) rather than ``cls.mro()`` (which builds
+    # a fresh list on every call): ``MetaModel`` does not override ``mro()``, so
+    # the two are identical, and this runs on every RPC call.
+    for mro_cls in cls.__mro__:
         if not (cla_method := mro_cls.__dict__.get(name)):
             continue
         if getattr(cla_method, "_api_private", False):
@@ -193,8 +204,9 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
         raise AccessDenied
     # access checked once we open a cursor
 
-    threading.current_thread().dbname = db
-    threading.current_thread().uid = uid
+    thread = threading.current_thread()
+    thread.dbname = db
+    thread.uid = uid
     registry = Registry(db).check_signaling()
     try:
         if dispatch_method == "execute":
@@ -335,7 +347,11 @@ def _force_lazy_in(val: typing.Any) -> None:
     if val.__class__ in _SCALAR_LEAF_TYPES:
         return
     if isinstance(val, lazy):
-        val._value  # noqa: B018 — intentional attribute access to force evaluation
+        # Recurse into the forced value, not just ``val._value``: a lazy can
+        # wrap a container (``lazy(lambda: {"name": lazy(...)})``) or another
+        # lazy, and those inner lazies would otherwise survive uncomputed past
+        # the cursor's lifetime — the exact failure this function prevents.
+        _force_lazy_in(val._value)
         return
     if isinstance(val, (str, bytes, BaseModel)):
         return
@@ -349,6 +365,8 @@ def _force_lazy_in(val: typing.Any) -> None:
 
 
 __all__ = (
+    "PG_CONCURRENCY_ERRORS_TO_RETRY",
+    "PG_CONCURRENCY_EXCEPTIONS_TO_RETRY",
     "Params",
     "call_kw",
     "dispatch",

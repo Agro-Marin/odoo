@@ -39,7 +39,7 @@ from odoo.release import nt_service_name
 from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
-from ._env import env_float
+from ._env import env_float, env_int
 
 # Watcher backends, selected in ``_watcher``; surfaced here so ``start()`` can
 # dispatch on whichever one actually loaded.
@@ -166,22 +166,30 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
     preload_profiler = contextlib.nullcontext()
 
-    registries_size = int(os.environ.get("ODOO_REGISTRY_LRU_SIZE") or 0)
-    if not registries_size and os.name == "posix":
-        # Size the LRU depending of the memory limits
-        # A registry takes 10MB of memory on average, so we reserve
-        # 10Mb (registry) + 5Mb (working memory) per registry
-        avgsz = 15 * 1024 * 1024
-        limit_memory_soft = (
-            config["limit_memory_soft"]
-            if config["limit_memory_soft"] > 0
-            else (2048 * 1024 * 1024)
-        )
-        registries_size = (limit_memory_soft // avgsz) or 1
-    elif not registries_size and len(dbnames) > Registry.registries.count:
-        # If we give a list of databases higher and did not specify the size,
-        # use the number of preloaded databases as the limit.
-        registries_size = len(dbnames)
+    # ``env_int`` (not a raw ``int(...)``): a malformed value would raise
+    # ``ValueError`` here and abort server startup; every other ODOO_* knob in
+    # ``odoo.service`` is guard-parsed, and this one must not be the exception.
+    # 0 (or garbage) means "auto-size below".
+    registries_size = env_int("ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger)
+    if not registries_size:
+        if os.name == "posix":
+            # Size the LRU depending of the memory limits
+            # A registry takes 10MB of memory on average, so we reserve
+            # 10Mb (registry) + 5Mb (working memory) per registry
+            avgsz = 15 * 1024 * 1024
+            limit_memory_soft = (
+                config["limit_memory_soft"]
+                if config["limit_memory_soft"] > 0
+                else (2048 * 1024 * 1024)
+            )
+            registries_size = (limit_memory_soft // avgsz) or 1
+        if len(dbnames) > max(registries_size, Registry.registries.count):
+            # An explicit preload list larger than the (memory-derived or
+            # current) limit sizes the LRU to fit it: evicting registries that
+            # this very loop just built would silently discard the preload
+            # work.  Upstream guarded this with an ``elif`` that the posix
+            # branch above always shadowed, so it only ever fired on Windows.
+            registries_size = len(dbnames)
     if registries_size:
         Registry.registries.count = registries_size
 
@@ -239,11 +247,24 @@ def _limit_malloc_arenas() -> None:
     requests.  We therefore cap arenas at 2 unless MALLOC_ARENA_MAX is set
     (MALLOC_ARENA_MAX=0 restores glibc's default behaviour).
 
+    Skipped when the interpreter is running free-threaded (no GIL).  This fork
+    is being made free-threading-ready, so guard for that build ahead of time:
+    without the GIL the many HTTP-handler threads ``malloc()`` in genuine
+    parallel and capping to 2 arenas would serialize them on 2 arena mutexes —
+    real contention rather than the current no-op.  The memory rationale also
+    weakens there: the soft limit measures RSS (see ``_helpers.memory_info``),
+    which extra arenas inflate far less than VMS.  Under the GIL (today's
+    default) behaviour is unchanged.  Set MALLOC_ARENA_MAX explicitly to
+    override on either build.
+
     [1] https://sourceware.org/glibc/wiki/MallocInternals#Arenas_and_Heaps
     [2] https://www.gnu.org/software/libc/manual/html_node/The-GNU-Allocator.html
     [3] https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=00ce48c;hb=0a8262a#l862
     """
-    if not (
+    # ``_is_gil_enabled`` exists on 3.13+ (returns True on a normal build); the
+    # ``hasattr`` keeps this safe on older interpreters.
+    gil_disabled = hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled()
+    if gil_disabled or not (
         platform.system() == "Linux"
         and sys.maxsize > 2**32
         and "MALLOC_ARENA_MAX" not in os.environ
