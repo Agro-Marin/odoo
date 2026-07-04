@@ -184,6 +184,10 @@ class IrBinary(models.AbstractModel):
             stream.download_name = stream.download_name.replace("\n", "_").replace(
                 "\r", "_"
             )
+            # bound the base name length (an oversized Content-Disposition can
+            # be rejected by drivers/proxies → 502), preserving the extension
+            ext = get_extension(stream.download_name) or ""
+            stream.download_name = stream.download_name.removesuffix(ext)[:100] + ext
             # Two libraries on purpose (IRB-M2): odoo's `get_extension` parses
             # the existing name (it understands odoo's multi-part / magic-byte
             # extensions) to decide whether one is already present, while the
