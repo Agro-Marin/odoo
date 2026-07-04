@@ -118,6 +118,7 @@ class TestConfigManager(TransactionCase):
                 "log_db": "",
                 "log_db_level": "warning",
                 "log_level": "info",
+                "log_config": "",
                 # SMTP
                 "email_from": "",
                 "from_filter": "",
@@ -233,6 +234,7 @@ class TestConfigManager(TransactionCase):
                 "log_db": "logdb",
                 "log_db_level": "debug",
                 "log_level": "debug",
+                "log_config": "",
                 # SMTP
                 "email_from": "admin@example.com",
                 "from_filter": ".*",
@@ -386,6 +388,7 @@ class TestConfigManager(TransactionCase):
                 "log_db_level": "warning",
                 "log_handler": [":INFO"],
                 "log_level": "info",
+                "log_config": "",
                 "logfile": "",
                 "max_cron_threads": 2,
                 "limit_time_worker_cron": 0,
@@ -583,6 +586,7 @@ class TestConfigManager(TransactionCase):
                 "log_db": "logdb",
                 "log_db_level": "debug",
                 "log_level": "debug",
+                "log_config": "",
                 # SMTP
                 "email_from": "admin@example.com",
                 "from_filter": ".*",
@@ -710,6 +714,7 @@ class TestConfigManager(TransactionCase):
                 "log_db": "logdb",
                 "log_db_level": "debug",
                 "log_level": "debug",
+                "log_config": "",
                 # SMTP
                 "email_from": "admin@example.com",
                 "from_filter": ".*",
