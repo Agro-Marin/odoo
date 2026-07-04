@@ -23,22 +23,23 @@ class ResUsers(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
-        # if we have a search with a limit, move current user as the first result
+        """Move the current user to the front of the result list."""
         domain = Domain(domain or Domain.TRUE)
         user_list = super().name_search(name, domain, operator, limit)
         uid = self.env.uid
-        # index 0 is correct not Falsy in this case, use None to avoid ignoring it
+        # Index 0 is a valid match but falsy, so check "is not None" explicitly
+        # rather than relying on the walrus value's truthiness.
         if (
             index := next(
                 (i for i, (user_id, _name) in enumerate(user_list) if user_id == uid),
                 None,
             )
         ) is not None:
-            # move found user first
             user_tuple = user_list.pop(index)
             user_list.insert(0, user_tuple)
         elif limit is not None and len(user_list) == limit:
-            # user not found and limit reached, try to find the user again
+            # The current user may exist beyond the truncated results; search
+            # for it explicitly instead of missing it.
             if user_tuple := super().name_search(
                 name, domain & Domain("id", "=", uid), operator, limit=1
             ):
@@ -75,10 +76,9 @@ class ResUsers(models.Model):
                 )
             )
 
-        # Search for all existing users (active or not) matching the given emails.
-        # Active users are already done; deactivated ones are reactivated.
-        # Without this combined search, `done` would miss active users and
-        # create() would hit the unique constraint on their login.
+        # active_test=False: also match deactivated users so they get
+        # reactivated below. A search limited to active users would miss
+        # them, and create() would then hit the unique constraint on login.
         all_matching = self.with_context(active_test=False).search(
             [
                 "|",

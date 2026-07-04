@@ -9,9 +9,10 @@ Covers the surfaces added by the UMD→ESM completion work:
     • Content-addressable attachment URLs (``/web/assets/esm/<hash>/``)
     • Metafile sidecar attachment
 
-The tests deliberately use lightweight unit-level mocking so they run
-without spawning esbuild; a companion HttpCase exercises the real
-subprocess path.
+Most classes here use lightweight unit-level mocking so they run without
+spawning esbuild; ``TestEsbuildIntegration`` and ``TestEsbuildSourceMaps``
+are the exception — they invoke the real esbuild subprocess and skip
+themselves when the binary isn't installed (``npm install``).
 """
 
 import json
@@ -129,7 +130,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
             (self.env.cr.dbname, "web.test_bundle")
         ]
         self.assertEqual(fails, 2)
-        # Extended cooldown kicks in at the 2nd failure.
         remaining = _expiry - time.monotonic()
         self.assertGreater(
             remaining,
@@ -203,7 +203,6 @@ class TestEsbuildAdvisoryLock(TransactionCase):
     def test_lock_rejects_other_cursor_while_held(self):
         IrQweb = self.env["ir.qweb"]
         self.assertTrue(IrQweb._esbuild_try_acquire_lock("test.lock.beta"))
-        # Open a sibling connection and verify it cannot take the lock.
         with db_connect(self.env.cr.dbname).cursor() as cr2:
             cr2.execute(
                 "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
@@ -315,7 +314,6 @@ class TestMetafileSidecar(TransactionCase):
         url = ir_qweb._save_esm_attachment(
             "test.meta.present",
             "/* bundle */",
-            # Simulate esbuild having produced a minimal valid metafile.
             metafile=json.dumps({"inputs": {}, "outputs": {}}),
         )
         meta_url = url[: -len(".esm.js")] + ".meta.json"
@@ -380,11 +378,12 @@ class TestParentSelfBridge(TransactionCase):
         # check with a small sample rather than exhaustively enumerating.
         native_specs = {a.module_path for a in setup_ab.native_modules}
         self.assertGreater(len(bridges), 0)
-        # Bridges resolve to content-addressable attachment URLs under
-        # ``/web/assets/esm/bridges/<hash>.js`` (see
-        # ``AssetsBundle._persist_bridge_shims``).  Pre-refactor they
-        # were inline ``data:text/javascript,<urlencoded>`` URIs —
-        # that pattern no longer exists.
+        # Bridges normally resolve to content-addressable attachment URLs
+        # under ``/web/assets/esm/bridges/<hash>.js`` (see
+        # ``AssetsBundle._persist_bridge_shims``).  The pre-refactor inline
+        # ``data:text/javascript,<urlencoded>`` URI format still exists,
+        # but only as that helper's last-resort fallback when no writable
+        # cursor is reachable at all.
         for spec, url in list(bridges.items())[:20]:
             self.assertIn(spec, native_specs)
             self.assertTrue(
@@ -430,7 +429,6 @@ class TestParentSelfBridge(TransactionCase):
                 import_map = json.loads(attrs["text"])["imports"]
                 break
         self.assertIsNotNone(import_map, "prod must emit an import map")
-        # A parent-bundle specifier must be resolvable from satellites.
         self.assertIn(
             sample_spec,
             import_map,
@@ -594,14 +592,13 @@ class TestEsbuildIntegration(TransactionCase):
         )
 
     def test_timeout_parameter_threaded_through(self):
-        """``timeout_s`` arg must reach the subprocess.run() call.
+        """Explicit ``timeout_s`` / ``target`` overrides reach ``esbuild_native_bundle``.
 
-        Doesn't actually time esbuild out — just asserts that calling
-        ``esbuild_native_bundle(timeout_s=1)`` on a bundle with zero
-        modules returns empty cleanly (the timeout is set but never
-        triggers because the short-circuit in the method returns before
-        any subprocess is spawned).  The real timeout-exceeded path is
-        covered indirectly by the circuit breaker tests above.
+        Smoke test only: passes non-default values (60s, ``es2022``)
+        through a real build and asserts it still completes normally.
+        The real timeout-exceeded path is covered indirectly by the
+        circuit breaker tests above (any build failure, including a
+        subprocess timeout, is what trips the breaker).
         """
         IrQweb = self.env["ir.qweb"]
         assets_params = self.env["ir.asset"]._get_asset_params()
@@ -827,7 +824,6 @@ class TestEsbuildSourceMaps(TransactionCase):
         parsed = json.loads(result.sourcemap)
         self.assertIn("version", parsed)
         self.assertIn("mappings", parsed)
-        # Bundle references the sidecar so devtools fetches it on open.
         self.assertIn("//# sourceMappingURL=", result.code)
 
     def test_external_mode_emits_map_without_directive(self):
@@ -853,8 +849,6 @@ class TestEsbuildSourceMaps(TransactionCase):
             result.sourcemap,
             msg="inline mode embeds in bundle, no sidecar to capture",
         )
-        # Inline maps are appended as a data URL ``//# sourceMappingURL=
-        # data:application/json;base64,...``.
         self.assertIn(
             "//# sourceMappingURL=data:application/json;base64,",
             result.code,
@@ -863,11 +857,9 @@ class TestEsbuildSourceMaps(TransactionCase):
     def test_unknown_mode_silently_falls_back(self):
         """Garbage mode value is logged and ignored — never crashes the build."""
         bundle = self._bundle()
-        # ``"yes please"`` is not a valid esbuild mode; the helper must
-        # treat it as off rather than passing it through and breaking
-        # the subprocess. The helper logs ``WARNING source_maps_unknown_mode``
-        # so misconfiguration is visible — consume it via ``assertLogs`` so
-        # the test log stays clean and the structured event is asserted.
+        # The helper logs ``WARNING source_maps_unknown_mode`` on an
+        # invalid mode; consume it via ``assertLogs`` so the test log
+        # stays clean and the structured event is asserted.
         with self.assertLogs(
             f"{ASSET_ROOT}.esbuild", level=logging.WARNING
         ) as captured:

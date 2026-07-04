@@ -107,7 +107,7 @@ class Base(models.AbstractModel):
                 return value
 
         else:
-            # field type is selection: see doc above
+            # selection field: values are (raw value, label) pairs
             desc = self.fields_get([field_name], ["selection"])[field_name]
             field_name_selection = dict(desc["selection"])
 
@@ -159,7 +159,6 @@ class Base(models.AbstractModel):
 
         for id in values_range:
             values = values_range[id]
-            # here count is the initial value = local count set on values
             count = local_counters[id]
             if count:
                 parent_id = values[parent_name]
@@ -213,7 +212,7 @@ class Base(models.AbstractModel):
             while chain_is_fully_included and record_id:
                 known_status = records_to_keep.get(record_id)
                 if known_status is not None:
-                    # the record and its known ancestors have already been considered
+                    # record_id's status (and its ancestors') is already known
                     chain_is_fully_included = known_status
                     break
                 record = allowed_records.get(record_id)
@@ -226,7 +225,7 @@ class Base(models.AbstractModel):
             for r_id in ancestor_chain:
                 records_to_keep[r_id] = chain_is_fully_included
 
-        # we keep initial order
+        # Preserve the original order of records.
         return [rec for rec in records if records_to_keep.get(rec["id"])]
 
     @api.model

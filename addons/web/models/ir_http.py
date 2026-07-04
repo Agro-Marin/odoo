@@ -126,9 +126,12 @@ class IrHttp(models.AbstractModel):
     def _base_session_info(self) -> dict[str, Any]:
         """Build the session fields shared by both backend and frontend.
 
-        Returns identity, feature flags, profiling, currencies, bundle
-        params, and config-parameter-driven limits.  Both ``session_info``
-        and ``get_frontend_session_info`` extend this base.
+        Returns identity/permission flags, registry hash, currencies,
+        feature flags, CWV sample rate, and bundle params (lang, debug).
+        Both ``session_info`` and ``get_frontend_session_info`` extend
+        this base; profiling data is fetched separately via
+        ``lazy_session_info``, and config-parameter-driven limits are
+        added only by ``session_info`` (backend-only).
         """
         user = self.env.user
         session_uid = request.session.uid
@@ -267,8 +270,9 @@ class IrHttp(models.AbstractModel):
     def _get_user_companies_info(self) -> dict[str, Any]:
         """Build the multi-company hierarchy dict for internal users.
 
-        Uses ``prefetch_fields=False`` to avoid loading all company fields
-        during session init, making this resilient to schema changes.
+        Browses with ``prefetch_fields=False`` so each field accessed
+        below (``name``, ``sequence``, ...) is fetched on its own instead
+        of pulling every stored field of ``res.company`` into cache.
         """
         user = self.env.user
         user_companies = (

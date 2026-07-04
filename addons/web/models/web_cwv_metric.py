@@ -41,9 +41,10 @@ class WebCwvMetric(models.Model):
         size=2048,
         index="btree",
         readonly=True,
-        help="Browser path + query at the time the beacon fired.  May be the "
-        "same path for many records.  Capped at 2048 chars at the DB level so a "
-        "rogue writer cannot bloat the row.",
+        help="Browser path at the time the beacon fired (the query string is "
+        "stripped before persisting).  May be the same path for many records.  "
+        "Capped at 2048 chars at the DB level so a rogue writer cannot bloat "
+        "the row.",
     )
     user_id = fields.Many2one(
         "res.users",
@@ -77,9 +78,10 @@ class WebCwvMetric(models.Model):
     inp = fields.Float(
         string="INP (ms)",
         readonly=True,
-        help="Interaction to Next Paint — captured in a future phase that "
-        "vendors the web-vitals library to handle browser-quirk polyfilling.  "
-        "Currently always null.",
+        help="Interaction to Next Paint — reported as the worst-observed "
+        "interaction duration over the page lifetime (P100), a strict upper "
+        "bound on the canonical P98 metric.  Vendoring the web-vitals library "
+        "for a true P98 is a future improvement; the wire format won't change.",
     )
     cls = fields.Float(
         string="CLS",

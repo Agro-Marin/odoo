@@ -62,9 +62,9 @@ class Base(models.AbstractModel):
         first_call = not field_names
 
         if not (self and self._name == "res.users"):
-            # res.users defines SELF_WRITEABLE_FIELDS to give access to the user
-            # to modify themselves, we skip the check in that case because the
-            # user does not have write permission on themselves
+            # res.users grants self-edit access via SELF_WRITEABLE_FIELDS
+            # instead of the normal write permission, so skip this check for
+            # a user editing their own record.
             # TODO update res.users
             self.check_access("write" if self else "create")
 
@@ -94,9 +94,10 @@ class Base(models.AbstractModel):
                 else:
                     field = self._fields[field_name]
                     if not field.compute or self.pool.field_depends[field]:
-                        # don't assign computed fields without dependencies,
-                        # otherwise they don't get computed
                         values[field_name] = False
+                    # else: a computed field with no declared dependencies
+                    # (field_depends[field] empty) must stay unset here, or
+                    # assigning it would skip its compute method entirely.
 
         # prefetch x2many lines: this speeds up the initial snapshot by avoiding
         # computing fields on new records as much as possible, as that can be
@@ -159,16 +160,18 @@ class Base(models.AbstractModel):
             if not initial_values.get(parent_name, True):
                 initial_values.pop(parent_name)
 
-        # create a new record with initial values
         if self:
-            # fill in the cache of record with the values of self
+            # Baseline record on self's real values (covers fields fields_spec
+            # expects that initial_values may be missing), then layer
+            # initial_values on top.
             cache_values = {fname: self[fname] for fname in fields_spec}
             record = self.new(cache_values, origin=self)
-            # apply initial values on top of the values of self
             record._update_cache(initial_values)
         else:
-            # set changed values to null in initial_values; not setting them
-            # triggers default_get() on the new record when creating snapshot0
+            # Blank the changed fields instead of leaving them absent:
+            # self.new() defers computing absent fields until first read, and
+            # snapshot0 reads them a few lines below — by then we want their
+            # pre-change value (False), not a freshly computed default.
             initial_values.update(dict.fromkeys(field_names, False))
             record = self.new(initial_values)
 
@@ -182,7 +185,8 @@ class Base(models.AbstractModel):
                 if parent := record[parent_name]:
                     parent._update_cache({related_field_name: record[field_name]})
 
-        # make a snapshot based on the initial values of record
+        # Baseline for the diff below: record's state before this round's
+        # edits are applied.
         snapshot0 = RecordSnapshot(record, fields_spec, fetch=(not first_call))
 
         # store changed values in cache; also trigger recomputations based on
@@ -190,7 +194,10 @@ class Base(models.AbstractModel):
         # and depends on line.a, but line.b is not in the form view)
         record._update_cache(changed_values)
 
-        # update snapshot0 with changed values
+        # Re-fetch just the user-edited fields into snapshot0 so it already
+        # reflects the user's own edit. This way, diffing snapshot1 against
+        # snapshot0 later reports only the fields changed as a *side effect*
+        # of onchange methods, not the field(s) the user directly typed into.
         for field_name in field_names:
             snapshot0.fetch(field_name)
 
@@ -225,9 +232,10 @@ class Base(models.AbstractModel):
 
         result = {"warnings": OrderedSet()}
 
-        # process names in order
+        # Cascade: applying a field's onchange method can itself change other
+        # fields. After each pass, check what changed (snapshot0.has_changed)
+        # and process those fields too, until a pass changes nothing new.
         while todo:
-            # apply field-specific onchange methods
             for field_name in todo:
                 record._apply_onchange_methods(field_name, result)
                 done.add(field_name)
@@ -235,17 +243,17 @@ class Base(models.AbstractModel):
             if not env.context.get("recursive_onchanges", True):
                 break
 
-            # determine which fields to process for the next pass
             todo = [
                 field_name
                 for field_name in fields_spec
                 if field_name not in done and snapshot0.has_changed(field_name)
             ]
 
-        # make the snapshot with the final values of record
+        # record's state after onchange methods ran, diffed against snapshot0
+        # (the pre-onchange baseline) to compute what to report to the client.
         snapshot1 = RecordSnapshot(record, fields_spec)
-
-        # determine values that have changed by comparing snapshots
+        # On first_call there is no meaningful prior state: return every
+        # field's value (force=True) instead of only what changed.
         result["value"] = snapshot1.diff(snapshot0, force=first_call)
 
         # format warnings
@@ -260,7 +268,6 @@ class Base(models.AbstractModel):
                 "type": type_,
             }
         elif len(warnings) > 1:
-            # concatenate warning titles and messages
             title = self.env._("Warnings")
             message = "\n\n".join(
                 [

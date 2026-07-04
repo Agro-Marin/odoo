@@ -358,8 +358,9 @@ class Base(models.AbstractModel):
         fields_to_read = list(specification) or ["id"]
 
         if set(fields_to_read) == {"id"}:
-            # if we request to read only the ids, we have them already so we can build the return dictionaries immediately
-            # this also avoid a call to read on the co-model that might have different access rules
+            # id-only spec: ids are already known, so skip self.read()
+            # entirely — this also sidesteps the co-model's access rules,
+            # which may differ from self's.
             values_list = [{"id": id_} for id_ in self._ids]
         else:
             values_list: list[dict] = self.read(fields_to_read, load=None)
@@ -460,7 +461,9 @@ class Base(models.AbstractModel):
                         for index, co_record in enumerate(co_records)
                     }
                     for values in values_list:
-                        # filter out inaccessible corecords in case of "cache pollution"
+                        # Keep only ids present in order_key: drops both
+                        # inaccessible co-records and any stale ids left over
+                        # from cache reuse across records.
                         values[field_name] = [
                             id_ for id_ in values[field_name] if id_ in order_key
                         ]
@@ -661,7 +664,9 @@ class Base(models.AbstractModel):
                             if prop.get("type") == "many2one":
                                 co_id = prop["value"][0]
                                 if co_id in data:
-                                    # Original returns web_read() list format
+                                    # prop["value"] must stay a list; replace its
+                                    # plain [id, display_name] with the full
+                                    # web_read dict, still wrapped in a list.
                                     prop["value"] = [data[co_id]]
                             elif prop.get("type") == "many2many":
                                 prop["value"] = [

@@ -9,7 +9,8 @@ class TestLoadBreadcrumbs(HttpCase):
         super().setUpClass()
         model_id = cls.env["ir.model"]._get_id("res.partner")
 
-        # Create a user in order to have a fixed name in local and on the runbot
+        # Switch to a user with a fixed name so display_name assertions below
+        # are stable both locally and on the runbot.
         cls.env = cls.env(user=cls.env.ref("base.user_admin"))
         cls.partner = cls.env["res.partner"].create(
             {

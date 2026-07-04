@@ -104,7 +104,6 @@ class TestWebReadGroup(TransactionCase):
 
         pb = model.read_progress_bar(self.domain, group_by, progress_bar)
 
-        # The exact keys the kanban client looks up (each column's server value).
         formatted = model.formatted_read_group(self.domain, [group_by], ["__count"])
         client_keys = {
             str(g[group_by][0] if isinstance(g[group_by], tuple) else g[group_by])
@@ -118,7 +117,7 @@ class TestWebReadGroup(TransactionCase):
             f"client's group keys {client_keys}; a mismatch zeroes every "
             f"progress bar for non-UTC users",
         )
-        # Every record must be attributed to a bar (2 companies + 1 person).
+        # Every record must land in some bar (2 companies + 1 person).
         total = sum(sum(states.values()) for states in pb.values())
         self.assertEqual(total, len(self.partners))
 

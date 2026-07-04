@@ -17,14 +17,13 @@ class Domain(Controller):
         if Model is None:
             raise ValidationError(_("Invalid model: %s", model))
         try:
-            # go through the motions of preparing the final SQL for the domain,
-            # so that anything invalid will raise an exception.
+            # Building the query raises if the domain is invalid.
             query = Model.sudo()._search(domain)
 
-            # Execute the search in EXPLAIN mode, to have the query parser
-            # verify it. EXPLAIN will make sure the query is never actually executed
-            # An alternative to EXPLAIN would be a LIMIT 0 clause, but the semantics
-            # of a falsy `limit` parameter when calling _search() do not permit it.
+            # Run in EXPLAIN mode so Postgres parses and plans the query without
+            # executing it. (A LIMIT 0 would also avoid execution, but Query.select()
+            # omits the LIMIT clause entirely when limit is falsy, so limit=0 here
+            # wouldn't produce one.)
             sql = SQL("EXPLAIN %s", query.select())
             with mute_logger("odoo.db"):
                 request.env.cr.execute(sql)

@@ -31,7 +31,8 @@ class LoadMenusTests(HttpCase):
 
         menus = self.menu + self.menu_child
 
-        # Patch search to only return these menus
+        # Restrict ir.ui.menu results to the two test menus, so pre-existing
+        # menus from installed modules don't leak into the expected payload.
         origin_search_fetch = self.env.registry["ir.ui.menu"].search_fetch
 
         @api.model
@@ -104,7 +105,6 @@ class LoadMenusTests(HttpCase):
         full_payload = res.json()
         self.assertIn("root", full_payload)
 
-        # Matching hash → 304-equivalent, no payload re-download
         res_cached = self.url_open(f"/web/webclient/load_menus?hash={current_hash}")
         self.assertEqual(res_cached.status_code, 304)
         self.assertFalse(
@@ -112,7 +112,6 @@ class LoadMenusTests(HttpCase):
             "304 response must have an empty body",
         )
 
-        # Stale hash → full payload again, with the current hash
         res_stale = self.url_open("/web/webclient/load_menus?hash=0deadbeef0")
         self.assertEqual(res_stale.status_code, 200)
         self.assertEqual(res_stale.headers.get("X-Menus-Hash"), current_hash)

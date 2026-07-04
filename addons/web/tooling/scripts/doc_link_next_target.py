@@ -33,8 +33,8 @@ USAGE
 EASE SCORE
 ----------
 
-Per-violation difficulty heuristic, calibrated by inspection of the
-493-violation baseline as of 2026-05-09:
+Per-violation difficulty heuristic, calibrated by manual inspection of a
+baseline snapshot (~500 violations) in May 2026:
 
   1.0 — same-directory reference (typo or local rename)
   0.9 — sibling-tree reference (e.g. ``doc/X.md`` from
@@ -202,7 +202,6 @@ def _print_table(rows: list[FileScore], limit: int) -> None:
             f"{i:>2}  {r.score:>6.1f}  {r.total_refs:>4}  "
             f"{r.avg_ease:>4.2f}  {sf}"
         )
-        # Show first 2 sample paths inline for context.
         for rp in r.sample_paths[:2]:
             print(f"      · `{rp}`")
 

@@ -35,7 +35,7 @@ class RecordSnapshot(dict):
         return self.record == other.record and super().__eq__(other)
 
     def fetch(self, field_name: str) -> None:
-        """Set the value of field ``name`` from the record's value."""
+        """Set the value of field ``field_name`` from the record's value."""
         if self.record._fields[field_name].type in ("one2many", "many2many"):
             # x2many fields are serialized as a dict of line snapshots
             lines = self.record[field_name]

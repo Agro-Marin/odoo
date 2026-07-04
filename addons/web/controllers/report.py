@@ -129,13 +129,12 @@ class ReportController(http.Controller):
     def report_download(
         self, data: str, context: str | None = None, **_kwargs
     ) -> Response:
-        """This function is used by 'action_manager_report.js' in order to trigger the download of
-        a pdf/controller report.
+        """Used by ``downloadReport`` in ``@web/webclient/actions/reports/utils.js`` to
+        trigger the download of a pdf/controller report.
 
-        :param data: a javascript array JSON.stringified containg report internal url ([0]) and
-        type [1]
+        :param data: a javascript array JSON.stringified containing the report's internal
+            url ([0]) and type ([1])
         :returns: Response with an attachment header
-
         """
         requestcontent = json_loads(data)
         url, type_ = requestcontent[0], requestcontent[1]
@@ -158,7 +157,8 @@ class ReportController(http.Controller):
                     reportname, docids = reportname.split("/", 1)
 
                 if docids:
-                    # Generic report:
+                    # docids were embedded in the URL path: report_routes can
+                    # render straight from them.
                     response = self.report_routes(
                         reportname,
                         docids=docids,
@@ -166,10 +166,11 @@ class ReportController(http.Controller):
                         context=context,
                     )
                 else:
-                    # Particular report:
+                    # No docids: rebuild the report data/context from the
+                    # URL's own query string instead.
                     data = {
                         k: v[0] for k, v in parse_qs(urlsplit(url).query).items()
-                    }  # decoding the args represented in JSON
+                    }
                     if "context" in data:
                         context, data_context = json_loads(context or "{}"), json_loads(
                             data.pop("context")

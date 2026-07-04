@@ -24,7 +24,7 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
         if unlink:
             self.env["ir.attachment"].search(
                 [("url", "=like", "/web/assets/%")]
-            ).unlink()  # delete existing attachment
+            ).unlink()
         installed_module_names = (
             self.env["ir.module.module"]
             .search([("state", "=", "installed")])
@@ -71,17 +71,19 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
 )
 class TestLogsAssetsGenerateTime(TestAssetsGenerateTimeCommon):
     def test_logs_assets_generate_time(self):
-        """
-        The purpose of this test is to monitor the time of assets bundle generation.
-        This is not meant to test the generation failure, hence the try/except and the mute logger.
+        """Monitor bundle generation time from cold (existing attachments unlinked first).
+
+        generate_bundles() swallows generation errors (try/except + mute_logger)
+        since this test measures timing, not correctness.
         """
         for bundle, duration in list(self.generate_bundles()):
             _logger.info("Bundle %r generated in %.2fs", bundle, duration)
 
     def test_logs_assets_check_time(self):
-        """
-        The purpose of this test is to monitor the time of assets bundle generation.
-        This is not meant to test the generation failure, hence the try/except and the mute logger.
+        """Monitor bundle check time when attachments already exist (no unlink).
+
+        generate_bundles() swallows generation errors (try/except + mute_logger)
+        since this test measures timing, not correctness.
         """
         start = time.time()
         for bundle, duration in self.generate_bundles(False):
@@ -125,10 +127,7 @@ class TestPregenerateTime(HttpCase):
     "web_assets",
 )
 class TestAssetsGenerateTime(TestAssetsGenerateTimeCommon):
-    """
-    This test is meant to be run nightly to ensure bundle generation does not exceed
-    a low threshold
-    """
+    """Run nightly to ensure bundle generation does not exceed a low threshold."""
 
     def test_assets_generate_time(self):
         thresholds = {
@@ -170,18 +169,15 @@ class TestLoad(HttpCase):
 
 @odoo.tests.tagged("post_install", "-at_install", "web_http", "web_assets")
 class TestWebAssetsCursors(HttpCase):
-    """
-    This tests class tests the specificities of the route /web/assets regarding used connections.
+    """Tests the cursor usage of the /web/assets route.
 
     The route is almost always read-only, except when the bundle is missing/outdated.
-    To avoid retrying in all cases on the first request after an update/change, the route
-    uses a cursor to check if the bundle is up-to-date, then opens a new cursor to generate
-    the bundle if needed.
+    To avoid opening a read/write cursor on every request, it checks with a read-only
+    cursor first and only opens a new one to generate the bundle when needed.
 
-    This optimization is only possible because the route has a simple flow: check, generate, return.
-    No other operation is done on the database in between.
-    We don't want to open another cursor to generate the bundle if the check is done with a read/write
-    cursor, if we don't have a replica.
+    This is only safe because the route's flow is simple (check, generate, return)
+    with no other database operation in between: if the check itself needed a
+    read/write cursor (no replica available), reusing it avoids opening a second one.
     """
 
     @classmethod
@@ -198,9 +194,9 @@ class TestWebAssetsCursors(HttpCase):
         self.bundle_name = "web.assets_frontend"
 
     def _get_generate_cursors_readwriteness(self):
-        """
-        This method returns the list cursors read-writness used to generate the bundle
-        :returns: [('ro|rw', '(ro_requested|rw_requested)')]
+        """Return the read/write state of each cursor opened while generating the bundle.
+
+        :return: [('ro'|'rw', '(ro_requested)'|'(rw_requested)'), ...]
         """
         cursors = []
         original_cursor = self.env.registry.cursor
@@ -225,9 +221,7 @@ class TestWebAssetsCursors(HttpCase):
         return cursors
 
     def test_web_binary_keep_cursor_ro(self):
-        """
-        With replica, will need two cursors for generation, then a read-only cursor for all other call
-        """
+        """With a replica, generation needs a ro then a rw cursor when cold, and a single ro cursor when warm."""
         self.assertEqual(
             self._get_generate_cursors_readwriteness(),
             [

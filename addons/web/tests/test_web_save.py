@@ -98,7 +98,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
 
     def test_only_written_fields_are_checked(self):
         """A baseline for a field NOT being written is ignored (only vals count)."""
-        self._server_set(parent_id=self.c2.id)  # changed, but user isn't writing it
+        self._server_set(parent_id=self.c2.id)
         self.partner.web_save(
             {"phone": "222"}, specification={"phone": {}},
             known_values={

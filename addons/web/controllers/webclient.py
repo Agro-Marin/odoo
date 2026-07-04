@@ -18,13 +18,12 @@ _http_log = get_asset_logger("http")
 class WebClient(http.Controller):
     @http.route("/web/webclient/bootstrap_translations", type="jsonrpc", auth="none")
     def bootstrap_translations(self, mods: list[str] | None = None) -> dict[str, Any]:
-        """Load local translations from *.po files, as a temporary solution
-        until we have established a valid session. This is meant only
-        for translating the login page and db management chrome, using
-        the browser's language."""
-        # For performance reasons we only load a single translation, so for
-        # sub-languages (that should only be partially translated) we load the
-        # main language PO instead - that should be enough for the login screen.
+        """Load translations directly from *.po files, before a session exists.
+        Used only for the login page and db management chrome, in the browser's
+        language."""
+        # Load a single translation for performance: sub-languages (only partially
+        # translated) fall back to the main language PO, which suffices for the
+        # login screen.
         lang = request.env.context["lang"].partition("_")[0]
 
         if mods is None:
@@ -59,12 +58,15 @@ class WebClient(http.Controller):
         lang: str | None = None,
     ) -> Response:
         """
-        Load the translations for the specified language and modules
+        Load the translations for the specified language and modules.
 
-        :param hash: translations hash, which identifies a version of translations. This method only returns translations if their hash differs from the received one
+        :param hash: hash of the previously loaded translations; if it still
+            matches the current hash, translations/modules are omitted from
+            the response
         :param mods: the modules, a comma separated list
         :param lang: the language of the user
-        :return:
+        :return: dict with ``lang`` and ``hash``, plus ``lang_parameters``,
+            ``modules`` and ``multi_lang`` when the hash changed
         """
         if mods:
             mods = mods.split(",")
@@ -90,10 +92,12 @@ class WebClient(http.Controller):
         }
         if current_hash != hash:
             if "translation_data" in request.env.cr.cache:
-                # ormcache of _get_web_translations_hash was cold and fill the translation_data cache
+                # ormcache miss: _get_web_translations_hash already computed
+                # and stashed translation_data as a side effect.
                 body.update(request.env.cr.cache.pop("translation_data"))
             else:
-                # ormcache of _get_web_translations_hash was hot
+                # ormcache hit: translation_data was not stashed, so fetch
+                # the translations directly.
                 translations_per_module, lang_params = request.env[
                     "ir.http"
                 ]._get_translations_for_webclient(mods, lang)
@@ -108,7 +112,8 @@ class WebClient(http.Controller):
                     }
                 )
 
-        # The type of the route is set to HTTP, but the rpc is made with a get and expects JSON
+        # Route type is declared "http" (not "jsonrpc"): the client fetches it
+        # with a plain GET but still expects a JSON body.
         return request.make_json_response(
             body,
             [

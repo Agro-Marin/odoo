@@ -145,7 +145,6 @@ class Binary(http.Controller):
             if attachment:
                 stream = env["ir.binary"]._get_stream_from(attachment, "raw", filename)
         if stream is None:
-            # try to generate one
             if env.cr.readonly:
                 env.cr.rollback()  # reset state to detect newly generated assets
                 cursor_manager = env.registry.cursor(readonly=False)
@@ -175,7 +174,6 @@ class Binary(http.Controller):
                         autoprefix=autoprefix,
                         assets_params=assets_params,
                     )
-                    # check if the version matches. If not, redirect to the last version
                     if (
                         not debug_assets
                         and unique != ANY_UNIQUE
@@ -371,8 +369,9 @@ class Binary(http.Controller):
         for uploaded_file in files:
             filename = uploaded_file.filename
             if request.httprequest.user_agent.browser == "safari":
-                # Safari sends NFD UTF-8 (where é is composed by 'e' and [accent])
-                # we need to send it the same stuff, otherwise it'll fail
+                # Safari sends filenames NFD-normalized (e.g. é as 'e' + a
+                # combining accent); match that normalization here so later
+                # filename comparisons don't mismatch.
                 filename = unicodedata.normalize("NFD", uploaded_file.filename)
 
             try:
@@ -496,13 +495,9 @@ class Binary(http.Controller):
         readonly=True,
     )
     def get_fonts(self, fontname: str | None = None) -> list[bytes]:
-        """This route will return a list of base64 encoded fonts.
+        """Return base64-encoded signature fonts for the 'auto' signing mode.
 
-        Those fonts will be proposed to the user when creating a signature
-        using mode 'auto'.
-
-        :return: base64 encoded fonts
-        :rtype: list
+        :return: base64-encoded font files
         """
         supported_exts = (".ttf", ".otf", ".woff", ".woff2")
         fonts = []

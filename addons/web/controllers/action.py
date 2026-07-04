@@ -105,7 +105,8 @@ class Action(Controller):
                             continue
                     if not act.get("display_name"):
                         act["display_name"] = act["name"]
-                    # client actions don't have multi-record views, so we can't go further to the next controller
+                    # client actions have no multi-record view, so the same action
+                    # can't legitimately reappear for the next breadcrumb entry
                     if (
                         act["type"] == "ir.actions.client"
                         and idx + 1 < len(actions)

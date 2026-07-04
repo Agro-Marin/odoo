@@ -13,8 +13,8 @@ from odoo.tools.misc import limited_field_access_token
 @tagged("-at_install", "post_install", "web_http", "web_image")
 class TestImage(HttpCase):
     def test_01_content_image_resize_placeholder(self):
-        """The goal of this test is to make sure the placeholder image is
-        resized appropriately depending on the given URL parameters."""
+        """Check that the placeholder image is resized per the URL's size
+        parameters, keeping its original (square) aspect ratio."""
 
         # CASE: resize placeholder, given size but original ratio is always kept
         response = self.url_open("/web/image/0/200x150")
@@ -47,7 +47,7 @@ class TestImage(HttpCase):
         self.assertEqual(image.size, (256, 256))
 
     def test_02_content_image_Etag_304(self):
-        """This test makes sure that the 304 response is properly returned if the ETag is properly set"""
+        """Check that a matching If-None-Match returns 304 Not Modified."""
 
         attachment = self.env["ir.attachment"].create(
             {
@@ -72,7 +72,8 @@ class TestImage(HttpCase):
         self.assertEqual(len(response2.content), 0)
 
     def test_03_web_content_filename(self):
-        """This test makes sure the Content-Disposition header matches the given filename"""
+        """Check that Content-Disposition's filename matches the URL-given
+        filename, with or without an explicit extension."""
 
         att = self.env["ir.attachment"].create(
             {
@@ -99,7 +100,7 @@ class TestImage(HttpCase):
             "attachment; filename=custom.gif",
         )
 
-        # CASE: given filename and extention
+        # CASE: given filename and extension
         res = self.url_open("/web/image/%s/0x0/custom.png?download=true" % att.id)
         res.raise_for_status()
         self.assertEqual(
@@ -108,7 +109,9 @@ class TestImage(HttpCase):
         )
 
     def test_04_web_content_filename_secure(self):
-        """This test makes sure the Content-Disposition header matches the given filename"""
+        """Check Content-Disposition filename sanitization: newlines/CR are
+        stripped, quotes are escaped, and non-ASCII names fall back to the
+        RFC 5987 ``filename*`` parameter alongside an ASCII ``filename``."""
 
         att = self.env["ir.attachment"].create(
             {
@@ -183,7 +186,10 @@ class TestImage(HttpCase):
         )
 
     def test_05_web_image_access_token(self):
-        """Tests that valid access tokens grant access to binary data."""
+        """Check token-gated access to attachment binary data: only a
+        matching, non-expired, correctly-scoped token grants access, and
+        the generated token stays stable within a 14-day window and rolls
+        over predictably across windows."""
 
         def get_datetime_from_token(token):
             return datetime.fromtimestamp(int(token.rsplit("o", 1)[1], 16))
@@ -268,7 +274,8 @@ class TestImage(HttpCase):
                     base_result + timedelta(days=14 * i),
                 )
         with freeze_time(datetime(2021, 3, 1, 1, 2, 3)):
-            # at the same time...
+            # Same instant, but record/field/model differ below — each must
+            # still produce a distinct token.
             self.assertEqual(
                 get_datetime_from_token(
                     self.env["ir.attachment"].browse(2)._get_raw_access_token()
@@ -294,8 +301,8 @@ class TestImage(HttpCase):
             self.assertNotIn(model_res, [base_result, record_res, field_res])
 
     def test_06_web_image_attachment_access(self):
-        """Tests all the combination of user/ways to access an attachment through `/web/content`
-        or `/web/image` routes"""
+        """Check every combination of user type and access-token kind for
+        reading an attachment through the ``/web/image`` route."""
         new_test_user(self.env, "portal_user", groups="base.group_portal")
         new_test_user(self.env, "internal_user")
         # record of arbitrary model with restrictive ACL even for internal users

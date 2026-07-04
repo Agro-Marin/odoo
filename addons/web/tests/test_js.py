@@ -48,7 +48,8 @@ class HOOTCommon(odoo.tests.HttpCase):
             h = self._generate_hash(f)
             if sign == "-":
                 h = f"-{h}"
-            # Since we don't know if the descriptor we have is a test or a suite, we need to provide the hash for a generic "job"
+            # The hash doesn't distinguish a test from a suite, so pass it as
+            # a generic "job" id filter (HOOT resolves it against either).
             id_params += f"&id={h}"
         return id_params
 
@@ -99,10 +100,6 @@ class HOOTCommon(odoo.tests.HttpCase):
 
 @odoo.tests.tagged("post_install", "-at_install", "web_js")
 class WebSuite(HOOTCommon):
-    # -- Granular desktop test methods --
-    # Each targets a specific hoot suite group.
-    # Together they cover the full desktop JS test suite.
-
     @odoo.tests.no_retry
     def test_core(self):
         """@web/core — domain, registry, network, py_js, utils, l10n."""
@@ -204,7 +201,8 @@ class WebSuite(HOOTCommon):
 
     @odoo.tests.no_retry
     def test_hoot(self):
-        # HOOT tests suite
+        """Run HOOT's own internal test suite (the test framework's tests,
+        not the @web/... suites covered by the other test_* methods)."""
         self.browser_js(
             f"/web/static/lib/hoot/tests/index.html?headless&loglevel=2{self.hoot_filters}",
             "",
@@ -248,9 +246,6 @@ class WebSuite(HOOTCommon):
 class MobileWebSuite(HOOTCommon):
     browser_size = "375x667"
     touch_enabled = True
-
-    # -- Granular mobile test methods --
-    # Together they cover the full mobile JS test suite.
 
     @odoo.tests.no_retry
     def test_core(self):

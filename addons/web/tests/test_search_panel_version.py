@@ -2,9 +2,8 @@
 
 Background: ``rpc_cache.js`` ``payloadChanged`` prefers a cheap version
 compare over deep ``jsonEqual`` when the server response carries
-``__version``.  The ``versioned`` decorator in
-``addons/core/addons/web/models/_versioning.py`` opts a method into
-this contract.
+``__version``.  The ``versioned``/``versioned_envelope`` decorators
+(``odoo/tools/cache_version.py``) opt a method into this contract.
 
 Currently covered:
   - ``search_panel_select_range`` / ``search_panel_select_multi_range``

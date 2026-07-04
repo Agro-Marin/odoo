@@ -44,10 +44,10 @@ class TestResUsers(TransactionCase):
         )
 
     def test_name_search(self):
-        """
-        Test name search with self assign feature
-        The self assign feature is present only when a limit is present,
-        which is the case with the public name_search by default
+        """The calling user is always moved to the front of name_search
+        results, including via the explicit fallback search that kicks in
+        when the user falls outside the truncated window (only possible
+        when a limit applies, e.g. the public name_search's default 100).
         """
         ResUsers = self.env["res.users"]
         jean = self.users[0]
@@ -116,9 +116,7 @@ class TestResUsers(TransactionCase):
         )
 
     def test_change_password(self):
-        """
-        We should be able to change user password without any issue
-        """
+        """Change a user's password through the change-password wizard."""
         user_internal = self.env["res.users"].create(
             {
                 "name": "Internal",

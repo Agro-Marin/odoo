@@ -24,10 +24,9 @@ def _is_local_url(url: str | None) -> bool:
     """
     if not url or not isinstance(url, str):
         return False
-    # Reject protocol-relative URLs and backslash tricks. Browsers normalize
-    # backslashes to forward slashes, so a leading "\" or "\\" is treated by the
-    # browser as a protocol-relative URL and enables an open redirect; urlsplit
-    # (RFC 3986) does NOT perform that normalization, so guard backslashes here.
+    # Browsers normalize a leading "\" or "\\" to "//", turning it into a
+    # protocol-relative open redirect; urlsplit (RFC 3986) does not perform
+    # that normalization, so backslashes must be rejected explicitly here.
     if "\\" in url or url.startswith("//"):
         return False
     parsed = urlsplit(url)
@@ -39,20 +38,20 @@ def clean_action(action: dict, env: Any) -> dict:
     if action_type == "ir.actions.act_window" and not action.get("views"):
         generate_views(action)
 
-    # When returning an action, keep only relevant fields/properties
+    # Keep only fields readable on this action's type, plus any custom
+    # (non-model) properties — drop unreadable model fields.
     readable_fields = env[action["type"]]._get_readable_fields()
     action_type_fields = env[action["type"]]._fields.keys()
 
     cleaned_action = {
         field: value
         for field, value in action.items()
-        # keep allowed fields and custom properties fields
         if field in readable_fields or field not in action_type_fields
     }
 
-    # Warn about custom properties fields, because use is discouraged
     action_name = action.get("name") or action
     custom_properties = action.keys() - readable_fields - action_type_fields
+    # Custom properties work but are discouraged in favor of `params`/`context`.
     if custom_properties:
         _logger.warning(
             "Action %r contains custom properties %s. Passing them "
@@ -75,22 +74,21 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
 
     :param redirect: URL to redirect to when no database is found
     :param db: explicit database name to use (skips heuristics)
-    :raises werkzeug.exceptions.HTTPException: redirect when no db resolved
+    :raises werkzeug.exceptions.HTTPException: via redirect, both when no db
+        can be resolved and whenever the session's db cookie needs to be
+        (re)set for a db that *was* resolved
     """
     if db is None:
         db = (raw_db := request.params.get("db")) and raw_db.strip()
 
-    # Ensure db is legit
     if db and db not in http.db_filter([db]):
         db = None
 
     if db and not request.session.db:
-        # User asked a specific database on a new session.
-        # That mean the nodb router has been used to find the route
-        # Depending on installed module in the database, the rendering of the page
-        # may depend on data injected by the database route dispatcher.
-        # Thus, we redirect the user to the same page but with the session cookie set.
-        # This will force using the database route dispatcher...
+        # An explicit db on a session with none set means the nodb router
+        # resolved this route, but page rendering may depend on data injected
+        # by the db-aware router. Redirect to the same URL with the session
+        # cookie set so the next request goes through that router instead.
         r = request.httprequest
         url_redirect = urlsplit(r.base_url)
         if r.query_string:
@@ -100,22 +98,18 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
         request.session.db = db
         werkzeug.exceptions.abort(request.redirect(urlunsplit(url_redirect), 302))
 
-    # if db not provided, use the session one
     if not db and request.session.db and http.db_filter([request.session.db]):
         db = request.session.db
 
-    # if no database provided and no database in session, use monodb
     if not db:
+        # Single-database install: no need to ask, there is only one choice.
         all_dbs = http.db_list(force=True)
         if len(all_dbs) == 1:
             db = all_dbs[0]
 
-    # if no db can be found til here, send to the database selector
-    # the database selector will redirect to database manager if needed
     if not db:
         werkzeug.exceptions.abort(request.redirect(redirect, 303))
 
-    # always switch the session to the computed db
     if db != request.session.db:
         request.session = http.root.session_store.new()
         request.session.update(http.get_default_session(), db=db)
@@ -124,21 +118,15 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
 
 
 def generate_views(action: dict) -> None:
-    """
-    While the server generates a sequence called "views" computing dependencies
-    between a bunch of stuff for views coming directly from the database
-    (the ``ir.actions.act_window model``), it's also possible for e.g. buttons
-    to return custom view dictionaries generated on the fly.
+    """Fill in the ``views`` key of a custom action dictionary that lacks one.
 
-    In that case, there is no ``views`` key available on the action.
-
-    Since the web client relies on ``action['views']``, generate it here from
+    ``ir.actions.act_window`` records get ``views`` from the database, but a
+    button or server action can build an action dict on the fly without it.
+    The web client relies on ``action['views']``, so derive it here from
     ``view_mode`` and ``view_id``.
 
-    Currently handles two different cases:
-
-    * no view_id, multiple view_mode
-    * single view_id, single view_mode
+    Handles two cases: no view_id with multiple view_mode, or a single
+    view_id with a single view_mode.
 
     :param dict action: action descriptor dictionary to generate a views key for
     """
@@ -146,7 +134,7 @@ def generate_views(action: dict) -> None:
     if isinstance(view_id, (list, tuple)):
         view_id = view_id[0]
 
-    # providing at least one view mode is a requirement, not an option
+    # No default: a missing view_mode is a caller bug, let it raise KeyError.
     view_modes = action["view_mode"].split(",")
 
     if len(view_modes) > 1:
@@ -252,9 +240,7 @@ def get_action_triples(
 
 
 def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
-    """Decide if user requires a specific post-login redirect, e.g. for 2FA, or if they are
-    fully logged and can proceed to the requested URL.
-    """
+    """Return the post-login redirect URL, accounting for a partial (MFA) session."""
     if request.session.uid:  # fully logged
         if redirect and _is_local_url(redirect):
             return redirect

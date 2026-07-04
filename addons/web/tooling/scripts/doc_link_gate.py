@@ -297,9 +297,13 @@ def scan(
                 continue
             resolved = _resolve_ref(source_file, raw_path)
             if resolved is None:
-                # Report the first candidate path the resolver tried so
-                # the message is helpful even when no file exists.  Use
-                # source-relative as the canonical "what was tried".
+                # Best-effort diagnostic path: mirrors _resolve_ref's
+                # absolute-ref and source-relative branches.  It does NOT
+                # mirror the "looks-rooted" branch (bare ``addons/...``
+                # style refs resolve against REPO_ROOT there, not against
+                # source_file's directory), so for those refs the path
+                # shown here can differ from what _resolve_ref actually
+                # tried — still enough to point a human at the right area.
                 cleaned = _strip_anchor(raw_path)
                 attempted = (
                     str(REPO_ROOT / cleaned.lstrip("/"))
