@@ -58,6 +58,7 @@ import odoo.models
 import odoo.orm.runtime
 from odoo import api
 from odoo.db import Cursor, Savepoint
+from odoo.db.utils import seed_planner_stats
 from odoo.exceptions import AccessError
 from odoo.fields import Command
 from odoo.modules.registry import DummyRLock, Registry
@@ -1280,6 +1281,14 @@ class TransactionCase(BaseCase):
         cls.cr = cls.registry.cursor()
         cls.addClassCleanup(cast("Cursor", cls.cr).close)
 
+        # Planner-stats floor, class-transaction layer: autovacuum can undo the
+        # committed pre-suite floors mid-suite (VACUUM rewrites reltuples=0 for
+        # tables whose rows only ever roll back), degrading hot queries back
+        # into cartesian nested-loop plans. Re-seed uncommitted: visible to the
+        # whole class, rolled back with it, and the stats locks keep autovacuum
+        # from resetting the re-seeded tables while the class runs.
+        seed_planner_stats(cls.cr)
+
         def check_cursor_stack():
             for cursor in test_cursor.TestCursor._cursors_stack:
                 _logger.info(
@@ -1429,6 +1438,8 @@ class SingleTransactionCase(BaseCase):
 
         cls.cr = cls.registry.cursor()
         cls.addClassCleanup(cast("Cursor", cls.cr).close)
+        # Same class-transaction planner-stats floor as TransactionCase.
+        seed_planner_stats(cls.cr)
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
 
