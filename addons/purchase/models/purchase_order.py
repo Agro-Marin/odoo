@@ -485,122 +485,6 @@ class PurchaseOrder(models.Model):
         return super().write(vals)
 
     # ------------------------------------------------------------
-    # WRITE VALIDATION
-    # ------------------------------------------------------------
-
-    def _validate_write_vals(self, vals):
-        """Run all registered write validators before persisting ``vals``."""
-        for method_name in self._get_validate_write_vals_methods():
-            getattr(self, method_name)(vals)
-
-    def _get_validate_write_vals_methods(self):
-        """Validator method names for write. Override to extend."""
-        return [
-            "_validate_write_locked_order",
-            "_validate_write_state_frozen_fields",
-            "_validate_write_state_transition",
-        ]
-
-    def _get_state_frozen_fields(self):
-        """Map of ``{state: {field names frozen in that state}}``.
-
-        Empty for purchase: unlike ``sale.order`` (which freezes ``pricelist_id``
-        in ``done``), purchase has no per-state frozen-field rule and no
-        ``pricelist_id`` analog. Kept as an extensible hook; confirmed and locked
-        orders are already frozen by ``_validate_write_locked_order``.
-        """
-        return {}
-
-    def _validate_write_locked_order(self, vals):
-        """Freeze all user-editable business fields on locked orders.
-
-        Whitelist model: only ``_LOCKED_WRITABLE_FIELDS`` may change while
-        locked. Scoped over ``_get_user_editable_fields`` so framework writes
-        (chatter, activities, stored-compute) are never blocked. Bypassable
-        via the ``bypass_locked_check`` context key.
-        """
-        if self.env.context.get("bypass_locked_check"):
-            return
-        locked = self.filtered("locked")
-        if not locked:
-            return
-        forbidden = (
-            set(vals) & locked._get_user_editable_fields()
-        ) - self._LOCKED_WRITABLE_FIELDS
-        if forbidden:
-            raise UserError(
-                _(
-                    "This order is locked and cannot be modified. "
-                    "Unlock it first to change: %s",
-                    locked._get_field_labels(forbidden),
-                ),
-            )
-
-    def _get_user_editable_fields(self):
-        """User-settable business fields.
-
-        Excludes computed/display (readonly), related, and magic columns, so
-        framework and computed writes fall outside the locked whitelist.
-        """
-        return {
-            name
-            for name, field in self._fields.items()
-            if field.store
-            and not field.related
-            and not field.readonly
-            and name not in MAGIC_COLUMNS
-        }
-
-    def _validate_write_state_frozen_fields(self, vals):
-        """Reject writes to fields frozen in the record's current state."""
-        frozen_map = self._get_state_frozen_fields()
-        changed = set(vals)
-        for order in self:
-            frozen = frozen_map.get(order.state, set()) & changed
-            if frozen:
-                raise UserError(
-                    _(
-                        "You cannot modify %(fields)s on a %(state)s order.",
-                        fields=order._get_field_labels(frozen),
-                        state=order.state,
-                    ),
-                )
-
-    def _validate_write_state_transition(self, vals):
-        """Reject illegal ``state`` transitions on raw writes."""
-        if "state" not in vals:
-            return
-        target = vals["state"]
-        for order in self:
-            if order.state == target:
-                continue  # no-op self-write
-            if target not in self._STATE_TRANSITIONS.get(order.state, set()):
-                raise UserError(
-                    _(
-                        "Cannot move order %(name)s from %(src)s to %(dst)s.",
-                        name=order.display_name,
-                        src=order.state,
-                        dst=target,
-                    ),
-                )
-
-    def _get_field_labels(self, field_names):
-        """Comma-joined human field labels for ``field_names`` on this model."""
-        fields_info = (
-            self.env["ir.model.fields"]
-            .sudo()
-            .search(
-                [
-                    ("name", "in", list(field_names)),
-                    ("model", "=", self._name),
-                ],
-            )
-        )
-        return ", ".join(fields_info.mapped("field_description")) or ", ".join(
-            sorted(field_names),
-        )
-
-    # ------------------------------------------------------------
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
@@ -3022,4 +2906,120 @@ class PurchaseOrder(models.Model):
         self.ensure_one()
         return self.company_id.order_lock_po == "lock" or self.env.user.has_group(
             "purchase.group_auto_done_setting",
+        )
+
+    # ------------------------------------------------------------
+    # WRITE VALIDATION
+    # ------------------------------------------------------------
+
+    def _validate_write_vals(self, vals):
+        """Run all registered write validators before persisting ``vals``."""
+        for method_name in self._get_validate_write_vals_methods():
+            getattr(self, method_name)(vals)
+
+    def _get_validate_write_vals_methods(self):
+        """Validator method names for write. Override to extend."""
+        return [
+            "_validate_write_locked_order",
+            "_validate_write_state_frozen_fields",
+            "_validate_write_state_transition",
+        ]
+
+    def _get_state_frozen_fields(self):
+        """Map of ``{state: {field names frozen in that state}}``.
+
+        Empty for purchase: unlike ``sale.order`` (which freezes ``pricelist_id``
+        in ``done``), purchase has no per-state frozen-field rule and no
+        ``pricelist_id`` analog. Kept as an extensible hook; confirmed and locked
+        orders are already frozen by ``_validate_write_locked_order``.
+        """
+        return {}
+
+    def _validate_write_locked_order(self, vals):
+        """Freeze all user-editable business fields on locked orders.
+
+        Whitelist model: only ``_LOCKED_WRITABLE_FIELDS`` may change while
+        locked. Scoped over ``_get_user_editable_fields`` so framework writes
+        (chatter, activities, stored-compute) are never blocked. Bypassable
+        via the ``bypass_locked_check`` context key.
+        """
+        if self.env.context.get("bypass_locked_check"):
+            return
+        locked = self.filtered("locked")
+        if not locked:
+            return
+        forbidden = (
+            set(vals) & locked._get_user_editable_fields()
+        ) - self._LOCKED_WRITABLE_FIELDS
+        if forbidden:
+            raise UserError(
+                _(
+                    "This order is locked and cannot be modified. "
+                    "Unlock it first to change: %s",
+                    locked._get_field_labels(forbidden),
+                ),
+            )
+
+    def _get_user_editable_fields(self):
+        """User-settable business fields.
+
+        Excludes computed/display (readonly), related, and magic columns, so
+        framework and computed writes fall outside the locked whitelist.
+        """
+        return {
+            name
+            for name, field in self._fields.items()
+            if field.store
+            and not field.related
+            and not field.readonly
+            and name not in MAGIC_COLUMNS
+        }
+
+    def _validate_write_state_frozen_fields(self, vals):
+        """Reject writes to fields frozen in the record's current state."""
+        frozen_map = self._get_state_frozen_fields()
+        changed = set(vals)
+        for order in self:
+            frozen = frozen_map.get(order.state, set()) & changed
+            if frozen:
+                raise UserError(
+                    _(
+                        "You cannot modify %(fields)s on a %(state)s order.",
+                        fields=order._get_field_labels(frozen),
+                        state=order.state,
+                    ),
+                )
+
+    def _validate_write_state_transition(self, vals):
+        """Reject illegal ``state`` transitions on raw writes."""
+        if "state" not in vals:
+            return
+        target = vals["state"]
+        for order in self:
+            if order.state == target:
+                continue  # no-op self-write
+            if target not in self._STATE_TRANSITIONS.get(order.state, set()):
+                raise UserError(
+                    _(
+                        "Cannot move order %(name)s from %(src)s to %(dst)s.",
+                        name=order.display_name,
+                        src=order.state,
+                        dst=target,
+                    ),
+                )
+
+    def _get_field_labels(self, field_names):
+        """Comma-joined human field labels for ``field_names`` on this model."""
+        fields_info = (
+            self.env["ir.model.fields"]
+            .sudo()
+            .search(
+                [
+                    ("name", "in", list(field_names)),
+                    ("model", "=", self._name),
+                ],
+            )
+        )
+        return ", ".join(fields_info.mapped("field_description")) or ", ".join(
+            sorted(field_names),
         )
