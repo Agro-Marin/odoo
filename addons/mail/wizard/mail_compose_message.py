@@ -1091,11 +1091,13 @@ class MailComposeMessage(models.TransientModel):
             # send better void the cache and commit what is already generated to avoid
             # running several times on same records in case of issue
             if auto_commit is True:
-                counter_mails_done += len(prepared_mail_values_filtered)
-                self.env["ir.cron"]._notify_progress(
-                    done=counter_mails_done, remaining=len(res_ids) - counter_mails_done
+                batch_done = len(prepared_mail_values_filtered)
+                counter_mails_done += batch_done
+                # _commit_progress accumulates this batch onto the cron progress
+                # row and commits (a no-op write + plain commit outside a cron).
+                self.env["ir.cron"]._commit_progress(
+                    batch_done, remaining=len(res_ids) - counter_mails_done
                 )
-                self.env.cr.commit()
             self.env.invalidate_all()
 
         return mails_sudo
