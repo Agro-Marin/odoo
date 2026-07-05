@@ -56,3 +56,21 @@ class TestInvoice(BaseOrderTestCase):
 
         with self.assertRaises(UserError):
             order._create_invoices()
+
+    def test_prepare_down_payment_line_section_values(self):
+        order = self._make_order()
+
+        vals = order._prepare_down_payment_line_section_values()
+
+        self.assertEqual(
+            vals,
+            {
+                "order_id": order.id,
+                "display_type": "line_section",
+                "is_downpayment": True,
+            },
+        )
+        # The values must be directly usable to create the section line.
+        section = self.env["base.order.test.line"].create({**vals, "name": "DP"})
+        self.assertEqual(section.display_type, "line_section")
+        self.assertTrue(section.is_downpayment)

@@ -22,6 +22,9 @@ class BaseOrderTest(models.Model):
     )
     # References
     partner_ref = fields.Char(copy=False)
+    # Bridge field consumed by the mixin's is_late search (sale and purchase
+    # declare their own, diverging, date_planned computes).
+    date_planned = fields.Datetime()
 
     # HELPER METHODS
 

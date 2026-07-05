@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from odoo import fields
 from odoo.tests import tagged
 
 from .common import BaseOrderTestCase
@@ -50,3 +53,25 @@ class TestHeaderMisc(BaseOrderTestCase):
         self.assertTrue(templates)
         self.assertIn("label", templates[0])
         self.assertIn("template", templates[0])
+
+    def test_is_late_search(self):
+        now = fields.Datetime.now()
+        late = self._make_order(date_planned=now - timedelta(days=1))
+        on_time = self._make_order(date_planned=now + timedelta(days=1))
+        undated = self._make_order()
+        (late + on_time + undated).write({"state": "done"})
+        draft_past = self._make_order(date_planned=now - timedelta(days=1))
+
+        Model = self.env["base.order.test"]
+        made = late + on_time + undated + draft_past
+
+        late_found = Model.search([("is_late", "=", True), ("id", "in", made.ids)])
+        self.assertEqual(late_found, late)
+
+        # The negation must also cover orders without a planned date.
+        not_late = Model.search([("is_late", "=", False), ("id", "in", made.ids)])
+        self.assertEqual(not_late, on_time + undated + draft_past)
+
+    def test_is_late_search_rejects_bad_operator(self):
+        with self.assertRaises(Exception):
+            self.env["base.order.test"].search([("is_late", ">", True)])

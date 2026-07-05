@@ -53,6 +53,10 @@ class OrderLineFieldsMixin(models.AbstractModel):
         index="btree_not_null",
     )
 
+    product_template_attribute_value_ids = fields.Many2many(
+        related="product_id.product_template_attribute_value_ids",
+        depends=["product_id"],
+    )
     product_name_translated = fields.Text(
         compute="_compute_product_name_translated",
     )
@@ -663,6 +667,55 @@ class OrderLineFieldsMixin(models.AbstractModel):
                     order_type=order._description.lower(),
                 )
             order.message_post(body=msg)
+
+    # ─── Catalog ────────────────────────────────────────────────────
+
+    def _get_product_catalog_lines_data(self, **kwargs):
+        """Return the product-catalog payload for the lines in ``self``.
+
+        Shared three-branch skeleton (single line / several lines sharing one
+        product / empty recordset).  The payload construction diverges — sale
+        prices from the pricelist, purchase from seller data — and is
+        delegated to hooks.  ``order.mixin._default_order_line_values`` calls
+        this on an empty recordset, which only hits the generic last branch.
+
+        :raise ValueError: if the lines in ``self`` have different products.
+        :rtype: dict
+        :return: at least ``{'quantity': float}``; non-empty recordsets add
+            ``price``, ``readOnly`` and model-specific keys via the hooks.
+        """
+        if len(self) == 1:
+            return self._get_catalog_single_line_data(**kwargs)
+        elif self:
+            self.product_id.ensure_one()
+            data = self[0]._get_catalog_multi_line_data(**kwargs)
+            data["quantity"] = sum(
+                self.mapped(
+                    lambda line: line.product_uom_id._compute_quantity(
+                        qty=line.product_qty,
+                        to_unit=line.product_id.uom_id,
+                    ),
+                ),
+            )
+            data["readOnly"] = True
+            return data
+        return {"quantity": 0}
+
+    def _get_catalog_single_line_data(self, **kwargs):
+        """Catalog payload for a single line (quantity, price, readOnly, …)."""
+        raise NotImplementedError(
+            f"{self._name} must implement _get_catalog_single_line_data()"
+        )
+
+    def _get_catalog_multi_line_data(self, **kwargs):
+        """Base catalog payload when several lines share one product.
+
+        Called on the first line; returns the price payload — the generic
+        skeleton adds the aggregated ``quantity`` and ``readOnly``.
+        """
+        raise NotImplementedError(
+            f"{self._name} must implement _get_catalog_multi_line_data()"
+        )
 
     # ─── Actions ────────────────────────────────────────────────────
 
