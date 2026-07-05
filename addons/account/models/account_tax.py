@@ -195,9 +195,9 @@ class AccountTax(models.Model):
                             FROM account_move_line_account_tax_rel AS line
                             WHERE account_tax.id = line.account_tax_id
                         )
-                        AND id IN %s
+                        AND id = ANY(%s)
                         """,
-                        tuple(self.ids),
+                        list(self.ids),
                     )
                 )
             )
@@ -218,9 +218,9 @@ class AccountTax(models.Model):
                                 FROM account_reconcile_model_line_account_tax_rel AS reco
                                 WHERE account_tax.id = reco.account_tax_id
                             )
-                            AND id IN %s
+                            AND id = ANY(%s)
                             """,
-                            tuple(taxes_to_compute),
+                            list(taxes_to_compute),
                         )
                     )
                 )
