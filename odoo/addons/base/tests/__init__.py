@@ -23,6 +23,7 @@ from . import test_avatar_mixin
 from . import test_init
 from . import test_ir_actions
 from . import test_ir_asset
+from . import test_ir_asset_audit
 from . import test_ir_attachment
 from . import test_ir_attachment_storage
 from . import test_ir_binary

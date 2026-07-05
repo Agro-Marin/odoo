@@ -26,7 +26,6 @@ from odoo import SUPERUSER_ID, api, models, tools
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import (
-    EXTERNAL_ASSET,
     ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
@@ -218,18 +217,18 @@ class IrQweb(models.AbstractModel):
         )
         files = []
         external_asset = []
-        for path, full_path, _bundle, last_modified in asset_paths:
-            if full_path is not EXTERNAL_ASSET:
+        for asset in asset_paths:
+            if asset.is_external:
+                external_asset.append(asset.path)
+            else:
                 files.append(
                     {
-                        "url": path,
-                        "filename": full_path,
+                        "url": asset.path,
+                        "filename": asset.full_path,
                         "content": "",
-                        "last_modified": last_modified,
+                        "last_modified": asset.last_modified,
                     }
                 )
-            else:
-                external_asset.append(path)
         return (files, external_asset)
 
     def _get_asset_bundle(
