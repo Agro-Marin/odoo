@@ -430,7 +430,11 @@ class LoadMixin(_ModelStubs):
         if self.env.lang:
             field_names.update(self.env["ir.model.fields"].get_field_string(self._name))
 
-        convert = self.env["ir.fields.converter"].for_model(self, savepoint=savepoint)
+        convert = (
+            self.env["ir.fields.converter"]
+            .with_context(import_savepoint=savepoint)
+            .for_model(self)
+        )
 
         def _log(base, record, field, exception):
             type = "warning" if isinstance(exception, Warning) else "error"

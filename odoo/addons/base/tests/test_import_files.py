@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from odoo.tests import TransactionCase, can_import, loaded_demo_data, tagged
 from odoo.tools.misc import file_open
@@ -12,8 +13,8 @@ class TestFieldConverters(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.converter = cls.env["ir.fields.converter"]
-        # The datetime/date/boolean converters only read ``field.name`` (boolean)
-        # and never ``savepoint`` (passed as ``None``); any concrete field works.
+        # The datetime/date/boolean converters take ``(field, value)`` and only
+        # read ``field.name`` (boolean); any concrete field works.
         # Keep the Field objects in a dict, NOT as class attributes: a Field is a
         # data descriptor, so ``self.flds["dt"]`` would invoke ``Field.__get__`` on
         # the TestCase (not a recordset) and raise. Dict access avoids that.
@@ -21,6 +22,8 @@ class TestFieldConverters(TransactionCase):
             "dt": cls.env["res.partner"]._fields["write_date"],
             "date": cls.env["res.partner"]._fields["write_date"],
             "bool": cls.env["res.partner"]._fields["is_company"],
+            "m2o": cls.env["res.partner"]._fields["parent_id"],
+            "float": cls.env["res.partner"]._fields["partner_latitude"],
         }
 
     def test_str_to_datetime_offset_bearing_iso_not_double_converted(self):
@@ -32,10 +35,8 @@ class TestFieldConverters(TransactionCase):
         """
         converter = self.converter.with_context(tz="America/Mexico_City")
         value, warnings = converter._str_to_datetime(
-            self.env["res.partner"],
             self.flds["dt"],
             "2026-03-19T16:09:18-06:00",
-            None,
         )
         self.assertFalse(warnings)
         self.assertEqual(value, "2026-03-19 22:09:18")
@@ -45,10 +46,8 @@ class TestFieldConverters(TransactionCase):
         still applies env.tz before storing as UTC."""
         converter = self.converter.with_context(tz="America/Mexico_City")
         value, warnings = converter._str_to_datetime(
-            self.env["res.partner"],
             self.flds["dt"],
             "2026-03-19 16:09:18",
-            None,
         )
         self.assertFalse(warnings)
         # 16:09:18 wall-clock at -06:00 == 22:09:18 UTC.
@@ -58,10 +57,8 @@ class TestFieldConverters(TransactionCase):
         """IFLD-01: a ``Z`` (UTC) suffix is tz-aware and must not be re-stamped."""
         converter = self.converter.with_context(tz="America/Mexico_City")
         value, warnings = converter._str_to_datetime(
-            self.env["res.partner"],
             self.flds["dt"],
             "2026-03-19T16:09:18Z",
-            None,
         )
         self.assertFalse(warnings)
         self.assertEqual(value, "2026-03-19 16:09:18")
@@ -70,44 +67,209 @@ class TestFieldConverters(TransactionCase):
         """IFLD-02: a date with trailing garbage must raise, not truncate."""
         with self.assertRaises(ValueError):
             self.converter._str_to_date(
-                self.env["res.partner"],
                 self.flds["date"],
                 "2012-12-31xxx",
-                None,
             )
 
     def test_str_to_date_valid(self):
         """IFLD-02 guard: a clean ISO date still converts."""
         value, warnings = self.converter._str_to_date(
-            self.env["res.partner"],
             self.flds["date"],
             "2012-12-31",
-            None,
         )
         self.assertFalse(warnings)
         self.assertEqual(value, "2012-12-31")
 
+    def test_str_to_date_accepts_trailing_time(self):
+        """IFLD-08: a date column carrying a time part ("2012-12-31 00:00:00",
+        ISO "2012-12-31T23:59:59") is a very common export shape and must import
+        as the plain date -- not be rejected as trailing garbage. The garbage
+        guard (IFLD-02) may only reject a tail that is not a valid time."""
+        for value in (
+            "2012-12-31 00:00:00",
+            "2012-12-31T23:59:59",
+            "2012-12-31 23:59:59",
+        ):
+            result, warnings = self.converter._str_to_date(self.flds["date"], value)
+            self.assertFalse(warnings)
+            self.assertEqual(result, "2012-12-31", "%r must import as its date" % value)
+        # a tail that is not a valid time is still rejected
+        for value in ("2012-12-31xxx", "2012-12-31 nope"):
+            with self.assertRaises(ValueError):
+                self.converter._str_to_date(self.flds["date"], value)
+
+    def test_boolean_value_sets_built_once(self):
+        """IFLD-09: the true/false token sets are memoized per cursor, not
+        rebuilt for every boolean cell (which reran the translation lookups and
+        set construction once per converted value)."""
+        # drop any set cached by an earlier test on this shared cursor
+        self.env.cr.cache.get("ir.fields.converter", {}).pop("boolean_value_sets", None)
+        calls = []
+        orig = type(self.converter)._get_boolean_translations
+
+        def spy(this, src):
+            calls.append(src)
+            return orig(this, src)
+
+        with patch.object(type(self.converter), "_get_boolean_translations", spy):
+            for _ in range(50):
+                # a value in neither set forces both to be consulted
+                self.converter._str_to_boolean(self.flds["bool"], "maybe")
+        # 4 lookups (true/yes/false/no) to build the sets once, then nothing.
+        self.assertLessEqual(
+            len(calls),
+            4,
+            "boolean token sets must be built a constant number of times, "
+            "not once per converted cell",
+        )
+
+    def test_str_to_properties_does_not_mutate_input(self):
+        """IFLD-10: coercing a list of property dicts must not mutate the
+        caller's input in place -- converters must be side-effect-free on their
+        arguments."""
+        original = [
+            {"name": "x", "type": "integer", "string": "X", "value": "42"},
+        ]
+        snapshot = [dict(pd) for pd in original]
+        result, _warnings = self.converter._str_to_properties(
+            self.flds["bool"], original
+        )
+        self.assertEqual(original, snapshot, "input must not be mutated")
+        self.assertIsNot(result, original, "output must be a fresh list")
+        self.assertEqual(result[0]["value"], 42, "value must be coerced in output")
+
+    def test_db_id_for_unknown_subfield_is_valueerror(self):
+        """IFLD-11: an unknown referencing sub-field raises ``ValueError`` (which
+        ``for_model`` catches into a per-field error) rather than a bare
+        ``Exception`` that would escape and abort the whole ``load()``."""
+        with self.assertRaises(ValueError):
+            self.converter.db_id_for(self.flds["m2o"], "not_a_subfield", "x")
+
+    def test_db_id_for_dbid_resolution(self):
+        """IFLD-12: ``db_id_for`` on a ``.id`` reference resolves an existing
+        record, returns ``False`` for an empty reference, and raises for an id
+        that matches no record -- pinning the decomposed resolver + error path."""
+        partner = self.env["res.partner"].search([], limit=1)
+        self.assertTrue(partner, "need at least one partner to resolve")
+        got, warnings = self.converter.db_id_for(
+            self.flds["m2o"], ".id", str(partner.id)
+        )
+        self.assertEqual(got, partner.id)
+        self.assertFalse(warnings)
+        # a falsy token is an empty reference, not an error
+        empty, _w = self.converter.db_id_for(self.flds["m2o"], ".id", "0")
+        self.assertIs(empty, False)
+        # an id matching no record is an import error
+        with self.assertRaises(ValueError):
+            self.converter.db_id_for(self.flds["m2o"], ".id", str(partner.id + 10**9))
+
+    def test_str_to_float_rejects_non_finite(self):
+        """IFLD-13: ``float()`` parses "nan"/"inf" (and overflowing exponents),
+        but those cannot be stored and would blow up cryptically inside
+        ``write()``; the converter must reject them with a clean import error
+        while still accepting ordinary and scientific-notation numbers."""
+        for value in ("nan", "NaN", "inf", "-inf", "Infinity", "1e400"):
+            with self.assertRaises(ValueError, msg="%r must be rejected" % value):
+                self.converter._str_to_float(self.flds["float"], value)
+        for value, expected in (("1.5", 1.5), (" 2.5 ", 2.5), ("1e3", 1000.0)):
+            result, warnings = self.converter._str_to_float(self.flds["float"], value)
+            self.assertFalse(warnings)
+            self.assertEqual(result, expected)
+
     def test_str_to_boolean_unknown_returns_none(self):
         """IFLD-03: an unknown boolean yields ``None`` (not ``True``) + a warning."""
         value, warnings = self.converter._str_to_boolean(
-            self.env["res.partner"],
             self.flds["bool"],
             "maybe",
-            None,
         )
         self.assertIsNone(value)
         self.assertTrue(warnings)
 
     def test_str_to_boolean_known_values(self):
         """IFLD-03 guard: recognized true/false values still resolve."""
-        true_val, _w = self.converter._str_to_boolean(
-            self.env["res.partner"], self.flds["bool"], "1", None
-        )
-        false_val, _w = self.converter._str_to_boolean(
-            self.env["res.partner"], self.flds["bool"], "0", None
-        )
+        true_val, _w = self.converter._str_to_boolean(self.flds["bool"], "1")
+        false_val, _w = self.converter._str_to_boolean(self.flds["bool"], "0")
         self.assertIs(true_val, True)
         self.assertIs(false_val, False)
+
+    def test_unsupported_field_type_logs_not_crash(self):
+        """IFLD-07: a field whose type has no ``_str_to_<type>`` converter (e.g.
+        ``properties_definition``) must log a per-field error instead of raising
+        an uncaught ``TypeError`` (``None(value)``) that aborts the whole
+        ``load()``."""
+        target = None
+        for model_name in self.env.registry.models:
+            for fname, f in self.env[model_name]._fields.items():
+                if not hasattr(self.converter, f"_str_to_{f.type}"):
+                    target = (self.env[model_name], fname, f.type)
+                    break
+            if target:
+                break
+        if not target:
+            self.skipTest("every field type has a converter on this build")
+        model, fname, ftype = target
+        fn = self.converter.for_model(model)
+        logged = []
+        # Must NOT raise.
+        result = fn({fname: "x"}, lambda field, exc: logged.append((field, exc)))
+        self.assertNotIn(fname, result, "unconvertible field must not be written")
+        self.assertEqual([f for f, _exc in logged], [fname])
+        self.assertIsInstance(logged[0][1], ValueError)
+        self.assertIn(ftype, str(logged[0][1].args[0]))
+
+    def test_nested_selection_skip_uses_full_path(self):
+        """IFLD-C2: ``import_skip_records`` / ``import_set_empty_fields`` for a
+        nested selection must match the full slash-path (``child_ids/type``),
+        consistent with ``db_id_for`` and the paths the import UI emits."""
+        fld = self.env["res.partner"]._fields["type"]
+        # nested one level under a one2many named 'child_ids'
+        nested = self.converter.with_context(
+            parent_fields_hierarchy=["child_ids"],
+            import_skip_records=["child_ids/type"],
+        )
+        value, warnings = nested._str_to_selection(fld, "not_a_real_type")
+        self.assertIsNone(value)
+        self.assertFalse(warnings)
+
+        # a bare field name must NOT match a nested column (was the bug)
+        bare = self.converter.with_context(
+            parent_fields_hierarchy=["child_ids"],
+            import_skip_records=["type"],
+        )
+        with self.assertRaises(ValueError):
+            bare._str_to_selection(fld, "not_a_real_type")
+
+    def test_str_to_selection_description_built_once(self):
+        """IFLD-P2: a callable selection resolves without re-running the
+        selection callable once per candidate item (was O(items^2))."""
+        fld = self.env["ir.actions.server"]._fields["update_field_type"]
+        self.assertTrue(callable(fld.selection), "need a callable selection")
+        calls = []
+        orig = type(fld)._description_selection
+
+        def spy(self, env, *args, **kwargs):
+            calls.append(1)
+            return orig(self, env, *args, **kwargs)
+
+        with patch.object(type(fld), "_description_selection", spy):
+            # a value that never matches forces a full scan of the selection
+            with self.assertRaises(ValueError):
+                self.converter._str_to_selection(fld, "zzz_nonexistent_value")
+        # Old code called this once per selection item (42x for a 19-item
+        # selection). The fix makes it a small constant, independent of size.
+        self.assertLessEqual(
+            len(calls),
+            5,
+            "selection description must be built a constant number of times, "
+            "not once per selection item",
+        )
+
+    def test_referencing_subfield_empty_record(self):
+        """IFLD-C3: an empty reference record raises a clean, translatable
+        ValueError rather than a raw 'not enough values to unpack'."""
+        with self.assertRaises(ValueError) as cm:
+            self.converter._referencing_subfield({})
+        self.assertNotIn("unpack", str(cm.exception))
 
 
 @tagged("post_install", "-at_install")
