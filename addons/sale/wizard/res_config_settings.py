@@ -144,6 +144,7 @@ class ResConfigSettings(models.TransientModel):
                     ),
                 },
             }
+        return None
 
     # === CRUD METHODS ===#
 

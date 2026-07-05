@@ -100,6 +100,7 @@ class ProductProduct(models.Model):
                     ),
                 }
             }
+        return None
 
     # ------------------------------------------------------------
     # ACTION METHODS

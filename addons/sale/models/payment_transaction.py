@@ -3,8 +3,8 @@ from datetime import datetime
 from dateutil import relativedelta
 
 from odoo import api, fields, models
-from odoo.fields import Command
 from odoo.api import SUPERUSER_ID
+from odoo.fields import Command
 from odoo.tools import str2bool
 from odoo.tools.translate import _
 

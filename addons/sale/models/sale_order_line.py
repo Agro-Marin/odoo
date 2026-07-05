@@ -1,9 +1,10 @@
 from collections import defaultdict
 from datetime import timedelta
+
 from markupsafe import Markup
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import float_compare, float_is_zero, format_date, groupby
 from odoo.tools.translate import _
@@ -625,14 +626,13 @@ class SaleOrderLine(models.Model):
         """
         # Save original explicit values BEFORE super() runs
         # super() will call _compute_price_and_discount which may overwrite cache
-        original_values = []
-        for vals in vals_list:
-            original_values.append(
-                {
-                    "price_unit": vals.get("price_unit"),
-                    "price_unit_auto": vals.get("price_unit_auto"),
-                }
-            )
+        original_values = [
+            {
+                "price_unit": vals.get("price_unit"),
+                "price_unit_auto": vals.get("price_unit_auto"),
+            }
+            for vals in vals_list
+        ]
 
         super()._add_precomputed_values(vals_list)
 
@@ -1484,7 +1484,7 @@ class SaleOrderLine(models.Model):
                     line.invoice_state = "to do"
                 continue
 
-            elif float_is_zero(line.product_qty, precision_digits=precision):
+            if float_is_zero(line.product_qty, precision_digits=precision):
                 line.invoice_state = "no"
 
             elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
@@ -1563,12 +1563,12 @@ class SaleOrderLine(models.Model):
             if (
                 line.is_downpayment
                 or line.state == "cancel"
-                or line.state == "done"
+                or (line.state == "done"
                 and (
                     line.order_id.locked
                     or line.qty_invoiced > 0
                     or line.qty_transferred > 0
-                )
+                ))
             ):
                 line.product_readonly = True
 
@@ -1725,7 +1725,7 @@ class SaleOrderLine(models.Model):
 
     def _get_custom_compute_tax_cache_key(self):
         """Hook method to be able to set/get cached taxes while computing them"""
-        return tuple()
+        return ()
 
     def _get_date_order(self):
         self.ensure_one()
@@ -1938,7 +1938,9 @@ class SaleOrderLine(models.Model):
         )
         for patv in sorted_custom_ptav:
             pacv = self.product_custom_attribute_value_ids.filtered(
-                lambda pcav: pcav.custom_product_template_attribute_value_id == patv,
+                lambda pcav, patv=patv: (
+                    pcav.custom_product_template_attribute_value_id == patv
+                ),
             )
             name += "\n" + pacv.display_name
 
@@ -2060,7 +2062,7 @@ class SaleOrderLine(models.Model):
             even_share = self.currency_id.round(
                 combo_product_price / len(combo_base_prices)
             )
-            combo_prices = {combo_id: even_share for combo_id in combo_base_prices}
+            combo_prices = dict.fromkeys(combo_base_prices, even_share)
         # Compute the delta between the combo product's price and the sum of its combo prices.
         # Ideally, this should be 0, but division in python isn't perfect, so we may need to adjust
         # the combo prices to make the delta 0.
@@ -2516,7 +2518,7 @@ class SaleOrderLine(models.Model):
     def _update_line_quantity(self, values):
         orders = self.mapped("order_id")
         for order in orders:
-            order_lines = self.filtered(lambda x: x.order_id == order)
+            order_lines = self.filtered(lambda x, order=order: x.order_id == order)
             msg = Markup("<b>%s</b><ul>") % _("The ordered quantity has been updated.")
             for line in order_lines:
                 if (
@@ -2591,7 +2593,7 @@ class SaleOrderLine(models.Model):
 
     @api.model
     def _date_in_the_past(self):
-        if not "accrual_entry_date" in self.env.context:
+        if "accrual_entry_date" not in self.env.context:
             return False
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
         return accrual_date and accrual_date < fields.Date.today()
@@ -2735,29 +2737,22 @@ class SaleOrderLine(models.Model):
         # Check if current price was explicitly provided in vals
         # During precompute, vals values are loaded into cache before compute runs
         # If price_unit is non-zero and differs from auto, user provided explicit value
-        if (
+        # Explicit non-zero price during creation -> preserve it (do not auto).
+        # Default (0.0) or price matching auto -> switch to auto.
+        return not (
             self.price_unit
             and float_compare(
                 self.price_unit, new_auto_price, precision_digits=precision
             )
             != 0
-        ):
-            # Explicit non-zero price during creation, preserve it
-            return False
-
-        # Default (0.0) or matching auto price - set to auto
-        return True
+        )
 
     def _validate_analytic_distribution(self):
         for line in self.filtered(
             lambda l: not l.display_type and l.state == "draft",
         ):
             line._validate_distribution(
-                **{
-                    "product": line.product_id.id,
-                    "business_domain": "sale_order",
-                    "company_id": line.company_id.id,
-                },
+                product=line.product_id.id, business_domain="sale_order", company_id=line.company_id.id,
             )
 
     def _validate_write_vals(self, write_vals):
@@ -2798,21 +2793,20 @@ class SaleOrderLine(models.Model):
                     line_id,
                 ),
             )
-        else:
-            # Multiple lines - show first 5 and count
-            line_ids = [self._get_line_identifier(l) for l in lines[:5]]
-            error_msg = ", ".join(line_ids)
-            if len(lines) > 5:
-                error_msg += _(" and %s more", len(lines) - 5)
+        # Multiple lines - show first 5 and count
+        line_ids = [self._get_line_identifier(l) for l in lines[:5]]
+        error_msg = ", ".join(line_ids)
+        if len(lines) > 5:
+            error_msg += _(" and %s more", len(lines) - 5)
 
-            raise UserError(
-                _(
-                    "You cannot change the type of %(count)s sales order lines (%(lines)s). "
-                    "Instead, delete these lines and create new lines of the proper type.",
-                    count=len(lines),
-                    lines=error_msg,
-                ),
-            )
+        raise UserError(
+            _(
+                "You cannot change the type of %(count)s sales order lines (%(lines)s). "
+                "Instead, delete these lines and create new lines of the proper type.",
+                count=len(lines),
+                lines=error_msg,
+            ),
+        )
 
     def _validate_write_locked_order(self, write_vals):
         """Validate that protected fields are not being modified on a locked order."""
@@ -2822,7 +2816,7 @@ class SaleOrderLine(models.Model):
             return
 
         protected_fields = self._get_protected_fields()
-        if not any(f in write_vals.keys() for f in protected_fields):
+        if not any(f in write_vals for f in protected_fields):
             return
 
         protected_fields_modified = list(set(protected_fields) & set(write_vals.keys()))
@@ -2908,22 +2902,21 @@ class SaleOrderLine(models.Model):
                     reason=reason_text,
                 ),
             )
-        else:
-            # Multiple lines - show first 5 and count
-            line_ids = [self._get_line_identifier(l) for l in lines[:5]]
-            error_msg = ", ".join(line_ids)
-            if len(lines) > 5:
-                error_msg += _(" and %s more", len(lines) - 5)
+        # Multiple lines - show first 5 and count
+        line_ids = [self._get_line_identifier(l) for l in lines[:5]]
+        error_msg = ", ".join(line_ids)
+        if len(lines) > 5:
+            error_msg += _(" and %s more", len(lines) - 5)
 
-            raise UserError(
-                _(
-                    "You cannot change the %(field)s of %(count)s order lines (%(lines)s)%(reason)s.",
-                    field=field_description,
-                    count=len(lines),
-                    lines=error_msg,
-                    reason=reason_text,
-                ),
-            )
+        raise UserError(
+            _(
+                "You cannot change the %(field)s of %(count)s order lines (%(lines)s)%(reason)s.",
+                field=field_description,
+                count=len(lines),
+                lines=error_msg,
+                reason=reason_text,
+            ),
+        )
 
     def _get_line_identifier(self, line):
         """Get a human-readable identifier for a sales order line.

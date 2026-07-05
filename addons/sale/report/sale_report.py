@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.tools import Query, SQL
+from odoo.tools import SQL, Query
 
 from odoo.addons.sale import const
 
@@ -229,23 +229,23 @@ class SaleReport(models.Model):
             "product_tmpl_id": "p.product_tmpl_id",
             "product_category_id": "t.categ_id",
             "product_uom_id": "t.uom_id",
-            "product_uom_qty": f"""CASE WHEN l.product_id IS NOT NULL
+            "product_uom_qty": """CASE WHEN l.product_id IS NOT NULL
                     THEN SUM(l.product_qty * u.factor / u2.factor)
                     ELSE 0
                 END""",
-            "qty_transferred": f"""CASE WHEN l.product_id IS NOT NULL
+            "qty_transferred": """CASE WHEN l.product_id IS NOT NULL
                     THEN SUM(l.qty_transferred * u.factor / u2.factor)
                     ELSE 0
                 END""",
-            "qty_to_transfer": f"""CASE WHEN l.product_id IS NOT NULL
+            "qty_to_transfer": """CASE WHEN l.product_id IS NOT NULL
                     THEN SUM((l.product_qty - l.qty_transferred) * u.factor / u2.factor)
                     ELSE 0
                 END""",
-            "qty_invoiced": f"""CASE WHEN l.product_id IS NOT NULL
+            "qty_invoiced": """CASE WHEN l.product_id IS NOT NULL
                     THEN SUM(l.qty_invoiced * u.factor / u2.factor)
                     ELSE 0
                 END""",
-            "qty_to_invoice": f"""CASE WHEN l.product_id IS NOT NULL
+            "qty_to_invoice": """CASE WHEN l.product_id IS NOT NULL
                     THEN SUM(l.qty_to_invoice * u.factor / u2.factor)
                     ELSE 0
                 END""",

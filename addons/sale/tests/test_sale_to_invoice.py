@@ -408,13 +408,22 @@ class TestSaleToInvoice(TestSaleCommon):
         """Test invoice with a percentage downpayment and an included tax
         Check the total amount of invoice is correct and equal to a respective sale order's total amount
         """
-        # Confirm the SO
-        self.sale_order.action_confirm()
-        tax_downpayment = self.company_data["default_tax_sale"].copy(
+        # Apply an included tax to the order so the down payment is actually
+        # computed on a tax-included order (the scenario this test is named for).
+        tax_incl = self.company_data["default_tax_sale"].copy(
             {
                 "name": "default price included",
                 "price_include_override": "tax_included",
             }
+        )
+        self.sale_order.line_ids.filtered(lambda l: not l.display_type).tax_ids = (
+            tax_incl
+        )
+        # Confirm the SO
+        self.sale_order.action_confirm()
+        self.assertTrue(
+            self.sale_order.amount_tax,
+            "The order should carry an included tax for this scenario.",
         )
         # Let's do an invoice for a deposit of 100
         payment = (
@@ -590,7 +599,9 @@ class TestSaleToInvoice(TestSaleCommon):
         invoice.action_post()
 
         # Check discount appeared on both SO lines and invoice lines
-        for line, inv_line in zip(self.sale_order.line_ids, invoice.invoice_line_ids):
+        for line, inv_line in zip(
+            self.sale_order.line_ids, invoice.invoice_line_ids, strict=True
+        ):
             self.assertEqual(
                 line.discount,
                 inv_line.discount,
@@ -990,7 +1001,7 @@ class TestSaleToInvoice(TestSaleCommon):
                     "linked_line_id": sale_order.line_ids.id,
                 }
             )
-            for product, combo in zip(product_a + product_b, combo_a + combo_b)
+            for product, combo in zip(product_a + product_b, combo_a + combo_b, strict=True)
         ]
 
         # Confirm the SO

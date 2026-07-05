@@ -569,7 +569,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
             # `amount_taxexc_to_invoice`, which is a monetary field. They require the currency to
             # ensure the values are saved in the correct format. However, the currency cannot be
             # read directly during the flush due to access rights, necessitating manual caching.
-            order_sudo.line_ids.currency_id
+            order_sudo.line_ids.currency_id  # noqa: B018 (intentional: primes the currency cache)
 
             order_sudo.message_post(
                 author_id=(
@@ -675,10 +675,10 @@ class PaymentPortal(payment_portal.PaymentPortal):
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token
             )
-        except MissingError as error:
-            raise error
+        except MissingError:
+            raise
         except AccessError:
-            raise ValidationError(_("The access token is invalid."))
+            raise ValidationError(_("The access token is invalid.")) from None
 
         logged_in = not request.env.user._is_public()
         partner_sudo = (

@@ -235,60 +235,59 @@ class TestSaleRefund(TestSaleCommon):
                     line.invoice_line_ids,
                     "The line based on delivered are not invoiced, so they should not be linked to invoice line",
                 )
+            # Draft refund doesn't affect qty_invoiced - only posted invoices count
+            elif line == self.sol_prod_order:
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    0.0,
+                    "Qty to invoice is 0 because posted invoice covers all ordered qty",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    5.0,
+                    "Qty invoiced is 5 from posted invoice (draft refund doesn't count)",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_to_invoice,
+                    0.0,
+                    "Amount to invoice is zero as full qty is invoiced",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_invoiced,
+                    line.price_unit * 5,
+                    "Amount invoiced from posted invoice",
+                )
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    2,
+                    "The line 'ordered consumable' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
+                )
             else:
-                # Draft refund doesn't affect qty_invoiced - only posted invoices count
-                if line == self.sol_prod_order:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        0.0,
-                        "Qty to invoice is 0 because posted invoice covers all ordered qty",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        5.0,
-                        "Qty invoiced is 5 from posted invoice (draft refund doesn't count)",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_to_invoice,
-                        0.0,
-                        "Amount to invoice is zero as full qty is invoiced",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_invoiced,
-                        line.price_unit * 5,
-                        "Amount invoiced from posted invoice",
-                    )
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        2,
-                        "The line 'ordered consumable' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
-                    )
-                else:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        0.0,
-                        "Qty to invoice is 0 because posted invoice covers all ordered qty",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        3.0,
-                        "Qty invoiced is 3 from posted invoice (draft refund doesn't count)",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_to_invoice,
-                        0.0,
-                        "Amount to invoice is zero as full qty is invoiced",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_invoiced,
-                        line.price_unit * 3,
-                        "Amount invoiced from posted invoice",
-                    )
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        2,
-                        "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
-                    )
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    0.0,
+                    "Qty to invoice is 0 because posted invoice covers all ordered qty",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    3.0,
+                    "Qty invoiced is 3 from posted invoice (draft refund doesn't count)",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_to_invoice,
+                    0.0,
+                    "Amount to invoice is zero as full qty is invoiced",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_invoiced,
+                    line.price_unit * 3,
+                    "Amount invoiced from posted invoice",
+                )
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    2,
+                    "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
+                )
 
         # Validate the refund
         invoice_refund.action_post()
@@ -319,59 +318,58 @@ class TestSaleRefund(TestSaleCommon):
                     line.invoice_line_ids,
                     "The line based on delivered are not invoiced, so they should not be linked to invoice line",
                 )
+            elif line == self.sol_prod_order:
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    5.0,
+                    "As the refund still exists, the quantity to invoice is the ordered quantity",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    0.0,
+                    "The qty to invoice should be zero as, with the refund, the quantities cancel each other",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_to_invoice,
+                    line.price_unit * 5,
+                    "Amount to invoice is now set as qty to invoice * unit price since no price change on invoice, as refund is validated",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_invoiced,
+                    0.0,
+                    "Amount invoiced decreased as the refund is now confirmed",
+                )
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    2,
+                    "The line 'ordered consumable' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
+                )
             else:
-                if line == self.sol_prod_order:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        5.0,
-                        "As the refund still exists, the quantity to invoice is the ordered quantity",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        0.0,
-                        "The qty to invoice should be zero as, with the refund, the quantities cancel each other",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_to_invoice,
-                        line.price_unit * 5,
-                        "Amount to invoice is now set as qty to invoice * unit price since no price change on invoice, as refund is validated",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_invoiced,
-                        0.0,
-                        "Amount invoiced decreased as the refund is now confirmed",
-                    )
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        2,
-                        "The line 'ordered consumable' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
-                    )
-                else:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        3.0,
-                        "As the refund still exists, the quantity to invoice is the ordered quantity",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        0.0,
-                        "The qty to invoice should be zero as, with the refund, the quantities cancel each other",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_to_invoice,
-                        line.price_unit * 3,
-                        "Amount to invoice is now set as qty to invoice * unit price since no price change on invoice, as refund is validated",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_invoiced,
-                        0.0,
-                        "Amount invoiced decreased as the refund is now confirmed",
-                    )
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        2,
-                        "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
-                    )
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    3.0,
+                    "As the refund still exists, the quantity to invoice is the ordered quantity",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    0.0,
+                    "The qty to invoice should be zero as, with the refund, the quantities cancel each other",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_to_invoice,
+                    line.price_unit * 3,
+                    "Amount to invoice is now set as qty to invoice * unit price since no price change on invoice, as refund is validated",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_invoiced,
+                    0.0,
+                    "Amount invoiced decreased as the refund is now confirmed",
+                )
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    2,
+                    "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
+                )
 
     def test_refund_modify(self):
         """Test invoice with a refund in 'modify' mode, and check customer invoices credit note is created from respective invoice"""
@@ -533,60 +531,59 @@ class TestSaleRefund(TestSaleCommon):
                     line.invoice_line_ids,
                     "The line based on delivered are not invoiced, so they should not be linked to invoice line",
                 )
+            # Invoice 1 (qty 3/2) + Refund (qty -3/-2) = 0, draft invoice doesn't count
+            elif line == self.sol_prod_order:
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    5.0,
+                    "Full qty to invoice as posted invoices cancel out",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    0.0,
+                    "Invoice and refund cancel each other (3-3=0)",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_to_invoice,
+                    line.price_unit * 5,
+                    "Amount to invoice is full ordered amount",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_invoiced,
+                    0.0,
+                    "Amount invoiced is zero as the invoice 1 and its refund are reconcilied",
+                )
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    3,
+                    "The line 'ordered consumable' is invoiced, so it should be linked to 3 invoice lines (invoice and refund)",
+                )
             else:
-                # Invoice 1 (qty 3/2) + Refund (qty -3/-2) = 0, draft invoice doesn't count
-                if line == self.sol_prod_order:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        5.0,
-                        "Full qty to invoice as posted invoices cancel out",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        0.0,
-                        "Invoice and refund cancel each other (3-3=0)",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_to_invoice,
-                        line.price_unit * 5,
-                        "Amount to invoice is full ordered amount",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_invoiced,
-                        0.0,
-                        "Amount invoiced is zero as the invoice 1 and its refund are reconcilied",
-                    )
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        3,
-                        "The line 'ordered consumable' is invoiced, so it should be linked to 3 invoice lines (invoice and refund)",
-                    )
-                else:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        3.0,
-                        "Full qty to invoice as posted invoices cancel out",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        0.0,
-                        "Invoice and refund cancel each other (2-2=0)",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_to_invoice,
-                        line.price_unit * 3,
-                        "Amount to invoice is full ordered amount",
-                    )
-                    self.assertEqual(
-                        line.amount_taxexc_invoiced,
-                        0.0,
-                        "Amount invoiced is zero as the invoice 1 and its refund are reconcilied",
-                    )
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        3,
-                        "The line 'ordered service' is invoiced, so it should be linked to 3 invoice lines (invoice and refund)",
-                    )
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    3.0,
+                    "Full qty to invoice as posted invoices cancel out",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    0.0,
+                    "Invoice and refund cancel each other (2-2=0)",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_to_invoice,
+                    line.price_unit * 3,
+                    "Amount to invoice is full ordered amount",
+                )
+                self.assertEqual(
+                    line.amount_taxexc_invoiced,
+                    0.0,
+                    "Amount invoiced is zero as the invoice 1 and its refund are reconcilied",
+                )
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    3,
+                    "The line 'ordered service' is invoiced, so it should be linked to 3 invoice lines (invoice and refund)",
+                )
 
         # Change unit of ordered product on refund lines
         move_form = Form(invoice_refund)
@@ -625,43 +622,42 @@ class TestSaleRefund(TestSaleCommon):
                     line.invoice_line_ids,
                     "The line based on delivered are not invoiced, so they should not be linked to invoice line, even after validation",
                 )
+            elif line == self.sol_prod_order:
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    2.0,
+                    "The qty to invoice does not change when confirming the new invoice (3)",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    3.0,
+                    "The ordered sale line are totally invoiced (qty invoiced = ordered qty)",
+                )
+                self.assertEqual(line.amount_taxexc_to_invoice, 1100.0, "")
+                self.assertEqual(line.amount_taxexc_invoiced, 300.0, "")
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    3,
+                    "The line 'ordered consumable' is invoiced, so it should be linked to 2 invoice lines (invoice and refund), even after validation",
+                )
             else:
-                if line == self.sol_prod_order:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        2.0,
-                        "The qty to invoice does not change when confirming the new invoice (3)",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        3.0,
-                        "The ordered sale line are totally invoiced (qty invoiced = ordered qty)",
-                    )
-                    self.assertEqual(line.amount_taxexc_to_invoice, 1100.0, "")
-                    self.assertEqual(line.amount_taxexc_invoiced, 300.0, "")
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        3,
-                        "The line 'ordered consumable' is invoiced, so it should be linked to 2 invoice lines (invoice and refund), even after validation",
-                    )
-                else:
-                    self.assertEqual(
-                        line.qty_to_invoice,
-                        1.0,
-                        "The qty to invoice does not change when confirming the new invoice (3)",
-                    )
-                    self.assertEqual(
-                        line.qty_invoiced,
-                        2.0,
-                        "The ordered sale line are totally invoiced (qty invoiced = ordered qty)",
-                    )
-                    self.assertEqual(line.amount_taxexc_to_invoice, 170.0, "")
-                    self.assertEqual(line.amount_taxexc_invoiced, 100.0, "")
-                    self.assertEqual(
-                        len(line.invoice_line_ids),
-                        3,
-                        "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund), even after validation",
-                    )
+                self.assertEqual(
+                    line.qty_to_invoice,
+                    1.0,
+                    "The qty to invoice does not change when confirming the new invoice (3)",
+                )
+                self.assertEqual(
+                    line.qty_invoiced,
+                    2.0,
+                    "The ordered sale line are totally invoiced (qty invoiced = ordered qty)",
+                )
+                self.assertEqual(line.amount_taxexc_to_invoice, 170.0, "")
+                self.assertEqual(line.amount_taxexc_invoiced, 100.0, "")
+                self.assertEqual(
+                    len(line.invoice_line_ids),
+                    3,
+                    "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund), even after validation",
+                )
 
     def test_refund_invoice_with_downpayment(self):
         sale_order_refund = self.env["sale.order"].create(

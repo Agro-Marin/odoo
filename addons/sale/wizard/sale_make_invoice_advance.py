@@ -125,6 +125,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
         if self.advance_payment_method == "percentage":
             amount = self.default_get(["amount"]).get("amount")
             return {"value": {"amount": amount}}
+        return None
 
     # ------------------------------------------------------------
     # CONSTRAINT METHODS
@@ -132,11 +133,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
 
     def _check_amount_is_positive(self):
         for wizard in self:
-            if wizard.advance_payment_method == "percentage" and wizard.amount <= 0.00:
-                raise UserError(
-                    _("The value of the down payment amount must be positive.")
-                )
-            elif (
+            if (wizard.advance_payment_method == "percentage" and wizard.amount <= 0.00) or (
                 wizard.advance_payment_method == "fixed" and wizard.fixed_amount <= 0.00
             ):
                 raise UserError(
@@ -224,7 +221,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
 
             # Unsudo the invoice after creation if not already sudoed
             invoice = invoice_sudo.sudo(self.env.su)
-            poster = self.env.user._is_internal() and self.env.user.id or SUPERUSER_ID
+            poster = (self.env.user._is_internal() and self.env.user.id) or SUPERUSER_ID
             invoice.with_user(poster).message_post_with_source(
                 "mail.message_origin_link",
                 render_values={"self": invoice, "origin": order},
@@ -258,7 +255,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
                         self.company_id.downpayment_account_id or account,
                     )
                 )
-                for so_line, account in zip(so_lines, accounts)
+                for so_line, account in zip(so_lines, accounts, strict=True)
             ],
         }
 
