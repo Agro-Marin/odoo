@@ -1,15 +1,62 @@
+import base64
 import email.message
 import email.policy
+import smtplib
+import ssl
+from collections import Counter
 from unittest.mock import patch
 
 import psycopg.errors
 
+from odoo.exceptions import UserError
 from odoo.tests import tagged, users
 from odoo.tests.common import TransactionCase
 from odoo.tools import config, mute_logger
 
+from odoo.addons.base.models.ir_mail_server import (
+    MailDeliveryException,
+    OutgoingEmailError,
+)
 from odoo.addons.base.tests import mail_examples
 from odoo.addons.base.tests.common import MockSmtplibCase
+
+
+def _generate_self_signed_cert(common_name="smtp.example.com"):
+    """Return ``(cert_pem, key_pem)`` bytes for a fresh self-signed RSA cert.
+
+    Kept local to the tests so the SSL-context builders can be exercised
+    without a live SMTP server or on-disk fixtures.
+    """
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+    now = datetime.datetime.now(datetime.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=3650))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(common_name)]), critical=False
+        )
+        .sign(key, hashes.SHA256())
+    )
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    )
+    return cert_pem, key_pem
 
 
 class _FakeSMTP:
@@ -49,6 +96,40 @@ class EmailConfigCase(TransactionCase):
             "The body of an email",
         )
         self.assertEqual(message["From"], "settings@example.com")
+
+    def test_build_email_missing_from_raises_coded_error(self):
+        """No resolvable sender must raise an OutgoingEmailError carrying a
+        stable ``.code`` (NO_FOUND_FROM). mail.mail classifies failures on this
+        code; guards the regression where these were plain UserError and the
+        ``mail_from_*`` / ``mail_email_*`` classification degraded to 'unknown'.
+        """
+        IrMailServer = self.env["ir.mail_server"]
+        with patch.dict(config.options, {"email_from": False}):
+            with self.assertRaises(OutgoingEmailError) as capture:
+                IrMailServer._build_email__(
+                    False, "recipient@example.com", "Subject", "Body"
+                )
+        self.assertEqual(capture.exception.code, IrMailServer.NO_FOUND_FROM)
+
+    def test_build_email_attachment_malformed_mimetype(self):
+        """A mimetype with extra slashes ("application/pdf/x") must be split on
+        the first '/' only and must not crash attachment handling."""
+        message = self.env["ir.mail_server"]._build_email__(
+            "sender@example.com",
+            "recipient@example.com",
+            "Subject",
+            "Body",
+            attachments=[("weird.bin", b"data", "application/pdf/x")],
+        )
+        attachments = [
+            part
+            for part in message.walk()
+            if part.get_content_disposition() == "attachment"
+        ]
+        # The point is that building did not raise ValueError on the extra
+        # slash; the attachment itself is preserved.
+        self.assertEqual(len(attachments), 1)
+        self.assertEqual(attachments[0].get_filename(), "weird.bin")
 
     def test_build_email_rejects_header_injection(self):
         """MS-T3: CR/LF in a header value or name must raise (no header smuggling).
@@ -102,6 +183,71 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
     def test_assert_base_values(self):
         self.assertFalse(self.env["ir.mail_server"]._get_default_bounce_address())
         self.assertFalse(self.env["ir.mail_server"]._get_default_from_address())
+
+    def test_send_email_delivery_failure_reason_is_readable(self):
+        """A delivery failure (send_message raising) must surface a clean
+        multi-line message, never a Python tuple repr: ``mail.mail`` stores
+        ``str(exc)`` verbatim into the admin-visible ``failure_reason``.
+        """
+        IrMailServer = self.env["ir.mail_server"]
+        message = self._build_email("admin@example.com")
+
+        class _RaisingSession:
+            from_filter = False
+            smtp_from = False
+            _host = "smtp.probe.example.com"
+
+            def send_message(self, *args, **kwargs):
+                raise smtplib.SMTPDataError(554, b"5.7.1 rejected")
+
+        with (
+            patch.object(type(IrMailServer), "_disable_send", lambda _: False),
+            mute_logger("odoo.addons.base.models.ir_mail_server"),
+            self.assertRaises(MailDeliveryException) as capture,
+        ):
+            IrMailServer.send_email(message, smtp_session=_RaisingSession())
+
+        rendered = str(capture.exception)
+        # Regression: the two-arg MailDeliveryError used to render as
+        # "('Mail Delivery Failed', '...')" — a tuple repr — when str()'d.
+        self.assertNotIn("('", rendered)
+        self.assertNotIn("', '", rendered)
+        self.assertIn("smtp.probe.example.com", rendered)
+        self.assertIn("SMTPDataError", rendered)
+
+    def test_find_mail_server_parses_each_from_filter_once(self):
+        """``_find_mail_server`` must not re-split the same ``from_filter``
+        repeatedly across its match passes (perf regression guard)."""
+        # ``mail_servers`` is passed explicitly below, so ``_find_mail_server``
+        # never searches — these probe servers are the entire candidate set.
+        IrMailServer = self.env["ir.mail_server"]
+        servers = IrMailServer.create(
+            [
+                {
+                    "name": f"probe{i}",
+                    "smtp_host": f"host{i}.example.com",
+                    "smtp_encryption": "none",
+                    "smtp_authentication": "login",
+                    "from_filter": f"probe{i}.example.com",
+                }
+                for i in range(5)
+            ]
+        )
+
+        seen = []
+        original = type(IrMailServer)._parse_from_filter
+
+        def counting(self, from_filter):
+            seen.append(from_filter)
+            return original(self, from_filter)
+
+        with patch.object(type(IrMailServer), "_parse_from_filter", counting):
+            IrMailServer.sudo()._find_mail_server(
+                "nobody@nomatch.example.org", mail_servers=servers
+            )
+
+        repeats = {ff: n for ff, n in Counter(seen).items() if n > 1}
+        self.assertFalse(repeats, f"from_filter re-parsed: {repeats}")
 
     def test_bpo_34424_35805(self):
         """Ensure all email sent are bpo-34424 and bpo-35805 free"""
@@ -700,3 +846,80 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             raise AssertionError(msg) from e
 
         self.assertIsInstance(serialized, bytes)
+
+
+@tagged("mail_server")
+class TestSslContexts(TransactionCase):
+    """Unit coverage for the SSL-context builders.
+
+    These paths lean on private urllib3/pyOpenSSL internals (``PyOpenSSLContext.
+    _ctx``, ``match_hostname``, …) and were previously only exercised by the
+    live-SMTPD integration suite. Building the contexts directly guards against
+    an upstream urllib3/pyOpenSSL change breaking outgoing TLS silently.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.cert_pem, cls.key_pem = _generate_self_signed_cert("smtp.example.com")
+        # A second, unrelated key: valid PEM but does NOT match cert_pem.
+        _, cls.mismatched_key_pem = _generate_self_signed_cert("smtp.example.com")
+
+    def _make_cert_server(self, encryption, key_pem=None):
+        return self.env["ir.mail_server"].create(
+            {
+                "name": f"cert-{encryption}",
+                "smtp_host": "smtp.example.com",
+                "smtp_authentication": "certificate",
+                "smtp_encryption": encryption,
+                "smtp_ssl_certificate": base64.b64encode(self.cert_pem),
+                "smtp_ssl_private_key": base64.b64encode(key_pem or self.key_pem),
+            }
+        )
+
+    def test_ssl_context_for_encryption_modes(self):
+        """Strict variants validate host+peer; lax variants encrypt only."""
+        IrMailServer = self.env["ir.mail_server"]
+        for encryption in ("ssl_strict", "starttls_strict"):
+            ctx = IrMailServer._ssl_context_for_encryption(encryption)
+            self.assertTrue(ctx.check_hostname, encryption)
+            self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED, encryption)
+        for encryption in ("ssl", "starttls"):
+            ctx = IrMailServer._ssl_context_for_encryption(encryption)
+            self.assertFalse(ctx.check_hostname, encryption)
+            self.assertEqual(ctx.verify_mode, ssl.CERT_NONE, encryption)
+
+    def test_ssl_context_from_cert_files(self):
+        """A cert/key pair on disk yields a client-auth context."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cert_path = Path(tmp) / "cert.pem"
+            key_path = Path(tmp) / "key.pem"
+            cert_path.write_bytes(self.cert_pem)
+            key_path.write_bytes(self.key_pem)
+            ctx = self.env["ir.mail_server"]._ssl_context_from_cert_files(
+                str(cert_path), str(key_path)
+            )
+            self.assertEqual(type(ctx).__name__, "PyOpenSSLContext")
+
+    def test_ssl_context_from_certificate_builds_for_all_variants(self):
+        """Both strict and lax certificate transports build a context whose
+        private key is validated against the certificate."""
+        IrMailServer = self.env["ir.mail_server"]
+        for encryption in ("starttls", "starttls_strict", "ssl", "ssl_strict"):
+            server = self._make_cert_server(encryption)
+            ctx = IrMailServer._ssl_context_from_certificate(server, "smtp.example.com")
+            self.assertEqual(type(ctx).__name__, "PyOpenSSLContext", encryption)
+
+    def test_ssl_context_from_certificate_key_mismatch_raises_usererror(self):
+        """A private key that does not match the certificate surfaces as a
+        clean UserError (via _ssl_load_error), not a raw OpenSSL error."""
+        server = self._make_cert_server(
+            "starttls_strict", key_pem=self.mismatched_key_pem
+        )
+        with self.assertRaises(UserError):
+            self.env["ir.mail_server"]._ssl_context_from_certificate(
+                server, "smtp.example.com"
+            )

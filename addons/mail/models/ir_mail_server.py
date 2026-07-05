@@ -56,9 +56,7 @@ class IrMail_Server(models.Model):
 
     def _get_test_email_from(self):
         self.ensure_one()
-        if from_filter_parts := [
-            part.strip() for part in (self.from_filter or "").split(",") if part.strip()
-        ]:
+        if from_filter_parts := self._parse_from_filter(self.from_filter):
             # find first found complete email in filter parts
             if mail_from := next(
                 (email for email in from_filter_parts if "@" in email), None
