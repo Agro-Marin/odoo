@@ -41,3 +41,28 @@ class TestCatalog(BaseOrderTestCase):
 
         self.assertFalse(line.exists())
         self.assertEqual(price, self.product.list_price)
+
+    def test_catalog_lines_data_empty_recordset(self):
+        data = self.env["base.order.test.line"]._get_product_catalog_lines_data()
+
+        self.assertEqual(data, {"quantity": 0})
+
+    def test_catalog_lines_data_single_line(self):
+        line = self._make_line(product_qty=3.0, price_unit=42.0)
+
+        data = line._get_product_catalog_lines_data()
+
+        self.assertEqual(data["quantity"], 3.0)
+        self.assertEqual(data["price"], 42.0)
+        self.assertFalse(data["readOnly"])
+
+    def test_catalog_lines_data_multi_line_aggregates_quantity(self):
+        order = self._make_order()
+        lines = self._make_line(order=order, product_qty=2.0) + self._make_line(
+            order=order, product_qty=5.0
+        )
+
+        data = lines._get_product_catalog_lines_data()
+
+        self.assertEqual(data["quantity"], 7.0)
+        self.assertTrue(data["readOnly"])

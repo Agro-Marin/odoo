@@ -424,6 +424,20 @@ class OrderInvoiceMixin(models.AbstractModel):
             lambda line: not line.display_type and line.qty_to_invoice,
         )
 
+    def _prepare_down_payment_line_section_values(self):
+        """Values for the order-line section grouping down payment lines.
+
+        Common subset of sale and purchase.  Purchase extends with ``name``
+        and a ``sequence`` after the last line; sale's caller supplies the
+        ``sequence`` itself.
+        """
+        self.ensure_one()
+        return {
+            "order_id": self.id,
+            "display_type": "line_section",
+            "is_downpayment": True,
+        }
+
     def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
         """Build the ``invoice_line_ids`` commands for one order.
 

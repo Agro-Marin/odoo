@@ -70,6 +70,55 @@ Things Phase 2 (rewire sale/purchase) must double-check against the original bod
     invoices with negative totals aren't wrongly switched — sale may override.
   * sale's access path uses sudo create (kept); verify billing-permission flow.
 
+## Post-Phase-1 inventory audit (2026-07-04) — additional lifts
+
+A full same-name cross-reference of sale/purchase order+line methods and fields
+against the mixins found gaps the original spec missed. Lifted:
+
+- **`is_late` + `_search_is_late` + `_get_domain_is_late` (order.mixin).**
+  Generic domain is sale's 3-term version (incl. `date_planned != False` —
+  needed so negation covers undated orders; purchase only ever uses the domain
+  positively, so semantics are unchanged). Hook `_get_is_late_search_domain
+  (domain, positive)` defaults to `domain`/`~domain` (sale); **purchase must
+  override it** with its line-level `qty_transferred < product_qty` SQL wrap.
+  `date_planned` itself stays concrete: sale's is a non-storable compute
+  ("depends on today()"), purchase's is stored/editable/indexed.
+- **`_get_product_catalog_lines_data` skeleton (order.line.fields.mixin).**
+  The order mixin already *called* it (`_default_order_line_values`) without
+  defining it. Generic: 3-branch driver + multi-line quantity aggregation +
+  `{'quantity': 0}` empty branch. Hooks `_get_catalog_single_line_data` /
+  `_get_catalog_multi_line_data` are NotImplementedError — **both sale and
+  purchase must implement them in Phase 2** (sale: pricelist price, combo
+  readOnly, uomDisplayName always; purchase: seller `_get_product_price_and_data`
+  payload, conditional uomDisplayName).
+- **`product_template_attribute_value_ids` (order.line.fields.mixin).**
+  Byte-identical related field in both; delete both concrete declarations.
+- **`_prepare_down_payment_line_section_values` (order.invoice.mixin).**
+  Common 3-key subset (sale's exact body). **Purchase must override** to add
+  `name=_("Down Payments")` and `sequence=(last line's)+1` on top of super().
+
+Audited and ruled **concrete-only** (do NOT try to lift in Phase 2):
+
+- `date_planned` field + `_compute_date_planned` (order): field attributes and
+  aggregation diverge (sale: min of line lead-time projections, non-stored;
+  purchase: stored min of line `date_planned`).
+- line `_get_date_planned`: **same name, incompatible signatures** (sale:
+  instance method using `customer_lead`; purchase: `@api.model` taking
+  `(seller, po)`). Name collision only — never generic. Beware if a future
+  mixin method wants to call it.
+- `_get_mail_template`: divergent return contract (sale returns a
+  `mail.template` record, purchase returns a template *id*) and divergent
+  branching. Phase-2+ opportunity: normalize purchase to return a record, then
+  lift a `_get_mail_template_xmlid()` hook — do it as its own change, not
+  during the rewire.
+- `product_no_variant_attribute_value_ids`: sale is a stored compute
+  (`_compute_custom_attribute_values`), purchase a plain M2M.
+- Comodel-bound fields: `line_ids`, `order_id`, `parent_id`, `tag_ids`
+  (crm.tag vs srm.tag), `duplicated_order_ids`.
+- Reminder (spec B7): purchase's `translated_product_name` field +
+  `_compute_translated_product_name` must be **renamed** to the mixin's
+  `product_name_translated` / `_compute_product_name_translated` during rewire.
+
 ## Bridge fields added to the test model (NOT in mixins — concrete-only by design)
 - line: company_id, currency_id, state, partner_id, locked,
   product_type, product_categ_id, parent_id  (all related-from-order or product,

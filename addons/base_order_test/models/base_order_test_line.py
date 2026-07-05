@@ -111,3 +111,13 @@ class BaseOrderTestLine(models.Model):
 
     def _get_invoice_line_link_field(self):
         return None
+
+    def _get_catalog_single_line_data(self, **kwargs):
+        return {
+            "quantity": self.product_qty,
+            "price": self.price_unit,
+            "readOnly": self.order_id._is_readonly(),
+        }
+
+    def _get_catalog_multi_line_data(self, **kwargs):
+        return {"price": self.price_unit}

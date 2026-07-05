@@ -274,6 +274,12 @@ class OrderMixin(models.AbstractModel):
         string="Is Expired",
         compute="_compute_is_expired",
     )
+    is_late = fields.Boolean(
+        string="Is Late",
+        store=False,
+        search="_search_is_late",
+        help="True when the order is confirmed and its planned date has passed.",
+    )
     type_name = fields.Char(
         string="Type Name",
         compute="_compute_type_name",
@@ -436,6 +442,43 @@ class OrderMixin(models.AbstractModel):
                     .id
                 )
             order.fiscal_position_id = cache[key]
+
+    # ------------------------------------------------------------------
+    # SEARCH — is_late (search-only field, evaluated in SQL)
+    # ------------------------------------------------------------------
+
+    def _search_is_late(self, operator, value):
+        if operator not in ("=", "!="):
+            raise ValidationError(_("Unsupported operator."))
+        domain = self._get_domain_is_late(operator, value)
+        positive = (operator == "=" and value) or (operator == "!=" and not value)
+        return self._get_is_late_search_domain(domain, positive)
+
+    def _get_domain_is_late(self, operator, value):
+        """Domain matching confirmed orders whose planned date has passed.
+
+        Requires ``date_planned`` from the concrete model (its attributes
+        diverge — sale's is a non-storable compute, purchase's is stored and
+        editable — so the field itself stays concrete).  The explicit
+        ``!= False`` term keeps orders without a planned date out of both the
+        domain and its negation.
+        """
+        return Domain(
+            [
+                ("state", "=", "done"),
+                ("date_planned", "!=", False),
+                ("date_planned", "<=", fields.Datetime.now()),
+            ]
+        )
+
+    def _get_is_late_search_domain(self, domain, positive):
+        """Final search domain for ``is_late``.
+
+        Base (sale's behaviour): the order-level domain or its negation.
+        Purchase overrides to additionally require lines whose transferred
+        quantity is below the ordered quantity.
+        """
+        return domain if positive else ~domain
 
     # ------------------------------------------------------------------
     # HOOKS — override in child models
