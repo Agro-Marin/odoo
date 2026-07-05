@@ -1,5 +1,8 @@
-from odoo.exceptions import ValidationError
-from odoo.tests.common import TransactionCase
+from datetime import datetime
+from unittest.mock import patch
+
+from odoo.exceptions import AccessError, ValidationError
+from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestIrDefault(TransactionCase):
@@ -220,3 +223,127 @@ class TestIrDefault(TransactionCase):
                     "json_value": "2147483648",
                 }
             )
+
+    def test_get(self):
+        """_get returns the exact-scope default, or None when there is none."""
+        IrDefault = self.env["ir.default"]
+        IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
+
+        # no default yet
+        self.assertIsNone(IrDefault._get("res.partner", "ref"))
+
+        # a global default round-trips
+        IrDefault.set("res.partner", "ref", "GLOBAL")
+        self.assertEqual(IrDefault._get("res.partner", "ref"), "GLOBAL")
+
+        # _get matches an exact scope, it does not fall back: a user+company
+        # default is only visible for that precise scope
+        IrDefault.set("res.partner", "ref", "MINE", user_id=True, company_id=True)
+        self.assertEqual(
+            IrDefault._get("res.partner", "ref", user_id=True, company_id=True),
+            "MINE",
+        )
+        # the ``True`` sentinels resolve to the current user / company
+        self.assertEqual(
+            IrDefault._get(
+                "res.partner",
+                "ref",
+                user_id=self.env.uid,
+                company_id=self.env.company.id,
+            ),
+            "MINE",
+        )
+        # the global default is still returned for the global scope
+        self.assertEqual(IrDefault._get("res.partner", "ref"), "GLOBAL")
+        # an unmatched scope yields None
+        self.assertIsNone(
+            IrDefault._get("res.partner", "ref", user_id=self.env.uid + 1000)
+        )
+
+    def test_discard_records(self):
+        """discard_records drops many2one defaults pointing at the given records."""
+        IrDefault = self.env["ir.default"]
+        IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
+        country = self.env["res.country"].create({"name": "ZZ-country", "code": "Z9"})
+        IrDefault.set("res.partner", "country_id", country.id)
+        self.assertEqual(
+            IrDefault._get_model_defaults("res.partner"),
+            {"country_id": country.id},
+        )
+        IrDefault.discard_records(country)
+        self.assertEqual(IrDefault._get_model_defaults("res.partner"), {})
+
+    def test_discard_values(self):
+        """discard_values drops defaults whose stored value is in the given list."""
+        IrDefault = self.env["ir.default"]
+        IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
+
+        IrDefault.set("res.partner", "ref", "DROP")
+        IrDefault.discard_values("res.partner", "ref", ["OTHER", "DROP"])
+        self.assertIsNone(IrDefault._get("res.partner", "ref"))
+
+        # a value absent from the list leaves the default untouched
+        IrDefault.set("res.partner", "ref", "KEEP")
+        IrDefault.discard_values("res.partner", "ref", ["NOPE"])
+        self.assertEqual(IrDefault._get("res.partner", "ref"), "KEEP")
+
+    def test_set_datetime_value_coercion(self):
+        """A ``date``/``datetime`` object is stored in its string form."""
+        IrDefault = self.env["ir.default"]
+        IrDefault.set("ir.cron", "nextcall", datetime(2021, 5, 6, 7, 8, 9))
+        self.assertEqual(IrDefault._get("ir.cron", "nextcall"), "2021-05-06 07:08:09")
+
+    def test_set_skips_write_when_value_unchanged(self):
+        """Re-setting an identical value hits the no-op branch (no write/cache bust)."""
+        IrDefault = self.env["ir.default"]
+        IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
+        IrDefault.set("res.partner", "ref", "SAME")
+
+        with patch.object(type(IrDefault), "write", autospec=True) as mocked_write:
+            IrDefault.set("res.partner", "ref", "SAME")
+        self.assertEqual(
+            mocked_write.call_count, 0, "an identical set() must not write"
+        )
+
+        # a genuine change still updates in place
+        IrDefault.set("res.partner", "ref", "CHANGED")
+        self.assertEqual(IrDefault._get("res.partner", "ref"), "CHANGED")
+
+    def test_set_checks_field_write_access(self):
+        """A user may only set a default for a field they are allowed to write."""
+        # ``ir.mail_server.smtp_user`` is restricted to ``base.group_system``.
+        model_name, field_name = "ir.mail_server", "smtp_user"
+
+        # an unprivileged internal user can create their own defaults (record
+        # rule), but not for a field they cannot write (field-level check)
+        plain_user = new_test_user(
+            self.env, login="ird_plain_user", groups="base.group_user"
+        )
+        with self.assertRaises(AccessError):
+            self.env["ir.default"].with_user(plain_user).set(
+                model_name, field_name, "smtp-login", user_id=True
+            )
+
+        # a system user (still not the superuser) is allowed
+        system_user = new_test_user(
+            self.env,
+            login="ird_system_user",
+            groups="base.group_user,base.group_system",
+        )
+        IrDefaultAsSystem = self.env["ir.default"].with_user(system_user)
+        IrDefaultAsSystem.set(model_name, field_name, "smtp-login", user_id=True)
+        self.assertEqual(
+            IrDefaultAsSystem._get(model_name, field_name, user_id=True),
+            "smtp-login",
+        )
+
+    def test_set_allows_writable_field_for_plain_user(self):
+        """The access check does not over-block: a writable field is accepted."""
+        plain_user = new_test_user(
+            self.env, login="ird_writer", groups="base.group_user"
+        )
+        IrDefaultAsUser = self.env["ir.default"].with_user(plain_user)
+        IrDefaultAsUser.set("res.partner", "comment", "hello", user_id=True)
+        self.assertEqual(
+            IrDefaultAsUser._get("res.partner", "comment", user_id=True), "hello"
+        )
