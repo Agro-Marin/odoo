@@ -17,7 +17,10 @@ from odoo import SUPERUSER_ID, _, api, fields, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.modules.registry import Registry
 
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+from odoo.addons.base.models.ir_mail_server import (
+    MailDeliveryException,
+    OutgoingEmailError,
+)
 
 _logger = logging.getLogger(__name__)
 _UNFOLLOW_REGEX = re.compile(
@@ -970,7 +973,13 @@ class MailMail(models.Model):
                         _("Unable to connect to SMTP Server"), exc
                     ) from exc
                 batch = self.browse(batch_ids)
-                batch.write({"state": "exception", "failure_reason": str(exc)})
+                # Some smtplib errors (e.g. SMTPResponseException(code, msg))
+                # carry several args; str() would render them as an opaque tuple
+                # repr, so join them into a readable multi-line reason.
+                failure_reason = (
+                    "\n".join(str(a) for a in exc.args) if exc.args else str(exc)
+                )
+                batch.write({"state": "exception", "failure_reason": failure_reason})
                 batch._postprocess_sent_message(
                     success_pids=[], success_emails=[], failure_type="mail_smtp"
                 )
@@ -1156,8 +1165,8 @@ class MailMail(models.Model):
                         else:
                             success_emails.extend(email["email_to"] or [])
                         processing_pid = None
-                    except AssertionError as error:
-                        if str(error) == IrMailServer.NO_VALID_RECIPIENT:
+                    except OutgoingEmailError as error:
+                        if error.code == IrMailServer.NO_VALID_RECIPIENT:
                             # if we have a list of void emails for email_list -> email missing, otherwise generic email failure
                             if (
                                 not email.get("email_to")
@@ -1241,16 +1250,14 @@ class MailMail(models.Model):
                 )
                 raise
             except Exception as e:
-                if isinstance(e, AssertionError):
-                    # Handle assert raised in IrMailServer to try to catch notably from-specific errors.
-                    # Note that assert may raise several args, a generic error string then a specific
-                    # message for logging in failure type
-                    error_code = e.args[0]
-                    if len(e.args) > 1 and error_code == IrMailServer.NO_VALID_FROM:
-                        # log failing email in additional arguments message
-                        failure_reason = str(e.args[1])
-                    else:
-                        failure_reason = error_code
+                if isinstance(e, OutgoingEmailError):
+                    # Classify sender/recipient validation errors raised while
+                    # preparing the outgoing email. The stable ``.code`` is one
+                    # of IrMailServer's NO_* constants; the message may carry
+                    # extra detail (e.g. the offending address), so it is used
+                    # verbatim as the failure reason.
+                    error_code = e.code
+                    failure_reason = str(e)
                     if error_code == IrMailServer.NO_VALID_FROM:
                         failure_type = "mail_from_invalid"
                     elif error_code in (

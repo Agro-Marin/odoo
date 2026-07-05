@@ -39,11 +39,43 @@ SMTP_TIMEOUT = 60
 
 
 class MailDeliveryError(Exception):
-    """Specific exception subclass for mail delivery errors."""
+    """Specific exception subclass for mail delivery errors.
+
+    A short human message plus optional detail are passed as separate
+    positional args (e.g. ``MailDeliveryError("Mail Delivery Failed", detail)``).
+    ``str()`` joins them with newlines so the rendered text — and therefore the
+    ``mail.mail.failure_reason`` stored by queue processors via ``str(exc)`` — is
+    a clean multi-line message rather than a ``('a', 'b')`` tuple repr. ``.args``
+    is left untouched, so callers that inspect the individual args still work.
+    """
+
+    def __str__(self) -> str:
+        return "\n".join(str(arg) for arg in self.args)
 
 
 # Backward-compatibility alias — external modules import MailDeliveryException
 MailDeliveryException = MailDeliveryError
+
+
+class OutgoingEmailError(UserError):
+    """User-facing error raised while resolving/preparing an outgoing email.
+
+    Carries a stable, non-translated ``code`` (one of the ``NO_*`` message
+    constants on :class:`IrMail_Server`) so that queue processors such as
+    ``mail.mail`` can classify the failure (``failure_type``) without matching
+    on the — possibly translated or detail-augmented — message text.
+
+    This subclass exists because those constants double as control-flow keys:
+    ``mail.mail`` historically matched them via ``except AssertionError`` /
+    ``e.args[0]``, but the model raises ``UserError`` (never an
+    ``AssertionError``), so the ``mail_email_invalid`` / ``mail_from_*``
+    classification silently degraded to ``unknown``. Matching on ``.code``
+    restores it and decouples display text from control flow.
+    """
+
+    def __init__(self, message: str, code: str | None = None) -> None:
+        self.code = code or message
+        super().__init__(message)
 
 
 # Python 3: patch SMTP's internal printer/debugger
@@ -61,8 +93,8 @@ RFC5322_IDENTIFICATION_HEADERS = {
     "resent-msg-id",
 }
 USER_DEFINED_HEADERS = {"bcc", "cc", "from", "reply-to", "subject", "to"}
-_noFoldPolicy = email.policy.SMTP.clone(max_line_length=None)
-_maxFoldPolicy = email.policy.SMTP.clone(max_line_length=998)  # rfc5322#section-2.1.1
+_NO_FOLD_POLICY = email.policy.SMTP.clone(max_line_length=None)
+_MAX_FOLD_POLICY = email.policy.SMTP.clone(max_line_length=998)  # rfc5322#section-2.1.1
 
 
 class IdentificationFieldsNoFoldPolicy(email.policy.EmailPolicy):
@@ -72,15 +104,25 @@ class IdentificationFieldsNoFoldPolicy(email.policy.EmailPolicy):
     # Also override _fold() for user-defined headers that may not fit on 78 characters,
     # as Python's folding algorithm is unreliable and fails to handle all weird cases.
     def _fold(self, name: str, value: str, *args: Any, **kwargs: Any) -> str:
-        if name.lower() in RFC5322_IDENTIFICATION_HEADERS:
-            return _noFoldPolicy._fold(name, value, *args, **kwargs)
-        if name.lower() in USER_DEFINED_HEADERS:
-            return _maxFoldPolicy._fold(name, value, *args, **kwargs)
+        lname = name.lower()
+        if lname in RFC5322_IDENTIFICATION_HEADERS:
+            return _NO_FOLD_POLICY._fold(name, value, *args, **kwargs)
+        if lname in USER_DEFINED_HEADERS:
+            return _MAX_FOLD_POLICY._fold(name, value, *args, **kwargs)
         return super()._fold(name, value, *args, **kwargs)
 
 
-# Global monkey-patch for our preferred SMTP policy, preserving the non-default linesep
-email.policy.SMTP = IdentificationFieldsNoFoldPolicy(linesep=email.policy.SMTP.linesep)
+# Our preferred outgoing/parsing policy (see the class above). ``_NO_FOLD_POLICY``
+# and ``_MAX_FOLD_POLICY`` above were cloned from the *stock* ``email.policy.SMTP``
+# on purpose — they are built before the reassignment below.
+SMTP_POLICY = IdentificationFieldsNoFoldPolicy(linesep=email.policy.SMTP.linesep)
+
+# Reassign the stdlib singleton so that code addressing the policy by its canonical
+# name — ``email.policy.SMTP`` — picks up ours without importing from this module.
+# This is a deliberate injection point, not an accident: inbound parsers such as
+# ``mail.mail_thread`` and enterprise ``l10n_cl_edi`` reference ``email.policy.SMTP``
+# directly and rely on this override. Prefer the ``SMTP_POLICY`` name in new code.
+email.policy.SMTP = SMTP_POLICY
 
 
 def _verify_check_hostname_callback(
@@ -119,6 +161,10 @@ class IrMail_Server(models.Model):
     _order = "sequence, id"
     _allow_sudo_commands = False
 
+    # Outgoing-email validation messages. These double as stable failure
+    # *codes*: they are stored verbatim in ``mail.mail.failure_reason`` and
+    # matched by queue processors (see ``OutgoingEmailError.code``), so they are
+    # intentionally kept as plain, non-translated ASCII identifiers.
     NO_VALID_RECIPIENT = "At least one valid recipient address should be specified for outgoing emails (To/Cc/Bcc)"
     NO_FOUND_FROM = (
         "You must either provide a sender address explicitly or configure "
@@ -327,6 +373,9 @@ class IrMail_Server(models.Model):
         return {}
 
     def _get_max_email_size(self) -> float:
+        # NB: intentionally supports an empty recordset (falls back to the
+        # config default), so no ensure_one() — callers may pass the default
+        # server as an empty ir.mail_server recordset.
         if self.max_email_size:
             return self.max_email_size
         return float(
@@ -585,64 +634,20 @@ class IrMail_Server(models.Model):
             from_filter = mail_server.from_filter
 
             if mail_server.smtp_authentication == "certificate":
-                try:
-                    ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
-                    if mail_server.smtp_encryption in (
-                        "ssl_strict",
-                        "starttls_strict",
-                    ):
-                        ssl_context.set_default_verify_paths()
-                        ssl_context._ctx.set_verify(
-                            VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
-                            functools.partial(
-                                _verify_check_hostname_callback,
-                                hostname=smtp_server,
-                            ),
-                        )
-                    else:  # ssl, starttls
-                        ssl_context.verify_mode = ssl.CERT_NONE
-                    ssl_context._ctx.use_certificate(
-                        load_pem_x509_certificate(
-                            base64.b64decode(mail_server.smtp_ssl_certificate)
-                        )
-                    )
-                    ssl_context._ctx.use_privatekey(
-                        load_pem_private_key(
-                            base64.b64decode(mail_server.smtp_ssl_private_key),
-                            password=None,
-                        )
-                    )
-                    # Check that the private key match the certificate
-                    ssl_context._ctx.check_privatekey()
-                except SSLCryptoError as e:
-                    raise UserError(
-                        _(
-                            "The private key or the certificate is not a valid file. \n%s",
-                            str(e),
-                        )
-                    ) from None
-                except SSLError as e:
-                    raise UserError(
-                        _(
-                            "Could not load your certificate / private key. \n%s",
-                            str(e),
-                        )
-                    ) from None
+                ssl_context = self._ssl_context_from_certificate(
+                    mail_server, smtp_server
+                )
             elif mail_server.smtp_encryption != "none":
-                if mail_server.smtp_encryption in (
-                    "ssl_strict",
-                    "starttls_strict",
-                ):
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.check_hostname = True
-                    ssl_context.verify_mode = ssl.CERT_REQUIRED
-                else:  # ssl, starttls
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.check_hostname = False
-                    ssl_context.verify_mode = ssl.CERT_NONE
+                ssl_context = self._ssl_context_for_encryption(
+                    mail_server.smtp_encryption
+                )
 
         else:
-            # we were passed individual smtp parameters or nothing and there is no default server
+            # We were passed individual smtp parameters, or nothing, or a
+            # "cli"-authenticated mail server. In all these cases the transport
+            # comes entirely from the CLI/config: a "cli" mail server record
+            # contributes ONLY its from_filter — its smtp_host/port/encryption/
+            # user/pass/debug fields are deliberately ignored here.
             smtp_server = host or tools.config.get("smtp_server")
             smtp_port = tools.config.get("smtp_port", 25) if port is None else port
             smtp_user = user or tools.config.get("smtp_user")
@@ -663,29 +668,9 @@ class IrMail_Server(models.Model):
             )
 
             if smtp_ssl_certificate_filename and smtp_ssl_private_key_filename:
-                try:
-                    ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
-                    ssl_context.verify_mode = ssl.CERT_NONE
-                    ssl_context.load_cert_chain(
-                        smtp_ssl_certificate_filename,
-                        keyfile=smtp_ssl_private_key_filename,
-                    )
-                    # Check that the private key match the certificate
-                    ssl_context._ctx.check_privatekey()
-                except SSLCryptoError as e:
-                    raise UserError(
-                        _(
-                            "The private key or the certificate is not a valid file. \n%s",
-                            str(e),
-                        )
-                    ) from None
-                except SSLError as e:
-                    raise UserError(
-                        _(
-                            "Could not load your certificate / private key. \n%s",
-                            str(e),
-                        )
-                    ) from None
+                ssl_context = self._ssl_context_from_cert_files(
+                    smtp_ssl_certificate_filename, smtp_ssl_private_key_filename
+                )
 
         if not smtp_server:
             raise UserError(
@@ -732,6 +717,93 @@ class IrMail_Server(models.Model):
         connection.smtp_from = smtp_from
 
         return connection
+
+    @staticmethod
+    def _ssl_load_error(exc: Exception) -> UserError:
+        """Translate a low-level certificate/key loading error into a UserError.
+
+        Shared by every certificate-loading path so the two user-facing
+        messages live in exactly one place.
+        """
+        if isinstance(exc, SSLCryptoError):
+            return UserError(
+                _(
+                    "The private key or the certificate is not a valid file. \n%s",
+                    str(exc),
+                )
+            )
+        return UserError(
+            _("Could not load your certificate / private key. \n%s", str(exc))
+        )
+
+    def _ssl_context_from_certificate(
+        self, mail_server: Self, smtp_server: str
+    ) -> PyOpenSSLContext:
+        """Build a client-auth SSL context from a mail server's stored PEM
+        certificate/private key (``smtp_authentication == 'certificate'``).
+
+        The 'strict' encryption variants verify the peer and its hostname; the
+        lax variants disable verification.
+        """
+        try:
+            ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            if mail_server.smtp_encryption in ("ssl_strict", "starttls_strict"):
+                ssl_context.set_default_verify_paths()
+                ssl_context._ctx.set_verify(
+                    VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
+                    functools.partial(
+                        _verify_check_hostname_callback,
+                        hostname=smtp_server,
+                    ),
+                )
+            else:  # ssl, starttls
+                ssl_context.verify_mode = ssl.CERT_NONE
+            ssl_context._ctx.use_certificate(
+                load_pem_x509_certificate(
+                    base64.b64decode(mail_server.smtp_ssl_certificate)
+                )
+            )
+            ssl_context._ctx.use_privatekey(
+                load_pem_private_key(
+                    base64.b64decode(mail_server.smtp_ssl_private_key),
+                    password=None,
+                )
+            )
+            # Check that the private key matches the certificate
+            ssl_context._ctx.check_privatekey()
+        except (SSLCryptoError, SSLError) as e:
+            raise self._ssl_load_error(e) from None
+        return ssl_context
+
+    def _ssl_context_from_cert_files(
+        self, cert_filename: str, key_filename: str
+    ) -> PyOpenSSLContext:
+        """Build a client-auth SSL context from certificate/key files on disk
+        (CLI/config ``--smtp-ssl-*-filename`` arguments)."""
+        try:
+            ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ssl_context.verify_mode = ssl.CERT_NONE
+            ssl_context.load_cert_chain(cert_filename, keyfile=key_filename)
+            # Check that the private key matches the certificate
+            ssl_context._ctx.check_privatekey()
+        except (SSLCryptoError, SSLError) as e:
+            raise self._ssl_load_error(e) from None
+        return ssl_context
+
+    @staticmethod
+    def _ssl_context_for_encryption(encryption: str) -> ssl.SSLContext:
+        """Build a standard TLS context for a (non-certificate) encrypted
+        transport. 'strict' variants validate the server certificate and
+        hostname against the OS trust store; lax variants encrypt only.
+        """
+        ssl_context = ssl.create_default_context()
+        if encryption in ("ssl_strict", "starttls_strict"):
+            ssl_context.check_hostname = True
+            ssl_context.verify_mode = ssl.CERT_REQUIRED
+        else:  # ssl, starttls
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        return ssl_context
 
     def _check_forced_mail_server(
         self, mail_server: Self, allow_archived: bool, smtp_from: str | None
@@ -819,13 +891,13 @@ class IrMail_Server(models.Model):
             or self._get_default_from_address()
         )
         if not email_from:
-            raise UserError(self.NO_FOUND_FROM)
+            raise OutgoingEmailError(self.NO_FOUND_FROM)
 
         headers = headers or {}  # need valid dict later
         email_cc = email_cc or []
         email_bcc = email_bcc or []
 
-        msg = EmailMessage(policy=email.policy.SMTP)
+        msg = EmailMessage(policy=SMTP_POLICY)
         if not message_id:
             if object_id:
                 message_id = tools.mail.generate_tracking_message_id(object_id)
@@ -836,7 +908,6 @@ class IrMail_Server(models.Model):
             msg["references"] = references
         msg["Subject"] = subject
         msg["From"] = email_from
-        del msg["Reply-To"]
         msg["Reply-To"] = reply_to or email_from
         msg["To"] = email_to
         if email_cc:
@@ -867,17 +938,20 @@ class IrMail_Server(models.Model):
 
         if attachments:
             for fname, fcontent, mime in attachments:
-                maintype, subtype = (
-                    mime.split("/")
+                # split on the first "/" only: a malformed mimetype with extra
+                # slashes (e.g. "application/pdf/x") would otherwise raise
+                # ValueError on unpacking. Local name avoids shadowing ``subtype``.
+                maintype, att_subtype = (
+                    mime.split("/", 1)
                     if mime and "/" in mime
                     else ("application", "octet-stream")
                 )
-                if maintype == "message" and subtype == "rfc822":
+                if maintype == "message" and att_subtype == "rfc822":
                     msg.add_attachment(
                         BytesParser().parsebytes(fcontent), filename=fname
                     )
                 else:
-                    msg.add_attachment(fcontent, maintype, subtype, filename=fname)
+                    msg.add_attachment(fcontent, maintype, att_subtype, filename=fname)
         return msg
 
     @api.model
@@ -943,11 +1017,11 @@ class IrMail_Server(models.Model):
 
         smtp_from = message["From"] or bounce_address
         if not smtp_from:
-            raise UserError(self.NO_FOUND_SMTP_FROM)
+            raise OutgoingEmailError(self.NO_FOUND_SMTP_FROM)
 
         smtp_to_list = self._prepare_smtp_to_list(message, smtp_session)
         if not smtp_to_list:
-            raise UserError(self.NO_VALID_RECIPIENT)
+            raise OutgoingEmailError(self.NO_VALID_RECIPIENT)
 
         # Try to not spoof the mail from headers; fetch session-based or contextualized
         # values for encapsulation computation
@@ -976,10 +1050,12 @@ class IrMail_Server(models.Model):
         # The email's "Envelope From" (Return-Path) must only contain ASCII characters.
         smtp_from_rfc2822 = extract_rfc2822_addresses(smtp_from)
         if not smtp_from_rfc2822:
-            raise UserError(  # pylint: disable=missing-gettext
-                f"{self.NO_VALID_FROM}\n"
-                f"Malformed 'Return-Path' or 'From' address: {smtp_from} — "
-                "it must contain one valid plain ASCII email."
+            # ``code`` classifies the failure (mail_from_invalid); the message
+            # names the offending address and becomes the stored failure_reason.
+            raise OutgoingEmailError(  # pylint: disable=missing-gettext
+                f"Malformed 'Return-Path' or 'From' address: {smtp_from} - "
+                "It should contain one valid plain ASCII email",
+                code=self.NO_VALID_FROM,
             )
         smtp_from = smtp_from_rfc2822[-1]
 
@@ -1108,6 +1184,10 @@ class IrMail_Server(models.Model):
                  MailDeliveryException and logs root cause.
         """
         smtp = smtp_session
+        # A caller-supplied smtp_session is the caller's to disconnect (see
+        # docstring); a connection we open here is ours to always close, even
+        # when preparation or delivery raises — otherwise the socket leaks.
+        owns_connection = not smtp_session
         if not smtp:
             smtp = self._connect__(
                 smtp_server,
@@ -1122,33 +1202,40 @@ class IrMail_Server(models.Model):
                 mail_server_id=mail_server_id,
             )
 
-        smtp_from, smtp_to_list, message = self._prepare_email_message__(message, smtp)
-
-        # Do not actually send emails in testing mode!
-        if self._disable_send():
-            _test_logger.debug("skip sending email in test mode")
-            return message["Message-Id"]
-
         try:
-            message_id = message["Message-Id"]
-
-            smtp.send_message(message, smtp_from, smtp_to_list)
-
-            # do not quit() a pre-established smtp_session
-            if not smtp_session:
-                smtp.quit()
-        except smtplib.SMTPServerDisconnected:
-            raise
-        except Exception as e:
-            msg = _(
-                "Mail delivery failed via SMTP server '%(server)s'.\n%(exception_name)s: %(message)s",
-                server=smtp_server or getattr(smtp, "_host", "unknown"),
-                exception_name=e.__class__.__name__,
-                message=e,
+            smtp_from, smtp_to_list, message = self._prepare_email_message__(
+                message, smtp
             )
-            _logger.info(msg)
-            raise MailDeliveryError(_("Mail Delivery Failed"), msg) from None
-        return message_id
+
+            # Do not actually send emails in testing mode!
+            if self._disable_send():
+                _test_logger.debug("skip sending email in test mode")
+                return message["Message-Id"]
+
+            message_id = message["Message-Id"]
+            try:
+                smtp.send_message(message, smtp_from, smtp_to_list)
+            except smtplib.SMTPServerDisconnected:
+                raise
+            except Exception as e:
+                msg = _(
+                    "Mail delivery failed via SMTP server '%(server)s'.\n%(exception_name)s: %(message)s",
+                    server=smtp_server or getattr(smtp, "_host", "unknown"),
+                    exception_name=e.__class__.__name__,
+                    message=e,
+                )
+                _logger.info(msg)
+                raise MailDeliveryError(_("Mail Delivery Failed"), msg) from None
+            return message_id
+        finally:
+            # ``smtp`` is None in test mode (_connect__ short-circuits).
+            if owns_connection and smtp is not None:
+                try:
+                    smtp.quit()
+                except Exception:
+                    # QUIT over a dead socket may raise before close(); force it.
+                    with suppress(Exception):
+                        smtp.close()
 
     def _find_mail_server_allowed_domain(self) -> list[Any]:
         """Overridable domain getter for all mail servers that may be used as default."""
@@ -1180,11 +1267,24 @@ class IrMail_Server(models.Model):
         # 0. Archived mail server should never be used
         mail_servers = mail_servers.filtered("active")
 
+        # Parse each server's from_filter at most once: ``first_match`` is called
+        # up to four times below and every call would otherwise re-split the same
+        # comma-separated strings for every candidate server.
+        parsed_filters: dict[int, list[str]] = {}
+
+        def filter_parts(mail_server: Self) -> list[str]:
+            parts = parsed_filters.get(mail_server.id)
+            if parts is None:
+                parts = parsed_filters[mail_server.id] = self._parse_from_filter(
+                    mail_server.from_filter
+                )
+            return parts
+
         def first_match(target, normalize_method):
             for mail_server in mail_servers:
-                if mail_server.from_filter and any(
-                    normalize_method(email.strip()) == target
-                    for email in mail_server.from_filter.split(",")
+                if any(
+                    normalize_method(part) == target
+                    for part in filter_parts(mail_server)
                 ):
                     return mail_server
             return None
