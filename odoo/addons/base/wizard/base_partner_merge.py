@@ -482,7 +482,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         :param dst_partner: destination res.partner record
         """
         additional_update_records = [
-            {"model": "calendar.event", "field_model": "model_id.model"}
+            {"model": "calendar.event", "field_model": "res_model"}
         ]
         self._update_reference_fields_generic(
             "res.partner", src_partners, dst_partner, additional_update_records
