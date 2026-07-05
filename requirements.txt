@@ -26,6 +26,7 @@ protobuf>=6.31.0
 psutil==7.2.2
 psycopg[c,binary]>=3.3.2
 psycopg-pool>=3.3.0
+PyMuPDF==1.27.2.2
 pyopenssl==25.3.0
 pypdf==6.6.2
 pypiwin32 ; sys_platform == 'win32'
@@ -44,7 +45,7 @@ rl-renderPM==4.0.3 ; sys_platform == 'win32'  # Needed by reportlab but included
 rlPyCairo==0.4.0  # Cairo backend for reportlab barcode/chart rendering (not in deb package)
 urllib3==2.6.3
 vobject==0.9.9
-weasyprint==68.1
+weasyprint==69.0
 Werkzeug==3.1.5
 XlsxWriter==3.2.9
 zeep==4.3.2  # Fixes notation visitor bug (issue #1185)

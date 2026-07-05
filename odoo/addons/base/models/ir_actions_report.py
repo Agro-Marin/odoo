@@ -1,4 +1,6 @@
+import base64
 import io
+import ipaddress
 import logging
 import mimetypes
 import re
@@ -44,6 +46,90 @@ from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.base.models.report_paperformat import PAPER_SIZES
 
+# O(1) lookup for paperformat mm dimensions, keyed by format name. Replaces a
+# per-render linear scan of PAPER_SIZES in _paperformat_to_css.
+_PAPER_SIZE_BY_KEY = {p["key"]: p for p in PAPER_SIZES}
+
+# Hostnames that always resolve to this Odoo instance. Reports referencing the
+# server by a loopback IP (not just "localhost") must use the in-process
+# resolution fast path — otherwise the render issues a real HTTP self-request
+# that deadlocks when every worker is busy (the exact case the fast path exists
+# to avoid).
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+
+
+def _is_blocked_fetch_ip(hostname: str | None) -> bool:
+    """True if ``hostname`` is an IP literal in a private/reserved range.
+
+    When a report references an *absolute* URL that is not this instance, the
+    fetcher hands it to the stock WeasyPrint fetcher (public logos, fonts, …).
+    A report that instead points at an internal address — RFC 1918 private
+    space, loopback, or link-local (which includes the cloud metadata endpoint
+    ``169.254.169.254``) — is either a template bug or an SSRF attempt using
+    user-controlled data rendered into the template, so we refuse it.
+
+    This blocks IP *literals* only. Hostnames that resolve to internal IPs via
+    DNS (rebinding) are not caught here — enforce network egress controls for
+    that. Because WeasyPrint 68's ``URLFetcher.open()`` re-enters ``fetch()`` on
+    every HTTP redirect, redirect targets pass through this check too.
+    """
+    if not hostname:
+        return False
+    try:
+        # IPv6 literals arrive bracketed ("[::1]") from urlparse().hostname
+        # already strips brackets, but be defensive.
+        ip = ipaddress.ip_address(hostname.strip("[]"))
+    except ValueError:
+        # Not an IP literal — a real hostname. Allowed (see DNS note above).
+        return False
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    """Coerce a barcode option to bool, tolerating template/URL string inputs.
+
+    Barcode options arrive from QWeb widget options and ``/report/barcode`` URL
+    query strings, so the value may be ``"1"``/``"true"``/``"yes"`` as well as a
+    real bool/int. Unrecognised strings fall back to ``default`` instead of
+    raising ``ValueError`` mid-render (the old ``bool(int(x))`` crashed on any
+    non-numeric string).
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        token = value.strip().lower()
+        if token in ("1", "true", "yes", "on"):
+            return True
+        if token in ("0", "false", "no", "off", ""):
+            return False
+    return default
+
+
+def _inject_page_css(html: str, css: str) -> str:
+    """Inject CSS ``@page`` rules into an HTML document's ``<head>``.
+
+    :param str html: HTML string (may be ``markupsafe.Markup``)
+    :param str css: CSS string to inject
+    :return: modified HTML string (plain ``str``, not ``Markup``)
+    """
+    # Convert from Markup to plain str to avoid auto-escaping
+    # (Markup.replace() would escape <style> tags to &lt;style&gt;)
+    html_str = str(html)
+    style_tag = f'<style type="text/css">{css}</style>'
+    if "</head>" in html_str:
+        return html_str.replace("</head>", f"{style_tag}</head>", 1)
+    return f"{style_tag}{html_str}"
+
+
 # WeasyPrint logs thousands of CSS warnings (box-shadow, @keyframes, vendor
 # pseudo-elements, responsive @media queries, etc.) because the full web client
 # CSS bundle includes Bootstrap and theme CSS designed for browsers, not paged
@@ -77,6 +163,23 @@ _WEASY_IMAGE_CACHE_MAX = 256
 _weasy_font_config = None
 _weasy_image_cache: dict[str, Any] = {}
 
+# Non-split batches with more bodies than this are serialized incrementally —
+# each body is rendered to PDF bytes and its laid-out Document freed before the
+# next — then merged with pypdf.  WeasyPrint keeps the whole document in memory
+# and cannot stream a render, so the naive "render every body, then merge"
+# approach held EVERY record's Document at once; on a multi-thousand-invoice run
+# that is the dominant memory cost.  Smaller batches keep WeasyPrint's native
+# Document.copy() merge (better fidelity, one serialization, no pypdf cycle).
+# Override per deployment via the ``report.weasyprint_native_merge_max`` config
+# parameter (0 = always stream, huge = always native).
+_NATIVE_MERGE_MAX_BODIES = 50
+
+# Serializes the fontTools setUnicodeRanges monkey-patch in
+# _write_pdf_tolerant_fonts.  The patch mutates a process-global class method;
+# concurrent patch/restore windows race on restore order and leak a stale
+# tolerant closure permanently (see the function for details).
+_tolerant_font_lock = threading.Lock()
+
 
 def _get_weasy_font_config():
     # No lock needed: creating two FontConfiguration() objects concurrently is
@@ -104,51 +207,64 @@ def _evict_image_cache_if_full() -> None:
             del _weasy_image_cache[key]
 
 
-def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets):
-    """Retry PDF rendering after monkey-patching fontTools to tolerate
-    invalid OS/2 unicode range bits (e.g. bit 123 in malformed Unifont).
+def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options=None):
+    """Render a PDF with fontTools patched to tolerate invalid OS/2 unicode
+    range bits (e.g. bit 123 in malformed Unifont).
+
+    ``pdf_options`` is forwarded to ``write_pdf`` so the tolerant fallback keeps
+    any requested PDF/A variant / attachments.
+
+    ``setUnicodeRanges`` is a process-global class method, so the whole
+    patch/render/restore window is serialized by ``_tolerant_font_lock``.
+    Without the lock, two concurrent tolerant renders race on restore order: the
+    thread that enters second captures the first thread's *patched* function as
+    its ``_orig`` and its finally-block reinstalls that closure, leaking the
+    patch permanently (the "temporary" patch never comes off).  A concurrent
+    *normal* render may still transiently see the patched function while the lock
+    is held; that is genuinely harmless — the tolerant function is strictly more
+    permissive and only ever drops invalid bits.
     """
     from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
 
-    _orig = table_O_S_2f_2.setUnicodeRanges
+    with _tolerant_font_lock:
+        _orig = table_O_S_2f_2.setUnicodeRanges
 
-    def _tolerant_setUnicodeRanges(self, bits):
-        max_bit = 122
-        sanitized = {b for b in bits if 0 <= b <= max_bit}
-        dropped = bits - sanitized if isinstance(bits, set) else set(bits) - sanitized
-        if dropped:
-            _logger.warning(
-                "Dropped invalid OS/2 unicode range bits: %s",
-                sorted(dropped),
+        def _tolerant_setUnicodeRanges(self, bits):
+            max_bit = 122
+            sanitized = {b for b in bits if 0 <= b <= max_bit}
+            dropped = (
+                bits - sanitized if isinstance(bits, set) else set(bits) - sanitized
             )
-        return _orig(self, sanitized)
+            if dropped:
+                _logger.warning(
+                    "Dropped invalid OS/2 unicode range bits: %s",
+                    sorted(dropped),
+                )
+            return _orig(self, sanitized)
 
-    # NOTE: This monkey-patch is not thread-safe.  If a concurrent render is
-    # in the middle of font subsetting, it will briefly use _tolerant_setUnicodeRanges
-    # before the finally-block restores the original.  In practice this is
-    # harmless (the tolerant function is strictly more permissive) and the
-    # trigger condition — two simultaneous renders both hitting an invalid OS/2
-    # font — is extremely unlikely.
-    table_O_S_2f_2.setUnicodeRanges = _tolerant_setUnicodeRanges
-    try:
-        # Reset font config so WeasyPrint re-discovers fonts cleanly after the
-        # patch.  The concurrent-write risk here is benign — see the comment in
-        # _get_weasy_font_config() above.
-        global _weasy_font_config  # noqa: PLW0603 — intentional reset after monkey-patch
-        _weasy_font_config = None
-        return weasyprint.HTML(
-            string=html_string,
-            url_fetcher=url_fetcher,
-        ).write_pdf(
-            font_config=_get_weasy_font_config(),
-            counter_style=CounterStyle(),
-            stylesheets=stylesheets or None,
-            presentational_hints=True,
-            optimize_images=True,
-            cache=_weasy_image_cache,
-        )
-    finally:
-        table_O_S_2f_2.setUnicodeRanges = _orig
+        table_O_S_2f_2.setUnicodeRanges = _tolerant_setUnicodeRanges
+        try:
+            # Use a fresh, method-local FontConfiguration so fonts are
+            # re-discovered cleanly under the patch WITHOUT mutating the
+            # process-global singleton.  The previous approach set
+            # ``_weasy_font_config = None``, forcing every other worker thread's
+            # next render to rebuild its font config — a shared state side effect
+            # from a rare fallback path.
+            local_font_config = FontConfiguration()
+            return weasyprint.HTML(
+                string=html_string,
+                url_fetcher=url_fetcher,
+            ).write_pdf(
+                font_config=local_font_config,
+                counter_style=CounterStyle(),
+                stylesheets=stylesheets or None,
+                presentational_hints=True,
+                optimize_images=True,
+                cache=_weasy_image_cache,
+                **(pdf_options or {}),
+            )
+        finally:
+            table_O_S_2f_2.setUnicodeRanges = _orig
 
 
 # Regex to extract and strip <link rel="stylesheet"> tags from HTML.
@@ -238,7 +354,10 @@ class OdooURLFetcher(URLFetcher):
     2. Static files — ``/<module>/static/...`` from the filesystem
     3. HTTP fallback — session-authenticated request to the Odoo server
 
-    External URLs are delegated to the parent :class:`URLFetcher`.
+    External URLs are delegated to the parent :class:`URLFetcher`, except those
+    pointing at private/reserved IP literals, which are refused as SSRF (see
+    :func:`_is_blocked_fetch_ip`). Only ``http``, ``https`` and ``data`` schemes
+    are permitted — ``file://`` is intentionally disallowed.
 
     Use as a context manager to ensure the temporary session is cleaned up::
 
@@ -247,8 +366,12 @@ class OdooURLFetcher(URLFetcher):
     """
 
     def __init__(self, env: Any, base_url: str | None = None) -> None:
+        # No "file" protocol: reports resolve every resource over http(s) (or
+        # inline data: URIs), so allowing file:// only re-opens the local-file
+        # read hole that was one of wkhtmltopdf's CVEs (e.g. an <img
+        # src="file:///etc/passwd"> smuggled in via user-controlled data).
         super().__init__(
-            allowed_protocols=["http", "https", "file", "data"],
+            allowed_protocols=["http", "https", "data"],
             allow_redirects=True,
         )
         self._env = env
@@ -306,11 +429,25 @@ class OdooURLFetcher(URLFetcher):
         if parsed.scheme and parsed.scheme not in ("http", "https", ""):
             return super().fetch(url, headers)
 
-        is_local = not parsed.hostname or parsed.hostname in (
-            self._parsed_base.hostname,
-            "localhost",
+        is_local = (
+            not parsed.hostname
+            or parsed.hostname == self._parsed_base.hostname
+            or parsed.hostname in _LOOPBACK_HOSTS
         )
         if not is_local:
+            # Defence-in-depth SSRF guard: refuse absolute URLs pointing at
+            # private/reserved IP literals (internal services, 127.0.0.2 self-
+            # requests, the 169.254.169.254 metadata endpoint). WeasyPrint
+            # treats a fetch that raises as a missing resource and keeps
+            # rendering, so a bad template URL degrades gracefully rather than
+            # 500-ing the whole report.
+            if _is_blocked_fetch_ip(parsed.hostname):
+                _logger.warning(
+                    "WeasyPrint refused a report resource pointing at a "
+                    "private/reserved address (possible SSRF): %s",
+                    url,
+                )
+                raise ValueError(f"Blocked fetch to private address: {url}")
             return super().fetch(url, headers)
 
         path = parsed.path or ""
@@ -397,7 +534,9 @@ class OdooURLFetcher(URLFetcher):
                     url, attachment.raw, attachment.mimetype or "text/css"
                 )
         except Exception:
-            _logger.warning("Failed to generate asset bundle for %s", path)
+            _logger.warning(
+                "Failed to generate asset bundle for %s", path, exc_info=True
+            )
         return None
 
     def _resolve_static_file(self, url: str, path: str) -> URLFetcherResponse | None:
@@ -449,7 +588,7 @@ class OdooURLFetcher(URLFetcher):
             if data:
                 return self._make_response(url, data, stream.mimetype or "image/png")
         except Exception:
-            _logger.debug("Local image resolution failed for %s", path)
+            _logger.debug("Local image resolution failed for %s", path, exc_info=True)
         return None
 
     def _resolve_barcode(
@@ -500,7 +639,7 @@ class OdooURLFetcher(URLFetcher):
             if barcode_bytes:
                 return self._make_response(url, barcode_bytes, "image/png")
         except Exception:
-            _logger.debug("Local barcode resolution failed for %s", path)
+            _logger.debug("Local barcode resolution failed for %s", path, exc_info=True)
         return None
 
     @staticmethod
@@ -560,7 +699,9 @@ class OdooURLFetcher(URLFetcher):
             finally:
                 resp.close()
         except Exception:
-            _logger.warning("WeasyPrint URL fetch failed for %s", full_url)
+            _logger.warning(
+                "WeasyPrint URL fetch failed for %s", full_url, exc_info=True
+            )
             # Intentional fallback: try WeasyPrint's built-in fetcher without
             # Odoo session auth.  This handles publicly accessible resources
             # (e.g. CDN fonts, public static files) that don't require a
@@ -610,6 +751,360 @@ class OdooURLFetcher(URLFetcher):
     ) -> URLFetcherResponse:
         return URLFetcherResponse(
             url, body=body, headers={"Content-Type": content_type}
+        )
+
+
+class WeasyPrintEngine:
+    """WeasyPrint rendering pipeline for a batch of pre-rendered HTML bodies.
+
+    Extracted from :class:`IrActionsReport` so the PDF engine can be driven with
+    plain ``(bodies, page_css)`` — no report record, no ``report_ref`` — and
+    unit-tested in isolation. The model's ``_render_html_to_pdf`` resolves the
+    paperformat to CSS and then delegates to :meth:`render`.
+
+    All bodies of one batch share a single WeasyPrint session: one URL fetcher,
+    one fontconfig, and one image cache. The first body warms the cache (CSS
+    bundles, images); the rest hit it directly.
+    """
+
+    def __init__(self, env: Any) -> None:
+        self._env = env
+
+    def render(
+        self,
+        bodies: list[str],
+        page_css: str,
+        *,
+        split: bool = False,
+        pdf_options: dict[str, Any] | None = None,
+    ) -> bytes | list[bytes]:
+        """Render HTML bodies to PDF.
+
+        :param bodies: complete HTML strings (one per record)
+        :param str page_css: ``@page`` CSS produced from the paperformat
+        :param bool split: return ``list[bytes]`` (one PDF per body) instead of a
+            single merged PDF
+        :param pdf_options: extra keyword arguments forwarded verbatim to
+            WeasyPrint ``write_pdf`` — e.g. ``pdf_variant='pdf/a-3b'``,
+            ``attachments=[...]``, ``xmp_metadata=[...]``.  When a ``pdf_variant``
+            is present the batch is never merged through pypdf (that would strip
+            the PDF/A output intent, ID and XMP — see :meth:`render`), so a
+            multi-body non-split PDF/A uses WeasyPrint's native ``Document.copy``
+            merge regardless of the memory threshold.
+        :type pdf_options: dict | None
+        :return: PDF bytes, or ``list[bytes]`` when ``split=True``
+        """
+        if not bodies:
+            raise UserError(_("No content to render as PDF."))
+
+        _evict_image_cache_if_full()
+        wants_pdfa = bool((pdf_options or {}).get("pdf_variant"))
+        if wants_pdfa:
+            # PDF/A forbids raster images with /Interpolate true (ISO 19005-3
+            # clause 6.2.8). WeasyPrint sets Interpolate from the CSS
+            # ``image-rendering`` property, emitting true for the default
+            # ``auto``. Force a non-auto value so every embedded image (logo,
+            # barcodes, …) is Interpolate=false. This only flips the viewer-side
+            # upscaling flag; the image bytes are unchanged. image-rendering is
+            # inherited, so setting it on the root covers backgrounds too, and
+            # the rule is appended last to win the cascade over bundle CSS.
+            page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
+
+        # Reuse the model's fetcher builder so downstream overrides still apply.
+        with self._env["ir.actions.report"]._build_url_fetcher() as fetcher:
+            parsed_css_by_url = self._preparse_external_css(bodies, page_css, fetcher)
+            # Layout pass: each body rendered independently so counter(pages) is
+            # scoped per record — "Page X / Y" is per-record, not per-batch.  Each
+            # body is stripped of and re-supplied with ONLY its own stylesheets, so
+            # a mixed-language batch never bleeds LTR CSS onto an RTL page.
+            processed = [
+                self._process_body_html(body, page_css, parsed_css_by_url)
+                for body in bodies
+            ]
+
+            # Memory-bounded paths: render+serialize one body at a time, freeing
+            # each laid-out Document before the next.  Used when the output is
+            # per-body anyway (split) or the batch is large enough that holding
+            # every Document at once is the dominant memory cost.  Each body is
+            # still an independent render, so per-record counter(pages) is
+            # unchanged.
+            if split:
+                return [
+                    self._render_and_serialize_body(
+                        html_str, fetcher, body_css, pdf_options
+                    )
+                    for html_str, body_css in processed
+                ]
+
+            # A pypdf merge strips PDF/A conformance, so PDF/A output always uses
+            # the native Document.copy() merge below, never the streaming path.
+            native_merge_max = self._native_merge_max_bodies()
+            if not wants_pdfa and len(processed) > native_merge_max:
+                _logger.info(
+                    "WeasyPrint: %d bodies exceeds the native-merge threshold "
+                    "(%d); serializing incrementally and merging with pypdf to "
+                    "bound peak memory.",
+                    len(processed),
+                    native_merge_max,
+                )
+                streams = [
+                    io.BytesIO(
+                        self._render_and_serialize_body(html_str, fetcher, body_css)
+                    )
+                    for html_str, body_css in processed
+                ]
+                return (
+                    self._env["ir.actions.report"]._merge_pdfs(streams).getvalue()
+                )
+
+            # Native path (small batches): lay out every body, then merge via
+            # WeasyPrint's Document.copy() and serialize once — best fidelity,
+            # no pypdf round-trip.
+            documents = [
+                self._render_body_document(html_str, fetcher, body_css)
+                for html_str, body_css in processed
+            ]
+
+            try:
+                return self._serialize_documents(
+                    documents, split=split, pdf_options=pdf_options
+                )
+            except ValueError as ve:
+                if "expected 0 <= int" in str(ve):
+                    # Font subsetting failed (malformed OS/2 unicode range bits in
+                    # a system font).  Re-render ALL bodies with the tolerant font
+                    # patch.
+                    _logger.warning(
+                        "fontTools setUnicodeRanges failed during PDF serialization "
+                        "(%s). A system font has invalid OS/2 unicode range bits. "
+                        "Retrying all bodies with patched setUnicodeRanges.",
+                        ve,
+                    )
+                    return self._serialize_with_tolerant_fonts(
+                        processed, fetcher, split=split, pdf_options=pdf_options
+                    )
+                _logger.error("WeasyPrint PDF serialization failed: %s", ve)
+                raise self._pdf_render_error(str(ve)) from None
+            except Exception as e:
+                _logger.error("WeasyPrint PDF serialization failed: %s", e)
+                raise self._pdf_render_error(str(e)) from None
+
+    def _native_merge_max_bodies(self) -> int:
+        """Batch size above which a non-split render serializes incrementally.
+
+        Read from the ``report.weasyprint_native_merge_max`` config parameter,
+        falling back to :data:`_NATIVE_MERGE_MAX_BODIES`.  A malformed value is
+        ignored with a warning rather than crashing the render.
+        """
+        param = (
+            self._env["ir.config_parameter"]
+            .sudo()
+            .get_param("report.weasyprint_native_merge_max")
+        )
+        if param:
+            try:
+                return int(param)
+            except (TypeError, ValueError):
+                _logger.warning(
+                    "Invalid report.weasyprint_native_merge_max=%r; "
+                    "using default %d.",
+                    param,
+                    _NATIVE_MERGE_MAX_BODIES,
+                )
+        return _NATIVE_MERGE_MAX_BODIES
+
+    def _render_and_serialize_body(
+        self,
+        html_str: str,
+        fetcher: OdooURLFetcher,
+        body_css: list,
+        pdf_options: dict[str, Any] | None = None,
+    ) -> bytes:
+        """Render one body to PDF bytes, freeing its Document immediately.
+
+        Peak memory is one laid-out Document at a time instead of the whole
+        batch.  Applies the tolerant-font fallback on the malformed-OS/2
+        serialization error, scoped to this single body (the native path
+        re-renders the entire batch; here only the failing body pays the cost).
+
+        ``pdf_options`` is forwarded to ``write_pdf`` (e.g. the PDF/A variant and
+        attachments for a single-invoice split render).
+        """
+        document = self._render_body_document(html_str, fetcher, body_css)
+        buf = io.BytesIO()
+        try:
+            document.write_pdf(target=buf, **(pdf_options or {}))
+        except ValueError as ve:
+            if "expected 0 <= int" in str(ve):
+                _logger.warning(
+                    "fontTools setUnicodeRanges failed serializing one body "
+                    "(%s); retrying it with patched setUnicodeRanges.",
+                    ve,
+                )
+                return _write_pdf_tolerant_fonts(
+                    html_str, fetcher, body_css, pdf_options
+                )
+            _logger.error("WeasyPrint PDF serialization failed: %s", ve)
+            raise self._pdf_render_error(str(ve)) from None
+        return buf.getvalue()
+
+    def _preparse_external_css(
+        self, bodies: list[str], page_css: str, fetcher: OdooURLFetcher
+    ) -> dict[str, Any]:
+        """Parse every distinct external stylesheet referenced by the batch once.
+
+        All bodies of a single language share the same ~300KB report CSS bundle,
+        so parsing it once and reusing the parsed rules (via WeasyPrint's
+        ``stylesheets`` parameter) avoids re-fetching/re-parsing it per body.
+
+        Bodies are keyed by URL rather than assuming they all share the first
+        body's stylesheets: a mixed-language batch references direction-specific
+        bundles (``...rtl.min.css`` vs ``...min.css``), so each body must be
+        rendered with its OWN parsed CSS, not the first body's.
+
+        :return: dict mapping ``css_url`` -> parsed ``weasyprint.CSS`` (or ``None``
+            when parsing failed, so the caller leaves that ``<link>`` in place).
+        """
+        parsed_by_url: dict[str, Any] = {}
+        for body in bodies:
+            html = _inject_page_css(body, page_css)
+            for css_url in _RE_CSS_LINK.findall(html):
+                if css_url in parsed_by_url:
+                    continue
+                try:
+                    parsed_by_url[css_url] = weasyprint.CSS(
+                        url=css_url, url_fetcher=fetcher
+                    )
+                except Exception:
+                    _logger.warning(
+                        "Failed to pre-parse CSS: %s", css_url, exc_info=True
+                    )
+                    parsed_by_url[css_url] = None
+        return parsed_by_url
+
+    def _process_body_html(
+        self, body: str, page_css: str, parsed_css_by_url: dict[str, Any]
+    ) -> tuple[str, list]:
+        """Inject @page CSS, strip this body's pre-parsed ``<link>`` tags, and
+        return the parsed CSS objects for this body's own stylesheets.
+
+        Only the links this body actually references are stripped and returned,
+        so each body renders with exactly its own (e.g. LTR or RTL) stylesheets.
+
+        :return: ``(html_str, body_css)`` — the stripped HTML and the list of
+            parsed ``weasyprint.CSS`` objects to apply to this body.
+        """
+        html_with_css = _inject_page_css(body, page_css)
+        body_css = []
+        strip_urls = set()
+        for css_url in _RE_CSS_LINK.findall(html_with_css):
+            parsed = parsed_css_by_url.get(css_url)
+            if parsed is not None and css_url not in strip_urls:
+                body_css.append(parsed)
+                strip_urls.add(css_url)
+        if strip_urls:
+            html_with_css = _RE_CSS_LINK.sub(
+                lambda m: "" if m.group(1) in strip_urls else m.group(0),
+                html_with_css,
+            )
+        return html_with_css, body_css
+
+    def _render_body_document(
+        self, html_str: str, fetcher: OdooURLFetcher, body_css: list
+    ) -> WeasyDocument:
+        """Run WeasyPrint's layout pass for one body (no serialization).
+
+        Separating layout (render) from serialization (write_pdf) lets us combine
+        pages from multiple per-record Documents via ``Document.copy()`` before a
+        single serialization step, eliminating the pypdf parse/re-serialize cycle.
+        """
+        try:
+            return weasyprint.HTML(string=html_str, url_fetcher=fetcher).render(
+                font_config=_get_weasy_font_config(),
+                counter_style=CounterStyle(),
+                stylesheets=body_css or None,
+                presentational_hints=True,
+                optimize_images=True,
+                cache=_weasy_image_cache,
+            )
+        except Exception as e:
+            _logger.error("WeasyPrint layout failed: %s", e)
+            raise self._pdf_render_error(str(e)) from None
+
+    @staticmethod
+    def _serialize_documents(
+        documents: list[WeasyDocument],
+        *,
+        split: bool = False,
+        pdf_options: dict[str, Any] | None = None,
+    ) -> bytes | list[bytes]:
+        """Serialize laid-out WeasyPrint Documents to PDF bytes.
+
+        ``split`` → one PDF per document.  Otherwise all pages are combined into
+        a single Document via ``Document.copy()`` (WeasyPrint's native merge) and
+        serialized once — no intermediate pypdf cycle, no corrupt-PDF risk.
+
+        ``pdf_options`` is forwarded to ``write_pdf`` (PDF/A variant, attachments,
+        XMP).  For a merged batch it is applied to the single combined Document,
+        so the whole output is one coherent PDF/A.
+        """
+        opts = pdf_options or {}
+        if split:
+            result = []
+            for doc in documents:
+                buf = io.BytesIO()
+                doc.write_pdf(target=buf, **opts)
+                result.append(buf.getvalue())
+            return result
+
+        if len(documents) == 1:
+            buf = io.BytesIO()
+            documents[0].write_pdf(target=buf, **opts)
+            return buf.getvalue()
+
+        all_pages = [p for doc in documents for p in doc.pages]
+        buf = io.BytesIO()
+        documents[0].copy(all_pages).write_pdf(target=buf, **opts)
+        return buf.getvalue()
+
+    def _serialize_with_tolerant_fonts(
+        self,
+        processed: list[tuple[str, list]],
+        fetcher: OdooURLFetcher,
+        *,
+        split: bool = False,
+        pdf_options: dict[str, Any] | None = None,
+    ) -> bytes | list[bytes]:
+        """Re-render all bodies with the tolerant-font patch after an OS/2 error.
+
+        ``processed`` is the ``(html_str, body_css)`` list from
+        :meth:`_process_body_html`, so each body keeps its own stylesheets.
+        Falls back to the pypdf merge for the non-split multi-body path.
+
+        ``pdf_options`` (PDF/A variant, attachments) is forwarded to each
+        ``write_pdf``.  A single-body PDF/A keeps its conformance; the rare
+        multi-body pypdf merge below cannot preserve PDF/A, but this path only
+        triggers on a broken system font, and PDF/A output is single-invoice in
+        practice.
+        """
+        tolerant_pdfs = [
+            _write_pdf_tolerant_fonts(html_str, fetcher, body_css, pdf_options)
+            for html_str, body_css in processed
+        ]
+        if split:
+            return tolerant_pdfs
+        if len(tolerant_pdfs) == 1:
+            return tolerant_pdfs[0]
+        streams = [io.BytesIO(pdf) for pdf in tolerant_pdfs]
+        return self._env["ir.actions.report"]._merge_pdfs(streams).getvalue()
+
+    def _pdf_render_error(self, detail: str) -> UserError:
+        """Build the user-facing error for a WeasyPrint layout/serialization failure."""
+        return UserError(
+            _(
+                "PDF rendering failed. Please check the report template.\n\nDetails: %s",
+                detail,
+            )
         )
 
 
@@ -860,10 +1355,8 @@ class IrActionsReport(models.Model):
             landscape = True
         orientation = (
             "landscape"
-            if landscape
-            else (
-                "landscape" if paperformat_id.orientation == "Landscape" else "portrait"
-            )
+            if landscape or paperformat_id.orientation == "Landscape"
+            else "portrait"
         )
 
         # Page size
@@ -872,10 +1365,7 @@ class IrActionsReport(models.Model):
             if fmt in self._WEASYPRINT_PAGE_SIZES:
                 size_css = f"{fmt} {orientation}"
             else:
-                ps = next(
-                    (p for p in PAPER_SIZES if p["key"] == paperformat_id.format),
-                    None,
-                )
+                ps = _PAPER_SIZE_BY_KEY.get(paperformat_id.format)
                 if ps:
                     size_css = f"{ps['width']}mm {ps['height']}mm"
                     if orientation == "landscape":
@@ -899,7 +1389,7 @@ class IrActionsReport(models.Model):
             raw = args.get(attr, fallback)
             try:
                 return float(raw)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 _logger.warning(
                     "_paperformat_to_css: %r=%r is not a valid number; "
                     "falling back to the paperformat value %r.",
@@ -913,8 +1403,8 @@ class IrActionsReport(models.Model):
         margin_bottom = _margin(
             "data-report-margin-bottom", paperformat_id.margin_bottom
         )
-        margin_left = float(paperformat_id.margin_left)
-        margin_right = float(paperformat_id.margin_right)
+        margin_left = _margin("data-report-margin-left", paperformat_id.margin_left)
+        margin_right = _margin("data-report-margin-right", paperformat_id.margin_right)
 
         # Header line
         header_border = (
@@ -968,24 +1458,28 @@ class IrActionsReport(models.Model):
             return [], [], {}
 
         base_url = self._get_report_url(layout=layout)
-        root = lxml.html.fromstring(html, parser=lxml.html.HTMLParser(encoding="utf-8"))
+        # NB: local named ``html_root`` (not ``root``) to avoid shadowing the
+        # module-level ``root`` imported from odoo.http (the session store).
+        html_root = lxml.html.fromstring(
+            html, parser=lxml.html.HTMLParser(encoding="utf-8")
+        )
 
         # Extract data-report-* attributes from root HTML element
         specific_paperformat_args = {}
-        for attribute in root.items():
+        for attribute in html_root.items():
             if attribute[0].startswith("data-report-"):
                 specific_paperformat_args[attribute[0]] = attribute[1]
 
-        headers = _xpath_header(root)
-        footers = _xpath_footer(root)
-        articles = _xpath_article(root)
+        headers = _xpath_header(html_root)
+        footers = _xpath_footer(html_root)
+        articles = _xpath_article(html_root)
 
         bodies = []
         res_ids = []
 
         if not articles:
             # No article tags — render the entire body as one document
-            main_nodes = _xpath_main(root)
+            main_nodes = _xpath_main(html_root)
             if not main_nodes:
                 raise UserError(
                     _("Report HTML has no <main> element. Check the report template.")
@@ -1055,6 +1549,67 @@ class IrActionsReport(models.Model):
 
         return bodies, res_ids, specific_paperformat_args
 
+    @staticmethod
+    def _has_duplicated_ids(res_ids: list[int] | None) -> bool:
+        """True if ``res_ids`` contains duplicates (blocks per-record splitting)."""
+        return bool(res_ids and len(res_ids) != len(set(res_ids)))
+
+    @staticmethod
+    def _build_pdf_options(
+        pdf_variant: str | None = None,
+        attachments: list[Any] | None = None,
+        xmp_metadata: list[bytes | str] | None = None,
+    ) -> dict[str, Any] | None:
+        """Translate high-level PDF/A parameters into WeasyPrint ``write_pdf`` kwargs.
+
+        Keeps callers free of the ``weasyprint`` import: pass a variant string, a
+        list of attachment dicts, and raw XMP RDF fragments.
+
+        :param pdf_variant: e.g. ``"pdf/a-3b"`` (see WeasyPrint's ``pdf_variant``).
+            Enabling it also turns on ``custom_metadata`` so the document title
+            and producer flow into the PDF/A XMP.
+        :param attachments: list of either :class:`weasyprint.Attachment` or
+            dicts ``{"content": bytes, "name": str, "relationship": str,
+            "description": str}``.  For Factur-X the XML uses
+            ``relationship="Data"``.
+        :param xmp_metadata: list of raw XMP RDF fragments (``bytes``/``str``),
+            each a self-contained ``<rdf:RDF>…</rdf:RDF>`` block — WeasyPrint
+            appends them inside its ``<x:xmpmeta>`` after its own PDF/A
+            identification, so this is how the Factur-X extension schema is
+            added.  Each fragment is wrapped as a ``data:`` URI (what WeasyPrint's
+            ``xmp_metadata`` option expects).
+        :return: a ``write_pdf`` kwargs dict, or ``None`` when nothing was asked
+            for (so the default render path is untouched).
+        """
+        if not (pdf_variant or attachments or xmp_metadata):
+            return None
+        options: dict[str, Any] = {}
+        if pdf_variant:
+            options["pdf_variant"] = pdf_variant
+            options["custom_metadata"] = True
+        if attachments:
+            options["attachments"] = [
+                att
+                if isinstance(att, weasyprint.Attachment)
+                else weasyprint.Attachment(
+                    string=att["content"],
+                    name=att.get("name"),
+                    description=att.get("description"),
+                    relationship=att.get("relationship", "Unspecified"),
+                )
+                for att in attachments
+            ]
+        if xmp_metadata:
+            uris = []
+            for fragment in xmp_metadata:
+                raw = fragment.encode() if isinstance(fragment, str) else fragment
+                uris.append(
+                    "data:application/rdf+xml;base64,"
+                    + base64.b64encode(raw).decode()
+                )
+            options["xmp_metadata"] = uris
+        return options
+
     @api.model
     def _render_html_to_pdf(
         self,
@@ -1064,13 +1619,14 @@ class IrActionsReport(models.Model):
         specific_paperformat_args: dict[str, str] | None = None,
         *,
         _split: bool = False,
+        pdf_variant: str | None = None,
+        attachments: list[Any] | None = None,
+        xmp_metadata: list[bytes | str] | None = None,
     ) -> bytes | list[bytes]:
         """Render HTML bodies to PDF using WeasyPrint.
 
-        All bodies share a single WeasyPrint session: one URL fetcher, one
-        fontconfig initialization, and one resource cache.  After the first
-        body warms the cache with CSS bundles and images, subsequent bodies
-        hit the cache directly — no HTTP fetches.
+        Resolves the paperformat to ``@page`` CSS, then delegates the WeasyPrint
+        pipeline to :class:`WeasyPrintEngine`.
 
         :param bodies: list of complete HTML strings
         :type bodies: list[str]
@@ -1080,166 +1636,29 @@ class IrActionsReport(models.Model):
         :type specific_paperformat_args: dict[str, str] | None
         :param bool _split: if True, return ``list[bytes]`` — one PDF per
             body — instead of a single merged PDF.
+        :param pdf_variant: PDF/A variant to render natively (e.g. ``"pdf/a-3b"``)
+        :param attachments: files to embed (Factur-X XML etc.); see
+            :meth:`_build_pdf_options`
+        :param xmp_metadata: extra XMP RDF fragments (e.g. Factur-X schema)
         :return: PDF content as bytes, or list[bytes] when ``_split=True``
         """
+        if not bodies:
+            raise UserError(_("No content to render as PDF."))
+
         paperformat_id = (
             self._get_report(report_ref).get_paperformat()
             if report_ref
             else self.get_paperformat()
         )
-
-        # Build @page CSS from paperformat
         page_css = self._paperformat_to_css(
             paperformat_id,
             landscape=landscape,
             specific_paperformat_args=specific_paperformat_args,
         )
-
-        _evict_image_cache_if_full()
-
-        with self._build_url_fetcher() as fetcher:
-            # Pre-parse external CSS stylesheets from the first body so that
-            # subsequent bodies skip fetching and parsing the same ~300KB
-            # Bootstrap CSS.  weasyprint.CSS() parses once; render() reuses
-            # the parsed rules via the `stylesheets` parameter.
-            pre_parsed_css = []
-            parsed_css_urls = set()
-            if bodies:
-                first_html = self._inject_page_css(bodies[0], page_css)
-                css_urls = _RE_CSS_LINK.findall(first_html)
-                for css_url in css_urls:
-                    try:
-                        pre_parsed_css.append(
-                            weasyprint.CSS(url=css_url, url_fetcher=fetcher)
-                        )
-                        parsed_css_urls.add(css_url)
-                    except Exception:
-                        _logger.warning("Failed to pre-parse CSS: %s", css_url)
-
-            def _process_body(body: str) -> str:
-                """Inject @page CSS and strip pre-parsed CSS links from one body."""
-                html_with_css = self._inject_page_css(body, page_css)
-                if parsed_css_urls:
-                    html_with_css = _RE_CSS_LINK.sub(
-                        lambda m: "" if m.group(1) in parsed_css_urls else m.group(0),
-                        html_with_css,
-                    )
-                return html_with_css
-
-            def _render_body(html_str: str) -> WeasyDocument:
-                """Layout pass only — font subsetting errors cannot occur here.
-
-                Separating layout (render) from serialization (write_pdf) lets us
-                combine pages from multiple per-record Documents via Document.copy()
-                before the single PDF serialization step, eliminating the pypdf
-                parse/re-serialize cycle that _merge_pdfs required.
-                """
-                try:
-                    return weasyprint.HTML(
-                        string=html_str,
-                        url_fetcher=fetcher,
-                    ).render(
-                        font_config=_get_weasy_font_config(),
-                        counter_style=CounterStyle(),
-                        stylesheets=pre_parsed_css or None,
-                        presentational_hints=True,
-                        optimize_images=True,
-                        cache=_weasy_image_cache,
-                    )
-                except Exception as e:
-                    _logger.error("WeasyPrint layout failed: %s", e)
-                    raise UserError(
-                        _(
-                            "PDF rendering failed. Please check the report template.\n\nDetails: %s",
-                            str(e),
-                        )
-                    ) from None
-
-            if not bodies:
-                raise UserError(_("No content to render as PDF."))
-
-            # Layout pass: each body rendered independently so counter(pages)
-            # is scoped per record — "Page X / Y" is per-record, not per-batch.
-            # Any layout failure raises UserError immediately (from _render_body).
-            processed = [_process_body(body) for body in bodies]
-            documents = [_render_body(html_str) for html_str in processed]
-
-            try:
-                if _split:
-                    # Per-record PDFs: serialize each Document to its own bytes.
-                    result = []
-                    for doc in documents:
-                        buf = io.BytesIO()
-                        doc.write_pdf(target=buf)
-                        result.append(buf.getvalue())
-                    return result
-
-                if len(documents) == 1:
-                    buf = io.BytesIO()
-                    documents[0].write_pdf(target=buf)
-                    return buf.getvalue()
-
-                # Multi-record non-split: combine all Document pages into one
-                # Document, then serialize ONCE.  This is WeasyPrint's native merge
-                # (Document.copy is explicitly documented for this use-case) — no
-                # intermediate pypdf parse/re-serialize cycle, no corrupt-PDF risk.
-                all_pages = [p for doc in documents for p in doc.pages]
-                buf = io.BytesIO()
-                documents[0].copy(all_pages).write_pdf(target=buf)
-                return buf.getvalue()
-
-            except ValueError as ve:
-                if "expected 0 <= int" in str(ve):
-                    # Font subsetting failed (malformed OS/2 unicode range bits in a
-                    # system font).  Re-render ALL bodies with the tolerant font patch
-                    # and fall back to pypdf merge for the non-split path.
-                    _logger.warning(
-                        "fontTools setUnicodeRanges failed during PDF serialization (%s). "
-                        "A system font has invalid OS/2 unicode range bits. "
-                        "Retrying all bodies with patched setUnicodeRanges.",
-                        ve,
-                    )
-                    tolerant_pdfs = [
-                        _write_pdf_tolerant_fonts(html_str, fetcher, pre_parsed_css)
-                        for html_str in processed
-                    ]
-                    if _split:
-                        return tolerant_pdfs
-                    if len(tolerant_pdfs) == 1:
-                        return tolerant_pdfs[0]
-                    streams = [io.BytesIO(pdf) for pdf in tolerant_pdfs]
-                    return self._merge_pdfs(streams).getvalue()
-                _logger.error("WeasyPrint PDF serialization failed: %s", ve)
-                raise UserError(
-                    _(
-                        "PDF rendering failed. Please check the report template.\n\nDetails: %s",
-                        str(ve),
-                    )
-                ) from None
-            except Exception as e:
-                _logger.error("WeasyPrint PDF serialization failed: %s", e)
-                raise UserError(
-                    _(
-                        "PDF rendering failed. Please check the report template.\n\nDetails: %s",
-                        str(e),
-                    )
-                ) from None
-
-    @staticmethod
-    def _inject_page_css(html: str, css: str) -> str:
-        """Inject CSS @page rules into an HTML document's <head>.
-
-        :param str html: HTML string (may be Markup)
-        :param str css: CSS string to inject
-        :return: modified HTML string (plain str, not Markup)
-        """
-        # Convert from Markup to plain str to avoid auto-escaping
-        # (Markup.replace() would escape <style> tags to &lt;style&gt;)
-        html_str = str(html)
-        style_tag = f'<style type="text/css">{css}</style>'
-        if "</head>" in html_str:
-            return html_str.replace("</head>", f"{style_tag}</head>", 1)
-        return f"{style_tag}{html_str}"
+        pdf_options = self._build_pdf_options(pdf_variant, attachments, xmp_metadata)
+        return WeasyPrintEngine(self.env).render(
+            bodies, page_css, split=_split, pdf_options=pdf_options
+        )
 
     def _render_html_to_image(
         self,
@@ -1250,7 +1669,8 @@ class IrActionsReport(models.Model):
     ) -> list[bytes | None]:
         """Render HTML bodies to images using WeasyPrint.
 
-        Uses WeasyPrint for PNG rendering, then PIL for format conversion and resizing.
+        Renders each body to PDF with WeasyPrint, rasterizes page 1 with PyMuPDF,
+        then uses PIL for format conversion and resizing.
 
         :param bodies: list of HTML strings
         :type bodies: list[str]
@@ -1262,13 +1682,33 @@ class IrActionsReport(models.Model):
         if modules.module.current_test:
             return [None] * len(bodies)
 
+        # Size the PDF page to the requested pixels (margin: 0) so the rasterized
+        # content fills the frame instead of sitting in the corner of an A4 page.
+        page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
+
+        # WeasyPrint 68 cannot emit raster images (write_png was removed in v53):
+        # render to PDF, then rasterize page 1 with PyMuPDF. Imported lazily (once,
+        # before the loop) so a missing backend degrades every body to a logged
+        # None rather than breaking module import or re-importing per body.
+        try:
+            import fitz  # PyMuPDF, declared in requirements.txt
+        except ImportError as e:
+            _logger.warning("HTML-to-image rendering unavailable (PyMuPDF): %s", e)
+            return [None] * len(bodies)
+
         output_images = []
         with self._build_url_fetcher() as fetcher:
             for body in bodies:
                 try:
-                    png_bytes = weasyprint.HTML(
-                        string=body, url_fetcher=fetcher
-                    ).write_png()
+                    pdf_bytes = weasyprint.HTML(
+                        string=_inject_page_css(body, page_css),
+                        url_fetcher=fetcher,
+                    ).write_pdf()
+                    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+                        png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes(
+                            "png"
+                        )
+
                     with Image.open(io.BytesIO(png_bytes)) as src:
                         img = src.resize((width, height), Image.Resampling.LANCZOS)
 
@@ -1279,7 +1719,7 @@ class IrActionsReport(models.Model):
                         img.convert("RGB").save(buf, format="JPEG")
                     output_images.append(buf.getvalue())
                 except Exception as e:
-                    _logger.warning("WeasyPrint image rendering failed: %s", e)
+                    _logger.warning("HTML-to-image rendering failed: %s", e)
                     output_images.append(None)
         return output_images
 
@@ -1348,6 +1788,12 @@ class IrActionsReport(models.Model):
             - ir.actions.report report_name
         """
         ReportSudo = self.env["ir.actions.report"].sudo()
+        # bool is an int subclass: without this guard, _get_report(False) would
+        # silently browse(False) (empty recordset) and _get_report(True) would
+        # crash in browse() with an opaque TypeError. Reject it explicitly so the
+        # "not found" contract is consistent with the unknown-string case below.
+        if isinstance(report_ref, bool):
+            raise ValueError(f"Fetching report {report_ref!r}: invalid report reference")
         if isinstance(report_ref, int):
             return ReportSudo.browse(report_ref)
         if isinstance(report_ref, models.Model):
@@ -1372,8 +1818,8 @@ class IrActionsReport(models.Model):
         defaults = {
             "width": (600, int),
             "height": (100, int),
-            "humanreadable": (False, lambda x: bool(int(x))),
-            "quiet": (True, lambda x: bool(int(x))),
+            "humanreadable": (False, lambda x: _coerce_bool(x, False)),
+            "quiet": (True, lambda x: _coerce_bool(x, True)),
             "mask": (None, lambda x: x),
             "barBorder": (4, int),
             # QR code Error Correction Level:
@@ -1417,19 +1863,22 @@ class IrActionsReport(models.Model):
             # Code128 which accepts arbitrary strings.
             barcode_type = "Code128"
 
+        # `mask` is an Odoo-side post-processing concept, not a reportlab barcode
+        # parameter — pop it so it isn't forwarded to createBarcodeDrawing.
+        mask_name = kwargs.pop("mask")
         try:
             barcode = createBarcodeDrawing(
                 barcode_type, value=value, format="png", **kwargs
             )
 
-            if kwargs["mask"]:
+            if mask_name:
                 available_masks = self.get_available_barcode_masks()
-                mask_to_apply = available_masks.get(kwargs["mask"])
+                mask_to_apply = available_masks.get(mask_name)
                 if mask_to_apply:
                     mask_to_apply(kwargs["width"], kwargs["height"], barcode)
 
             return barcode.asString("png")
-        except ValueError, AttributeError:
+        except (ValueError, AttributeError):
             if barcode_type in ("Code128", "QR"):
                 msg = f"Cannot convert into {barcode_type} barcode."
                 raise ValueError(msg) from None
@@ -1525,13 +1974,23 @@ class IrActionsReport(models.Model):
         data: dict[str, Any],
         res_ids: list[int] | None = None,
     ) -> dict[int | bool, dict[str, Any]]:
-        if not data:
-            data = {}
+        # Copy so setdefault/updates below never mutate the caller's dict.
+        data = dict(data) if data else {}
         data.setdefault("report_type", "pdf")
+
+        # Native PDF/A options (e.g. Factur-X): the caller (account.move.send)
+        # supplies the variant, the invoice XML to embed, and the Factur-X XMP
+        # schema in ``data`` so WeasyPrint produces the final PDF/A-3 in one pass
+        # — no pypdf post-processing (which strips PDF/A conformance).
+        render_pdf_kwargs = {
+            key: data[key]
+            for key in ("pdf_variant", "attachments", "xmp_metadata")
+            if data.get(key)
+        }
 
         # access the report details with sudo() but evaluation context as current user
         report_sudo = self._get_report(report_ref)
-        has_duplicated_ids = res_ids and len(res_ids) != len(set(res_ids))
+        has_duplicated_ids = self._has_duplicated_ids(res_ids)
 
         collected_streams = {}
 
@@ -1558,7 +2017,9 @@ class IrActionsReport(models.Model):
                         stream = io.BytesIO(attachment.raw)
 
                         # Ensure the stream can be saved in Image.
-                        if attachment.mimetype.startswith("image"):
+                        # mimetype is a nullable Char (NULL possible via migration
+                        # /import/raw SQL), so guard like the other reads do.
+                        if (attachment.mimetype or "").startswith("image"):
                             new_stream = io.BytesIO()
                             with Image.open(stream) as img:
                                 img.convert("RGB").save(new_stream, format="pdf")
@@ -1644,6 +2105,7 @@ class IrActionsReport(models.Model):
                         landscape=landscape,
                         specific_paperformat_args=specific_paperformat_args,
                         _split=True,
+                        **render_pdf_kwargs,
                     )
                     for pdf_content, res_id in zip(
                         pdf_contents, render_res_ids, strict=False
@@ -1657,6 +2119,7 @@ class IrActionsReport(models.Model):
                     report_ref=report_ref,
                     landscape=landscape,
                     specific_paperformat_args=specific_paperformat_args,
+                    **render_pdf_kwargs,
                 )
                 pdf_content_stream = io.BytesIO(pdf_content)
 
@@ -1733,9 +2196,10 @@ class IrActionsReport(models.Model):
         report_ref: int | str | Any,
         res_ids: list[int] | None = None,
         data: dict[str, Any] | None = None,
-    ) -> tuple[Any, str]:
-        if not data:
-            data = {}
+    ) -> tuple[bytes | dict[int | bool, dict[str, Any]], str]:
+        # Returns (html_bytes, "html") in test mode, else (streams_dict, "pdf").
+        # Copy so setdefault/updates below never mutate the caller's dict.
+        data = dict(data) if data else {}
         if isinstance(res_ids, int):
             res_ids = [res_ids]
         data.setdefault("report_type", "pdf")
@@ -1757,8 +2221,8 @@ class IrActionsReport(models.Model):
         res_ids: list[int] | None = None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        if not data:
-            data = {}
+        # Copy so setdefault/updates below never mutate the caller's dict.
+        data = dict(data) if data else {}
         if isinstance(res_ids, int):
             res_ids = [res_ids]
         data.setdefault("report_type", "pdf")
@@ -1769,7 +2233,7 @@ class IrActionsReport(models.Model):
         if report_type != "pdf":
             return collected_streams, report_type
 
-        has_duplicated_ids = res_ids and len(res_ids) != len(set(res_ids))
+        has_duplicated_ids = self._has_duplicated_ids(res_ids)
 
         # access the report details with sudo() but keep evaluation context as current user
         report_sudo = self._get_report(report_ref)
@@ -1870,8 +2334,8 @@ class IrActionsReport(models.Model):
         docids: list[int] | None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        if not data:
-            data = {}
+        # Copy so setdefault/updates below never mutate the caller's dict.
+        data = dict(data) if data else {}
         data.setdefault("report_type", "text")
         report = self._get_report(report_ref)
         data = self._get_rendering_context(report, docids, data)
@@ -1884,8 +2348,8 @@ class IrActionsReport(models.Model):
         docids: list[int] | None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        if not data:
-            data = {}
+        # Copy so setdefault/updates below never mutate the caller's dict.
+        data = dict(data) if data else {}
         data.setdefault("report_type", "html")
         report = self._get_report(report_ref)
         data = self._get_rendering_context(report, docids, data)

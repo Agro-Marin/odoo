@@ -9,6 +9,8 @@ from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.base.models.ir_actions_report import _is_blocked_fetch_ip
+
 
 @tagged("post_install", "-at_install")
 class TestReportUrlFetcher(TransactionCase):
@@ -97,3 +99,37 @@ class TestReportUrlFetcher(TransactionCase):
         # and the guard raises ValueError.
         with self.assertRaises(ValueError):
             self.fetcher._parse_image_url("/web/image", "model=res.partner")
+
+    def test_blocked_fetch_ip_classification(self):
+        """_is_blocked_fetch_ip flags private/reserved IP literals, not hosts."""
+        # SSRF pivot targets — must all be blocked.
+        for host in (
+            "169.254.169.254",  # cloud metadata endpoint (link-local)
+            "127.0.0.2",  # loopback outside _LOOPBACK_HOSTS
+            "10.1.2.3",
+            "192.168.0.5",
+            "172.16.9.9",  # RFC 1918
+            "0.0.0.0",  # unspecified
+            "::1",  # IPv6 loopback
+            "fe80::1",  # IPv6 link-local
+        ):
+            with self.subTest(host=host):
+                self.assertTrue(_is_blocked_fetch_ip(host))
+        # Public IPs and real hostnames must pass through (rendered as-is).
+        for host in ("8.8.8.8", "93.184.216.34", "cdn.example.com", None, ""):
+            with self.subTest(host=host):
+                self.assertFalse(_is_blocked_fetch_ip(host))
+
+    @mute_logger("odoo.addons.base.models.ir_actions_report")
+    def test_fetch_refuses_private_ip(self):
+        """fetch() refuses an absolute URL pointing at a private/reserved IP."""
+        # WeasyPrint treats a raising fetch() as a missing resource, so raising
+        # here degrades the report gracefully instead of performing the SSRF.
+        with self.assertRaises(ValueError):
+            self.fetcher.fetch("http://169.254.169.254/latest/meta-data/")
+
+    def test_fetch_rejects_file_scheme(self):
+        """file:// is not in allowed_protocols, so local-file reads are refused."""
+        # Guards against the wkhtmltopdf-style file:///etc/passwd disclosure.
+        with self.assertRaises(ValueError):
+            self.fetcher.fetch("file:///etc/passwd")

@@ -1,6 +1,9 @@
 import io
 import logging
+import threading
+import time
 from base64 import b64decode
+from unittest.mock import patch
 
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.layout import LAParams, LTFigure, LTTextBox
@@ -13,13 +16,142 @@ from PIL import Image
 import odoo.tests
 from odoo import modules
 
-from odoo.addons.base.models import ir_actions_report
+from odoo.addons.base.models.ir_actions_report import WeasyPrintEngine
 
 _logger = logging.getLogger(__name__)
 
 
 @odoo.tests.tagged("post_install", "-at_install", "post_install_l10n")
 class TestReports(odoo.tests.TransactionCase):
+    def test_get_report_rejects_bool_reference(self):
+        """``_get_report`` must reject bool refs consistently.
+
+        ``bool`` is an ``int`` subclass: without an explicit guard,
+        ``_get_report(False)`` silently browsed an empty recordset and
+        ``_get_report(True)`` crashed with an opaque ``TypeError`` in
+        ``browse()``. Both must now raise ``ValueError`` like the
+        unknown-string case.
+        """
+        Report = self.env["ir.actions.report"]
+        for ref in (False, True):
+            with self.assertRaises(ValueError):
+                Report._get_report(ref)
+
+    def test_mixed_stylesheet_bodies_get_own_css(self):
+        """Each body must render with its OWN stylesheets, not the first body's.
+
+        Regression: in a mixed-language batch, bodies reference direction-specific
+        bundles (``...rtl.min.css`` vs ``...min.css``). ``_preparse_external_css``
+        used to parse only the first body's ``<link>``s and apply them to every
+        body, leaving other bodies' links unstripped and bleeding the first body's
+        (e.g. LTR) CSS onto them.
+        """
+        # The engine is drivable with just an env — no report record needed.
+        engine = WeasyPrintEngine(self.env)
+        ltr = (
+            '<html><head><link rel="stylesheet" href="/a/ltr.css"/></head>'
+            "<body>x</body></html>"
+        )
+        rtl = (
+            '<html><head><link rel="stylesheet" href="/a/rtl.css"/></head>'
+            "<body>y</body></html>"
+        )
+        # Stub the parsed-CSS map (sentinels) so we exercise the routing logic
+        # without hitting WeasyPrint's fetcher/parser.
+        ltr_css, rtl_css = object(), object()
+        parsed_by_url = {"/a/ltr.css": ltr_css, "/a/rtl.css": rtl_css}
+
+        html0, css0 = engine._process_body_html(ltr, "", parsed_by_url)
+        html1, css1 = engine._process_body_html(rtl, "", parsed_by_url)
+
+        # Each body keeps only its own stylesheet...
+        self.assertEqual(css0, [ltr_css])
+        self.assertEqual(css1, [rtl_css])
+        # ...and no <link> survives in either body (all pre-parsed links stripped).
+        self.assertNotIn("stylesheet", html0)
+        self.assertNotIn("stylesheet", html1)
+
+        # A link with no parsed entry (parse failure) is left in place, not dropped.
+        unknown = (
+            '<html><head><link rel="stylesheet" href="/a/keep.css"/></head>'
+            "<body>z</body></html>"
+        )
+        html2, css2 = engine._process_body_html(unknown, "", parsed_by_url)
+        self.assertEqual(css2, [])
+        self.assertIn("/a/keep.css", html2)
+
+    def test_render_entry_points_do_not_mutate_caller_data(self):
+        """Render entry points must copy ``data`` before mutating it.
+
+        Previously ``data.setdefault("report_type", ...)`` injected a key into
+        the caller's dict as a side effect. The unknown report ref raises after
+        the defensive copy, so the caller's dict must be untouched.
+        """
+        Report = self.env["ir.actions.report"]
+        data = {"foo": "bar"}
+        with self.assertRaises(ValueError):
+            Report._render_qweb_html("base.__no_such_report__", None, data=data)
+        self.assertEqual(data, {"foo": "bar"}, "caller data dict must be unchanged")
+
+    def test_tolerant_font_patch_serialized_under_concurrency(self):
+        """Concurrent tolerant-font renders must not leak the fontTools patch.
+
+        ``_write_pdf_tolerant_fonts`` monkey-patches a process-global fontTools
+        method. Without serialization, a restore-order race between two
+        concurrent tolerant renders makes the second capture the first's patched
+        function as its "original" and reinstall it permanently. Assert the
+        patch/restore window is mutually exclusive and the global is restored.
+        """
+        from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
+
+        from odoo.addons.base.models import ir_actions_report as mod
+
+        original = table_O_S_2f_2.setUnicodeRanges
+        state = {"cur": 0, "max": 0}
+        counter_lock = threading.Lock()
+
+        class _FakeHTML:
+            def __init__(self, **kwargs):
+                pass
+
+            def write_pdf(self, **kwargs):
+                # Runs inside the patched critical section of the function.
+                with counter_lock:
+                    state["cur"] += 1
+                    state["max"] = max(state["max"], state["cur"])
+                time.sleep(0.02)  # widen the window so any overlap is observed
+                with counter_lock:
+                    state["cur"] -= 1
+                return b"%PDF-fake"
+
+        with (
+            patch.object(mod.weasyprint, "HTML", _FakeHTML),
+            patch.object(mod, "FontConfiguration", lambda *a, **k: None),
+            patch.object(mod, "CounterStyle", lambda *a, **k: None),
+        ):
+            threads = [
+                threading.Thread(
+                    target=mod._write_pdf_tolerant_fonts,
+                    args=("<html/>", None, None),
+                )
+                for _ in range(5)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(10)
+
+        self.assertEqual(
+            state["max"],
+            1,
+            "tolerant-font patch window must be serialized (mutually exclusive)",
+        )
+        self.assertIs(
+            table_O_S_2f_2.setUnicodeRanges,
+            original,
+            "the process-global fontTools patch must be fully restored",
+        )
+
     def test_reports(self):
         invoice_domain = [
             (
@@ -142,6 +274,47 @@ class TestReports(odoo.tests.TransactionCase):
 
         self.assertEqual(b64decode(attach_1.datas), b"1")
         self.assertEqual(pdf[0], b"2")
+
+    def test_reload_from_attachment_null_mimetype(self):
+        """A reused attachment with a NULL mimetype must not crash generation.
+
+        ``ir.attachment.mimetype`` is a nullable Char; the ORM always populates
+        it, but a migration / external import / raw SQL can leave it NULL. The
+        image-conversion check in ``_render_qweb_pdf_prepare_streams`` must guard
+        against that, like the other mimetype reads in the model do.
+        """
+        report = self.env["ir.actions.report"].create(
+            {
+                "name": "test report null mimetype",
+                "report_name": "base.test_report",
+                "model": "res.partner",
+                "attachment": "'reused_attach'",
+                "attachment_use": True,
+            }
+        )
+        partner_id = self.env.user.partner_id.id
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "reused_attach",
+                "res_model": "res.partner",
+                "res_id": partner_id,
+                "raw": b"%PDF-1.4 reused",
+                "type": "binary",
+            }
+        )
+        # Only a non-ORM write can leave mimetype NULL (the ORM re-guesses it).
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET mimetype = NULL WHERE id = %s", (attachment.id,)
+        )
+        attachment.invalidate_recordset()
+        self.assertFalse(attachment.mimetype)
+
+        # Must not raise AttributeError('bool' object has no attribute 'startswith').
+        streams = report._render_qweb_pdf_prepare_streams(
+            report.id, {}, res_ids=[partner_id]
+        )
+        self.assertIn(partner_id, streams)
+        self.assertTrue(streams[partner_id]["stream"])
 
 
 # Some paper format examples
@@ -490,6 +663,64 @@ class TestReportsRendering(TestReportsRenderingCommon):
             footer.left, footer.right, -1, "Footer is centered on the page"
         )
 
+    def test_engine_split_and_bounded_merge_paths(self):
+        """Drive the split and large-batch memory-bounded paths directly.
+
+        ``split`` returns one PDF per body; a non-split batch above
+        ``report.weasyprint_native_merge_max`` serializes each body
+        incrementally and merges with pypdf.  Both are exercised here on plain
+        inline HTML (no assets), independent of the report pipeline.
+        """
+        engine = WeasyPrintEngine(self.env)
+        bodies = [
+            f"<html><head></head><body><div>Doc {i}</div></body></html>"
+            for i in range(3)
+        ]
+        page_css = "@page { size: A4; margin: 10mm; }"
+
+        # split=True -> list of single-page PDFs, Documents freed between bodies.
+        pdfs = engine.render(bodies, page_css, split=True)
+        self.assertEqual(len(pdfs), 3)
+        for pdf in pdfs:
+            self.assertTrue(pdf.startswith(b"%PDF"))
+            self.assertEqual(len(self._get_pdf_pages(pdf)), 1)
+
+        # Threshold 1 (< 3 bodies) forces the incremental pypdf merge path.
+        self.env["ir.config_parameter"].sudo().set_param(
+            "report.weasyprint_native_merge_max", "1"
+        )
+        merged = engine.render(bodies, page_css, split=False)
+        self.assertTrue(merged.startswith(b"%PDF"))
+        self.assertEqual(len(self._get_pdf_pages(merged)), 3)
+
+    def test_batch_bounded_merge_matches_native(self):
+        """The large-batch pypdf merge must equal WeasyPrint's native merge.
+
+        Rendering the same records once with the native ``Document.copy()``
+        merge (threshold above the batch size) and once with the memory-bounded
+        incremental merge (threshold below it) must yield the same page count
+        and per-page content — the memory optimisation changes cost, not output.
+        """
+        partners = self.env["res.partner"].create(
+            [{"name": f"Batch record {i}"} for i in range(3)]
+        )
+        icp = self.env["ir.config_parameter"].sudo()
+
+        icp.set_param("report.weasyprint_native_merge_max", "100")
+        native_pages = [
+            [elem[1] for elem in page]
+            for page in self._parse_pdf(self.create_pdf(partners=partners))
+        ]
+
+        icp.set_param("report.weasyprint_native_merge_max", "1")
+        bounded_pages = [
+            [elem[1] for elem in page]
+            for page in self._parse_pdf(self.create_pdf(partners=partners))
+        ]
+
+        self.assertEqual(len(native_pages), 3)
+        self.assertEqual(bounded_pages, native_pages)
+
     def test_report_pdf_page_break(self):
 
         partners = self.partners[:2]
@@ -818,36 +1049,25 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.assertIn("margin: 25.0mm 100.0mm 75.0mm 50.0mm", css)
 
     def test_render_html_to_image_format(self):
-        """_render_html_to_image resizes and honours the image_format branch.
+        """_render_html_to_image rasterizes real HTML and honours size + format.
 
-        The method early-returns ``[None] * len(bodies)`` whenever
-        ``current_test`` is set, so the resize / JPEG-vs-PNG fallback logic has
-        no direct coverage (IAR-T1). Clear the guard and stub WeasyPrint's
-        ``write_png`` with a known PNG to lock width/height + format behaviour.
+        Exercises the real WeasyPrint -> PyMuPDF -> PIL path (no stub). The
+        method early-returns ``[None] * len(bodies)`` under ``current_test``, so
+        we clear that guard to cover the actual rasterize/resize/format logic
+        (IAR-T1). Regression guard: WeasyPrint 68 has no ``write_png``, so a
+        stubbed backend would hide a fully broken method.
         """
         Report = self.env["ir.actions.report"]
 
-        # Build a small known PNG to feed the resize/convert pipeline.
-        src_buf = io.BytesIO()
-        Image.new("RGBA", (4, 6), (255, 0, 0, 128)).save(src_buf, format="PNG")
-        png_bytes = src_buf.getvalue()
-
-        class _FakeHTML:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def write_png(self):
-                return png_bytes
-
-        # Bypass the current_test early-return and stub the WeasyPrint call.
+        # Bypass the current_test early-return so the real backend runs.
         self.patch(modules.module, "current_test", False)
-        self.patch(ir_actions_report.weasyprint, "HTML", _FakeHTML)
 
         # JPEG (default) — RGB, exact target size.
         jpg_images = Report._render_html_to_image(
             ["<p>x</p>"], width=20, height=10, image_format="jpg"
         )
         self.assertEqual(len(jpg_images), 1)
+        self.assertIsNotNone(jpg_images[0], "image rendering returned None")
         with Image.open(io.BytesIO(jpg_images[0])) as out:
             self.assertEqual(out.size, (20, 10))
             self.assertEqual(out.format, "JPEG")
@@ -856,6 +1076,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         png_images = Report._render_html_to_image(
             ["<p>x</p>"], width=8, height=16, image_format="png"
         )
+        self.assertIsNotNone(png_images[0], "image rendering returned None")
         with Image.open(io.BytesIO(png_images[0])) as out:
             self.assertEqual(out.size, (8, 16))
             self.assertEqual(out.format, "PNG")
