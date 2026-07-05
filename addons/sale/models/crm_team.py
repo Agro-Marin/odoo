@@ -87,7 +87,7 @@ class CrmTeam(models.Model):
             team.sale_order_count = data_map.get(team.id, 0)
 
     def _compute_dashboard_button_name(self):
-        super(CrmTeam, self)._compute_dashboard_button_name()
+        super()._compute_dashboard_button_name()
         if self._in_sale_scope():
             self.dashboard_button_name = _("Sales Analysis")
 

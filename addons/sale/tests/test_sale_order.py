@@ -1135,9 +1135,6 @@ class TestSalesTeam(SaleCommon):
         )
         super_product = self.env["product.product"].create({"name": "Super Product"})
         great_product = self.env["product.product"].create({"name": "Great Product"})
-        product_no_account = self.env["product.product"].create(
-            {"name": "Product No Account"}
-        )
         self.env["account.analytic.distribution.model"].create(
             [
                 {
@@ -1174,6 +1171,23 @@ class TestSalesTeam(SaleCommon):
             sol.analytic_distribution,
             {str(analytic_account_great.id): 100},
             "The analytic distribution should be set to Great Account",
+        )
+
+        # A product with no matching distribution model gets no distribution.
+        product_no_model = self.env["product.product"].create(
+            {"name": "Product No Model"}
+        )
+        sol_no_model = self.env["sale.order.line"].create(
+            {
+                "name": product_no_model.name,
+                "product_id": product_no_model.id,
+                "order_id": sale_order.id,
+            }
+        )
+        self.assertFalse(
+            sol_no_model.analytic_distribution,
+            "A product without a matching distribution model should get no "
+            "analytic distribution.",
         )
 
         so_no_analytic_account = self.env["sale.order"].create(
@@ -1387,7 +1401,7 @@ class TestSalesTeam(SaleCommon):
                 "name": "Special Tax Reduction",
             }
         )
-        mapped_tax_a = self.env["account.tax"].create(
+        self.env["account.tax"].create(
             {
                 "name": "tax_a",
                 "amount_type": "percent",
@@ -1399,7 +1413,7 @@ class TestSalesTeam(SaleCommon):
             }
         )
 
-        mapped_tax_b = self.env["account.tax"].create(
+        self.env["account.tax"].create(
             {
                 "name": "tax_b",
                 "amount_type": "percent",
@@ -1461,7 +1475,7 @@ class TestSalesTeam(SaleCommon):
 class TestSaleMailComposerUI(MailCommon, HttpCase):
     @classmethod
     def setUpClass(cls):
-        super(TestSaleMailComposerUI, cls).setUpClass()
+        super().setUpClass()
         cls.env["mail.alias.domain"].create({"name": "example.com"})
         cls.partner = cls.env["res.partner"].create(
             {"name": "test customer", "email": "dummy@example.com"}

@@ -101,7 +101,9 @@ class AccountMoveLine(models.Model):
             if discount_product:
                 discount_line_ids.extend(
                     company_lines.filtered(
-                        lambda line: line.product_id == discount_product
+                        lambda line, discount_product=discount_product: (
+                            line.product_id == discount_product
+                        )
                     ).ids
                 )
         if discount_line_ids:

@@ -855,6 +855,13 @@ class TestSalePrices(SaleCommon):
         # If test is run without demo data
         # pricelists are not automatically enabled
         self._enable_pricelists()
+        # ``_enable_discounts()`` (called in setUpClass) runs
+        # ``res.config.settings.set_values()``, which archives every pricelist
+        # because ``group_product_pricelist`` reads False at config level
+        # (``_enable_pricelists`` only grants the group to the current user, not
+        # as a default group). Re-activate so ``has_active_pricelist`` is True and
+        # the ``pricelist_id`` field is visible in the form below.
+        self.pricelist.action_unarchive()
         pricelist = self.pricelist
         partner = self.partner
 
@@ -1559,7 +1566,7 @@ class TestSalePrices(SaleCommon):
                     "combo_item_id": combo.combo_item_ids.id,
                     "linked_line_id": combo_line.id,
                 }
-                for product, combo in zip(product_a + product_b, combos)
+                for product, combo in zip(product_a + product_b, combos, strict=True)
             ]
         )
 

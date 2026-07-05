@@ -218,7 +218,7 @@ class AccountMove(models.Model):
         """Preserve UTM fields (campaign, medium, source) on the reversal entries."""
         if not default_values_list:
             default_values_list = [{} for move in self]
-        for move, default_values in zip(self, default_values_list):
+        for move, default_values in zip(self, default_values_list, strict=True):
             default_values.update(
                 {
                     "campaign_id": move.campaign_id.id,

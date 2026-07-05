@@ -323,10 +323,14 @@ class SaleProductConfiguratorController(Controller):
             for attr_data in ptals.attribute_id.read(["id", "name", "display_type"])
         }
         ptavs = ptals.product_template_value_ids.filtered(
-            lambda p: p.ptav_active or combination and p.id in combination.ids,
+            lambda p: p.ptav_active or (combination and p.id in combination.ids),
         )
         ptavs_map = dict(
-            zip(ptavs.ids, ptavs.read(["name", "html_color", "image", "is_custom"])),
+            zip(
+                ptavs.ids,
+                ptavs.read(["name", "html_color", "image", "is_custom"]),
+                strict=True,
+            ),
         )
 
         values = dict(
@@ -362,7 +366,7 @@ class SaleProductConfiguratorController(Controller):
                         or (combination and ptav.id in combination.ids)
                     ],
                     "selected_attribute_value_ids": combination.filtered(
-                        lambda c: ptal in c.attribute_line_id,
+                        lambda c, ptal=ptal: ptal in c.attribute_line_id,
                     ).ids,
                     "create_variant": ptal.attribute_id.create_variant,
                 }

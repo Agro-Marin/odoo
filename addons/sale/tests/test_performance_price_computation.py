@@ -7,7 +7,7 @@ methods to ensure optimizations are effective.
 import time
 from contextlib import contextmanager
 
-from odoo.tests import tagged, TransactionCase
+from odoo.tests import TransactionCase, tagged
 
 
 @contextmanager
