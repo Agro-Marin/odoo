@@ -122,6 +122,78 @@ class TestRealCursor(BaseCase):
             self.assertTrue(cr.readonly)
 
 
+class TestSeedPlannerStats(BaseCase):
+    """``seed_planner_stats``: reltuples/relpages floors for never-analyzed tables.
+
+    Test suites roll back every transaction, so tables populated only by test
+    data keep committed statistics of "empty" forever (ANALYZE never sees
+    uncommitted rows). The planner then estimates ``rows=1`` on every scan and
+    builds cartesian nested-loop plans over the in-transaction data, which get
+    quadratically slower as a test class accumulates rows. The seeding helper
+    gives every zero-stat table a plausible non-zero floor so join order and
+    index choice survive; ``_run_post_install_tests`` calls it once per suite.
+    """
+
+    def test_seeds_floors_for_zero_stat_tables(self):
+        from odoo.db.utils import seed_planner_stats
+
+        cr = registry().cursor()
+        try:
+            # A freshly created table has reltuples=0 / relpages=0, exactly the
+            # signature of a "planner-blind" table.
+            cr.execute(
+                'CREATE TABLE "_test_seed_planner_stats" '
+                "(id serial PRIMARY KEY, val integer)"
+            )
+            seeded = seed_planner_stats(cr)
+            self.assertGreaterEqual(seeded, 1)
+
+            cr.execute(
+                "SELECT reltuples::int, relpages FROM pg_class "
+                "WHERE relname = '_test_seed_planner_stats'"
+            )
+            reltuples, relpages = cr.fetchone()
+            self.assertGreater(reltuples, 0)
+            self.assertGreater(relpages, 0)
+
+            # Idempotent: the first pass seeded every zero-stat table in the
+            # database, so a second pass finds nothing left to seed.
+            self.assertEqual(seed_planner_stats(cr), 0)
+        finally:
+            # Catalog updates are transactional: roll everything back so the
+            # test leaves pg_class untouched.
+            cr.rollback()
+            cr.close()
+
+
+class TestSeedPlannerStatsInClassTransaction(common.TransactionCase):
+    """Every TransactionCase must see planner-stat floors on all its tables.
+
+    The committed pre-suite seeding (``_run_post_install_tests``) can be undone
+    mid-suite by autovacuum: VACUUM rewrites ``reltuples = 0`` for tables whose
+    rows always roll back, and the relcache invalidation it broadcasts makes
+    the planner rebuild its plans from the zeroed stats — reintroducing the
+    cartesian nested-loop pathology partway through a suite. ``setUpClass``
+    therefore re-seeds inside the class transaction: uncommitted (rolled back
+    with the class), and the stats locks keep autovacuum from resetting the
+    seeded tables while the class runs.
+    """
+
+    def test_no_zero_stat_tables_visible(self):
+        self.env.cr.execute(
+            """
+            SELECT c.relname
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE c.relkind = 'r'
+               AND n.nspname = 'public'
+               AND c.reltuples <= 0
+               AND c.relowner = quote_ident(current_user)::regrole
+            """
+        )
+        self.assertEqual([row[0] for row in self.env.cr.fetchall()], [])
+
+
 class TestHTTPCursor(HttpCase):
     def test_cursor_keeps_readwriteness(self):
         with self.env.registry.cursor(readonly=False) as cr:

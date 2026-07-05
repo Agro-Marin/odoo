@@ -107,7 +107,28 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     the caller reads ``wasSuccessful()`` for its return code) and logs the
     test/query counts.
     """
+    from odoo.db.utils import seed_planner_stats
     from odoo.tests import loader
+
+    # Planner-stats floor: test suites only ever roll back, so tables that are
+    # populated exclusively by test data keep committed statistics of "empty"
+    # forever, and the planner degrades their hot queries into cartesian
+    # nested-loop plans that grow quadratically with accumulated test data —
+    # the intermittent "suite hang" (see seed_planner_stats). Committed on
+    # purpose: the floors are plain statistics any later ANALYZE overwrites.
+    # Never let the optimization abort a test run — a failure only means the
+    # suite runs at its previous (slower) speed.
+    try:
+        with registry.cursor() as cr:
+            seeded = seed_planner_stats(cr)
+        if seeded:
+            _logger.info(
+                "Seeded planner statistics for %d zero-stat tables", seeded
+            )
+    except Exception:
+        _logger.warning(
+            "Planner-stats seeding failed; tests may run slower", exc_info=True
+        )
 
     t0 = time.time()
     t0_sql = db.sql_counter

@@ -191,3 +191,53 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
 
     connection_info.update(_HEALTH_PARAMS)
     return db_or_uri, connection_info
+
+
+def seed_planner_stats(cr, *, reltuples: float = 1000.0, relpages: int = 100) -> int:
+    """Give zero-stat tables a plausible planner-statistics floor.
+
+    Test suites roll back every transaction, so tables that only ever receive
+    test data keep committed statistics of "empty" forever: ANALYZE (manual or
+    autovacuum's) cannot see uncommitted rows, and ``pg_class.reltuples`` stays
+    at 0 (vacuumed empty) or -1 (never analyzed). The planner then estimates
+    ``rows=1`` for every scan of those tables and freely builds nested-loop
+    chains whose join conditions degrade to late filters — effectively
+    cartesian products that get quadratically slower as a long test
+    transaction accumulates rows (observed in the sale suite:
+    ``_compute_payment_state`` at 450ms/execution for 0 result rows, growing
+    ~7ms per execution — the "test suite hang").
+
+    Seeding ``reltuples``/``relpages`` floors via ``pg_restore_relation_stats``
+    (PostgreSQL 18+, guaranteed by ``MIN_PG_VERSION``) keeps estimates
+    non-trivial, so index conditions and sane join orders survive no matter how
+    much uncommitted data a suite accumulates. Scope: ordinary ``public``
+    tables owned by the current role with ``reltuples <= 0``. The floors are
+    ordinary committed statistics — any later ANALYZE simply overwrites them.
+
+    :param cr: cursor on the target database (the caller commits).
+    :param reltuples: row-count floor to install.
+    :param relpages: page-count floor to install.
+    :return: number of tables seeded.
+    """
+    cr.execute(
+        """
+        SELECT count(*)
+          FROM (
+            SELECT pg_restore_relation_stats(
+                       'schemaname', n.nspname::text,
+                       'relname', c.relname::text,
+                       'relpages', %s::integer,
+                       'reltuples', %s::real
+                   ) AS ok
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE c.relkind = 'r'
+               AND n.nspname = 'public'
+               AND c.reltuples <= 0
+               AND c.relowner = quote_ident(current_user)::regrole
+          ) AS seeded
+         WHERE seeded.ok
+        """,
+        (relpages, reltuples),
+    )
+    return cr.fetchone()[0]
