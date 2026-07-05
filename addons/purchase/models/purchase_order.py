@@ -505,6 +505,7 @@ class PurchaseOrder(models.Model):
                 and order.date_validity < today
             )
 
+    @api.depends_context("lang")
     @api.depends("state")
     def _compute_type_name(self):
         for order in self:
