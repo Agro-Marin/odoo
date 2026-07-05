@@ -713,7 +713,6 @@ class SaleOrder(models.Model):
         upselling_orders._create_upsell_activity()
         return None
 
-    # portal.mixin override
     def _compute_access_url(self):
         super()._compute_access_url()
         for order in self:
