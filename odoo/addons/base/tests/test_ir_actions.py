@@ -1078,6 +1078,324 @@ ZeroDivisionError: division by zero"""
             "clearing the code should record a history entry",
         )
 
+    def test_a3_active_less_non_code_run_warns(self):
+        """A non-``code`` action run with no active record warns instead of
+        failing silently.
+
+        Every runner except ``code`` needs a target record; ``_run`` resolves an
+        empty ``active_ids`` and its per-record loop simply never iterates. That
+        is exactly how a cron/scheduled action pointed at, say, an
+        ``object_write`` (or a ``multi``) behaves -- a silent no-op. Assert we
+        emit a clear warning naming the action so the misconfiguration is
+        visible in the logs, while leaving the record untouched.
+        """
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "name",
+                "value": "ShouldNotApply",
+            }
+        )
+        original_name = self.test_partner.name
+        logger = "odoo.addons.base.models.ir_actions_server"
+        # Run with NO active_model/active_id/active_ids in context (cron-style).
+        with self.assertLogs(logger, level="WARNING") as log_catcher:
+            self.action.run()
+        self.assertTrue(
+            any("was triggered with no target record" in m for m in log_catcher.output),
+            "an active-less non-code action must warn, not silently no-op",
+        )
+        self.assertEqual(
+            self.test_partner.name,
+            original_name,
+            "no record was targeted, so nothing should have been written",
+        )
+
+    def test_a4_active_less_code_run_does_not_warn(self):
+        """A ``code`` action is the one type that legitimately runs without a
+        target record (its runner is ``_multi``), so it must NOT emit the
+        no-target warning."""
+        code_action = self.env["ir.actions.server"].create(
+            {
+                "name": "ActiveLessCode",
+                "model_id": self.res_partner_model.id,
+                "state": "code",
+                "code": "x = 1",
+            }
+        )
+        logger = "odoo.addons.base.models.ir_actions_server"
+        with self.assertNoLogs(logger, level="WARNING"):
+            code_action.run()
+
+    def test_b0_eval_value_bad_integer_raises_clean_error(self):
+        """A non-numeric static value for an integer field raises a clean UserError,
+        never leaking the raw string into write() (which would crash with ValueError)."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "color",  # integer field on res.partner
+                "evaluation_type": "value",
+                "value": "not_a_number",
+            }
+        )
+        with self.assertRaises(UserError):
+            self.action._eval_value()
+
+    def test_b1_eval_value_bad_float_raises_clean_error(self):
+        """A non-numeric static value for a float field raises a clean UserError."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "partner_latitude",  # float field
+                "evaluation_type": "value",
+                "value": "not_a_number",
+            }
+        )
+        with self.assertRaises(UserError):
+            self.action._eval_value()
+
+    def test_b2_eval_value_blank_numeric_is_typed_zero(self):
+        """A blank static value degrades to a typed empty (0 / False), not a crash."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "color",
+                "evaluation_type": "value",
+                "value": "",
+            }
+        )
+        self.assertEqual(self.action._eval_value()[self.action.id], 0)
+        # many2one blank -> False (clear the relation)
+        self.action.write({"update_path": "parent_id", "value": ""})
+        self.assertIs(self.action._eval_value()[self.action.id], False)
+
+    def test_b3_relation_chain_degrades_without_raising_on_read(self):
+        """_get_relation_chain must NOT raise on an invalid path by default, so that
+        stored computes (crud_model_id, warning) can never explode on plain read."""
+        # .new() bypasses constraints, letting us hold an invalid path in-memory.
+        action = self.env["ir.actions.server"].new(
+            {
+                "model_id": self.res_partner_model.id,
+                "state": "object_write",
+                "update_path": "totally_not_a_field",
+            }
+        )
+        # Must degrade to an empty chain rather than raise.
+        self.assertEqual(action._get_relation_chain("update_path"), ([], ""))
+        # And crud_model_id (a stored compute) must be readable without raising.
+        self.assertFalse(action.update_field_id)
+
+    def test_b4_empty_path_segment_raises_clear_error_on_save(self):
+        """A path with an empty segment (double dot) is rejected on save with a
+        message that names the empty segment, not a baffling "Unknown field ''"."""
+        with self.assertRaises(ValidationError) as cm:
+            self.action.write(
+                {
+                    "state": "object_write",
+                    "update_path": "parent_id..name",
+                    "value": "X",
+                }
+            )
+            self.action.flush_recordset(["update_path", "update_field_id"])
+        self.assertIn("empty", str(cm.exception).lower())
+
+    def test_b5_available_models_not_state_dependent(self):
+        """available_model_ids is state-invariant, so it must not declare a
+        dependency on `state` (which would force a needless ir.model search on
+        every state change)."""
+        compute = type(self.env["ir.actions.server"])._compute_available_model_ids
+        self.assertNotIn("state", getattr(compute, "_depends", ()))
+
+    def test_b6_equation_evaluates_without_sudo_privilege(self):
+        """SECURITY INVARIANT: a server action's expression must evaluate with the
+        triggering user's own privilege — ``env.su`` must be False when a normal
+        user triggers it — so record ACLs still apply. The action *dispatch* runs
+        sudo, but the per-record eval-context env must stay the user's env, NOT
+        ``run_self.env`` (which is sudo). ``su=True`` here would bypass ACLs.
+
+        ``env.su`` is 0/False under the correct code; a regression that used
+        ``run_self.env`` would make it 1/True (proven to have teeth by temporarily
+        applying that change during development)."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "color",  # integer field
+                "evaluation_type": "equation",
+                "value": "1 if env.su else 0",
+                # group-gate so the demo user is authorized without needing a
+                # record-level ACL grant (see _can_execute_action_on_records)
+                "group_ids": [Command.set(self.env.ref("base.group_user").ids)],
+            }
+        )
+        self.action.with_user(self.user_demo.id).with_context(self.context).run()
+        self.assertEqual(
+            self.test_partner.color,
+            0,
+            "expressions must evaluate with su=False (user ACLs), not elevated",
+        )
+
+    def test_b7_onchange_new_record_writes_cache_only(self):
+        """An object_write action triggered as an onchange on a NEW record (no
+        origin id) must set the value in the record's in-memory cache via the
+        early-return branch of _run, never touching the database."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "function",  # char field on res.partner
+                "evaluation_type": "value",
+                "value": "Set By Action",
+            }
+        )
+        new_record = self.env["res.partner"].new({"name": "New Guy"})
+        self.assertFalse(new_record._origin.id, "precondition: unsaved record")
+        self.action.with_context(
+            active_model="res.partner", onchange_self=new_record
+        ).run()
+        self.assertEqual(new_record.function, "Set By Action")
+
+    def test_b8_onchange_existing_record_writes_cache_not_db(self):
+        """An object_write onchange on an EXISTING record updates only the
+        in-memory cache of the edited pseudo-record; the persisted row is left
+        untouched (onchange must never write to the database)."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "function",
+                "evaluation_type": "value",
+                "value": "Set By Action",
+            }
+        )
+        onchange_record = self.env["res.partner"].new(
+            {"name": self.test_partner.name}, origin=self.test_partner
+        )
+        self.assertTrue(onchange_record._origin.id, "precondition: has origin")
+        self.action.with_context(
+            active_model="res.partner", onchange_self=onchange_record
+        ).run()
+        self.assertEqual(onchange_record.function, "Set By Action")
+        self.assertFalse(
+            self.test_partner.function,
+            "onchange must not persist to the database record",
+        )
+
+    def test_c0_eval_value_sequence(self):
+        """evaluation_type == 'sequence' draws the next value from the sequence."""
+        sequence = self.env["ir.sequence"].create(
+            {"name": "Test Seq", "prefix": "SEQ-", "padding": 4, "number_next": 1}
+        )
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "ref",  # a char field, as the sequence warning requires
+                "evaluation_type": "sequence",
+                "sequence_id": sequence.id,
+            }
+        )
+        value = self.action._eval_value()[self.action.id]
+        self.assertEqual(value, "SEQ-0001")
+
+    def test_c1_eval_value_blank_float_is_typed_zero(self):
+        """A blank value on a float field yields 0.0, not '' (mirrors test_b2 for int)."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "partner_latitude",
+                "evaluation_type": "value",
+                "value": "",
+            }
+        )
+        result = self.action._eval_value()[self.action.id]
+        self.assertEqual(result, 0.0)
+        self.assertIsInstance(result, float)
+
+    def test_c2_eval_value_m2o_parsed_zero_is_false(self):
+        """A value that parses to 0 on a many2one field clears the relation (False),
+        not a spurious id 0."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "country_id",
+                "evaluation_type": "value",
+                "value": "0",
+            }
+        )
+        self.assertIs(self.action._eval_value()[self.action.id], False)
+
+    def test_c3_gc_histories_prunes_to_max(self):
+        """The autovacuum keeps at most ``_max_entries_per_action`` rows per action."""
+        History = self.env["ir.actions.server.history"]
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "GC target",
+                "model_id": self.res_partner_model.id,
+                "state": "code",
+                "code": "x = 1",
+            }
+        )
+        # Start from a clean slate (create() already recorded one entry), then add
+        # more than the cap directly so the pruning has something to trim.
+        History.search([("action_id", "=", action.id)]).unlink()
+        cap = History._max_entries_per_action
+        History.create(
+            [{"action_id": action.id, "code": str(i)} for i in range(cap + 5)]
+        )
+        self.assertEqual(
+            History.search_count([("action_id", "=", action.id)]), cap + 5
+        )
+        History._gc_histories()
+        self.assertEqual(
+            History.search_count([("action_id", "=", action.id)]),
+            cap,
+            "GC must prune each action's history down to the cap",
+        )
+
+    def test_c4_webhook_sample_payload_structure(self):
+        """The webhook sample payload always carries _id/_model/_action plus the
+        selected fields, as valid JSON."""
+        import json
+
+        self.action.write(
+            {
+                "state": "webhook",
+                "webhook_url": "http://example.invalid/hook",
+                "webhook_field_ids": [Command.set([self.res_partner_name_field.id])],
+            }
+        )
+        payload = json.loads(self.action.webhook_sample_payload)
+        self.assertEqual(payload["_model"], "res.partner")
+        self.assertIn("_id", payload)
+        self.assertIn("_action", payload)
+        self.assertIn("name", payload)
+
+    def test_c5_record_level_acl_is_the_live_gate(self):
+        """For a groupless action, the triggering user's write access on the
+        concrete records is the real gate (the model-level check runs under the
+        sudo dispatch env and never blocks). A user lacking record write access
+        is refused with a logged AccessError."""
+        rule_model = self.env["ir.model"].search([("model", "=", "ir.rule")])
+        a_rule = self.env["ir.rule"].search([], limit=1)
+        self.assertTrue(a_rule, "precondition: at least one ir.rule exists")
+        self.assertFalse(
+            self.env["ir.rule"].with_user(self.user_demo).has_access("write"),
+            "precondition: demo user cannot write ir.rule",
+        )
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "Touch a rule",
+                "model_id": rule_model.id,
+                "state": "code",
+                "code": "x = 1",
+            }
+        )
+        with self.assertRaises(AccessError), mute_logger(
+            "odoo.addons.base.models.ir_actions_server"
+        ):
+            action.with_user(self.user_demo).with_context(
+                active_model="ir.rule",
+                active_id=a_rule.id,
+                active_ids=[a_rule.id],
+            ).run()
+
 
 @tagged("post_install", "-at_install")
 class TestActionsPath(common.TransactionCase):
