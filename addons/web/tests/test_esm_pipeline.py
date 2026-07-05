@@ -1359,3 +1359,127 @@ class TestEsmLexer(TransactionCase):
         discovered, _ext = manager._discover_bridge_specifiers(set(), set())
         self.assertIn("@other/mixed", discovered)
         self.assertIn("__default__", discovered["@other/mixed"])
+
+
+class TestQwebAssetHelpers(TransactionCase):
+    """Unit tests for the pure ``ir.qweb`` asset helpers.
+
+    None of these spawn esbuild or touch the DB — they pin the node/URL
+    contracts that the render paths depend on, several of which were
+    silent latent traps before being hardened.
+    """
+
+    @property
+    def _qweb(self):
+        return self.env["ir.qweb"]
+
+    # ── _specifier_to_static_url (the reserved @odoo namespace) ──
+    def test_specifier_convention_resolves(self):
+        """``@addon/path`` specifiers map to their served static URL."""
+        cases = {
+            "@web/core/registry": "/web/static/src/core/registry.js",
+            "@web/../lib/hoot/hoot": "/web/static/lib/hoot/hoot.js",
+            "@web/../tests/foo": "/web/static/tests/foo.js",
+            "@account/models/move": "/account/static/src/models/move.js",
+        }
+        for spec, url in cases.items():
+            self.assertEqual(self._qweb._specifier_to_static_url(spec), url, spec)
+
+    def test_specifier_odoo_namespace_is_reserved(self):
+        """``@odoo/*`` are vendored externals, NOT ``/odoo/static/src`` paths.
+
+        Regression: the convention derived a bogus ``/odoo/static/src/owl.js``
+        (a hard 404) for ``@odoo/owl``, contradicting the docstring's promise
+        of ``None``.  Every such specifier is covered by ``_ODOO_EXTERNAL_LIBS``,
+        so returning ``None`` here lets the caller's ``externals or ...`` land on
+        the correct vendored URL (or yield a clean *module not found*).
+        """
+        externals = self._qweb._ODOO_EXTERNAL_LIBS
+        for spec in [k for k in externals if k.startswith("@odoo/")]:
+            self.assertIsNone(
+                self._qweb._specifier_to_static_url(spec),
+                f"{spec} must not resolve via the addon convention",
+            )
+            # …and the external map still has the real, non-empty URL.
+            self.assertTrue(externals[spec])
+        # a bare @odoo/<x> not in the map also declines (clean not-found)
+        self.assertIsNone(self._qweb._specifier_to_static_url("@odoo/nope"))
+
+    def test_specifier_non_convention_returns_none(self):
+        for spec in ["luxon", "@web", "@/foo", ""]:
+            self.assertIsNone(self._qweb._specifier_to_static_url(spec), spec)
+
+    # ── _is_debug_assets (crash-proof debug flag) ──
+    def test_is_debug_assets_string_semantics(self):
+        q = self._qweb
+        self.assertTrue(q._is_debug_assets("assets"))
+        self.assertTrue(q._is_debug_assets("1,assets"))
+        self.assertFalse(q._is_debug_assets("1"))
+        self.assertFalse(q._is_debug_assets(""))
+
+    def test_is_debug_assets_never_raises_on_non_str(self):
+        """A bare ``bool``/``None`` degrades to non-debug instead of the
+        historical ``"assets" in True`` -> ``TypeError``."""
+        q = self._qweb
+        for value in (True, False, None, 0, 1):
+            self.assertFalse(q._is_debug_assets(value), repr(value))
+
+    def test_get_asset_links_survives_bool_debug(self):
+        """The public entry point no longer crashes when handed ``debug=True``."""
+        # Should not raise (empty css+js just returns []).
+        self.assertEqual(
+            self._qweb._get_asset_links(
+                "web.assets_web", css=False, js=False, debug=True
+            ),
+            [],
+        )
+
+    # ── _link_to_node (stylesheet type) ──
+    def test_link_to_node_stylesheet_is_text_css(self):
+        """A stylesheet link is always ``text/css`` — never ``text/{ext}``."""
+        for path in ["/x/a.css", "/x/a.scss", "/x/a.sass"]:
+            tag, attrs = self._qweb._link_to_node(path)
+            self.assertEqual(tag, "link", path)
+            self.assertEqual(attrs["type"], "text/css", path)
+            self.assertEqual(attrs["rel"], "stylesheet", path)
+
+    def test_link_to_node_script_and_xml(self):
+        tag, attrs = self._qweb._link_to_node("/x/a.js")
+        self.assertEqual((tag, attrs["type"], attrs.get("src")),
+                         ("script", "text/javascript", "/x/a.js"))
+        tag, attrs = self._qweb._link_to_node("/x/a.xml")
+        self.assertEqual((tag, attrs["type"], attrs.get("data-src")),
+                         ("script", "text/xml", "/x/a.xml"))
+
+    # ── _import_map_url_breakdown ──
+    def test_import_map_url_breakdown(self):
+        im = {
+            "a": "/web/static/src/a.js",
+            "b": "/web/assets/esm/bridges/deadbeef.js",
+            "c": "data:text/javascript,1",
+            "d": "/account/static/src/d.js",
+        }
+        self.assertEqual(self._qweb._import_map_url_breakdown(im), (2, 1, 1))
+        self.assertEqual(self._qweb._import_map_url_breakdown({}), (0, 0, 0))
+
+    # ── _combine_bundle_with_templates ──
+    def test_combine_no_templates_is_identity(self):
+        self.assertEqual(
+            self._qweb._combine_bundle_with_templates("CODE;", ""), "CODE;"
+        )
+
+    def test_combine_appends_templates(self):
+        out = self._qweb._combine_bundle_with_templates("CODE;", "TPL;")
+        self.assertIn("CODE;", out)
+        self.assertIn("TPL;", out)
+        self.assertNotIn("sourceMappingURL", out)
+
+    def test_combine_keeps_sourcemap_directive_last(self):
+        """The trailing ``//# sourceMappingURL=`` directive must stay the LAST
+        line after templates are appended, or devtools drops source maps."""
+        src = "CODE;\n//# sourceMappingURL=b.esm.js.map"
+        out = self._qweb._combine_bundle_with_templates(src, "TPL;")
+        last = out.rstrip("\n").splitlines()[-1]
+        self.assertEqual(last, "//# sourceMappingURL=b.esm.js.map")
+        self.assertEqual(out.count("sourceMappingURL"), 1)
+        self.assertIn("TPL;", out)

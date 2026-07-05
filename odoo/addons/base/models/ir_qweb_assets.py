@@ -40,6 +40,14 @@ from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
 
 _logger = logging.getLogger(__name__)
 
+# A single rendered asset node: ``(tag_name, attributes)``.  The compiled
+# ``t-call-assets`` loop unpacks exactly this shape, so every node producer
+# in this module returns it (or a list/pair of it).
+AssetNode = tuple[str, dict[str, Any]]
+# The ``(pre_nodes, post_nodes)`` pair that flanks the legacy bundle in the
+# native-ESM path — pre goes before the bundle, post after.
+EsmNodePair = tuple[list[AssetNode], list[AssetNode]]
+
 # Structured asset-pipeline loggers (odoo.assets.{category}).  Admin can
 # trace the full bundle path with ``--log-handler=odoo.assets:DEBUG`` or
 # isolate one subsystem via the child names.
@@ -68,12 +76,12 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         css: bool = True,
         js: bool = True,
-        debug: str | bool = False,
+        debug: str = "",
         defer_load: bool = False,
         lazy_load: bool = False,
         media: str | None = None,
         autoprefix: bool = False,
-    ) -> list[tuple[str, dict[str, Any]]]:
+    ) -> list[AssetNode]:
         """Generates asset nodes.
         If debug=assets, the assets will be regenerated when a file which composes them has been modified.
         Else, the assets will be generated only once and then stored in cache.
@@ -137,12 +145,28 @@ class IrQweb(models.AbstractModel):
 
         return nodes
 
+    @staticmethod
+    def _is_debug_assets(debug) -> bool:
+        """Whether ``debug`` requests the un-cached, per-file assets mode.
+
+        ``debug`` is the session/render debug flag.  In the HTTP path it is
+        ALWAYS a string (see ``odoo.http.Session.debug`` — a ``@property``
+        returning ``self.get("debug") or ""``), and the compiled QWeb passes
+        ``values.get("debug")`` which may be ``None``.  The historical idiom
+        ``debug and "assets" in debug`` raises ``TypeError`` on a bare
+        ``bool`` (``"assets" in True``) — a latent trap the ``str | bool``
+        annotations advertised but the code could not survive.  Guarding on
+        ``isinstance(..., str)`` makes every input safe: ``None``/``False``/
+        any non-string degrades to non-debug instead of crashing.
+        """
+        return isinstance(debug, str) and "assets" in debug
+
     def _get_asset_links(
         self,
         bundle: str,
         css: bool = True,
         js: bool = True,
-        debug: str | bool | None = None,
+        debug: str | None = None,
         autoprefix: bool = False,
     ) -> list[str]:
         """Generates asset links (URLs), not nodes.
@@ -157,7 +181,7 @@ class IrQweb(models.AbstractModel):
             == "rtl"
         )
         assets_params = self.env["ir.asset"]._get_asset_params()  # website_id
-        debug_assets = debug and "assets" in debug
+        debug_assets = self._is_debug_assets(debug)
 
         if debug_assets:
             return self._generate_asset_links(
@@ -263,7 +287,7 @@ class IrQweb(models.AbstractModel):
         defer_load: bool = False,
         lazy_load: bool = False,
         media: str | None = None,
-    ) -> list[tuple[str, dict[str, Any]]]:
+    ) -> list[AssetNode]:
         # ``_link_to_node`` returns None for a path whose extension is not a
         # known script/style/template type (e.g. an external URL with a query
         # string). Drop those: downstream consumers (the generated
@@ -290,7 +314,7 @@ class IrQweb(models.AbstractModel):
         defer_load: bool = False,
         lazy_load: bool = False,
         media: str | None = None,
-    ) -> tuple[str, dict[str, Any]] | None:
+    ) -> AssetNode | None:
         ext = path.rsplit(".", maxsplit=1)[-1] if path else "js"
         is_js = ext in SCRIPT_EXTENSIONS
         is_xml = ext in TEMPLATE_EXTENSIONS
@@ -320,8 +344,14 @@ class IrQweb(models.AbstractModel):
             return ("script", attributes)
 
         if is_css:
+            # A ``rel="stylesheet"`` link is CSS by definition, so the type is
+            # always ``text/css`` — never ``text/{ext}``.  ``STYLE_EXTENSIONS``
+            # includes ``scss``/``sass``; those are compiled to CSS before a URL
+            # is ever served (the real ``web.assets_web`` link set is 100% ``.css``),
+            # but deriving ``text/scss`` from the extension would emit an invalid
+            # stylesheet type the day a raw ``.scss`` href slips through.
             attributes = {
-                "type": f"text/{ext}",  # we don't really expect to have anything else than pure css here
+                "type": "text/css",
                 "rel": "stylesheet",
                 "href": path,
                 "media": media,
@@ -381,6 +411,17 @@ class IrQweb(models.AbstractModel):
         Returns ``None`` for specifiers that don't match the convention
         (e.g. bare ``luxon``, ``@odoo/owl``) — those belong in
         ``_ODOO_EXTERNAL_LIBS`` or esbuild aliases instead.
+
+        ``@odoo`` is a RESERVED namespace, not a real addon: every
+        ``@odoo/*`` specifier (owl, hoot, hoot-dom, …) is a vendored ESM
+        library whose canonical URL lives in ``_ODOO_EXTERNAL_LIBS`` (e.g.
+        ``@odoo/owl`` → ``/web/static/lib/owl/owl.es.js``).  Deriving
+        ``/odoo/static/src/owl.js`` from the ``@addon/path`` convention
+        would 404, so this method returns ``None`` for it and lets the
+        caller's ``_ODOO_EXTERNAL_LIBS.get(spec) or ...`` fall through to
+        the correct mapping.  (Every caller already probes the externals
+        map first, so this only hardens the contract the docstring
+        promises — a clean *module not found* over a broken URL.)
         """
         if not spec.startswith("@"):
             return None
@@ -389,6 +430,8 @@ class IrQweb(models.AbstractModel):
         if slash <= 0:
             return None
         addon = rest[:slash]
+        if addon == "odoo":
+            return None
         path = rest[slash + 1 :]
         if path.startswith("../lib/"):
             url = f"/{addon}/static/lib/{path[len('../lib/') :]}"
@@ -399,6 +442,59 @@ class IrQweb(models.AbstractModel):
         if not url.endswith(".js"):
             url += ".js"
         return url
+
+    @staticmethod
+    def _import_map_url_breakdown(import_map: dict[str, str]) -> tuple[int, int, int]:
+        """Split import-map targets into ``(real_urls, bridge_shims, data_uris)``.
+
+        Diagnostic only — feeds the ``render`` log event so browser-side "import
+        map rule was removed" warnings can be correlated with the exact mix of
+        specifier targets the server rendered.  Bridge shims live under
+        ``/web/assets/esm/bridges/``; ``data:`` URIs are the pre-attachment
+        legacy form (any non-zero count after the bridge refactor flags a caller
+        that never migrated).  Shared verbatim by the prod and debug render
+        paths — extracted so the two stay in lockstep.
+        """
+        n_bridges = sum(
+            1
+            for v in import_map.values()
+            if v.startswith("/web/assets/esm/bridges/")
+        )
+        n_data = sum(1 for v in import_map.values() if v.startswith("data:"))
+        n_real = len(import_map) - n_bridges - n_data
+        return n_real, n_bridges, n_data
+
+    @staticmethod
+    def _combine_bundle_with_templates(esbuild_code: str, esm_tpl: str) -> str:
+        """Append inlined template registration to the esbuild bundle, keeping
+        any trailing ``//# sourceMappingURL=`` directive last.
+
+        Templates MUST share the esbuild bundle's module body (so
+        ``registerTemplate(...)`` runs synchronously right after
+        ``registerNativeModules({...})``, before the microtask queue drains and
+        any ``whenReady`` mount fires).  But esbuild emits its sourcemap
+        directive as the final line and browsers honour only the LAST
+        ``sourceMappingURL`` comment, so a naive append would silently break
+        source maps.  Strip the trailing directive, append the templates body,
+        then re-emit the directive at the very end.  Returns ``esbuild_code``
+        unchanged when there is no template body.
+        """
+        if not esm_tpl:
+            return esbuild_code
+        esb_base = esbuild_code
+        sm_directive = ""
+        tail_idx = esbuild_code.rfind("//# sourceMappingURL=")
+        if tail_idx != -1 and "\n" not in esbuild_code[tail_idx:].rstrip("\n"):
+            # The directive is esbuild's last non-empty line; the match spans
+            # from the marker to EOF (plus an optional single trailing newline).
+            sm_directive = esbuild_code[tail_idx:].rstrip("\n")
+            esb_base = esbuild_code[:tail_idx].rstrip("\n") + "\n"
+        return (
+            esb_base
+            + "/* ── Inlined templates registration ── */\n"
+            + esm_tpl
+            + ("\n" + sm_directive + "\n" if sm_directive else "")
+        )
 
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
@@ -844,10 +940,7 @@ class IrQweb(models.AbstractModel):
         self,
         bundle: str,
         assets_params: dict[str, Any] | None = None,
-    ) -> tuple[
-        list[tuple[str, dict[str, Any]]],
-        list[tuple[str, dict[str, Any]]],
-    ]:
+    ) -> EsmNodePair:
         """Cached production native-ESM nodes (non-debug, read-write only).
 
         Runs the full assembly via ``_get_native_module_nodes_impl`` and caches
@@ -868,12 +961,9 @@ class IrQweb(models.AbstractModel):
     def _get_native_module_nodes(
         self,
         bundle: str,
-        debug: str | bool = False,
+        debug: str = "",
         assets_params: dict[str, Any] | None = None,
-    ) -> tuple[
-        list[tuple[str, dict[str, Any]]],
-        list[tuple[str, dict[str, Any]]],
-    ]:
+    ) -> EsmNodePair:
         """Dispatch native-ESM node generation through the assets cache.
 
         Production (non-debug, read-write) renders go through the ormcached
@@ -882,7 +972,7 @@ class IrQweb(models.AbstractModel):
         and the esbuild-declined fallback all render uncached via
         ``_get_native_module_nodes_impl``.
         """
-        debug_assets = debug and "assets" in debug
+        debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
             assets_params = self.env["ir.asset"]._get_asset_params()
         if (
@@ -912,8 +1002,8 @@ class IrQweb(models.AbstractModel):
     def _dedup_request_import_map(
         self,
         bundle: str,
-        pre_nodes: list[tuple[str, dict[str, Any]]],
-    ) -> list[tuple[str, dict[str, Any]]]:
+        pre_nodes: list[AssetNode],
+    ) -> list[AssetNode]:
         """Keep at most one ``<script type="importmap">`` per request.
 
         The browser evaluates every importmap on the page and logs "An
@@ -935,7 +1025,7 @@ class IrQweb(models.AbstractModel):
         if not request:
             return pre_nodes
 
-        def _is_import_map(node: tuple[str, dict[str, Any]]) -> bool:
+        def _is_import_map(node: AssetNode) -> bool:
             return node[0] == "script" and node[1].get("type") == "importmap"
 
         if not any(_is_import_map(node) for node in pre_nodes):
@@ -955,13 +1045,10 @@ class IrQweb(models.AbstractModel):
     def _get_native_module_nodes_impl(
         self,
         bundle: str,
-        debug: str | bool = False,
+        debug: str = "",
         assets_params: dict[str, Any] | None = None,
         _raise_on_decline: bool = False,
-    ) -> tuple[
-        list[tuple[str, dict[str, Any]]],
-        list[tuple[str, dict[str, Any]]],
-    ]:
+    ) -> EsmNodePair:
         """Generate import map, OWL pre-load, and bridge nodes for native ESM.
 
         :param str bundle: name of the asset bundle to render
@@ -980,7 +1067,7 @@ class IrQweb(models.AbstractModel):
         #      ``registerNativeModules()``.  Runs after the bundle because
         #      both ``defer`` and ``type="module"`` share the same deferred
         #      execution queue in document order.
-        debug_assets = debug and "assets" in debug
+        debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
             assets_params = self.env["ir.asset"]._get_asset_params()
 
@@ -1171,10 +1258,7 @@ class IrQweb(models.AbstractModel):
         esbuild_result: EsbuildResult,
         assets_params: dict[str, Any] | None,
         child_bundles: list[AssetsBundle] | None = None,
-    ) -> tuple[
-        list[tuple[str, dict[str, Any]]],
-        list[tuple[str, dict[str, Any]]],
-    ]:
+    ) -> EsmNodePair:
         """Assemble production native-ESM nodes from a successful esbuild build.
 
         Builds the merged import map (externals, dynamic bundles, includes,
@@ -1429,35 +1513,7 @@ class IrQweb(models.AbstractModel):
         esm_tpl = asset_bundle.generate_esm_template_bundle(
             use_import=False,
         )
-        bundle_code = esbuild_code
-        if esm_tpl:
-            # When source maps are on, esbuild emits a
-            # ``//# sourceMappingURL=<name>.map`` directive at
-            # the END of its output so devtools knows where to
-            # fetch the map from.  Browsers read the LAST
-            # sourceMappingURL comment in the file — if we
-            # append the templates body after the directive,
-            # the directive becomes invisible to devtools and
-            # source maps silently stop working.  Strip it
-            # before appending templates, then re-emit it at
-            # the very end so the combined bundle still has a
-            # trailing directive.
-            esb_base = esbuild_code
-            sm_directive = ""
-            _tail_idx = esbuild_code.rfind("//# sourceMappingURL=")
-            if _tail_idx != -1 and "\n" not in esbuild_code[_tail_idx:].rstrip("\n"):
-                # Match spans from the directive marker to the
-                # end of file (possibly followed by a single
-                # trailing newline).  esbuild always emits the
-                # directive as the LAST non-empty line.
-                sm_directive = esbuild_code[_tail_idx:].rstrip("\n")
-                esb_base = esbuild_code[:_tail_idx].rstrip("\n") + "\n"
-            bundle_code = (
-                esb_base
-                + "/* ── Inlined templates registration ── */\n"
-                + esm_tpl
-                + ("\n" + sm_directive + "\n" if sm_directive else "")
-            )
+        bundle_code = self._combine_bundle_with_templates(esbuild_code, esm_tpl)
         # Persist and reference by URL even on read-only request cursors:
         # ``_save_esm_attachment`` routes its INSERT through a dedicated
         # read-write registry cursor (a primary cursor even on a
@@ -1569,13 +1625,9 @@ class IrQweb(models.AbstractModel):
         # diagnostic still splits the two so historical log
         # comparisons make sense — any ``data:`` counts after
         # the refactor would indicate a caller hasn't migrated.
-        _n_bridges = sum(
-            1
-            for v in prod_import_map.values()
-            if v.startswith("/web/assets/esm/bridges/")
+        _n_real_url, _n_bridges, _n_data_uri = self._import_map_url_breakdown(
+            prod_import_map
         )
-        _n_data_uri = sum(1 for v in prod_import_map.values() if v.startswith("data:"))
-        _n_real_url = len(prod_import_map) - _n_bridges - _n_data_uri
         log_event(
             _esm_log,
             logging.DEBUG,
@@ -1600,10 +1652,7 @@ class IrQweb(models.AbstractModel):
         native_data: dict[str, Any],
         debug_assets: bool,
         assets_params: dict[str, Any] | None,
-    ) -> tuple[
-        list[tuple[str, dict[str, Any]]],
-        list[tuple[str, dict[str, Any]]],
-    ]:
+    ) -> EsmNodePair:
         """Build debug-mode (individual-file) native-ESM nodes.
 
         Emits the import map, the loader shim, the bridge module (eager imports
@@ -1914,11 +1963,9 @@ class IrQweb(models.AbstractModel):
                 )
             )
 
-        _n_bridges = sum(
-            1 for v in import_map.values() if v.startswith("/web/assets/esm/bridges/")
+        _n_real_url, _n_bridges, _n_data_uri = self._import_map_url_breakdown(
+            import_map
         )
-        _n_data_uri = sum(1 for v in import_map.values() if v.startswith("data:"))
-        _n_real_url = len(import_map) - _n_bridges - _n_data_uri
         log_event(
             _esm_log,
             logging.DEBUG,
@@ -2034,7 +2081,10 @@ class IrQweb(models.AbstractModel):
         # in ``ir.attachment`` and waste filestore bytes (one stale
         # 1MB metafile or 3MB sourcemap per rebuild adds up fast on
         # busy dev DBs).
-        stale = IrAttachment.sudo().search(
+        # Only the COUNT is used (to decide the cache clear + log) — the rows
+        # are never unlinked here (deletion is deferred to ``_gc_esm_assets``),
+        # so ``search_count`` avoids materialising a recordset we'd throw away.
+        stale_count = IrAttachment.sudo().search_count(
             [
                 "|",
                 "|",
@@ -2051,7 +2101,7 @@ class IrQweb(models.AbstractModel):
                 ("public", "=", True),
             ]
         )
-        if stale:
+        if stale_count:
             # Deletion is DEFERRED to IrAttachment._gc_esm_assets: the
             # superseded rows must keep serving in-flight pages, stale CDN
             # HTML and workers that have not yet processed the cache-clear
@@ -2066,7 +2116,7 @@ class IrQweb(models.AbstractModel):
                 logging.INFO,
                 "stale_deferred",
                 bundle=bundle,
-                count=len(stale),
+                count=stale_count,
             )
         log_event(
             _attach_log,
@@ -2282,7 +2332,7 @@ class IrQweb(models.AbstractModel):
                 ) from None
             self.env["ir.attachment"].with_user(SUPERUSER_ID).create(vals_list)
 
-    def _get_asset_link_urls(self, bundle: str, debug: str | bool = False) -> list[str]:
+    def _get_asset_link_urls(self, bundle: str, debug: str = "") -> list[str]:
         asset_nodes = self._get_asset_nodes(bundle, js=False, debug=debug)
         return [node[1]["href"] for node in asset_nodes if node[0] == "link"]
 
