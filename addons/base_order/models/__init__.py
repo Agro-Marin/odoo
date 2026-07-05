@@ -1,3 +1,4 @@
+from . import account_move_line
 from . import order_mixin
 from . import order_amount_mixin
 from . import order_invoice_mixin

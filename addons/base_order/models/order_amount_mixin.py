@@ -232,6 +232,11 @@ class OrderLineAmountMixin(models.AbstractModel):
     product_qty = fields.Float(
         string="Quantity",
         digits="Product Unit",
+        default=1.0,
+        compute="_compute_product_qty",
+        store=True,
+        precompute=True,
+        readonly=False,
     )
     product_uom_qty = fields.Float(
         string="Quantity (Reference UoM)",
@@ -243,10 +248,29 @@ class OrderLineAmountMixin(models.AbstractModel):
     price_unit = fields.Float(
         string="Unit Price",
         min_display_digits="Product Price",
+        compute="_compute_price_and_discount",
+        store=True,
+        precompute=True,
+        readonly=False,
+        aggregator="avg",
+    )
+    price_unit_auto = fields.Float(
+        string="Automatic Price",
+        min_display_digits="Product Price",
+        compute="_compute_price_and_discount",
+        store=True,
+        precompute=True,
+        copy=True,
+        help="Price from the pricelist/seller. Compared with price_unit to "
+        "detect manual overrides.",
     )
     discount = fields.Float(
         string="Discount (%)",
         digits="Discount",
+        compute="_compute_price_and_discount",
+        store=True,
+        precompute=True,
+        readonly=False,
     )
     tax_ids = fields.Many2many(
         comodel_name="account.tax",
@@ -315,6 +339,30 @@ class OrderLineAmountMixin(models.AbstractModel):
             line.price_total = base_line["tax_details"]["total_included_currency"]
             line.price_tax = line.price_total - line.price_subtotal
 
+    @api.depends("product_id", "display_type")
+    def _compute_product_qty(self):
+        """Set the default quantity when a product is added or changed.
+
+        Subclasses extend the ``@api.depends`` set and override the hooks
+        (purchase resets on partner change and defaults to the seller min qty).
+        """
+        for line in self:
+            if line.display_type or not line.product_id:
+                line.product_qty = False
+                continue
+            if not line.product_qty or line._product_qty_reset_triggered():
+                line.product_qty = line._get_default_product_qty()
+
+    def _product_qty_reset_triggered(self):
+        """Whether the default quantity should be re-applied on change."""
+        return bool(
+            self._origin.product_id and self._origin.product_id != self.product_id
+        )
+
+    def _get_default_product_qty(self):
+        """Default quantity for a new/changed line (purchase → seller min qty)."""
+        return 1.0
+
     @api.depends("product_id", "product_id.uom_id", "product_uom_id", "product_qty")
     def _compute_product_uom_qty(self):
         """Convert ``product_qty`` to the product's reference UoM.
@@ -335,6 +383,119 @@ class OrderLineAmountMixin(models.AbstractModel):
                 )
             else:
                 line.product_uom_qty = line.product_qty
+
+    def _get_price_unit_gross(self):
+        """Return the tax-excluded unit price in the product's reference UoM."""
+        self.ensure_one()
+        price_unit = self.price_unit
+        if self.discount:
+            price_unit = price_unit * (1 - self.discount / 100)
+        if self.tax_ids:
+            qty = self.product_qty or 1
+            price_unit = self.tax_ids.compute_all(
+                price_unit,
+                currency=self.order_id.currency_id,
+                quantity=qty,
+                rounding_method="round_globally",
+            )["total_void"]
+            price_unit = price_unit / qty
+        if self.product_uom_id.id != self.product_id.uom_id.id:
+            price_unit *= self.product_id.uom_id.factor / self.product_uom_id.factor
+        return price_unit
+
+    @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
+    def _compute_price_and_discount(self):
+        """Refresh price/discount from the automatic price unless overridden.
+
+        The shadow-price loop is shared: compute the automatic price/discount,
+        track it in ``price_unit_auto``, and apply it only when the price was
+        not manually overridden.  Where the price comes from (pricelist vs
+        seller/cost) is the model-specific ``_get_auto_price_and_discount``.
+        Subclasses extend the ``@api.depends`` trigger set accordingly.
+        """
+        force_recompute = self.env.context.get("force_price_recomputation")
+        for line in self:
+            if line.display_type:
+                line.price_unit = False
+                line.discount = False
+                line.price_unit_auto = False
+                continue
+            if not line.product_id:
+                continue
+            auto_price, auto_discount = line._get_auto_price_and_discount()
+            old_shadow = line.price_unit_auto
+            line.price_unit_auto = auto_price
+            if line._should_update_price(auto_price, old_shadow, force_recompute):
+                line.price_unit = auto_price
+                line.discount = auto_discount
+
+    def _get_auto_price_and_discount(self):
+        """Return ``(auto_price, auto_discount)`` for this line.
+
+        Sale sources it from the pricelist (with combo / fiscal-position
+        handling); purchase from the selected seller or the product cost.
+        """
+        raise NotImplementedError(
+            f"{self._name} must implement _get_auto_price_and_discount()"
+        )
+
+    def _should_update_price(self, new_auto_price, old_auto_price, force_recompute=False):
+        """Whether ``price_unit`` should be refreshed from the automatic price.
+
+        Update when there is no manual override; preserve otherwise.  Subclasses
+        gate additional cases via ``_price_update_blocked`` (sale: invoiced /
+        expense-cost lines; purchase: invoiced lines / currency changes).
+
+        :param float new_auto_price: newly computed automatic price
+        :param float old_auto_price: previous ``price_unit_auto`` (pre-compute)
+        :param bool force_recompute: bypass manual-price protection
+        :rtype: bool
+        """
+        self.ensure_one()
+        precision = self._get_price_precision()
+
+        if self._price_update_blocked():
+            return False
+
+        if force_recompute:
+            return True
+
+        # Product changed - always reset to the new product's price.
+        if self._origin.product_id and self._origin.product_id != self.product_id:
+            return True
+
+        # With a baseline, preserve a price that differs from the old auto price
+        # (manual override, including an intentional 0.0 for free products).
+        has_baseline = self._origin.id or old_auto_price
+        if has_baseline:
+            is_manual = (
+                float_compare(
+                    self.price_unit,
+                    old_auto_price,
+                    precision_digits=precision,
+                )
+                != 0
+            )
+            return not is_manual
+
+        # New line without baseline: keep an explicit non-zero price, else auto.
+        return not (
+            self.price_unit
+            and float_compare(
+                self.price_unit,
+                new_auto_price,
+                precision_digits=precision,
+            )
+            != 0
+        )
+
+    def _price_update_blocked(self):
+        """Whether automatic price updates are blocked for this line.
+
+        Sale blocks invoiced and expense-cost lines; purchase blocks invoiced
+        lines and currency changes on confirmed orders.
+        """
+        return False
 
     def _get_base_line_special_type(self):
         """Return the tax-engine special type for this line, if any.

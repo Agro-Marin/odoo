@@ -1,7 +1,9 @@
 from collections import defaultdict
+from itertools import groupby
 
-from odoo import api, fields, models
-from odoo.fields import Domain
+from odoo import _, api, fields, models
+from odoo.exceptions import AccessError, UserError
+from odoo.fields import Command, Domain
 from odoo.tools import SQL
 
 INVOICE_STATE = [
@@ -352,6 +354,119 @@ class OrderInvoiceMixin(models.AbstractModel):
             values["journal_id"] = self.journal_id.id
         return values
 
+    # ─── Invoice Creation ──────────────────────────────────────────
+
+    def _create_invoices(self, grouped=False, final=False, date=None):
+        """Create invoice(s)/bill(s) for the orders in ``self``.
+
+        Shared 4-phase pipeline: build per-order values, group them, create the
+        moves, and flip negative-total moves to refunds.  The divergent parts
+        (invoiceable-line selection, down-payment sections, post-processing) are
+        hooks.
+
+        :param bool grouped: keep one invoice per order instead of grouping.
+        :param bool final: generate refunds where needed.
+        :rtype: account.move recordset
+        """
+        if not self.env["account.move"].has_access("create"):
+            try:
+                self.check_access("write")
+            except AccessError:
+                return self.env["account.move"]
+
+        # 1) Build per-order invoice values.
+        invoice_vals_list = []
+        sequence = 10
+        for order in self:
+            order = order.with_company(order.company_id)
+            invoice_vals = order._prepare_invoice_vals()
+            line_commands, sequence = order._prepare_invoice_line_commands(
+                order._get_invoiceable_lines(final),
+                sequence,
+            )
+            if not line_commands:
+                continue
+            invoice_vals["invoice_line_ids"] += line_commands
+            invoice_vals_list.append(invoice_vals)
+
+        if not invoice_vals_list:
+            if self.env.context.get("raise_if_nothing_to_invoice", True):
+                raise UserError(self._nothing_to_invoice_error_message())
+            return self.env["account.move"]
+
+        # 2) Group values by the grouping keys.
+        if not grouped:
+            invoice_vals_list = self._group_invoice_vals(invoice_vals_list)
+
+        # 3) Create the moves under the right move type.
+        invoice_type = self._get_invoice_move_types()[0]
+        moves = (
+            self.env["account.move"]
+            .sudo()
+            .with_context(default_move_type=invoice_type)
+            .create(invoice_vals_list)
+        )
+
+        # 4) Some moves might be refunds: switch negative-total moves.
+        moves_to_switch = moves.sudo().filtered(
+            lambda m: m.currency_id.round(m.amount_total) < 0,
+        )
+        if moves_to_switch:
+            moves_to_switch.action_switch_move_type()
+
+        self._post_create_invoices(moves)
+        return moves
+
+    def _get_invoiceable_lines(self, final=False):
+        """Lines to invoice for this order (override for sections/down payments)."""
+        self.ensure_one()
+        return self.line_ids.filtered(
+            lambda line: not line.display_type and line.qty_to_invoice,
+        )
+
+    def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
+        """Build the ``invoice_line_ids`` commands for one order.
+
+        :return: ``([Command.create(vals), ...], next_sequence)``
+        """
+        commands = []
+        for line in invoiceable_lines:
+            commands.extend(
+                Command.create(vals)
+                for vals in line._prepare_aml_vals_list(sequence=sequence)
+            )
+            sequence += 1
+        return commands, sequence
+
+    def _group_invoice_vals(self, invoice_vals_list):
+        """Group per-order invoice values by ``_get_invoice_grouping_keys``."""
+        grouping_keys = self._get_invoice_grouping_keys()
+
+        def key(vals):
+            return [vals.get(k) for k in grouping_keys]
+
+        grouped = []
+        for _keys, group in groupby(sorted(invoice_vals_list, key=key), key=key):
+            origins = set()
+            ref_vals = None
+            for vals in group:
+                if not ref_vals:
+                    ref_vals = vals
+                else:
+                    ref_vals["invoice_line_ids"] += vals["invoice_line_ids"]
+                origins.add(vals.get("invoice_origin"))
+            ref_vals["invoice_origin"] = ", ".join(sorted(o for o in origins if o))
+            grouped.append(ref_vals)
+        return grouped
+
+    def _post_create_invoices(self, moves):
+        """Hook after invoices are created (sale links origins, purchase files)."""
+        return moves
+
+    def _nothing_to_invoice_error_message(self):
+        """Error raised when there is nothing to invoice."""
+        return _("There is nothing to invoice for this order.")
+
 
 # ════════════════════════════════════════════════════════════════════
 # LINE-LEVEL INVOICE MIXIN
@@ -580,3 +695,43 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         :rtype: list[dict]
         """
         return [self._prepare_aml_vals(**optional_values)]
+
+    def _prepare_aml_vals(self, **optional_values):
+        """Prepare the values for one invoice line from this order line.
+
+        Builds the shared ``account.move.line`` dict.  Model-specific extras
+        (sale: combo section, ``extra_tax_data``; purchase: currency conversion,
+        refund quantity sign) are added by ``super()``-extending overrides.
+
+        :param optional_values: extra values merged into the returned dict
+        :rtype: dict
+        """
+        self.ensure_one()
+        res = {
+            "display_type": self.display_type or "product",
+            "name": self.env["account.move.line"]._get_journal_items_full_name(
+                self.name,
+                self.product_id.display_name,
+            ),
+            "product_id": self.product_id.id,
+            "product_uom_id": self.product_uom_id.id,
+            "quantity": self.qty_to_invoice,
+            "discount": self.discount,
+            "price_unit": self.price_unit,
+            "tax_ids": [Command.set(self.tax_ids.ids)],
+            "is_downpayment": self.is_downpayment,
+        }
+        link_field = self._get_invoice_line_link_field()
+        if link_field:
+            res[link_field] = [Command.link(self.id)]
+        if self.is_downpayment and self.invoice_line_ids:
+            res["account_id"] = self.invoice_line_ids.account_id[:1].id
+        res.update(optional_values)
+        return res
+
+    def _get_invoice_line_link_field(self):
+        """Order-line link field on ``account.move.line``.
+
+        Sale → ``'sale_line_ids'``, purchase → ``'purchase_line_ids'``.
+        """
+        return
