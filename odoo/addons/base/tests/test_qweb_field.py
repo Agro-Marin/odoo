@@ -88,6 +88,84 @@ class TestQwebFieldFloatConverter(common.TransactionCase):
         self.assertEqual(self.value_to_html(3.12349, options), "3.1235")
 
 
+class TestQwebFieldFloatTime(common.TransactionCase):
+    """QF-T3: ``float_time`` widget (hours-as-fraction -> HH:MM). Previously untested."""
+
+    def value_to_html(self, value, options=None):
+        return self.env["ir.qweb.field.float_time"].value_to_html(value, options or {})
+
+    def test_float_time_value_to_html(self):
+        self.assertEqual(self.value_to_html(1.5), "01:30")
+        self.assertEqual(self.value_to_html(0), "00:00")
+        self.assertEqual(self.value_to_html(2.25), "02:15")
+        self.assertEqual(self.value_to_html(-1.5), "-01:30")
+
+
+class TestQwebFieldDuration(common.TransactionCase):
+    """QF-T4: ``duration`` widget, incl. the digital branch and the
+    ``round`` > hour clamp, none of which had positive-value coverage."""
+
+    def value_to_html(self, value, options=None):
+        return self.env["ir.qweb.field.duration"].value_to_html(value, options or {})
+
+    def test_duration_digital_positive(self):
+        self.assertEqual(
+            self.value_to_html(1.5, {"unit": "hour", "digital": True}), "01:30:00"
+        )
+
+    def test_duration_digital_round_clamped_to_hour(self):
+        # round='day' (86400s) exceeds an hour; digital output clamps it to 3600.
+        self.assertEqual(
+            self.value_to_html(
+                1.5, {"unit": "hour", "round": "day", "digital": True}
+            ),
+            "02",
+        )
+
+    def test_duration_textual_formats(self):
+        self.assertEqual(self.value_to_html(1.5, {"unit": "hour"}), "1 hour 30 minutes")
+        self.assertEqual(
+            self.value_to_html(90, {"unit": "minute", "format": "short"}),
+            "1 hr 30 min",
+        )
+
+
+class TestQwebFieldRelative(common.TransactionCase):
+    """QF-T5: ``relative`` widget. Regression for the t-out path, which reached
+    ``value_to_html`` with no ``now`` option and raised ``KeyError`` instead of
+    defaulting to the current time."""
+
+    def value_to_html(self, value, options=None):
+        return self.env["ir.qweb.field.relative"].value_to_html(value, options or {})
+
+    def test_relative_without_now_defaults_to_current_time(self):
+        # The bare-value (t-out widget) path supplies no ``now``; must not crash.
+        from odoo import fields
+
+        result = self.value_to_html(fields.Datetime.from_string("2000-01-01 00:00:00"))
+        self.assertIn("ago", result)
+
+    def test_relative_with_explicit_now(self):
+        from odoo import fields
+
+        result = self.value_to_html(
+            fields.Datetime.from_string("2020-01-01 00:00:00"),
+            {"now": "2020-01-02 00:00:00"},
+        )
+        self.assertEqual(result, "1 day ago")
+
+
+class TestQwebFieldMonetaryType(common.TransactionCase):
+    """QF-T6: monetary must reject non-numbers, including bool (an int subclass)."""
+
+    def test_monetary_rejects_bool(self):
+        currency = self.env["res.currency"].search([], limit=1)
+        with self.assertRaises(TypeError):
+            self.env["ir.qweb.field.monetary"].value_to_html(
+                True, {"display_currency": currency}
+            )
+
+
 class TestQwebFieldContact(common.TransactionCase):
     @classmethod
     def setUpClass(cls):

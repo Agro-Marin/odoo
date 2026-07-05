@@ -28,6 +28,11 @@ from odoo.tools.translate import LazyTranslate, _
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
 
+# Glue the minus sign to the digits it negates with a zero-width no-break space
+# so bidi/RTL reflow cannot detach it from its number. Shared by every numeric
+# widget (integer/float/monetary) via ``IrQwebField._format_number``.
+NEGATIVE_SIGN_JOINER = "-\N{ZERO WIDTH NO-BREAK SPACE}"
+
 # --------------------------------------------------------------------
 # QWeb Fields converters
 # --------------------------------------------------------------------
@@ -123,7 +128,9 @@ class IrQwebField(models.AbstractModel):
         data = {}
         field = record._fields[field_name]
 
-        if not options["inherit_branding"] and not options["translate"]:
+        # ``inherit_branding``/``translate`` are injected by the ``t-field``
+        # dispatcher, but keep this tolerant of direct callers that omit them.
+        if not options.get("inherit_branding") and not options.get("translate"):
             return data
 
         data["data-oe-model"] = record._name
@@ -156,6 +163,8 @@ class IrQwebField(models.AbstractModel):
         """
         if not record:
             return False
+        # Read the field through the QWeb render context (lang, bin_size, tz, …)
+        # so the value is resolved as it should appear in the rendered document.
         value = record.with_context(**self.env.context)[field_name]
         return (
             False
@@ -171,6 +180,22 @@ class IrQwebField(models.AbstractModel):
         :returns: Model[res.lang]
         """
         return self.env["res.lang"].browse(get_lang(self.env).id)
+
+    @api.model
+    def _format_number(
+        self, number_format: str, value: Any, grouping: bool = True
+    ) -> str:
+        """Locale-format ``value`` with ``number_format`` (a single ``%``
+        specifier) and keep the negative sign glued to its digits.
+
+        Shared by the integer/float/monetary widgets, which all need the same
+        locale grouping + bidi-safe minus handling.
+        """
+        return (
+            self.user_lang()
+            .format(number_format, value, grouping=grouping)
+            .replace("-", NEGATIVE_SIGN_JOINER)
+        )
 
 
 class IrQwebFieldInteger(models.AbstractModel):
@@ -199,11 +224,7 @@ class IrQwebFieldInteger(models.AbstractModel):
             return tools.misc.format_decimalized_number(
                 value, options.get("precision_digits", 1)
             )
-        return (
-            self.user_lang()
-            .format("%d", value, grouping=True)
-            .replace("-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
-        )
+        return self._format_number("%d", value)
 
 
 class IrQwebFieldFloat(models.AbstractModel):
@@ -249,11 +270,7 @@ class IrQwebFieldFloat(models.AbstractModel):
                 fmt = f"%.{digits_count}f"
 
         value = float_utils.float_round(value, precision_digits=precision)
-        return (
-            self.user_lang()
-            .format(fmt, value, grouping=True)
-            .replace("-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
-        )
+        return self._format_number(fmt, value)
 
     @api.model
     def record_to_html(
@@ -317,13 +334,16 @@ class IrQwebFieldDatetime(models.AbstractModel):
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
 
+        # ``context_timestamp`` reads the tz off the record's context; use a
+        # local rather than rebinding ``self`` when an explicit tz is requested.
+        record = self
         if options.get("tz_name"):
-            self = self.with_context(tz=options["tz_name"])
+            record = self.with_context(tz=options["tz_name"])
             tzinfo = babel.dates.get_timezone(options["tz_name"])
         else:
             tzinfo = None
 
-        value = fields.Datetime.context_timestamp(self, value)
+        value = fields.Datetime.context_timestamp(record, value)
 
         if "format" in options:
             pattern = options["format"]
@@ -430,16 +450,11 @@ class IrQwebFieldMany2many(models.AbstractModel):
 
 
 class IrQwebFieldOne2many(models.AbstractModel):
+    # Identical rendering to many2many (comma-joined display names); inherit it
+    # rather than duplicate the body.
     _name = "ir.qweb.field.one2many"
     _description = "Qweb field one2many"
-    _inherit = ["ir.qweb.field"]
-
-    @api.model
-    def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup | bool:
-        if not value:
-            return False
-        text = ", ".join(value.sudo().mapped("display_name"))
-        return nl2br(text)
+    _inherit = ["ir.qweb.field.many2many"]
 
 
 class IrQwebFieldHtml(models.AbstractModel):
@@ -474,7 +489,9 @@ class IrQwebFieldHtml(models.AbstractModel):
                 attrib = irQweb._post_processing_att(element.tag, attrib)
                 element.attrib.clear()
                 element.attrib.update(attrib)
-        return Markup(etree.tostring(body, encoding="unicode", method="html")[6:-7])
+        serialized = etree.tostring(body, encoding="unicode", method="html")
+        # strip the wrapping <body>…</body> added above to isolate the content
+        return Markup(serialized.removeprefix("<body>").removesuffix("</body>"))
 
 
 class IrQwebFieldImage(models.AbstractModel):
@@ -590,7 +607,9 @@ class IrQwebFieldMonetary(models.AbstractModel):
             msg = "Missing display_currency option for monetary field rendering."
             raise ValueError(msg)
 
-        if not isinstance(value, (int, float)):
+        # ``bool`` is a subclass of ``int``; reject it explicitly so a stray
+        # boolean isn't silently formatted as a currency amount.
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError(_("The value send to monetary field is not a number."))
 
         # lang.format mandates a sprintf-style format. These formats are non-
@@ -616,18 +635,15 @@ class IrQwebFieldMonetary(models.AbstractModel):
             value = 0.0
 
         lang = self.user_lang()
-        formatted_amount = (
-            lang.format(fmt, display_currency.round(value), grouping=True)
-            .replace(" ", "\N{NO-BREAK SPACE}")
-            .replace("-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
-        )
+        formatted_amount = self._format_number(
+            fmt, display_currency.round(value)
+        ).replace(" ", "\N{NO-BREAK SPACE}")
 
+        symbol = display_currency.symbol or ""
         pre = post = ""
         if display_currency.position == "before":
-            symbol = display_currency.symbol or ""
             pre = f"{symbol}\N{NO-BREAK SPACE}"
         else:
-            symbol = display_currency.symbol or ""
             post = f"\N{NO-BREAK SPACE}{symbol}"
 
         if options.get("label_price") and lang.decimal_point in formatted_amount:
@@ -682,6 +698,10 @@ TIMEDELTA_UNITS = (
     ("minute", _lt("minute"), 60),
     ("second", _lt("second"), 1),
 )
+
+# unit name -> seconds, derived once (the duration widget looks units up by
+# name on every render).
+TIMEDELTA_SECONDS_BY_UNIT = {unit: seconds for unit, _label, seconds in TIMEDELTA_UNITS}
 
 
 class IrQwebFieldFloat_Time(models.AbstractModel):
@@ -793,8 +813,31 @@ class IrQwebFieldDuration(models.AbstractModel):
         return options
 
     @api.model
+    def _format_timedelta_section(
+        self, seconds: float, granularity: int, add_direction: Any, fmt: str, locale: Any
+    ) -> str:
+        """Wrap :func:`babel.dates.format_timedelta` with an en_US fallback.
+
+        Some babel builds (e.g. the 2.8 shipped on ubuntu22) miss locale data
+        and raise ``KeyError``; retry once against en_US.
+        https://github.com/python-babel/babel/pull/827
+        """
+        kwargs = {
+            "granularity": granularity,
+            "add_direction": add_direction,
+            "format": fmt,
+            "threshold": 1,
+        }
+        try:
+            return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
+        except KeyError:
+            return babel.dates.format_timedelta(
+                seconds, locale=babel_locale_parse("en_US"), **kwargs
+            )
+
+    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
-        units = {unit: duration for unit, label, duration in TIMEDELTA_UNITS}
+        units = TIMEDELTA_SECONDS_BY_UNIT
 
         locale = babel_locale_parse(self.user_lang().code)
         factor = units[options.get("unit", "second")]
@@ -825,28 +868,13 @@ class IrQwebFieldDuration(models.AbstractModel):
             v, r = divmod(r, secs_per_unit)
             if not v:
                 continue
-            try:
-                section = babel.dates.format_timedelta(
-                    v * secs_per_unit,
-                    granularity=round_to,
-                    add_direction=options.get("add_direction"),
-                    format=options.get("format", "long"),
-                    threshold=1,
-                    locale=locale,
-                )
-            except KeyError:
-                # in case of wrong implementation of babel, try to fallback on en_US locale.
-                # https://github.com/python-babel/babel/pull/827/files
-                # Some bugs already fixed in 2.10 but ubuntu22 is 2.8
-                localeUS = babel_locale_parse("en_US")
-                section = babel.dates.format_timedelta(
-                    v * secs_per_unit,
-                    granularity=round_to,
-                    add_direction=options.get("add_direction"),
-                    format=options.get("format", "long"),
-                    threshold=1,
-                    locale=localeUS,
-                )
+            section = self._format_timedelta_section(
+                v * secs_per_unit,
+                round_to,
+                options.get("add_direction"),
+                options.get("format", "long"),
+                locale,
+            )
             if section:
                 sections.append(section)
 
@@ -881,8 +909,13 @@ class IrQwebFieldRelative(models.AbstractModel):
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
 
-        # value should be a naive datetime in UTC. So is fields.Datetime.now()
-        reference = fields.Datetime.from_string(options["now"])
+        # ``record_to_html`` injects ``now`` for the t-field path; on the bare
+        # value (t-out widget) path it may be absent, so default to the current
+        # time — "relative" is meaningless without a reference and now is the
+        # obvious one. Both value and reference are naive UTC datetimes.
+        reference = fields.Datetime.from_string(
+            options.get("now") or fields.Datetime.now()
+        )
 
         return babel.dates.format_timedelta(
             value - reference, add_direction=True, locale=locale
@@ -938,9 +971,7 @@ class IrQwebFieldBarcode(models.AbstractModel):
         return options
 
     @api.model
-    def value_to_html(
-        self, value: Any, options: dict[str, Any] | None = None
-    ) -> str | Markup:
+    def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
         if not value:
             return ""
         if not value.isascii():
@@ -1067,15 +1098,16 @@ class IrQwebFieldContact(models.AbstractModel):
 
         value = value.sudo().with_context(show_address=True)
         display_name = value.display_name or ""
+        name_line, *address_lines = display_name.split("\n")
         # Avoid having something like:
         # display_name = 'Foo\n  \n' -> This is a res.partner with a name and no address
         # That would return markup('<br/>') as address. But there is no address set.
-        if any(elem.strip() for elem in display_name.split("\n")[1:]):
-            address = opsep.join(display_name.split("\n")[1:]).strip()
+        if any(elem.strip() for elem in address_lines):
+            address = opsep.join(address_lines).strip()
         else:
             address = ""
         val = {
-            "name": display_name.split("\n")[0],
+            "name": name_line,
             "address": address,
             "phone": value.phone,
             "city": value.city,
