@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="seq_base_order_test" model="ir.sequence">
+        <field name="name">Base Order Test</field>
+        <field name="code">sale.order</field>
+        <field name="prefix">BOT</field>
+        <field name="padding">4</field>
+    </record>
+</odoo>

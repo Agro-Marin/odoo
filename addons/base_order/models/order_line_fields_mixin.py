@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import float_compare
 
 # Maximum number of products listed individually in chatter messages
 # before switching to a count-only summary.
@@ -52,15 +53,34 @@ class OrderLineFieldsMixin(models.AbstractModel):
         index="btree_not_null",
     )
 
+    product_name_translated = fields.Text(
+        compute="_compute_product_name_translated",
+    )
+    product_is_archived = fields.Boolean(
+        compute="_compute_product_is_archived",
+    )
+    allowed_uom_ids = fields.Many2many(
+        comodel_name="uom.uom",
+        compute="_compute_allowed_uom_ids",
+    )
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
+        compute="_compute_product_uom_id",
+        store=True,
+        precompute=True,
+        readonly=False,
+        domain='[("id", "in", allowed_uom_ids)]',
         ondelete="restrict",
     )
 
     name = fields.Text(
         string="Description",
         required=True,
+        compute="_compute_name",
+        store=True,
+        precompute=True,
+        readonly=False,
     )
 
     is_downpayment = fields.Boolean(
@@ -146,13 +166,144 @@ class OrderLineFieldsMixin(models.AbstractModel):
         return lines
 
     def write(self, vals):
-        """Validate write operations before persisting.
+        """Validate writes and track quantity changes on confirmed orders.
 
         Dispatches to validation methods registered via
-        ``_get_validate_write_vals_methods()``.
+        ``_get_validate_write_vals_methods()``, captures done-line quantity
+        changes before the write, then posts them after.
         """
         self._validate_write_vals(vals)
-        return super().write(vals)
+        tracked = [f for f in self._get_tracked_qty_fields() if f in vals]
+        changes = self._collect_qty_changes(vals, tracked) if tracked else {}
+        result = super().write(vals)
+        for field_name, field_changes in changes.items():
+            self._post_quantity_changes(field_name, field_changes)
+        return result
+
+    def _get_tracked_qty_fields(self):
+        """Quantity fields whose changes are tracked on confirmed orders.
+
+        Sale tracks ``product_qty``; purchase also tracks ``qty_transferred``.
+        """
+        return ["product_qty"]
+
+    def _collect_qty_changes(self, vals, tracked_fields):
+        """Capture done-line quantity changes before the write.
+
+        :return: ``{field_name: [{"line", "old_qty", "new_qty"}, ...]}``
+        """
+        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        changes = defaultdict(list)
+        for field_name in tracked_fields:
+            for line in self:
+                if (
+                    line.order_id.state == "done"
+                    and float_compare(
+                        line[field_name],
+                        vals[field_name],
+                        precision_digits=precision,
+                    )
+                    != 0
+                ):
+                    changes[field_name].append(
+                        {
+                            "line": line,
+                            "old_qty": line[field_name],
+                            "new_qty": vals[field_name],
+                        },
+                    )
+        return changes
+
+    def _post_quantity_changes(self, field_name, changes):
+        """Post tracking messages for done-line quantity changes.
+
+        No-op by default.  Sale posts a Markup list; purchase renders mail
+        templates grouped by order.
+        """
+        return
+
+    # ─── Unit of Measure ───────────────────────────────────────────
+
+    @api.depends("product_id", "product_id.uom_id", "product_id.uom_ids")
+    def _compute_allowed_uom_ids(self):
+        for line in self:
+            line.allowed_uom_ids = (
+                line.product_id.uom_id
+                | line.product_id.uom_ids
+                | line._get_extra_allowed_uoms()
+            )
+
+    def _get_extra_allowed_uoms(self):
+        """Extra UoMs allowed on the line (purchase adds seller UoMs)."""
+        return self.env["uom.uom"]
+
+    @api.depends("product_id")
+    def _compute_product_uom_id(self):
+        """Set the UoM from the product default when product changes.
+
+        Subclasses extend the trigger set and override the default (purchase
+        prefers the seller UoM).
+        """
+        for line in self:
+            if not line.product_uom_id or (
+                line._origin.product_id and line._origin.product_id != line.product_id
+            ):
+                line.product_uom_id = line._get_default_product_uom()
+
+    def _get_default_product_uom(self):
+        """Default UoM for a new/changed line (purchase → seller UoM)."""
+        return self.product_id.uom_id
+
+    # ─── Description ───────────────────────────────────────────────
+
+    @api.depends("product_id")
+    def _compute_name(self):
+        """Set the line description from the product in the right language.
+
+        Subclasses extend the ``@api.depends`` trigger set (sale adds combo
+        links + down payments, purchase adds partner/seller) and supply
+        ``_get_default_line_description``.
+        """
+        for line in self:
+            if not line._name_should_be_computed():
+                continue
+            lang = line._get_line_description_lang()
+            if lang != self.env.lang:
+                line = line.with_context(lang=lang)
+            line.name = line._get_default_line_description()
+
+    def _name_should_be_computed(self):
+        """Whether ``name`` is auto-computed for this line.
+
+        Base: product lines only.  Sale also computes for down payments.
+        """
+        return bool(self.product_id)
+
+    def _get_line_description_lang(self):
+        """Language used to render the line description.
+
+        Sale uses the order language; purchase uses the partner language.
+        """
+        return self.env.lang
+
+    def _get_default_line_description(self):
+        """Return the default line description (product/seller specific)."""
+        raise NotImplementedError(
+            f"{self._name} must implement _get_default_line_description()"
+        )
+
+    @api.depends("product_id")
+    def _compute_product_name_translated(self):
+        """Product display name rendered in the line's description language."""
+        for line in self:
+            line.product_name_translated = line.product_id.with_context(
+                lang=line._get_line_description_lang(),
+            ).display_name
+
+    @api.depends("product_id")
+    def _compute_product_is_archived(self):
+        for line in self:
+            line.product_is_archived = line.product_id and not line.product_id.active
 
     # ─── Section/Subsection Hierarchy ──────────────────────────────
 

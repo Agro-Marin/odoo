@@ -3,7 +3,8 @@ from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Command
+from odoo.fields import Command, Domain
+from odoo.orm.primitives import MAGIC_COLUMNS
 from odoo.tools import SQL, format_list
 
 
@@ -32,6 +33,35 @@ class OrderMixin(models.AbstractModel):
         "portal.mixin",
         "product.catalog.mixin",
     ]
+
+    # Legal ``state`` transitions on raw writes. Subclasses override to add
+    # their own states (e.g. ``sent``).
+    _STATE_TRANSITIONS = {
+        "draft": {"done", "cancel"},
+        "done": {"cancel"},
+        "cancel": {"draft"},
+    }
+    # Fields still writable while an order is locked.
+    _LOCKED_WRITABLE_FIELDS = {"locked", "priority"}
+
+    @property
+    def _rec_names_search(self):
+        base_fields = self._get_rec_search_base_fields()
+        if self.env.context.get(self._get_display_name_context_key()):
+            return [*base_fields, "partner_id.name"]
+        return base_fields
+
+    def _get_rec_search_base_fields(self):
+        """Base fields searched by name. Purchase adds ``partner_ref``."""
+        return ["name"]
+
+    def _get_display_name_context_key(self):
+        """Context key that toggles the partner name in the display name.
+
+        Defaults to ``'<order_type>_show_partner_name'`` — matches both
+        ``sale_show_partner_name`` and ``purchase_show_partner_name``.
+        """
+        return f"{self._get_order_type()}_show_partner_name"
 
     # ------------------------------------------------------------------
     # FIELDS
@@ -248,6 +278,9 @@ class OrderMixin(models.AbstractModel):
         string="Type Name",
         compute="_compute_type_name",
     )
+    has_archived_products = fields.Boolean(
+        compute="_compute_has_archived_products",
+    )
 
     # ------------------------------------------------------------------
     # ORDER TYPE — primary routing key
@@ -278,6 +311,26 @@ class OrderMixin(models.AbstractModel):
                 company=order.company_id,
                 date=(order.date_order or fields.Datetime.now()).date(),
             )
+
+    @api.depends("line_ids.product_id")
+    def _compute_has_archived_products(self):
+        """Flag orders whose lines reference an archived (inactive) product."""
+        for order in self:
+            order.has_archived_products = any(
+                not product.active for product in order.line_ids.product_id
+            )
+
+    def _compute_display_name(self):
+        for order in self:
+            order.display_name = f"{order.name}{order._get_display_name_suffix()}"
+
+    def _get_display_name_suffix(self):
+        """Suffix appended to the order name in the display name.
+
+        Empty by default; sale appends the partner name (under a context key),
+        purchase appends ``partner_ref`` and an optional total.
+        """
+        return ""
 
     @api.depends("state", "date_validity")
     def _compute_is_expired(self):
@@ -695,6 +748,35 @@ class OrderMixin(models.AbstractModel):
         """Mark the orders as acknowledged by the partner."""
         self.write({"acknowledged": True})
 
+    def action_view_business_doc(self):
+        self.ensure_one()
+        return {
+            "name": _("Order"),
+            "type": "ir.actions.act_window",
+            "res_model": self._name,
+            "res_id": self.id,
+            "views": [(False, "form")],
+        }
+
+    @api.model
+    def get_import_templates(self):
+        return [
+            {
+                "label": self._get_import_template_label(),
+                "template": self._get_import_template_path(),
+            },
+        ]
+
+    def _get_import_template_label(self):
+        raise NotImplementedError(
+            f"{self._name} must implement _get_import_template_label()"
+        )
+
+    def _get_import_template_path(self):
+        raise NotImplementedError(
+            f"{self._name} must implement _get_import_template_path()"
+        )
+
     # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
@@ -724,6 +806,10 @@ class OrderMixin(models.AbstractModel):
                     sequence_date=seq_date,
                 )
         return super().create(vals_list)
+
+    def write(self, vals):
+        self._validate_write_vals(vals)
+        return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_draft_or_cancel(self):
@@ -769,6 +855,120 @@ class OrderMixin(models.AbstractModel):
                         bad_products=", ".join(bad_products.mapped("display_name")),
                     ),
                 )
+
+    # ------------------------------------------------------------------
+    # WRITE VALIDATIONS
+    # ------------------------------------------------------------------
+
+    def _validate_write_vals(self, vals):
+        """Run all registered write validators before persisting ``vals``."""
+        for method_name in self._get_validate_write_vals_methods():
+            getattr(self, method_name)(vals)
+
+    def _get_validate_write_vals_methods(self):
+        """Validator method names for write. Override to extend."""
+        return [
+            "_validate_write_locked_order",
+            "_validate_write_state_frozen_fields",
+            "_validate_write_state_transition",
+        ]
+
+    def _get_state_frozen_fields(self):
+        """Map of ``{state: {field names frozen in that state}}``.
+
+        Empty by default; subclasses override (e.g. ``sale.order`` freezes
+        ``pricelist_id`` in ``done``).
+        """
+        return {}
+
+    def _validate_write_locked_order(self, vals):
+        """Freeze all user-editable business fields on locked orders.
+
+        Whitelist model: only ``_LOCKED_WRITABLE_FIELDS`` may change while
+        locked. Scoped over ``_get_user_editable_fields`` so framework writes
+        (chatter, activities, stored-compute) are never blocked. Bypassable
+        via the ``bypass_locked_check`` context key.
+        """
+        if self.env.context.get("bypass_locked_check"):
+            return
+        locked = self.filtered("locked")
+        if not locked:
+            return
+        forbidden = (
+            set(vals) & locked._get_user_editable_fields()
+        ) - self._LOCKED_WRITABLE_FIELDS
+        if forbidden:
+            raise UserError(
+                _(
+                    "This order is locked and cannot be modified. "
+                    "Unlock it first to change: %s",
+                    locked._get_field_labels(forbidden),
+                ),
+            )
+
+    def _get_user_editable_fields(self):
+        """User-settable business fields.
+
+        Excludes computed/display (readonly), related, and magic columns, so
+        framework and computed writes fall outside the locked whitelist.
+        """
+        return {
+            name
+            for name, field in self._fields.items()
+            if field.store
+            and not field.related
+            and not field.readonly
+            and name not in MAGIC_COLUMNS
+        }
+
+    def _validate_write_state_frozen_fields(self, vals):
+        """Reject writes to fields frozen in the record's current state."""
+        frozen_map = self._get_state_frozen_fields()
+        changed = set(vals)
+        for order in self:
+            frozen = frozen_map.get(order.state, set()) & changed
+            if frozen:
+                raise UserError(
+                    _(
+                        "You cannot modify %(fields)s on a %(state)s order.",
+                        fields=order._get_field_labels(frozen),
+                        state=order.state,
+                    ),
+                )
+
+    def _validate_write_state_transition(self, vals):
+        """Reject illegal ``state`` transitions on raw writes."""
+        if "state" not in vals:
+            return
+        target = vals["state"]
+        for order in self:
+            if order.state == target:
+                continue  # no-op self-write
+            if target not in self._STATE_TRANSITIONS.get(order.state, set()):
+                raise UserError(
+                    _(
+                        "Cannot move order %(name)s from %(src)s to %(dst)s.",
+                        name=order.display_name,
+                        src=order.state,
+                        dst=target,
+                    ),
+                )
+
+    def _get_field_labels(self, field_names):
+        """Comma-joined human field labels for ``field_names`` on this model."""
+        fields_info = (
+            self.env["ir.model.fields"]
+            .sudo()
+            .search(
+                [
+                    ("name", "in", list(field_names)),
+                    ("model", "=", self._name),
+                ],
+            )
+        )
+        return ", ".join(fields_info.mapped("field_description")) or ", ".join(
+            sorted(field_names),
+        )
 
     # ------------------------------------------------------------------
     # DUPLICATE DETECTION
@@ -855,6 +1055,75 @@ class OrderMixin(models.AbstractModel):
             compose_form_id = False
         return compose_form_id
 
+    def _notify_by_email_prepare_rendering_context(
+        self,
+        message,
+        msg_vals=False,
+        model_description=False,
+        force_email_company=False,
+        force_email_lang=False,
+        force_record_name=False,
+    ):
+        render_context = super()._notify_by_email_prepare_rendering_context(
+            message,
+            msg_vals=msg_vals,
+            model_description=model_description,
+            force_email_company=force_email_company,
+            force_email_lang=force_email_lang,
+            force_record_name=force_record_name,
+        )
+        render_context["subtitles"] = self._get_mail_subtitles(render_context)
+        return render_context
+
+    def _get_mail_subtitles(self, render_context):
+        """Subtitles shown in notification emails.
+
+        Sale shows name/partner and total; purchase shows name and due-date or
+        total.  Base shows nothing; override per model.
+        """
+        return []
+
+    def _notify_get_recipients_groups(
+        self,
+        message,
+        model_description,
+        msg_vals=False,
+    ):
+        groups = super()._notify_get_recipients_groups(
+            message,
+            model_description,
+            msg_vals=msg_vals,
+        )
+        if not self:
+            return groups
+        self.ensure_one()
+        self._tweak_notify_recipient_groups(groups)
+        return groups
+
+    def _tweak_notify_recipient_groups(self, groups):
+        """Adjust portal access buttons on notification recipient groups.
+
+        Sale sets sign/pay titles; purchase sets a confirm URL.  No-op by
+        default; override per model.
+        """
+        return
+
+    def _track_subtype(self, init_values):
+        self.ensure_one()
+        xmlid = self._get_state_track_subtype_xmlid(init_values)
+        if xmlid:
+            return self.env.ref(xmlid)
+        return super()._track_subtype(init_values)
+
+    def _get_state_track_subtype_xmlid(self, init_values):
+        """Return the ``mail.message.subtype`` xmlid for a tracked change.
+
+        Maps state/sent/locked transitions to a module subtype (e.g.
+        ``sale.mt_order_confirmed``).  Returns a falsy value to defer to
+        ``super()._track_subtype``.
+        """
+        return
+
     # ------------------------------------------------------------------
     # PORTAL
     # ------------------------------------------------------------------
@@ -913,6 +1182,127 @@ class OrderMixin(models.AbstractModel):
                 continue
             grouped_lines[line.product_id] |= line
         return grouped_lines
+
+    def _get_action_add_from_catalog_extra_context(self):
+        return {
+            **super()._get_action_add_from_catalog_extra_context(),
+            "product_catalog_currency_id": self.currency_id.id,
+            "product_catalog_digits": self.line_ids._fields["price_unit"].get_digits(
+                self.env,
+            ),
+            "show_sections": bool(self.id),
+        }
+
+    def _get_product_catalog_domain(self):
+        return super()._get_product_catalog_domain() & Domain(
+            self._get_catalog_product_ok_field(),
+            "=",
+            True,
+        )
+
+    def _get_catalog_product_ok_field(self):
+        """Product boolean field gating catalog visibility.
+
+        Sale → ``'sale_ok'``, purchase → ``'purchase_ok'``.
+        """
+        raise NotImplementedError(
+            f"{self._name} must implement _get_catalog_product_ok_field()"
+        )
+
+    def _get_product_catalog_order_data(self, products, **kwargs):
+        res = super()._get_product_catalog_order_data(products, **kwargs)
+        catalog_data = self._get_catalog_product_data(products, **kwargs)
+        for product in products:
+            res[product.id].update(catalog_data.get(product.id, {}))
+        return res
+
+    def _get_catalog_product_data(self, products, **kwargs):
+        """Per-product catalog payload merged into the order data.
+
+        Returns ``{product_id: {...}}``.  Sale supplies pricelist price and
+        warnings; purchase supplies seller price / packaging data.  Base adds
+        nothing.
+        """
+        return {}
+
+    def _update_order_line_info(
+        self,
+        product_id,
+        quantity,
+        *,
+        section_id=False,
+        child_field="line_ids",
+        **kwargs,
+    ):
+        """Update the order line for a product/section or create a new one.
+
+        :param int product_id: ``product.product`` id selected in the catalog.
+        :param float quantity: quantity selected in the catalog.
+        :param int section_id: id of the selected section, if any.
+        :return: the discounted unit price for the product.
+        :rtype: float
+        """
+        self.ensure_one()
+        self._prepare_catalog_update()
+        line = self.line_ids.filtered(
+            lambda l: (
+                l.product_id.id == product_id
+                and l.get_line_parent_section().id == section_id
+            ),
+        )
+        if line:
+            if quantity != 0:
+                line.product_qty = quantity
+            elif self.state in self._get_catalog_editable_states():
+                price_unit = self._get_catalog_removed_line_price(
+                    line.product_id,
+                    **kwargs,
+                )
+                line.unlink()
+                return price_unit
+            else:
+                line.product_qty = 0
+        elif quantity > 0:
+            line = self.env[self._get_line_model()].create(
+                {
+                    "order_id": self.id,
+                    "product_id": product_id,
+                    "product_qty": quantity,
+                    "sequence": self._get_new_line_sequence(child_field, section_id),
+                },
+            )
+            self._catalog_on_line_created(line, **kwargs)
+        else:  # quantity of 0, no line to update: return default price
+            product = self.env["product.product"].browse(product_id)
+            return self._get_catalog_removed_line_price(product, **kwargs)
+        return self._get_catalog_line_price(line)
+
+    def _prepare_catalog_update(self):
+        """Hook run before a catalog line update.
+
+        Sale sets a ``catalog_skip_tracking`` request context here.
+        """
+        return
+
+    def _get_catalog_editable_states(self):
+        """Order states in which a catalog quantity of 0 removes the line."""
+        return {"draft"}
+
+    def _get_catalog_removed_line_price(self, product, **kwargs):
+        """Unit price returned when a catalog line is removed or absent."""
+        raise NotImplementedError(
+            f"{self._name} must implement _get_catalog_removed_line_price()"
+        )
+
+    def _get_catalog_line_price(self, line):
+        """Discounted unit price of an existing/created catalog line."""
+        raise NotImplementedError(
+            f"{self._name} must implement _get_catalog_line_price()"
+        )
+
+    def _catalog_on_line_created(self, line, **kwargs):
+        """Hook after a catalog line is created (e.g. purchase seller pricing)."""
+        return line
 
     # ------------------------------------------------------------------
     # EDI / DOCUMENT IMPORT (account.document.import.mixin)
