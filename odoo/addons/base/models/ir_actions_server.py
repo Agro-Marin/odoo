@@ -42,6 +42,11 @@ class LoggerProxy:
         raise AttributeError(msg)
 
 
+# Stateless singleton reused across every eval-context build; there is no
+# per-action state to justify allocating a fresh proxy each time.
+_LOGGER_PROXY = LoggerProxy()
+
+
 class IrActionsServerHistory(models.Model):
     _name = "ir.actions.server.history"
     _description = "Server Action History"
@@ -102,6 +107,11 @@ WEBHOOK_SAMPLE_VALUES = {
     "reference": "res.partner,42",
     None: "some_data",
 }
+
+# Server-action ``state`` values that create or update records (the "CRUD"
+# family). Single source of truth so the set isn't respelled as a literal
+# tuple in every method that branches on it.
+CRUD_STATES = ("object_write", "object_create", "object_copy")
 
 
 class ServerActionWithWarningsError(UserError):
@@ -225,7 +235,7 @@ class IrActionsServer(models.Model):
         copy=True,
         domain=lambda self: str(self._get_children_domain()),
         string="Child Actions",
-        help="Child server actions that will be executed. Note that the last return returned action value will be used as global return value.",
+        help="Child server actions that will be executed. The global return value is the action returned by the last child that returns one; children that return nothing are skipped over.",
     )
     # Create
     crud_model_id = fields.Many2one(
@@ -474,7 +484,7 @@ class IrActionsServer(models.Model):
         ):
             warnings.append(
                 _(
-                    "I'm sorry to say that JSON fields (such as '%s') are currently not supported.",
+                    "JSON fields (such as '%s') are not supported.",
                     relation_chain[0][-1].string,
                 )
             )
@@ -492,9 +502,12 @@ class IrActionsServer(models.Model):
             Model = self.env[self.model_id.model]
             for model_field in self.webhook_field_ids:
                 # you might think that the ir.model.field record holds references
-                # to the groups, but that's not the case - we need to field object itself
-                field = Model._fields[model_field.name]
-                if field.groups:
+                # to the groups, but that's not the case - we need the field object
+                # itself. Use .get(): a stale webhook field (e.g. left behind after
+                # a module uninstall) must not turn this *compute* into a hard
+                # KeyError on plain read.
+                field = Model._fields.get(model_field.name)
+                if field and field.groups:
                     restricted_fields.append(f"- {model_field.field_description}")
             if restricted_fields:
                 warnings.append(
@@ -566,8 +579,10 @@ class IrActionsServer(models.Model):
             self.automated_name = self._generate_action_name()
             self.name = self.automated_name
 
-    @api.depends("state")
+    @api.depends_context("uid")
     def _compute_available_model_ids(self) -> None:
+        # The set of pickable models depends only on the user's access rights,
+        # not on any field of the record (in particular not on ``state``).
         allowed_models = self.env["ir.model"].search(
             [
                 (
@@ -595,11 +610,7 @@ class IrActionsServer(models.Model):
             # Reset update_related_model_id unconditionally; the branches
             # below set (or clear) the other crud fields.
             action.update_related_model_id = False
-            if action.model_id and action.state in (
-                "object_write",
-                "object_create",
-                "object_copy",
-            ):
+            if action.model_id and action.state in CRUD_STATES:
                 if action.state in ("object_create", "object_copy"):
                     action.crud_model_id = action.model_id
                     action.update_field_id = False
@@ -641,7 +652,18 @@ class IrActionsServer(models.Model):
         )
         return model_id, field_id
 
-    def _get_relation_chain(self, searched_field_name: str) -> tuple[list[Any], str]:
+    def _get_relation_chain(
+        self, searched_field_name: str, raise_on_error: bool = False
+    ) -> tuple[list[Any], str]:
+        """Resolve a dotted field path into its list of ``fields.Field`` objects.
+
+        By default this **degrades** on an invalid path (returns ``([], "")``) so
+        that stored computes (``crud_model_id``, ``warning``) and the sample
+        payload can read it without ever raising — a compute that raises would
+        blow up on plain ``read()`` and can abort an unrelated flush. Pass
+        ``raise_on_error=True`` (from the ``_check_update_path`` constraint) to
+        validate user input and surface a clear ``ValidationError`` at save time.
+        """
         self.ensure_one()
         if (
             not searched_field_name
@@ -651,35 +673,47 @@ class IrActionsServer(models.Model):
         ):
             return [], ""
         path = self[searched_field_name].split(".")
-        if not path:
-            return [], ""
         model = self.env[self.model_id.model]
         chain = []
         for i, field_name in enumerate(path):
             is_last_field = i == len(path) - 1
-            if field_name not in model._fields:
-                raise ValidationError(
-                    _(
-                        "Unknown field '%(field_name)s' on model '%(model_name)s'.",
-                        field_name=field_name,
-                        model_name=model._name,
+            if not field_name:
+                if raise_on_error:
+                    raise ValidationError(
+                        _(
+                            "The path '%(path)s' contains an empty segment. "
+                            "Remove the extra '.'.",
+                            path=self[searched_field_name],
+                        )
                     )
-                )
+                return [], ""
+            if field_name not in model._fields:
+                if raise_on_error:
+                    raise ValidationError(
+                        _(
+                            "Unknown field '%(field_name)s' on model '%(model_name)s'.",
+                            field_name=field_name,
+                            model_name=model._name,
+                        )
+                    )
+                return [], ""
             field = model._fields[field_name]
             if not is_last_field:
                 if not field.relational:
-                    # sanity check: this should be the last field in the path
-                    current_field = field.get_description(self.env)["string"]
-                    searched_field = self._fields[searched_field_name].get_description(
-                        self.env
-                    )["string"]
-                    raise ValidationError(
-                        _(
-                            "The path contained by the field '%(searched_field)s' contains a non-relational field (%(current_field)s) that is not the last field in the path. You can't traverse non-relational fields (even in the quantum realm). Make sure only the last field in the path is non-relational.",
-                            searched_field=searched_field,
-                            current_field=current_field,
+                    if raise_on_error:
+                        # sanity check: this should be the last field in the path
+                        current_field = field.get_description(self.env)["string"]
+                        searched_field = self._fields[
+                            searched_field_name
+                        ].get_description(self.env)["string"]
+                        raise ValidationError(
+                            _(
+                                "The path in field '%(searched_field)s' contains a non-relational field (%(current_field)s) that is not the last segment. Only the last field in a path may be non-relational.",
+                                searched_field=searched_field,
+                                current_field=current_field,
+                            )
                         )
-                    )
+                    return [], ""
                 model = self.env[field.comodel_name]
             chain.append(field)
         stringified_path = " > ".join(
@@ -729,6 +763,23 @@ class IrActionsServer(models.Model):
             if msg:
                 raise ValidationError(msg)
 
+    @api.constrains("update_path", "model_id", "state")
+    def _check_update_path(self) -> None:
+        """Validate ``update_path`` at save time.
+
+        The traversal validation lives here (not in ``_compute_crud_relations``)
+        so that a bad path is rejected with a clear, correctly-attributed error
+        when the user saves it, while plain reads/recomputes of stored fields
+        degrade gracefully instead of raising.
+        """
+        for action in self:
+            if (
+                action.state == "object_write"
+                and action.update_path
+                and action.model_id
+            ):
+                action._get_relation_chain("update_path", raise_on_error=True)
+
     @api.constrains("parent_id", "child_ids")
     def _check_children(self) -> None:
         if self._has_cycle():
@@ -749,6 +800,15 @@ class IrActionsServer(models.Model):
         }
 
     def _get_runner(self) -> tuple[Any, bool]:
+        """Resolve the runner method for ``self.state`` and whether it is *multi*.
+
+        Beware two unrelated meanings of "multi": the ``_multi`` **suffix** means
+        the runner handles many *records* in one call (so ``_run`` skips its
+        per-``active_id`` loop); the ``state == "multi"`` action type ("Multi
+        Actions") is matched by ``_run_action_multi`` and — since there is no
+        ``_run_action_multi_multi`` — is treated as non-multi, i.e. looped once
+        per record. Returns ``(None, False)`` for an unknown state.
+        """
         multi = True
         t = self.env.registry[self._name]
         fn = getattr(t, f"_run_action_{self.state}_multi", None)
@@ -788,6 +848,18 @@ class IrActionsServer(models.Model):
         return eval_context.get("action")
 
     def _run_action_multi(self, eval_context: dict[str, Any] | None = None) -> Any:
+        """Run each child action in ``sequence`` order.
+
+        Returns the *last non-falsy* child result (``act.run() or res``): the
+        action returned by the last child that actually returns one — a child
+        returning ``False``/``None`` does not clear an earlier child's action.
+
+        Note this runner needs the active record(s) in context. ``state ==
+        "multi"`` has no ``_multi`` suffix, so ``_run`` treats it as non-multi
+        and loops it once per ``active_id``; triggered with no active record
+        (e.g. straight from cron) it is skipped entirely, like every other
+        non-``code`` action type.
+        """
         res = False
         for act in self.child_ids.sorted():
             res = act.run() or res
@@ -829,7 +901,9 @@ class IrActionsServer(models.Model):
         if not url:
             raise UserError(
                 _(
-                    "I'll be happy to send a webhook for you, but you really need to give me a URL to reach out to..."
+                    "The webhook action '%(name)s' has no URL to send the request "
+                    "to. Please set a Webhook URL.",
+                    name=self.name,
                 )
             )
         vals = {
@@ -960,7 +1034,7 @@ class IrActionsServer(models.Model):
                 "records": records,
                 # helpers
                 "log": log,
-                "_logger": LoggerProxy(),
+                "_logger": _LOGGER_PROXY,
             }
         )
         return eval_context
@@ -1023,11 +1097,33 @@ class IrActionsServer(models.Model):
             active_ids = self.env.context.get(
                 "active_ids", [active_id] if active_id else []
             )
+            if not active_ids:
+                # No target record in context. A non-``_multi`` runner (every
+                # type except ``code``) needs one, so the loop below never runs
+                # and the action silently does nothing. This is almost always a
+                # misconfiguration -- e.g. a cron/scheduled action pointing at a
+                # non-``code`` server action, which never sets active_ids, or a
+                # ``multi`` action triggered the same way. Surface it instead of
+                # failing silently.
+                _logger.warning(
+                    "Server action %r (type %r) was triggered with no target "
+                    "record (no active_id/active_ids in context); its %s runner "
+                    "requires one and will be skipped. Only 'code' actions run "
+                    "without a target record.",
+                    self.name,
+                    self.state,
+                    runner.__name__,
+                )
             for active_id in active_ids:
                 # run context dedicated to a particular active_id
                 run_self = self.with_context(
                     active_ids=[active_id], active_id=active_id
                 )
+                # Re-wrap the *triggering user's* env (from _get_eval_context)
+                # with this record's context. Do NOT use ``run_self.env``: that
+                # env is ``sudo()`` (su=True), and expressions/equations must
+                # evaluate with the user's own identity and ACLs, never elevated.
+                # (Guarded by test_b6_equation_evaluates_without_sudo_privilege.)
                 eval_context["env"] = eval_context["env"](context=run_self.env.context)
                 eval_context["records"] = eval_context["record"] = records.browse(
                     active_id
@@ -1046,6 +1142,14 @@ class IrActionsServer(models.Model):
     def _can_execute_action_on_records(self, records: Any) -> None:
         self.ensure_one()
 
+        # Authorization is EITHER by group OR by record-level ACL, not both:
+        # - if ``group_ids`` is set, membership in one of those groups is the
+        #   sole gate. The action then runs ``sudo()``, so an authorized user
+        #   can intentionally act on records they could not otherwise write
+        #   (e.g. a Managers-only "Approve" action). No model/record ACL check
+        #   is performed in this branch — by design.
+        # - if ``group_ids`` is empty, the triggering user must themselves hold
+        #   write access to the model and to the concrete records.
         action_groups = self.group_ids
         if action_groups:
             if not (action_groups & self.env.user.all_group_ids):
@@ -1147,6 +1251,24 @@ class IrActionsServer(models.Model):
             if action.selection_value:
                 action.value = action.selection_value.value
 
+    def _to_number(self, converter: Any) -> Any:
+        """Convert ``self.value`` with ``converter`` (``int``/``float``), raising a
+        clean ``UserError`` instead of letting a raw string leak into ``write()``
+        and crash the ORM with a bare ``ValueError``."""
+        self.ensure_one()
+        try:
+            return converter(self.value)
+        except (ValueError, TypeError):
+            raise UserError(
+                _(
+                    "The value %(value)r configured on action '%(action)s' is not a "
+                    "valid number for field '%(field)s'.",
+                    value=self.value,
+                    action=self.name,
+                    field=self.update_field_id.field_description,
+                )
+            ) from None
+
     def _eval_value(self, eval_context: dict[str, Any] | None = None) -> dict[int, Any]:
         result = {}
         for action in self:
@@ -1177,15 +1299,16 @@ class IrActionsServer(models.Model):
             elif action.update_field_id.ttype == "boolean":
                 expr = action.update_boolean_value == "true"
             elif action.update_field_id.ttype in ("many2one", "integer"):
-                try:
-                    expr = int(action.value)
-                    if expr == 0 and action.update_field_id.ttype == "many2one":
+                ttype = action.update_field_id.ttype
+                if not action.value:
+                    # blank -> clear the relation (False) or set 0
+                    expr = False if ttype == "many2one" else 0
+                else:
+                    expr = action._to_number(int)
+                    if expr == 0 and ttype == "many2one":
                         expr = False
-                except ValueError, TypeError:
-                    pass
             elif action.update_field_id.ttype == "float":
-                with contextlib.suppress(ValueError, TypeError):
-                    expr = float(action.value)
+                expr = 0.0 if not action.value else action._to_number(float)
             elif action.update_field_id.ttype == "html":
                 expr = action.html_value
             result[action.id] = expr
@@ -1200,6 +1323,7 @@ class IrActionsServer(models.Model):
         return vals_list
 
     def action_open_parent_action(self) -> dict[str, Any]:
+        self.ensure_one()
         return {
             "type": "ir.actions.act_window",
             "target": "current",
