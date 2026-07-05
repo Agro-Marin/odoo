@@ -7,6 +7,13 @@ from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+# PostgreSQL ``int4`` range. A default whose value falls outside it cannot be
+# stored in the target column, so both entry points (``set`` and the
+# ``_check_json_format`` constraint) reject it up front via ``_fits_column``
+# rather than letting it fail later against the real column (IDEF-C1).
+INT4_MIN = -(2**31)
+INT4_MAX = 2**31 - 1
+
 
 class IrDefault(models.Model):
     """User-defined default values for fields."""
@@ -43,6 +50,22 @@ class IrDefault(models.Model):
     )
     json_value = fields.Char("Default Value (JSON format)", required=True)
 
+    # ------------------------------------------------------------------
+    # Value validation (shared by set() and the create/write constraint)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _fits_column(field, parsed: Any) -> bool:
+        """Whether a ``convert_to_cache`` result fits the field's storage column.
+
+        Only the ``int4`` range is enforced today; an out-of-range integer would
+        otherwise be accepted here and fail later when applied to the real
+        column. Both value-validation paths funnel through this single guard.
+        """
+        if field.type == "integer":
+            return INT4_MIN <= parsed <= INT4_MAX
+        return True
+
     @api.constrains("json_value", "field_id")
     def _check_json_format(self) -> None:
         for record in self:
@@ -52,30 +75,28 @@ class IrDefault(models.Model):
             field = model._fields[field_rec.name]
             try:
                 value = json.loads(record.json_value)
-                parsed = field.convert_to_cache(value, model)
             except json.JSONDecodeError:
                 raise ValidationError(
                     self.env._("Invalid JSON format in Default Value field.")
                 ) from None
-            except ValueError, TypeError:
+            try:
+                parsed = field.convert_to_cache(value, model)
+            except (ValueError, TypeError):
                 raise ValidationError(
                     self.env._(
                         "Invalid value in Default Value field. Expected type '%(field_type)s' for '%(model_name)s.%(field_name)s'.",
-                        field_type=record.field_id.ttype,
+                        field_type=field_rec.ttype,
                         model_name=model_name,
-                        field_name=record.field_id.name,
+                        field_name=field_rec.name,
                     )
                 ) from None
-            # Integer columns are int4; mirror set()'s guard so an out-of-range
-            # default is rejected here, not later when applied to the target
-            # column (IDEF-C1).
-            if field.type == "integer" and not (-(2**31) <= parsed <= 2**31 - 1):
+            if not self._fits_column(field, parsed):
                 raise ValidationError(
                     self.env._(
                         "Invalid value in Default Value field. %(value)s is out of bounds for '%(model_name)s.%(field_name)s' (integers should be between -2,147,483,648 and 2,147,483,647).",
                         value=value,
                         model_name=model_name,
-                        field_name=record.field_id.name,
+                        field_name=field_rec.name,
                     )
                 )
 
@@ -89,30 +110,75 @@ class IrDefault(models.Model):
                 model = self.env[field.model]
                 model._check_field_access(model._fields[field.name], "write")
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        # invalidate all company dependent fields since their fallback value in cache may be changed
+    # ------------------------------------------------------------------
+    # Cache invalidation on any change to the stored defaults
+    # ------------------------------------------------------------------
+
+    def _invalidate_defaults_cache(self) -> None:
+        """Drop the caches derived from the stored defaults.
+
+        Company-dependent fields cache a per-company fallback computed from these
+        defaults, so a change must invalidate both the record cache and the
+        ormcaches built on top of it (``_get_model_defaults``,
+        ``_get_field_column_fallbacks``).
+        """
         self.env.invalidate_all()
         self.env.registry.clear_cache()
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
         new_defaults = super().create(vals_list)
         new_defaults._check_accessible_field_id()
+        if new_defaults:
+            new_defaults._invalidate_defaults_cache()
         return new_defaults
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if self:
-            # invalidate all company dependent fields since their fallback value in cache may be changed
-            self.env.invalidate_all()
-            self.env.registry.clear_cache()
-        new_default = super().write(vals)
+        result = super().write(vals)
         self._check_accessible_field_id()
-        return new_default
+        if self:
+            self._invalidate_defaults_cache()
+        return result
 
     def unlink(self) -> bool:
+        result = super().unlink()
         if self:
-            # invalidate all company dependent fields since their fallback value in cache may be changed
-            self.env.invalidate_all()
-            self.env.registry.clear_cache()
-        return super().unlink()
+            self._invalidate_defaults_cache()
+        return result
+
+    # ------------------------------------------------------------------
+    # Scope helpers (shared by set() and _get())
+    # ------------------------------------------------------------------
+
+    def _resolve_scope(
+        self, user_id: int | bool, company_id: int | bool
+    ) -> tuple[int | bool, int | bool]:
+        """Resolve the ``True`` sentinels to the current user / company ids."""
+        if user_id is True:
+            user_id = self.env.uid
+        if company_id is True:
+            company_id = self.env.company.id
+        return user_id, company_id
+
+    def _get_default_record(
+        self,
+        field_id: int,
+        user_id: int | bool,
+        company_id: int | bool,
+        condition: str | bool,
+    ) -> Self:
+        """Return the single default row for an exact (field, user, company,
+        condition) scope, or an empty recordset.
+        """
+        return self.search(
+            [
+                ("field_id", "=", field_id),
+                ("user_id", "=", user_id),
+                ("company_id", "=", company_id),
+                ("condition", "=", condition),
+            ],
+            limit=1,
+        )
 
     @api.model
     def set(
@@ -140,19 +206,13 @@ class IrDefault(models.Model):
                           opaque string, but the client typically uses
                           single-field conditions in the form ``'key=val'``.
         """
-        if user_id is True:
-            user_id = self.env.uid
-        if company_id is True:
-            company_id = self.env.company.id
+        user_id, company_id = self._resolve_scope(user_id, company_id)
 
-        # check consistency of model_name, field_name, and value
+        # resolve the model and field, distinguishing an unknown field (KeyError)
+        # from an unconvertible value (ValueError/TypeError) for a precise message
         try:
             model = self.env[model_name]
             orm_field = model._fields[field_name]
-            parsed = orm_field.convert_to_cache(value, model)
-            if orm_field.type in ("date", "datetime") and isinstance(value, date):
-                value = orm_field.to_string(value)
-            json_value = json.dumps(value, ensure_ascii=False)
         except KeyError:
             raise ValidationError(
                 self.env._(
@@ -161,7 +221,15 @@ class IrDefault(models.Model):
                     field=field_name,
                 )
             ) from None
-        except ValueError, TypeError:
+        try:
+            parsed = orm_field.convert_to_cache(value, model)
+            stored_value = (
+                orm_field.to_string(value)
+                if orm_field.type in ("date", "datetime") and isinstance(value, date)
+                else value
+            )
+            json_value = json.dumps(stored_value, ensure_ascii=False)
+        except (ValueError, TypeError):
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s",
@@ -170,7 +238,7 @@ class IrDefault(models.Model):
                     value=value,
                 )
             ) from None
-        if orm_field.type == "integer" and not (-(2**31) <= parsed <= 2**31 - 1):
+        if not self._fits_column(orm_field, parsed):
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s is out of bounds (integers should be between -2,147,483,648 and 2,147,483,647)",
@@ -182,17 +250,9 @@ class IrDefault(models.Model):
 
         # update existing default for the same scope, or create one
         field = self.env["ir.model.fields"]._get(model_name, field_name)
-        default = self.search(
-            [
-                ("field_id", "=", field.id),
-                ("user_id", "=", user_id),
-                ("company_id", "=", company_id),
-                ("condition", "=", condition),
-            ],
-            limit=1,
-        )
+        default = self._get_default_record(field.id, user_id, company_id, condition)
         if default:
-            # Avoid clearing the cache if nothing changes
+            # avoid busting the cache when nothing actually changes
             if default.json_value != json_value:
                 default.write({"json_value": json_value})
         else:
@@ -230,21 +290,9 @@ class IrDefault(models.Model):
                           opaque string, but the client typically uses
                           single-field conditions in the form ``'key=val'``.
         """
-        if user_id is True:
-            user_id = self.env.uid
-        if company_id is True:
-            company_id = self.env.company.id
-
+        user_id, company_id = self._resolve_scope(user_id, company_id)
         field = self.env["ir.model.fields"]._get(model_name, field_name)
-        default = self.search(
-            [
-                ("field_id", "=", field.id),
-                ("user_id", "=", user_id),
-                ("company_id", "=", company_id),
-                ("condition", "=", condition),
-            ],
-            limit=1,
-        )
+        default = self._get_default_record(field.id, user_id, company_id, condition)
         return json.loads(default.json_value) if default else None
 
     @api.model
@@ -267,6 +315,11 @@ class IrDefault(models.Model):
             if condition
             else tools.SQL("d.condition IS NULL")
         )
+        # Priority: user-and-company specific > user specific > company specific >
+        # global. The ``IS NOT NULL`` sort keys put the most specific row first
+        # explicitly, rather than relying on PostgreSQL's default NULLS ordering
+        # (a plain ``ORDER BY user_id`` would silently invert the priority under a
+        # different null-ordering convention).
         query = tools.SQL(
             """ SELECT f.name, d.json_value
                 FROM ir_default d
@@ -275,7 +328,9 @@ class IrDefault(models.Model):
                     AND (d.user_id IS NULL OR d.user_id = %s)
                     AND (d.company_id IS NULL OR d.company_id = %s)
                     AND %s
-                ORDER BY d.user_id, d.company_id, d.id
+                ORDER BY (d.user_id IS NOT NULL) DESC,
+                         (d.company_id IS NOT NULL) DESC,
+                         d.id
             """,
             model_name,
             self.env.uid,
@@ -285,7 +340,7 @@ class IrDefault(models.Model):
         cr.execute(query)
         result = {}
         for row in cr.fetchall():
-            # keep the highest priority default for each field
+            # keep the highest priority default for each field (first seen wins)
             if row[0] not in result:
                 result[row[0]] = json.loads(row[1])
         return result
