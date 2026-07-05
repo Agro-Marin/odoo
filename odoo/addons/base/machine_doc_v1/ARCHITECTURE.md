@@ -91,7 +91,8 @@ core/odoo/addons/base/
 │   ├── ir_logging.py            #   Server/client log storage
 │   ├── ir_mail_server.py        #   SMTP mail server configuration and sending
 │   ├── ir_model.py              #   Model registry + ir.model.inherit
-│   ├── ir_model_access.py       #   ACL + ir.model.constraint + ir.model.relation
+│   ├── ir_model_access.py       #   ir.model.access (model-level ACL)
+│   ├── ir_model_reflection.py   #   ir.model.constraint + ir.model.relation (uninstall bookkeeping)
 │   ├── ir_model_data.py         #   XML ID registry (external identifiers)
 │   ├── ir_model_fields.py       #   Field metadata registry
 │   ├── ir_model_fields_selection.py # Selection option management

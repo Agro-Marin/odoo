@@ -15,7 +15,7 @@ from odoo.models import add_field
 from odoo.tools import OrderedSet, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
 
-from .ir_model import MODULE_UNINSTALL_FLAG
+from .ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
 

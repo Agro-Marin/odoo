@@ -268,7 +268,9 @@ Selection field options.
 
 ### models/ir_model_access.py
 
-Contains three models: access control, constraints, and relations.
+Contains the access-control model. The constraint- and relation-reflection
+models live in `models/ir_model_reflection.py` (re-exported from `ir_model.py`
+for backward compatibility).
 
 #### IrModelAccess — `ir.model.access` (`_name`)
 
@@ -1414,7 +1416,8 @@ Quick lookup — file → model → primary role:
 | `ir_logging.py` | ir.logging | Server/client logs |
 | `ir_mail_server.py` | ir.mail.server | SMTP configuration/sending |
 | `ir_model.py` | ir.model, ir.model.inherit | Model registry + inheritance |
-| `ir_model_access.py` | ir.model.access, .constraint, .relation | ACL + DB constraint tracking |
+| `ir_model_access.py` | ir.model.access | Model-level ACL |
+| `ir_model_reflection.py` | ir.model.constraint, ir.model.relation | DB constraint/relation tracking for uninstall |
 | `ir_model_data.py` | ir.model.data | XML ID registry |
 | `ir_model_fields.py` | ir.model.fields | Field metadata registry |
 | `ir_model_fields_selection.py` | ir.model.fields.selection | Selection options |

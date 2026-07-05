@@ -406,6 +406,96 @@ class TestIrModelEdition(TransactionCase):
         with self.assertQueryCount(0):
             self.assertEqual(IrModel._get_id("x_prewarm"), model.id)
 
+    def test_name_create_slugifies_name(self):
+        """name_create turns punctuation/accents into a valid model name instead
+        of failing the _check_model_name constraint."""
+        IrModel = self.env["ir.model"]
+        cases = [
+            ("Coûts 2024!", "x_couts_2024"),
+            ("My-Model", "x_my_model"),
+            ("My New Model", "x_my_new_model"),
+        ]
+        for label, expected in cases:
+            record_id, _display = IrModel.name_create(label)
+            self.assertEqual(IrModel.browse(record_id).model, expected)
+
+    def test_upsert_en_rejects_translated_conflict_column(self):
+        """upsert_en must refuse a translated conflict column: its RETURNING
+        round-trip yields an unhashable jsonb dict that would silently break the
+        input-order reconstruction (previously a cryptic ``TypeError``)."""
+        from odoo.addons.base.models.ir_model_common import upsert_en
+
+        IrModel = self.env["ir.model"]
+        self.assertTrue(IrModel._fields["name"].translate)
+        with self.assertRaises(ValueError):
+            upsert_en(IrModel, ["name", "model"], [("X", "x_up")], conflict=["name"])
+
+    def test_upsert_en_rejects_duplicate_conflict_keys(self):
+        """Two rows sharing a conflict key make PostgreSQL MERGE raise (a
+        cardinality/unique violation) and would collapse onto one id; upsert_en
+        rejects them up front with a clear ValueError."""
+        from odoo.addons.base.models.ir_model_common import upsert_en
+
+        IrModel = self.env["ir.model"]
+        with self.assertRaises(ValueError):
+            upsert_en(
+                IrModel, ["model", "name"],
+                [("dup.model", "A"), ("dup.model", "B")], conflict=["model"],
+            )
+
+    def test_upsert_en_rejects_empty_fnames(self):
+        """Empty fnames used to divide by zero when sizing the parameter batch;
+        it now raises a clear ValueError."""
+        from odoo.addons.base.models.ir_model_common import upsert_en
+
+        IrModel = self.env["ir.model"]
+        with self.assertRaises(ValueError):
+            upsert_en(IrModel, [], [("x",)], conflict=["model"])
+
+    def test_upsert_en_empty_rows_returns_empty(self):
+        """No rows is a no-op that returns an empty id list without touching
+        the database."""
+        from odoo.addons.base.models.ir_model_common import upsert_en
+
+        IrModel = self.env["ir.model"]
+        self.assertEqual(
+            upsert_en(IrModel, ["model", "name"], [], conflict=["model"]), []
+        )
+
+    def test_make_compute_filters_blank_dependencies(self):
+        """A trailing/double comma in a manual field's ``depends`` must not
+        produce an empty dependency name (which would later fail as
+        ``model._fields['']`` during registry setup)."""
+        from odoo.addons.base.models.ir_model_common import make_compute
+
+        compute = make_compute("pass", "field_a, , field_b,")
+        self.assertEqual(compute._depends, ("field_a", "field_b"))
+        # the inner function is named for readable tracebacks
+        self.assertEqual(compute.__name__, "compute")
+
+    def test_inherit_xmlid_format(self):
+        from odoo.addons.base.models.ir_model_common import inherit_xmlid
+
+        self.assertEqual(
+            inherit_xmlid("base", "a.b", "c.d"), "base.model_inherit__a_b__c_d"
+        )
+
+    def test_compute_count_matches_table_rowcount(self):
+        """_compute_count (single UNION ALL) returns the true archived-inclusive
+        row count per model, 0 for abstract models, and stays correct when a
+        whole recordset of mixed models is computed in one batch."""
+        IrModel = self.env["ir.model"]
+        concrete = IrModel._get("res.country")
+        abstract = IrModel._get("base")  # abstract: no table
+        expected = (
+            self.env["res.country"].with_context(active_test=False).search_count([])
+        )
+        # compute the batch in one shot (exercises the UNION ALL path)
+        batch = concrete + abstract
+        batch.invalidate_recordset(["count"])
+        self.assertEqual(concrete.count, expected)
+        self.assertEqual(abstract.count, 0)
+
 
 @tagged("test_eval_context")
 class TestEvalContext(TransactionCase):

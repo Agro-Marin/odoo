@@ -14,7 +14,7 @@ from odoo.tools import SQL, OrderedSet, frozendict, sql, unique
 from odoo.tools.safe_eval import safe_eval
 from odoo.tools.translate import FIELD_TRANSLATE, _
 
-from .ir_model import (
+from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
     field_xmlid,
     make_compute,
@@ -154,7 +154,7 @@ class IrModelFields(models.Model):
     )
     selectable = fields.Boolean(default=True)
     modules = fields.Char(
-        compute="_in_modules",
+        compute="_compute_modules",
         string="In Apps",
         help="List of modules in which the field is defined",
     )
@@ -242,7 +242,7 @@ class IrModelFields(models.Model):
             rec.copied = (rec.ttype != "one2many") and not (rec.related or rec.compute)
 
     @api.depends()
-    def _in_modules(self) -> None:
+    def _compute_modules(self) -> None:
         installed_modules = self.env["ir.module.module"].search(
             [("state", "=", "installed")]
         )

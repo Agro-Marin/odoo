@@ -507,6 +507,65 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
             cm.exception, KeyError, "Missing 'name' must not raise KeyError."
         )
 
+    def test_create_omitted_group_warns(self):
+        """An access-granting ACL that OMITS ``group_id`` is a global grant,
+        exactly like an explicit falsy ``group_id``, and must warn too. (IMA-C4)
+        """
+        model_partner = self.env.ref("base.model_res_partner")
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_model_access", level="WARNING"
+        ) as log_cm:
+            self.env["ir.model.access"].create(
+                {
+                    "name": "acl_no_group_omitted",
+                    "model_id": model_partner.id,
+                    "perm_read": True,
+                }
+            )
+        self.assertTrue(
+            any("has no group" in msg for msg in log_cm.output),
+            "Omitting group_id on an access-granting ACL must warn.",
+        )
+
+    def test_cache_clearing_invalidates_both_acl_caches(self):
+        """``call_cache_clearing_methods`` must evict BOTH ``_get_allowed_models``
+        (in the 'default' cache bucket) and ``_get_access_groups`` (in the
+        'stable' bucket). Pins the invariant that clearing 'stable' cascades to
+        'default'; narrowing it would silently serve stale ACLs. (IMA-C5)
+        """
+        Access = self.env["ir.model.access"]
+        registry = self.env.registry
+        caches = registry._Registry__caches
+
+        def cached(bucket, method_name):
+            return [
+                key
+                for key in caches[bucket].snapshot
+                if getattr(key[1], "__name__", None) == method_name
+            ]
+
+        registry.clear_all_caches()
+        Access._get_allowed_models("read")
+        Access._get_access_groups("res.partner", "read")
+        self.assertTrue(
+            cached("default", "_get_allowed_models"),
+            "_get_allowed_models should populate the 'default' bucket.",
+        )
+        self.assertTrue(
+            cached("stable", "_get_access_groups"),
+            "_get_access_groups should populate the 'stable' bucket.",
+        )
+
+        Access.call_cache_clearing_methods()
+        self.assertFalse(
+            cached("default", "_get_allowed_models"),
+            "_get_allowed_models (default bucket) must be invalidated.",
+        )
+        self.assertFalse(
+            cached("stable", "_get_access_groups"),
+            "_get_access_groups (stable bucket) must be invalidated.",
+        )
+
     def test_check_unknown_model_warns(self):
         """``check`` on an unknown model denies, logs a WARNING, and does not
         raise when ``raise_exception=False``. (IMA-C2)

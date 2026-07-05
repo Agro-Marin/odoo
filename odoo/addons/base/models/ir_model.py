@@ -1,11 +1,7 @@
 import logging
 import re
 from collections import defaultdict
-from collections.abc import Mapping
-from itertools import batched
-from typing import Any, Self
-
-from psycopg.types.json import Jsonb
+from typing import Any, Self, override
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
@@ -14,262 +10,26 @@ from odoo.fields import Command
 from odoo.tools import (
     SQL,
     OrderedSet,
+    remove_accents,
     sql,
     unique,
 )
-from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
-from odoo.tools.translate import LazyTranslate, _
+from odoo.tools.translate import _
 
-_lt = LazyTranslate(__name__)
+# field_xmlid and selection_xmlid are re-exported for backward compatibility
+# (external importers still reference them via ir_model).
+from .ir_model_common import (  # noqa: F401
+    MODULE_UNINSTALL_FLAG,
+    field_xmlid,
+    inherit_xmlid,
+    mark_modified,
+    model_xmlid,
+    select_en,
+    selection_xmlid,
+    upsert_en,
+)
+
 _logger = logging.getLogger(__name__)
-
-# Messages are declared in extenso so they are properly exported in translation terms
-ACCESS_ERROR_HEADER = {
-    "read": _lt(
-        "You are not allowed to access '%(document_kind)s' (%(document_model)s) records."
-    ),
-    "write": _lt(
-        "You are not allowed to modify '%(document_kind)s' (%(document_model)s) records."
-    ),
-    "create": _lt(
-        "You are not allowed to create '%(document_kind)s' (%(document_model)s) records."
-    ),
-    "unlink": _lt(
-        "You are not allowed to delete '%(document_kind)s' (%(document_model)s) records."
-    ),
-}
-ACCESS_ERROR_GROUPS = _lt(
-    "This operation is allowed for the following groups:\n%(groups_list)s"
-)
-ACCESS_ERROR_NOGROUP = _lt("No group currently allows this operation.")
-ACCESS_ERROR_RESOLUTION = _lt(
-    "Contact your administrator to request access if necessary."
-)
-
-MODULE_UNINSTALL_FLAG = "_force_unlink"
-RE_ORDER_FIELDS = re.compile(r'"?(\w+)"?\s*(?:asc|desc)?', flags=re.IGNORECASE)
-
-# base environment for doing a safe_eval
-SAFE_EVAL_BASE = {
-    "datetime": datetime,
-    "dateutil": dateutil,
-    "time": time,
-}
-
-
-def make_compute(text: str, deps: str | None) -> Any:
-    """Return a compute function from its code body and dependencies."""
-
-    def func(self: Any) -> Any:
-        return safe_eval(text, SAFE_EVAL_BASE | {"self": self}, mode="exec")
-
-    deps = [arg.strip() for arg in deps.split(",")] if deps else []
-    return api.depends(*deps)(func)
-
-
-def mark_modified(records: Any, fnames: list[str]) -> None:
-    """Mark the given fields as modified on records."""
-    # protect all modified fields, to avoid them being recomputed
-    field_objs = [records._fields[fname] for fname in fnames]
-    with records.env.protecting(field_objs, records):
-        records.modified(fnames)
-
-
-def model_xmlid(module: str, model_name: str) -> str:
-    """Return the XML id of the given model."""
-    return f"{module}.model_{model_name.replace('.', '_')}"
-
-
-def field_xmlid(module: str, model_name: str, field_name: str) -> str:
-    """Return the XML id of the given field."""
-    return f"{module}.field_{model_name.replace('.', '_')}__{field_name}"
-
-
-def selection_xmlid(module: str, model_name: str, field_name: str, value: str) -> str:
-    """Return the XML id of the given selection."""
-    xmodel = model_name.replace(".", "_")
-    xvalue = value.replace(".", "_").replace(" ", "_").lower()
-    return f"{module}.selection__{xmodel}__{field_name}__{xvalue}"
-
-
-def query_insert(
-    cr: Any, table: str, rows: list[dict[str, Any]] | Mapping[str, Any]
-) -> list[int]:
-    """Insert rows in a table. ``rows`` is a list of dicts, all with the same
-    set of keys. Return the ids of the new rows.
-    """
-    if isinstance(rows, Mapping):
-        rows = [rows]
-    if not rows:
-        return []
-    cols = list(rows[0])
-    return cr.copy_from(
-        table,
-        cols,
-        [tuple(row[col] for col in cols) for row in rows],
-        returning_ids=True,
-    )
-
-
-def query_update(
-    cr: Any, table: str, values: dict[str, Any], selectors: list[str]
-) -> list[int]:
-    """Update the table with the given values (dict), and use the columns in
-    ``selectors`` to select the rows to update.
-    """
-    query = SQL(
-        "UPDATE %s SET %s WHERE %s RETURNING id",
-        SQL.identifier(table),
-        SQL(",").join(
-            SQL("%s = %s", SQL.identifier(key), val)
-            for key, val in values.items()
-            if key not in selectors
-        ),
-        SQL(" AND ").join(
-            SQL("%s = %s", SQL.identifier(key), values[key]) for key in selectors
-        ),
-    )
-    cr.execute(query)
-    return [row[0] for row in cr.fetchall()]
-
-
-def select_en(
-    model: Any, fnames: list[str], model_names: list[str]
-) -> list[tuple[Any, ...]]:
-    """Select the given columns from the given model's table, for the given model names.
-    Translated fields are returned in 'en_US'.
-    """
-    if not model_names:
-        return []
-    cols = SQL(", ").join(
-        (
-            SQL("%s->>'en_US'", SQL.identifier(fname))
-            if model._fields[fname].translate
-            else SQL.identifier(fname)
-        )
-        for fname in fnames
-    )
-    query = SQL(
-        "SELECT %s FROM %s WHERE model = ANY(%s)",
-        cols,
-        SQL.identifier(model._table),
-        list(model_names),
-    )
-    return model.env.execute_query(query)
-
-
-def upsert_en(
-    model: Any,
-    fnames: list[str],
-    rows: list[tuple[Any, ...]],
-    conflict: list[str],
-) -> list[int]:
-    """Insert or update the table with the given rows using MERGE.
-
-    :param model: recordset of the model to query
-    :param fnames: list of column names
-    :param rows: list of tuples, where each tuple value corresponds to a column name
-    :param conflict: list of column names for the MERGE ON predicate
-    :return: the ids of the inserted or updated rows, in the same order as *rows*
-    """
-
-    # for translated fields, we can actually erase the json value, as
-    # translations will be reloaded after this
-    def identity(val: Any) -> Any:
-        return val
-
-    def jsonify(val: Any) -> Any:
-        # Jsonb (not Json) so MERGE's USING VALUES source table has jsonb type,
-        # matching the target column for the || operator.
-        return Jsonb({"en_US": val}) if val is not None else val
-
-    wrappers = [
-        (jsonify if model._fields[fname].translate else identity) for fname in fnames
-    ]
-    values = [
-        tuple(func(val) for func, val in zip(wrappers, row, strict=True))
-        for row in rows
-    ]
-    comma = SQL(", ").join
-    col_ids = [SQL.identifier(fname) for fname in fnames]
-
-    # Unlike INSERT … VALUES (which resolves NULL types against the target
-    # column), MERGE … USING (VALUES …) treats the source as an independent
-    # sub-query.  When every value in a column is NULL, PostgreSQL defaults
-    # its type to text, causing type mismatches (e.g. text vs jsonb/int4).
-    # Add explicit casts on all source-column references to guarantee correct
-    # types regardless of NULLs in the batch.
-    def _pg_cast(fname: str) -> SQL:
-        ct = model._fields[fname].column_type
-        if ct and ct[0] not in ("varchar", "text"):
-            return SQL("::%s", SQL(ct[0]))
-        return SQL("")
-
-    casts = [_pg_cast(fname) for fname in fnames]
-    s_cols = [
-        SQL("s.%s%s", SQL.identifier(fname), cast)
-        for fname, cast in zip(fnames, casts, strict=True)
-    ]
-    on_pred = SQL(" AND ").join(
-        SQL("t.%s = s.%s", SQL.identifier(c), SQL.identifier(c)) for c in conflict
-    )
-    assignments = comma(
-        (
-            SQL(
-                "%s = COALESCE(t.%s, '{}'::jsonb) || s.%s%s",
-                SQL.identifier(fname),
-                SQL.identifier(fname),
-                SQL.identifier(fname),
-                cast,
-            )
-            if model._fields[fname].translate is True
-            else SQL(
-                "%s = s.%s%s",
-                SQL.identifier(fname),
-                SQL.identifier(fname),
-                cast,
-            )
-        )
-        for fname, cast in zip(fnames, casts, strict=True)
-    )
-    # Include conflict columns in RETURNING so we can reconstruct the input
-    # order.  Unlike INSERT … ON CONFLICT whose RETURNING preserves VALUES
-    # order, MERGE processes rows according to the join strategy, so the
-    # RETURNING order is non-deterministic.
-    returning = comma(
-        [SQL("NEW.id")] + [SQL("NEW.%s", SQL.identifier(c)) for c in conflict]
-    )
-    # psycopg3 limits query parameters to 65535.  Batch rows so that
-    # rows_per_batch * len(fnames) stays well under the limit.
-    batch_size = 65000 // len(fnames) or 1
-    key_to_id = {}
-
-    for batch in batched(values, batch_size, strict=False):
-        query = SQL(
-            """
-            MERGE INTO %(table)s t
-            USING (VALUES %(values)s) AS s(%(cols)s)
-            ON %(on_pred)s
-            WHEN MATCHED THEN
-                UPDATE SET %(assignments)s
-            WHEN NOT MATCHED THEN
-                INSERT (%(cols)s) VALUES (%(s_cols)s)
-            RETURNING %(returning)s
-            """,
-            table=SQL.identifier(model._table),
-            values=comma(batch),
-            cols=comma(col_ids),
-            on_pred=on_pred,
-            assignments=assignments,
-            s_cols=comma(s_cols),
-            returning=returning,
-        )
-        # Map conflict-key → id from the (unordered) result set.
-        for result_row in model.env.execute_query(query):
-            key_to_id[result_row[1:]] = result_row[0]
-
-    conflict_indices = [fnames.index(c) for c in conflict]
-    return [key_to_id[tuple(row[i] for i in conflict_indices)] for row in rows]
 
 
 #
@@ -334,9 +94,9 @@ class IrModel(models.Model):
     )
     inherited_model_ids = fields.Many2many(
         "ir.model",
-        compute="_inherited_models",
+        compute="_compute_inherited_model_ids",
         string="Inherited models",
-        help="The list of models that extends the current model.",
+        help="The parent models this model delegates to (via _inherits).",
     )
     state = fields.Selection(
         [("manual", "Custom Object"), ("base", "Base Object")],
@@ -349,11 +109,13 @@ class IrModel(models.Model):
     abstract = fields.Boolean(string="Abstract Model")
     transient = fields.Boolean(string="Transient Model")
     modules = fields.Char(
-        compute="_in_modules",
+        compute="_compute_modules",
         string="In Apps",
         help="List of modules in which the object is defined or inherited",
     )
-    view_ids = fields.One2many("ir.ui.view", compute="_view_ids", string="Views")
+    view_ids = fields.One2many(
+        "ir.ui.view", compute="_compute_view_ids", string="Views"
+    )
     count = fields.Integer(
         compute="_compute_count",
         string="Count (Incl. Archived)",
@@ -366,7 +128,7 @@ class IrModel(models.Model):
     )
 
     @api.depends()
-    def _inherited_models(self) -> None:
+    def _compute_inherited_model_ids(self) -> None:
         """Batch-resolve inherited models with a single search."""
         self.inherited_model_ids = False
         # Collect all parent model names from the registry (no DB needed)
@@ -394,7 +156,7 @@ class IrModel(models.Model):
                 )
 
     @api.depends()
-    def _in_modules(self) -> None:
+    def _compute_modules(self) -> None:
         installed_modules = self.env["ir.module.module"].search(
             [("state", "=", "installed")]
         )
@@ -405,7 +167,7 @@ class IrModel(models.Model):
             model.modules = ", ".join(sorted(installed_names & module_names))
 
     @api.depends()
-    def _view_ids(self) -> None:
+    def _compute_view_ids(self) -> None:
         """Batch-fetch views for all models in a single query."""
         model_names = [m.model for m in self]
         View = self.env["ir.ui.view"]
@@ -479,9 +241,15 @@ class IrModel(models.Model):
                     if fval.inherited and fval.base_field.store
                 )
 
-            order_fields = RE_ORDER_FIELDS.findall(model.order)
-            for field in order_fields:
-                if field not in stored_fields:
+            # Extract the ordered field names using the ORM's own order parser
+            # (the single source of truth, already applied by _check_qorder)
+            # rather than a parallel regex that would drift from the grammar and
+            # mistake grouping funcs (e.g. "create_date:month") or related-field
+            # properties (e.g. "parent_id.name") for missing field names.
+            for order_part in model.order.split(","):
+                order_match = models.regex_order.match(order_part)
+                field = order_match["field"] if order_match else None
+                if field and field not in stored_fields:
                     raise ValidationError(
                         _(
                             "Unable to order by %s: fields used for ordering must be present on the model and stored.",
@@ -553,6 +321,7 @@ class IrModel(models.Model):
                     )
                 )
 
+    @override
     def unlink(self) -> bool:
         # prevent screwing up fields that depend on these models' fields
         manual_models = self.filtered(lambda model: model.state == "manual")
@@ -592,6 +361,7 @@ class IrModel(models.Model):
 
         return res
 
+    @override
     def write(self, vals: dict[str, Any]) -> bool:
         for unmodifiable_field in ("model", "state", "abstract", "transient"):
             if unmodifiable_field in vals and any(
@@ -616,6 +386,7 @@ class IrModel(models.Model):
         return res
 
     @api.model_create_multi
+    @override
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
         manual_models = [
@@ -637,17 +408,24 @@ class IrModel(models.Model):
         return res
 
     @api.model
+    @override
     def name_create(self, name: str) -> tuple[int, str]:
-        """Infer the model from the name. E.g.: 'My New Model' should become 'x_my_new_model'."""
+        """Infer the model from the name. E.g.: 'My New Model' should become 'x_my_new_model'.
+
+        The name is slugified (accents stripped, non-alphanumeric runs collapsed
+        to single underscores) so that punctuation or diacritics produce a valid
+        model name instead of failing the ``_check_model_name`` constraint.
+        """
+        slug = re.sub(r"[^a-z0-9]+", "_", remove_accents(name).lower()).strip("_")
         ir_model = self.create(
             {
                 "name": name,
-                "model": "x_" + "_".join(name.lower().split(" ")),
+                "model": f"x_{slug}" if slug else "x_",
             }
         )
         return ir_model.id, ir_model.display_name
 
-    def _reflect_model_params(self, model: Any) -> dict[str, Any]:
+    def _reflect_model_params(self, model: models.BaseModel) -> dict[str, Any]:
         """Return the values to write to the database for the given model."""
         return {
             "model": model._name,
@@ -772,12 +550,30 @@ class IrModelInherit(models.Model):
                 if not models.is_model_definition(cls):
                     continue
 
-                items = [
-                    (model_id, get_model_id(parent_name), None)
+                inherit_parents = [
+                    parent_name
                     for parent_name in cls._inherit
                     if parent_name not in ("base", model_name)
+                ]
+                # parent_id is a required column; an unresolved parent would
+                # otherwise surface as an opaque NOT NULL violation deep inside
+                # upsert_en.  Resolve up front and fail with a message that
+                # names the culprit.
+                parent_ids = {}
+                for parent_name in (*inherit_parents, *cls._inherits):
+                    parent_id = get_model_id(parent_name)
+                    if parent_id is None:
+                        raise ValueError(
+                            f"Cannot reflect inheritance of {model_name!r}: parent "
+                            f"model {parent_name!r} is not present in ir_model."
+                        )
+                    parent_ids[parent_name] = parent_id
+
+                items = [
+                    (model_id, parent_ids[parent_name], None)
+                    for parent_name in inherit_parents
                 ] + [
-                    (model_id, get_model_id(parent_name), get_field_id(field))
+                    (model_id, parent_ids[parent_name], get_field_id(field))
                     for parent_name, field in cls._inherits.items()
                 ]
 
@@ -816,22 +612,23 @@ class IrModelInherit(models.Model):
             inh_ids.update(dict(zip(rows, ids, strict=True)))
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
 
-        # update their XML id
-        IrModel.browse(id_ for item in module_mapping for id_ in item[:2]).fetch(
-            ["model"]
+        # update their XML id: resolve every model/parent id to its xmlid-safe
+        # name once, instead of re-browsing (twice) inside the loop below
+        involved = IrModel.browse(
+            id_ for item in module_mapping for id_ in item[:2]
         )
+        involved.fetch(["model"])
+        xml_name = {rec.id: rec.model for rec in involved}
         data_list = []
         for (
             model_id,
             parent_id,
             parent_field_id,
         ), modules in module_mapping.items():
-            model_name = IrModel.browse(model_id).model.replace(".", "_")
-            parent_name = IrModel.browse(parent_id).model.replace(".", "_")
             record_id = inh_ids[(model_id, parent_id, parent_field_id)]
             data_list += [
                 {
-                    "xml_id": f"{module}.model_inherit__{model_name}__{parent_name}",
+                    "xml_id": inherit_xmlid(module, xml_name[model_id], xml_name[parent_id]),
                     "record": self.browse(record_id),
                 }
                 for module in modules
@@ -841,13 +638,13 @@ class IrModelInherit(models.Model):
 
 
 # Re-exports for backward compatibility (classes moved to separate files)
-from .ir_model_access import (  # noqa: E402, F401
-    IrModelAccess,
-    IrModelConstraint,
-    IrModelRelation,
-)
+from .ir_model_access import IrModelAccess  # noqa: E402, F401
 from .ir_model_data import IrModelData  # noqa: E402, F401
 from .ir_model_fields import FIELD_TYPES, IrModelFields  # noqa: E402, F401
 from .ir_model_fields_selection import (  # noqa: E402, F401
     IrModelFieldsSelection,
+)
+from .ir_model_reflection import (  # noqa: E402, F401
+    IrModelConstraint,
+    IrModelRelation,
 )

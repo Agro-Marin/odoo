@@ -224,7 +224,7 @@ class TestBaseBenchmark(TransactionCase):
 
         self._run_benchmark(
             "ir_model_view_ids (50 models)",
-            models._view_ids,
+            models._compute_view_ids,
         )
 
     def test_bench_ir_model_inherited_models(self):
@@ -233,7 +233,7 @@ class TestBaseBenchmark(TransactionCase):
 
         self._run_benchmark(
             "ir_model_inherited_models (50 models)",
-            models._inherited_models,
+            models._compute_inherited_model_ids,
         )
 
     def test_bench_ir_model_compute_count(self):
