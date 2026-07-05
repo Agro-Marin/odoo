@@ -699,6 +699,83 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
         scheme_ID = xml_tree.find('.//cac:PartyLegalEntity/cbc:CompanyID[@schemeID]', self.ubl_namespaces)
         self.assertEqual(scheme_ID.attrib.get("schemeID"), "0190")
 
+    def test_facturx_native_pdfa(self):
+        """Factur-X invoices render as native PDF/A-3b with the CII XML embedded.
+
+        Guards the native swap (WeasyPrint pdf_variant + attachments + XMP) that
+        replaced the pypdf convert_to_pdfa post-processing. Asserts the PDF/A
+        structural markers here; full veraPDF conformance is verified out of band
+        (the validator is a Java tool, unavailable in CI).
+        """
+        import io
+
+        import pypdf
+
+        # A complete company + customer so the CII XML export succeeds (Factur-X
+        # requires VAT, postal addresses, contact details and a bank account).
+        company = self.company_data['company']
+        company.write({
+            'vat': 'FR23334175221',
+            'street': '1 rue de Rivoli',
+            'zip': '75001',
+            'city': 'Paris',
+            'country_id': self.env.ref('base.fr').id,
+            'email': 'info@company.example',
+            'phone': '+33123456789',
+        })
+        company_bank = self.env['res.partner.bank'].create({
+            'acc_number': 'FR7630006000011234567890189',
+            'partner_id': company.partner_id.id,
+            'allow_out_payment': True,
+        })
+        partner = self.partner_be  # fully configured: VAT, address, country
+        partner.invoice_edi_format = 'facturx'
+        invoice = self.env['account.move'].create({
+            'partner_id': partner.id,
+            'move_type': 'out_invoice',
+            'invoice_date': fields.Date.from_string('2025-12-22'),
+            'partner_bank_id': company_bank.id,
+            'invoice_line_ids': [Command.create({'product_id': self.product_a.id})],
+        })
+        invoice.action_post()
+
+        # force_report_rendering makes the report engine produce a real PDF (not
+        # the test stub), which in turn triggers the native PDF/A path.
+        # sending_methods=[] generates the document without actually sending it.
+        wizard = (
+            self.env["account.move.send.wizard"]
+            .with_context(
+                active_model="account.move",
+                active_ids=invoice.ids,
+                force_report_rendering=True,
+            )
+            .create({"sending_methods": []})
+        )
+        wizard.action_send_and_print()
+
+        pdf_attachment = invoice.invoice_pdf_report_id
+        self.assertTrue(pdf_attachment, "the invoice PDF should have been generated")
+        raw = pdf_attachment.raw
+        self.assertTrue(raw.startswith(b'%PDF'), "output is a PDF")
+
+        reader = pypdf.PdfReader(io.BytesIO(raw))
+        root = reader.trailer['/Root']
+        # PDF/A structural markers emitted natively by WeasyPrint's pdf/a-3b:
+        self.assertIn('/OutputIntents', root, "PDF/A output intent is present")
+        self.assertIn('/AF', root, "associated files array (Factur-X) is present")
+        self.assertIn('/Metadata', root, "XMP metadata stream is present")
+        xmp = root['/Metadata'].get_data()
+        self.assertIn(b'pdfaid', xmp, "PDF/A identification schema in XMP")
+        self.assertIn(
+            b'factur-x:pdfa', xmp, "Factur-X XMP extension schema is present"
+        )
+        # The CII XML is embedded as an attachment named factur-x.xml.
+        self.assertIn(
+            'factur-x.xml',
+            reader.attachments,
+            "factur-x.xml is embedded in the PDF",
+        )
+
     def test_facturx_use_correct_vat(self):
         """Test that Factur-X uses the foreign VAT when available, else the company VAT."""
         germany = self.env.ref("base.de")

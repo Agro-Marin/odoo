@@ -12,6 +12,16 @@ from odoo.addons.account.tools import dict_to_xml
 
 _logger = logging.getLogger(__name__)
 
+# Factur-X PDF/A extension schema, as a self-contained <rdf:RDF> block.
+# WeasyPrint appends xmp_metadata fragments inside its own <x:xmpmeta> AFTER its
+# generated PDF/A identification (pdfaid part/conformance), so this fragment must
+# be a complete rdf:RDF of its own — NOT a full <?xml?><x:xmpmeta> packet (that
+# would nest and break XMP well-formedness) and NOT bare <rdf:Description>
+# elements (they would land outside rdf:RDF). See odoo/tools/pdf and the
+# WeasyPrint metadata assembly (pdf/metadata.py). The pdfa identification and
+# output intent are emitted natively by WeasyPrint's pdf/a-3b variant.
+FACTURX_PDFA_XMP_RDF = b"""<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#"><pdfaExtension:schemas><rdf:Bag><rdf:li rdf:parseType="Resource"><pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema><pdfaSchema:namespaceURI>urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#</pdfaSchema:namespaceURI><pdfaSchema:prefix>fx</pdfaSchema:prefix><pdfaSchema:property><rdf:Seq><rdf:li rdf:parseType="Resource"><pdfaProperty:name>DocumentFileName</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>name of the embedded XML invoice file</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>DocumentType</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>INVOICE</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>Version</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>The actual version of the Factur-X XML schema</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>ConformanceLevel</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>The conformance level of the embedded Factur-X data</pdfaProperty:description></rdf:li></rdf:Seq></pdfaSchema:property></rdf:li></rdf:Bag></pdfaExtension:schemas></rdf:Description><rdf:Description rdf:about="" xmlns:fx="urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"><fx:ConformanceLevel>EN 16931</fx:ConformanceLevel><fx:DocumentFileName>factur-x.xml</fx:DocumentFileName><fx:DocumentType>INVOICE</fx:DocumentType><fx:Version>1.0</fx:Version></rdf:Description></rdf:RDF>"""
+
 
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'
@@ -139,6 +149,40 @@ class AccountMoveSend(models.AbstractModel):
                     'builder': builder,
                 }
 
+    def _get_invoice_pdf_render_options(self, invoice, invoice_data):
+        # EXTENDS 'account'
+        # For Factur-X, render the invoice PDF natively as PDF/A-3b with the CII
+        # XML embedded (relationship "Data") and the Factur-X XMP extension
+        # schema, in one WeasyPrint pass. This replaces the old post-processing
+        # (pypdf attach + convert_to_pdfa), which produced invalid PDF/A on
+        # WeasyPrint output.
+        options = super()._get_invoice_pdf_render_options(invoice, invoice_data)
+        xml_options = invoice_data.get('ubl_cii_xml_options') or {}
+        # Under test_enable the PDF path is normally stubbed, so skip the native
+        # PDF/A render unless a test explicitly forces real rendering.
+        renders_pdf = (
+            not tools.config['test_enable']
+            or self.env.context.get('force_report_rendering')
+        )
+        if (
+            renders_pdf
+            and xml_options.get('ubl_cii_format') == 'facturx'
+            and invoice_data.get('ubl_cii_xml_attachment_values')
+        ):
+            invoice_data['facturx_pdfa_native'] = True
+            options = {
+                **options,
+                'pdf_variant': 'pdf/a-3b',
+                'attachments': [{
+                    'content': invoice_data['ubl_cii_xml_attachment_values']['raw'],
+                    'name': 'factur-x.xml',
+                    'description': 'Factur-X invoice',
+                    'relationship': 'Data',
+                }],
+                'xmp_metadata': [FACTURX_PDFA_XMP_RDF],
+            }
+        return options
+
     def _hook_invoice_document_after_pdf_report_render(self, invoice, invoice_data):
         # EXTENDS 'account'
         super()._hook_invoice_document_after_pdf_report_render(invoice, invoice_data)
@@ -161,6 +205,15 @@ class AccountMoveSend(models.AbstractModel):
                 'res_id': invoice.id,
                 'res_model': 'account.move',
             })
+            return
+
+        # Factur-X invoices are rendered natively as PDF/A-3b with the CII XML
+        # already embedded and the Factur-X XMP schema in place (see
+        # _get_invoice_pdf_render_options). The pypdf attach + convert_to_pdfa
+        # post-processing below is then unnecessary AND unsafe: a pypdf
+        # round-trip strips the PDF/A output intent, trailer ID and XMP,
+        # invalidating conformance.
+        if invoice_data.pop('facturx_pdfa_native', False):
             return
 
         # Read pdf content.

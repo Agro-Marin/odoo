@@ -464,7 +464,16 @@ class AccountMoveSend(models.AbstractModel):
             constraints["not_posted"] = _(
                 "You can't generate invoices that are not posted."
             )
-        if not move.is_sale_document(include_receipts=True):
+        # Self-billing journals produce vendor documents (in_invoice/in_refund)
+        # that the buyer issues on the supplier's behalf and sends out (EDI/UBL,
+        # dedicated e-mail templates). They are legitimately "sendable" here even
+        # though they are purchase documents, so exempt them from the sale-only
+        # constraint.
+        is_self_billing = (
+            move.journal_id.is_self_billing
+            and move.is_purchase_document(include_receipts=True)
+        )
+        if not move.is_sale_document(include_receipts=True) and not is_self_billing:
             constraints["not_sale_document"] = _(
                 "You can only generate sales documents."
             )
@@ -555,21 +564,43 @@ class AccountMoveSend(models.AbstractModel):
                 invoice_data
             )
 
+        Report = self.env["ir.actions.report"].with_company(company_id)
         for pdf_report, group_invoices_data in grouped_invoices_by_report.items():
             ids = [inv.id for inv in group_invoices_data]
 
-            content, report_type = (
-                self.env["ir.actions.report"]
-                .with_company(company_id)
-                ._pre_render_qweb_pdf(pdf_report.report_name, res_ids=ids)
-            )
-            content_by_id = self.env["ir.actions.report"]._get_splitted_report(
-                pdf_report.report_name, content, report_type
-            )
-            if len(content_by_id) == 1 and False in content_by_id:
-                raise ValidationError(
-                    _("Cannot identify the invoices in the generated PDF: %s", ids)
+            # Per-invoice render options (e.g. Factur-X native PDF/A-3 with the
+            # invoice XML embedded) force one render per invoice so each PDF
+            # carries its own embedded file. When no invoice in the group asks
+            # for options, keep the single batched render (one WeasyPrint session
+            # warms the shared font/asset cache for the whole group).
+            render_options = {
+                invoice: self._get_invoice_pdf_render_options(invoice, invoice_data)
+                for invoice, invoice_data in group_invoices_data.items()
+            }
+            if any(render_options.values()):
+                content_by_id = {}
+                for invoice, invoice_data in group_invoices_data.items():
+                    content, report_type = Report._pre_render_qweb_pdf(
+                        pdf_report.report_name,
+                        res_ids=[invoice.id],
+                        data=render_options[invoice] or None,
+                    )
+                    content_by_id.update(
+                        self.env["ir.actions.report"]._get_splitted_report(
+                            pdf_report.report_name, content, report_type
+                        )
+                    )
+            else:
+                content, report_type = Report._pre_render_qweb_pdf(
+                    pdf_report.report_name, res_ids=ids
                 )
+                content_by_id = self.env["ir.actions.report"]._get_splitted_report(
+                    pdf_report.report_name, content, report_type
+                )
+                if len(content_by_id) == 1 and False in content_by_id:
+                    raise ValidationError(
+                        _("Cannot identify the invoices in the generated PDF: %s", ids)
+                    )
 
             for invoice, invoice_data in group_invoices_data.items():
                 invoice_data["pdf_attachment_values"] = {
@@ -580,6 +611,18 @@ class AccountMoveSend(models.AbstractModel):
                     "res_id": invoice.id,
                     "res_field": "invoice_pdf_report_file",  # Binary field
                 }
+
+    @api.model
+    def _get_invoice_pdf_render_options(self, invoice, invoice_data):
+        """Hook: per-invoice options passed as ``data`` to ``_pre_render_qweb_pdf``.
+
+        Returning a non-empty dict (e.g. ``{"pdf_variant": "pdf/a-3b",
+        "attachments": [...], "xmp_metadata": [...]}``) makes
+        :meth:`_prepare_invoice_pdf_report` render that invoice on its own so the
+        options — notably native PDF/A output with embedded files — apply to a
+        single record's PDF. The default is no options (batched render).
+        """
+        return {}
 
     @api.model
     def _prepare_invoice_proforma_pdf_report(self, invoice, invoice_data):
@@ -755,9 +798,13 @@ class AccountMoveSend(models.AbstractModel):
             ["res_id", "res_model"], flush=False
         )
         if new_message.attachment_ids.ids:
+            # ``= ANY(%s)`` with a list, not ``IN %s`` with a tuple: under
+            # psycopg3 (with auto-prepared statements) the tuple binds as a
+            # single ``$1`` parameter, producing ``IN $1`` — a syntax error.
+            # ``= ANY(array)`` is the fork's portable idiom for id-set queries.
             self.env.cr.execute(
-                "UPDATE ir_attachment SET res_id = NULL WHERE id IN %s",
-                [tuple(new_message.attachment_ids.ids)],
+                "UPDATE ir_attachment SET res_id = NULL WHERE id = ANY(%s)",
+                [list(new_message.attachment_ids.ids)],
             )
         new_message.attachment_ids.write(
             {
