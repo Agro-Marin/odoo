@@ -2,9 +2,11 @@
 from . import assetsbundle
 
 # --- Core metadata (ir.model) ---
+from . import ir_model_common
 from . import ir_model
 from . import ir_model_fields
 from . import ir_model_fields_selection
+from . import ir_model_reflection
 from . import ir_model_access
 from . import ir_model_data
 from . import ir_sequence

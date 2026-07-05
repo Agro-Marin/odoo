@@ -1,15 +1,12 @@
 import logging
 from typing import Any, Self
 
-from psycopg.types.json import Json
-
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError
-from odoo.tools import SQL, OrderedSet, sql
-from odoo.tools.translate import _
+from odoo.tools import SQL
 
-from .ir_model import (
+from .ir_model_common import (
     ACCESS_ERROR_GROUPS,
     ACCESS_ERROR_HEADER,
     ACCESS_ERROR_NOGROUP,
@@ -19,310 +16,6 @@ from .ir_model import (
 _logger = logging.getLogger(__name__)
 
 
-class IrModelConstraint(models.Model):
-    """
-    This model tracks PostgreSQL indexes, foreign keys and constraints
-    used by Odoo models.
-    """
-
-    _name = "ir.model.constraint"
-    _description = "Model Constraint"
-    _allow_sudo_commands = False
-
-    name = fields.Char(
-        string="Constraint",
-        required=True,
-        index=True,
-        readonly=True,
-        help="PostgreSQL constraint or foreign key name.",
-    )
-    definition = fields.Char(help="PostgreSQL constraint definition", readonly=True)
-    message = fields.Char(
-        help="Error message returned when the constraint is violated.",
-        translate=True,
-    )
-    model = fields.Many2one(
-        "ir.model", required=True, ondelete="cascade", index=True, readonly=True
-    )
-    module = fields.Many2one(
-        "ir.module.module",
-        required=True,
-        index=True,
-        ondelete="cascade",
-        readonly=True,
-    )
-    type = fields.Char(
-        string="Constraint Type",
-        required=True,
-        size=1,
-        readonly=True,
-        help="Type of the constraint: `f` for a foreign key, `u` for other constraints.",
-    )
-
-    _module_name_uniq = models.Constraint(
-        "UNIQUE (name, module)",
-        "Constraints with the same name are unique per module.",
-    )
-
-    def unlink(self) -> bool:
-        self.check_access("unlink")
-        ids_set = set(self.ids)
-        for data in self.sorted(key="id", reverse=True):
-            name = data.name
-            if data.model.model in self.env:
-                table = self.env[data.model.model]._table
-            else:
-                table = data.model.model.replace(".", "_")
-
-            # double-check we are really going to delete all the owners of this schema element
-            external_ids = {
-                id_
-                for [id_] in self.env.execute_query(
-                    SQL(
-                        """SELECT id from ir_model_constraint where name=%s""",
-                        name,
-                    )
-                )
-            }
-            if external_ids - ids_set:
-                # as installed modules have defined this element we must not delete it!
-                continue
-
-            typ = data.type
-            if typ in ("f", "u"):
-                # test if FK exists on this table
-                # Since type='u' means any "other" constraint, to avoid issues we limit to
-                # 'c' -> check, 'u' -> unique, 'x' -> exclude constraints, effective leaving
-                # out 'p' -> primary key and 'f' -> foreign key, constraints.
-                # For 'f', it could be on a related m2m table, in which case we ignore it.
-                # See: https://www.postgresql.org/docs/9.5/catalog-pg-constraint.html
-                hname = sql.make_identifier(name)
-                if self.env.execute_query(
-                    SQL(
-                        """SELECT
-                    FROM pg_constraint cs
-                    JOIN pg_class cl
-                    ON (cs.conrelid = cl.oid)
-                    WHERE cs.contype = ANY(%s) AND cs.conname = %s AND cl.relname = %s
-                    AND cl.relnamespace = current_schema::regnamespace
-                    """,
-                        ["c", "u", "x"] if typ == "u" else [typ],
-                        hname,
-                        table,
-                    )
-                ):
-                    self.env.execute_query(
-                        SQL(
-                            "ALTER TABLE %s DROP CONSTRAINT %s",
-                            SQL.identifier(table),
-                            SQL.identifier(hname),
-                        )
-                    )
-                    _logger.info("Dropped CONSTRAINT %s@%s", name, data.model.model)
-
-            if typ == "i":
-                hname = sql.make_identifier(name)
-                # drop index if it exists
-                self.env.execute_query(
-                    SQL("DROP INDEX IF EXISTS %s", SQL.identifier(hname))
-                )
-                _logger.info("Dropped INDEX %s@%s", name, data.model.model)
-
-        return super().unlink()
-
-    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=constraint.name + "_copy")
-            for constraint, vals in zip(self, vals_list, strict=True)
-        ]
-
-    def _reflect_constraint(
-        self,
-        model: Any,
-        conname: str,
-        type: str,
-        definition: str,
-        module: str,
-        message: str | None = None,
-    ) -> Self | None:
-        """Reflect the given constraint, and return its corresponding record
-        if a record is created or modified; returns ``None`` otherwise.
-        The reflection makes it possible to remove a constraint when its
-        corresponding module is uninstalled. ``type`` is 'f' for a foreign key,
-        'i' for an index, or 'u' for any other constraint.
-        """
-        if not module:
-            # no need to save constraints for custom models as they're not part
-            # of any module
-            return None
-        if type not in ("f", "u", "i"):
-            raise ValueError(
-                f"Invalid constraint type {type!r}: expected 'f', 'u', or 'i'."
-            )
-        rows = self.env.execute_query_dict(
-            SQL(
-                """SELECT c.id, type, definition, message->'en_US' as message
-            FROM ir_model_constraint c, ir_module_module m
-            WHERE c.module = m.id AND c.name = %s AND m.name = %s
-            """,
-                conname,
-                module,
-            )
-        )
-        if not rows:
-            [[cons_id]] = self.env.execute_query(
-                SQL(
-                    """
-                INSERT INTO ir_model_constraint
-                    (name, create_date, write_date, create_uid, write_uid, module, model, type, definition, message)
-                VALUES (%s,
-                        now() AT TIME ZONE 'UTC',
-                        now() AT TIME ZONE 'UTC',
-                        %s, %s,
-                        (SELECT id FROM ir_module_module WHERE name=%s),
-                        (SELECT id FROM ir_model WHERE model=%s),
-                        %s, %s, %s)
-                RETURNING id
-                """,
-                    conname,
-                    self.env.uid,
-                    self.env.uid,
-                    module,
-                    model._name,
-                    type,
-                    definition,
-                    Json({"en_US": message}),
-                )
-            )
-            return self.browse(cons_id)
-        [cons] = rows
-        cons_id = cons.pop("id")
-        if cons != {"type": type, "definition": definition, "message": message}:
-            self.env.execute_query(
-                SQL(
-                    """
-                UPDATE ir_model_constraint
-                SET write_date=now() AT TIME ZONE 'UTC',
-                    write_uid = %s, type = %s, definition = %s, message = %s
-                WHERE id = %s""",
-                    self.env.uid,
-                    type,
-                    definition,
-                    Json({"en_US": message}),
-                    cons_id,
-                )
-            )
-            return self.browse(cons_id)
-        return None
-
-    def _reflect_constraints(self, model_names: list[str]) -> None:
-        """Reflect the table objects of the given models."""
-        for model_name in model_names:
-            self._reflect_model(self.env[model_name])
-
-    def _reflect_model(self, model: Any) -> None:
-        """Reflect the _table_objects of the given model."""
-        data_list = []
-        for conname, cons in model._table_objects.items():
-            module = cons._module
-            if not conname or not module:
-                _logger.warning("Missing module or constraint name for %s", cons)
-                continue
-            definition = cons.get_definition(model.pool)
-            message = cons.message
-            if not isinstance(message, str) or not message:
-                message = None
-            typ = "i" if isinstance(cons, models.Index) else "u"
-            record = self._reflect_constraint(
-                model, conname, typ, definition, module, message
-            )
-            xml_id = f"{module}.constraint_{conname}"
-            if record:
-                data_list.append({"xml_id": xml_id, "record": record})
-            else:
-                self.env["ir.model.data"]._load_xmlid(xml_id)
-        if data_list:
-            self.env["ir.model.data"]._update_xmlids(data_list)
-
-
-class IrModelRelation(models.Model):
-    """
-    This model tracks PostgreSQL tables used to implement Odoo many2many
-    relations.
-    """
-
-    _name = "ir.model.relation"
-    _description = "Relation Model"
-    _allow_sudo_commands = False
-
-    name = fields.Char(
-        string="Relation Name",
-        required=True,
-        index=True,
-        help="PostgreSQL table name implementing a many2many relation.",
-    )
-    model = fields.Many2one("ir.model", required=True, index=True, ondelete="cascade")
-    module = fields.Many2one(
-        "ir.module.module", required=True, index=True, ondelete="cascade"
-    )
-    write_date = fields.Datetime()
-    create_date = fields.Datetime()
-
-    def _module_data_uninstall(self) -> None:
-        """
-        Delete PostgreSQL many2many relations tracked by this model.
-        """
-        if not self.env.is_system():
-            raise AccessError(
-                _("Administrator access is required to uninstall a module")
-            )
-
-        ids_set = set(self.ids)
-        to_drop = OrderedSet()
-        for data in self.sorted(key="id", reverse=True):
-            name = data.name
-
-            # double-check we are really going to delete all the owners of this schema element
-            self.env.cr.execute(
-                """SELECT id from ir_model_relation where name = %s""", [name]
-            )
-            external_ids = {x[0] for x in self.env.cr.fetchall()}
-            if not external_ids.issubset(ids_set):
-                # as installed modules have defined this element we must not delete it!
-                continue
-
-            if sql.table_exists(self.env.cr, name):
-                to_drop.add(name)
-
-        self.unlink()
-
-        # drop m2m relation tables
-        for table in to_drop:
-            self.env.cr.execute(SQL("DROP TABLE %s CASCADE", SQL.identifier(table)))
-            _logger.info("Dropped table %s", table)
-
-    def _reflect_relation(self, model: Any, table: str, module: str) -> None:
-        """Reflect the table of a many2many field for the given model, to make
-        it possible to delete it later when the module is uninstalled.
-        """
-        self.env.invalidate_all()
-        cr = self.env.cr
-        query = """ SELECT 1 FROM ir_model_relation r, ir_module_module m
-                    WHERE r.module=m.id AND r.name=%s AND m.name=%s """
-        cr.execute(query, (table, module))
-        if not cr.rowcount:
-            query = """ INSERT INTO ir_model_relation
-                            (name, create_date, write_date, create_uid, write_uid, module, model)
-                        VALUES (%s,
-                                now() AT TIME ZONE 'UTC',
-                                now() AT TIME ZONE 'UTC',
-                                %s, %s,
-                                (SELECT id FROM ir_module_module WHERE name=%s),
-                                (SELECT id FROM ir_model WHERE model=%s)) """
-            cr.execute(query, (table, self.env.uid, self.env.uid, module, model._name))
-
-
 class IrModelAccess(models.Model):
     """Per-model CRUD access control list (ACL) entry."""
 
@@ -330,6 +23,9 @@ class IrModelAccess(models.Model):
     _description = "Model Access"
     _order = "model_id,group_id,name,id"
     _allow_sudo_commands = False
+    # Single source of truth for the four CRUD access modes: name -> SQL column.
+    # Both the mode validation (``_check_access_mode``) and the ``perm_*``
+    # column names derive from these keys.
     _PERM_COLUMNS = {
         "read": SQL("a.perm_read"),
         "write": SQL("a.perm_write"),
@@ -357,6 +53,18 @@ class IrModelAccess(models.Model):
     perm_create = fields.Boolean(string="Create Access")
     perm_unlink = fields.Boolean(string="Delete Access")
 
+    @classmethod
+    def _check_access_mode(cls, mode: str) -> None:
+        """Validate ``mode`` against the four CRUD access modes.
+
+        The valid modes are exactly the keys of :attr:`_PERM_COLUMNS`, so a
+        new mode only ever has to be declared in one place.
+        """
+        if mode not in cls._PERM_COLUMNS:
+            raise ValueError(
+                f"Invalid access mode {mode!r}: expected one of {tuple(cls._PERM_COLUMNS)}."
+            )
+
     @api.model
     def group_names_with_access(self, model_name: str, access_mode: str) -> list[str]:
         """Return the names of visible groups which have been granted
@@ -364,8 +72,7 @@ class IrModelAccess(models.Model):
 
         :rtype: list[str]
         """
-        if access_mode not in ("read", "write", "create", "unlink"):
-            raise ValueError(f"Invalid access mode: {access_mode!r}")
+        self._check_access_mode(access_mode)
         lang = self.env.lang or "en_US"
         # Cast parameter to text so psycopg3 can infer the type for jsonb->> operators
         # without resorting to embedding the value as a raw SQL literal.
@@ -399,8 +106,7 @@ class IrModelAccess(models.Model):
         """Return the group expression object that represents the users who
         have ``access_mode`` to the model ``model_name``.
         """
-        if access_mode not in ("read", "write", "create", "unlink"):
-            raise ValueError(f"Invalid access mode: {access_mode!r}")
+        self._check_access_mode(access_mode)
         model = self.env["ir.model"]._get(model_name)
         accesses = self.sudo().search(
             [
@@ -425,10 +131,7 @@ class IrModelAccess(models.Model):
 
     @tools.ormcache("self.env.uid", "mode")
     def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
-        if mode not in ("read", "write", "create", "unlink"):
-            raise ValueError(
-                f"Invalid access mode {mode!r}: expected 'read', 'write', 'create', or 'unlink'."
-            )
+        self._check_access_mode(mode)
 
         group_ids = self.env.user._get_group_ids()
         self.flush_model()
@@ -505,7 +208,12 @@ class IrModelAccess(models.Model):
     @api.model
     def call_cache_clearing_methods(self) -> None:
         self.env.invalidate_all()
-        self.env.registry.clear_cache("stable")  # mainly _get_allowed_models
+        # Clearing the "stable" cache group cascades to the "default" group (see
+        # ``_CACHES_BY_KEY`` in the registry), so this single call invalidates
+        # BOTH _get_access_groups (stable) and _get_allowed_models (default).
+        # Do not narrow it to "default": that would leave _get_access_groups
+        # cached and hand out stale ACLs.
+        self.env.registry.clear_cache("stable")
 
     #
     # Check rights on actions
@@ -513,22 +221,17 @@ class IrModelAccess(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         self.call_cache_clearing_methods()
-        for ima in vals_list:
-            if (
-                "group_id" in ima
-                and not ima["group_id"]
-                and any(
-                    (
-                        ima.get("perm_read"),
-                        ima.get("perm_write"),
-                        ima.get("perm_create"),
-                        ima.get("perm_unlink"),
-                    )
-                )
+        for vals in vals_list:
+            # An access-granting ACL with no group grants that access to every
+            # user (global access), a deprecated pattern. ``group_id`` defaults
+            # to NULL, so an *omitted* key is the same global grant as an
+            # explicit falsy one -- both must warn.
+            if not vals.get("group_id") and any(
+                vals.get(f"perm_{mode}") for mode in self._PERM_COLUMNS
             ):
                 _logger.warning(
                     "Rule %s has no group, this is a deprecated feature. Every access-granting rule should specify a group.",
-                    ima.get("name"),
+                    vals.get("name"),
                 )
         return super().create(vals_list)
 

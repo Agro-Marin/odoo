@@ -223,7 +223,7 @@ class TestBasePerfRegression(TransactionCase):
         self.env.invalidate_all()
         with self.assertQueryCount(4):
             # 1 flush + 1 read (model names) + 1 search (views) + 1 read (view.model)
-            ir_models._view_ids()
+            ir_models._compute_view_ids()
 
     # ------------------------------------------------------------------
     # ir.model._inherited_models: batch inherited lookup
@@ -237,7 +237,7 @@ class TestBasePerfRegression(TransactionCase):
         with self.assertQueryCount(5):
             # 1 read (model names) + 1 search (parent models)
             # + additional reads from ir.model computes (sale/project/account)
-            ir_models._inherited_models()
+            ir_models._compute_inherited_model_ids()
 
     # ------------------------------------------------------------------
     # ir.model._compute_count: single UNION ALL query

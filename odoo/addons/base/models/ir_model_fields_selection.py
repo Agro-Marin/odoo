@@ -9,7 +9,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL, OrderedSet
 
-from .ir_model import (
+from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
     mark_modified,
     query_insert,
