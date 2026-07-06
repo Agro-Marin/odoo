@@ -416,9 +416,15 @@ from odoo.tools.urls import keep_query
 _logger = logging.getLogger(__name__)
 
 
-# QWeb token, useful to generate the expression used in `_compile_expr_tokens` method
-token.QWEB = token.NT_OFFSET - 1
-token.tok_name[token.QWEB] = "QWEB"
+# Synthetic token type used by ``_compile_expr_tokens`` to splice an
+# already-compiled sub-expression back into the token stream. A module constant
+# rather than a monkeypatched ``token.QWEB`` attribute: stashing our own type on
+# the stdlib ``token`` module pollutes a process-global namespace and buys
+# nothing. Registered in ``token.tok_name`` only so a debug ``repr`` of the
+# token still reads "QWEB" (adding a name is harmless; clobbering the module
+# namespace is what we avoid).
+QWEB_TOKEN_TYPE = token.NT_OFFSET - 1
+token.tok_name[QWEB_TOKEN_TYPE] = "QWEB"
 
 
 # security safe eval opcodes for generated expression validation, used in `_compile_expr`
@@ -914,10 +920,7 @@ class IrQweb(models.AbstractModel):
                     # context (lang is a cache key), so a ref-only key is wrong.
                     compile_key = (
                         params.view_ref,
-                        tuple(
-                            irQweb.env.context.get(k) or False
-                            for k in irQweb._get_template_cache_keys()
-                        ),
+                        irQweb._template_cache_signature(),
                     )
                     compiled = compiled_cache.get(compile_key)
                     if compiled is None:
@@ -1218,6 +1221,23 @@ class IrQweb(models.AbstractModel):
             "profile",
         ]
 
+    def _template_cache_signature(self) -> tuple:
+        """Context-derived half of ``_compile``'s cache key (the template ref is
+        the other half). Falsy context values collapse to ``False`` so contexts
+        that differ only in the spelling of "empty" share one compiled function.
+
+        Single source of truth: the ``@ormcache`` on ``_generate_code_cached``
+        keys on ``(ref, self._template_cache_signature())`` and the render-local
+        ``compiled_cache`` in ``_render_iterall`` MUST use this exact signature —
+        if the two drift, the per-render memo and the ormcache disagree and one
+        serves a stale or duplicated compilation. Note: this is deliberately NOT
+        the same as the ``options`` dict built in ``_generate_code`` (which uses
+        ``.get(k, False)`` and keeps e.g. ``lang=''`` distinct from ``False``);
+        that dict is for logs/introspection, not cache identity.
+        """
+        context = self.env.context
+        return tuple(context.get(k) or False for k in self._get_template_cache_keys())
+
     def _get_template_info(self, template: int | str) -> dict[str, Any]:
         return self.env["ir.ui.view"]._get_cached_template_info(template)
 
@@ -1278,7 +1298,7 @@ class IrQweb(models.AbstractModel):
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
             "ref",
-            "tuple(self.env.context.get(k) or False for k in self._get_template_cache_keys())",
+            "self._template_cache_signature()",
             cache="templates",
         ),
     )
@@ -1994,7 +2014,7 @@ class IrQweb(models.AbstractModel):
                     code = tokens[open_bracket_index].string + code + t.string
                     tokens[open_bracket_index : index + 1] = [
                         tokenize.TokenInfo(
-                            token.QWEB,
+                            QWEB_TOKEN_TYPE,
                             code,
                             tokens[open_bracket_index].start,
                             t.end,
@@ -2062,7 +2082,7 @@ class IrQweb(models.AbstractModel):
                 elif raise_on_missing or (
                     index + 1 < len(tokens)
                     and tokens[index + 1].exact_type
-                    in [token.DOT, token.LPAR, token.LSQB, token.QWEB]
+                    in [token.DOT, token.LPAR, token.LSQB, QWEB_TOKEN_TYPE]
                 ):
                     # Should have values['product'].price to raise an error when get
                     # the 'product' value and not an 'NoneType' object has no
@@ -3317,7 +3337,7 @@ class IrQweb(models.AbstractModel):
         tagName = el.tag
         if tagName in FORBIDDEN_FIELD_TAGS:
             raise ValueError(
-                "QWeb widgets do not work correctly on %r elements" % tagName
+                f"QWeb widgets do not work correctly on {tagName!r} elements"
             )
         if tagName == "t":
             raise ValueError(
@@ -3705,6 +3725,125 @@ class IrQweb(models.AbstractModel):
         return (attributes, content, inherit_branding)
 
 
+# ---------------------------------------------------------------------------
+# DB-less rendering (``render`` below): a self-contained ``ir.qweb`` that runs
+# outside any registry. Widget/field/asset rendering is intentionally absent.
+#
+# These four classes are module-level (defined once) rather than nested in
+# ``render`` and rebuilt on every call. The nesting was load-bearing for one
+# reason only — giving each ``render()`` its own fresh ormcaches — because
+# ``BaseModel`` has ``__slots__`` and a read-only ``pool``, and ``with_context``
+# reconstructs instances via the class, so per-call cache state could not live
+# on the instance and a shared class attribute would leak (and go stale) across
+# unrelated renders. We keep the fresh-per-call guarantee by threading a
+# throwaway ``_MockRegistry`` through ``env`` (``pool`` is documented as "the
+# same object as ``env.registry``"), which is where it belongs.
+
+
+class _MockCursor:
+    def __init__(self) -> None:
+        self.cache: dict[str, Any] = {}
+
+
+class _MockRegistry:
+    """A throwaway registry holding the ormcaches for a single DB-less render.
+
+    ``ir.qweb``'s compile path is ormcached on ``self.pool._Registry__caches``;
+    a fresh registry per ``render()`` keeps those caches from leaking across
+    unrelated standalone renders (the caller's ``load`` may return a different
+    tree for the same ref on a later call).
+    """
+
+    db_name = None
+
+    def __init__(self) -> None:
+        caches = {
+            cache_name: LRU(cache_size)
+            for cache_name, cache_size in _REGISTRY_CACHES.items()
+        }
+        self._Registry__caches = caches
+        self._Registry__caches_groups = _group_caches_by_prefix(caches)
+
+
+class _MockEnv(dict):
+    """Minimal stand-in for ``api.Environment`` used by DB-less rendering.
+
+    Carries the per-render ``registry`` and re-threads it on every clone so that
+    ``with_context`` / ``with_env`` (which rebuild the environment) keep sharing
+    one set of ormcaches for the duration of a single ``render()``.
+    """
+
+    def __init__(
+        self,
+        registry: _MockRegistry | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__()
+        self.registry = registry if registry is not None else _MockRegistry()
+        self.context: dict[str, Any] = {} if context is None else dict(context)
+        self.cr = _MockCursor()
+
+    def __call__(
+        self,
+        cr: Any = None,
+        user: Any = None,
+        context: dict[str, Any] | None = None,
+        su: Any = None,
+    ) -> _MockEnv:
+        """Return a cloned environment (optionally with a new context), keeping
+        the same per-render registry. Lets ``ir_qweb.with_context`` work on the
+        sandboxed qweb.
+        """
+        return _MockEnv(
+            registry=self.registry,
+            context=self.context if context is None else context,
+        )
+
+
+class _MockIrQWeb(IrQweb):
+    _register = False  # not visible in real registry
+
+    @property
+    def pool(self) -> _MockRegistry:
+        # Same object as ``env.registry`` — matches real ``BaseModel.pool``
+        # semantics — so the per-render ormcaches are reachable by ``@ormcache``.
+        return self.env.registry
+
+    def _get_template_info(self, id_or_xmlid: int | str) -> dict[str, Any]:
+        return defaultdict(lambda: None, id=id_or_xmlid)
+
+    def _preload_trees(
+        self, refs: Sequence[int | str]
+    ) -> dict[int | str, dict[str, Any]]:
+        values = {}
+        for ref in refs:
+            tree, vid = self.env.context["load"](ref)
+            values[ref] = values[vid] = {
+                "tree": tree,
+                "template": etree.tostring(tree, encoding="unicode"),
+                "xmlid": vid,
+                "ref": None,
+            }
+        return values
+
+    def _prepare_environment(self, values: dict[str, Any]) -> Self:
+        values["true"] = True
+        values["false"] = False
+        return self.with_context(__qweb_loaded_functions={})
+
+    def _get_field(self, *args: Any) -> None:
+        msg = "Fields are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"
+        raise NotImplementedError(msg)
+
+    def _get_widget(self, *args: Any) -> None:
+        msg = "Widgets are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"
+        raise NotImplementedError(msg)
+
+    def _get_asset_nodes(self, *args: Any) -> None:
+        msg = "Assets are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"
+        raise NotImplementedError(msg)
+
+
 def render(
     template_name: str | int, values: dict[str, Any], load: Any, **options: Any
 ) -> Markup:
@@ -3719,91 +3858,7 @@ def render(
     :return: the rendered template, markup-safe
     :rtype: markupsafe.Markup
     """
-
-    class MockPool:
-        db_name = None
-        _Registry__caches = {
-            cache_name: LRU(cache_size)
-            for cache_name, cache_size in _REGISTRY_CACHES.items()
-        }
-        _Registry__caches_groups = _group_caches_by_prefix(_Registry__caches)
-
-    class MockIrQWeb(IrQweb):
-        _register = False  # not visible in real registry
-
-        pool = MockPool()
-
-        def _get_template_info(self, id_or_xmlid: int | str) -> dict[str, Any]:
-            return defaultdict(lambda: None, id=id_or_xmlid)
-
-        def _preload_trees(
-            self, refs: Sequence[int | str]
-        ) -> dict[int | str, dict[str, Any]]:
-            values = {}
-            for ref in refs:
-                tree, vid = self.env.context["load"](ref)
-                values[ref] = values[vid] = {
-                    "tree": tree,
-                    "template": etree.tostring(tree, encoding="unicode"),
-                    "xmlid": vid,
-                    "ref": None,
-                }
-            return values
-
-        def _load(
-            self, ref: str | int
-        ) -> tuple[etree._Element | str, str | int | None]:
-            """
-            Load the template referenced by ``ref``.
-
-            :returns: The loaded template (as string or etree) and its
-                identifier
-            :rtype: tuple[etree | str, str | int | None]
-            """
-            return self.env.context["load"](ref)
-
-        def _prepare_environment(self, values: dict[str, Any]) -> Self:
-            values["true"] = True
-            values["false"] = False
-            return self.with_context(__qweb_loaded_functions={})
-
-        def _get_field(self, *args: Any) -> None:
-            msg = "Fields are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"
-            raise NotImplementedError(msg)
-
-        def _get_widget(self, *args: Any) -> None:
-            msg = "Widgets are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"
-            raise NotImplementedError(msg)
-
-        def _get_asset_nodes(self, *args: Any) -> None:
-            msg = "Assets are not allowed in this rendering mode. Please use \"env['ir.qweb']._render\" method"
-            raise NotImplementedError(msg)
-
-    class MockCr:
-        def __init__(self) -> None:
-            self.cache: dict[str, Any] = {}
-
-    class MockEnv(dict):
-        def __init__(self) -> None:
-            super().__init__()
-            self.context: dict[str, Any] = {}
-            self.cr = MockCr()
-
-        def __call__(
-            self,
-            cr: Any = None,
-            user: Any = None,
-            context: dict[str, Any] | None = None,
-            su: Any = None,
-        ) -> MockEnv:
-            """Return a mocked environment, updating it with the given context.
-            Allows using `ir_qweb.with_context` with sandboxed qweb.
-            """
-            env = MockEnv()
-            env.context.update(self.context if context is None else context)
-            return env
-
-    renderer = MockIrQWeb(MockEnv(), (), ())
+    renderer = _MockIrQWeb(_MockEnv(), (), ())
     return renderer._render(
         template_name, values, load=load, minimal_qcontext=True, **options
     )
