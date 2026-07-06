@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from freezegun import freeze_time
 from unittest.mock import patch
 
-from odoo import exceptions, tools
+from odoo import exceptions, fields, tools
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.phone_validation.tools import phone_validation
 from odoo.addons.sms.models.sms_sms import SmsSms
@@ -27,8 +27,11 @@ class MockSMS(common.HttpCase):
         """ Used when synchronization date (using env.cr.now()) is important
         in addition to standard datetime mocks. Used mainly to detect sync
         issues. """
+        # cr.now() is contractually a datetime; coerce a string so consumers
+        # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
+        now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
         with freeze_time(mock_dt), \
-             patch.object(self.env.cr, 'now', lambda: mock_dt):
+             patch.object(self.env.cr, 'now', lambda: now_dt):
             yield
 
     # ------------------------------------------------------------

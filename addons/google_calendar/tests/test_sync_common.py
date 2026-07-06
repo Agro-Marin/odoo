@@ -6,6 +6,7 @@ from datetime import datetime
 from freezegun import freeze_time
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
 from odoo.addons.google_account.models.google_service import GoogleService
 from odoo.addons.google_calendar.models.res_users import ResUsers
@@ -38,8 +39,11 @@ class TestSyncGoogle(HttpCase):
         in addition to standard datetime mocks. Used mainly to detect sync
         issues.
         """
+        # cr.now() is contractually a datetime; coerce a string so consumers
+        # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
+        now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
         with freeze_time(mock_dt), \
-                patch.object(self.env.cr, 'now', lambda: mock_dt):
+                patch.object(self.env.cr, 'now', lambda: now_dt):
             yield
 
     @contextmanager
