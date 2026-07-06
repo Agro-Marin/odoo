@@ -10,7 +10,7 @@ from lxml import html
 from unittest.mock import patch
 from urllib.parse import urlencode
 
-from odoo import SUPERUSER_ID
+from odoo import SUPERUSER_ID, fields
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 from odoo.addons.digest.tests.common import TestDigestCommon
 from odoo.addons.mail.tests.common import MailCommon
@@ -27,8 +27,11 @@ class TestDigest(TestDigestCommon):
         """ Used when synchronization date (using env.cr.now()) is important
         in addition to standard datetime mocks. Used mainly to detect sync
         issues. """
+        # cr.now() is contractually a datetime; coerce a string so consumers
+        # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
+        now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
         with freeze_time(mock_dt), \
-             patch.object(self.env.cr, 'now', lambda: mock_dt):
+             patch.object(self.env.cr, 'now', lambda: now_dt):
             yield
 
     @classmethod

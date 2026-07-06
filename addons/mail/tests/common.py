@@ -74,8 +74,17 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
     def mock_datetime_and_now(self, mock_dt):
         """Used when synchronization date (using env.cr.now()) is important
         in addition to standard datetime mocks. Used mainly to detect sync
-        issues."""
-        with freeze_time(mock_dt), patch.object(self.env.cr, "now", lambda: mock_dt):
+        issues.
+
+        A string ``mock_dt`` is parsed to a naive datetime so ``cr.now()``'s
+        ``-> datetime`` contract is honoured (production code does datetime
+        arithmetic on it, e.g. ``ir.cron._now`` calls ``.replace(microsecond=0)``,
+        which a raw string return breaks). Datetime inputs pass through unchanged.
+        Delegates to :func:`freeze_all_time` so the cursor clock is frozen at the
+        ``BaseCursor`` level (every cursor, not just ``self.env.cr``)."""
+        if isinstance(mock_dt, str):
+            mock_dt = fields.Datetime.to_datetime(mock_dt)
+        with freeze_all_time(mock_dt):
             yield
 
     # ------------------------------------------------------------

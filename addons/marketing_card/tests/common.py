@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from freezegun import freeze_time
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.tests import BaseCase, TransactionCase
 from odoo.addons.base.models.ir_actions_report import IrActionsReport
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -137,6 +138,9 @@ class MarketingCardCommon(TransactionCase, MockImageRender):
 
     @contextmanager
     def mock_datetime_and_now(self, mock_dt):
+        # cr.now() is contractually a datetime; coerce a string so consumers
+        # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
+        now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
         with freeze_time(mock_dt), \
-                patch.object(self.env.cr, 'now', lambda: mock_dt):
+                patch.object(self.env.cr, 'now', lambda: now_dt):
             yield
