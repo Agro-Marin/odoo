@@ -64,6 +64,11 @@ VIEW_MODIFIERS = ("column_invisible", "invisible", "readonly", "required")
 # (shared by calendar postprocessing and validation so both stay in sync).
 CALENDAR_DATE_ATTRS = ("date_start", "date_delay", "date_stop", "color", "all_day")
 
+# View types that can be embedded as a nested subview under a relational field
+# node. Shared by _postprocess_tag_field and _validate_tag_field so the two
+# phases can never disagree on which children count as an inline subview.
+_NESTED_VIEW_TAGS = frozenset({"form", "list", "graph", "kanban", "calendar"})
+
 # Writing any of these fields can change how views resolve into combined archs
 # or compiled templates, so it must invalidate the "templates" ormcache (a
 # registry-wide, cross-worker signal). Writing other fields (name, arch_prev,
@@ -85,7 +90,7 @@ _TEMPLATE_CACHE_FIELDS = frozenset({
 # `__comp__` is a reserved keyword giving access to the component instance (e.g. the form renderer
 # or the kanban record). However, we don't want to see implementation details leaking in archs, so
 # we use the following regex to detect the use of `__comp__` in dynamic attributes, to forbid it.
-COMP_REGEX = r"(^|[^\w])\s*__comp__\s*([^\w]|$)"
+COMP_REGEX = re.compile(r"(^|[^\w])\s*__comp__\s*([^\w]|$)")
 
 ref_re = re.compile(
     r"""
@@ -580,6 +585,7 @@ class IrUiView(models.Model):
                         source = apply_inheritance_specs(source, spec)
             view.invalid_locators = invalid_locators or False
 
+    @api.depends("write_date")
     def _compute_xml_id(self) -> None:
         rows_by_view = self._get_ir_model_data_rows()
         for view in self:
@@ -685,41 +691,57 @@ class IrUiView(models.Model):
                             )
                         )
             except ValueError as e:
-                if hasattr(e, "context"):
-                    lines = etree.tostring(
-                        combined_arch, encoding="unicode"
-                    ).splitlines(keepends=True)
-                    fivelines = "".join(
-                        lines[max(0, e.context["line"] - 3) : e.context["line"] + 2]
-                    )
-                    err = ValidationError(
-                        _(
-                            "Error while validating view near:\n\n%(fivelines)s\n%(error)s",
-                            fivelines=fivelines,
-                            error=e,
-                        )
-                    )
-                    err.context = e.context
-                    raise err.with_traceback(e.__traceback__) from None
-                if e.__context__:
-                    err = ValidationError(
-                        _(
-                            "Error while validating view (%(view)s):\n\n%(error)s",
-                            view=view.key or view.id,
-                            error=e.__context__,
-                        )
-                    )
-                    err.context = {"name": "invalid view"}
-                    raise err.with_traceback(e.__context__.__traceback__) from None
-                raise ValidationError(
-                    _(
-                        "Error while validating view (%(view)s):\n\n%(error)s",
-                        view=view.key or view.id,
-                        error=e,
-                    )
-                ) from None
+                self._reraise_view_validation_error(e, view, combined_arch)
 
         return True
+
+    def _reraise_view_validation_error(
+        self, error: ValueError, view: Self, combined_arch: _Element
+    ) -> typing.NoReturn:
+        """Re-raise a ``_validate_view`` failure as a ``ValidationError``,
+        preserving the original error's location context and traceback.
+
+        Three error shapes are handled, in order:
+
+        * the error carries a ``context`` dict with a ``line`` (set by
+          :meth:`_raise_view_error`): quote the five arch lines around it;
+        * the error implicitly wraps another exception (``__context__``):
+          surface that underlying cause instead;
+        * otherwise: report the error as-is.
+        """
+        if hasattr(error, "context"):
+            lines = etree.tostring(combined_arch, encoding="unicode").splitlines(
+                keepends=True
+            )
+            fivelines = "".join(
+                lines[max(0, error.context["line"] - 3) : error.context["line"] + 2]
+            )
+            err = ValidationError(
+                _(
+                    "Error while validating view near:\n\n%(fivelines)s\n%(error)s",
+                    fivelines=fivelines,
+                    error=error,
+                )
+            )
+            err.context = error.context
+            raise err.with_traceback(error.__traceback__) from None
+        if error.__context__:
+            err = ValidationError(
+                _(
+                    "Error while validating view (%(view)s):\n\n%(error)s",
+                    view=view.key or view.id,
+                    error=error.__context__,
+                )
+            )
+            err.context = {"name": "invalid view"}
+            raise err.with_traceback(error.__context__.__traceback__) from None
+        raise ValidationError(
+            _(
+                "Error while validating view (%(view)s):\n\n%(error)s",
+                view=view.key or view.id,
+                error=error,
+            )
+        ) from None
 
     def _check_sibling_primary_views(self, view: Self, views: Self) -> None:
         """Verify that the primary views extending ``view`` (or a view on its
@@ -1927,6 +1949,41 @@ class IrUiView(models.Model):
                 field.groups, raise_if_not_found=False
             )
 
+    def _iter_arch_nodes(
+        self,
+        root: _Element,
+        make_node_info: Callable[[_Element, dict[str, Any] | None], dict[str, Any]],
+    ) -> typing.Iterator[tuple[_Element, dict[str, Any]]]:
+        """Pre-order depth-first walk over ``root``, shared by
+        :meth:`_postprocess_view` and :meth:`_validate_view`.
+
+        For each element it calls ``make_node_info(node, parent_info)`` — where
+        ``parent_info`` is the node_info dict built for the parent (``None`` at
+        the root) — to build this node's info, yields ``(node, node_info)`` for
+        the caller's phase-specific work, then descends into
+        ``node_info.get("children", node)`` (a handler may set ``"children"`` to
+        override which children are visited).
+
+        The two phases differ only in ``make_node_info`` and the per-node body;
+        the traversal mechanics — stack order, context inheritance through
+        ``parent_info``, and skipping the subtree of a node whose handler
+        detached it from the tree — live here so they cannot drift apart.
+        """
+        # each stack entry pairs a node with its parent's node_info (None = root)
+        stack: list[tuple[_Element, dict[str, Any] | None]] = [(root, None)]
+        while stack:
+            node, parent_info = stack.pop()
+            had_parent = node.getparent() is not None
+            node_info = make_node_info(node, parent_info)
+            yield node, node_info
+            if had_parent and node.getparent() is None:
+                # a tag handler detached the node from the tree; skip its subtree
+                continue
+            stack.extend(
+                (child, node_info)
+                for child in reversed(node_info.get("children", node))
+            )
+
     def _postprocess_view(
         self,
         node: _Element,
@@ -1967,40 +2024,48 @@ class IrUiView(models.Model):
 
         self._postprocess_debug_to_cache(root)
 
-        # use a stack to recursively traverse the tree
-        stack = [(root, view_groups, editable)]
-        while stack:
-            node, view_groups, editable = stack.pop()
+        # Children inherit their parent's (narrowed) view_groups and editability;
+        # model_groups always resets to the root value (field.groups narrowing is
+        # per-node, never inherited). See _iter_arch_nodes for the traversal.
+        initial_view_groups, initial_editable = view_groups, editable
 
-            # compute default
-            tag = node.tag
-            had_parent = node.getparent() is not None
+        def make_node_info(
+            node: _Element, parent_info: dict[str, Any] | None
+        ) -> dict[str, Any]:
+            editable = (
+                parent_info["editable"] if parent_info is not None else initial_editable
+            )
             node_info = dict(
                 root_info,
-                view_groups=view_groups,
+                view_groups=(
+                    parent_info["view_groups"]
+                    if parent_info is not None
+                    else initial_view_groups
+                ),
                 editable=editable and self._editable_node(node, name_manager),
             )
-
-            node_groups = node.get("groups")
-            if node_groups:
+            if node_groups := node.get("groups"):
                 node_info["view_groups"] &= group_definitions.parse(
                     node_groups, raise_if_not_found=False
                 )
+            return node_info
+
+        # Unpack via assignment (not the for-target) so the per-node rebind of
+        # the ``node``/``node_info`` names mirrors the original stack.pop() loop.
+        for walked in self._iter_arch_nodes(root, make_node_info):
+            node, node_info = walked
 
             # tag-specific postprocessing
-            postprocessor = getattr(self, f"_postprocess_tag_{tag}", None)
+            postprocessor = getattr(self, f"_postprocess_tag_{node.tag}", None)
             if postprocessor is not None:
+                had_parent = node.getparent() is not None
                 postprocessor(node, name_manager, node_info)
                 if had_parent and node.getparent() is None:
-                    # the node has been removed, stop processing here
+                    # the node has been removed: _iter_arch_nodes skips its
+                    # subtree, and we skip the rest of its processing here
                     continue
 
-            # if present, iterate on node_info['children'] instead of node
-            stack.extend(
-                (child, node_info["view_groups"], node_info["editable"])
-                for child in reversed(node_info.get("children", node))
-            )
-
+            node_groups = node.get("groups")
             if node_groups or root_info["model_groups"] != node_info["model_groups"]:
                 groups = node_info["model_groups"] & node_info["view_groups"]
                 node.set("__groups_key__", groups.key)
@@ -2188,14 +2253,27 @@ class IrUiView(models.Model):
             if child.tag == "filter":
                 yield child.get("name")
 
+    def _has_calendar_fields(
+        self,
+        node: _Element,
+        name_manager: NameManager,
+        node_info: dict[str, Any],
+    ) -> None:
+        """Register every field referenced by a ``<calendar>`` node on the
+        ``name_manager``. Shared verbatim by :meth:`_postprocess_tag_calendar`
+        and :meth:`_validate_tag_calendar` so the postprocess and validation
+        phases stay identical (see also :meth:`_calendar_field_names`).
+        """
+        for name in self._calendar_field_names(node):
+            name_manager.has_field(node, name, node_info)
+
     def _postprocess_tag_calendar(
         self,
         node: _Element,
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        for name in self._calendar_field_names(node):
-            name_manager.has_field(node, name, node_info)
+        self._has_calendar_fields(node, name_manager, node_info)
 
     def _postprocess_tag_field(
         self,
@@ -2259,7 +2337,7 @@ class IrUiView(models.Model):
                 )
 
             for child in node:
-                if child.tag in ("form", "list", "graph", "kanban", "calendar"):
+                if child.tag in _NESTED_VIEW_TAGS:
                     node_info["children"] = []
                     self._postprocess_view(
                         child,
@@ -2436,48 +2514,54 @@ class IrUiView(models.Model):
             self._init_view_processing(node, model_name, node_info, translate=False)
         )
 
-        view_type = node.tag
-        # use a stack to recursively traverse the tree
-        stack = [(node, view_groups, editable, validate)]
-        while stack:
-            node, view_groups, editable, validate = stack.pop()
+        root_view_type = node.tag
+        # Children inherit view_groups, editability and the validate flag from
+        # their parent's node_info; model_groups always resets to the root value.
+        # See _iter_arch_nodes for the shared traversal.
+        initial_view_groups, initial_editable, initial_validate = (
+            view_groups,
+            editable,
+            validate,
+        )
 
-            # compute default
-            tag = node.tag
+        def make_node_info(
+            node: _Element, parent_info: dict[str, Any] | None
+        ) -> dict[str, Any]:
+            if parent_info is not None:
+                view_groups = parent_info["view_groups"]
+                editable = parent_info["editable"]
+                validate = parent_info["validate"]
+            else:
+                view_groups = initial_view_groups
+                editable = initial_editable
+                validate = initial_validate
             validate = validate or node.get("__validate__")
             node_info = {
                 "editable": editable and self._editable_node(node, name_manager),
                 "validate": validate,
-                "view_type": view_type,
+                "view_type": root_view_type,
                 "model_groups": model_groups,
                 "view_groups": view_groups,
                 "name_manager": name_manager,
             }
-
             if groups := node.get("groups"):
                 for group_name in groups.replace("!", "").split(","):
                     name_manager.must_exist_group(group_name, node)
                 node_info["view_groups"] &= group_definitions.parse(
                     groups, raise_if_not_found=False
                 )
+            return node_info
+
+        for walked in self._iter_arch_nodes(node, make_node_info):
+            node, node_info = walked
 
             # tag-specific validation
-            validator = getattr(self, f"_validate_tag_{tag}", None)
+            validator = getattr(self, f"_validate_tag_{node.tag}", None)
             if validator is not None:
                 validator(node, name_manager, node_info)
 
-            if validate:
+            if node_info["validate"]:
                 self._validate_attributes(node, name_manager, node_info)
-
-            stack.extend(
-                (
-                    child,
-                    node_info["view_groups"],
-                    node_info["editable"],
-                    validate,
-                )
-                for child in reversed(node)
-            )
 
         name_manager.check(self)
 
@@ -2554,8 +2638,7 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        for name in self._calendar_field_names(node):
-            name_manager.has_field(node, name, node_info)
+        self._has_calendar_fields(node, name_manager, node_info)
 
     def _validate_tag_search(
         self,
@@ -2642,13 +2725,7 @@ class IrUiView(models.Model):
                 )
 
             for child in node:
-                if child.tag not in (
-                    "form",
-                    "list",
-                    "graph",
-                    "kanban",
-                    "calendar",
-                ):
+                if child.tag not in _NESTED_VIEW_TAGS:
                     continue
                 node.remove(child)
                 self._validate_view(
@@ -3033,7 +3110,7 @@ class IrUiView(models.Model):
 
             elif attr.startswith("t-"):
                 self._validate_qweb_directive(node, attr, node_info["view_type"])
-                if re.search(COMP_REGEX, expr):
+                if COMP_REGEX.search(expr):
                     self._raise_view_error(
                         _("Forbidden use of `__comp__` in arch."), node
                     )
