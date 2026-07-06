@@ -800,7 +800,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
         # compile_css takes the compiler as an argument; an identity stub
         # exercises only the @import sanitization, no Sass subprocess.
-        out = bundle.compile_css(lambda s: s, source)
+        out = bundle._css.compile_css(lambda s: s, source)
         self.assertEqual(
             bundle.css_errors,
             [],
@@ -822,7 +822,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         bundle = self._get_asset(self.cssbundle_name)
         source = '@import  "./secret.css";'  # two spaces — the historic bypass
         with mute_logger("odoo.addons.base.models.assetsbundle"):
-            out = bundle.compile_css(lambda s: s, source)
+            out = bundle._css.compile_css(lambda s: s, source)
         self.assertTrue(
             bundle.css_errors,
             "a whitespace-padded local @import must be rejected",
@@ -861,7 +861,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         # the Windows path flavour so a Path-based regression would resurface.
         with (
             patch.object(WebAsset, "_fetch_content", lambda self: sample),
-            patch.object(assetsbundle, "Path", pathlib.PureWindowsPath),
+            patch.object(assetsbundle.assets, "Path", pathlib.PureWindowsPath),
         ):
             out = asset._fetch_content()
 
@@ -894,21 +894,21 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         # ``_rtlcss_bin`` is @functools.cache'd; clear it around each scenario so
         # a patched result never leaks into other tests' real rtlcss runs.
-        self.addCleanup(assetsbundle._rtlcss_bin.cache_clear)
+        self.addCleanup(assetsbundle.css_pipeline._rtlcss_bin.cache_clear)
 
-        assetsbundle._rtlcss_bin.cache_clear()
+        assetsbundle.css_pipeline._rtlcss_bin.cache_clear()
         with (
-            patch.object(assetsbundle.os, "name", "nt"),
+            patch.object(assetsbundle.css_pipeline.os, "name", "nt"),
             patch.object(
-                assetsbundle.misc, "find_in_path", return_value="C:/npm/rtlcss.cmd"
+                assetsbundle.css_pipeline.misc, "find_in_path", return_value="C:/npm/rtlcss.cmd"
             ) as find,
         ):
-            self.assertEqual(assetsbundle._rtlcss_bin(), "C:/npm/rtlcss.cmd")
+            self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), "C:/npm/rtlcss.cmd")
             find.assert_called_once_with("rtlcss.cmd")
 
-        assetsbundle._rtlcss_bin.cache_clear()
-        with patch.object(assetsbundle.os, "name", "posix"):
-            self.assertEqual(assetsbundle._rtlcss_bin(), "rtlcss")
+        assetsbundle.css_pipeline._rtlcss_bin.cache_clear()
+        with patch.object(assetsbundle.css_pipeline.os, "name", "posix"):
+            self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), "rtlcss")
 
     def test_js_header_line_count(self):
         """The verbose JS header emits exactly ``_HEADER_LINE_COUNT`` lines

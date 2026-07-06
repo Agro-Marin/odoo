@@ -171,10 +171,10 @@ class TestAuditRtlSilentDegradation(TransactionCase):
             rtl=True,
         )
         with patch(
-            "odoo.addons.base.models.assetsbundle._check_rtlcss",
+            "odoo.addons.base.models.assetsbundle.css_pipeline._check_rtlcss",
             return_value=False,
         ):
-            out = bundle.run_rtlcss(PLAIN_CSS)
+            out = bundle._css.run_rtlcss(PLAIN_CSS)
         self.assertEqual(out, PLAIN_CSS)
         self.assertFalse(bundle.css_errors)
 

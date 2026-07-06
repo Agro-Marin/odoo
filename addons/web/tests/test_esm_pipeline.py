@@ -512,6 +512,61 @@ class TestPipelineIntegration(TransactionCase):
             msg="debug-mode fallback must emit an importmap",
         )
 
+    def test_request_bound_debug_bundle_keeps_importmap(self):
+        """Regression: with an HTTP request bound, the FIRST ESM bundle
+        rendered through the uncached ``_esm_debug_nodes`` path (``?debug=assets``
+        or the esbuild-declined fallback) must keep its
+        ``<script type="importmap">`` — and a SECOND bundle on the same request
+        must still be deduped.
+
+        The request-scoped dedup flag (``request._esm_import_map_rendered``) has
+        exactly one owner per branch: ``_esm_debug_nodes`` self-dedups and sets
+        the flag, so the dispatcher must NOT also run
+        ``_dedup_request_import_map`` over its output. The historical bug ran
+        both: the second pass saw the flag the first had just set and stripped
+        the importmap the first had just emitted, so every request-bound
+        ``?debug=assets`` page — and every production page during an esbuild
+        incident (circuit open / ``force_fallback_bundles`` / missing binary) —
+        was served with no import map, leaving all bare specifiers unresolved.
+
+        The pre-existing ``request=None`` fallback tests could not catch this:
+        with no request bound, ``_dedup_request_import_map`` returns early and
+        ``_esm_debug_nodes`` never touches the flag, so both dedup owners are
+        no-ops. See ``_get_native_module_nodes``.
+        """
+        from odoo.addons.base.models import ir_qweb_assets
+
+        ir_qweb = self.env["ir.qweb"]
+
+        def importmaps(nodes):
+            return [
+                attrs
+                for tag, attrs in nodes
+                if tag == "script" and attrs.get("type") == "importmap"
+            ]
+
+        # SimpleNamespace is a truthy attribute-bag stand-in for the werkzeug
+        # request proxy: it supports the getattr/setattr the flag logic needs.
+        fake_request = SimpleNamespace()
+        with patch.object(ir_qweb_assets, "request", fake_request):
+            first = ir_qweb._get_asset_nodes(
+                "web.assets_web", css=False, js=True, debug="assets"
+            )
+            second = ir_qweb._get_asset_nodes(
+                "web.assets_web", css=False, js=True, debug="assets"
+            )
+
+        self.assertEqual(
+            len(importmaps(first)),
+            1,
+            msg="first request-bound debug bundle must emit exactly one importmap",
+        )
+        self.assertEqual(
+            len(importmaps(second)),
+            0,
+            msg="second bundle on the same request must be deduped (no importmap)",
+        )
+
 
 class TestEsbuildIntegration(TransactionCase):
     """End-to-end: spawn real esbuild on a real bundle and assert output shape.
