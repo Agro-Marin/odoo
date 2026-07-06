@@ -31,17 +31,29 @@ def _find_duplicate(
     candidates_by_value: dict[str, list],
     country_id: int | None,
     company_id: int | None,
+    company_scoped: bool = False,
 ) -> Any:
     """Find first duplicate candidate matching the given criteria.
 
     Replaces per-partner ``search(domain, limit=1)`` calls with Python-only
-    filtering on pre-fetched candidates.  Candidates are iterated in default
-    model order (same as ``search`` would return), so the first match is
-    equivalent to the original ``limit=1`` result.
+    filtering on pre-fetched candidates.
+
+    Candidates within a single *value* preserve default model order (they come
+    from ``search_fetch``), so the first match for that value equals the
+    original ``limit=1`` result.  When *values* holds several entries (e.g. VAT
+    variants), they are scanned in list order, so the earliest-listed variant
+    wins over a globally-earlier candidate matching a later variant — an
+    intentional, harmless deviation for the warning-only duplicate fields.
 
     Filters replicate the original SQL domain:
-    - ``("country_id", "in", [country_id, False])`` when *country_id* is set
-    - ``("company_id", "in", [False, company_id])`` when *company_id* is set
+    - ``("country_id", "in", [country_id, False])`` — applied only when
+      *country_id* is set (matches the conditional VAT/registry country term).
+    - ``("company_id", "in", [False, company_id])`` — applied when *company_id*
+      is set, or unconditionally when *company_scoped* is True.  The registry
+      check scopes by company even for a company-less partner (``company_id``
+      falsy + ``company_scoped=True`` ⇒ only company-less candidates match),
+      whereas the VAT check adds the company term only when the partner has a
+      company (``company_scoped=False``).
     - ``("id", "!=", partner_id)``
     - ``"!", ("id", "child_of", partner_id)``
     """
@@ -59,11 +71,14 @@ def _find_duplicate(
                 and candidate.country_id.id != country_id
             ):
                 continue
-            # Company filter — skip candidates with a different company
+            # Company filter — skip candidates whose company differs.  The term
+            # applies when the partner has a company, or unconditionally when
+            # company_scoped (registry): a company-less scoped partner then
+            # matches only company-less candidates.
             if (
-                company_id
-                and candidate.company_id.id
+                candidate.company_id.id
                 and candidate.company_id.id != company_id
+                and (company_scoped or company_id)
             ):
                 continue
             return candidate
@@ -659,52 +674,36 @@ class ResPartner(models.Model):
             if partner.company_registry and not partner.parent_id:
                 all_registries.add(partner.company_registry)
 
-        # Phase 2: Quick existence check — skip batch fetch when values are
-        # unique in the DB (common case for imports with unique values)
-        existing_vats = set()
-        if all_vats:
-            existing_vats = {
-                vat
-                for (vat,) in Partner._read_group(
-                    [("vat", "in", list(all_vats))],
-                    groupby=["vat"],
-                )
-            }
-        existing_registries = set()
-        if all_registries:
-            existing_registries = {
-                reg
-                for (reg,) in Partner._read_group(
-                    [("company_registry", "in", list(all_registries))],
-                    groupby=["company_registry"],
-                )
-            }
-
-        # Phase 3: Batch-fetch ALL candidate records (replaces N search() calls)
-        # Candidates are indexed by field value for O(1) lookup per partner.
+        # Phase 2: Batch-fetch candidate records, indexed by field value for
+        # O(1) lookup per partner (replaces N search() calls).  ``search_fetch``
+        # already returns only rows that exist, so the fetched keys ARE the set
+        # of existing values — a separate ``_read_group`` existence pre-check
+        # would just be a redundant extra query returning the same information.
         vat_by_value: dict[str, list] = defaultdict(list)
-        if existing_vats:
+        if all_vats:
             for c in Partner.search_fetch(
-                [("vat", "in", list(existing_vats))],
+                [("vat", "in", list(all_vats))],
                 ["vat", "parent_id", "company_id", "country_id"],
             ):
                 vat_by_value[c.vat].append(c)
 
         reg_by_value: dict[str, list] = defaultdict(list)
-        if existing_registries:
+        if all_registries:
             for c in Partner.search_fetch(
-                [("company_registry", "in", list(existing_registries))],
+                [("company_registry", "in", list(all_registries))],
                 ["company_registry", "parent_id", "company_id"],
             ):
                 reg_by_value[c.company_registry].append(c)
 
-        # Phase 4: Python-only matching (0 additional SQL queries).
-        # Reuses memoized VAT variants from Phase 1.
+        # Phase 3: Python-only matching (0 additional SQL queries).
+        # Reuses memoized VAT variants from Phase 1.  A value is present in
+        # *_by_value only if it exists in the DB, so membership doubles as the
+        # existence guard.
         for partner in self:
             partner_id = partner._origin.id
             vats = vat_variants.get(partner.id)
 
-            if vats and existing_vats.intersection(vats):
+            if vats and any(vat in vat_by_value for vat in vats):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
                 partner.same_vat_partner_id = _find_duplicate(
@@ -720,7 +719,7 @@ class ResPartner(models.Model):
             if (
                 partner.company_registry
                 and not partner.parent_id
-                and partner.company_registry in existing_registries
+                and partner.company_registry in reg_by_value
             ):
                 company_id = partner.company_id.id if partner.company_id else None
                 partner.same_company_registry_partner_id = _find_duplicate(
@@ -729,6 +728,7 @@ class ResPartner(models.Model):
                     reg_by_value,
                     None,
                     company_id,
+                    company_scoped=True,
                 )
             else:
                 partner.same_company_registry_partner_id = False
@@ -976,26 +976,23 @@ class ResPartner(models.Model):
         propagated until the commercial entity."""
         return ["vat"]
 
+    def _get_set_field_values(self, field_names: list[str]) -> dict[str, Any]:
+        """Return write values for the subset of ``field_names`` that are set on
+        the record. Commercial values are considered individually, so only set
+        values are taken into account (an empty set yields ``{}``)."""
+        set_fields = [fname for fname in field_names if self[fname]]
+        return self._convert_fields_to_values(set_fields) if set_fields else {}
+
     def _get_commercial_values(self) -> dict[str, Any]:
         """Get commercial values from record. Return only set values, as they
         are considered individually, and only set values should be taken into
         account."""
-        set_commercial_fields = [
-            fname for fname in self._commercial_fields() if self[fname]
-        ]
-        if set_commercial_fields:
-            return self._convert_fields_to_values(set_commercial_fields)
-        return {}
+        return self._get_set_field_values(self._commercial_fields())
 
     def _get_synced_commercial_values(self) -> dict[str, Any]:
         """Get synchronized commercial values from record. Return only set values
         as for other commercial values."""
-        set_synced_fields = [
-            fname for fname in self._synced_commercial_fields() if self[fname]
-        ]
-        if set_synced_fields:
-            return self._convert_fields_to_values(set_synced_fields)
-        return {}
+        return self._get_set_field_values(self._synced_commercial_fields())
 
     @api.model
     def _company_dependent_commercial_fields(self) -> list[str]:
@@ -1050,68 +1047,64 @@ class ResPartner(models.Model):
         to the parent, with more control. This method should be called after
         updating values in cache e.g. self should contain new values.
 
+        Three directions are handled, in order:
+          1. from the parent down onto self (:meth:`_sync_from_parent`),
+          2. from self up onto the parent (:meth:`_sync_to_parent`),
+          3. from self down onto its children (:meth:`_children_sync`).
+
         :param dict[str, Any] values: updated values, triggering sync
         """
-        # 1. From UPSTREAM: sync from parent
-        if values.get("parent_id") or values.get("type") == "contact":
-            # 1a. Commercial fields: sync if parent changed
-            if values.get("parent_id"):
-                # Sudo required: commercial sync must propagate across company
-                # boundaries. The new parent may be in a different company than
-                # the current user, making its commercial values inaccessible.
-                self.sudo()._commercial_sync_from_company()
-            # 1b. Address fields: sync if parent or use_parent changed *and* both are now set
-            if self.parent_id and self.type == "contact":
-                if address_values := self.parent_id._get_address_values():
-                    self._update_address(address_values)
-
-        # 2. To UPSTREAM: sync parent address, as well as editable synchronized commercial fields
-        address_to_upstream = (
-            # parent is set, potential address update as contact address = parent address
-            bool(self.parent_id)
-            and bool(self.type == "contact")
-            and
-            # address updated, or parent updated
-            (
-                any(field in values for field in self._address_fields())
-                or "parent_id" in values
-            )
-            and
-            # something is actually updated
-            any(
-                self[fname] != self.parent_id[fname] for fname in self._address_fields()
-            )
-        )
-        if address_to_upstream:
-            new_address = self._get_address_values()
-            self.parent_id.write(new_address)  # is going to trigger _fields_sync again
-        commercial_to_upstream = (
-            # has a parent and is not a commercial entity itself
-            bool(self.parent_id)
-            and (self.commercial_partner_id != self)
-            and
-            # actually updated, or parent updated
-            (
-                any(field in values for field in self._synced_commercial_fields())
-                or "parent_id" in values
-            )
-            and
-            # something is actually updated
-            any(
-                self[fname] != self.parent_id[fname]
-                for fname in self._synced_commercial_fields()
-            )
-        )
-        if commercial_to_upstream:
-            new_synced_commercials = self._get_synced_commercial_values()
-            self.parent_id.write(new_synced_commercials)
-
-        # 3. To DOWNSTREAM: sync children
+        self._sync_from_parent(values)
+        self._sync_to_parent(values)
         self._children_sync(values)
 
-    def _children_sync(self, values: dict[str, Any]) -> None:
-        if not self.child_ids:
+    def _sync_from_parent(self, values: dict[str, Any]) -> None:
+        """Pull values down from the parent onto self: commercial fields when the
+        parent changed, and address fields for contacts. See :meth:`_fields_sync`."""
+        if not (values.get("parent_id") or values.get("type") == "contact"):
             return
+        # Commercial fields: sync if parent changed.
+        if values.get("parent_id"):
+            # Sudo required: commercial sync must propagate across company
+            # boundaries. The new parent may be in a different company than
+            # the current user, making its commercial values inaccessible.
+            self.sudo()._commercial_sync_from_company()
+        # Address fields: sync if parent or use_parent changed *and* both are now set.
+        if self.parent_id and self.type == "contact":
+            if address_values := self.parent_id._get_address_values():
+                self._update_address(address_values)
+
+    def _sync_to_parent(self, values: dict[str, Any]) -> None:
+        """Push editable values up from self onto the parent: contact address, and
+        synchronized commercial fields (e.g. vat), but only when they were part of
+        the update and now actually differ from the parent. See :meth:`_fields_sync`."""
+        if not self.parent_id:
+            return
+        address_fields = self._address_fields()
+        # Contact address mirrors the parent's, so push address changes up.
+        if (
+            self.type == "contact"
+            and ("parent_id" in values or any(f in values for f in address_fields))
+            and any(self[f] != self.parent_id[f] for f in address_fields)
+        ):
+            # is going to trigger _fields_sync again
+            self.parent_id.write(self._get_address_values())
+        # Synced commercial fields (vat) propagate up unless self is itself the
+        # commercial entity.
+        synced_fields = self._synced_commercial_fields()
+        if (
+            self.commercial_partner_id != self
+            and ("parent_id" in values or any(f in values for f in synced_fields))
+            and any(self[f] != self.parent_id[f] for f in synced_fields)
+        ):
+            self.parent_id.write(self._get_synced_commercial_values())
+
+    def _children_sync(self, values: dict[str, Any]) -> None:
+        # NB: no ``if not self.child_ids: return`` short-circuit here. That guard
+        # read child_ids under the *current user's* record rules, so a commercial
+        # entity whose only descendants live in another company (and are hidden
+        # from the user) looked childless and skipped the commercial sync below —
+        # defeating the sudo cross-company propagation it is supposed to guarantee.
         # 3a. Commercial Fields: sync if commercial entity
         if self.commercial_partner_id == self:
             fields_to_sync = values.keys() & self._commercial_fields()
@@ -1121,13 +1114,16 @@ class ResPartner(models.Model):
             if fields_to_sync:
                 # Sudo required: descendants may belong to other companies where
                 # the current user lacks write access. Commercial field consistency
-                # must be enforced system-wide across company boundaries.
+                # must be enforced system-wide across company boundaries. Child
+                # discovery also runs under sudo so hidden descendants are reached.
                 self.sudo()._commercial_sync_to_descendants(fields_to_sync)
-        # 3b. Address fields: sync if address changed
+        # 3b. Address fields: sync if address changed. Kept under the current
+        # user's rules on purpose: address mirroring has no cross-company mandate.
         address_fields = self._address_fields()
         if any(field in values for field in address_fields):
             contacts = self.child_ids.filtered(lambda c: c.type == "contact")
-            contacts._update_address(values)
+            if contacts:
+                contacts._update_address(values)
 
     def _handle_first_contact_creation(self) -> None:
         """On creation of first contact for a company (or root) that has no address, assume contact address
@@ -1213,11 +1209,10 @@ class ResPartner(models.Model):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("parent_id"):
             vals["company_name"] = False
-        if vals.get("name"):
-            for partner in self:
-                for bank in partner.bank_ids:
-                    if bank.acc_holder_name == partner.name:
-                        bank.acc_holder_name = vals["name"]
+        # NB: no bank-account holder-name sync here — res.partner.bank's
+        # acc_holder_name is a stored computed field (@api.depends on
+        # partner_id.name), so renaming a partner already recomputes every
+        # linked bank's holder name. A manual loop here would be redundant.
 
         # filter to keep only really updated values -> field synchronize goes through
         # partner tree and we should avoid infinite loops in case same value is
@@ -1298,10 +1293,16 @@ class ResPartner(models.Model):
                 vals["company_name"] = False
         partners = super().create(vals_list)
         # due to ir.default, compute is not called as there is a default value
-        # hence calling the compute manually
-        for partner, values in zip(partners, vals_list, strict=True):
-            if "lang" not in values:
-                partner._compute_lang()
+        # hence calling the compute manually. _compute_lang resolves the default
+        # lang once for its whole recordset, so call it a single time on the
+        # partners that had no explicit lang rather than once per record.
+        partners_without_lang = partners.browse(
+            partner.id
+            for partner, values in zip(partners, vals_list, strict=True)
+            if "lang" not in values
+        )
+        if partners_without_lang:
+            partners_without_lang._compute_lang()
 
         if self.env.context.get("_partners_skip_fields_sync"):
             return partners
