@@ -460,7 +460,15 @@ class IrAsset(models.Model):
                     path_def,
                 )
                 return
-            asset_paths.remove(paths, bundle)
+            # A wildcarded remove is set subtraction: it resolves against the
+            # addon's files on DISK, while the bundle usually contains only a
+            # subset of them (e.g. mail removes ``discuss/**/*`` from
+            # ``web.assets_backend`` before re-adding the allowed subsets, and
+            # ``**/*.dark.scss`` globs match files that only ever belonged to
+            # the dark bundles). Disk matches absent from the bundle are
+            # therefore expected -- only a LITERAL path remove keeps the
+            # strict must-be-present contract.
+            asset_paths.remove(paths, bundle, strict=not is_wildcard_glob(path_def))
         elif directive == REPLACE_DIRECTIVE:
             self._apply_replace(asset_paths, paths, target_path, bundle)
         else:
@@ -804,23 +812,29 @@ class AssetPaths:
                 self.memo.add(path)
         self.list[index:index] = to_insert
 
-    def remove(self, paths_to_remove: list, bundle: str) -> None:
+    def remove(self, paths_to_remove: list, bundle: str, strict: bool = True) -> None:
         """Removes the given paths from the current list.
 
         Semantics by how many requested paths are in the bundle:
 
         * all present -> removed silently;
-        * some present, some absent -> the present ones are removed and the
-          absent (stale) ones are WARNED about (IRASSET-A3) rather than
-          dropped silently;
-        * none present -> hard error (positioning/removal relative to a
-          resolvable-but-absent path is a contract violation).
+        * some present, some absent -> the present ones are removed; the
+          absent ones are WARNED about (IRASSET-A3) in strict mode, or
+          silently ignored otherwise;
+        * none present -> hard error in strict mode (removal of a
+          resolvable-but-absent path is a contract violation), silent no-op
+          otherwise.
+
+        :param strict: apply the must-be-present contract. Callers pass False
+            for wildcarded remove directives, which are set subtraction: they
+            resolve against files on disk, so matches absent from the bundle
+            are expected, not stale.
         """
         requested = [path for path, _full_path, _last_modified in paths_to_remove]
         present = {path for path in requested if path in self.memo}
         if present:
             absent = [path for path in requested if path not in self.memo]
-            if absent:
+            if absent and strict:
                 _logger.warning(
                     "REMOVE in bundle %r ignored path(s) %s not present in the "
                     "bundle (removed %s). The ignored paths are likely stale "
@@ -833,7 +847,7 @@ class AssetPaths:
             self.memo.difference_update(present)
             return
 
-        if requested:
+        if requested and strict:
             self._raise_not_found(requested, bundle)
 
     def _raise_not_found(self, path: str | list[str], bundle: str) -> None:
