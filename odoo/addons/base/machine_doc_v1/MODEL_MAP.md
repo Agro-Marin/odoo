@@ -745,7 +745,7 @@ HTTP routing, authentication, and request dispatch.
 
 ### models/ir_mail_server.py
 
-#### IrMailServer — `ir.mail.server` (`_name`)
+#### IrMail_Server — `ir.mail_server` (`_name`)
 
 SMTP server configuration and email sending.
 
@@ -760,11 +760,13 @@ SMTP server configuration and email sending.
 - `sequence` (Integer, default=10), `active` (Boolean, default=True)
 
 **Key Methods:**
-- `_connect(host, port, user, password, encryption, ...)` — Create SMTP connection
-- `_build_email(email_from, email_to, subject, body, ...)` — Build RFC2822 EmailMessage
+- `_connect__(host, port, user, password, encryption, ...)` — Open an SMTP connection (thin socket I/O)
+- `_resolve_smtp_transport(mail_server, *, host, port, ...)` — Pure resolution of transport params (host/port/auth/encryption/SSL context) from record vs CLI/config/params; socket-free and unit-testable
+- `_open_smtp_connection(transport, smtp_from)` — Open/secure/authenticate a socket for a resolved `_SmtpTransport`
+- `_build_email__(email_from, email_to, subject, body, ...)` — Build RFC2822 EmailMessage (`headers` override singleton headers via del-then-set)
 - `send_email(message, mail_server_id, ...)` — Send email via SMTP
 - `_find_mail_server(email_from, mail_servers)` — Find server by FROM address
-- `test_smtp_connection(autodetect_max_email_size)` — Test connection
+- `test_smtp_connection(autodetect_max_email_size)` — Test connection; maps low-level errors via `_connection_test_error`
 
 ---
 
