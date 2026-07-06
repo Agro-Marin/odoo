@@ -288,6 +288,24 @@ class IrAsset(models.Model):
                 f"Circular assets bundle declaration: {' > '.join(seen + [bundle])}"
             )
 
+        # A sub-bundle can be legitimately included several times in the same
+        # traversal (e.g. ``web._assets_primary_variables`` is included both
+        # directly by most top-level bundles AND via ``web._assets_helpers``).
+        # The first walk fully determines its contribution: directives are
+        # deterministic within a traversal, so on a re-walk append/insert are
+        # memo-deduplicated no-ops, after/before log spurious "already
+        # present" warnings, and remove/replace would re-apply against the
+        # already-mutated state (up to a hard ValueError for remove). Skip
+        # re-walks entirely. The circularity check above stays first so real
+        # cycles keep raising instead of being masked as re-includes.
+        if bundle in asset_paths.walked_bundles:
+            _logger.debug(
+                "Bundle %r already walked in this traversal; skipping re-include.",
+                bundle,
+            )
+            return
+        asset_paths.walked_bundles.add(bundle)
+
         # this index is used for prepending: files are inserted at the beginning
         # of the CURRENT bundle.
         bundle_start_index = len(asset_paths.list)
@@ -754,6 +772,10 @@ class AssetPaths:
     def __init__(self) -> None:
         self.list: list[AssetEntry] = []
         self.memo: set[str] = set()
+        # Bundle names already walked in this traversal; lets the filling
+        # logic skip duplicate includes of the same sub-bundle (see
+        # ``IrAsset._fill_asset_paths``).
+        self.walked_bundles: set[str] = set()
 
     def index(self, path: str, bundle: str) -> int:
         """Returns the index of the given path in the current assets list."""
