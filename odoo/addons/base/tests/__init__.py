@@ -70,6 +70,7 @@ from . import test_res_company
 from . import test_res_currency
 from . import test_res_country
 from . import test_res_partner
+from . import test_res_partner_sync
 from . import test_res_partner_bank
 from . import test_res_partner_merge
 from . import test_res_users
