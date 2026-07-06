@@ -492,7 +492,7 @@ class TestBacktickMinification(TransactionCase):
         fallback would not be exercised.
         """
         src = "window.testRaw = `outer ${`in  ner`} end`;\nvar    spaced = 1;\n"
-        with patch("odoo.addons.base.models.assetsbundle.minify_js", return_value=None):
+        with patch("odoo.addons.base.models.assetsbundle.assets.minify_js", return_value=None):
             bundle = AssetsBundle(
                 f"{self.BUNDLE}_fallback",
                 [_file("/test_assetsbundle/static/src/fallback.js", src)],
@@ -823,7 +823,7 @@ class TestXmlBundleUrlEscaping(TransactionCase):
         bundle = AssetsBundle(
             "test_assetsbundle.urlesc", files, env=self.env, css=False, js=True
         )
-        js = bundle.generate_xml_bundle()
+        js = bundle._xmltemplates.generate_xml_bundle()
         # The template body stays a backtick literal and is escaped...
         self.assertIn(r"\${body}", js)
         # ...and the URL is now a JSON-quoted string argument: its backtick
@@ -1180,6 +1180,7 @@ class TestStylesheetErrorInversion(BaseCase):
             self.css_errors = []
             self.rtl = False
             self.autoprefix = False
+            self.is_debug_assets = False
 
     def test_asset_records_error_without_touching_bundle(self):
         class BareBundle:  # deliberately has no css_errors attribute

@@ -33,6 +33,7 @@ class TestPreprocessCssErrorContract(BaseCase):
             autoprefix=False,
             rtl=False,
             name="test.bundle",
+            is_debug_assets=False,
         )
         return CssPipeline(bundle), bundle
 
@@ -193,6 +194,7 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
             autoprefix=False,
             rtl=rtl,
             name="test.bundle",
+            is_debug_assets=False,
         )
         pipeline = CssPipeline(bundle)
         pipeline.compile_css = lambda compiler, source: self._COMPILED
@@ -265,7 +267,7 @@ class TestBacktickMinifyGate(BaseCase):
     whether it was called proves which branch ran, no subprocess needed.
     """
 
-    _TARGET = "odoo.addons.base.models.assetsbundle.minify_js"
+    _TARGET = "odoo.addons.base.models.assetsbundle.assets.minify_js"
 
     def _routes_to_esbuild(self, code):
         asset = JavascriptAsset(SimpleNamespace(name="b"), inline=code)
@@ -535,11 +537,11 @@ class TestRunRtlcssEmptyOutputGuard(BaseCase):
     def _run(self, source, fake_out):
         bundle = SimpleNamespace(css_errors=[], name="t.b", stylesheets=[])
         pipe = CssPipeline(bundle)
-        with patch.object(_ab, "_check_rtlcss", return_value=True), patch.object(
-            _ab, "_rtlcss_bin", return_value="rtlcss"
+        with patch.object(_ab.css_pipeline, "_check_rtlcss", return_value=True), patch.object(
+            _ab.css_pipeline, "_rtlcss_bin", return_value="rtlcss"
         ), patch.object(
-            _ab, "_rtlcss_config_path", return_value="/x.json"
-        ), patch.object(_ab, "_run_cli_pipe", return_value=fake_out):
+            _ab.css_pipeline, "_rtlcss_config_path", return_value="/x.json"
+        ), patch.object(_ab.css_pipeline, "_run_cli_pipe", return_value=fake_out):
             result = pipe.run_rtlcss(source)
         return result, bundle.css_errors
 
