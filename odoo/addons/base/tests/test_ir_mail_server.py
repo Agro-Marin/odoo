@@ -131,6 +131,34 @@ class EmailConfigCase(TransactionCase):
         self.assertEqual(len(attachments), 1)
         self.assertEqual(attachments[0].get_filename(), "weird.bin")
 
+    def test_build_email_headers_override_standard_headers(self):
+        """A ``headers`` entry must *override* an already-set standard header,
+        not append a duplicate. Under EmailMessage/SMTP_POLICY, singleton headers
+        (Subject, From, Reply-To, Message-Id, ...) cap at one occurrence, so a
+        plain append raised ValueError and aborted the send (reachable from the
+        free-form ``mail.mail.headers`` field). This pins the override contract.
+        """
+        IrMailServer = self.env["ir.mail_server"]
+        for header, override in [
+            ("Subject", "Overridden Subject"),
+            ("Reply-To", "boss@example.com"),
+            ("From", "override@example.com"),
+            ("Message-Id", "<pinned@example.com>"),
+        ]:
+            message = IrMailServer._build_email__(
+                "sender@example.com",
+                "recipient@example.com",
+                "Original Subject",
+                "Body",
+                reply_to="orig-reply@example.com",
+                headers={header: override},
+            )
+            self.assertEqual(
+                message.get_all(header),
+                [override],
+                f"{header} from headers must replace, exactly once",
+            )
+
     def test_build_email_rejects_header_injection(self):
         """MS-T3: CR/LF in a header value or name must raise (no header smuggling).
 
@@ -923,3 +951,152 @@ class TestSslContexts(TransactionCase):
             self.env["ir.mail_server"]._ssl_context_from_certificate(
                 server, "smtp.example.com"
             )
+
+    def _capture_connect_context(self, **connect_kwargs):
+        """Open a connection through the raw-parameter path and return the
+        ssl context that reached smtplib (SMTP_SSL ``context=`` or the one
+        passed to ``starttls``). No socket is opened.
+        """
+        captured = {}
+
+        class _FakeConn:
+            def __init__(self, *a, **kw):
+                captured["ssl"] = kw.get("context")
+
+            def set_debuglevel(self, *a):
+                pass
+
+            def starttls(self, context=None):
+                captured["starttls"] = context
+
+            def ehlo_or_helo_if_needed(self):
+                pass
+
+        IrMailServer = self.env["ir.mail_server"]
+        with (
+            patch.object(type(IrMailServer), "_disable_send", lambda _: False),
+            patch("smtplib.SMTP_SSL", _FakeConn),
+            patch("smtplib.SMTP", _FakeConn),
+        ):
+            IrMailServer._connect__(**connect_kwargs)
+        return captured
+
+    def test_connect_raw_param_strict_encryption_verifies(self):
+        """Regression: strict encryption passed as a raw parameter (no mail
+        server record, no client cert) must build a *verifying* context.
+        Previously the context stayed None, so smtplib fell back to an
+        unverified stdlib context and silently downgraded 'strict'.
+        """
+        captured = self._capture_connect_context(
+            host="smtp.example.test", port=465, encryption="ssl_strict"
+        )
+        ctx = captured["ssl"]
+        self.assertIsNotNone(ctx, "ssl_strict must not connect with context=None")
+        self.assertTrue(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+
+        captured = self._capture_connect_context(
+            host="smtp.example.test", port=587, encryption="starttls_strict"
+        )
+        ctx = captured["starttls"]
+        self.assertIsNotNone(ctx, "starttls_strict must not STARTTLS with context=None")
+        self.assertTrue(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+
+    def test_connect_raw_param_lax_encryption_unchanged(self):
+        """Lax variants stay encryption-only (no server-cert validation)."""
+        captured = self._capture_connect_context(
+            host="smtp.example.test", port=465, encryption="ssl"
+        )
+        ctx = captured["ssl"]
+        self.assertFalse(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
+
+
+class TestResolveTransport(TransactionCase):
+    """Direct unit coverage for _resolve_smtp_transport — the socket-free half of
+    _connect__. These pin the source-precedence rules (record vs CLI/config vs
+    explicit params) that used to be untestable without opening a connection.
+    """
+
+    def test_resolve_from_record(self):
+        """A login mail-server record fully describes the transport."""
+        IrMailServer = self.env["ir.mail_server"]
+        server = IrMailServer.create({
+            "name": "rec",
+            "smtp_host": "mail.record.test",
+            "smtp_port": 2525,
+            "smtp_user": "u@record.test",
+            "smtp_pass": "secret",
+            "smtp_encryption": "starttls_strict",
+            "smtp_authentication": "login",
+            "from_filter": "record.test",
+        })
+        t = IrMailServer._resolve_smtp_transport(server)
+        self.assertEqual(t.server, "mail.record.test")
+        self.assertEqual(t.port, 2525)
+        self.assertEqual(t.user, "u@record.test")
+        self.assertEqual(t.password, "secret")
+        self.assertEqual(t.encryption, "starttls_strict")
+        self.assertEqual(t.from_filter, "record.test")
+        self.assertEqual(t.login_server, server)
+        self.assertTrue(t.ssl_context.check_hostname)  # strict -> verifying
+
+    def test_resolve_cli_auth_record_ignores_record_transport(self):
+        """A 'cli'-authenticated record contributes ONLY its from_filter; its
+        host/port/user go through the CLI/config path instead."""
+        IrMailServer = self.env["ir.mail_server"]
+        server = IrMailServer.create({
+            "name": "cli",
+            "smtp_host": "ignored.test",
+            "smtp_port": 9999,
+            "smtp_authentication": "cli",
+            "from_filter": "cli.test",
+        })
+        with patch.dict(config.options, {"smtp_server": "cli.host", "smtp_port": 25}):
+            t = IrMailServer._resolve_smtp_transport(server)
+        self.assertEqual(t.server, "cli.host", "record host must be ignored for cli auth")
+        self.assertEqual(t.from_filter, "cli.test", "record from_filter is still used")
+        self.assertEqual(t.login_server, server)
+
+    def test_resolve_explicit_params_win_over_config(self):
+        """Explicit host/port/user beat config on the param path."""
+        IrMailServer = self.env["ir.mail_server"]
+        empty = IrMailServer.browse()
+        with patch.dict(config.options, {"smtp_server": "conf.host", "smtp_user": "conf"}):
+            t = IrMailServer._resolve_smtp_transport(
+                empty, host="explicit.host", port=1234, user="explicit"
+            )
+        self.assertEqual(t.server, "explicit.host")
+        self.assertEqual(t.port, 1234)
+        self.assertEqual(t.user, "explicit")
+        self.assertFalse(t.login_server, "no record -> empty login_server")
+
+    def test_session_context_roundtrip(self):
+        """Routing context stashed on a session reads back through the typed
+        accessors; a bare session (never stashed) yields the (False, False)
+        default, matching the old getattr(..., False) semantics.
+        """
+        from odoo.addons.base.models.ir_mail_server import _SmtpSessionContext
+
+        IrMailServer = self.env["ir.mail_server"]
+
+        class _BareSession:
+            pass
+
+        conn = _BareSession()
+        # Bare, never-stashed session -> defaults, no AttributeError.
+        self.assertEqual(
+            IrMailServer._read_session_context(conn),
+            _SmtpSessionContext(from_filter=False, smtp_from=False),
+        )
+        # Round-trip through the writer/reader pair.
+        IrMailServer._stash_session_context(
+            conn, _SmtpSessionContext(from_filter="example.com", smtp_from="a@example.com")
+        )
+        ctx = IrMailServer._read_session_context(conn)
+        self.assertEqual(ctx.from_filter, "example.com")
+        self.assertEqual(ctx.smtp_from, "a@example.com")
+        # Attribute names preserved for the test doubles / external readers.
+        self.assertEqual(conn.from_filter, "example.com")
+        self.assertEqual(conn.smtp_from, "a@example.com")

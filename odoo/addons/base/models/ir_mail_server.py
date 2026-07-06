@@ -10,7 +10,7 @@ from email.message import EmailMessage
 from email.parser import BytesParser
 from email.utils import make_msgid
 from socket import gaierror
-from typing import Any, Self
+from typing import Any, NamedTuple, Self
 
 import idna
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -153,6 +153,55 @@ def _verify_check_hostname_callback(
     return True
 
 
+class _SmtpTransport(NamedTuple):
+    """Fully-resolved SMTP transport parameters, the single output of
+    :meth:`IrMail_Server._resolve_smtp_transport`.
+
+    Separating *resolution* (which source wins: record fields vs CLI/config vs
+    explicit params, and which SSL context to build) from the *socket I/O* in
+    ``_connect__`` makes the resolution — the subtle, fallback-heavy, and
+    historically bug-prone part — unit-testable without opening a connection,
+    and forces both configuration sources through one place so their SSL/verify
+    handling cannot silently drift apart again.
+    """
+
+    server: str | None
+    port: int | None
+    user: str | None
+    password: str | None
+    encryption: str | None
+    debug: bool
+    from_filter: str | None
+    ssl_context: Any
+    # ir.mail_server record used for _smtp_login__ (empty recordset on the
+    # CLI/param path, so OAuth overrides fall back to plain LOGIN).
+    login_server: Any
+
+
+class _SmtpSessionContext(NamedTuple):
+    """Per-connection routing context, resolved at connect time and consulted by
+    :meth:`IrMail_Server._prepare_email_message__` when deciding whether the
+    envelope FROM may be rewritten so bounces come back (VERP / bounce alias).
+
+    - ``from_filter``: the ``from_filter`` of the selected server / CLI config,
+      i.e. which senders this transport is allowed to send as.
+    - ``smtp_from``: the envelope sender resolved while choosing the server.
+
+    It is carried as flat ``from_filter`` / ``smtp_from`` attributes on the smtp
+    connection object rather than wrapping it, on purpose: ``send_email`` accepts
+    a *caller-supplied* session and callers (e.g. ``mail.mail``) invoke smtplib
+    methods — ``quit()`` — on the exact object ``_connect__`` returns, so that
+    object must remain a real connection. The test doubles in
+    ``base/tests/common.py`` also read these attribute names. Every access goes
+    through :meth:`IrMail_Server._stash_session_context` /
+    :meth:`IrMail_Server._read_session_context` so the contract lives in one
+    place instead of scattered ``getattr(session, "from_filter", ...)`` calls.
+    """
+
+    from_filter: str | bool = False
+    smtp_from: str | bool = False
+
+
 class IrMail_Server(models.Model):
     """Represents an SMTP server, able to send outgoing emails, with SSL and TLS capabilities."""
 
@@ -228,8 +277,8 @@ class IrMail_Server(models.Model):
         "- TLS (STARTTLS): TLS encryption is requested at start of SMTP session (Recommended)\n"
         "- SSL/TLS: SMTP sessions are encrypted with SSL/TLS through a dedicated port (default: 465)\n"
         "\n"
-        "Choose an additionnal variant for SSL or TLS:\n"
-        "- encryption and validation: encrypt the data and authentify the server using its SSL certificate (Recommended)\n"
+        "Choose an additional variant for SSL or TLS:\n"
+        "- encryption and validation: encrypt the data and authenticate the server using its SSL certificate (Recommended)\n"
         "- encryption only: encrypt the data but skip server authentication",
     )
     smtp_ssl_certificate = fields.Binary(
@@ -475,65 +524,12 @@ class IrMail_Server(models.Model):
                             )
                         )
                     server.max_email_size = float(max_size) / (1024**2)
-            except (UnicodeError, idna.core.InvalidCodepoint) as e:
-                raise UserError(_("Invalid server name!\n %s", e)) from e
-            except (TimeoutError, gaierror) as e:
-                raise UserError(
-                    _(
-                        "No response received. Check server address and port number.\n %s",
-                        e,
-                    )
-                ) from e
-            except smtplib.SMTPServerDisconnected as e:
-                raise UserError(
-                    _(
-                        "The server has closed the connection unexpectedly. Check configuration served on this port number.\n %s",
-                        e,
-                    )
-                ) from e
-            except smtplib.SMTPResponseException as e:
-                raise UserError(
-                    _("Server replied with following exception:\n %s", e)
-                ) from e
-            except smtplib.SMTPNotSupportedError as e:
-                raise UserError(
-                    _("An option is not supported by the server:\n %s", e)
-                ) from e
-            except smtplib.SMTPException as e:
-                raise UserError(
-                    _(
-                        "An SMTP exception occurred. Check port number and connection security type.\n %s",
-                        e,
-                    )
-                ) from e
-            except CertificateError as e:
-                raise UserError(
-                    _(
-                        "An SSL exception occurred. Check connection security type.\n CertificateError: %s",
-                        e,
-                    )
-                ) from e
-            except (ssl.SSLError, SSLError) as e:
-                raise UserError(
-                    _(
-                        "An SSL exception occurred. Check connection security type.\n %s",
-                        e,
-                    )
-                ) from e
             except UserError:
+                # UserErrors raised by the probe steps above already carry a
+                # tailored message — surface them verbatim.
                 raise
             except Exception as e:
-                _logger.warning(
-                    "Connection test on %s failed with a generic error.",
-                    server,
-                    exc_info=True,
-                )
-                raise UserError(
-                    _(
-                        "Connection Test Failed! Here is what we got instead:\n %s",
-                        e,
-                    )
-                ) from e
+                raise self._connection_test_error(e, server) from e
             finally:
                 if smtp:
                     with suppress(Exception):
@@ -559,6 +555,76 @@ class IrMail_Server(models.Model):
                 "next": {"type": "ir.actions.act_window_close"},  # force a form reload
             },
         }
+
+    def _connection_test_error(self, exc: Exception, server: Self) -> UserError:
+        """Translate a raw connection-test exception into a user-facing UserError.
+
+        Ordered most-specific first; the SMTP subclasses must precede
+        ``smtplib.SMTPException`` so their tailored message wins. An unmatched
+        exception is logged (with traceback) and wrapped in a generic message —
+        the only branch that logs, since the others are self-explanatory.
+        """
+        handlers = (
+            (
+                (UnicodeError, idna.core.InvalidCodepoint),
+                lambda e: _("Invalid server name!\n %s", e),
+            ),
+            (
+                (TimeoutError, gaierror),
+                lambda e: _(
+                    "No response received. Check server address and port number.\n %s",
+                    e,
+                ),
+            ),
+            (
+                smtplib.SMTPServerDisconnected,
+                lambda e: _(
+                    "The server has closed the connection unexpectedly. Check configuration served on this port number.\n %s",
+                    e,
+                ),
+            ),
+            (
+                smtplib.SMTPResponseException,
+                lambda e: _("Server replied with following exception:\n %s", e),
+            ),
+            (
+                smtplib.SMTPNotSupportedError,
+                lambda e: _("An option is not supported by the server:\n %s", e),
+            ),
+            (
+                smtplib.SMTPException,
+                lambda e: _(
+                    "An SMTP exception occurred. Check port number and connection security type.\n %s",
+                    e,
+                ),
+            ),
+            (
+                CertificateError,
+                lambda e: _(
+                    "An SSL exception occurred. Check connection security type.\n CertificateError: %s",
+                    e,
+                ),
+            ),
+            (
+                (ssl.SSLError, SSLError),
+                lambda e: _(
+                    "An SSL exception occurred. Check connection security type.\n %s",
+                    e,
+                ),
+            ),
+        )
+        for exc_types, make_message in handlers:
+            if isinstance(exc, exc_types):
+                return UserError(make_message(exc))
+
+        _logger.warning(
+            "Connection test on %s failed with a generic error.",
+            server,
+            exc_info=exc,
+        )
+        return UserError(
+            _("Connection Test Failed! Here is what we got instead:\n %s", exc)
+        )
 
     def action_retrieve_max_email_size(self) -> dict[str, Any]:
         self.ensure_one()
@@ -608,71 +674,130 @@ class IrMail_Server(models.Model):
         # Do not actually connect while running in test mode
         if self._disable_send():
             return None
-        mail_server = smtp_encryption = None
+
+        mail_server = None
         if mail_server_id:
             mail_server = self.sudo().browse(mail_server_id)
             self._check_forced_mail_server(mail_server, allow_archived, smtp_from)
-
         elif not host:
             mail_server, smtp_from = self.sudo()._find_mail_server(smtp_from)
-
         if not mail_server:
             mail_server = self.env["ir.mail_server"]
-        ssl_context = None
 
+        transport = self._resolve_smtp_transport(
+            mail_server,
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            encryption=encryption,
+            ssl_certificate=ssl_certificate,
+            ssl_private_key=ssl_private_key,
+            smtp_debug=smtp_debug,
+        )
+        return self._open_smtp_connection(transport, smtp_from)
+
+    def _resolve_smtp_transport(
+        self,
+        mail_server: Self,
+        *,
+        host: str | None = None,
+        port: int | None = None,
+        user: str | None = None,
+        password: str | None = None,
+        encryption: str | None = None,
+        ssl_certificate: str | None = None,
+        ssl_private_key: str | None = None,
+        smtp_debug: bool = False,
+    ) -> _SmtpTransport:
+        """Resolve the effective SMTP transport (host/port/auth/encryption/SSL
+        context) from a mail-server record *or* from CLI/config/explicit params.
+
+        Pure with respect to the socket: it opens no connection, so it is
+        directly unit-testable. Both configuration sources funnel their
+        encryption→SSL-context decision through here, which is what keeps the
+        'strict' verification semantics from drifting between them.
+
+        :param mail_server: resolved ``ir.mail_server`` record, or the empty
+            recordset when the transport comes from CLI/config/params.
+        """
         if mail_server and mail_server.smtp_authentication != "cli":
-            smtp_server = mail_server.smtp_host
-            smtp_port = mail_server.smtp_port
-            if mail_server.smtp_authentication == "certificate":
-                smtp_user = None
-                smtp_password = None
-            else:
-                smtp_user = mail_server.smtp_user
-                smtp_password = mail_server.smtp_pass
-            smtp_encryption = mail_server.smtp_encryption
-            smtp_debug = smtp_debug or mail_server.smtp_debug
-            from_filter = mail_server.from_filter
-
-            if mail_server.smtp_authentication == "certificate":
+            # Transport fully described by the mail-server record.
+            is_certificate = mail_server.smtp_authentication == "certificate"
+            encryption = mail_server.smtp_encryption
+            if is_certificate:
                 ssl_context = self._ssl_context_from_certificate(
-                    mail_server, smtp_server
+                    mail_server, mail_server.smtp_host
                 )
-            elif mail_server.smtp_encryption != "none":
-                ssl_context = self._ssl_context_for_encryption(
-                    mail_server.smtp_encryption
-                )
-
-        else:
-            # We were passed individual smtp parameters, or nothing, or a
-            # "cli"-authenticated mail server. In all these cases the transport
-            # comes entirely from the CLI/config: a "cli" mail server record
-            # contributes ONLY its from_filter — its smtp_host/port/encryption/
-            # user/pass/debug fields are deliberately ignored here.
-            smtp_server = host or tools.config.get("smtp_server")
-            smtp_port = tools.config.get("smtp_port", 25) if port is None else port
-            smtp_user = user or tools.config.get("smtp_user")
-            smtp_password = password or tools.config.get("smtp_password")
-            if mail_server:
-                from_filter = mail_server.from_filter
+            elif encryption != "none":
+                ssl_context = self._ssl_context_for_encryption(encryption)
             else:
-                from_filter = self.env["ir.mail_server"]._get_default_from_filter()
-
-            smtp_encryption = encryption
-            if smtp_encryption is None and tools.config.get("smtp_ssl"):
-                smtp_encryption = "starttls"  # smtp_ssl => STARTTLS as of v7
-            smtp_ssl_certificate_filename = ssl_certificate or tools.config.get(
-                "smtp_ssl_certificate_filename"
+                ssl_context = None
+            return _SmtpTransport(
+                server=mail_server.smtp_host,
+                port=mail_server.smtp_port,
+                user=None if is_certificate else mail_server.smtp_user,
+                password=None if is_certificate else mail_server.smtp_pass,
+                encryption=encryption,
+                debug=smtp_debug or mail_server.smtp_debug,
+                from_filter=mail_server.from_filter,
+                ssl_context=ssl_context,
+                login_server=mail_server,
             )
-            smtp_ssl_private_key_filename = ssl_private_key or tools.config.get(
-                "smtp_ssl_private_key_filename"
-            )
 
-            if smtp_ssl_certificate_filename and smtp_ssl_private_key_filename:
-                ssl_context = self._ssl_context_from_cert_files(
-                    smtp_ssl_certificate_filename, smtp_ssl_private_key_filename
-                )
+        # We were passed individual smtp parameters, or nothing, or a
+        # "cli"-authenticated mail server. In all these cases the transport
+        # comes entirely from the CLI/config: a "cli" mail server record
+        # contributes ONLY its from_filter — its smtp_host/port/encryption/
+        # user/pass/debug fields are deliberately ignored here.
+        if encryption is None and tools.config.get("smtp_ssl"):
+            encryption = "starttls"  # smtp_ssl => STARTTLS as of v7
 
-        if not smtp_server:
+        cert_filename = ssl_certificate or tools.config.get(
+            "smtp_ssl_certificate_filename"
+        )
+        key_filename = ssl_private_key or tools.config.get(
+            "smtp_ssl_private_key_filename"
+        )
+        if cert_filename and key_filename:
+            ssl_context = self._ssl_context_from_cert_files(cert_filename, key_filename)
+        elif encryption not in (None, "none"):
+            # Without a client certificate, the raw-parameter path still has to
+            # honour the encryption strictness the caller asked for. Skipping
+            # this left ``ssl_context`` None, so smtplib fell back to an
+            # *unverified* stdlib context (CERT_NONE) — silently downgrading
+            # ``ssl_strict`` / ``starttls_strict`` to no server-certificate
+            # validation, the opposite of what ``send_email`` documents.
+            ssl_context = self._ssl_context_for_encryption(encryption)
+        else:
+            ssl_context = None
+
+        return _SmtpTransport(
+            server=host or tools.config.get("smtp_server"),
+            port=tools.config.get("smtp_port", 25) if port is None else port,
+            user=user or tools.config.get("smtp_user"),
+            password=password or tools.config.get("smtp_password"),
+            encryption=encryption,
+            debug=smtp_debug,
+            from_filter=(
+                mail_server.from_filter
+                if mail_server
+                else self.env["ir.mail_server"]._get_default_from_filter()
+            ),
+            ssl_context=ssl_context,
+            login_server=mail_server,
+        )
+
+    def _open_smtp_connection(
+        self, transport: _SmtpTransport, smtp_from: str | None
+    ) -> smtplib.SMTP | smtplib.SMTP_SSL:
+        """Open, secure and authenticate a socket for a resolved transport.
+
+        Stashes ``from_filter`` / ``smtp_from`` on the returned connection for
+        :meth:`_prepare_email_message__` to consult when deciding whether the
+        envelope FROM may be spoofed to receive bounces.
+        """
+        if not transport.server:
             raise UserError(
                 _(
                     "Missing SMTP Server\n"
@@ -681,42 +806,72 @@ class IrMail_Server(models.Model):
                 )
             )
 
-        if smtp_encryption in ("ssl", "ssl_strict"):
+        if transport.encryption in ("ssl", "ssl_strict"):
             connection = smtplib.SMTP_SSL(
-                smtp_server,
-                smtp_port,
+                transport.server,
+                transport.port,
                 timeout=SMTP_TIMEOUT,
-                context=ssl_context,
+                context=transport.ssl_context,
             )
         else:
-            connection = smtplib.SMTP(smtp_server, smtp_port, timeout=SMTP_TIMEOUT)
-        connection.set_debuglevel(smtp_debug)
-        if smtp_encryption in ("starttls", "starttls_strict"):
+            connection = smtplib.SMTP(
+                transport.server, transport.port, timeout=SMTP_TIMEOUT
+            )
+        connection.set_debuglevel(transport.debug)
+        if transport.encryption in ("starttls", "starttls_strict"):
             # starttls() will perform ehlo() if needed first
             # and will discard the previous list of services
             # after successfully performing STARTTLS command,
             # (as per RFC 3207) so for example any AUTH
             # capability that appears only on encrypted channels
             # will be correctly detected for next step
-            connection.starttls(context=ssl_context)
+            connection.starttls(context=transport.ssl_context)
 
-        if smtp_user:
+        if transport.user:
             # Attempt authentication - will raise if AUTH service not supported
+            smtp_user = transport.user
             local, at, domain = smtp_user.rpartition("@")
             if at:
                 smtp_user = local + at + idna.encode(domain).decode("ascii")
-            mail_server._smtp_login__(connection, smtp_user, smtp_password or "")
+            transport.login_server._smtp_login__(
+                connection, smtp_user, transport.password or ""
+            )
 
         # Some methods of SMTP don't check whether EHLO/HELO was sent.
         # Anyway, as it may have been sent by login(), all subsequent usages should consider this command as sent.
         connection.ehlo_or_helo_if_needed()
 
-        # Store the "from_filter" of the mail server / odoo-bin argument to  know if we
-        # need to change the FROM headers or not when we will prepare the mail message
-        connection.from_filter = from_filter
-        connection.smtp_from = smtp_from
-
+        # Record routing context so _prepare_email_message__ knows whether it may
+        # rewrite the envelope FROM to receive bounces (see _SmtpSessionContext).
+        self._stash_session_context(
+            connection,
+            _SmtpSessionContext(
+                from_filter=transport.from_filter, smtp_from=smtp_from
+            ),
+        )
         return connection
+
+    @staticmethod
+    def _stash_session_context(
+        connection: smtplib.SMTP, context: _SmtpSessionContext
+    ) -> None:
+        """Record :class:`_SmtpSessionContext` on an SMTP connection."""
+        connection.from_filter = context.from_filter
+        connection.smtp_from = context.smtp_from
+
+    @staticmethod
+    def _read_session_context(smtp_session: smtplib.SMTP) -> _SmtpSessionContext:
+        """Read the :class:`_SmtpSessionContext` stashed on a session.
+
+        A bare, caller-supplied session that was never stashed (e.g. a raw
+        smtplib connection passed straight to ``send_email``) yields the default
+        ``(False, False)``, preserving the previous ``getattr(..., False)``
+        semantics.
+        """
+        return _SmtpSessionContext(
+            from_filter=getattr(smtp_session, "from_filter", False),
+            smtp_from=getattr(smtp_session, "smtp_from", False),
+        )
 
     @staticmethod
     def _ssl_load_error(exc: Exception) -> UserError:
@@ -916,6 +1071,13 @@ class IrMail_Server(models.Model):
             msg["Bcc"] = email_bcc
         msg["Date"] = datetime.datetime.now(datetime.UTC)
         for key, value in headers.items():
+            # ``headers`` is documented to *override* previously-set headers
+            # (Subject, Reply-To, Message-Id, ...). Under EmailMessage/SMTP_POLICY
+            # a plain ``msg[key] = value`` *appends*, and singleton headers cap at
+            # one occurrence, so overriding any of them would raise ValueError
+            # ("There may be at most 1 ... headers"). Delete first (no-op when
+            # absent) so the override actually replaces, matching _alter_message__.
+            del msg[key]
             msg[key] = value
 
         email_body = body or ""
@@ -1025,8 +1187,9 @@ class IrMail_Server(models.Model):
 
         # Try to not spoof the mail from headers; fetch session-based or contextualized
         # values for encapsulation computation
-        from_filter = getattr(smtp_session, "from_filter", False)
-        smtp_from = getattr(smtp_session, "smtp_from", False) or smtp_from
+        session_context = self._read_session_context(smtp_session)
+        from_filter = session_context.from_filter
+        smtp_from = session_context.smtp_from or smtp_from
         notifications_email = email_normalize(
             self.env.context.get("domain_notifications_email")
             or self._get_default_from_address()
