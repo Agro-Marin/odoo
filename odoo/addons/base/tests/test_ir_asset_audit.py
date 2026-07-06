@@ -309,6 +309,76 @@ class TestRemovePartialAbsentWarns(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestGlobRemoveIsSetSubtraction(TransactionCase):
+    """Task 23534: a wildcarded ``remove`` resolves against files on DISK
+    while the bundle usually holds only a subset of them (e.g. mail removes
+    ``discuss/**/*`` from ``web.assets_backend`` before re-adding the allowed
+    subsets, and ``**/*.dark.scss`` globs match files only ever added to the
+    dark bundles). Absent disk matches are expected set subtraction, not
+    staleness: through ``_process_path`` a glob remove stays silent on partial
+    or full absence, while a literal remove keeps the strict IRASSET-A3
+    contract (warn on partial, raise on all-absent).
+    """
+
+    def _seed(self):
+        ap = AssetPaths()
+        ap.append(
+            [("/web/a.js", "/f/a.js", 1), ("/web/b.js", "/f/b.js", 1)],
+            "bundle1",
+        )
+        return ap
+
+    def _run_remove(self, path_def, resolved, ap):
+        IrAsset = self.env["ir.asset"]
+
+        def fake_get_paths(_self, _path_def, installed):
+            return resolved
+
+        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
+            IrAsset._process_path(
+                "bundle1", "remove", None, path_def, ap, [], [], set(), 0,
+            )
+
+    def test_glob_remove_partial_absent_is_silent(self):
+        ap = self._seed()
+        with self.assertNoLogs(
+            "odoo.addons.base.models.ir_asset", level="WARNING"
+        ):
+            self._run_remove(
+                "/web/**/*.js",
+                [("/web/b.js", "/f/b.js", 1), ("/web/zzz.js", "/f/zzz.js", 1)],
+                ap,
+            )
+        self.assertEqual([a.path for a in ap.list], ["/web/a.js"])
+
+    def test_glob_remove_none_present_is_silent_noop(self):
+        ap = self._seed()
+        with self.assertNoLogs(
+            "odoo.addons.base.models.ir_asset", level="WARNING"
+        ):
+            self._run_remove(
+                "/web/**/*.dark.scss",
+                [("/web/x.dark.scss", "/f/x.dark.scss", 1)],
+                ap,
+            )
+        self.assertEqual(
+            [a.path for a in ap.list], ["/web/a.js", "/web/b.js"]
+        )
+
+    def test_literal_remove_absent_still_raises(self):
+        ap = self._seed()
+        with self.assertRaises(ValueError):
+            self._run_remove(
+                "/web/absent.js",
+                [("/web/absent.js", "/f/absent.js", 1)],
+                ap,
+            )
+        self.assertEqual(
+            [a.path for a in ap.list], ["/web/a.js", "/web/b.js"]
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestTopologicalSort(TransactionCase):
     """IRASSET-D1: ``_topological_sort`` governs asset load order but had no
     direct unit test. Pin its core contract with synthetic manifests: every
