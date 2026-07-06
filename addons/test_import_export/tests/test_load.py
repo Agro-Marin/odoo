@@ -1827,15 +1827,61 @@ class test_inherits(ImporterCase):
 class CheckSavepoint(ImporterCase):
     model_name = 'export.unique'
 
+    # ``load()`` savepoint strategy (see ``LoadMixin.load``):
+    #   * one load-wide savepoint (atomic rollback of the whole load on error);
+    #   * one savepoint around each batch's fast-path bulk create;
+    #   * on bulk-create failure ONLY, a savepoint per record in the row-by-row
+    #     recovery, so each record is evaluated against the true prior state
+    #     (correct error detection) and a failed record is rolled back alone
+    #     (valid ids on the warning path -- see
+    #     ``test_load_per_record_savepoint_isolates_failures``).
+    #
+    # The former ``test_max_savepoint`` asserted "== 2 savepoints" even on the
+    # failing row-by-row path. That count is only reachable by rolling the single
+    # load-wide savepoint back on every failure, which also undoes every
+    # already-succeeded row while leaving its id in the result -- the very bug
+    # the isolation test guards against. Per-record isolation is incompatible
+    # with a constant savepoint count, so it is replaced by the two contract
+    # tests below.
+
     @mute_logger("odoo.db")
-    def test_max_savepoint(self):
-        from odoo.db import Cursor  # noqa: PLC0415
+    def test_clean_batch_import_uses_constant_savepoints(self):
+        """The happy path must NOT open a savepoint per record: a conflict-free
+        batch is created in bulk under a single savepoint (plus the load-wide
+        one), independent of batch size."""
+        from odoo.db import Cursor
+        data = [[str(i)] for i in range(120)]  # all unique -> bulk create succeeds
+        with patch.object(Cursor, 'savepoint', autospec=True,
+                          side_effect=Cursor.savepoint) as sp_mock:
+            result = self.import_(['value'], data)
+        self.assertEqual(len(result['ids']), 120)
+        self.assertFalse([m for m in result['messages'] if m['type'] == 'error'])
+        self.assertEqual(sp_mock.call_count, 2,
+            "a conflict-free import must use O(1) savepoints (load-wide + bulk "
+            "create), never one per record")
+
+    @mute_logger("odoo.db", "odoo.models")
+    def test_row_by_row_recovery_isolates_each_record(self):
+        """When the bulk create fails and load() falls back to row-by-row, each
+        record runs in its OWN savepoint (isolation) and is flushed individually
+        so its error binds to the right row. Every conflicting row is reported;
+        the load stays atomic (any error -> no ids)."""
+        from odoo.db import Cursor
+        # 10 unique then 5 duplicates -> bulk create fails, row-by-row detects
+        # each duplicate against the (correctly persisted) earlier rows.
+        data = [[str(i)] for i in range(10)] + [[str(i)] for i in range(5)]
         with (
-            patch.object(Cursor, 'savepoint', autospec=True, side_effect=Cursor.savepoint) as sp_mock,
-            patch.object(Cursor, 'flush', autospec=True, side_effect=Cursor.flush) as sp_flush,
+            patch.object(Cursor, 'savepoint', autospec=True,
+                         side_effect=Cursor.savepoint) as sp_mock,
+            patch.object(Cursor, 'flush', autospec=True,
+                         side_effect=Cursor.flush) as sp_flush,
         ):
-            data = [[str(i)] for i in range(100)] + [[str(i)] for i in range(20)]
-            self.import_(['value'], data)
-            self.assertLess(sp_mock.call_count, 100, "Too many savepoints in the same transaction, load method should not create a savepoint for each record")
-            self.assertEqual(sp_mock.call_count, 2, "Too many savepoints in the same transaction")
-            self.assertGreater(sp_flush.call_count, 120, "We should flush after each record to bind errors to the record")
+            result = self.import_(['value'], data)
+        errors = [m for m in result['messages'] if m['type'] == 'error']
+        self.assertEqual(len(errors), 5, "every duplicate row must be reported")
+        self.assertFalse(result['ids'], "an errored load is atomic: no ids")
+        # one savepoint per record (isolation) + load-wide + bulk-create attempt
+        self.assertEqual(sp_mock.call_count, len(data) + 2,
+            "row-by-row recovery must give each record its own savepoint")
+        self.assertGreaterEqual(sp_flush.call_count, len(data),
+            "recovery must flush after each record to bind errors to the row")

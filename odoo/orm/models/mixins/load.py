@@ -59,6 +59,18 @@ class LoadMixin(_ModelStubs):
         self = self.with_context(_import_current_module=current_module)
 
         cr = self.env.cr
+        # Savepoint strategy (three roles, see ``CheckSavepoint`` tests):
+        #   1. this load-wide savepoint -- the whole load is atomic, so any
+        #      recorded error rolls *everything* back (``ids`` becomes False);
+        #   2. one savepoint around each batch's fast-path bulk create (below);
+        #   3. on bulk-create failure only, one savepoint per record in the
+        #      row-by-row recovery. That per-record savepoint is required for
+        #      correctness -- it lets each record see the true prior state (so
+        #      conflicts are detected and attributed to the right row) and rolls
+        #      a failed record back in isolation (keeping valid ids on the
+        #      warning path). It is *not* a constant cost, but the conflict-free
+        #      path never reaches it, and base_import bounds each load() to a
+        #      batch, so the recovery cost stays bounded per transaction.
         savepoint = cr.savepoint()
 
         fields = [fix_import_export_id_paths(f) for f in fields]
@@ -625,9 +637,7 @@ class LoadMixin(_ModelStubs):
         """
         if not self.env.context.get("import_file"):
             return
-        existing_modules = (
-            self.env["ir.module.module"].sudo().search([]).mapped("name")
-        )
+        existing_modules = self.env["ir.module.module"].sudo().search([]).mapped("name")
         for data in to_create:
             xml_id = data.get("xml_id")
             if xml_id and not data.get("noupdate"):
