@@ -20,6 +20,12 @@
  *   - The geo/treemap ESM builds, unlike their old UMD counterparts, do NOT
  *     auto-register, so we register their controllers/elements/scales onto the
  *     shared Chart explicitly below.
+ *   - `o_spreadsheet.js` was generated against the UMD global, where every
+ *     Chart.js export hangs off the constructor (it reads
+ *     `window.Chart.BarController` to build its funnel controller,
+ *     `window.Chart.BarElement` and `window.Chart._adapters`). The ESM build
+ *     exposes those as named module exports instead, so we graft the module
+ *     namespace onto the constructor to reproduce the UMD shape.
  *   - `globalThis.Chart = Chart` then exposes the fully plugged-in constructor
  *     to `o_spreadsheet.js`.
  *
@@ -29,19 +35,22 @@
  * `@web/core/lib/chartjs` loader.
  */
 
-import { Chart } from "chart.js";
 import "chartjs-adapter-luxon";
+
+import * as chartjs from "chart.js";
 import {
-    ChoroplethController,
     BubbleMapController,
-    GeoFeature,
-    ColorScale,
+    ChoroplethController,
     ColorLogarithmicScale,
+    ColorScale,
+    GeoFeature,
     ProjectionScale,
-    SizeScale,
     SizeLogarithmicScale,
+    SizeScale,
 } from "chartjs-chart-geo";
 import { TreemapController, TreemapElement } from "chartjs-chart-treemap";
+
+const { Chart } = chartjs;
 
 Chart.register(
     ChoroplethController,
@@ -55,5 +64,14 @@ Chart.register(
     TreemapController,
     TreemapElement,
 );
+
+// Graft the named exports onto the constructor (UMD shape). Skip keys the
+// class already owns (`register`, `registry`, `defaults`, ...) so genuine
+// statics keep precedence over same-named module exports.
+for (const [name, exported] of Object.entries(chartjs)) {
+    if (!(name in Chart)) {
+        Chart[name] = exported;
+    }
+}
 
 globalThis.Chart = Chart;
