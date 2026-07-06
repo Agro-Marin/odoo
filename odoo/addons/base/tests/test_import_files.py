@@ -264,6 +264,54 @@ class TestFieldConverters(TransactionCase):
             "not once per selection item",
         )
 
+    def test_str_to_selection_index_single_query(self):
+        """IFLD-P3: selection resolution builds a single-query reverse index,
+        memoized per cursor -- not one SQL query per selection item. The old
+        linear scan issued up to one translation query per item on first
+        encounter (cumulatively ~600 for res.partner.tz, repeated per import
+        batch); resolving *every* item must now stay a small constant."""
+        fld = self.env["res.partner"]._fields["tz"]
+        n = len(fld.selection)
+        self.assertGreater(n, 100, "need a large static selection")
+        # isolate from any index cached by an earlier test on this cursor, and
+        # flush pending writes so only the index-build query runs under the spy
+        self.env.cr.cache.get("ir.fields.converter", {}).pop(
+            ("import_selection_index", fld.model_name, fld.name, self.env.lang), None
+        )
+        self.env["ir.model.fields.selection"].flush_model()
+
+        cr = self.env.cr
+        calls = []
+        orig = cr.execute
+
+        def spy(query, params=None):
+            calls.append(1)
+            return orig(query, params) if params is not None else orig(query)
+
+        # Resolve every one of the ~600 items (valid values only, so the count
+        # reflects the index, not incidental error-path translation loading).
+        with patch.object(cr, "execute", spy):
+            for item, _label in fld.selection:
+                self.assertEqual(
+                    self.converter._str_to_selection(fld, str(item))[0], item
+                )
+        self.assertLessEqual(
+            len(calls),
+            2,
+            f"resolving all {n} items must build one whole-field index, not "
+            f"issue a query per item (got {len(calls)} queries)",
+        )
+
+    def test_db_id_for_non_str_reference_is_clean_error(self):
+        """IFLD-14: a non-string reference into an ``id`` / ``.id`` subfield
+        yields a clean ValueError import error, never a raw TypeError /
+        AttributeError that would escape ``db_id_for`` and abort the whole
+        ``load()`` (the ``id`` path previously called ``value.lower()`` /
+        ``"." in value`` without a string guard)."""
+        for subfield in (".id", "id"):
+            with self.assertRaises(ValueError):
+                self.converter.db_id_for(self.flds["m2o"], subfield, 123456789)
+
     def test_referencing_subfield_empty_record(self):
         """IFLD-C3: an empty reference record raises a clean, translatable
         ValueError rather than a raw 'not enough values to unpack'."""
