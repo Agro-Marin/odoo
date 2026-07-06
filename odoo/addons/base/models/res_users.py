@@ -196,21 +196,28 @@ class ResUsers(models.Model):
             return frozendict()
         context.pop("id")
 
-        # ensure lang is set and available
-        # context > request > company > english > any lang installed
+        # ensure lang is set and available, preferring, in order:
+        # context > request > company > english > any installed lang.
+        # Candidates are produced lazily and short-circuited by next(): the
+        # company/partner lookup (which incurs SQL) is only reached when the
+        # cheaper context and request candidates miss -- flattening this into an
+        # eager list would regress the hot path by that lookup on every call.
         langs = [code for code, _ in self.env["res.lang"].get_installed()]
-        lang = context.get("lang")
-        if lang not in langs:
-            lang = request.best_lang if request else None
-            if lang not in langs:
-                lang = self.env.user.with_context(
-                    prefetch_fields=False
-                ).company_id.partner_id.lang
-                if lang not in langs:
-                    lang = DEFAULT_LANG
-                    if lang not in langs:
-                        lang = langs[0] if langs else DEFAULT_LANG
-        context["lang"] = lang
+        langset = set(langs)
+
+        def _lang_candidates():
+            yield context.get("lang")
+            yield request.best_lang if request else None
+            yield self.env.user.with_context(
+                prefetch_fields=False
+            ).company_id.partner_id.lang
+            yield DEFAULT_LANG
+            if langs:
+                yield langs[0]
+
+        context["lang"] = next(
+            (lang for lang in _lang_candidates() if lang in langset), DEFAULT_LANG
+        )
 
         # ensure uid is set
         context["uid"] = self.env.uid
@@ -269,6 +276,17 @@ class ResUsers(models.Model):
         # `with_context({})` because this method is decorated with `@ormcache('self.id')`,
         # it cannot depend on the context (e.g. `active_test`, `lang`, ...)
         return self.with_context({}).all_group_ids._ids
+
+    def _effective_group_ids(self) -> tuple[int, ...]:
+        """Return ``self``'s effective (implied) group ids.
+
+        For a persisted record this uses the ``@ormcache``-backed
+        :meth:`_get_group_ids`. For a NewId (unsaved) record the cache must be
+        bypassed -- an unsaved record has no stable key and must not populate
+        the cache -- so the origin's already-computed implied groups are used.
+        """
+        self.ensure_one()
+        return self._get_group_ids() if self.id else self.all_group_ids._origin._ids
 
     @tools.ormcache(cache="stable")
     def _crypt_context(self) -> CryptContext:
@@ -752,7 +770,7 @@ class ResUsers(models.Model):
         system_id = group_defs.get_id("base.group_system")
         user_id = group_defs.get_id("base.group_user")
         for user in self:
-            gids = user._get_group_ids() if user.id else user.all_group_ids._origin._ids
+            gids = user._effective_group_ids()
             if system_id in gids:
                 user.role = "group_system"
             elif user_id in gids:
@@ -883,6 +901,21 @@ class ResUsers(models.Model):
             and field.name in self._self_accessible_fields()[0]
         )
 
+    def _sync_partner_company(self) -> None:
+        """Propagate each user's ``company_id`` to its partner when the partner
+        is company-specific (non-global) and out of sync.
+
+        Writes are grouped by target company, so a bulk company change issues
+        one partner write per distinct company rather than one per user.
+        """
+        by_company = collections.defaultdict(lambda: self.env["res.partner"])
+        for user in self:
+            partner = user.partner_id
+            if partner.company_id and partner.company_id != user.company_id:
+                by_company[user.company_id.id] |= partner
+        for company_id, partners in by_company.items():
+            partners.write({"company_id": company_id})
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         users = super().create(vals_list)
@@ -891,9 +924,8 @@ class ResUsers(models.Model):
             for user in users
             if not user.res_users_settings_ids and user._is_internal()
         ]
-        # Sync partner company_id in batch: only for partners with a company set
-        for user in users.filtered(lambda u: u.partner_id.company_id):
-            user.partner_id.company_id = user.company_id
+        # Propagate each user's company to its (company-specific) partner.
+        users._sync_partner_company()
         # Sync partner active flag in batch
         users.partner_id.active = True  # new users are active by default
         inactive = users.filtered(lambda u: not u.active)
@@ -938,16 +970,8 @@ class ResUsers(models.Model):
         res = super().write(vals)
 
         if "company_id" in vals:
-            # Sync partner company_id for partners that have one set (non-global)
-            # and where it differs from the new user company.
-            partners_to_sync = self.filtered(
-                lambda u: (
-                    u.partner_id.company_id
-                    and u.partner_id.company_id.id != vals["company_id"]
-                )
-            ).partner_id
-            if partners_to_sync:
-                partners_to_sync.write({"company_id": vals["company_id"]})
+            # Propagate the new company to each user's (company-specific) partner.
+            self._sync_partner_company()
 
         if "company_id" in vals or "company_ids" in vals:
             # Reset lazy properties `company` & `companies` on all envs,
@@ -1370,6 +1394,24 @@ class ResUsers(models.Model):
         devices.filtered(lambda d: not d.is_current)._revoke()
         return {"type": "ir.actions.client", "tag": "reload"}
 
+    def _assert_group_query_allowed(self) -> None:
+        """Guard for the public group-introspection API (:meth:`has_group`,
+        :meth:`has_groups`).
+
+        A user may only query their own group membership; querying another
+        user's groups requires being superuser or an internal user. This
+        prevents RPC calls from non-internal users retrieving information about
+        other users.
+        """
+        if not (
+            self.env.su
+            or self == self.env.user
+            or self.env.user._has_group("base.group_user")
+        ):
+            raise AccessError(
+                _("You can only call user.has_group() with your current user.")
+            )
+
     @api.readonly
     def has_groups(self, group_spec: str) -> bool:
         """Return whether user ``self`` satisfies the given group restrictions
@@ -1398,14 +1440,7 @@ class ResUsers(models.Model):
         # Run the caller-identity gate once (instead of once per token via
         # has_group) and then resolve each token with _has_group (RU-P1).
         self.ensure_one()
-        if not (
-            self.env.su
-            or self == self.env.user
-            or self.env.user._has_group("base.group_user")
-        ):
-            raise AccessError(
-                _("You can only call user.has_group() with your current user.")
-            )
+        self._assert_group_query_allowed()
 
         def _check(ext_id):
             result = self._has_group(ext_id)
@@ -1430,16 +1465,7 @@ class ResUsers(models.Model):
         request is in debug mode.
         """
         self.ensure_one()
-        if not (
-            self.env.su
-            or self == self.env.user
-            or self.env.user._has_group("base.group_user")
-        ):
-            # this prevents RPC calls from non-internal users to retrieve
-            # information about other users
-            raise AccessError(
-                _("You can only call user.has_group() with your current user.")
-            )
+        self._assert_group_query_allowed()
 
         result = self._has_group(group_ext_id)
         if group_ext_id == "base.group_no_one":
@@ -1456,10 +1482,7 @@ class ResUsers(models.Model):
            given external ID (XML ID), else False.
         """
         group_id = self.env["res.groups"]._get_group_definitions().get_id(group_ext_id)
-        # for new record don't fill the ormcache
-        return group_id in (
-            self._get_group_ids() if self.id else self.all_group_ids._origin._ids
-        )
+        return group_id in self._effective_group_ids()
 
     def _action_show(self) -> dict[str, Any]:
         """If self is a singleton, directly access the form view. If it is a recordset, open a list view"""
@@ -1753,22 +1776,22 @@ class UsersMultiCompany(models.Model):
         )
         if not group_multi_company_id:
             return
-        to_remove = self.filtered(
-            lambda u: (
-                u._multi_company_group_command(group_multi_company_id)
-                == Command.unlink(group_multi_company_id)
-            )
-        )
-        to_add = self.filtered(
-            lambda u: (
-                u._multi_company_group_command(group_multi_company_id)
-                == Command.link(group_multi_company_id)
-            )
-        )
+        # Resolve each user's desired membership in a single pass: the previous
+        # code called _multi_company_group_command twice per user (once per
+        # filtered()) and rebuilt the Command tuples for every comparison.
+        link = Command.link(group_multi_company_id)
+        unlink = Command.unlink(group_multi_company_id)
+        to_add = to_remove = self.browse()
+        for user in self:
+            command = user._multi_company_group_command(group_multi_company_id)
+            if command == link:
+                to_add |= user
+            elif command == unlink:
+                to_remove |= user
         if to_remove:
-            to_remove.write({"group_ids": [Command.unlink(group_multi_company_id)]})
+            to_remove.write({"group_ids": [unlink]})
         if to_add:
-            to_add.write({"group_ids": [Command.link(group_multi_company_id)]})
+            to_add.write({"group_ids": [link]})
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
