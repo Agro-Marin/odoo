@@ -8,12 +8,15 @@ from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.tools import SQL, _, config, frozendict
 
+# ir_ui_view is imported before ir_ui_view_base (see models/__init__.py) and
+# never imports back, so this cross-module reuse of the compiled XPath is
+# cycle-free. Single source of truth shared by both modules.
+from .ir_ui_view import _xpath_descendant_field
+
 if TYPE_CHECKING:
     from lxml.etree import _Element
 
 _logger = logging.getLogger(__name__)
-
-_xpath_descendant_field = etree.ETXPath("./*[descendant::field]")
 
 
 class Base(models.AbstractModel):
@@ -538,7 +541,10 @@ class Base(models.AbstractModel):
         node = etree.fromstring(result["arch"])
         node = self.env["ir.ui.view"]._postprocess_access_rights(node)
         node = self.env["ir.ui.view"]._postprocess_debug(node)
-        result["arch"] = etree.tostring(node, encoding="unicode").replace("\t", "")
+        # No .replace("\t", "") here: the cached arch is already tab-stripped by
+        # postprocess_and_fields (see _get_view_postprocessed), and neither
+        # _postprocess_access_rights nor _postprocess_debug reintroduces tabs.
+        result["arch"] = etree.tostring(node, encoding="unicode")
 
         return result
 
