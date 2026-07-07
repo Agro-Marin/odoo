@@ -1288,9 +1288,16 @@ class IrQweb(models.AbstractModel):
 
                 return profiled_method_compile
 
-            for key, function in template_functions.items():
-                if isinstance(function, FunctionType):
-                    template_functions[key] = wrap(function)
+            # Wrap into a NEW mapping: ``template_functions`` may be the dict
+            # returned by the ormcached ``_generate_code_cached`` and shared
+            # across concurrent renders. Mutating it in place was a
+            # check-then-act race (two renders passing the ``__name__`` guard
+            # simultaneously double-wrapped the functions) and leaked the
+            # profiling wrappers into the cache for every later caller.
+            template_functions = {
+                key: wrap(function) if isinstance(function, FunctionType) else function
+                for key, function in template_functions.items()
+            }
 
         return (template_functions, def_name, options)
 
@@ -1617,44 +1624,53 @@ class IrQweb(models.AbstractModel):
         if not missing_refs:
             return compile_batch
 
-        xmlids = list(missing_refs)
-        missing_refs_values = list(missing_refs.values())
         views = (
             self.env["ir.ui.view"]
             .sudo()
-            .union(*[data["view"] for data in missing_refs_values])
+            .union(*[data["view"] for data in missing_refs.values()])
         )
 
         trees = views._get_view_etrees()
 
         # add in cache
-        for xmlid, view, tree in zip(xmlids, views, trees, strict=True):
-            data = {
+        # ``union`` dedupes: one batch may reference the same view under two
+        # spellings (e.g. ``t-call="1234"`` and ``t-call="web.layout"``), so
+        # ``views``/``trees`` can be shorter than ``missing_refs``. Resolve
+        # each ref through a per-view map instead of zipping refs with views
+        # (a strict zip raised ValueError on such batches).
+        data_by_view_id = {
+            view.id: {
                 "tree": tree,
                 "template": etree.tostring(tree, encoding="unicode"),
             }
-            compile_batch[view.id].update(data)
-            compile_batch[xmlid].update(data)
+            for view, tree in zip(views, trees, strict=True)
+        }
+        for ref, ref_data in missing_refs.items():
+            data = data_by_view_id[ref_data["view"].id]
+            compile_batch[ref_data["view"].id].update(data)
+            compile_batch[ref].update(data)
 
         # preload sub template
         ref_names = self._get_preload_attribute_xmlids()
         sub_refs = OrderedSet()
-        for tree in trees:
-            sub_refs.update(
-                el.get(ref_name)
-                for ref_name in ref_names
-                for el in tree.xpath(f"//*[@{ref_name}]")
-                if not any(
-                    att.startswith("t-options-") or att in {"t-options", "t-lang"}
-                    for att in el.attrib
-                )
-                if "{" not in el.get(ref_name)
-                and "<" not in el.get(ref_name)
-                and "/" not in el.get(ref_name)
-            )
-        if any(not f for f in sub_refs):
-            raise ValueError("template is required")
-        self._preload_trees(list(sub_refs))
+        for view, tree in zip(views, trees, strict=True):
+            for ref_name in ref_names:
+                for el in tree.xpath(f"//*[@{ref_name}]"):
+                    if any(
+                        att.startswith("t-options-") or att in {"t-options", "t-lang"}
+                        for att in el.attrib
+                    ):
+                        continue
+                    sub_ref = el.get(ref_name)
+                    if not sub_ref:
+                        raise ValueError(
+                            f"template is required: empty {ref_name!r} value "
+                            f"in template {view.key or view.id!r}"
+                        )
+                    if "{" not in sub_ref and "<" not in sub_ref and "/" not in sub_ref:
+                        sub_refs.add(sub_ref)
+        if sub_refs:
+            self._preload_trees(list(sub_refs))
 
         # not found template
         for ref in missing_refs:
@@ -1673,36 +1689,56 @@ class IrQweb(models.AbstractModel):
 
     def _get_converted_image_data_uri(self, base64_source: str | bytes) -> str:
         if self.env.context.get("webp_as_jpg"):
-            mimetype = FILETYPE_BASE64_MAGICWORD.get(base64_source[:1], "png")
+            # FILETYPE_BASE64_MAGICWORD is keyed by *bytes*; a str source
+            # must be encoded before the lookup, otherwise it silently falls
+            # back to "png" and the WebP → JPEG substitution below is skipped
+            # (WeasyPrint then fails on the WebP data).
+            magicword = (
+                base64_source[:1].encode()
+                if isinstance(base64_source, str)
+                else base64_source[:1]
+            )
+            mimetype = FILETYPE_BASE64_MAGICWORD.get(magicword, "png")
             if "webp" in mimetype:
                 # Convert WebP to JPEG for PDF rendering (WeasyPrint).
                 bin_source = base64.b64decode(base64_source)
                 Attachment = self.env["ir.attachment"]
                 checksum = Attachment._content_checksum(bin_source)
-                origins = Attachment.sudo().search(
-                    [
-                        [
-                            "id",
-                            "!=",
-                            False,
-                        ],  # No implicit condition on res_field.
-                        ["checksum", "=", checksum],
-                    ]
+                # The same image is typically resolved many times per report
+                # batch (e.g. a logo repeated on every record); memoize the
+                # checksum → converted-datas lookup for the transaction.
+                converted_cache = self.env.cr.cache.setdefault(
+                    "_webp_as_jpg_datas_", {}
                 )
-                if origins:
-                    converted_domain = [
+                if checksum not in converted_cache:
+                    # Single query: the origin lookup (same checksum) runs as
+                    # a subselect of the converted-copy search.
+                    origins_query = Attachment.sudo()._search(
                         [
-                            "id",
-                            "!=",
-                            False,
-                        ],  # No implicit condition on res_field.
-                        ["res_model", "=", "ir.attachment"],
-                        ["res_id", "in", origins.ids],
-                        ["mimetype", "=", "image/jpeg"],
-                    ]
-                    converted = Attachment.sudo().search(converted_domain, limit=1)
-                    if converted:
-                        base64_source = converted.datas
+                            [
+                                "id",
+                                "!=",
+                                False,
+                            ],  # No implicit condition on res_field.
+                            ["checksum", "=", checksum],
+                        ]
+                    )
+                    converted = Attachment.sudo().search(
+                        [
+                            [
+                                "id",
+                                "!=",
+                                False,
+                            ],  # No implicit condition on res_field.
+                            ["res_model", "=", "ir.attachment"],
+                            ["res_id", "in", origins_query],
+                            ["mimetype", "=", "image/jpeg"],
+                        ],
+                        limit=1,
+                    )
+                    converted_cache[checksum] = converted.datas if converted else None
+                if converted_cache[checksum]:
+                    base64_source = converted_cache[checksum]
         return image_data_uri(base64_source)
 
     def _prepare_environment(self, values: dict[str, Any]) -> Self:
@@ -2139,8 +2175,11 @@ class IrQweb(models.AbstractModel):
         readable = io.BytesIO(f"({expr or ''})".encode())
         try:
             tokens = list(tokenize.tokenize(readable.readline))
-        except tokenize.TokenError:
-            raise ValueError(f"Can not compile expression: {expr}") from None
+        except tokenize.TokenError as e:
+            # Keep the tokenizer's own detail (message + position) instead of
+            # discarding it: it points at the offending spot in the template
+            # expression.
+            raise ValueError(f"Can not compile expression: {expr} ({e.args[0]})") from e
 
         expression = self._compile_expr_tokens(
             tokens, ALLOWED_KEYWORD, raise_on_missing=raise_on_missing

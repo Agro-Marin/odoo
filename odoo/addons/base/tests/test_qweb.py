@@ -1,4 +1,5 @@
 import ast
+import base64
 from unittest.mock import patch
 
 import markupsafe
@@ -3593,3 +3594,151 @@ class TestQWebRenderStandalone(TransactionCase):
         highlighted = self._highlighted_line(cm.exception.qweb.surrounding)
         self.assertIsNotNone(highlighted)
         self.assertRegex(highlighted.strip(), r"^if \(")
+
+
+class TestQWebPreloadTrees(TransactionCase):
+    """``_preload_trees`` batches: one batch may reference the same view under
+    two spellings (by database id and by xmlid/key). ``union()`` dedupes the
+    views recordset while the ref list keeps both keys; the old strict ``zip``
+    of refs against views raised ``ValueError`` on such batches."""
+
+    def test_tcall_same_target_by_id_and_xmlid(self):
+        callee = self.env["ir.ui.view"].create(
+            {
+                "name": "preload_dedup_callee",
+                "type": "qweb",
+                "key": "base.preload_dedup_callee",
+                "arch": """<t t-name="base.preload_dedup_callee">
+                    <span>callee content</span>
+                </t>""",
+            }
+        )
+        caller = self.env["ir.ui.view"].create(
+            {
+                "name": "preload_dedup_caller",
+                "type": "qweb",
+                "key": "base.preload_dedup_caller",
+                "arch": f"""<t t-name="base.preload_dedup_caller">
+                    <div>
+                        <t t-call="base.preload_dedup_callee"/>
+                        <t t-call="{callee.id}"/>
+                    </div>
+                </t>""",
+            }
+        )
+        rendered = str(self.env["ir.qweb"]._render(caller.id))
+        self.assertEqual(
+            rendered.count("<span>callee content</span>"),
+            2,
+            "the same view t-called by id and by xmlid must render both times",
+        )
+
+    def test_preload_same_view_both_spellings_direct(self):
+        """Preloading the id and the key of one view in a single batch must
+        fill both cache entries from the single deduped tree."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "preload_dedup_direct",
+                "type": "qweb",
+                "key": "base.preload_dedup_direct",
+                "arch": """<t t-name="base.preload_dedup_direct">
+                    <span>direct</span>
+                </t>""",
+            }
+        )
+        batch = self.env["ir.qweb"]._preload_trees(
+            [view.id, "base.preload_dedup_direct"]
+        )
+        for ref in (view.id, "base.preload_dedup_direct"):
+            self.assertIn("template", batch[ref], f"missing tree for ref {ref!r}")
+            self.assertIn("<span>direct</span>", batch[ref]["template"])
+
+
+class TestQWebProfilingWrap(TransactionCase):
+    """Profiling must not mutate the ormcache-returned function mapping: the
+    wrappers were previously written back into the shared cached dict (a
+    check-then-act race that could double-wrap, and a leak of profiling
+    wrappers to every later caller of the cache entry)."""
+
+    def test_profile_wrap_does_not_mutate_cached_functions(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "profile_wrap",
+                "type": "qweb",
+                "key": "base.profile_wrap",
+                "arch": """<t t-name="base.profile_wrap"><span t-esc="1 + 1"/></t>""",
+            }
+        )
+        qweb = self.env["ir.qweb"].with_context(profile=True)
+
+        functions1, def_name, options = qweb._compile(view.id)
+        self.assertTrue(options.get("profile"), "sanity: profile mode expected")
+        self.assertEqual(functions1[def_name].__name__, "profiled_method_compile")
+
+        # The cached mapping (what _generate_code_cached returned to _compile)
+        # must still hold the unwrapped functions.
+        cached_functions = qweb._generate_code_cached(view.id)[0]
+        self.assertNotEqual(
+            cached_functions[def_name].__name__,
+            "profiled_method_compile",
+            "profiling wrappers leaked into the cached function mapping",
+        )
+
+        # Each _compile call builds its own wrapped mapping from the pristine
+        # cached one — never a wrapper around a previous wrapper.
+        functions2 = qweb._compile(view.id)[0]
+        self.assertEqual(functions2[def_name].__name__, "profiled_method_compile")
+        self.assertIsNot(functions2[def_name], functions1[def_name])
+
+
+class TestQWebImageDataUri(TransactionCase):
+    """``_get_converted_image_data_uri``: under the ``webp_as_jpg`` context a
+    WebP source must be swapped for its pre-converted JPEG attachment copy
+    (WeasyPrint cannot render WebP in PDF reports)."""
+
+    # Same WebP payload as web/tests/test_ir_qweb.py::test_image_field_webp.
+    WEBP_B64 = "UklGRsCpAQBXRUJQVlA4WAoAAAAQAAAAGAQA/wMAQUxQSMywAAAdNANp22T779/0RUREkvqLOTPesG1T21jatpLTSbpXQzTMEw3zWMM81jCPnWG2fTM7vpndvpkd38y2758Y+6a/Ld/Mt3zzT/XwzCKlV0Ooo61UpZIsKLjKc98R"
+    PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAF0lEQVR4nGJxKFrEwMDAxAAGgAAAAP//D+IBWx9K7TUAAAAASUVORK5CYII="
+
+    def _create_converted_pair(self):
+        """Create a WebP origin attachment and its JPEG-mimetyped copy, the
+        pair ``_get_converted_image_data_uri`` resolves by checksum."""
+        Attachment = self.env["ir.attachment"]
+        origin = Attachment.create(
+            {"name": "origin.webp", "raw": base64.b64decode(self.WEBP_B64)}
+        )
+        converted = Attachment.create(
+            {
+                "name": "webpcopy.jpg",  # .jpg name => image/jpeg mimetype
+                "res_model": "ir.attachment",
+                "res_id": origin.id,
+                "datas": self.PNG_B64,
+            }
+        )
+        self.assertEqual(converted.mimetype, "image/jpeg", "sanity")
+        return converted
+
+    def test_webp_conversion_bytes_source(self):
+        converted = self._create_converted_pair()
+        qweb = self.env["ir.qweb"].with_context(webp_as_jpg=True)
+        uri = qweb._get_converted_image_data_uri(self.WEBP_B64.encode())
+        self.assertEqual(uri, f"data:image/png;base64,{converted.datas.decode()}")
+
+    def test_webp_conversion_str_source(self):
+        """A str base64 source must be detected as WebP too. Regression:
+        ``FILETYPE_BASE64_MAGICWORD`` is keyed by bytes, and the unnormalized
+        str lookup silently fell back to "png", skipping the substitution."""
+        converted = self._create_converted_pair()
+        qweb = self.env["ir.qweb"].with_context(webp_as_jpg=True)
+        uri = qweb._get_converted_image_data_uri(self.WEBP_B64)
+        self.assertEqual(uri, f"data:image/png;base64,{converted.datas.decode()}")
+
+    def test_webp_conversion_memoized_per_transaction(self):
+        """Repeated resolutions of the same source (typical in a report render
+        loop) must hit the transaction cache, not re-run the search."""
+        converted = self._create_converted_pair()
+        qweb = self.env["ir.qweb"].with_context(webp_as_jpg=True)
+        uri = qweb._get_converted_image_data_uri(self.WEBP_B64)
+        self.assertEqual(uri, f"data:image/png;base64,{converted.datas.decode()}")
+        with self.assertQueryCount(0):
+            self.assertEqual(qweb._get_converted_image_data_uri(self.WEBP_B64), uri)

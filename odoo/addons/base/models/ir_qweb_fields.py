@@ -183,16 +183,24 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def _format_number(
-        self, number_format: str, value: Any, grouping: bool = True
+        self,
+        number_format: str,
+        value: Any,
+        grouping: bool = True,
+        lang: models.BaseModel | None = None,
     ) -> str:
         """Locale-format ``value`` with ``number_format`` (a single ``%``
         specifier) and keep the negative sign glued to its digits.
 
         Shared by the integer/float/monetary widgets, which all need the same
         locale grouping + bidi-safe minus handling.
+
+        :param lang: optional pre-resolved ``res.lang`` record; callers that
+            already hold one (e.g. monetary) pass it to avoid a second
+            ``user_lang()`` resolution per value.
         """
         return (
-            self.user_lang()
+            (lang or self.user_lang())
             .format(number_format, value, grouping=grouping)
             .replace("-", NEGATIVE_SIGN_JOINER)
         )
@@ -636,7 +644,7 @@ class IrQwebFieldMonetary(models.AbstractModel):
 
         lang = self.user_lang()
         formatted_amount = self._format_number(
-            fmt, display_currency.round(value)
+            fmt, display_currency.round(value), lang=lang
         ).replace(" ", "\N{NO-BREAK SPACE}")
 
         symbol = display_currency.symbol or ""
@@ -666,12 +674,10 @@ class IrQwebFieldMonetary(models.AbstractModel):
         # currency should be specified by monetary field
         field = record._fields[field_name]
 
-        if (
-            not options.get("display_currency")
-            and field.type == "monetary"
-            and field.get_currency_field(record)
-        ):
-            options["display_currency"] = record[field.get_currency_field(record)]
+        if not options.get("display_currency") and field.type == "monetary":
+            currency_field_name = field.get_currency_field(record)
+            if currency_field_name:
+                options["display_currency"] = record[currency_field_name]
         if not options.get("display_currency"):
             # search on the model if they are a res.currency field to set as default
             currency_fields = [
@@ -736,7 +742,8 @@ class IrQwebFieldTime(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if value < 0:
             raise ValueError(_("The value (%s) passed should be positive", value))
-        hours, minutes = divmod(int(abs(value) * 60), 60)
+        # ``value`` is guaranteed non-negative by the check above, no abs() needed.
+        hours, minutes = divmod(int(value * 60), 60)
         if hours > 23:
             raise ValueError(_("The hour must be between 0 and 23"))
         t = time(hour=hours, minute=minutes)
@@ -814,7 +821,12 @@ class IrQwebFieldDuration(models.AbstractModel):
 
     @api.model
     def _format_timedelta_section(
-        self, seconds: float, granularity: int, add_direction: Any, fmt: str, locale: Any
+        self,
+        seconds: float,
+        granularity: int,
+        add_direction: Any,
+        fmt: str,
+        locale: Any,
     ) -> str:
         """Wrap :func:`babel.dates.format_timedelta` with an en_US fallback.
 
