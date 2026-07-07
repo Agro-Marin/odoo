@@ -10,7 +10,7 @@ from lxml.builder import E
 from psycopg import IntegrityError
 from psycopg.types.json import Json
 
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.tests import common, tagged
 from odoo.tests.common import get_cache_key_counter
 from odoo.tools import mute_logger, safe_eval, view_validation
@@ -5966,6 +5966,44 @@ class TestQWebRender(ViewCase):
         )
 
         self.assertNotEqual(content1, content3)
+
+
+class TestTemplateCache(ViewCase):
+    def test_preload_missing_template_caches_error(self):
+        """A nonexistent ref warmed through _preload_views must be cached as an
+        error: a later strict lookup raises MissingError. Regression guard:
+        _fetch_template_views used to warm-push missing refs with error=False,
+        so _get_template_view(raise_if_not_found=True) silently returned an
+        empty recordset instead of raising."""
+        missing_xmlid = "base.template_that_does_not_exist"
+
+        # warm the templates cache the way ir.qweb._preload_trees does
+        preload = self.View.sudo()._preload_views([missing_xmlid])
+        self.assertTrue(preload[missing_xmlid]["error"])
+
+        # the warm-pushed cache entry must carry the error too
+        info = self.View._get_cached_template_info(missing_xmlid)
+        self.assertIsInstance(info["error"], MissingError)
+        self.assertIsNone(info["id"])
+
+        with self.assertRaises(MissingError):
+            self.View._get_template_view(missing_xmlid, raise_if_not_found=True)
+        # the non-strict lookup still returns an empty recordset
+        self.assertFalse(
+            self.View._get_template_view(missing_xmlid, raise_if_not_found=False)
+        )
+
+    def test_preload_missing_template_id_caches_error(self):
+        """Same guard for integer refs (the view_by_id warm-push branch)."""
+        missing_id = self.View.search([], order="id desc", limit=1).id + 1000
+
+        preload = self.View.sudo()._preload_views([missing_id])
+        self.assertTrue(preload[missing_id]["error"])
+
+        info = self.View._get_cached_template_info(missing_id)
+        self.assertIsInstance(info["error"], MissingError)
+        with self.assertRaises(MissingError):
+            self.View._get_template_view(missing_id, raise_if_not_found=True)
 
 
 class TestValidationTools(common.BaseCase):

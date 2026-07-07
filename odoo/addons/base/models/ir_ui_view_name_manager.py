@@ -29,7 +29,7 @@ class NameManager:
         self.available_names = set()
         self.used_fields = collections.defaultdict(
             dict
-        )  # {field_name: {'groups': '(use, node)}}
+        )  # {field_name: {access_groups: (use, node)}}
         self.used_names = {}  # {name: use}
         self.must_exist_actions = {}
         self.must_exist_groups = {}
@@ -228,10 +228,9 @@ class NameManager:
 
         for name, groups_uses in self.used_fields.items():
             # Multiple uses under the same access_groups collapse to the last
-            # (use, node); error messages then cite one representative node.
+            # (use, node); error messages then cite the representative node of
+            # the first access_groups entry.
             use, node = next(iter(groups_uses.values()))
-            if name == "id":  # always available
-                continue
             if "." in name:
                 msg = _(
                     "Invalid composed field %(definition)s in %(use)s",
@@ -239,7 +238,8 @@ class NameManager:
                     use=use,
                 )
                 view._raise_view_error(msg)
-            info = self.available_fields[name].get("info")
+            # plain .get: indexing the defaultdict would insert phantom entries
+            info = self.available_fields.get(name, {}).get("info")
 
             if info is None:
                 if name in ["false", "true"]:
