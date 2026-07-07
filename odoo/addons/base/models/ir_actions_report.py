@@ -1139,7 +1139,9 @@ class IrActionsReport(models.Model):
         " browser. PDF means the report will be rendered using WeasyPrint and"
         " downloaded by the user.",
     )
-    report_name = fields.Char(string="Template Name", required=True)
+    # index: _get_report resolves string references by report_name on every
+    # render; without it each resolution is a sequential scan.
+    report_name = fields.Char(string="Template Name", required=True, index=True)
     report_file = fields.Char(
         string="Report File",
         required=False,
@@ -1184,17 +1186,21 @@ class IrActionsReport(models.Model):
     def _search_model_id(self, operator: str, value: Any) -> Any:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        models = self.env["ir.model"]
+        # `model_records`, not `models`: don't shadow the module-level
+        # `odoo.models` import.
+        model_records = self.env["ir.model"]
         if isinstance(value, str):
-            models = models.search(Domain("display_name", operator, value))
+            model_records = model_records.search(
+                Domain("display_name", operator, value)
+            )
         elif isinstance(value, Domain):
-            models = models.search(value)
+            model_records = model_records.search(value)
         elif operator == "any!":
-            models = models.sudo().search(Domain("id", operator, value))
+            model_records = model_records.sudo().search(Domain("id", operator, value))
         elif operator == "any" or isinstance(value, int):
-            models = models.search(Domain("id", operator, value))
+            model_records = model_records.search(Domain("id", operator, value))
         elif operator == "in":
-            models = models.search(
+            model_records = model_records.search(
                 Domain.OR(
                     Domain(
                         "id" if isinstance(v, int) else "display_name",
@@ -1205,7 +1211,11 @@ class IrActionsReport(models.Model):
                     if v
                 )
             )
-        return Domain("model", "in", models.mapped("model"))
+        else:
+            # Unhandled operator/value combo: let the ORM fall back to the
+            # generic behavior instead of silently matching nothing.
+            return NotImplemented
+        return Domain("model", "in", model_records.mapped("model"))
 
     def _get_readable_fields(self) -> set[str]:
         return super()._get_readable_fields() | {
@@ -1239,9 +1249,10 @@ class IrActionsReport(models.Model):
 
     def create_action(self) -> bool:
         """Create a contextual action for each report."""
-        for report in self:
-            model = self.env["ir.model"]._get(report.model)
-            report.write({"binding_model_id": model.id, "binding_type": "report"})
+        self.check_access("write")
+        for model, reports in self.grouped("model").items():
+            model_id = self.env["ir.model"]._get(model).id
+            reports.write({"binding_model_id": model_id, "binding_type": "report"})
         return True
 
     def unlink_action(self) -> bool:
@@ -1870,15 +1881,7 @@ class IrActionsReport(models.Model):
             barcode = createBarcodeDrawing(
                 barcode_type, value=value, format="png", **kwargs
             )
-
-            if mask_name:
-                available_masks = self.get_available_barcode_masks()
-                mask_to_apply = available_masks.get(mask_name)
-                if mask_to_apply:
-                    mask_to_apply(kwargs["width"], kwargs["height"], barcode)
-
-            return barcode.asString("png")
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             if barcode_type in ("Code128", "QR"):
                 msg = f"Cannot convert into {barcode_type} barcode."
                 raise ValueError(msg) from None
@@ -1886,11 +1889,33 @@ class IrActionsReport(models.Model):
             # already-processed kwargs (humanReadable already renamed, etc.)
             # instead of recursing through barcode() which would re-process
             # them and lose the humanReadable → humanreadable rename.
+            _logger.warning(
+                "Cannot draw a %s barcode, falling back to Code128.",
+                barcode_type,
+                exc_info=True,
+            )
             barcode_type = "Code128"
             barcode = createBarcodeDrawing(
                 barcode_type, value=value, format="png", **kwargs
             )
-            return barcode.asString("png")
+        else:
+            if mask_name:
+                available_masks = self.get_available_barcode_masks()
+                mask_to_apply = available_masks.get(mask_name)
+                if mask_to_apply:
+                    try:
+                        mask_to_apply(kwargs["width"], kwargs["height"], barcode)
+                    except ValueError, AttributeError:
+                        # A failed mask must not degrade a valid barcode to a
+                        # Code128 regeneration — keep the unmasked drawing.
+                        _logger.warning(
+                            "Cannot apply barcode mask %r, returning the "
+                            "unmasked %s barcode.",
+                            mask_name,
+                            barcode_type,
+                            exc_info=True,
+                        )
+        return barcode.asString("png")
 
     @api.model
     def get_available_barcode_masks(self) -> dict[str, Callable]:
@@ -2046,8 +2071,11 @@ class IrActionsReport(models.Model):
             data.setdefault("debug", False)
             additional_context = {"debug": False}
 
+            # Forward the resolved record, not the raw reference (see the
+            # _get_report call above), so the html/pdf helpers don't
+            # re-resolve it.
             html = self.with_context(**additional_context)._render_qweb_html(
-                report_ref,
+                report_sudo,
                 all_res_ids_wo_stream,
                 data=data,
             )[0]
@@ -2101,7 +2129,7 @@ class IrActionsReport(models.Model):
                 if render_bodies:
                     pdf_contents = self._render_html_to_pdf(
                         render_bodies,
-                        report_ref=report_ref,
+                        report_ref=report_sudo,
                         landscape=landscape,
                         specific_paperformat_args=specific_paperformat_args,
                         _split=True,
@@ -2116,7 +2144,7 @@ class IrActionsReport(models.Model):
                 # Render all bodies into a single merged PDF.
                 pdf_content = self._render_html_to_pdf(
                     bodies,
-                    report_ref=report_ref,
+                    report_ref=report_sudo,
                     landscape=landscape,
                     specific_paperformat_args=specific_paperformat_args,
                     **render_pdf_kwargs,
@@ -2203,15 +2231,19 @@ class IrActionsReport(models.Model):
         if isinstance(res_ids, int):
             res_ids = [res_ids]
         data.setdefault("report_type", "pdf")
+        # Resolve the reference once and forward the record (report_ref
+        # accepts a record): a no-op when the caller already resolved it,
+        # otherwise it saves the internal calls' repeated report_name search.
+        report_sudo = self._get_report(report_ref)
         # In test environment, fallback to render_html unless force_report_rendering is set.
         if (
             modules.module.current_test or tools.config["test_enable"]
         ) and not self.env.context.get("force_report_rendering"):
-            return self._render_qweb_html(report_ref, res_ids, data=data)
+            return self._render_qweb_html(report_sudo, res_ids, data=data)
 
         self = self.with_context(webp_as_jpg=True)
         return (
-            self._render_qweb_pdf_prepare_streams(report_ref, data, res_ids=res_ids),
+            self._render_qweb_pdf_prepare_streams(report_sudo, data, res_ids=res_ids),
             "pdf",
         )
 
@@ -2227,16 +2259,17 @@ class IrActionsReport(models.Model):
             res_ids = [res_ids]
         data.setdefault("report_type", "pdf")
 
+        # Resolve the reference once (with sudo, evaluation context stays the
+        # current user's) and forward the record to every internal call.
+        report_sudo = self._get_report(report_ref)
+
         collected_streams, report_type = self._pre_render_qweb_pdf(
-            report_ref, res_ids=res_ids, data=data
+            report_sudo, res_ids=res_ids, data=data
         )
         if report_type != "pdf":
             return collected_streams, report_type
 
         has_duplicated_ids = self._has_duplicated_ids(res_ids)
-
-        # access the report details with sudo() but keep evaluation context as current user
-        report_sudo = self._get_report(report_ref)
 
         # Generate the ir.attachment if needed.
         if (
@@ -2388,13 +2421,22 @@ class IrActionsReport(models.Model):
         report_ref: int | str | Any,
         res_ids: list[int] | None,
         data: dict[str, Any] | None = None,
-    ) -> tuple[bytes, str] | None:
+    ) -> tuple[bytes, str]:
+        # Resolve the reference once and forward the record (report_ref
+        # accepts a record), so downstream renderers don't re-search by
+        # report_name.
         report = self._get_report(report_ref)
         report_type = report.report_type.lower().replace("-", "_")
         render_func = getattr(self, "_render_" + report_type, None)
         if not render_func:
-            return None
-        return render_func(report_ref, res_ids, data=data)
+            raise UserError(
+                _(
+                    "Unknown report type %s for report %s.",
+                    report.report_type,
+                    report.report_name,
+                )
+            )
+        return render_func(report, res_ids, data=data)
 
     def report_action(
         self,
