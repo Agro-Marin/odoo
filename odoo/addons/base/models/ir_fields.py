@@ -8,6 +8,7 @@ from typing import Any, NamedTuple
 import psycopg
 
 from odoo import Command, api, fields, models
+from odoo.exceptions import UserError
 from odoo.libs.datetime import utc
 from odoo.libs.json import loads as json_loads
 from odoo.tools import SQL, OrderedSet
@@ -1021,7 +1022,15 @@ class IrFieldsConverter(models.AbstractModel):
                 id, _name = RelatedModel.name_create(name=value)
                 RelatedModel.env.flush_all()
                 return RefLookup(id, field_type, "", warnings)
-            except Exception:
+            except UserError, ValueError, psycopg.Error:
+                # Only recoverable refusals become the "cannot create from name
+                # alone" import message: user-facing ORM errors (``UserError``
+                # covers its ``ValidationError`` / ``AccessError`` subclasses),
+                # conversion errors, and database errors. A programming error in
+                # a ``name_create`` override (e.g. ``TypeError``) now propagates
+                # instead of being masked by it (IFLD-16) -- mirrors the
+                # ``safe_write`` narrowing in ir_model_fields_selection.py
+                # (SEL-C4).
                 # ``import_savepoint`` is set by ``BaseModel.load``; guard so a
                 # caller reaching this branch without it fails with the intended
                 # import error, not ``AttributeError`` on ``None.rollback()``.
@@ -1232,7 +1241,14 @@ class IrFieldsConverter(models.AbstractModel):
 
         def log(f: str, exception: Exception | Warning) -> None:
             if not isinstance(exception, Warning):
-                current_field_name = self.env[field.comodel_name]._fields[f].string
+                # ``f`` may name a field absent from the comodel (the
+                # converter-is-None branch of ``fn`` logs per-field errors for
+                # such names, IFLD-07); fall back to the raw name instead of
+                # raising ``KeyError`` here, which would escape ``fn``'s
+                # ``ValueError``-only handling and abort the whole ``load()``
+                # (IFLD-15).
+                f_field = self.env[field.comodel_name]._fields.get(f)
+                current_field_name = f_field.string if f_field else f
                 arg0 = exception.args[0].replace(
                     "%(field)s", "%(field)s/" + current_field_name
                 )

@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, can_import, loaded_demo_data, tagged
 from odoo.tools.misc import file_open
 
@@ -318,6 +319,64 @@ class TestFieldConverters(TransactionCase):
         with self.assertRaises(ValueError) as cm:
             self.converter._referencing_subfield({})
         self.assertNotIn("unpack", str(cm.exception))
+
+    def test_o2m_unknown_subfield_is_valueerror(self):
+        """IFLD-15: a one2many sub-row carrying a field name absent from the
+        comodel must surface as ``ValueError`` (which ``for_model`` turns into
+        a per-field error one level up), not as a raw ``KeyError`` from the
+        nested ``log`` closure that would escape and abort the whole
+        ``load()``."""
+        fld = self.env["res.partner"]._fields["child_ids"]
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_one2many(fld, [{"bogus.x": "42"}])
+        # the raw sub-field name is used as fallback in the error path
+        self.assertIn("bogus.x", str(cm.exception.args[0]))
+
+    def test_load_o2m_unknown_subfield_logs_not_crash(self):
+        """IFLD-15 (end to end): loading an o2m sub-column whose name slips
+        past ``_extract_records`` validation (a dotted name that is not a
+        property of the comodel) must produce a per-field import message on
+        the o2m column, not abort ``load()`` with a ``KeyError``."""
+        result = self.env["res.partner"].load(
+            ["name", "child_ids/name", "child_ids/bogus.x"],
+            [["IFLD15 Parent", "IFLD15 Child", "42"]],
+        )
+        self.assertFalse(result["ids"], "the erroneous import must not create ids")
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors, "expected a per-field import error message")
+        self.assertEqual(errors[0].get("field"), "child_ids")
+        self.assertIn("bogus.x", errors[0]["message"])
+
+    def test_name_create_programming_error_propagates(self):
+        """IFLD-16: a programming error raised by a ``name_create`` override
+        must propagate, not be swallowed into the "cannot create from name
+        alone" import message that masks the bug."""
+        converter = self.converter.with_context(
+            name_create_enabled_fields={"parent_id": True}
+        )
+        PartnerClass = type(self.env["res.partner"])
+        with (
+            patch.object(
+                PartnerClass, "name_create", side_effect=TypeError("broken override")
+            ),
+            self.assertRaises(TypeError),
+        ):
+            converter.db_id_for(self.flds["m2o"], None, "zzz no such partner ifld16")
+
+    def test_name_create_user_error_becomes_import_message(self):
+        """IFLD-16 guard: a recoverable ``UserError`` from ``name_create``
+        still resolves to the friendly "cannot create from name alone" import
+        error."""
+        converter = self.converter.with_context(
+            name_create_enabled_fields={"parent_id": True}
+        )
+        PartnerClass = type(self.env["res.partner"])
+        with (
+            patch.object(PartnerClass, "name_create", side_effect=UserError("nope")),
+            self.assertRaises(ValueError) as cm,
+        ):
+            converter.db_id_for(self.flds["m2o"], None, "zzz no such partner ifld16")
+        self.assertIn("Cannot create new", str(cm.exception.args[0]))
 
 
 @tagged("post_install", "-at_install")

@@ -12,7 +12,7 @@ from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError
 from odoo.models import add_field
-from odoo.tools import OrderedSet, groupby, reset_cached_properties, unique
+from odoo.tools import SQL, OrderedSet, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
 
 from .ir_model_common import MODULE_UNINSTALL_FLAG
@@ -158,7 +158,13 @@ class IrModelData(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         """Update xmlids, busting the _xmlid_lookup cache and the groups cache for res.groups rows."""
-        self.env.registry.clear_cache()  # _xmlid_lookup
+        if not (set(vals) <= {"noupdate"}):
+            # _xmlid_lookup caches only (model, res_id) keyed on module.name; a
+            # noupdate-only write cannot stale it (verified: no default-cache
+            # ormcache result depends on noupdate), so skip flushing the whole
+            # default registry cache for the common toggle_noupdate path
+            # (IMD-P1).
+            self.env.registry.clear_cache()  # _xmlid_lookup
         # Clear the `groups` cache when either the pre-image or the post-image of
         # the written rows points at res.groups: re-pointing or editing a
         # res.groups xmlid (even without touching `model`, e.g. a `res_id` or
@@ -191,17 +197,26 @@ class IrModelData(models.Model):
             prefix, suffix = xml_id.split(".", 1)
             bymodule[prefix].add(suffix)
 
-        # query xml_ids by prefix
+        # query xml_ids by prefix; the joined table identifier is invariant
+        # across prefixes/batches, so build it once (IMD-S1: use the SQL
+        # wrapper instead of f-string-interpolating the table name)
         result = []
         cr = self.env.cr
+        table_sql = SQL.identifier(model._table)
         for prefix, suffixes in bymodule.items():
-            query = f"""
-                SELECT d.id, d.module, d.name, d.model, d.res_id, d.noupdate, r.id
-                FROM ir_model_data d LEFT JOIN "{model._table}" r on d.res_id=r.id
-                WHERE d.module=%s AND d.name = ANY(%s)
-            """
             for subsuffixes in batched(suffixes, cr.BATCH_SIZE, strict=False):
-                cr.execute(query, (prefix, list(subsuffixes)))
+                cr.execute(
+                    SQL(
+                        """
+                        SELECT d.id, d.module, d.name, d.model, d.res_id, d.noupdate, r.id
+                        FROM ir_model_data d LEFT JOIN %s r ON d.res_id = r.id
+                        WHERE d.module = %s AND d.name = ANY(%s)
+                        """,
+                        table_sql,
+                        prefix,
+                        list(subsuffixes),
+                    )
+                )
                 result.extend(cr.fetchall())
 
         return result
@@ -599,5 +614,8 @@ class IrModelData(models.Model):
     def toggle_noupdate(self, model: str, res_id: int) -> None:
         """Toggle the noupdate flag on the external id of the record"""
         self.env[model].browse(res_id).check_access("write")
-        for xid in self.search([("model", "=", model), ("res_id", "=", res_id)]):
-            xid.noupdate = not xid.noupdate
+        xids = self.search([("model", "=", model), ("res_id", "=", res_id)])
+        # group by current value: at most two write() calls (one per flipped
+        # value) instead of one per xid (IMD-P2)
+        for noupdate, group in xids.grouped("noupdate").items():
+            group.write({"noupdate": not noupdate})

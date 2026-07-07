@@ -439,8 +439,10 @@ class TestIrModelEdition(TransactionCase):
         IrModel = self.env["ir.model"]
         with self.assertRaises(ValueError):
             upsert_en(
-                IrModel, ["model", "name"],
-                [("dup.model", "A"), ("dup.model", "B")], conflict=["model"],
+                IrModel,
+                ["model", "name"],
+                [("dup.model", "A"), ("dup.model", "B")],
+                conflict=["model"],
             )
 
     def test_upsert_en_rejects_empty_fnames(self):
@@ -1059,3 +1061,108 @@ class TestIrModelData(TransactionCase):
         self.env["ir.model.data"].toggle_noupdate("ir.config_parameter", param.id)
         self.assertTrue(xid1.noupdate)
         self.assertFalse(xid2.noupdate)
+
+    def _make_param_xid(self, name, noupdate=False):
+        param = self.env["ir.config_parameter"].create(
+            {"key": f"imd.{name}", "value": "x"}
+        )
+        xid = self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": name,
+                "model": "ir.config_parameter",
+                "res_id": param.id,
+                "noupdate": noupdate,
+            }
+        )
+        return param, xid
+
+    def test_noupdate_only_write_skips_default_cache_clear(self):
+        """IMD-P1: a write touching only ``noupdate`` must not flush the whole
+        default registry cache (no cached result depends on ``noupdate``),
+        while any other key still does."""
+        _param, xid = self._make_param_xid("imd_p1_noupdate_only")
+
+        with patch.object(
+            self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
+        ) as mock_clear:
+            xid.write({"noupdate": True})
+        self.assertNotIn(
+            (),
+            [call.args for call in mock_clear.call_args_list],
+            "a noupdate-only write must not clear the default registry cache",
+        )
+
+        # guard: any other key still busts the default (_xmlid_lookup) cache
+        with patch.object(
+            self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
+        ) as mock_clear:
+            xid.write({"noupdate": False, "name": "imd_p1_noupdate_only_renamed"})
+        self.assertIn(
+            (),
+            [call.args for call in mock_clear.call_args_list],
+            "a write touching more than noupdate must clear the default cache",
+        )
+
+    def test_toggle_noupdate_batches_writes(self):
+        """IMD-P2: ``toggle_noupdate`` groups the xids by current value and
+        issues at most two write() calls, not one per xid -- while still
+        flipping each xid independently."""
+        param, _xid_a = self._make_param_xid("imd_p2_toggle_a", noupdate=False)
+        for name, noupdate in (
+            ("imd_p2_toggle_b", False),
+            ("imd_p2_toggle_c", True),
+        ):
+            self.env["ir.model.data"].create(
+                {
+                    "module": "base",
+                    "name": name,
+                    "model": "ir.config_parameter",
+                    "res_id": param.id,
+                    "noupdate": noupdate,
+                }
+            )
+
+        DataClass = type(self.env["ir.model.data"])
+        orig_write = DataClass.write
+        write_vals = []
+
+        def spy(records, vals):
+            write_vals.append(vals)
+            return orig_write(records, vals)
+
+        with patch.object(DataClass, "write", spy):
+            self.env["ir.model.data"].toggle_noupdate("ir.config_parameter", param.id)
+
+        self.assertLessEqual(
+            len(write_vals),
+            2,
+            "toggle_noupdate must batch by current value (at most two writes)",
+        )
+        xids = self.env["ir.model.data"].search(
+            [("model", "=", "ir.config_parameter"), ("res_id", "=", param.id)]
+        )
+        self.assertEqual(
+            {xid.name: xid.noupdate for xid in xids},
+            {
+                "imd_p2_toggle_a": True,
+                "imd_p2_toggle_b": True,
+                "imd_p2_toggle_c": False,
+            },
+            "each xid must flip relative to its own previous value",
+        )
+
+    def test_lookup_xmlids_resolves(self):
+        """IMD-S1 guard: ``_lookup_xmlids`` (rewritten onto the SQL wrapper)
+        still resolves an existing xmlid with the joined record id, and an
+        unknown suffix yields no row."""
+        group = self.env.ref("base.group_user")
+        rows = self.env["ir.model.data"]._lookup_xmlids(
+            ["base.group_user", "base.zzz_no_such_xmlid"], self.env["res.groups"]
+        )
+        self.assertEqual(len(rows), 1)
+        _id, module, name, model, res_id, _noupdate, r_id = rows[0]
+        self.assertEqual(
+            (module, name, model, res_id, r_id),
+            ("base", "group_user", "res.groups", group.id, group.id),
+        )
