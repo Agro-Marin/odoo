@@ -1387,8 +1387,12 @@ class IrMail_Server(models.Model):
                     exception_name=e.__class__.__name__,
                     message=e,
                 )
-                _logger.info(msg)
-                raise MailDeliveryError(_("Mail Delivery Failed"), msg) from None
+                # WARNING (not INFO) so production log levels see delivery
+                # failures, with the SMTP traceback; chaining ``from e`` keeps
+                # the root cause on the raised error without changing its
+                # rendered message (= the stored mail.mail failure_reason).
+                _logger.warning(msg, exc_info=True)
+                raise MailDeliveryError(_("Mail Delivery Failed"), msg) from e
             return message_id
         finally:
             # ``smtp`` is None in test mode (_connect__ short-circuits).
@@ -1542,17 +1546,18 @@ class IrMail_Server(models.Model):
         return [part.strip() for part in (from_filter or "").split(",") if part.strip()]
 
     @api.onchange("smtp_encryption")
-    def _onchange_encryption(self) -> dict[str, Any]:
-        result = {}
+    def _onchange_encryption(self) -> None:
+        # Only rewrite the port when it still holds the default of the mode
+        # being left (25 for none/starttls, 465 for ssl); a user-entered custom
+        # port (e.g. 587 or 2525) must survive an encryption toggle.
+        #
+        # The historical "SMTP_SSL not in smtplib.__all__" warning branch was
+        # dead code on this stack: this module imports ``ssl`` unconditionally,
+        # so on an ssl-less Python it would fail to import long before the
+        # onchange could run (and smtplib always exposes SMTP_SSL when ssl is
+        # importable).
         if self.smtp_encryption in ("ssl", "ssl_strict"):
-            self.smtp_port = 465
-            if "SMTP_SSL" not in smtplib.__all__:
-                result["warning"] = {
-                    "title": _("Warning"),
-                    "message": _(
-                        "Your server does not seem to support SSL, you may want to try STARTTLS instead"
-                    ),
-                }
-        else:
+            if self.smtp_port == 25:
+                self.smtp_port = 465
+        elif self.smtp_port == 465:
             self.smtp_port = 25
-        return result

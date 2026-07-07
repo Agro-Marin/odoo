@@ -1,6 +1,8 @@
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import sql
 
+_IR_LOGGING_LOGGER = "odoo.addons.base.models.ir_logging"
+
 
 @tagged("post_install", "-at_install")
 class TestIrLoggingInit(TransactionCase):
@@ -83,3 +85,76 @@ class TestIrLoggingRawInsert(TransactionCase):
             "the injection payload must be stored verbatim, not executed",
         )
         self.assertEqual(record.path, self.INJECTION)
+
+
+@tagged("post_install", "-at_install")
+class TestIrLoggingRetention(TransactionCase):
+    """ILOG-T3: pin the ``_gc_logging`` retention contract.
+
+    ir_logging rows (server-action ``log()``, ``--log-db``) have no other
+    cleanup path; ``_gc_logging`` must delete entries older than the
+    ``base.logging_retention_days`` parameter (default 180) using the
+    ``(done, more_may_remain)`` autovacuum convention, and must skip the
+    collection -- with a warning -- when the parameter is zero, negative or
+    unparsable (deployments archiving the table externally).
+    """
+
+    def _insert_log(self, age_days, name="ilog.t3"):
+        """Insert a row the production way (raw SQL, ORM bypass) with a
+        create_date ``age_days`` in the past, relative to the transaction
+        clock used by the GC cutoff."""
+        self.env.cr.execute(
+            """
+            INSERT INTO ir_logging(create_date, type, dbname, name, level, message, path, line, func)
+            VALUES ((NOW() AT TIME ZONE 'UTC') - %s * interval '1 day',
+                    'server', %s, %s, 'INFO', 'message', 'path', '1', 'func')
+            RETURNING id
+            """,
+            (age_days, self.env.cr.dbname, name),
+        )
+        return self.env["ir.logging"].browse(self.env.cr.fetchone()[0])
+
+    def test_gc_default_retention(self):
+        """Without a parameter set, entries older than 180 days are removed
+        and newer ones are kept."""
+        stale = self._insert_log(200)
+        fresh = self._insert_log(10)
+        result = self.env["ir.logging"]._gc_logging()
+        self.assertIsNotNone(result)
+        done, more_may_remain = result
+        self.assertGreaterEqual(done, 1)
+        self.assertFalse(more_may_remain)
+        self.assertFalse(stale.exists())
+        self.assertTrue(fresh.exists())
+
+    def test_gc_custom_retention(self):
+        """A custom ``base.logging_retention_days`` value drives the cutoff."""
+        self.env["ir.config_parameter"].set_param("base.logging_retention_days", "30")
+        stale = self._insert_log(40)
+        fresh = self._insert_log(20)
+        self.env["ir.logging"]._gc_logging()
+        self.assertFalse(stale.exists())
+        self.assertTrue(fresh.exists())
+
+    def test_gc_zero_retention_skips(self):
+        """A zero value disables the collection with a warning."""
+        self.env["ir.config_parameter"].set_param("base.logging_retention_days", "0")
+        stale = self._insert_log(4000)
+        with self.assertLogs(_IR_LOGGING_LOGGER, level="WARNING") as capture:
+            self.assertIsNone(self.env["ir.logging"]._gc_logging())
+        self.assertTrue(stale.exists())
+        self.assertTrue(
+            any("logging_retention_days" in line for line in capture.output)
+        )
+
+    def test_gc_invalid_retention_skips(self):
+        """An unparsable value disables the collection with a warning instead
+        of crashing the autovacuum method."""
+        self.env["ir.config_parameter"].set_param(
+            "base.logging_retention_days", "not-a-number"
+        )
+        stale = self._insert_log(4000)
+        with self.assertLogs(_IR_LOGGING_LOGGER, level="WARNING") as capture:
+            self.assertIsNone(self.env["ir.logging"]._gc_logging())
+        self.assertTrue(stale.exists())
+        self.assertTrue(any("not-a-number" in line for line in capture.output))
