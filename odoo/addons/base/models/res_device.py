@@ -183,18 +183,38 @@ class ResDeviceLog(models.Model):
     def _gc_device_log(self) -> None:
         # Keep the last device log
         # (even if the session file no longer exists on the filesystem)
-        self.env.cr.execute("""
-            DELETE FROM res_device_log log1
-            WHERE EXISTS (
-                SELECT 1 FROM res_device_log log2
-                WHERE
-                    log1.session_identifier = log2.session_identifier
-                    AND log1.platform IS NOT DISTINCT FROM log2.platform
-                    AND log1.browser IS NOT DISTINCT FROM log2.browser
-                    AND log1.ip_address IS NOT DISTINCT FROM log2.ip_address
-                    AND log1.last_activity < log2.last_activity
+        #
+        # RDEV-P3 (audit 2026-07-06): the previous correlated EXISTS self-join
+        # had no supporting index (both composite indexes are partial on
+        # `revoked`, which GC does not filter on) and degraded quadratically
+        # per device group; a single window-function pass sorts once instead.
+        # PARTITION BY groups NULLs together, matching the old
+        # IS NOT DISTINCT FROM joins for NULL platform/browser/ip_address.
+        # Deliberate change: on last_activity ties the old query kept every
+        # tied row; this keeps exactly one — greatest (last_activity, id) —
+        # aligning GC with the res.device view tie-break (see ResDevice._where).
+        # last_activity is never NULL in practice (the single insert path in
+        # _update_device always sets it).
+        self.env.cr.execute(
+            SQL(
+                """
+            DELETE FROM res_device_log
+            WHERE id IN (
+                SELECT id
+                FROM (
+                    SELECT id,
+                           row_number() OVER (
+                               PARTITION BY session_identifier, platform,
+                                            browser, ip_address
+                               ORDER BY last_activity DESC, id DESC
+                           ) AS rn
+                    FROM res_device_log
+                ) ranked
+                WHERE ranked.rn > 1
             )
-        """)
+        """
+            )
+        )
         _logger.info("GC device logs delete %d entries", self.env.cr.rowcount)
 
     @api.autovacuum
@@ -223,7 +243,10 @@ class ResDeviceLog(models.Model):
                     (
                         "last_activity",
                         "<",
-                        datetime.now(UTC).replace(tzinfo=None)
+                        # RDEV-T1 (audit 2026-07-06): fields.Datetime.now() is
+                        # the conventional, test-patchable clock (identical
+                        # naive-UTC value as datetime.now(UTC) w/o tzinfo).
+                        fields.Datetime.now()
                         - timedelta(seconds=get_session_max_inactivity(self.env)),
                     ),
                 ],
