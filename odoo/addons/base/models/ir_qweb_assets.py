@@ -1019,6 +1019,16 @@ class IrQweb(models.AbstractModel):
         one request's page composition into every later render (nodes
         cached without their importmap serve broken pages forever).
 
+        SOLE WRITER of ``request._esm_import_map_rendered``.  Every branch's
+        nodes flow through this pass — cached prod, uncached prod (read-only
+        cursors, a fallback re-run that succeeds after all), and the
+        self-shaping ``_esm_debug_nodes`` output.  ``_esm_debug_nodes`` only
+        READS the flag: when it also set it, this pass double-deduped —
+        it saw the flag the debug branch had just set and stripped the
+        importmap the debug branch had just emitted, serving request-bound
+        ``?debug=assets`` pages (and esbuild-declined fallback renders)
+        with no import map, leaving every bare specifier unresolved.
+
         Returns a filtered COPY when dropping the node; cached lists are
         shared by reference and must never be mutated.
         """
@@ -1462,9 +1472,10 @@ class IrQweb(models.AbstractModel):
         # page that rendered it alone.  The per-request dedup now
         # happens outside the cache, in the dispatcher
         # (``_get_native_module_nodes`` →
-        # ``_dedup_request_import_map``); the debug branch keeps
-        # its own flag handling because it is never cached and
-        # the flag also shapes its generated bridge code.
+        # ``_dedup_request_import_map``); the debug branch READS the
+        # flag (it shapes importmap/shim emission and the generated
+        # bridge code) but never writes it — the dispatcher pass is
+        # the flag's sole writer for every branch.
         pre.append(
             (
                 "script",
@@ -1821,6 +1832,16 @@ class IrQweb(models.AbstractModel):
         # Check if a previous ESM bundle on this page already rendered
         # an import map (e.g. the setup bundle on the test page).
         # Only ONE import map per document is allowed by the spec.
+        #
+        # READ-only: the flag is written exclusively by the dispatcher's
+        # ``_dedup_request_import_map`` pass, which every branch's output
+        # flows through.  This method used to SET it too, which made that
+        # pass see the flag this call had just set and strip the importmap
+        # this call had just emitted — every request-bound ``?debug=assets``
+        # page (and every esbuild-declined fallback render) was served with
+        # no import map at all.  The flag still shapes this branch's output
+        # (importmap/shim emission, ``use_import``) because a later bundle
+        # on the same page must not re-emit what the first one rendered.
         _req = request or None
         _already_has_esm = _req and getattr(
             _req,
@@ -1840,8 +1861,6 @@ class IrQweb(models.AbstractModel):
                     },
                 )
             )
-            if _req:
-                _req._esm_import_map_rendered = True
 
         # 3. Modulepreload hints for faster loading (skip in debug mode
         #    to reduce noise and allow individual file debugging)
