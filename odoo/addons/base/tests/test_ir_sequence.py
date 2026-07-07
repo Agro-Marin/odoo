@@ -303,6 +303,140 @@ class TestIrSequenceInit(common.TransactionCase):
         )
 
 
+class TestIrSequenceSwitchImplementation(common.TransactionCase):
+    """Switching ``standard`` -> ``no_gap`` must seed ``number_next`` from the
+    live PostgreSQL sequence value before dropping it: under the standard
+    implementation the row's ``number_next`` column never advances, so
+    numbering would otherwise restart at a stale value and issue duplicate
+    document numbers.
+    """
+
+    def test_switch_to_no_gap_continues_numbering(self):
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-switch-impl",
+                "implementation": "standard",
+            }
+        )
+        for i in range(1, 4):
+            self.assertEqual(seq.next_by_id(), str(i))
+        seq.write({"implementation": "no_gap"})
+        # The row was seeded from the live PG sequence value...
+        self.assertEqual(seq.number_next, 4)
+        # ...so the numbering continues without duplicates.
+        self.assertEqual(seq.next_by_id(), "4")
+        self.assertEqual(seq.next_by_id(), "5")
+
+    def test_switch_to_no_gap_explicit_number_next(self):
+        """An explicit ``number_next`` in the same write wins over seeding."""
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-switch-impl-explicit",
+                "implementation": "standard",
+            }
+        )
+        for i in range(1, 4):
+            self.assertEqual(seq.next_by_id(), str(i))
+        seq.write({"implementation": "no_gap", "number_next": 100})
+        self.assertEqual(seq.next_by_id(), "100")
+
+
+class TestIrSequenceInterpolationLazy(common.TransactionCase):
+    """Pin the lazy ``%(key)s`` interpolation of ``_get_prefix_suffix``: every
+    legacy key (plain, ``range_`` and ``current_`` variants) must keep
+    formatting exactly as the eager implementation did.
+    """
+
+    LEGACY_KEYS = [
+        ("year", "%Y"),
+        ("month", "%m"),
+        ("day", "%d"),
+        ("y", "%y"),
+        ("doy", "%j"),
+        ("woy", "%W"),
+        ("weekday", "%w"),
+        ("h24", "%H"),
+        ("h12", "%I"),
+        ("min", "%M"),
+        ("sec", "%S"),
+        ("isoyear", "%G"),
+        ("isoy", "%g"),
+        ("isoweek", "%V"),
+    ]
+
+    def _create(self, prefix="", suffix=""):
+        return self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-lazy-interpolation",
+                "prefix": prefix,
+                "suffix": suffix,
+            }
+        )
+
+    def test_all_legacy_keys_effective_date(self):
+        """Every plain legacy key formats against the effective date."""
+        effective = datetime(2024, 3, 7, 14, 5, 9)
+        pattern = "/".join(f"%({key})s" for key, _fmt in self.LEGACY_KEYS)
+        expected = "/".join(effective.strftime(fmt) for _key, fmt in self.LEGACY_KEYS)
+        seq = self._create(prefix=pattern, suffix=pattern)
+        prefix, suffix = seq._get_prefix_suffix(date=effective)
+        self.assertEqual(prefix, expected)
+        self.assertEqual(suffix, expected)
+
+    def test_all_legacy_keys_range_date(self):
+        """Every ``range_`` legacy key formats against the range date."""
+        range_date = datetime(2023, 11, 30, 3, 45, 58)
+        pattern = "/".join(f"%(range_{key})s" for key, _fmt in self.LEGACY_KEYS)
+        expected = "/".join(range_date.strftime(fmt) for _key, fmt in self.LEGACY_KEYS)
+        seq = self._create(prefix=pattern)
+        prefix, suffix = seq._get_prefix_suffix(date_range=range_date)
+        self.assertEqual(prefix, expected)
+        self.assertEqual(suffix, "")
+
+    def test_current_date_keys(self):
+        """``current_`` legacy keys format against the current datetime.
+
+        Only the date-granularity keys are asserted; the time-of-day ones
+        (h24, h12, min, sec) would race against the clock and are already
+        covered by the effective/range date tests above.
+        """
+        keys = [
+            (key, fmt)
+            for key, fmt in self.LEGACY_KEYS
+            if key not in ("h24", "h12", "min", "sec")
+        ]
+        pattern = "/".join(f"%(current_{key})s" for key, _fmt in keys)
+        seq = self._create(prefix=pattern)
+        now = datetime.now()
+        prefix, _suffix = seq._get_prefix_suffix()
+        expected = "/".join(now.strftime(fmt) for _key, fmt in keys)
+        self.assertEqual(prefix, expected)
+
+    def test_empty_prefix_suffix_short_circuit(self):
+        """No prefix and no suffix interpolates to two empty strings."""
+        seq = self._create()
+        self.assertEqual(seq._get_prefix_suffix(), ("", ""))
+        self.assertEqual(seq.next_by_id(), "1")
+
+    def test_placeholder_free_prefix_suffix(self):
+        """Placeholder-free patterns pass through unchanged."""
+        seq = self._create(prefix="INV/", suffix="/X")
+        self.assertEqual(seq._get_prefix_suffix(), ("INV/", "/X"))
+
+    def test_repeated_placeholder(self):
+        """A placeholder used twice formats identically both times."""
+        effective = datetime(2024, 3, 7, 14, 5, 9)
+        seq = self._create(prefix="%(year)s-%(year)s/")
+        prefix, _suffix = seq._get_prefix_suffix(date=effective)
+        self.assertEqual(prefix, "2024-2024/")
+
+    def test_unknown_prefixed_key_raises_user_error(self):
+        """Unknown ``range_``/``current_`` keys still raise a UserError."""
+        seq = self._create(prefix="%(range_bogus)s")
+        with self.assertRaisesRegex(UserError, "Invalid prefix or suffix"):
+            seq._get_prefix_suffix()
+
+
 class TestIrSequencePredictNextval(common.TransactionCase):
     """Regression coverage for the schema-scoped ``_predict_nextval`` query
     behind ``number_next_actual`` (ISEQ-02).

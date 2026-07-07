@@ -1,6 +1,7 @@
 from datetime import date
 
-from odoo.tests.common import SingleTransactionCase
+from odoo.tests.common import SingleTransactionCase, TransactionCase
+from odoo.tools.misc import mute_logger
 
 
 class TestIrSequenceDateRangeStandard(SingleTransactionCase):
@@ -178,3 +179,94 @@ class TestIrSequenceDateRangeChangeImplementation(SingleTransactionCase):
         ]
         seqs = self.env["ir.sequence"].search(domain)
         seqs.unlink()
+
+
+class TestIrSequenceDateRangeSwitchImplementation(TransactionCase):
+    """Switching ``standard`` -> ``no_gap`` must seed each date-range
+    sub-sequence's ``number_next`` from its live PostgreSQL sequence value
+    before dropping it, so the sub-sequence numbering continues without
+    duplicates.
+    """
+
+    def test_switch_to_no_gap_continues_subsequence_numbering(self):
+        year = date.today().year - 1
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-date-range-switch",
+                "use_date_range": True,
+                "implementation": "standard",
+            }
+        )
+        for i in range(1, 4):
+            self.assertEqual(seq.next_by_id(sequence_date=date(year, 6, 15)), str(i))
+        seq.write({"implementation": "no_gap"})
+        # The sub-sequence was seeded from its live PG sequence value.
+        self.assertEqual(seq.date_range_ids.number_next, 4)
+        self.assertEqual(seq.next_by_id(sequence_date=date(year, 6, 15)), "4")
+
+
+class TestIrSequenceDateRangeClamp(TransactionCase):
+    """A new date range must clamp against the *nearest* following range, not
+    the furthest-future one — otherwise it overlaps the intermediate ranges.
+    """
+
+    def test_new_range_clamps_to_nearest_following_range(self):
+        year = date.today().year - 1
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-date-range-clamp",
+                "use_date_range": True,
+            }
+        )
+        # two pre-existing ranges later in the same year
+        self.env["ir.sequence.date_range"].create(
+            [
+                {
+                    "sequence_id": seq.id,
+                    "date_from": date(year, 5, 1),
+                    "date_to": date(year, 5, 31),
+                },
+                {
+                    "sequence_id": seq.id,
+                    "date_from": date(year, 9, 1),
+                    "date_to": date(year, 9, 30),
+                },
+            ]
+        )
+        # drawing before both creates a new range covering the draw date
+        seq.next_by_id(sequence_date=date(year, 2, 15))
+        new_range = self.env["ir.sequence.date_range"].search(
+            [
+                ("sequence_id", "=", seq.id),
+                ("date_from", "<=", date(year, 2, 15)),
+                ("date_to", ">=", date(year, 2, 15)),
+            ]
+        )
+        self.assertEqual(len(new_range), 1)
+        self.assertEqual(new_range.date_from, date(year, 1, 1))
+        # clamped to the nearest following range (May), not against the
+        # September one (which would leave it overlapping May)
+        self.assertEqual(new_range.date_to, date(year, 4, 30))
+
+
+class TestIrSequenceDateRangeConcurrentCreate(TransactionCase):
+    """A UniqueViolation on the range insert (two transactions both
+    search-missed and created the same range) must be recovered by returning
+    the existing range instead of surfacing the raw constraint error.
+    """
+
+    @mute_logger("odoo.db")
+    def test_conflicting_range_creation_recovers(self):
+        year = date.today().year - 1
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-date-range-conflict",
+                "use_date_range": True,
+            }
+        )
+        dt = date(year, 6, 15)
+        first = seq._create_date_range_seq(dt)
+        # simulate the concurrent search-miss: a second create attempt
+        # computes the same range and hits the unique constraint
+        second = seq._create_date_range_seq(dt)
+        self.assertEqual(first.id, second.id)
