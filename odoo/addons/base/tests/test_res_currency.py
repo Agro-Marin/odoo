@@ -258,6 +258,107 @@ class TestResCurrency(TransactionCase):
             100,
         )
 
+    def test_rate_date_and_company_change_invalidate_currency_cache(self):
+        """RCUR-C1: changing a rate's date or company within a transaction must
+        refresh the currency's cached rate/rate_string, not only inverse_rate.
+        """
+        currency = self.env["res.currency"].create(
+            {
+                "name": "CCC",
+                "symbol": "C",
+                "rate_ids": [
+                    Command.create({"name": "2020-01-01", "rate": 2}),
+                    Command.create({"name": "2020-03-01", "rate": 4}),
+                ],
+            }
+        )
+        currency = currency.with_context(date="2020-06-06")
+        newest = currency.rate_ids[0]  # rate_ids is ordered "name desc, id"
+        self.assertEqual(str(newest.name), "2020-03-01")
+        rate_before = currency.rate
+        # Move the newest rate past the lookup date: only the 2020-01-01 rate
+        # (half the value) applies; the cached rate must follow.
+        newest.name = "2020-12-31"
+        self.assertAlmostEqual(currency.rate, rate_before / 2)
+        self.assertIn(f"{rate_before / 2:.6f}", currency.rate_string)
+        # Move it back: the cached value must follow again.
+        newest.name = "2020-03-01"
+        self.assertAlmostEqual(currency.rate, rate_before)
+        # Rescope it to another company: it no longer applies to env.company.
+        other_company = self.env["res.company"].create({"name": "other"})
+        newest.company_id = other_company
+        self.assertAlmostEqual(currency.rate, rate_before / 2)
+
+    def test_company_rate_history_fallbacks(self):
+        """RCUR-P1: company_rate uses the record's own rate, else the latest
+        rate strictly before its date, else the identity rate 1.0.
+        """
+        currency = self.env["res.currency"].create({"name": "DDD", "symbol": "D"})
+        # company_rate is expressed against the last rate of the *company's*
+        # currency: use a company whose currency is the tested one so that
+        # divisor is the currency's own latest rate (4).
+        company = self.env["res.company"].create(
+            {"name": "company DDD", "currency_id": currency.id}
+        )
+        rate_old, rate_new = self.env["res.currency.rate"].create(
+            [
+                {
+                    "name": "2020-01-01",
+                    "rate": 2,
+                    "currency_id": currency.id,
+                    "company_id": company.id,
+                },
+                {
+                    "name": "2020-02-01",
+                    "rate": 4,
+                    "currency_id": currency.id,
+                    "company_id": company.id,
+                },
+            ]
+        )
+        # The last rate of the company's currency is 4 -> company_rate = rate / 4.
+        self.assertAlmostEqual(rate_new.company_rate, 1.0)
+        self.assertAlmostEqual(rate_old.company_rate, 0.5)
+        # A valueless rate falls back to the latest rate before its date (2).
+        empty_between = self.env["res.currency.rate"].create(
+            {
+                "name": "2020-01-15",
+                "currency_id": currency.id,
+                "company_id": company.id,
+            }
+        )
+        self.assertAlmostEqual(empty_between.company_rate, 2 / 4)
+        # A valueless rate with no earlier rate falls back to 1.0.
+        empty_first = self.env["res.currency.rate"].create(
+            {
+                "name": "2019-01-01",
+                "currency_id": currency.id,
+                "company_id": company.id,
+            }
+        )
+        self.assertAlmostEqual(empty_first.company_rate, 1 / 4)
+
+    def test_amount_to_text_unsupported_lang_falls_back_with_warning(self):
+        """RCUR-T2: an iso_code unknown to num2words falls back to English
+        words and logs a warning naming the missing language.
+        """
+        self.env["res.lang"].create(
+            {
+                "name": "Klingon",
+                "code": "tlh_TLH",
+                "iso_code": "tlh",
+                "url_code": "tlh",
+                "active": True,
+            }
+        )
+        currency = self.env.ref("base.USD")
+        with self.assertLogs(
+            "odoo.addons.base.models.res_currency", level="WARNING"
+        ) as capture:
+            text = currency.with_context(lang="tlh_TLH").amount_to_text(1.0)
+        self.assertIn("One", text)
+        self.assertIn("'tlh'", capture.output[0])
+
     def test_amount_to_text_negative(self):
         """RCUR-T2: amount_to_text on an amount in (-1, 0) keeps the sign."""
         currency = self.env.ref("base.USD")

@@ -97,6 +97,27 @@ class test_res_lang(TransactionCase):
         coerced = weird if weird in grouping_options else "[3,0]"
         self.assertEqual(coerced, "[3,0]")
 
+    def test_copy_lang_codes_are_url_safe_and_unique(self):
+        """RL-B3: copying a language must not push the translated '(copy)'
+        suffix into 'code' (frozen by write()) or 'url_code' (routing-facing
+        and unique); both get an untranslated URL-safe suffix with a counter,
+        while 'name' keeps the translated suffix.
+        """
+        lang = self.env["res.lang"]._activate_lang("en_US")
+        copy1 = lang.copy()
+        self.assertEqual(copy1.name, f"{lang.name} (copy)")
+        self.assertEqual(copy1.code, f"{lang.code}_copy")
+        self.assertEqual(copy1.url_code, f"{lang.url_code}_copy")
+        # A second copy must not collide on the unique code/url_code ('name'
+        # must be overridden: it carries its own unique constraint).
+        copy2 = lang.copy({"name": "English (US) (second copy)"})
+        self.assertEqual(copy2.code, f"{lang.code}_copy2")
+        self.assertEqual(copy2.url_code, f"{lang.url_code}_copy2")
+        # Values passed through 'default' always win over the suffix logic.
+        copy3 = lang.copy({"name": "Xx", "code": "xx_XX", "url_code": "xx"})
+        self.assertEqual(copy3.code, "xx_XX")
+        self.assertEqual(copy3.url_code, "xx")
+
     def test_inactive_users_lang_deactivation(self):
         # activate the language en_GB
         language = self.env["res.lang"]._activate_lang("en_GB")

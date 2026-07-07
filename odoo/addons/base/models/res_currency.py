@@ -1,5 +1,6 @@
 import logging
 import math
+from bisect import bisect_left
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Self
 
@@ -123,7 +124,7 @@ class ResCurrency(models.Model):
         active_currency_count = self.search_count([("active", "=", True)])
         if active_currency_count > 1:
             self._activate_group_multi_currency()
-        elif active_currency_count <= 1:
+        else:
             self._deactivate_group_multi_currency()
 
     @api.model
@@ -232,7 +233,14 @@ class ResCurrency(models.Model):
         for currency in self:
             currency.is_current_company_currency = company_currency == currency
 
-    @api.depends("rate_ids.rate")
+    # RCUR-C1: the rate selection depends on the rate's date ('name') and
+    # company scoping, not only on its value — declaring all three keeps the
+    # cached rate/inverse_rate/rate_string of the currency *owning* the rate
+    # consistent. This does not replace the invalidate_model() calls in
+    # ResCurrencyRate.create/write: another currency's cached values can
+    # depend on this one's rates through the 'to_currency' context, a
+    # cross-record dependency @api.depends cannot express.
+    @api.depends("rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:
         """Compute ``rate``/``inverse_rate``/``rate_string`` from context.
@@ -285,6 +293,11 @@ class ResCurrency(models.Model):
             try:
                 return num2words(number, lang=lang).title()
             except NotImplementedError:
+                _logger.warning(
+                    "The library 'num2words' does not support language %r; "
+                    "falling back to English words.",
+                    lang,
+                )
                 return num2words(number, lang="en").title()
 
         integral, _sep, fractional = f"{amount:.{self.decimal_places}f}".partition(".")
@@ -294,7 +307,7 @@ class ResCurrency(models.Model):
         # For amounts in (-1, 0), int("-0") == 0 silently loses the sign.
         # num2words also drops "minus" for such values, so prepend manually.
         if amount < 0 and integer_value == 0:
-            integral_text = f"Minus {integral_text}"
+            integral_text = self.env._("Minus %s", integral_text)
         if self.is_zero(amount - integer_value):
             return self.env._(
                 "%(integral_amount)s %(currency_unit)s",
@@ -471,18 +484,26 @@ class ResCurrency(models.Model):
         """
 
     @api.model
+    def _get_context_company_currency_name(self) -> str:
+        """Return the currency name of the context company: ``company_id`` from
+        the context when set, else the environment company.
+
+        Shared by the ``_get_view``/``_get_view_cache_key`` overrides of both
+        ``res.currency`` and ``res.currency.rate``.
+        """
+        return (
+            self.env["res.company"].browse(self.env.context.get("company_id"))
+            or self.env.company
+        ).currency_id.name
+
+    @api.model
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
         """The override of _get_view changing the rate field labels according to the company currency
         makes the view cache dependent on the company currency"""
         key = super()._get_view_cache_key(view_id, view_type, **options)
-        return key + (
-            (
-                self.env["res.company"].browse(self.env.context.get("company_id"))
-                or self.env.company
-            ).currency_id.name,
-        )
+        return key + (self._get_context_company_currency_name(),)
 
     @api.model
     def _get_view(
@@ -490,10 +511,7 @@ class ResCurrency(models.Model):
     ) -> tuple[etree._Element, Any]:
         arch, view = super()._get_view(view_id, view_type, **options)
         if view_type in ("list", "form"):
-            currency_name = (
-                self.env["res.company"].browse(self.env.context.get("company_id"))
-                or self.env.company
-            ).currency_id.name
+            currency_name = self._get_context_company_currency_name()
             fields_maps = [
                 [
                     ["company_rate", "rate"],
@@ -582,11 +600,16 @@ class ResCurrencyRate(models.Model):
         return vals
 
     def write(self, vals: dict[str, Any]) -> bool:
+        # 'inverse_rate' of *other* currencies may have been computed against
+        # self's rate ('to_currency' from the context in _compute_current_rate),
+        # a cross-record dependency @api.depends cannot express: invalidate it
+        # model-wide (the owning currency is covered by the depends).
         self.env["res.currency"].invalidate_model(["inverse_rate"])
         return super().write(self._sanitize_vals(vals))
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        # Model-wide invalidation for the same reason as write() above.
         self.env["res.currency"].invalidate_model(["inverse_rate"])
         return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
@@ -596,38 +619,31 @@ class ResCurrencyRate(models.Model):
             raise UserError(
                 self.env._("The name for the current rate is empty.\nPlease set it.")
             )
-        return (
-            self.currency_id.rate_ids.sudo()
-            .filtered(
-                lambda x: (
-                    x.rate
-                    and x.company_id == (self.company_id or self.env.company.root_id)
-                    and x.name < (self.name or fields.Date.today())
-                )
-            )
-            .sorted("name")[-1:]
-        )
+        company = self.company_id or self.env.company.root_id
+        # RCUR-P1: rate_ids is ordered "name desc, id" and dates are unique per
+        # (currency, company), so the first match below is the latest rate
+        # strictly before 'name' — no full filter + re-sort needed.
+        for rate in self.currency_id.rate_ids.sudo():
+            if rate.rate and rate.company_id == company and rate.name < self.name:
+                return rate
+        return self.browse()
 
     def _get_last_rates_for_companies(self, companies: Any) -> dict:
-        return {
-            company: company.sudo()
-            .currency_id.rate_ids.filtered(
-                lambda x, company=company: (
-                    (x.rate and x.company_id == company) or not x.company_id
-                )
+        result = {}
+        for company in companies:
+            # max by (name, id) matches the previous stable
+            # .sorted("name")[-1:] tie-breaking without a per-company sort.
+            last = max(
+                (
+                    rate
+                    for rate in company.sudo().currency_id.rate_ids
+                    if (rate.rate and rate.company_id == company) or not rate.company_id
+                ),
+                key=lambda rate: (rate.name, rate.id),
+                default=None,
             )
-            .sorted("name")[-1:]
-            .rate
-            or 1
-            for company in companies
-        }
-
-    @api.depends("currency_id", "company_id", "name")
-    def _compute_rate(self) -> None:
-        for currency_rate in self:
-            currency_rate.rate = (
-                currency_rate.rate or currency_rate._get_latest_rate().rate or 1.0
-            )
+            result[company] = (last.rate if last else 0) or 1
+        return result
 
     @api.depends(
         "rate", "name", "currency_id", "company_id", "currency_id.rate_ids.rate"
@@ -638,11 +654,38 @@ class ResCurrencyRate(models.Model):
         last_rate = self.env["res.currency.rate"]._get_last_rates_for_companies(
             self.company_id | env_company_root
         )
+        # RCUR-P1: precompute, per (currency, company), the [(date, rate)] list
+        # sorted by date once, then bisect per record — instead of filtering
+        # and re-sorting the currency's whole rate history for every record.
+        rates_per_key = {}
         for currency_rate in self:
             company = currency_rate.company_id or env_company_root
-            currency_rate.company_rate = (
-                currency_rate.rate or currency_rate._get_latest_rate().rate or 1.0
-            ) / last_rate[company]
+            rate = currency_rate.rate
+            if not rate:
+                # Same guard as _get_latest_rate: a dated lookup needs a date.
+                if not currency_rate.name:
+                    raise UserError(
+                        self.env._(
+                            "The name for the current rate is empty.\nPlease set it."
+                        )
+                    )
+                key = (currency_rate.currency_id, company)
+                candidates = rates_per_key.get(key)
+                if candidates is None:
+                    candidates = rates_per_key[key] = [
+                        (rate_sudo.name, rate_sudo.rate)
+                        for rate_sudo in currency_rate.currency_id.rate_ids.sudo()
+                        if rate_sudo.rate and rate_sudo.company_id == company
+                    ]
+                    # rate_ids is ordered "name desc, id": reverse to get the
+                    # date-ascending order bisect needs (dates are unique per
+                    # currency/company).
+                    candidates.reverse()
+                # Latest rate strictly before this record's date, like
+                # _get_latest_rate; 1.0 when there is none.
+                index = bisect_left(candidates, (currency_rate.name,)) - 1
+                rate = candidates[index][1] if index >= 0 else 1.0
+            currency_rate.company_rate = rate / last_rate[company]
 
     @api.onchange("company_rate")
     def _inverse_company_rate(self) -> None:
@@ -710,12 +753,7 @@ class ResCurrencyRate(models.Model):
         """The override of _get_view changing the rate field labels according to the company currency
         makes the view cache dependent on the company currency"""
         key = super()._get_view_cache_key(view_id, view_type, **options)
-        return key + (
-            (
-                self.env["res.company"].browse(self.env.context.get("company_id"))
-                or self.env.company
-            ).currency_id.name,
-        )
+        return key + (self.env["res.currency"]._get_context_company_currency_name(),)
 
     @api.model
     def _get_view(
@@ -724,10 +762,9 @@ class ResCurrencyRate(models.Model):
         arch, view = super()._get_view(view_id, view_type, **options)
         if view_type == "list":
             names = {
-                "company_currency_name": (
-                    self.env["res.company"].browse(self.env.context.get("company_id"))
-                    or self.env.company
-                ).currency_id.name,
+                "company_currency_name": self.env[
+                    "res.currency"
+                ]._get_context_company_currency_name(),
                 "rate_currency_name": self.env["res.currency"]
                 .browse(self.env.context.get("active_id"))
                 .name
