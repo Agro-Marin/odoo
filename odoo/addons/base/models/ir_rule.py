@@ -15,7 +15,9 @@ class IrRule(models.Model):
     _name = "ir.rule"
     _description = "Record Rule"
     _order = "model_id DESC,id"
-    _MODES = ("read", "write", "create", "unlink")
+    # Single source of truth for the four CRUD access modes: name -> SQL
+    # column. Mode validation derives from these keys (mirrors
+    # ir.model.access._PERM_COLUMNS).
     _PERM_COLUMNS = {
         "read": SQL("r.perm_read"),
         "write": SQL("r.perm_write"),
@@ -154,8 +156,10 @@ class IrRule(models.Model):
         """Returns all the rules matching the model for the mode for the
         current user.
         """
-        if mode not in self._MODES:
-            raise ValueError(f"Invalid mode: {mode!r}")
+        if mode not in self._PERM_COLUMNS:
+            raise ValueError(
+                f"Invalid mode {mode!r}: expected one of {tuple(self._PERM_COLUMNS)}."
+            )
 
         if self.env.su:
             return self.browse(())

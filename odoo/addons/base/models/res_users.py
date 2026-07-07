@@ -188,8 +188,40 @@ class ResUsers(models.Model):
         return readable, writeable
 
     @api.model
-    @tools.ormcache("self.env.uid")
     def context_get(self) -> frozendict:
+        """Return the user's context (lang, tz, uid).
+
+        Only the DB-derived part is memoised (per uid, registry-wide); the
+        request's ``Accept-Language`` is overlaid *uncached* here because it
+        is request state: memoising it under the uid-wide key would pin the
+        locale of whichever request happened to fill the cache for every
+        session and worker of that uid (e.g. all visitors sharing the public
+        user would get the first visitor's language).
+        """
+        context, user_lang_valid = self._context_get_cached()
+        # lang precedence is: user preference > request > company/fallbacks,
+        # so the request lang only ever applies when the user's own lang
+        # missed (unset or not installed).
+        if context and not user_lang_valid and request:
+            best_lang = request.best_lang
+            if best_lang and best_lang != context["lang"]:
+                langset = {code for code, _ in self.env["res.lang"].get_installed()}
+                if best_lang in langset:
+                    return frozendict({**context, "lang": best_lang})
+        return context
+
+    @api.model
+    @tools.ormcache("self.env.uid")
+    def _context_get_cached(self) -> tuple[frozendict, bool]:
+        """DB-derived part of :meth:`context_get`, memoised per uid.
+
+        :return: ``(context, user_lang_valid)`` where ``user_lang_valid``
+            says whether the context lang is the user's own (installed)
+            preference; when ``False`` the lang is a fallback that a
+            request language may override in :meth:`context_get`. This
+            method must never consult ``request``: its result is cached
+            under a request-independent key.
+        """
         # use read() to not read other fields: this must work while modifying
         # the schema of models res.users or res.partner
         # use prefetch_fields=False to prevent fetching fields that may not have DB columns yet
@@ -199,21 +231,21 @@ class ResUsers(models.Model):
             )[0]
         except IndexError:
             # user not found, no context information
-            return frozendict()
+            return frozendict(), False
         context.pop("id")
 
         # ensure lang is set and available, preferring, in order:
-        # context > request > company > english > any installed lang.
+        # user preference > company > english > any installed lang.
         # Candidates are produced lazily and short-circuited by next(): the
         # company/partner lookup (which incurs SQL) is only reached when the
-        # cheaper context and request candidates miss -- flattening this into an
+        # cheaper user-preference candidate misses -- flattening this into an
         # eager list would regress the hot path by that lookup on every call.
         langs = [code for code, _ in self.env["res.lang"].get_installed()]
         langset = set(langs)
+        user_lang_valid = context.get("lang") in langset
 
         def _lang_candidates():
             yield context.get("lang")
-            yield request.best_lang if request else None
             yield self.env.user.with_context(
                 prefetch_fields=False
             ).company_id.partner_id.lang
@@ -228,7 +260,7 @@ class ResUsers(models.Model):
         # ensure uid is set
         context["uid"] = self.env.uid
 
-        return frozendict(context)
+        return frozendict(context), user_lang_valid
 
     @tools.ormcache("self.id")
     def _get_company_ids(self) -> tuple[int, ...]:
@@ -624,7 +656,36 @@ class ResUsers(models.Model):
     def _set_password(self) -> None:
         ctx = self._crypt_context()
         for user in self:
-            self._set_encrypted_password(user.id, ctx.hash(user.password))
+            if user.password:
+                self._set_encrypted_password(user.id, ctx.hash(user.password))
+            else:
+                # The field help promises "keep empty if you don't want the
+                # user to be able to connect": store SQL NULL instead of a
+                # pbkdf2 hash of "" so no stored hash can ever verify, rather
+                # than relying on every auth path's credential-truthiness
+                # guard to skip the (verifiable) empty-string hash.
+                user._set_empty_password()
+
+    def _set_empty_password(self) -> None:
+        """Remove the stored password hash so the user cannot log in.
+
+        Invalidation contract (see _check_uid_passwd_cached): clearing the
+        password changes which plaintexts are valid, but this mutation is only
+        reachable through write()/field assignment carrying ``password`` in
+        vals, which already triggers registry.clear_cache() via
+        _get_invalidation_fields. Any *raw-SQL* caller bypassing write() MUST
+        clear the registry cache itself.
+
+        Note: auth_ldap historically defines an identical override of this
+        method (same signature and semantics), which harmlessly shadows this
+        one when installed.
+        """
+        self.ensure_one()
+        self.flush_recordset(["password"])
+        self.env.cr.execute(
+            "UPDATE res_users SET password=NULL WHERE id=%s", (self.id,)
+        )
+        self.invalidate_recordset(["password"])
 
     def _set_encrypted_password(self, uid: int, pw: str) -> None:
         # Invalidation contract: this raw-SQL update changes only the stored

@@ -1,6 +1,6 @@
 import logging
 import math
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Self
 
@@ -20,6 +20,19 @@ _logger = logging.getLogger(__name__)
 # ``digits`` tuple used by Float fields).  69 is the practical upper bound for
 # IEEE 754 double precision — effectively "no upper limit on integer digits".
 _CURRENCY_TOTAL_DIGITS = 69
+
+# RCUR-M1: ``env.cr.cache`` key of the transaction-scoped currency-rate
+# history memo::
+#
+#     {(currency_id, company_root_id):
+#         ((specific_dates, specific_values), (global_dates, global_values))}
+#
+# Populated by ``ResCurrency._get_rates_from_memo``; dropped whole by
+# ``ResCurrencyRate.create/write/unlink`` (same-transaction rate changes).
+# ``cr.cache`` itself is transaction-local — cleared on rollback and
+# transaction reset — so registry-wide or cross-transaction staleness is
+# impossible by construction.
+RATE_HISTORY_CACHE_KEY = "res_currency_rate_history"
 
 
 class ResCurrency(models.Model):
@@ -175,6 +188,25 @@ class ResCurrency(models.Model):
         """
         if not self.ids:
             return {}
+        # RCUR-M1: transaction-scoped memo — the first lookup for a
+        # (currency, company root) pair loads the currency's full rate
+        # history into env.cr.cache; any later date is answered with a
+        # bisect, so batch flows converting line-by-line with per-line dates
+        # stop issuing one SQL query per distinct (date, company, currency).
+        rates = self._get_rates_from_memo(company, date)
+        if rates is not None:
+            return rates
+        return self._get_rates_sql(company, date)
+
+    def _get_rates_sql(self, company: Self, date: Any) -> dict[int, float]:
+        """SQL cold path of :meth:`_get_rates` (memoization bypassed).
+
+        Same contract as :meth:`_get_rates`; kept as the reference
+        implementation whose semantics :meth:`_get_rates_from_memo` must
+        reproduce exactly (a test asserts their parity).
+        """
+        if not self.ids:
+            return {}
         currency_query = self._as_query(ordered=False)
         currency_id = self.env["res.currency"]._field_to_sql(currency_query.table, "id")
         Rate = self.env["res.currency.rate"]
@@ -226,6 +258,90 @@ class ResCurrency(models.Model):
                 )
             )
         )
+
+    def _get_rates_from_memo(self, company: Self, date: Any) -> dict[int, float] | None:
+        """Memoized equivalent of :meth:`_get_rates_sql` (RCUR-M1).
+
+        The first call for a (currency, company root) pair loads the
+        currency's complete rate history — both the company-root scope and
+        the global ``company_id IS NULL`` scope — into ``env.cr.cache`` (one
+        query per batch of unseen currencies); any date is then resolved in
+        memory by :meth:`_resolve_rate_from_history`.  The memo lives on the
+        cursor cache, so it is transaction-local (cleared on rollback and
+        transaction reset), and it is dropped by
+        ``ResCurrencyRate.create/write/unlink`` so same-transaction rate
+        changes are never served stale.
+
+        :return: same mapping as :meth:`_get_rates`, or ``None`` when
+                 ``date`` cannot be normalized to a date (callers then use
+                 the SQL cold path, which compares the raw value in SQL).
+        """
+        try:
+            date = fields.Date.to_date(date)
+        except ValueError, TypeError:
+            return None
+        if not date:
+            return None
+        root_id = company.root_id.id
+        memo = self.env.cr.cache.setdefault(RATE_HISTORY_CACHE_KEY, {})
+        missing = {
+            currency_id
+            for currency_id in self.ids
+            if (currency_id, root_id) not in memo
+        }
+        if missing:
+            histories = {currency_id: (([], []), ([], [])) for currency_id in missing}
+            rates = self.env["res.currency.rate"].search_fetch(
+                [
+                    ("currency_id", "in", tuple(missing)),
+                    ("company_id", "in", (False, root_id)),
+                ],
+                ["currency_id", "company_id", "name", "rate"],
+                order="name, id",
+            )
+            for rate in rates:
+                specific, global_ = histories[rate.currency_id.id]
+                dates, values = specific if rate.company_id else global_
+                dates.append(rate.name)
+                # CHECK (rate > 0) forbids 0.0: a falsy value means SQL NULL,
+                # which the COALESCE chain of the SQL path skips over — keep
+                # None so _resolve_rate_from_history can do the same.
+                values.append(rate.rate or None)
+            for currency_id, history in histories.items():
+                memo[currency_id, root_id] = history
+        return {
+            currency_id: self._resolve_rate_from_history(
+                memo[currency_id, root_id], date
+            )
+            for currency_id in self.ids
+        }
+
+    @staticmethod
+    def _resolve_rate_from_history(history: tuple, date: Any) -> float:
+        """Replicate ``COALESCE((primary), (fallback), 1.0)`` of
+        :meth:`_get_rates_sql` on an in-memory rate history.
+
+        Primary: latest rate dated on or before ``date``; the company-root
+        scope takes precedence over the global one whenever it has any such
+        rate (the SQL orders by ``company_id ASC NULLS LAST, name DESC``).
+        Fallback (RCUR-L1): when no rate is dated on or before ``date`` — or
+        the selected row has a NULL value — use the *earliest* known rate,
+        with the same scope precedence; ``1.0`` when there is none at all.
+        """
+        (specific_dates, specific_values), (global_dates, global_values) = history
+        value = None
+        if index := bisect_right(specific_dates, date):
+            value = specific_values[index - 1]
+        elif index := bisect_right(global_dates, date):
+            value = global_values[index - 1]
+        if value is None:
+            # RCUR-L1 asymmetric fallback: earliest known rate; may itself be
+            # a NULL-valued row (then the final 1.0 identity applies).
+            if specific_values:
+                value = specific_values[0]
+            elif global_values:
+                value = global_values[0]
+        return 1.0 if value is None else value
 
     @api.depends_context("company")
     def _compute_is_current_company_currency(self) -> None:
@@ -605,13 +721,29 @@ class ResCurrencyRate(models.Model):
         # a cross-record dependency @api.depends cannot express: invalidate it
         # model-wide (the owning currency is covered by the depends).
         self.env["res.currency"].invalidate_model(["inverse_rate"])
-        return super().write(self._sanitize_vals(vals))
+        res = super().write(self._sanitize_vals(vals))
+        # RCUR-M1: drop the transaction-scoped rate-history memo too.
+        self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
+        return res
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         # Model-wide invalidation for the same reason as write() above.
         self.env["res.currency"].invalidate_model(["inverse_rate"])
-        return super().create([self._sanitize_vals(vals) for vals in vals_list])
+        records = super().create([self._sanitize_vals(vals) for vals in vals_list])
+        # RCUR-M1: drop the transaction-scoped rate-history memo too.
+        self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
+        return records
+
+    def unlink(self) -> bool:
+        # Cross-record invalidation for the same reason as write() above:
+        # deleting a rate can change other currencies' cached 'inverse_rate'
+        # computed against it through the 'to_currency' context.
+        self.env["res.currency"].invalidate_model(["inverse_rate"])
+        res = super().unlink()
+        # RCUR-M1: drop the transaction-scoped rate-history memo too.
+        self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
+        return res
 
     def _get_latest_rate(self) -> Self:
         # Make sure 'name' is defined when creating a new rate.

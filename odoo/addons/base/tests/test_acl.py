@@ -569,6 +569,40 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
             "_get_access_groups (stable bucket) must be invalidated.",
         )
 
+    def test_allowed_models_cache_shared_across_same_group_users(self):
+        """``_get_allowed_models`` is keyed on the user's group set (plus the
+        mode), not on the uid: two users with identical groups must share the
+        same cache entry, so per-user churn cannot evict each other's ACL
+        computation. (W2)
+        """
+        self.addCleanup(self.env.registry.clear_cache)
+        group_user = self.env.ref("base.group_user")
+        user_a, user_b = self.env["res.users"].create(
+            [
+                {
+                    "name": f"acl cache twin {letter}",
+                    "login": f"acl_cache_twin_{letter}",
+                    "group_ids": [Command.set(group_user.ids)],
+                }
+                for letter in "ab"
+            ]
+        )
+        # Precondition of the cache key: same groups -> same (stable, hashable)
+        # tuple from _get_group_ids.
+        self.assertEqual(user_a._get_group_ids(), user_b._get_group_ids())
+        Access = self.env["ir.model.access"]
+        allowed_a = Access.with_user(user_a)._get_allowed_models("read")
+        allowed_b = Access.with_user(user_b)._get_allowed_models("read")
+        self.assertIs(
+            allowed_a,
+            allowed_b,
+            "Same-group users must share one _get_allowed_models cache entry.",
+        )
+        # Different mode -> different entry (mode is part of the key).
+        self.assertIsNot(
+            allowed_a, Access.with_user(user_a)._get_allowed_models("write")
+        )
+
     def test_check_unknown_model_warns(self):
         """``check`` on an unknown model denies, logs a WARNING, and does not
         raise when ``raise_exception=False``. (IMA-C2)

@@ -1,4 +1,5 @@
 import datetime
+import gc
 import itertools
 import logging
 import sys
@@ -31,6 +32,16 @@ if typing.TYPE_CHECKING:
     from .module_graph import ModuleNode
 
 _logger = logging.getLogger(__name__)
+
+# Loading the whole module graph runs with automatic garbage collection
+# disabled (see Registry.new / odoo.libs.gc.disabling_gc), so cyclic garbage
+# from imports, registry rebuilds and data loading accumulates until the load
+# finishes.  Instead of a full ``gc.collect()`` per module (100-500ms each on a
+# large heap), :func:`load_module_graph` sweeps only once the young-generation
+# backlog crosses this threshold, and collects generation 1 only (young objects
+# plus one increment of the old space on Python 3.14's incremental collector),
+# which keeps both the per-sweep cost and the memory high-water mark bounded.
+_GC_YOUNG_BACKLOG_LIMIT = 100_000
 
 
 def load_data(
@@ -383,6 +394,12 @@ def load_module_graph(
                 test_results.errors_count,
                 test_results.testsRun,
             )
+
+        # free accumulated cyclic garbage once the backlog is large enough;
+        # a no-op sized check for the vast majority of modules (see
+        # _GC_YOUNG_BACKLOG_LIMIT above)
+        if gc.get_count()[0] > _GC_YOUNG_BACKLOG_LIMIT:
+            gc.collect(generation=1)
 
     _logger.runbot(
         "%s modules loaded in %.2fs, %s queries (+%s extra)",

@@ -4,7 +4,7 @@ import datetime
 import logging
 import re
 import typing
-from collections import defaultdict, deque
+from collections import defaultdict
 from typing import Any, Self
 from urllib.parse import urlsplit, urlunsplit
 
@@ -131,6 +131,26 @@ def _tz_get(self) -> list[tuple[str, str]]:
 
 # Precompiled regex for collapsing whitespace before newlines in display names.
 _RE_WHITESPACE_BEFORE_NEWLINE = re.compile(r"\s+\n")
+
+
+def _complete_name_trgm_index_definition(registry) -> str:
+    """Definition of the GIN trigram index on ``complete_name``.
+
+    Returns an empty definition (no index) when ``pg_trgm`` is unavailable.
+    The ORM wraps both operands of ``ilike`` conditions in ``unaccent()``
+    (see ``orm/fields/_field_sql.py``), so the index expression must be
+    wrapped the same way for the planner to match it — but only when the
+    ``unaccent`` function is immutable and therefore indexable (same rule as
+    ``check_indexes`` in ``orm/runtime/_registry_schema.py``).
+    """
+    if not registry.has_trigram:
+        return ""
+    from odoo.modules.db import FunctionStatus
+
+    expression = '"complete_name"'
+    if registry.has_unaccent == FunctionStatus.INDEXABLE:
+        expression = registry.unaccent(expression)
+    return f"USING gin ({expression} gin_trgm_ops)"
 
 
 class ResPartner(models.Model):
@@ -415,6 +435,12 @@ class ResPartner(models.Model):
         "CHECK( (type='contact' AND name IS NOT NULL) or (type!='contact') )",
         "Contacts require a name",
     )
+    # GIN trigram index backing the substring (ilike) autocomplete path of
+    # _rec_names_search on the hottest search of the system. It complements —
+    # not replaces — the field-level btree (index=True) that serves the model
+    # _order; setting index="trigram" on the field instead would swap the
+    # btree for the GIN index (one index per field in check_indexes).
+    _complete_name_trgm_index = models.Index(_complete_name_trgm_index_definition)
 
     def _compute_application_statistics(self) -> None:
         result = self._compute_application_statistics_hook()
@@ -1014,11 +1040,24 @@ class ResPartner(models.Model):
             sync_vals = commercial_partner._get_commercial_values()
             if sync_vals:
                 self.write(sync_vals)
-                self._commercial_sync_to_descendants()
+                # Propagate to descendants only the fields that were actually
+                # synced onto self (the ones SET on the commercial entity),
+                # instead of every commercial field: an unset commercial field
+                # on the commercial entity must not wipe the descendants'
+                # values, exactly as it does not wipe self's value above.
+                self._commercial_sync_to_descendants(list(sync_vals))
             self._company_dependent_commercial_sync()
 
     def _company_dependent_commercial_sync(self) -> None:
-        """Propagate sync of company-dependent commercial fields to other companies."""
+        """Propagate sync of company-dependent commercial fields to other companies.
+
+        For each other company, the commercial partner's per-company values
+        are first compared with the partners' current values, and only the
+        fields that actually differ are written; companies whose values all
+        already match are skipped entirely. This idempotent-write elimination
+        avoids paying one full ``write()`` cycle per company of the database
+        on every re-parenting when there is nothing to update.
+        """
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
             return
 
@@ -1026,24 +1065,48 @@ class ResPartner(models.Model):
         other_companies = all_companies - self.env.company
         for company_sudo in other_companies:
             self_in_company = self.with_company(company_sudo)
-            self_in_company.write(
-                self_in_company.commercial_partner_id._convert_fields_to_values(
-                    fields_to_sync
+            commercial_in_company = self_in_company.commercial_partner_id
+            stale_fields = [
+                fname
+                for fname in fields_to_sync
+                if any(
+                    partner[fname] != commercial_in_company[fname]
+                    for partner in self_in_company
                 )
-            )
+            ]
+            if stale_fields:
+                self_in_company.write(
+                    commercial_in_company._convert_fields_to_values(stale_fields)
+                )
 
     def _commercial_sync_to_descendants(
         self, fields_to_sync: list[str] | None = None
     ) -> None:
-        """Handle sync of commercial fields to descendants"""
+        """Handle sync of commercial fields to descendants.
+
+        The whole non-company subtree below ``self`` is collected breadth-first
+        (child discovery batches one query per depth level through the
+        ``child_ids`` prefetch) and receives the commercial values in a single
+        ``write()``: ``sync_vals`` always comes from the same commercial
+        partner, so it is loop-invariant across the subtree. Nodes flagged
+        ``is_company`` are their own commercial entities: they are not synced
+        and their subtrees are not entered.
+        """
         commercial_partner = self.commercial_partner_id
         if fields_to_sync is None:
             fields_to_sync = self._commercial_fields()
-        sync_vals = commercial_partner._convert_fields_to_values(fields_to_sync)
-        sync_children = self.child_ids.filtered(lambda c: not c.is_company)
-        for child in sync_children:
-            child._commercial_sync_to_descendants(fields_to_sync)
-        sync_children.write(sync_vals)
+        descendants = self.browse()
+        frontier = self.child_ids.filtered(lambda c: not c.is_company)
+        while frontier:
+            descendants |= frontier
+            # exclude already-seen nodes (and self) to stay safe under cycles
+            frontier = (frontier.child_ids - self - descendants).filtered(
+                lambda c: not c.is_company
+            )
+        if descendants:
+            descendants.write(
+                commercial_partner._convert_fields_to_values(fields_to_sync)
+            )
 
     def _fields_sync(self, values: dict[str, Any]) -> None:
         """Sync commercial fields and address fields from company and to children.
@@ -1234,18 +1297,22 @@ class ResPartner(models.Model):
         # company)
         if "company_id" in vals:
             company_id = vals["company_id"]
-            for partner in self:
-                if company_id and partner.user_ids:
-                    company = self.env["res.company"].browse(company_id)
-                    companies = {user.company_id for user in partner.user_ids}
-                    if len(companies) > 1 or company not in companies:
-                        raise UserError(
-                            self.env._(
-                                "The selected company is not compatible with the companies of the related user(s)"
+            if company_id:
+                company = self.env["res.company"].browse(company_id)
+                for partner in self:
+                    if partner.user_ids:
+                        companies = {user.company_id for user in partner.user_ids}
+                        if len(companies) > 1 or company not in companies:
+                            raise UserError(
+                                self.env._(
+                                    "The selected company is not compatible with the companies of the related user(s)"
+                                )
                             )
-                        )
-                if partner.child_ids:
-                    partner.child_ids.write({"company_id": company_id})
+            # Validate every partner first, then cascade to ALL children in one
+            # write (each level recurses through this same code path), instead
+            # of one write per parent.
+            if children := self.child_ids:
+                children.write({"company_id": company_id})
         result = True
         # Sudo required for is_company writes by non-system partner managers:
         # changing is_company recomputes commercial_partner_id across the whole
@@ -1548,38 +1615,89 @@ class ResPartner(models.Model):
         through descendants within company boundaries (stop at entities flagged ``is_company``)
         then continuing the search at the ancestors that are within the same company boundaries.
         Defaults to the ``'contact'`` address when the requested type is not found, or to the
-        provided partner itself if no ``'contact'`` address is found either."""
+        provided partner itself if no ``'contact'`` address is found either.
+
+        Multi-record contract: a SINGLE result dict is shared by all records in
+        ``self``. Partners are scanned in recordset order and the first address
+        found for a type wins — later partners cannot override it — and the
+        fallback default is resolved against the FIRST partner. Callers wanting
+        per-partner resolution must call this method one partner at a time.
+
+        The reachable forest is prefetched with one ``child_of`` search under
+        the current user's record rules (deliberately NO sudo: addresses the
+        user cannot see must not be resolved), then walked in memory instead of
+        reading ``child_ids`` node by node.
+        """
         adr_pref = set(adr_pref or [])
         if "contact" not in adr_pref:
             adr_pref.add("contact")
         result = {}
-        visited = set()
-        for partner in self:
-            current_partner = partner
-            while current_partner:
-                to_scan = deque([current_partner])
-                # Scan descendants, DFS
-                while to_scan:
-                    record = to_scan.popleft()
-                    visited.add(record)
-                    if record.type in adr_pref and not result.get(record.type):
-                        result[record.type] = record.id
-                    if len(result) == len(adr_pref):
-                        return result
-                    # Prepend unvisited non-company children (DFS order)
-                    children = [
-                        c
-                        for c in record.child_ids
-                        if c not in visited
-                        if not c.is_company
-                    ]
-                    if children:
-                        to_scan.extendleft(reversed(children))
+        if self:
+            # Build, per partner, its chain of scan roots: the partner itself,
+            # then its ancestors up to (and including) the first commercial
+            # entity (`is_company`) or the hierarchy root.
+            chains = []
+            for partner in self:
+                chain = [partner]
+                seen_ids = {partner.id}
+                current = partner
+                while not current.is_company and current.parent_id:
+                    current = current.parent_id
+                    if current.id in seen_ids:  # cycle guard
+                        break
+                    seen_ids.add(current.id)
+                    chain.append(current)
+                chains.append(chain)
 
-                # Continue scanning at ancestor if current_partner is not a commercial entity
-                if current_partner.is_company or not current_partner.parent_id:
-                    break
-                current_partner = current_partner.parent_id
+            # Prefetch the whole reachable forest in ONE search on the topmost
+            # roots (child_of includes the roots themselves). active_test=False
+            # plus the explicit `active` filter below mirrors the child_ids
+            # field exactly (domain [('active','=',True)] with active_test
+            # disabled): archived nodes are never traversed as children, while
+            # the chain roots above are scanned regardless of active, as
+            # before. Record rules apply to the search: descendants that are
+            # hidden from the user (directly, or through an invisible
+            # intermediate node) are not reachable, as with per-node child_ids
+            # reads.
+            children_map = defaultdict(list)
+            root_ids = [
+                chain[-1].id for chain in chains if isinstance(chain[-1].id, int)
+            ]
+            if root_ids:
+                nodes = self.with_context(active_test=False).search(
+                    [("id", "child_of", root_ids)]
+                )
+                nodes.fetch(["parent_id", "type", "is_company", "active"])
+                # search order is the model order, i.e. the same order as
+                # child_ids reads; per-parent sublists preserve it
+                for node in nodes:
+                    if node.parent_id and node.active:
+                        children_map[node.parent_id.id].append(node)
+
+            visited = set()
+            for chain in chains:
+                for current in chain:
+                    # Scan the root's subtree, DFS, over the prefetched
+                    # adjacency (in-cache child_ids for new records).
+                    stack = [current]
+                    while stack:
+                        record = stack.pop()
+                        if record.id in visited:
+                            continue
+                        visited.add(record.id)
+                        if record.type in adr_pref and not result.get(record.type):
+                            result[record.type] = record.id
+                        if len(result) == len(adr_pref):
+                            return result
+                        if isinstance(record.id, int):
+                            children = children_map.get(record.id, ())
+                        else:
+                            children = record.child_ids
+                        # Push non-company children in reverse so the first
+                        # child is scanned first (DFS order).
+                        stack.extend(
+                            reversed([c for c in children if not c.is_company])
+                        )
 
         # default to type 'contact' or the first partner itself
         default = result.get("contact", self[:1].id or False)

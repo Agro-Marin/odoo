@@ -16,8 +16,6 @@ from PIL import Image
 import odoo.tests
 from odoo import modules
 
-from odoo.addons.base.models.ir_actions_report import WeasyPrintEngine
-
 _logger = logging.getLogger(__name__)
 
 
@@ -46,8 +44,8 @@ class TestReports(odoo.tests.TransactionCase):
         body, leaving other bodies' links unstripped and bleeding the first body's
         (e.g. LTR) CSS onto them.
         """
-        # The engine is drivable with just an env — no report record needed.
-        engine = WeasyPrintEngine(self.env)
+        # Built from the model's dependency factory; no report record needed.
+        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
         ltr = (
             '<html><head><link rel="stylesheet" href="/a/ltr.css"/></head>'
             "<body>x</body></html>"
@@ -671,7 +669,8 @@ class TestReportsRendering(TestReportsRenderingCommon):
         incrementally and merges with pypdf.  Both are exercised here on plain
         inline HTML (no assets), independent of the report pipeline.
         """
-        engine = WeasyPrintEngine(self.env)
+        report_model = self.env["ir.actions.report"]
+        engine = report_model._build_weasyprint_engine()
         bodies = [
             f"<html><head></head><body><div>Doc {i}</div></body></html>"
             for i in range(3)
@@ -686,9 +685,12 @@ class TestReportsRendering(TestReportsRenderingCommon):
             self.assertEqual(len(self._get_pdf_pages(pdf)), 1)
 
         # Threshold 1 (< 3 bodies) forces the incremental pypdf merge path.
+        # The threshold is now frozen at construction (dependency-injected),
+        # so rebuild the engine after changing the config parameter.
         self.env["ir.config_parameter"].sudo().set_param(
             "report.weasyprint_native_merge_max", "1"
         )
+        engine = report_model._build_weasyprint_engine()
         merged = engine.render(bodies, page_css, split=False)
         self.assertTrue(merged.startswith(b"%PDF"))
         self.assertEqual(len(self._get_pdf_pages(merged)), 3)

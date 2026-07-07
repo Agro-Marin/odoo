@@ -135,8 +135,17 @@ def formatLang(
     rounded_value = float_round(
         value, precision_digits=digits, rounding_method=rounding_method
     )
-    lang = env["res.lang"].browse(get_lang(env).id)
-    formatted_value = lang.format(f"%.{digits}f", rounded_value, grouping=grouping)
+    # Deferred import: odoo.tools must stay importable before the addons
+    # (locale_utils type-checks the same import).
+    from odoo.addons.base.models.res_lang import format_number
+
+    # get_lang() already returns the full LangData; hand it straight to the
+    # pure formatter instead of round-tripping through browse().format(),
+    # which would re-fetch the same LangData (two extra cache hops per
+    # formatted number on the QWeb monetary hot path).
+    formatted_value = format_number(
+        f"%.{digits}f", rounded_value, get_lang(env), grouping=grouping
+    )
 
     if currency_obj and currency_obj.symbol:
         arguments = (formatted_value, NON_BREAKING_SPACE, currency_obj.symbol)

@@ -233,6 +233,14 @@ class IrAttachment(models.Model):
     # legitimate upload so an in-flight temp is never collected. See _file_write_stream.
     _FILESTORE_TMP_MAX_AGE = 24 * 3600
 
+    # Cap the number of checklist entries a single filestore-GC run processes:
+    # the sweep holds a SHARE MODE lock on ir_attachment for its whole
+    # duration, during which every attachment write blocks — after a bulk
+    # delete the checklist can hold hundreds of thousands of entries. Entries
+    # past the cap stay on disk and are swept by the next (nightly) run.
+    # Override per subclass to tune. See FileStorage.autovacuum.
+    _GC_MAX_ENTRIES = 100_000
+
     def _check_res_field_access(self, res_model: str, res_field: str) -> None:
         """Validate write access to a field-backing attachment's target field.
 
@@ -359,20 +367,23 @@ class IrAttachment(models.Model):
 
         # Access granted: run the (potentially expensive) content pipeline.
         # Resolve the write-side backend once for the whole batch: it feeds
-        # both the store-key fragment (_get_datas_related_values) and the
-        # filestore write below, instead of being rebuilt per attachment.
+        # _get_datas_related_values (which both persists the payload and returns
+        # its store fragment), instead of being rebuilt per attachment.
         backend = self._storage_backend()
-        written_checksums = set()
         # {(checksum, mimetype): datas-related values} — a batch repeating the
-        # same payload (mail templates, imports) otherwise re-runs _index and
-        # the backend fragment once per row over identical bytes, mirroring
-        # the written_checksums dedup below for the metadata derivation. Keyed
-        # on the content checksum, NOT id(raw): the base64-'datas' path decodes
-        # a DISTINCT object per row (no identity hits), and holding payload
-        # references to make id() sound would reintroduce the O(total bytes)
-        # buffering the write-as-we-go loop below exists to avoid. The derived
-        # dicts hold no payload on the file backend; on the db backend the
-        # payload is carried by vals_list anyway.
+        # same payload (mail templates, imports) otherwise re-runs _index, the
+        # SHA-1 pass and the filestore write once per row over identical bytes.
+        # The memo both dedups the metadata derivation AND, since
+        # _get_datas_related_values persists the content, writes each distinct
+        # payload exactly once. Keyed on the content checksum, NOT id(raw): the
+        # base64-'datas' path decodes a DISTINCT object per row (no identity
+        # hits), and holding payload references to make id() sound would retain
+        # O(total bytes); the derived dicts hold no payload on the file backend
+        # (on the db backend the payload is carried by vals_list anyway). The
+        # content is written before super().create() runs, which is safe:
+        # content-addressed, so a rollback leaves the file orphaned but marked
+        # for GC — exactly the state the post-super() write already produced
+        # when _check_serving_attachments rejected the batch.
         derived_values: dict[tuple[str, str], dict[str, Any]] = {}
         for values in vals_list:
             # Shared raw/datas precedence + metadata stripping (IRA-A3).
@@ -396,29 +407,14 @@ class IrAttachment(models.Model):
                 # test_http test_static17/18).
                 memo_key = (self._content_checksum(raw), values["mimetype"])
                 if memo_key not in derived_values:
+                    # Persists the payload (once per distinct memo_key) and
+                    # returns the store fragment; `raw` is rebound each
+                    # iteration so the decoded payload is released instead of
+                    # accumulating into O(total bytes).
                     derived_values[memo_key] = self._get_datas_related_values(
                         raw, values["mimetype"], backend, checksum=memo_key[0]
                     )
                 values.update(derived_values[memo_key])
-                if raw and values["checksum"] not in written_checksums:
-                    # Persist content as we go rather than buffering every
-                    # payload in a {checksum: raw} map until after super().
-                    # create(): the base64-'datas' path decodes a fresh copy of
-                    # each row, so the map grew to ~O(total decoded bytes) on
-                    # the file backend (measured 1.01x batch size; the 'raw'
-                    # path shared the caller's bytes and was already flat).
-                    # Content is content-addressed, so writing before the rows
-                    # exist is safe: a rollback leaves the file orphaned but
-                    # marked for GC — exactly the state the post-super() write
-                    # already produced when _check_serving_attachments rejected
-                    # the batch. `raw` is rebound each iteration, so the decoded
-                    # payload is released instead of accumulating.
-                    # An in-batch duplicate is already on disk after the first
-                    # write; skipping the repeat avoids backend.write's dedup
-                    # path re-reading the whole stored file for the SHA-1
-                    # collision check (see _get_path / _same_content).
-                    backend.write(raw, values["checksum"])
-                    written_checksums.add(values["checksum"])
 
         records = super().create(vals_list)
         records._check_serving_attachments()
@@ -528,10 +524,10 @@ class IrAttachment(models.Model):
             attach.store_fname for attach in self if attach.store_fname
         )
         res = super().unlink()
-        for file_path in to_delete:
-            # key-axis dispatch: the content follows its store key, not the
-            # currently configured location
-            self._storage_delete(file_path)
+        # key-axis dispatch: the content follows its store key, not the
+        # currently configured location. Batched: plain filestore keys are
+        # GC-marked in one grouped pass (one mkdir per shard directory).
+        self._storage_delete_multi(to_delete)
         return res
 
     def _compute_res_name(self) -> None:
@@ -735,8 +731,15 @@ class IrAttachment(models.Model):
             reuse = bool(attach.checksum) and attach.file_size == len(raw)
             checksum = attach.checksum if reuse else self._content_checksum(raw)
             old_fname = attach.store_fname
+            # Both branches persist the content into the target backend and
+            # return its store fragment in one step (the store key is the
+            # write's own return value). The reuse fast path moves ONLY the
+            # store-location fragment, keeping the already-derived
+            # checksum/file_size/index_content untouched; the full path
+            # re-derives them. The new content is written before the flush
+            # below, so the row never references a not-yet-written file.
             super(IrAttachment, attach.sudo()).write(
-                backend.datas_values(raw, checksum)
+                backend.write(raw, checksum)
                 if reuse
                 else self._get_datas_related_values(raw, attach.mimetype, backend)
             )
@@ -744,8 +747,6 @@ class IrAttachment(models.Model):
             attach.flush_recordset(
                 ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
             )
-            if raw:
-                backend.write(raw, checksum)
             if old_fname:
                 # key-axis dispatch: the old content may live in a backend other
                 # than the target one (location switches don't migrate rows).
@@ -946,16 +947,53 @@ class IrAttachment(models.Model):
         """
         self._backend_for_key(fname).delete(fname)
 
+    @api.model
+    def _storage_delete_multi(self, fnames: Collection[str]) -> None:
+        """Batch counterpart of :meth:`_storage_delete`.
+
+        Scheme-keyed content (``s3://...``) still dispatches per key to its
+        owning backend; plain filestore keys — the overwhelmingly common
+        case — are checklist-marked in one grouped pass
+        (:meth:`_mark_for_gc_multi`) instead of paying the per-key
+        ``FileStorage.delete`` → :meth:`_file_delete` indirection and its
+        3-4 syscalls per key. A deployment that overrides the local-store
+        delete primitive (:meth:`_file_delete`) to change deletion semantics
+        must override this method too.
+        """
+        plain_fnames = []
+        for fname in fnames:
+            if "://" in fname:
+                self._backend_for_key(fname).delete(fname)
+            else:
+                plain_fnames.append(fname)
+        if plain_fnames:
+            self._mark_for_gc_multi(plain_fnames)
+
     def _mark_for_gc(self, fname: str) -> None:
         """Add ``fname`` in a checklist for the filestore garbage collection."""
-        # fname is sanitized like _full_path does (path-traversal blocked)
+        self._mark_for_gc_multi((fname,))
+
+    def _mark_for_gc_multi(self, fnames: Collection[str]) -> None:
+        """Batch :meth:`_mark_for_gc`: one ``mkdir`` per shard directory.
+
+        A bulk unlink otherwise re-creates the same shard directory and
+        re-probes existence once per key (~3-4 syscalls each) — felt on
+        network filestores. The per-file ``exists()`` probe is skipped
+        entirely: ``open("ab")`` is idempotent (it creates the empty marker
+        or touches nothing that matters on an existing one).
+        """
         checklist_dir = Path(self._full_path("checklist"))
-        full_path = checklist_dir / self._sanitize_store_path(fname)
-        if not full_path.exists():
+        by_shard_dir: dict[Path, list[Path]] = defaultdict(list)
+        for fname in fnames:
+            # fname is sanitized like _full_path does (path-traversal blocked)
+            full_path = checklist_dir / self._sanitize_store_path(fname)
+            by_shard_dir[full_path.parent].append(full_path)
+        for shard_dir, paths in by_shard_dir.items():
             with contextlib.suppress(OSError):
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-            with full_path.open("ab"):
-                pass
+                shard_dir.mkdir(parents=True, exist_ok=True)
+            for full_path in paths:
+                with full_path.open("ab"):
+                    pass
 
     @api.model
     def _same_content(self, bin_data: bytes, filepath: str) -> bool:
@@ -1138,11 +1176,15 @@ class IrAttachment(models.Model):
         if removed:
             _logger.info("filestore temp gc: removed %d stale temp file(s)", removed)
 
-    def _gc_checklist(self) -> dict[str, Path]:
+    def _gc_checklist(self, limit: int | None = None) -> dict[str, Path]:
         """Return ``{fname: checklist_path}`` from the GC checklist directory.
 
         Pure filesystem scan (no DB), so it can run outside the table lock.
 
+        :param int | None limit: stop scanning after this many entries — the
+            sweep consuming the result runs under a SHARE MODE table lock, so
+            its size bounds the lock hold time (see :attr:`_GC_MAX_ENTRIES`).
+            ``None`` scans everything.
         :rtype: dict
         """
         checklist = {}
@@ -1153,6 +1195,8 @@ class IrAttachment(models.Model):
                 # dirpath.name would only work for a 2-level structure.
                 fname = str((dirpath / filename).relative_to(checklist_root))
                 checklist[fname] = dirpath / filename
+                if limit is not None and len(checklist) >= limit:
+                    return checklist
         return checklist
 
     def _gc_file_store_unsafe(self, checklist: dict[str, Path] | None = None) -> None:
@@ -1206,14 +1250,14 @@ class IrAttachment(models.Model):
         self._check_serving_attachments()
         old_fnames = []
         wrote_content = False
-        written_checksums = set()
         backend = self._storage_backend()
         # Single-slot memo of the previous record's derived values: a
         # multi-record `write({'raw': X})` hands EVERY record the same cached
         # bytes object (super().write puts one converted value in the field
-        # cache; _inverse_raw reads it back per record), so re-hashing and
-        # re-indexing X once per row is pure waste — the written_checksums
-        # dedup below, extended to the metadata derivation. One slot rather
+        # cache; _inverse_raw reads it back per record), so re-hashing,
+        # re-indexing and re-writing X once per row is pure waste — the memo
+        # also writes each distinct payload exactly once (the persist now
+        # happens inside _get_datas_related_values). One slot rather
         # than a map keyed on id(bin_data): holding the single reference keeps
         # the identity check sound (the object cannot die and its id be
         # recycled), and the base64 path — which decodes a DISTINCT object per
@@ -1241,20 +1285,12 @@ class IrAttachment(models.Model):
             super(IrAttachment, attach.sudo()).write(vals)
 
             if bin_data:
-                if vals["checksum"] not in written_checksums:
-                    # Write the new (content-addressed) payload as we go and let
-                    # it be released, instead of buffering every record's content
-                    # in a {checksum: raw} map until the end — a multi-record
-                    # content write otherwise held O(total bytes) at once.
-                    # Writing the new file here is safe; the flush below still
-                    # runs before any OLD key is deleted, so in-use content is
-                    # never GC'd mid-write. A repeated checksum within this write
-                    # (e.g. `write({'raw': X})` over N rows) is already on disk
-                    # after the first write, so skip it — backend.write's dedup
-                    # path would re-read the whole stored file for the collision
-                    # check (see _get_path / _same_content).
-                    backend.write(bin_data, vals["checksum"])
-                    written_checksums.add(vals["checksum"])
+                # The content was already persisted (once per distinct payload)
+                # by _get_datas_related_values above. Writing it as we go — and
+                # letting each `bin_data` be released — keeps peak memory flat
+                # instead of buffering every record's content until the end.
+                # It is safe: the flush below still runs before any OLD key is
+                # deleted, so in-use content is never GC'd mid-write.
                 wrote_content = True
 
         if old_fnames or wrote_content:
@@ -1276,6 +1312,16 @@ class IrAttachment(models.Model):
         backend: AttachmentStorage | None = None,
         checksum: str | None = None,
     ) -> dict[str, Any]:
+        """Derive the content columns for *data* AND persist its bytes.
+
+        ``backend.write`` both stores the payload and returns its store
+        fragment (``store_fname``/``db_datas``) in one step — the persisted
+        key is the write's own return value, so there is no parallel key
+        derivation to keep in sync with what was actually written. Callers
+        must therefore NOT persist the content a second time; the write is
+        idempotent (content-addressed) but a redundant call re-reads the whole
+        stored file for the SHA-1 collision check.
+        """
         # Callers that already hashed *data* (create()'s batch memo key) pass
         # the checksum to skip a second SHA-1 pass over the same bytes.
         if checksum is None:
@@ -1289,12 +1335,10 @@ class IrAttachment(models.Model):
             "file_size": len(data),
             "checksum": checksum,
             "index_content": index_content,
-            # content location (store_fname/db_datas) is backend policy.
-            # Only the store key is computed here; the storage work (mkdir,
-            # SHA-1 collision check, write) happens once in backend.write
-            # — doing it here too re-read the existing file end-to-end on
-            # every dedup hit (see IRA-P2-1).
-            **backend.datas_values(data, checksum),
+            # content location (store_fname/db_datas) is backend policy;
+            # backend.write persists the bytes (mkdir, SHA-1 collision check,
+            # write) and returns the fragment in the same step.
+            **backend.write(data, checksum),
         }
 
     @api.model

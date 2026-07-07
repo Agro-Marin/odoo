@@ -130,38 +130,10 @@ def _inject_page_css(html: str, css: str) -> str:
     return f"{style_tag}{html_str}"
 
 
-# WeasyPrint logs thousands of CSS warnings (box-shadow, @keyframes, vendor
-# pseudo-elements, responsive @media queries, etc.) because the full web client
-# CSS bundle includes Bootstrap and theme CSS designed for browsers, not paged
-# media. These warnings are harmless — the properties are simply ignored — but
-# they pollute logs and slow rendering. We suppress them here.
-logging.getLogger("weasyprint").setLevel(logging.ERROR)
-# fontTools is used by WeasyPrint as a fallback font subsetter (when
-# libharfbuzz-subset is not installed).  WeasyPrint's capture_logs()
-# temporarily sets fontTools to DEBUG during subsetting, which causes
-# hundreds of DEBUG/INFO messages to propagate to the root logger.
-# Disabling propagation prevents this without affecting WeasyPrint's
-# internal warning capture via its CallbackHandler.
-logging.getLogger("fontTools").propagate = False
-
-# ---------------------------------------------------------------------------
-# Module-level WeasyPrint singletons — survive across requests within a
-# worker process.  These expensive objects are created once and reused:
-#
-# - _weasy_font_config: Holds the Pango font map with loaded @font-face data.
-#   Created lazily to avoid Pango/fontconfig mutex corruption after fork()
-#   in prefork (multi-worker) mode.
-#
-# - _weasy_image_cache: Decoded image data (company logo etc.) shared across
-#   all renders — avoids re-decoding the same PNG for every body.
-#   Bounded at _WEASY_IMAGE_CACHE_MAX entries.  When full, the oldest half
-#   is evicted (Python 3.7+ dicts preserve insertion order).  Two threads
-#   can concurrently evict without data corruption — GIL ensures atomic
-#   dict operations; worst-case both evict the same keys (harmless).
-# ---------------------------------------------------------------------------
+# Bound of the process-wide decoded-image cache owned by _WeasySharedState
+# below.  When full, the oldest half is evicted (Python 3.7+ dicts preserve
+# insertion order).
 _WEASY_IMAGE_CACHE_MAX = 256
-_weasy_font_config = None
-_weasy_image_cache: dict[str, Any] = {}
 
 # Non-split batches with more bodies than this are serialized incrementally —
 # each body is rendered to PDF bytes and its laid-out Document freed before the
@@ -174,6 +146,19 @@ _weasy_image_cache: dict[str, Any] = {}
 # parameter (0 = always stream, huge = always native).
 _NATIVE_MERGE_MAX_BODIES = 50
 
+# Reserved key of a render's ``data`` dict carrying the native PDF options
+# consumed by ``_render_qweb_pdf_prepare_streams`` (``pdf_variant``,
+# ``attachments``, ``xmp_metadata`` — see ``_build_pdf_options``).  Namespaced
+# so it can never collide with a template variable, and popped before ``data``
+# reaches the QWeb rendering context.  Producer example::
+#
+#     data[PDF_OPTIONS_DATA_KEY] = {"pdf_variant": "pdf/a-3b", ...}
+#
+# The historical top-level in-band keys are still honored for backward
+# compatibility (third-party producers), but new code must use this channel.
+PDF_OPTIONS_DATA_KEY = "__pdf_options__"
+_PDF_OPTION_KEYS = ("pdf_variant", "attachments", "xmp_metadata")
+
 # Serializes the fontTools setUnicodeRanges monkey-patch in
 # _write_pdf_tolerant_fonts.  The patch mutates a process-global class method;
 # concurrent patch/restore windows race on restore order and leak a stale
@@ -181,30 +166,113 @@ _NATIVE_MERGE_MAX_BODIES = 50
 _tolerant_font_lock = threading.Lock()
 
 
-def _get_weasy_font_config():
-    # No lock needed: creating two FontConfiguration() objects concurrently is
-    # safe — Pango's pango_cairo_font_map_new() is thread-reentrant.  The Pango
-    # mutex concern (see comment above) is fork-specific, not thread-specific.
-    # At worst two threads both see None and both create a config; the second
-    # assignment wins and the first is GC'd.  Benign TOCTOU, not a real race.
-    global _weasy_font_config  # noqa: PLW0603 — intentional lazy singleton
-    if _weasy_font_config is None:
-        _weasy_font_config = FontConfiguration()
-    return _weasy_font_config
+class _WeasySharedState:
+    """Lock-guarded owner of the process-wide WeasyPrint shared state.
 
+    Survives across requests within a worker process and owns:
 
-def _evict_image_cache_if_full() -> None:
-    """Evict the oldest half of the image cache when it exceeds its size limit.
+    - the lazy :class:`FontConfiguration` singleton — the Pango font map with
+      loaded ``@font-face`` data.  Created lazily (never at import) to avoid
+      Pango/fontconfig mutex corruption after ``fork()`` in prefork
+      (multi-worker) mode;
+    - the bounded decoded-image cache shared across renders (company logo
+      etc.) so the same PNG is not re-decoded for every body;
+    - the once-per-process environment setup (:meth:`setup_process`) that
+      previously ran as import-time side effects.
 
-    Python 3.7+ dicts preserve insertion order, so ``list(d)[:n]`` gives the
-    oldest ``n`` keys.  Called before each render batch to keep the
-    per-worker cache from growing without bound on long-lived workers that
-    print many distinct images (product catalogs, etc.).
+    Every mutation is serialized by a lock: correctness no longer relies on
+    GIL-atomic dict operations, so the state stays sound on a free-threaded
+    (nogil) build.  :meth:`reset_for_tests` restores a pristine
+    font-config/image-cache state between tests.
     """
-    if len(_weasy_image_cache) > _WEASY_IMAGE_CACHE_MAX:
-        evict_count = _WEASY_IMAGE_CACHE_MAX // 2
-        for key in list(_weasy_image_cache)[:evict_count]:
-            del _weasy_image_cache[key]
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._font_config: FontConfiguration | None = None
+        self._image_cache: dict[str, Any] = {}
+        self._process_setup_done = False
+
+    def setup_process(self) -> None:
+        """Idempotent, lazy once-per-process environment setup.
+
+        Runs on the first render instead of at import so that merely importing
+        this module (registry load, tooling, tests of unrelated models) does
+        not mutate process-global third-party state.
+        """
+        if self._process_setup_done:
+            return
+        with self._lock:
+            if self._process_setup_done:
+                return
+            # WeasyPrint logs thousands of CSS warnings (box-shadow,
+            # @keyframes, vendor pseudo-elements, responsive @media queries,
+            # etc.) because the full web client CSS bundle includes Bootstrap
+            # and theme CSS designed for browsers, not paged media.  These
+            # warnings are harmless — the properties are simply ignored — but
+            # they pollute logs and slow rendering.  Suppress them.
+            logging.getLogger("weasyprint").setLevel(logging.ERROR)
+            # fontTools is used by WeasyPrint as a fallback font subsetter
+            # (when libharfbuzz-subset is not installed).  WeasyPrint's
+            # capture_logs() temporarily sets fontTools to DEBUG during
+            # subsetting, which causes hundreds of DEBUG/INFO messages to
+            # propagate to the root logger.  Disabling propagation prevents
+            # this without affecting WeasyPrint's internal warning capture via
+            # its CallbackHandler.
+            logging.getLogger("fontTools").propagate = False
+            # Reports embed user-provided images; allow truncated files to
+            # decode instead of failing the whole PDF.
+            ImageFile.LOAD_TRUNCATED_IMAGES = True
+            # CPython 3.14 compile() regression workaround — see the
+            # _compile_node_depth_limited block below.
+            if _cs2_compiler._compile_node is not _compile_node_depth_limited:
+                _cs2_compiler._compile_node = _compile_node_depth_limited
+            self._process_setup_done = True
+
+    def get_font_config(self) -> FontConfiguration:
+        with self._lock:
+            if self._font_config is None:
+                self._font_config = FontConfiguration()
+            return self._font_config
+
+    @property
+    def image_cache(self) -> dict[str, Any]:
+        """The shared decoded-image cache (stable dict identity)."""
+        return self._image_cache
+
+    def evict_image_cache_if_full(self) -> None:
+        """Evict the oldest half of the image cache when it exceeds its limit.
+
+        Python 3.7+ dicts preserve insertion order, so ``list(d)[:n]`` gives
+        the oldest ``n`` keys.  Called before each render batch to keep the
+        per-worker cache from growing without bound on long-lived workers that
+        print many distinct images (product catalogs, etc.).
+        """
+        with self._lock:
+            if len(self._image_cache) > _WEASY_IMAGE_CACHE_MAX:
+                evict_count = _WEASY_IMAGE_CACHE_MAX // 2
+                for key in list(self._image_cache)[:evict_count]:
+                    del self._image_cache[key]
+
+    def reset_for_tests(self) -> None:
+        """Drop the font config and clear the image cache (in place, so
+        module-level aliases of the cache dict stay valid).  The idempotent
+        :meth:`setup_process` mutations are deliberately not reverted."""
+        with self._lock:
+            self._font_config = None
+            self._image_cache.clear()
+
+
+_weasy_state = _WeasySharedState()
+
+# Backward-compatible module-level alias: the cache dict identity is stable
+# for the life of the process (reset_for_tests clears it in place), so
+# existing importers (e.g. addons/web/tests/test_reports.py) keep working.
+_weasy_image_cache = _weasy_state.image_cache
+
+
+def _get_weasy_font_config() -> FontConfiguration:
+    """Backward-compatible alias for :meth:`_WeasySharedState.get_font_config`."""
+    return _weasy_state.get_font_config()
 
 
 def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options=None):
@@ -260,7 +328,7 @@ def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options
                 stylesheets=stylesheets or None,
                 presentational_hints=True,
                 optimize_images=True,
-                cache=_weasy_image_cache,
+                cache=_weasy_state.image_cache,
                 **(pdf_options or {}),
             )
         finally:
@@ -286,9 +354,6 @@ _xpath_article = etree.ETXPath(
     "//div[contains(concat(' ', normalize-space(@class), ' '), ' article ')]"
 )
 
-# Allow truncated images
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 _logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -302,6 +367,8 @@ _logger = logging.getLogger(__name__)
 # Fix: wrap cssselect2's _compile_node to limit CombinedSelector recursion
 # depth.  Selectors deeper than the limit return '0' (never match) — this is
 # harmless since 10+-level descendant selectors never match in PDF reports.
+# The wrapper is installed lazily by _WeasySharedState.setup_process() on the
+# first render (not at import); the pristine original is captured here.
 # ---------------------------------------------------------------------------
 _original_compile_node = _cs2_compiler._compile_node
 _MAX_SELECTOR_DEPTH = 10
@@ -327,8 +394,6 @@ def _compile_node_depth_limited(selector: Any) -> str:
             _selector_depth.value = depth
     return _original_compile_node(selector)
 
-
-_cs2_compiler._compile_node = _compile_node_depth_limited
 
 # Regex patterns for local URL resolution (avoid HTTP self-requests)
 _WEB_IMAGE_MODEL_RE = re.compile(
@@ -758,17 +823,35 @@ class WeasyPrintEngine:
     """WeasyPrint rendering pipeline for a batch of pre-rendered HTML bodies.
 
     Extracted from :class:`IrActionsReport` so the PDF engine can be driven with
-    plain ``(bodies, page_css)`` — no report record, no ``report_ref`` — and
-    unit-tested in isolation. The model's ``_render_html_to_pdf`` resolves the
-    paperformat to CSS and then delegates to :meth:`render`.
+    plain ``(bodies, page_css)`` — no report record, no ``report_ref``, no
+    registry — and unit-tested in isolation.  Its dependencies are injected at
+    construction; the model's ``_build_weasyprint_engine`` resolves them from
+    the environment and ``_render_html_to_pdf`` resolves the paperformat to CSS
+    before delegating to :meth:`render`.
 
     All bodies of one batch share a single WeasyPrint session: one URL fetcher,
     one fontconfig, and one image cache. The first body warms the cache (CSS
     bundles, images); the rest hit it directly.
+
+    :param fetcher_factory: zero-argument callable returning a URL-fetcher
+        context manager (the model's ``_build_url_fetcher`` — still the
+        model-level override hook).
+    :param merge_pdfs: callable merging a list of PDF ``BytesIO`` streams into
+        one stream (the model's ``_merge_pdfs``).
+    :param native_merge_max: batch size above which a non-split render
+        serializes incrementally and merges with pypdf instead of WeasyPrint's
+        native ``Document.copy()`` merge (see :data:`_NATIVE_MERGE_MAX_BODIES`).
     """
 
-    def __init__(self, env: Any) -> None:
-        self._env = env
+    def __init__(
+        self,
+        fetcher_factory: Callable[[], OdooURLFetcher],
+        merge_pdfs: Callable[[list[io.BytesIO]], io.BytesIO],
+        native_merge_max: int = _NATIVE_MERGE_MAX_BODIES,
+    ) -> None:
+        self._fetcher_factory = fetcher_factory
+        self._merge_pdfs = merge_pdfs
+        self._native_merge_max = native_merge_max
 
     def render(
         self,
@@ -797,7 +880,8 @@ class WeasyPrintEngine:
         if not bodies:
             raise UserError(_("No content to render as PDF."))
 
-        _evict_image_cache_if_full()
+        _weasy_state.setup_process()
+        _weasy_state.evict_image_cache_if_full()
         wants_pdfa = bool((pdf_options or {}).get("pdf_variant"))
         if wants_pdfa:
             # PDF/A forbids raster images with /Interpolate true (ISO 19005-3
@@ -810,15 +894,19 @@ class WeasyPrintEngine:
             # the rule is appended last to win the cascade over bundle CSS.
             page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
 
-        # Reuse the model's fetcher builder so downstream overrides still apply.
-        with self._env["ir.actions.report"]._build_url_fetcher() as fetcher:
-            parsed_css_by_url = self._preparse_external_css(bodies, page_css, fetcher)
-            # Layout pass: each body rendered independently so counter(pages) is
-            # scoped per record — "Page X / Y" is per-record, not per-batch.  Each
-            # body is stripped of and re-supplied with ONLY its own stylesheets, so
-            # a mixed-language batch never bleeds LTR CSS onto an RTL page.
+        # The injected factory is the model's fetcher builder, so downstream
+        # overrides of _build_url_fetcher still apply.
+        with self._fetcher_factory() as fetcher:
+            # Single pass per body: inject the @page CSS, parse each distinct
+            # external stylesheet ONCE for the whole batch (lazy, memoized in
+            # parsed_css_by_url), and strip the parsed <link> tags.  Each body
+            # is rendered independently so counter(pages) is scoped per record
+            # — "Page X / Y" is per-record, not per-batch — and re-supplied
+            # with ONLY its own stylesheets, so a mixed-language batch never
+            # bleeds LTR CSS onto an RTL page.
+            parsed_css_by_url: dict[str, Any] = {}
             processed = [
-                self._process_body_html(body, page_css, parsed_css_by_url)
+                self._process_body_html(body, page_css, parsed_css_by_url, fetcher)
                 for body in bodies
             ]
 
@@ -838,14 +926,13 @@ class WeasyPrintEngine:
 
             # A pypdf merge strips PDF/A conformance, so PDF/A output always uses
             # the native Document.copy() merge below, never the streaming path.
-            native_merge_max = self._native_merge_max_bodies()
-            if not wants_pdfa and len(processed) > native_merge_max:
+            if not wants_pdfa and len(processed) > self._native_merge_max:
                 _logger.info(
                     "WeasyPrint: %d bodies exceeds the native-merge threshold "
                     "(%d); serializing incrementally and merging with pypdf to "
                     "bound peak memory.",
                     len(processed),
-                    native_merge_max,
+                    self._native_merge_max,
                 )
                 streams = [
                     io.BytesIO(
@@ -853,9 +940,7 @@ class WeasyPrintEngine:
                     )
                     for html_str, body_css in processed
                 ]
-                return (
-                    self._env["ir.actions.report"]._merge_pdfs(streams).getvalue()
-                )
+                return self._merge_pdfs(streams).getvalue()
 
             # Native path (small batches): lay out every body, then merge via
             # WeasyPrint's Document.copy() and serialize once — best fidelity,
@@ -888,30 +973,6 @@ class WeasyPrintEngine:
             except Exception as e:
                 _logger.error("WeasyPrint PDF serialization failed: %s", e)
                 raise self._pdf_render_error(str(e)) from None
-
-    def _native_merge_max_bodies(self) -> int:
-        """Batch size above which a non-split render serializes incrementally.
-
-        Read from the ``report.weasyprint_native_merge_max`` config parameter,
-        falling back to :data:`_NATIVE_MERGE_MAX_BODIES`.  A malformed value is
-        ignored with a warning rather than crashing the render.
-        """
-        param = (
-            self._env["ir.config_parameter"]
-            .sudo()
-            .get_param("report.weasyprint_native_merge_max")
-        )
-        if param:
-            try:
-                return int(param)
-            except (TypeError, ValueError):
-                _logger.warning(
-                    "Invalid report.weasyprint_native_merge_max=%r; "
-                    "using default %d.",
-                    param,
-                    _NATIVE_MERGE_MAX_BODIES,
-                )
-        return _NATIVE_MERGE_MAX_BODIES
 
     def _render_and_serialize_body(
         self,
@@ -948,48 +1009,27 @@ class WeasyPrintEngine:
             raise self._pdf_render_error(str(ve)) from None
         return buf.getvalue()
 
-    def _preparse_external_css(
-        self, bodies: list[str], page_css: str, fetcher: OdooURLFetcher
-    ) -> dict[str, Any]:
-        """Parse every distinct external stylesheet referenced by the batch once.
-
-        All bodies of a single language share the same ~300KB report CSS bundle,
-        so parsing it once and reusing the parsed rules (via WeasyPrint's
-        ``stylesheets`` parameter) avoids re-fetching/re-parsing it per body.
-
-        Bodies are keyed by URL rather than assuming they all share the first
-        body's stylesheets: a mixed-language batch references direction-specific
-        bundles (``...rtl.min.css`` vs ``...min.css``), so each body must be
-        rendered with its OWN parsed CSS, not the first body's.
-
-        :return: dict mapping ``css_url`` -> parsed ``weasyprint.CSS`` (or ``None``
-            when parsing failed, so the caller leaves that ``<link>`` in place).
-        """
-        parsed_by_url: dict[str, Any] = {}
-        for body in bodies:
-            html = _inject_page_css(body, page_css)
-            for css_url in _RE_CSS_LINK.findall(html):
-                if css_url in parsed_by_url:
-                    continue
-                try:
-                    parsed_by_url[css_url] = weasyprint.CSS(
-                        url=css_url, url_fetcher=fetcher
-                    )
-                except Exception:
-                    _logger.warning(
-                        "Failed to pre-parse CSS: %s", css_url, exc_info=True
-                    )
-                    parsed_by_url[css_url] = None
-        return parsed_by_url
-
     def _process_body_html(
-        self, body: str, page_css: str, parsed_css_by_url: dict[str, Any]
+        self,
+        body: str,
+        page_css: str,
+        parsed_css_by_url: dict[str, Any],
+        fetcher: OdooURLFetcher | None = None,
     ) -> tuple[str, list]:
-        """Inject @page CSS, strip this body's pre-parsed ``<link>`` tags, and
-        return the parsed CSS objects for this body's own stylesheets.
+        """Single pass per body: inject the @page CSS, lazily parse this body's
+        external stylesheets, strip the parsed ``<link>`` tags, and return the
+        parsed CSS objects for this body's own stylesheets.
 
-        Only the links this body actually references are stripped and returned,
-        so each body renders with exactly its own (e.g. LTR or RTL) stylesheets.
+        ``parsed_css_by_url`` is the batch-wide memo (``css_url`` -> parsed
+        ``weasyprint.CSS``, or ``None`` when parsing failed).  All bodies of a
+        single language share the same ~300KB report CSS bundle, so parsing it
+        once and reusing the parsed rules (via WeasyPrint's ``stylesheets``
+        parameter) avoids re-fetching/re-parsing it per body.  Stylesheets are
+        keyed by URL rather than assuming every body shares the first body's:
+        a mixed-language batch references direction-specific bundles
+        (``...rtl.min.css`` vs ``...min.css``), so each body is rendered with
+        its OWN parsed CSS.  Links that failed to parse — or that are unknown
+        when no ``fetcher`` is supplied — are left in place for WeasyPrint.
 
         :return: ``(html_str, body_css)`` — the stripped HTML and the list of
             parsed ``weasyprint.CSS`` objects to apply to this body.
@@ -998,7 +1038,19 @@ class WeasyPrintEngine:
         body_css = []
         strip_urls = set()
         for css_url in _RE_CSS_LINK.findall(html_with_css):
-            parsed = parsed_css_by_url.get(css_url)
+            if css_url not in parsed_css_by_url:
+                if fetcher is None:
+                    continue
+                try:
+                    parsed_css_by_url[css_url] = weasyprint.CSS(
+                        url=css_url, url_fetcher=fetcher
+                    )
+                except Exception:
+                    _logger.warning(
+                        "Failed to pre-parse CSS: %s", css_url, exc_info=True
+                    )
+                    parsed_css_by_url[css_url] = None
+            parsed = parsed_css_by_url[css_url]
             if parsed is not None and css_url not in strip_urls:
                 body_css.append(parsed)
                 strip_urls.add(css_url)
@@ -1020,12 +1072,12 @@ class WeasyPrintEngine:
         """
         try:
             return weasyprint.HTML(string=html_str, url_fetcher=fetcher).render(
-                font_config=_get_weasy_font_config(),
+                font_config=_weasy_state.get_font_config(),
                 counter_style=CounterStyle(),
                 stylesheets=body_css or None,
                 presentational_hints=True,
                 optimize_images=True,
-                cache=_weasy_image_cache,
+                cache=_weasy_state.image_cache,
             )
         except Exception as e:
             _logger.error("WeasyPrint layout failed: %s", e)
@@ -1096,7 +1148,7 @@ class WeasyPrintEngine:
         if len(tolerant_pdfs) == 1:
             return tolerant_pdfs[0]
         streams = [io.BytesIO(pdf) for pdf in tolerant_pdfs]
-        return self._env["ir.actions.report"]._merge_pdfs(streams).getvalue()
+        return self._merge_pdfs(streams).getvalue()
 
     def _pdf_render_error(self, detail: str) -> UserError:
         """Build the user-facing error for a WeasyPrint layout/serialization failure."""
@@ -1265,27 +1317,71 @@ class IrActionsReport(models.Model):
     # Main report methods
     # --------------------------------------------------------------------------
 
+    def _get_attachment_filenames(self, records: Any) -> dict[int, Any]:
+        """Evaluate the report's ``attachment`` filename expression per record.
+
+        Evaluated exactly once per record so callers can share the result
+        instead of re-``safe_eval``-ing the expression (it used to be evaluated
+        twice per record: once to look the attachment up and once to create it).
+
+        :return: ``{record.id: evaluated name}`` — falsy evaluations are
+            normalized to ``""``.
+        """
+        self.ensure_one()
+        if not self.attachment:
+            return dict.fromkeys(records.ids, "")
+        return {
+            record.id: safe_eval(self.attachment, {"object": record, "time": time})
+            or ""
+            for record in records
+        }
+
+    def _retrieve_attachments(self, records: Any) -> dict[int, Any]:
+        """Batched version of :meth:`retrieve_attachment`.
+
+        ONE ``ir.attachment`` search for the whole recordset (evaluated names +
+        ``res_id in ids``) instead of one search per record — the difference
+        between 1 and N queries on a multi-thousand-record report batch.
+
+        :param records: recordset of ``self.model`` owning the attachments.
+        :return: ``{record.id: ir.attachment record}``; records without an
+            evaluated name or without a stored attachment are absent.
+        """
+        self.ensure_one()
+        names_by_id = {
+            res_id: name
+            for res_id, name in self._get_attachment_filenames(records).items()
+            if name
+        }
+        if not names_by_id:
+            return {}
+        attachments = self.env["ir.attachment"].search(
+            [
+                ("name", "in", list(set(names_by_id.values()))),
+                ("res_model", "=", self.model),
+                ("res_id", "in", list(names_by_id)),
+            ]
+        )
+        # Keep the first match per record in the model's default order — the
+        # same record the per-record ``search(..., limit=1)`` used to return.
+        result: dict[int, Any] = {}
+        for attachment in attachments:
+            res_id = attachment.res_id
+            if res_id not in result and attachment.name == names_by_id.get(res_id):
+                result[res_id] = attachment
+        return result
+
     def retrieve_attachment(self, record: Any) -> Any | None:
         """Retrieve an attachment for a specific record.
 
+        Kept as the per-record extension hook (e.g. snailmail overrides it to
+        force a re-render); the batched implementation lives in
+        :meth:`_retrieve_attachments`.
+
         :param record: The record owning of the attachment.
-        :return: A recordset of length <=1 or None
+        :return: An ir.attachment record or None
         """
-        attachment_name = (
-            safe_eval(self.attachment, {"object": record, "time": time})
-            if self.attachment
-            else ""
-        )
-        if not attachment_name:
-            return None
-        return self.env["ir.attachment"].search(
-            [
-                ("name", "=", attachment_name),
-                ("res_model", "=", self.model),
-                ("res_id", "=", record.id),
-            ],
-            limit=1,
-        )
+        return self._retrieve_attachments(record).get(record.id)
 
     def get_paperformat(self) -> Any:
         return self.paperformat_id or self.env.company.paperformat_id
@@ -1447,6 +1543,47 @@ class IrActionsReport(models.Model):
         :return: OdooURLFetcher instance (context manager)
         """
         return OdooURLFetcher(self.env)
+
+    @api.model
+    def _native_merge_max_bodies(self) -> int:
+        """Batch size above which a non-split render serializes incrementally.
+
+        Read from the ``report.weasyprint_native_merge_max`` config parameter,
+        falling back to :data:`_NATIVE_MERGE_MAX_BODIES`.  A malformed value is
+        ignored with a warning rather than crashing the render.
+        """
+        param = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("report.weasyprint_native_merge_max")
+        )
+        if param:
+            try:
+                return int(param)
+            except (TypeError, ValueError):
+                _logger.warning(
+                    "Invalid report.weasyprint_native_merge_max=%r; "
+                    "using default %d.",
+                    param,
+                    _NATIVE_MERGE_MAX_BODIES,
+                )
+        return _NATIVE_MERGE_MAX_BODIES
+
+    @api.model
+    def _build_weasyprint_engine(self) -> WeasyPrintEngine:
+        """Assemble a :class:`WeasyPrintEngine` with its dependencies resolved
+        from the environment (URL-fetcher factory, pypdf merge, native-merge
+        threshold), so the engine itself never reaches back into the registry.
+
+        ``_build_url_fetcher`` stays the model-level override hook: the factory
+        is bound here, so downstream overrides still apply.
+        """
+        report_model = self.env["ir.actions.report"]
+        return WeasyPrintEngine(
+            fetcher_factory=report_model._build_url_fetcher,
+            merge_pdfs=report_model._merge_pdfs,
+            native_merge_max=report_model._native_merge_max_bodies(),
+        )
 
     def _prepare_weasyprint_html(
         self, html: str, report_model: str | bool = False
@@ -1667,7 +1804,7 @@ class IrActionsReport(models.Model):
             specific_paperformat_args=specific_paperformat_args,
         )
         pdf_options = self._build_pdf_options(pdf_variant, attachments, xmp_metadata)
-        return WeasyPrintEngine(self.env).render(
+        return self._build_weasyprint_engine().render(
             bodies, page_css, split=_split, pdf_options=pdf_options
         )
 
@@ -1707,6 +1844,12 @@ class IrActionsReport(models.Model):
             _logger.warning("HTML-to-image rendering unavailable (PyMuPDF): %s", e)
             return [None] * len(bodies)
 
+        # Share the process-wide font config and image cache with the PDF
+        # pipeline: without them every body re-ran Pango font discovery and
+        # re-decoded its images (marketing cards render many bodies per batch).
+        _weasy_state.setup_process()
+        _weasy_state.evict_image_cache_if_full()
+
         output_images = []
         with self._build_url_fetcher() as fetcher:
             for body in bodies:
@@ -1714,7 +1857,10 @@ class IrActionsReport(models.Model):
                     pdf_bytes = weasyprint.HTML(
                         string=_inject_page_css(body, page_css),
                         url_fetcher=fetcher,
-                    ).write_pdf()
+                    ).write_pdf(
+                        font_config=_weasy_state.get_font_config(),
+                        cache=_weasy_state.image_cache,
+                    )
                     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
                         png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes(
                             "png"
@@ -1993,25 +2139,54 @@ class IrActionsReport(models.Model):
             raise UserError(_("Odoo is unable to merge the generated PDFs.")) from None
         return result_stream
 
+    @api.model
+    def _normalize_render_args(
+        self,
+        res_ids: list[int] | int | None,
+        data: dict[str, Any] | None,
+        report_type: str,
+    ) -> tuple[list[int] | None, dict[str, Any]]:
+        """Shared normalization for the ``_render_qweb_*`` entry points.
+
+        Defensively copies ``data`` (the entry points mutate it, and must never
+        mutate the caller's dict as a side effect), defaults ``report_type``,
+        and accepts a single id for ``res_ids``.
+        """
+        data = dict(data) if data else {}
+        data.setdefault("report_type", report_type)
+        if isinstance(res_ids, int):
+            res_ids = [res_ids]
+        return res_ids, data
+
     def _render_qweb_pdf_prepare_streams(
         self,
         report_ref: int | str | Any,
         data: dict[str, Any],
         res_ids: list[int] | None = None,
     ) -> dict[int | bool, dict[str, Any]]:
-        # Copy so setdefault/updates below never mutate the caller's dict.
-        data = dict(data) if data else {}
-        data.setdefault("report_type", "pdf")
+        res_ids, data = self._normalize_render_args(res_ids, data, "pdf")
+        # Once-per-process WeasyPrint/PIL environment setup (previously an
+        # import-time side effect): the attachment-reload path below decodes
+        # images with PIL and relies on LOAD_TRUNCATED_IMAGES.
+        _weasy_state.setup_process()
 
         # Native PDF/A options (e.g. Factur-X): the caller (account.move.send)
         # supplies the variant, the invoice XML to embed, and the Factur-X XMP
-        # schema in ``data`` so WeasyPrint produces the final PDF/A-3 in one pass
-        # — no pypdf post-processing (which strips PDF/A conformance).
+        # schema under ``data[PDF_OPTIONS_DATA_KEY]`` so WeasyPrint produces the
+        # final PDF/A-3 in one pass — no pypdf post-processing (which strips
+        # PDF/A conformance).  The reserved key is popped here so it can never
+        # collide with a template variable in the QWeb rendering context.
+        pdf_options = data.pop(PDF_OPTIONS_DATA_KEY, None) or {}
         render_pdf_kwargs = {
-            key: data[key]
-            for key in ("pdf_variant", "attachments", "xmp_metadata")
-            if data.get(key)
+            key: pdf_options[key] for key in _PDF_OPTION_KEYS if pdf_options.get(key)
         }
+        # Backward compatibility: these options historically traveled as
+        # top-level in-band ``data`` keys.  Keep honoring producers that still
+        # send them that way (the reserved key wins); they are deliberately not
+        # popped, preserving their historical visibility downstream.
+        for key in _PDF_OPTION_KEYS:
+            if key not in render_pdf_kwargs and data.get(key):
+                render_pdf_kwargs[key] = data[key]
 
         # access the report details with sudo() but evaluation context as current user
         report_sudo = self._get_report(report_ref)
@@ -2023,37 +2198,64 @@ class IrActionsReport(models.Model):
         # Reload the stream from the attachment in case of 'attachment_use'.
         if res_ids:
             records = self.env[report_sudo.model].browse(res_ids)
+            wants_attachment = (
+                not has_duplicated_ids
+                and report_sudo.attachment
+                and not self.env.context.get("report_pdf_no_attachment")
+            )
+            attachment_names = {}
+            attachments_by_id = {}
+            if wants_attachment:
+                # Evaluate the filename expression ONCE per record and cache it
+                # in the stream dict ("attachment_name") so
+                # _prepare_pdf_report_attachment_vals_list doesn't re-safe_eval
+                # it later.
+                attachment_names = report_sudo._get_attachment_filenames(records)
+                if (
+                    type(report_sudo).retrieve_attachment
+                    is IrActionsReport.retrieve_attachment
+                ):
+                    # One ir.attachment search for the whole batch.
+                    attachments_by_id = report_sudo._retrieve_attachments(records)
+                else:
+                    # retrieve_attachment is overridden (e.g. snailmail forces
+                    # a re-render): honor the per-record hook, record by record.
+                    attachments_by_id = {
+                        record.id: report_sudo.retrieve_attachment(record)
+                        for record in records
+                    }
             for record in records:
                 res_id = record.id
                 if res_id in collected_streams:
                     continue
 
                 stream = None
-                attachment = None
-                if (
-                    not has_duplicated_ids
-                    and report_sudo.attachment
-                    and not self.env.context.get("report_pdf_no_attachment")
-                ):
-                    attachment = report_sudo.retrieve_attachment(record)
+                attachment = attachments_by_id.get(res_id) or None
 
-                    # Extract the stream from the attachment.
-                    if attachment and report_sudo.attachment_use:
-                        stream = io.BytesIO(attachment.raw)
+                # Extract the stream from the attachment.
+                if attachment and report_sudo.attachment_use:
+                    stream = io.BytesIO(attachment.raw)
 
-                        # Ensure the stream can be saved in Image.
-                        # mimetype is a nullable Char (NULL possible via migration
-                        # /import/raw SQL), so guard like the other reads do.
-                        if (attachment.mimetype or "").startswith("image"):
-                            new_stream = io.BytesIO()
-                            with Image.open(stream) as img:
-                                img.convert("RGB").save(new_stream, format="pdf")
-                            stream.close()
-                            stream = new_stream
+                    # Ensure the stream can be saved in Image.
+                    # mimetype is a nullable Char (NULL possible via migration
+                    # /import/raw SQL), so guard like the other reads do.
+                    if (attachment.mimetype or "").startswith("image"):
+                        new_stream = io.BytesIO()
+                        with Image.open(stream) as img:
+                            img.convert("RGB").save(new_stream, format="pdf")
+                        stream.close()
+                        stream = new_stream
 
                 collected_streams[res_id] = {
                     "stream": stream,
                     "attachment": attachment,
+                    # Evaluated-filename cache: "" means evaluated-and-empty,
+                    # None means not evaluated (downstream falls back to
+                    # safe_eval, as it also does for entries built by an
+                    # overridden prepare_streams that lack this key).
+                    "attachment_name": attachment_names.get(res_id, "")
+                    if wants_attachment
+                    else None,
                 }
 
         # Render PDFs for records missing a cached attachment stream.

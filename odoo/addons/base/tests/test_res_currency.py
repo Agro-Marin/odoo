@@ -113,8 +113,10 @@ class TestResCurrency(TransactionCase):
                 400,
             )
 
-        # only one query is done when changing the convert params
-        with self.assertQueryCount(1):
+        # changing the convert params (here: the date) costs no query at all:
+        # the rate-history memo loaded by the previous conversion (RCUR-M1)
+        # answers any date of the same (currency, company root) in memory
+        with self.assertQueryCount(0):
             self.assertEqual(
                 currencyA._convert(
                     from_amount=100,
@@ -257,6 +259,162 @@ class TestResCurrency(TransactionCase):
             company_currency._convert(100, no_rate, self.env.company, "2010-10-10"),
             100,
         )
+
+    def test_rate_memo_distinct_dates_single_query(self):
+        """RCUR-M1: the first lookup for a currency loads its full rate
+        history in one query; conversions at any number of *distinct* dates
+        within the same transaction are then answered from the transaction
+        memo without SQL (previously: one query per distinct date).
+        """
+        cur_a, cur_b = self.env["res.currency"].create(
+            [
+                {
+                    "name": "MA1",
+                    "symbol": "MA",
+                    "rate_ids": [Command.create({"name": "2020-01-01", "rate": 1})],
+                },
+                {
+                    "name": "MB1",
+                    "symbol": "MB",
+                    "rate_ids": [
+                        Command.create({"name": "2020-01-01", "rate": 2}),
+                        Command.create({"name": "2020-02-01", "rate": 3}),
+                        Command.create({"name": "2020-03-01", "rate": 4}),
+                    ],
+                },
+            ]
+        )
+        company = self.env.company
+        # Prime env caches (company root, currency fields) and the memo of
+        # cur_a; cur_b's history is deliberately left cold.  The mapped()
+        # calls refill the currencies' ORM field cache, dropped by the
+        # group_multi_currency toggle in create() — the counted block below
+        # measures rate-history lookups, not unrelated field fetches.
+        company.currency_id._convert(1.0, cur_a, company, "2020-06-15")
+        (cur_a + cur_b).mapped("rounding")
+        with self.assertQueryCount(1):
+            # First lookup involving cur_b: exactly one query (history load).
+            self.assertEqual(cur_a._convert(100, cur_b, company, "2020-01-20"), 200)
+            # Any further conversion, at any distinct date: zero queries.
+            self.assertEqual(cur_a._convert(100, cur_b, company, "2020-02-15"), 300)
+            self.assertEqual(cur_a._convert(100, cur_b, company, "2020-03-15"), 400)
+            # Pre-history date: earliest-rate fallback, still no query.
+            self.assertEqual(cur_a._convert(100, cur_b, company, "2019-06-15"), 200)
+            for day in range(1, 29):
+                cur_a._convert(100, cur_b, company, f"2020-02-{day:02d}")
+
+    def test_rate_memo_company_scoping_matches_sql(self):
+        """RCUR-M1: the memoized lookup returns exactly what the SQL cold
+        path returns for every (company, date) combination — including
+        company-root vs global scope precedence, the pre-history
+        earliest-rate fallback, NULL-valued rate rows and the 1.0 identity.
+        """
+        company_a = self.env.company
+        company_b = self.env["res.company"].create({"name": "memo scope co"})
+        cur_x, cur_y, cur_z = self.env["res.currency"].create(
+            [
+                {"name": "MX1", "symbol": "X"},
+                {"name": "MY1", "symbol": "Y"},
+                {"name": "MZ1", "symbol": "Z"},  # no rates at all -> 1.0
+            ]
+        )
+        self.env["res.currency.rate"].create(
+            [
+                # X: global rates vs a company_b-specific one.
+                {
+                    "name": "2020-01-01",
+                    "rate": 2,
+                    "currency_id": cur_x.id,
+                    "company_id": False,
+                },
+                {
+                    "name": "2021-03-01",
+                    "rate": 3,
+                    "currency_id": cur_x.id,
+                    "company_id": False,
+                },
+                {
+                    "name": "2021-01-01",
+                    "rate": 5,
+                    "currency_id": cur_x.id,
+                    "company_id": company_b.id,
+                },
+                # Y: a NULL-valued row shadowing an earlier valued one.
+                {
+                    "name": "2019-01-01",
+                    "rate": 7,
+                    "currency_id": cur_y.id,
+                    "company_id": False,
+                },
+                {"name": "2020-01-01", "currency_id": cur_y.id, "company_id": False},
+            ]
+        )
+        currencies = cur_x + cur_y + cur_z
+        # Parity: the memo must reproduce the SQL semantics exactly.
+        for company in (company_a, company_b):
+            for date in ("2018-06-01", "2020-06-01", "2021-02-01", "2021-06-01"):
+                self.assertEqual(
+                    currencies._get_rates(company, date),
+                    currencies._get_rates_sql(company, date),
+                    f"memo/SQL divergence for {company.name} at {date}",
+                )
+        # Pin the semantics themselves (not only memo/SQL parity):
+        rates_a = currencies._get_rates(company_a, "2021-06-01")
+        rates_b = currencies._get_rates(company_b, "2021-06-01")
+        # company_b's own 2021-01-01 rate wins over the *newer* global one.
+        self.assertEqual(rates_b[cur_x.id], 5)
+        self.assertEqual(rates_a[cur_x.id], 3)
+        # The NULL-valued 2020 row is selected, so COALESCE falls back to the
+        # earliest known rate (7), not to the latest valued one.
+        self.assertEqual(rates_a[cur_y.id], 7)
+        # No rates at all -> identity.
+        self.assertEqual(rates_a[cur_z.id], 1.0)
+        # Pre-history dates: earliest known rate, company scope first.
+        self.assertEqual(currencies._get_rates(company_b, "2018-06-01")[cur_x.id], 5)
+        self.assertEqual(currencies._get_rates(company_a, "2018-06-01")[cur_x.id], 2)
+
+    def test_rate_memo_invalidated_within_transaction(self):
+        """RCUR-M1: rate create/write/unlink within the same transaction drop
+        the memo (and the cross-record inverse_rate cache), so conversions
+        immediately see the change.
+        """
+        cur_a, cur_b = self.env["res.currency"].create(
+            [
+                {
+                    "name": "MI1",
+                    "symbol": "IA",
+                    "rate_ids": [Command.create({"name": "2020-01-01", "rate": 1})],
+                },
+                {
+                    "name": "MI2",
+                    "symbol": "IB",
+                    "rate_ids": [Command.create({"name": "2020-01-01", "rate": 2})],
+                },
+            ]
+        )
+        company = self.env.company
+
+        def convert(date):
+            return cur_a._convert(100, cur_b, company, date)
+
+        self.assertEqual(convert("2020-06-01"), 200)  # warms the memo
+        # write: the memoized history must not survive the rate change
+        cur_b.rate_ids.rate = 4
+        self.assertEqual(convert("2020-06-01"), 400)
+        # create: a new rate must be visible immediately
+        self.env["res.currency.rate"].create(
+            {
+                "name": "2020-03-01",
+                "rate": 8,
+                "currency_id": cur_b.id,
+                "company_id": company.id,
+            }
+        )
+        self.assertEqual(convert("2020-06-01"), 800)
+        self.assertEqual(convert("2020-02-01"), 400)
+        # unlink: dropping the newest rate falls back to the earlier one
+        cur_b.rate_ids.filtered(lambda r: str(r.name) == "2020-03-01").unlink()
+        self.assertEqual(convert("2020-06-01"), 400)
 
     def test_rate_date_and_company_change_invalidate_currency_cache(self):
         """RCUR-C1: changing a rate's date or company within a transaction must
