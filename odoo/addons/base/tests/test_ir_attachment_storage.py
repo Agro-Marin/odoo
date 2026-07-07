@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import psycopg.errors
 
+from odoo.fields import Domain
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.base.models.ir_attachment_storage import (
@@ -257,7 +258,26 @@ class TestMemoryStorageCRUD(TransactionCase):
         att = self.env["ir.attachment"].create({"name": "fs.bin", "raw": payload})
         self.assertNotIn("://", att.store_fname)
         with activate_memory_storage(self.env):
-            self.env["ir.attachment"].force_storage()
+            # Do NOT run a filestore-wide force_storage() here: _migrate marks
+            # every live store_fname for GC on disk — a non-transactional side
+            # effect that survives the test rollback and can wipe filestore
+            # files still referenced by the database (observed 2026-07-07).
+            # Assert force_storage's search domain would pick the attachment,
+            # then migrate only it.
+            candidates = (
+                self.env["ir.attachment"]
+                .with_context(skip_res_field_check=True)
+                .search(
+                    Domain.AND(
+                        [
+                            self.env["ir.attachment"]._get_storage_domain(),
+                            [("type", "=", "binary"), ("id", "=", att.id)],
+                        ]
+                    )
+                )
+            )
+            self.assertEqual(candidates, att)
+            candidates._migrate()
             att.invalidate_recordset()
             self.assertTrue(att.store_fname.startswith("mem://"))
             self.assertEqual(att.raw, payload)

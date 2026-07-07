@@ -9,7 +9,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from odoo.api import SUPERUSER_ID
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import mute_logger
 from odoo.tools.image import image_to_base64
 
@@ -488,6 +488,19 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 self.assertEqual(stream.type, "data")
                 self.assertEqual(stream.data, b"")
                 self.assertEqual(stream.size, 0)
+                # The degraded stream must carry NO caching metadata: it was
+                # built with etag = checksum (the REAL content's digest), so a
+                # cacheable 200 with this empty body would keep answering 304
+                # to conditional requests after the file is restored — pinning
+                # the empty body in browser/proxy caches forever.
+                self.assertIs(
+                    stream.etag, False, "empty fallback must not keep the real ETag"
+                )
+                self.assertIsNone(stream.last_modified)
+                self.assertFalse(
+                    stream.conditional, "fallback must not serve conditionally"
+                )
+                self.assertFalse(stream.public, "fallback must not be proxy-cacheable")
         finally:
             _request_stack.pop()
 
@@ -631,6 +644,140 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(
             Path(self.filestore, original_fname).is_file(), "file must survive"
         )
+
+    def test_create_from_stream_unreadable_readback_skips_index(self):
+        """_create_from_stream must not index an empty read-back of stored content.
+
+        _file_read returns b"" on a (possibly transient) read error; feeding
+        that to _index would derive the index from the wrong (empty) bytes.
+        Same empty-read-on-non-empty-content guard as _compute_raw/_migrate.
+        """
+        payload = b"streamed text payload for indexation"
+        # positive control: the streaming path indexes readable text content
+        ok = self.Attachment._create_from_stream(
+            io.BytesIO(payload), name="ok.txt", mimetype="text/plain"
+        )
+        self.assertIn("streamed", ok.index_content)
+
+        IrAttachmentCls = self.registry["ir.attachment"]
+        with (
+            patch.object(IrAttachmentCls, "_file_read", return_value=b""),
+            patch.object(
+                IrAttachmentCls,
+                "_index",
+                autospec=True,
+                side_effect=IrAttachmentCls._index,
+            ) as index_spy,
+            self.assertLogs("odoo.addons.base.models.ir_attachment", "WARNING") as log,
+        ):
+            att = self.Attachment._create_from_stream(
+                io.BytesIO(payload), name="s.txt", mimetype="text/plain"
+            )
+        self.assertEqual(index_spy.call_count, 0, "empty read-back must not be indexed")
+        self.assertTrue(any("skipping index extraction" in line for line in log.output))
+        self.assertFalse(att.index_content)
+        # the stored content and its metadata are untouched by the guard
+        self.assertEqual(att.file_size, len(payload))
+        att.invalidate_recordset()
+        self.assertEqual(att.raw, payload)
+
+    def test_invalid_base64_datas_raises_user_error(self):
+        """Every 'datas' entry point surfaces invalid base64 as a UserError.
+
+        b64decode raises binascii.Error (a ValueError subclass) on malformed
+        padding/length; all decodes go through _decode_datas, which wraps
+        either as a clean UserError instead of a 500.
+        """
+        bad = b"a"  # 1 char is never a valid base64 quantum, even unpadded
+        with self.assertRaises(UserError):
+            self.Attachment.create({"name": "bad", "datas": bad})
+        att = self.Attachment.create({"name": "ok", "raw": b"x"})
+        with self.assertRaises(UserError):
+            att.write({"datas": bad})
+        with self.assertRaises(UserError):
+            self.Attachment.create_unique(
+                [{"name": "bad", "mimetype": "text/plain", "datas": bad}]
+            )
+        with self.assertRaises(UserError):
+            self.Attachment._mimetype_from_values({"datas": bad})
+
+    def test_content_derivation_memoized_within_batch(self):
+        """Identical payloads in one batch derive their metadata once.
+
+        Both content loops memoize _get_datas_related_values over identical
+        bytes — create() keyed on the content checksum, the write path on the
+        payload's identity (every record gets the same cached bytes object) —
+        so _index runs once, not once per record.
+        """
+        IrAttachmentCls = self.registry["ir.attachment"]
+        payload = b"same text payload for every record in the batch"
+
+        # create(): the base64 path decodes a distinct object per row, so the
+        # memo must hit on the checksum, not on object identity.
+        datas = base64.b64encode(payload)
+        with patch.object(
+            IrAttachmentCls,
+            "_index",
+            autospec=True,
+            side_effect=IrAttachmentCls._index,
+        ) as index_spy:
+            atts = self.Attachment.create(
+                [
+                    {"name": f"c{i}.txt", "datas": datas, "mimetype": "text/plain"}
+                    for i in range(3)
+                ]
+            )
+        self.assertEqual(index_spy.call_count, 1, "create must derive the batch once")
+        self.assertEqual(len(set(atts.mapped("store_fname"))), 1)
+        for att in atts:
+            self.assertEqual(att.raw, payload)
+            self.assertIn("payload", att.index_content)
+
+        # write path: `write({'raw': X})` hands every record the same cached
+        # bytes object, hit by the single-slot identity memo.
+        rewritten = b"rewritten text payload shared by the whole batch"
+        with patch.object(
+            IrAttachmentCls,
+            "_index",
+            autospec=True,
+            side_effect=IrAttachmentCls._index,
+        ) as index_spy:
+            atts.write({"raw": rewritten})
+        self.assertEqual(index_spy.call_count, 1, "write must derive the batch once")
+        atts.invalidate_recordset()
+        for att in atts:
+            self.assertEqual(att.raw, rewritten)
+            self.assertIn("rewritten", att.index_content)
+
+    def test_write_res_field_check_grouped_by_model(self):
+        """write() checks the res_field ACL once per distinct res_model (IRA-L2).
+
+        The field ACL is deterministic per (res_model, res_field, operation,
+        user), so a batch of attachments on the same comodel needs one check,
+        not one per record — same rationale as _check_access's memoization.
+        """
+        partner = self.env["res.partner"].create({"name": "grouped-check"})
+        atts = self.Attachment.create(
+            [
+                {
+                    "name": f"g{i}",
+                    "raw": b"x",
+                    "res_model": "res.partner",
+                    "res_id": partner.id,
+                }
+                for i in range(3)
+            ]
+        )
+        IrAttachmentCls = self.registry["ir.attachment"]
+        with patch.object(
+            IrAttachmentCls,
+            "_check_res_field_access",
+            autospec=True,
+            side_effect=IrAttachmentCls._check_res_field_access,
+        ) as spy:
+            atts.write({"res_field": "image_1920"})
+        self.assertEqual(spy.call_count, 1, "one ACL check per distinct res_model")
+        self.assertEqual(set(atts.mapped("res_field")), {"image_1920"})
 
     def test_migrate_does_not_resize_images(self):
         """_migrate is a storage move, not a content rewrite (P0-3).
