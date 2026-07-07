@@ -1,6 +1,10 @@
+from unittest.mock import patch
+
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
+
+from odoo.addons.base.models.res_company import ResCompany
 
 
 class TestCompany(TransactionCase):
@@ -65,6 +69,63 @@ class TestCompany(TransactionCase):
             .create({"name": "Branch Company"})
         )
         self.assertFalse(branch.partner_id.parent_id)
+
+    def test_color_follows_root_partner_color(self):
+        """Branch color must be recomputed when the root partner color changes."""
+        root = self.env["res.company"].create({"name": "color root"})
+        branch = self.env["res.company"].create(
+            {"name": "color branch", "parent_id": root.id}
+        )
+        # Prime both caches before changing the root partner's color.
+        self.assertEqual(root.color, branch.color)
+        # Two successive writes: at most one value can coincide with the
+        # ``root.id % 12`` fallback, so a stale cache cannot pass both.
+        for color in (5, 7):
+            root.partner_id.color = color
+            self.assertEqual(root.color, color)
+            self.assertEqual(
+                branch.color,
+                color,
+                "Cached branch color must not go stale when the root partner's"
+                " color changes",
+            )
+
+    def test_company_partner_ids_cache_invalidation(self):
+        """Changing a company's partner_id must invalidate the ormcached
+        _get_company_partner_ids (feeds the own-company bank account guard)."""
+        Company = self.env["res.company"]
+        company = Company.create({"name": "cache co"})
+        self.assertIn(company.partner_id.id, Company._get_company_partner_ids())
+
+        new_partner = self.env["res.partner"].create(
+            {"name": "new company partner", "is_company": True}
+        )
+        company.write({"partner_id": new_partner.id})
+        self.assertIn(
+            new_partner.id,
+            Company._get_company_partner_ids(),
+            "partner_id writes must invalidate the company partner ids cache",
+        )
+
+    def test_compute_address_calls_update_hook(self):
+        """_compute_address must resolve values via the overridable
+        _get_company_address_update() extension point."""
+        company = self.env["res.company"].create({"name": "hook co"})
+        company.partner_id.write({"street": "1 Hook St", "city": "Hookville"})
+        original = ResCompany._get_company_address_update
+        seen_partners = []
+
+        def _spy(self, partner):
+            seen_partners.append(partner)
+            return original(self, partner)
+
+        with patch.object(ResCompany, "_get_company_address_update", _spy):
+            company.invalidate_recordset(["street", "city"])
+            self.assertEqual(company.street, "1 Hook St")
+            self.assertEqual(company.city, "Hookville")
+        self.assertTrue(
+            seen_partners, "_compute_address must call _get_company_address_update"
+        )
 
 
 @tagged("post_install", "-at_install")

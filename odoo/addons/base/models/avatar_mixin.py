@@ -1,3 +1,4 @@
+import functools
 from base64 import b64encode
 from datetime import UTC
 
@@ -8,6 +9,17 @@ from odoo.tools.misc import limited_field_access_token
 
 # Type hints
 _FieldName = str
+
+
+@functools.cache
+def _get_placeholder_image(path: str) -> bytes:
+    """Return the raw bytes of the placeholder image at ``path``.
+
+    Cached because the static images never change at runtime (same pattern
+    as ``res_company._get_default_logo``).
+    """
+    with file_open(path, "rb") as file:
+        return file.read()
 
 
 class AvatarMixin(models.AbstractModel):
@@ -100,8 +112,7 @@ class AvatarMixin(models.AbstractModel):
 
         :rtype: bytes
         """
-        with file_open(self._avatar_get_placeholder_path(), "rb") as f:
-            return f.read()
+        return _get_placeholder_image(self._avatar_get_placeholder_path())
 
     def _get_avatar_128_access_token(self) -> str:
         """Return a scoped access token for the `avatar_128` field. The token can be

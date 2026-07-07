@@ -1,6 +1,7 @@
 import base64
 import collections
 import datetime
+import logging
 import re
 import typing
 from collections import defaultdict, deque
@@ -23,6 +24,12 @@ EU_EXTRA_VAT_CODES = {
     "GR": "EL",
     "GB": "XI",
 }
+
+_logger = logging.getLogger(__name__)
+
+# Address formats that already triggered a fallback warning in
+# _display_address(); guards the log against flooding (warn once per format).
+_FAILED_ADDRESS_FORMATS: set[str] = set()
 
 
 def _find_duplicate(
@@ -159,7 +166,7 @@ class ResPartner(models.Model):
     def default_get(self, fields: list[str]) -> dict[str, Any]:
         """Add the company of the parent as default if we are creating a child partner."""
         values = super().default_get(fields)
-        if "parent_id" in fields and values.get("parent_id"):
+        if "company_id" in fields and "parent_id" in fields and values.get("parent_id"):
             parent = self.browse(values.get("parent_id"))
             values["company_id"] = parent.company_id.id
         # protection for `default_type` values leaking from menu action context (e.g. for crm's email)
@@ -457,14 +464,10 @@ class ResPartner(models.Model):
         partners_without_image = (self - partners_with_internal_user).filtered(
             lambda p: not p[image_field]
         )
-        for _path, group in tools.groupby(
-            partners_without_image,
-            key=lambda p: p._avatar_get_placeholder_path(),
-        ):
-            group_partners = self.env["res.partner"].concat(*group)
-            group_partners[avatar_field] = base64.b64encode(
-                group_partners[0]._avatar_get_placeholder()
-            )
+        # _avatar_get_placeholder() serves module-cached bytes per path, so a
+        # plain per-record loop replaces the former group-by-path batching.
+        for partner in partners_without_image:
+            partner[avatar_field] = base64.b64encode(partner._avatar_get_placeholder())
 
         for partner in self - partners_with_internal_user - partners_without_image:
             partner[avatar_field] = partner[image_field]
@@ -558,7 +561,7 @@ class ResPartner(models.Model):
         for partner in self.filtered(
             lambda partner: (
                 not partner.user_id
-                and partner.company_type == "person"
+                and not partner.is_company
                 and partner.parent_id.user_id
             )
         ):
@@ -826,7 +829,8 @@ class ResPartner(models.Model):
 
     @api.onchange("parent_id")
     def onchange_parent_id(self) -> dict[str, Any] | None:
-        # return values in result, as this method is used by _fields_sync()
+        # Return values in an onchange-style ``result`` dict: res.users
+        # delegates its own onchange_parent_id() here (see res_users.py).
         if not self.parent_id:
             return None
         result = {}
@@ -1307,8 +1311,13 @@ class ResPartner(models.Model):
         if self.env.context.get("_partners_skip_fields_sync"):
             return partners
 
+        # Share one missing-defaults cache across the loop: batches with
+        # uniform vals keys resolve the missing fields only once.
+        missing_defaults_cache: dict[frozenset[str], list[str]] = {}
         for partner, vals in zip(partners, vals_list, strict=True):
-            vals = self.env["res.partner"]._add_missing_default_values(vals)
+            vals = self.env["res.partner"]._add_missing_default_values(
+                vals, _missing_defaults_cache=missing_defaults_cache
+            )
             partner._fields_sync(vals)
         return partners
 
@@ -1436,6 +1445,9 @@ class ResPartner(models.Model):
         "show_vat",
         "lang",
         "formatted_display_name",
+        # read by _get_complete_name(); without it the cache would be shared
+        # between contexts with and without the key
+        "partner_display_name_hide_company",
     )
     def _compute_display_name(self) -> None:
         type_description = dict(self._fields["type"]._description_selection(self.env))
@@ -1633,8 +1645,31 @@ class ResPartner(models.Model):
             return address_format % args
         except KeyError, ValueError:
             # address_format is user-editable in res.country; fall back gracefully
-            # if it references a placeholder that doesn't exist in args.
-            return " ".join(filter(None, args.values()))
+            # if it is malformed or references an unknown placeholder.
+            if address_format not in _FAILED_ADDRESS_FORMATS:
+                _FAILED_ADDRESS_FORMATS.add(address_format)
+                _logger.warning(
+                    "Invalid address format %r on country %r; falling back to"
+                    " the default field order.",
+                    address_format,
+                    self.country_id.name or "?",
+                )
+            return " ".join(
+                filter(
+                    None,
+                    (
+                        args[key]
+                        for key in (
+                            "street",
+                            "street2",
+                            "city",
+                            "state_name",
+                            "zip",
+                            "country_name",
+                        )
+                    ),
+                )
+            )
 
     def _display_address_depends(self) -> list[str]:
         # field dependencies of method _display_address()

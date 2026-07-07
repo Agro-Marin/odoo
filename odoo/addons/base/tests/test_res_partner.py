@@ -12,6 +12,7 @@ from odoo.libs.email import extract_rfc2822_addresses
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase, new_test_user, tagged, users
 
+from odoo.addons.base.models import res_partner as res_partner_module
 from odoo.addons.base.models.res_partner import ResPartner
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
@@ -114,6 +115,19 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertTrue(
             test_partner.active, "Activating user must active related partner"
         )
+
+    def test_default_get_company_only_when_requested(self):
+        """default_get must not inject company_id when it is not requested."""
+        parent = self.env["res.partner"].create(
+            {"name": "Default Parent", "company_id": self.env.company.id}
+        )
+        Partner = self.env["res.partner"].with_context(default_parent_id=parent.id)
+
+        values = Partner.default_get(["parent_id", "company_id"])
+        self.assertEqual(values.get("company_id"), self.env.company.id)
+
+        values = Partner.default_get(["parent_id"])
+        self.assertNotIn("company_id", values)
 
     def test_email_formatted(self):
         """Test various combinations of name / email, notably to check result
@@ -1654,6 +1668,41 @@ class TestPartnerAddressCompany(TransactionCase):
         self.env["res.country"].invalidate_model()
         self.assertEqual(before, partner._display_address().strip())
 
+    def test_display_address_malformed_format(self):
+        """A malformed address_format falls back to a sensible field order and
+        logs a warning naming the country instead of raising."""
+        country = self.env["res.country"].create(
+            {
+                "name": "FallbackLand",
+                "address_format": "%(city)s %(zip)s",
+                "code": "ZY",
+            }
+        )
+        partner = self.env["res.partner"].create(
+            {
+                "name": "TestPartner",
+                "country_id": country.id,
+                "street": "12 Main St",
+                "city": "TestCity",
+                "zip": "12345",
+            }
+        )
+        # Malformed formats are rejected on write, so inject one via SQL.
+        self.env.cr.execute(
+            "UPDATE res_country SET address_format = '%%(city' WHERE id = %s",
+            [country.id],
+        )
+        self.env["res.country"].invalidate_model()
+        # Make the test idempotent w.r.t. the warn-once module guard.
+        res_partner_module._FAILED_ADDRESS_FORMATS.discard("%(city")
+        with self.assertLogs(res_partner_module._logger, "WARNING") as capture:
+            address = partner._display_address()
+        self.assertEqual(address, "12 Main St TestCity 12345 FallbackLand")
+        self.assertIn("FallbackLand", capture.output[0])
+        # The warning is emitted only once per failing format.
+        with self.assertNoLogs(res_partner_module._logger, "WARNING"):
+            partner._display_address()
+
     def test_display_name(self):
         """Check display_name on partner, especially with different context
         Check display_name correctly return name with context."""
@@ -1687,6 +1736,28 @@ class TestPartnerAddressCompany(TransactionCase):
             test_partner_invoice.with_context(formatted_display_name=True).display_name,
             "GhostStep \t --Invoice--",
             "Formatted display name should show parent name and type when child contact has no name",
+        )
+
+    def test_display_name_hide_company_context(self):
+        """display_name is cached per context: reads with and without
+        ``partner_display_name_hide_company`` must not leak into each other
+        within the same transaction."""
+        company = self.env["res.partner"].create(
+            {"name": "Sesame Inc", "is_company": True}
+        )
+        contact = self.env["res.partner"].create(
+            {"name": "Elmo", "parent_id": company.id}
+        )
+        self.assertEqual(contact.display_name, "Sesame Inc, Elmo")
+        self.assertEqual(
+            contact.with_context(partner_display_name_hide_company=True).display_name,
+            "Elmo",
+            "Context key must hide the parent company in display_name",
+        )
+        self.assertEqual(
+            contact.display_name,
+            "Sesame Inc, Elmo",
+            "Reading with the context key must not poison the keyless cache",
         )
 
     def test_accessibility_of_company_partner_from_branch(self):
