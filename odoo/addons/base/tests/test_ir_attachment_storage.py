@@ -85,8 +85,10 @@ class TestIrAttachmentStorage(TransactionCase):
         finally:
             STORAGE_BACKENDS.pop("fake_stream")
 
-    def test_datas_values_matches_model(self):
-        """Backend fragments equal the live _get_datas_related_values output."""
+    def test_write_fragment_matches_model(self):
+        """backend.write's store fragment equals the live
+        _get_datas_related_values output (both persist + return the same
+        store_fname/db_datas)."""
         for location, backend_cls in (("file", FileStorage), ("db", DbStorage)):
             self.icp.set_param("ir_attachment.location", location)
             for data in (b"payload", b""):
@@ -95,7 +97,7 @@ class TestIrAttachmentStorage(TransactionCase):
                         data, "text/plain"
                     )
                     checksum = self.Attachment._content_checksum(data)
-                    fragment = backend_cls(self.env).datas_values(data, checksum)
+                    fragment = backend_cls(self.env).write(data, checksum)
                     self.assertEqual(fragment["store_fname"], model_vals["store_fname"])
                     self.assertEqual(fragment["db_datas"], model_vals["db_datas"])
 
@@ -153,17 +155,14 @@ class MemoryStorage(AttachmentStorage):
     def _key(self, checksum: str) -> str:
         return f"mem://{checksum}"
 
-    def datas_values(self, data, checksum):
-        if not data:
-            return {"store_fname": False, "db_datas": data}
-        return {"store_fname": self._key(checksum), "db_datas": False}
-
     def write(self, data, checksum):
+        # persist AND return the store fragment in one step (empty content
+        # stays inline, like the file/db backends)
         if not data:
-            return None
+            return self._inline_datas_values(data)
         key = self._key(checksum)
         type(self).blobs[key] = bytes(data)
-        return key
+        return {"store_fname": key, "db_datas": False}
 
     def read(self, key, size=None):
         data = type(self).blobs.get(key, b"")

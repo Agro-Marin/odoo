@@ -336,6 +336,40 @@ class TestUsers(UsersCommonCase):
 
         self.assertEqual(user.context_get()["lang"], "en_US")
 
+    def test_context_get_request_lang_not_pinned(self):
+        """The request's Accept-Language is overlaid per call and must never
+        be memoised under the uid-wide context_get cache key: whichever
+        request fills the cache must not pin its locale for every other
+        session/worker of the same uid (W2; shared uids such as the public
+        user would otherwise serve the first visitor's language to everyone).
+        """
+        self.env["res.lang"].with_context(active_test=False).search(
+            [("code", "in", ["fr_FR", "es_ES", "de_DE", "en_US"])]
+        ).write({"active": True})
+        self.addCleanup(self.env.registry.clear_cache)
+
+        user = new_test_user(self.env, "ctxnopin")
+        user = user.with_user(user)
+        user.lang = False
+        user.company_id.partner_id.sudo().lang = "de_DE"
+
+        patch_target = "odoo.addons.base.models.res_users.request"
+        # A request fills the cache with its own language...
+        with patch(patch_target, SimpleNamespace(best_lang="es_ES")):
+            self.assertEqual(user.context_get()["lang"], "es_ES")
+        # ...but WITHOUT any cache clear, a request-less call falls back to
+        # the DB-derived lang, and other requests get their own language.
+        self.assertEqual(user.context_get()["lang"], "de_DE")
+        with patch(patch_target, SimpleNamespace(best_lang="fr_FR")):
+            self.assertEqual(user.context_get()["lang"], "fr_FR")
+        # A request language that is not installed is ignored.
+        with patch(patch_target, SimpleNamespace(best_lang="nl_NL")):
+            self.assertEqual(user.context_get()["lang"], "de_DE")
+        # A valid user preference always outranks the request language.
+        user.lang = "fr_FR"
+        with patch(patch_target, SimpleNamespace(best_lang="es_ES")):
+            self.assertEqual(user.context_get()["lang"], "fr_FR")
+
     def test_user_self_update(self):
         """Check that the user has access to write his phone."""
         test_user = self.env["res.users"].create(
@@ -748,6 +782,57 @@ class TestUsers2(UsersCommonCase):
             )
         # A USER can update the partner profile of a PORTAL user
         portal.partner_id.with_user(user).write({"name": "New name for you"})
+
+
+class TestEmptyPassword(TransactionCase):
+    """Setting an empty password must store SQL NULL (not a verifiable hash of
+    the empty string) and block any login attempt, honoring the field help
+    "Keep empty if you don't want the user to be able to connect". (W2)
+    """
+
+    def _stored_password(self, user):
+        self.env.cr.execute("SELECT password FROM res_users WHERE id=%s", (user.id,))
+        return self.env.cr.fetchone()[0]
+
+    def _check_credentials(self, user, password):
+        env = self.env(user=user)
+        return env["res.users"]._check_credentials(
+            {"type": "password", "login": user.login, "password": password},
+            {"interactive": True},
+        )
+
+    def test_empty_password_stores_null_and_blocks_login(self):
+        user = new_test_user(self.env, "nopwd_user", password="Secret!Pwd123")
+        # Sanity: a set password stores a (non-plaintext) hash and verifies.
+        self.assertTrue(self._stored_password(user))
+        self.assertEqual(
+            self._check_credentials(user, "Secret!Pwd123")["auth_method"],
+            "password",
+        )
+
+        user.password = ""
+
+        self.assertIsNone(
+            self._stored_password(user),
+            "An empty password must be stored as SQL NULL.",
+        )
+        # Login fails cleanly: the old password, the empty string, and a
+        # string matching the stored value (NULL reads back as '') all raise.
+        for attempt in ("Secret!Pwd123", "", " "):
+            with self.assertRaises(AccessDenied):
+                self._check_credentials(user, attempt)
+
+    def test_reset_after_empty_password(self):
+        """A password set again after being emptied works normally."""
+        user = new_test_user(self.env, "repwd_user", password="Secret!Pwd123")
+        user.password = ""
+        self.assertIsNone(self._stored_password(user))
+        user.password = "New!Secret456"
+        self.assertTrue(self._stored_password(user))
+        self.assertEqual(
+            self._check_credentials(user, "New!Secret456")["auth_method"],
+            "password",
+        )
 
 
 class TestUsersTweaks(TransactionCase):

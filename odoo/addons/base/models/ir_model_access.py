@@ -129,7 +129,11 @@ class IrModelAccess(models.Model):
     # not be really necessary as a cache key, unless the `ormcache`
     # decorator catches the exception (it does not at the moment.)
 
-    @tools.ormcache("self.env.uid", "mode")
+    # Keyed on the user's group set, not the uid: the result depends only on
+    # the groups, so same-group users share one entry per mode and per-user
+    # cache churn cannot evict it. _get_group_ids() is itself ormcached and
+    # returns a stable tuple of ids, i.e. a cheap hashable key.
+    @tools.ormcache("self.env.user._get_group_ids()", "mode")
     def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
 

@@ -575,9 +575,11 @@ class ResLang(models.Model):
     def format(self, percent: str, value, grouping: bool = False) -> str:
         """Format ``value`` using ``percent`` with this language's locale.
 
-        Handles float specs (``%e``/``%f``/``%g``) and integer specs
-        (``%d``/``%i``/``%u``); the latter are used by callers such as
-        ``ir_qweb_fields``. Scientific-notation output is never grouped.
+        Thin registry-facing wrapper around the pure :func:`format_number`:
+        it only resolves this record's :class:`LangData` (and checks the
+        language is installed). Callers that already hold a ``LangData``
+        (e.g. ``odoo.tools.formatting.formatLang``) should call
+        :func:`format_number` directly and skip the extra cache hops.
 
         :param str percent: a single ``%char`` format specifier
         :param value: the numeric value to format
@@ -586,46 +588,10 @@ class ResLang(models.Model):
         :rtype: str
         """
         self.ensure_one()
-        if not percent or percent[0] != "%":
-            raise ValueError(
-                _("format() must be given exactly one %char format specifier")
-            )
-
-        formatted = percent % value
-
         data = self._get_data(id=self.id)
         if not data:
             raise UserError(_("The language %s is not installed.", self.name))
-        decimal_point = data.decimal_point
-        # floats and decimal ints need special action!
-        if grouping:
-            lang_grouping, thousands_sep = (
-                data.grouping,
-                data.thousands_sep or "",
-            )
-            eval_lang_grouping = _parse_grouping(lang_grouping)
-
-            if percent[-1] in "eEfFgG":
-                parts = formatted.split(".")
-                # Scientific-notation output (e.g. ``%g % 1e20`` → ``"1e+20"``)
-                # must NOT be grouped: ``parts[0]`` then holds the mantissa plus
-                # the ``e+NN`` exponent, and interspersing would inject the
-                # thousands separator into the exponent (RL-L2: ``"1e,+20"``).
-                # Only group the integer part of plain decimal output.
-                if "e" not in formatted and "E" not in formatted:
-                    parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[
-                        0
-                    ]
-
-                formatted = decimal_point.join(parts)
-
-            elif percent[-1] in "diu":
-                formatted = intersperse(formatted, eval_lang_grouping, thousands_sep)[0]
-
-        elif percent[-1] in "eEfFgG" and "." in formatted:
-            formatted = formatted.replace(".", decimal_point)
-
-        return formatted
+        return format_number(percent, value, data, grouping=grouping)
 
     def action_activate_langs(self) -> dict[str, Any]:
         """Activate the selected languages"""
@@ -708,3 +674,61 @@ def intersperse(string: str, counts: list[int], separator: str = "") -> tuple[st
     splits = split(reverse(rest), counts)
     res = separator.join(reverse(s) for s in reverse(splits))
     return left + res + right, (len(splits) > 0 and len(splits) - 1) or 0
+
+
+def format_number(spec: str, value, lang_data: LangData, grouping: bool = False) -> str:
+    """Format ``value`` using ``spec`` with ``lang_data``'s locale conventions.
+
+    Pure, registry-free counterpart of :meth:`ResLang.format` (which
+    delegates here): everything locale-related is taken from the given
+    ``lang_data`` (``decimal_point``, ``grouping``, ``thousands_sep``), so
+    this is unit-testable without a database and callable by code that
+    already holds a :class:`LangData` (e.g. ``formatLang``) without
+    re-fetching it through a recordset.
+
+    Handles float specs (``%e``/``%f``/``%g``) and integer specs
+    (``%d``/``%i``/``%u``); the latter are used by callers such as
+    ``ir_qweb_fields``. Scientific-notation output is never grouped.
+
+    :param str spec: a single ``%char`` format specifier
+    :param value: the numeric value to format
+    :param lang_data: the language data providing the locale conventions
+    :param bool grouping: whether to insert the locale thousands separator
+    :return: the locale-formatted string
+    :rtype: str
+    """
+    if not spec or spec[0] != "%":
+        raise ValueError(
+            "format_number() must be given exactly one %char format specifier"
+        )
+
+    formatted = spec % value
+
+    decimal_point = lang_data.decimal_point
+    # floats and decimal ints need special action!
+    if grouping:
+        lang_grouping, thousands_sep = (
+            lang_data.grouping,
+            lang_data.thousands_sep or "",
+        )
+        eval_lang_grouping = _parse_grouping(lang_grouping)
+
+        if spec[-1] in "eEfFgG":
+            parts = formatted.split(".")
+            # Scientific-notation output (e.g. ``%g % 1e20`` → ``"1e+20"``)
+            # must NOT be grouped: ``parts[0]`` then holds the mantissa plus
+            # the ``e+NN`` exponent, and interspersing would inject the
+            # thousands separator into the exponent (RL-L2: ``"1e,+20"``).
+            # Only group the integer part of plain decimal output.
+            if "e" not in formatted and "E" not in formatted:
+                parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[0]
+
+            formatted = decimal_point.join(parts)
+
+        elif spec[-1] in "diu":
+            formatted = intersperse(formatted, eval_lang_grouping, thousands_sep)[0]
+
+    elif spec[-1] in "eEfFgG" and "." in formatted:
+        formatted = formatted.replace(".", decimal_point)
+
+    return formatted

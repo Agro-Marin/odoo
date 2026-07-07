@@ -1,7 +1,58 @@
 from odoo.exceptions import UserError
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import BaseCase, TransactionCase
 
-from odoo.addons.base.models.res_lang import intersperse
+from odoo.addons.base.models.res_lang import LangData, format_number, intersperse
+
+
+class TestFormatNumberPure(BaseCase):
+    """format_number is pure (registry-free): all locale conventions come from
+    the LangData argument, so it is unit-testable without a database. (W2)
+    """
+
+    EN = LangData(
+        {"id": 1, "decimal_point": ".", "thousands_sep": ",", "grouping": "[3,0]"}
+    )
+    EU = LangData(
+        {"id": 2, "decimal_point": ",", "thousands_sep": ".", "grouping": "[3,0]"}
+    )
+    IN = LangData(
+        {"id": 3, "decimal_point": ".", "thousands_sep": ",", "grouping": "[3,2,0]"}
+    )
+
+    def test_float_specs(self):
+        self.assertEqual(format_number("%.2f", 1234.5, self.EN), "1234.50")
+        self.assertEqual(
+            format_number("%.2f", 1234.5, self.EN, grouping=True), "1,234.50"
+        )
+        self.assertEqual(
+            format_number("%.2f", -1234.5, self.EN, grouping=True), "-1,234.50"
+        )
+        self.assertEqual(
+            format_number("%.2f", 1234.5, self.EU, grouping=True), "1.234,50"
+        )
+        self.assertEqual(format_number("%.2f", 1234.5, self.EU), "1234,50")
+
+    def test_int_specs(self):
+        self.assertEqual(
+            format_number("%d", 1234567, self.EN, grouping=True), "1,234,567"
+        )
+        self.assertEqual(format_number("%d", 1234567, self.EN), "1234567")
+        self.assertEqual(
+            format_number("%d", 12345678, self.IN, grouping=True), "1,23,45,678"
+        )
+
+    def test_scientific_notation_not_grouped(self):
+        self.assertEqual(format_number("%g", 1e20, self.EN, grouping=True), "1e+20")
+        self.assertEqual(
+            format_number("%e", 1e20, self.EN, grouping=True), "1.000000e+20"
+        )
+        self.assertEqual(format_number("%g", 1234.5, self.EN, grouping=True), "1,234.5")
+
+    def test_bad_spec_raises(self):
+        with self.assertRaises(ValueError):
+            format_number("d", 1234, self.EN)
+        with self.assertRaises(ValueError):
+            format_number("", 1234, self.EN)
 
 
 class test_res_lang(TransactionCase):

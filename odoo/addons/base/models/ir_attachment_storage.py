@@ -40,7 +40,31 @@ def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
 
 
 class AttachmentStorage:
-    """Contract for an ir.attachment content storage backend."""
+    """Contract for an ir.attachment content storage backend.
+
+    Scope — which extension axis to pick
+    ------------------------------------
+
+    This registry is for **content-addressed key stores**: backends that
+    persist opaque payloads under a store key (``store_fname``) and serve
+    them back through Odoo (:meth:`read` / :meth:`to_stream`) — the local
+    filestore, the db column, an S3-like blob store fronted by the server.
+    Register a subclass with ``@register_storage``; write-side dispatch
+    follows the ``ir_attachment.location`` parameter, read-side dispatch
+    follows the key's URI scheme (:func:`backend_for_key`).
+
+    **URL-redirect storage is deliberately NOT this axis.** Attachments
+    whose content the *client* exchanges directly with a remote store
+    (signed upload/download URLs, CDN) remain the sanctioned domain of the
+    ``cloud_storage`` module and its provider add-ons (``type='cloud_storage'``
+    rows driven by the ``cloud_storage_provider`` parameter, with
+    ``_to_http_stream`` / ``_generate_cloud_storage_*`` overrides — see
+    ``odoo/addons/cloud_storage`` and the agromarin ``ir_attachment_s3``
+    extension). Those rows carry a ``url``, not a store key, so they never
+    reach this registry. Pick the axis by who serves the bytes: Odoo
+    serves them → register a backend here; the client talks to the remote
+    store directly → extend ``cloud_storage``.
+    """
 
     # write-side registry name (the ``ir_attachment.location`` value)
     location: str = ""
@@ -58,22 +82,29 @@ class AttachmentStorage:
 
     # -- write side (dispatched by configured location) ------------------
 
-    def datas_values(self, data: bytes, checksum: str) -> dict[str, Any]:
-        """Return the content-location fragment for create/write values.
+    @staticmethod
+    def _inline_datas_values(data: bytes) -> dict[str, Any]:
+        """Content-location fragment keeping *data* inline in ``db_datas``.
+
+        The shared no-store-key case: db storage, and EMPTY content on any
+        backend (an empty payload is never keyed externally — no file, no
+        blob — it stays inline on the row, see :meth:`FileStorage.write`).
+        """
+        return {"store_fname": False, "db_datas": data}
+
+    def write(self, data: bytes, checksum: str) -> dict[str, Any]:
+        """Persist *data* in the backend and return its store values.
 
         :param bytes data: the binary content
         :param str checksum: SHA-1 hex digest of *data*
-        :return: the ``store_fname`` / ``db_datas`` values to persist
+        :return: the ``store_fname`` / ``db_datas`` values to persist on
+            the row. The persisted key comes from the write itself — the
+            single source of truth for where the content lives (there is
+            deliberately no separate "derive the key" hook to keep in sync
+            with what was actually written). Backends that keep content
+            inline (db storage, empty content) return the inline fragment
+            (:meth:`_inline_datas_values`) without external I/O.
         :rtype: dict
-        """
-        raise NotImplementedError
-
-    def write(self, data: bytes, checksum: str) -> str | None:
-        """Persist *data* in the backend.
-
-        :return: the store key, or ``None`` when nothing was stored
-            externally (empty content, or db storage)
-        :rtype: str | None
         """
         raise NotImplementedError
 
@@ -96,11 +127,10 @@ class AttachmentStorage:
         if isinstance(data, str):
             data = data.encode()
         checksum = model._content_checksum(data)
-        self.write(data, checksum)
         return {
             "checksum": checksum,
             "file_size": len(data),
-            **self.datas_values(data, checksum),
+            **self.write(data, checksum),
         }
 
     def migration_domain(self) -> list:
@@ -149,12 +179,9 @@ class DbStorage(AttachmentStorage):
 
     location = "db"
 
-    def datas_values(self, data: bytes, checksum: str) -> dict[str, Any]:
-        return {"store_fname": False, "db_datas": data}
-
-    def write(self, data: bytes, checksum: str) -> str | None:
+    def write(self, data: bytes, checksum: str) -> dict[str, Any]:
         # content is persisted by the db_datas column itself
-        return None
+        return self._inline_datas_values(data)
 
     def migration_domain(self) -> list[tuple[str, str, Any]]:
         return [("store_fname", "!=", False)]
@@ -175,25 +202,22 @@ class FileStorage(AttachmentStorage):
         """Return the ir.attachment model bound to this backend's env."""
         return self.env["ir.attachment"]
 
-    def datas_values(self, data: bytes, checksum: str) -> dict[str, Any]:
+    def write(self, data: bytes, checksum: str) -> dict[str, Any]:
         if not data:
             # empty content stays inline, like db storage (no file written)
-            return {"store_fname": False, "db_datas": data}
+            return self._inline_datas_values(data)
         return {
-            "store_fname": self._model()._file_store_path(checksum),
+            # the persisted key is _file_write's return value — no parallel
+            # re-derivation that must agree with what was actually written
+            "store_fname": self._model()._file_write(data, checksum),
             "db_datas": False,
         }
-
-    def write(self, data: bytes, checksum: str) -> str | None:
-        if not data:
-            return None
-        return self._model()._file_write(data, checksum)
 
     def write_stream(self, fileobj: Any) -> dict[str, Any]:
         # True streaming: chunked copy + incremental hash, no full buffer.
         fname, size, checksum = self._model()._file_write_stream(fileobj)
         if not size:
-            # empty content stays inline, like the buffered path's datas_values
+            # empty content stays inline, like the buffered write() path
             return {
                 "checksum": checksum,
                 "file_size": 0,
@@ -235,7 +259,18 @@ class FileStorage(AttachmentStorage):
         # lock only spans the whitelist query + unlinks, not the directory walk.
         # The walk has no DB effect, so the LOCK is still the first DB statement
         # of the new transaction (snapshot freshness, see comment above).
-        checklist = model._gc_checklist()
+        # The scan is capped (_GC_MAX_ENTRIES): the whole sweep below runs
+        # under the SHARE MODE lock, during which every attachment write
+        # blocks — after a bulk delete an unbounded checklist would hold that
+        # lock for the full backlog. Entries past the cap stay on disk and are
+        # picked up by the next run.
+        checklist = model._gc_checklist(limit=model._GC_MAX_ENTRIES)
+        if len(checklist) >= model._GC_MAX_ENTRIES:
+            _logger.info(
+                "filestore gc: checklist cap reached (%d entries); the "
+                "remainder will be swept by the next run",
+                len(checklist),
+            )
 
         # prevent all concurrent updates on ir_attachment while collecting,
         # but only attempt to grab the lock for a little bit, otherwise it'd

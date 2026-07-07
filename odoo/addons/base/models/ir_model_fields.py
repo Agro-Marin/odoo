@@ -1,5 +1,4 @@
 import contextlib
-import gc
 import logging
 from ast import literal_eval
 from collections import defaultdict
@@ -993,10 +992,6 @@ class IrModelFields(models.Model):
 
     def _reflect_fields(self, model_names: list[str]) -> None:
         """Reflect the fields of the given models."""
-        # Free accumulated garbage from previous module loads before the
-        # memory-intensive field reflection phase.
-        gc.collect()
-
         for model_name in model_names:
             model = self.env[model_name]
             by_label = {}
