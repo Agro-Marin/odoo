@@ -547,11 +547,30 @@ class ResLang(models.Model):
         for record, vals in zip(self, vals_list, strict=True):
             if "name" not in default:
                 vals["name"] = _("%s (copy)", record.name)
+            # RL-B3: 'code' is a locale identifier (frozen by write()) and
+            # 'url_code' is routing-facing and unique — both need an
+            # untranslated, URL-safe suffix, never the localized "(copy)".
             if "code" not in default:
-                vals["code"] = _("%s (copy)", record.code)
+                vals["code"] = self._get_unique_copy_value("code", record.code)
             if "url_code" not in default:
-                vals["url_code"] = _("%s (copy)", record.url_code)
+                vals["url_code"] = self._get_unique_copy_value(
+                    "url_code", record.url_code
+                )
         return vals_list
+
+    def _get_unique_copy_value(self, fname: str, value: str) -> str:
+        """Return a URL-safe copy suffix of ``value`` unique for ``fname``.
+
+        Tries ``<value>_copy`` first, then ``<value>_copy2``, ``_copy3``, …
+        until the candidate is free (``fname`` carries a unique constraint).
+        """
+        Lang = self.with_context(active_test=False)
+        candidate = f"{value}_copy"
+        counter = 2
+        while Lang.search_count([(fname, "=", candidate)], limit=1):
+            candidate = f"{value}_copy{counter}"
+            counter += 1
+        return candidate
 
     def format(self, percent: str, value, grouping: bool = False) -> str:
         """Format ``value`` using ``percent`` with this language's locale.

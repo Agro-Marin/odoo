@@ -129,9 +129,10 @@ class ResCountry(models.Model):
                 ["display_name"],
                 limit=limit,
             )
-            result.extend(
-                (country.id, country.display_name) for country in countries.sudo()
-            )
+            # No sudo: the ids come from a permission-checked search_fetch that
+            # already prefetched display_name (whose dependencies carry no
+            # group restriction); sudo would discard that prefetch.
+            result.extend((country.id, country.display_name) for country in countries)
             domain &= Domain("id", "not in", countries.ids)
             if limit is not None:
                 limit -= len(countries)
@@ -314,7 +315,11 @@ class ResCountryState(models.Model):
                 ["display_name"],
                 limit=limit,
             )
-            result.extend((state.id, state.display_name) for state in states.sudo())
+            # No sudo: the ids come from a permission-checked search_fetch that
+            # already prefetched display_name (computed from name and
+            # country_id.code, both readable without elevation); sudo would
+            # discard that prefetch.
+            result.extend((state.id, state.display_name) for state in states)
             domain &= Domain("id", "not in", states.ids)
             if limit is not None:
                 limit -= len(states)
