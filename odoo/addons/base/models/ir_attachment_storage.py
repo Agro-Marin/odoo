@@ -279,6 +279,17 @@ class FileStorage(AttachmentStorage):
             stream.type = "data"
             stream.data = b""
             stream.size = 0
+            # Neutralize the caching metadata: _to_http_stream built the
+            # stream with etag = checksum — the REAL content's digest — so a
+            # 200 with this empty body would be cached by browsers/proxies
+            # under the real ETag. Once the filestore file is restored,
+            # conditional requests keep matching that ETag, get 304, and
+            # clients keep the empty body forever. Serve the degraded
+            # response uncacheable and unconditional instead.
+            stream.etag = False
+            stream.last_modified = None
+            stream.conditional = False
+            stream.public = False
             return stream
         stream.last_modified = stat.st_mtime
         stream.size = stat.st_size

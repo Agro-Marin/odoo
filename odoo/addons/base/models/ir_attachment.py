@@ -251,6 +251,26 @@ class IrAttachment(models.Model):
         if field is None or not comodel._has_field_access(field, "write"):
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
+    @api.model
+    def _decode_datas(self, datas: Any) -> bytes:
+        """Decode a base64 ``datas`` payload, raising a clean error if invalid.
+
+        The single decode wrapper for every content entry point accepting
+        ``datas`` (:meth:`_normalize_content_vals`, :meth:`_mimetype_from_values`,
+        :meth:`create_unique`). ``b64decode`` raises ``binascii.Error`` (a
+        ``ValueError`` subclass) on malformed padding/length and a plain
+        ``ValueError`` on non-ASCII input; surface either as a
+        :class:`UserError` instead of a 500.
+
+        :param datas: the base64 payload (bytes/str), falsy decodes to ``b""``
+        :raise UserError: if *datas* is not valid base64
+        :rtype: bytes
+        """
+        try:
+            return base64.b64decode(datas or b"")
+        except ValueError as exc:
+            raise UserError(_("Attachment is not encoded in base64.")) from exc
+
     def _normalize_content_vals(self, vals: dict[str, Any]) -> bool:
         """Collapse the content keys of create/write *vals* into a single ``raw``.
 
@@ -286,15 +306,7 @@ class IrAttachment(models.Model):
             raw = vals["raw"] or b""
             vals["raw"] = raw.encode() if isinstance(raw, str) else raw
         elif has_content:  # only 'datas' was provided
-            try:
-                vals["raw"] = base64.b64decode(datas or b"")
-            except ValueError as exc:
-                # b64decode raises binascii.Error (a ValueError subclass) on
-                # malformed padding/length, and a plain ValueError on non-ASCII
-                # input. Surface either as a clean UserError instead of a 500:
-                # this is the single content-normalization choke point for the
-                # public create()/write() API. create_unique mirrors this.
-                raise UserError(_("Attachment is not encoded in base64.")) from exc
+            vals["raw"] = self._decode_datas(datas)
         for field in ("file_size", "checksum", "store_fname", "index_content"):
             vals.pop(field, None)
         return has_content
@@ -351,6 +363,17 @@ class IrAttachment(models.Model):
         # filestore write below, instead of being rebuilt per attachment.
         backend = self._storage_backend()
         written_checksums = set()
+        # {(checksum, mimetype): datas-related values} — a batch repeating the
+        # same payload (mail templates, imports) otherwise re-runs _index and
+        # the backend fragment once per row over identical bytes, mirroring
+        # the written_checksums dedup below for the metadata derivation. Keyed
+        # on the content checksum, NOT id(raw): the base64-'datas' path decodes
+        # a DISTINCT object per row (no identity hits), and holding payload
+        # references to make id() sound would reintroduce the O(total bytes)
+        # buffering the write-as-we-go loop below exists to avoid. The derived
+        # dicts hold no payload on the file backend; on the db backend the
+        # payload is carried by vals_list anyway.
+        derived_values: dict[tuple[str, str], dict[str, Any]] = {}
         for values in vals_list:
             # Shared raw/datas precedence + metadata stripping (IRA-A3).
             has_content = self._normalize_content_vals(values)
@@ -371,9 +394,12 @@ class IrAttachment(models.Model):
                 # raw to b"" here overwrote a caller's db_datas with empty bytes
                 # and stamped sha1(b"") on content-less rows (IRA-R1, pinned by
                 # test_http test_static17/18).
-                values.update(
-                    self._get_datas_related_values(raw, values["mimetype"], backend)
-                )
+                memo_key = (self._content_checksum(raw), values["mimetype"])
+                if memo_key not in derived_values:
+                    derived_values[memo_key] = self._get_datas_related_values(
+                        raw, values["mimetype"], backend, checksum=memo_key[0]
+                    )
+                values.update(derived_values[memo_key])
                 if raw and values["checksum"] not in written_checksums:
                     # Persist content as we go rather than buffering every
                     # payload in a {checksum: raw} map until after super().
@@ -422,8 +448,11 @@ class IrAttachment(models.Model):
             if "res_model" in vals:
                 self._check_res_field_access(vals["res_model"], res_field)
             else:
-                for record in self:
-                    self._check_res_field_access(record.res_model, res_field)
+                # One check per distinct comodel, not per record: the field ACL
+                # is deterministic per (res_model, res_field, operation, user),
+                # the same reason _check_access memoizes its field_access map.
+                for res_model in OrderedSet(record.res_model for record in self):
+                    self._check_res_field_access(res_model, res_field)
         # Normalize content keys exactly like create() via the shared helper:
         # 'raw' beats 'datas' by key presence, str content is encoded, and the
         # computed metadata columns are stripped. Without this the two inverses
@@ -590,16 +619,9 @@ class IrAttachment(models.Model):
             if "raw" in values and values["raw"] is not None:
                 raw = values["raw"]
             elif values.get("datas"):
-                try:
-                    raw = base64.b64decode(values["datas"])
-                except ValueError as exc:
-                    # Mirror the wrapping in _normalize_content_vals and
-                    # create_unique so a malformed 'datas' surfaces as a clean
-                    # UserError from every content entry point — including
-                    # direct callers of this hook — not a raw binascii.Error
-                    # 500. (Unreachable via create/write, which decode 'datas'
-                    # upstream, but this keeps the contract uniform.)
-                    raise UserError(_("Attachment is not encoded in base64.")) from exc
+                # Unreachable via create/write, which decode 'datas' upstream,
+                # but direct callers of this hook get the same clean UserError.
+                raw = self._decode_datas(values["datas"])
             if raw:
                 mimetype = guess_mimetype(raw)
         return (mimetype and mimetype.lower()) or "application/octet-stream"
@@ -1186,11 +1208,30 @@ class IrAttachment(models.Model):
         wrote_content = False
         written_checksums = set()
         backend = self._storage_backend()
+        # Single-slot memo of the previous record's derived values: a
+        # multi-record `write({'raw': X})` hands EVERY record the same cached
+        # bytes object (super().write puts one converted value in the field
+        # cache; _inverse_raw reads it back per record), so re-hashing and
+        # re-indexing X once per row is pure waste — the written_checksums
+        # dedup below, extended to the metadata derivation. One slot rather
+        # than a map keyed on id(bin_data): holding the single reference keeps
+        # the identity check sound (the object cannot die and its id be
+        # recycled), and the base64 path — which decodes a DISTINCT object per
+        # record and thus never hits — is not pinned into O(total bytes) of
+        # retained payloads.
+        memo_key: tuple[bytes, str] | None = None  # (bin_data, mimetype)
+        memo_vals: dict[str, Any] = {}
 
         for attach in self:
             # compute the fields that depend on datas
             bin_data = asbytes(attach)
-            vals = self._get_datas_related_values(bin_data, attach.mimetype, backend)
+            if memo_key and memo_key[0] is bin_data and memo_key[1] == attach.mimetype:
+                vals = memo_vals
+            else:
+                vals = self._get_datas_related_values(
+                    bin_data, attach.mimetype, backend
+                )
+                memo_key, memo_vals = (bin_data, attach.mimetype), vals
 
             # take the current store key to possibly garbage-collect it
             if attach.store_fname:
@@ -1229,9 +1270,16 @@ class IrAttachment(models.Model):
             self._storage_delete(fname)
 
     def _get_datas_related_values(
-        self, data: bytes, mimetype: str, backend: AttachmentStorage | None = None
+        self,
+        data: bytes,
+        mimetype: str,
+        backend: AttachmentStorage | None = None,
+        checksum: str | None = None,
     ) -> dict[str, Any]:
-        checksum = self._content_checksum(data)
+        # Callers that already hashed *data* (create()'s batch memo key) pass
+        # the checksum to skip a second SHA-1 pass over the same bytes.
+        if checksum is None:
+            checksum = self._content_checksum(data)
         index_content = self._index(data, mimetype, checksum=checksum)
         # Content-path callers pass the operation's single write-side backend;
         # default-build one for external/override callers that omit it.
@@ -1284,7 +1332,7 @@ class IrAttachment(models.Model):
         raw_quality = ICP("base.image_autoresize_quality", 80)
         try:
             quality = int(raw_quality)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             _logger.warning(
                 "Invalid base.image_autoresize_quality value: %r, using 80",
                 raw_quality,
@@ -1751,13 +1799,7 @@ class IrAttachment(models.Model):
                 raw = values["raw"] or b""
                 vals["raw"] = raw.encode() if isinstance(raw, str) else raw
             else:
-                try:
-                    vals["raw"] = base64.b64decode(values.get("datas") or b"")
-                except ValueError as exc:
-                    # binascii.Error (bad padding/length) is a ValueError
-                    # subclass; a non-ASCII 'datas' raises a plain ValueError.
-                    # Catch the base class so neither escapes as a 500.
-                    raise UserError(_("Attachment is not encoded in base64.")) from exc
+                vals["raw"] = self._decode_datas(values.get("datas"))
             vals = self._check_contents(vals)
             checksum = self._content_checksum(vals["raw"])
             entries.append((vals, checksum, len(vals["raw"]), vals["mimetype"]))
@@ -1931,16 +1973,33 @@ class IrAttachment(models.Model):
         index_content = None
         if read_size != 0:
             content = b""
+            readable = True
             if store_values.get("store_fname"):
                 content = self._backend_for_key(store_values["store_fname"]).read(
                     store_values["store_fname"], read_size
                 )
+                if not content and store_values["file_size"]:
+                    # A store key is only ever set for NON-empty content, so an
+                    # empty read-back of the just-streamed payload means the
+                    # stored file is missing or unreadable (the backend swallows
+                    # the I/O error and returns b"") — not legitimately empty.
+                    # Don't stamp an index derived from the wrong (empty) bytes;
+                    # _compute_raw and _migrate key off the same
+                    # empty-read-on-non-empty-row signal.
+                    _logger.warning(
+                        "Unreadable stored content for attachment %s "
+                        "(store_fname=%s); skipping index extraction",
+                        record.id,
+                        store_values["store_fname"],
+                    )
+                    readable = False
             elif store_values.get("db_datas"):
                 db_datas = store_values["db_datas"] or b""
                 content = db_datas if read_size is None else db_datas[:read_size]
-            index_content = self._index(
-                content, record.mimetype, checksum=store_values.get("checksum")
-            )
+            if readable:
+                index_content = self._index(
+                    content, record.mimetype, checksum=store_values.get("checksum")
+                )
         store_values["index_content"] = index_content
         # Content metadata is internal: bypass the public write override, exactly
         # as copy() does for relinked content.
