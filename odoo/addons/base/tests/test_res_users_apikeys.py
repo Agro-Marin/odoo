@@ -1,8 +1,9 @@
-import datetime
 from datetime import timedelta
+from hashlib import sha256
 
 from odoo import fields
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessDenied, AccessError, ValidationError
+from odoo.fields import Command
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 
@@ -25,6 +26,13 @@ class TestResUsersApikeys(TransactionCase):
         """Generate a key owned by cls.user with a relative expiration."""
         exp = fields.Datetime.now() + timedelta(hours=hours)
         return self.Apikeys.with_user(self.user)._generate(scope, "k", exp)
+
+    def _cached_auth(self, key):
+        """Exercise the memoised credential check with ``key`` as the RPC
+        password for cls.user (warms res.users._check_uid_passwd_cached)."""
+        self.env["res.users"]._check_uid_passwd_cached(
+            self.user.id, key, sha256(key.encode()).hexdigest()
+        )
 
     # --- _check_credentials -------------------------------------------------
     def test_check_credentials_valid(self):
@@ -66,9 +74,7 @@ class TestResUsersApikeys(TransactionCase):
             self.Apikeys.with_user(self.user)._check_expiration_date(None)
 
     def test_expiration_date_over_limit(self):
-        too_far = datetime.datetime.now(datetime.UTC).replace(tzinfo=None) + timedelta(
-            days=3650
-        )
+        too_far = fields.Datetime.now() + timedelta(days=3650)
         with self.assertRaises(ValidationError):
             self.Apikeys.with_user(self.user)._check_expiration_date(too_far)
 
@@ -145,6 +151,72 @@ class TestResUsersApikeys(TransactionCase):
         self.assertEqual(index, key[:8])
         self.assertNotEqual(stored_key, key)
         self.assertTrue(stored_key.startswith("$pbkdf2-sha512$"))
+
+    # --- revocation invalidates memoised auth (AK-T5, audit 2026-07-06) -----
+    # res.users._check_uid_passwd_cached memoises *successful* authentications
+    # (including the API-key path); every key-revocation path must clear the
+    # registry cache or a revoked key keeps authenticating RPC (AK-P2). The
+    # RPC path requires a global (NULL-scope) key.
+    def test_remove_invalidates_cached_credentials(self):
+        """AK-T5a: revoking a key via _remove() drops the memoised check."""
+        exp = fields.Datetime.now() + timedelta(hours=1)
+        key = self.Apikeys.with_user(self.user)._generate(None, "k", exp)
+        self._cached_auth(key)  # warm the cache with a success
+        self.Apikeys.sudo().search([("user_id", "=", self.user.id)])._remove()
+        with self.assertRaises(AccessDenied):
+            self._cached_auth(key)
+
+    def test_api_key_ids_delete_invalidates_cached_credentials(self):
+        """AK-T5b: deleting a key through res.users.api_key_ids (a
+        SELF_WRITEABLE_FIELDS one2many, Command.delete) bypasses _remove()
+        entirely; the unlink() override itself must clear the cache."""
+        exp = fields.Datetime.now() + timedelta(hours=1)
+        key = self.Apikeys.with_user(self.user)._generate(None, "k", exp)
+        self._cached_auth(key)
+        key_rec = self.Apikeys.sudo().search([("user_id", "=", self.user.id)])
+        self.user.with_user(self.user).write(
+            {"api_key_ids": [Command.delete(key_rec.id)]}
+        )
+        with self.assertRaises(AccessDenied):
+            self._cached_auth(key)
+
+    def test_gc_invalidates_cached_credentials(self):
+        """AK-T5c: the GC's raw DELETE bypasses unlink(); a key memoised while
+        valid must stop authenticating once _gc_user_apikeys reaps it."""
+        exp = fields.Datetime.now() + timedelta(hours=1)
+        key = self.Apikeys.with_user(self.user)._generate(None, "k", exp)
+        self._cached_auth(key)
+        # Expire the key behind the ORM's back, then GC it.
+        self.env.cr.execute(
+            """
+            UPDATE res_users_apikeys
+            SET expiration_date = (now() at time zone 'utc') - interval '1 day'
+            WHERE user_id = %s
+            """,
+            (self.user.id,),
+        )
+        self.Apikeys._gc_user_apikeys()
+        with self.assertRaises(AccessDenied):
+            self._cached_auth(key)
+
+    # --- description wizard batch create (AK-T6) -----------------------------
+    def test_description_batch_create(self):
+        """AK-T6: a multi-record create must validate the expiration date per
+        record instead of raising an ensure_one ValueError on the batch."""
+        Description = self.env["res.users.apikeys.description"].with_user(self.user)
+        wizards = Description.create(
+            [{"name": "a", "duration": "1"}, {"name": "b", "duration": "1"}]
+        )
+        self.assertEqual(len(wizards), 2)
+        # An over-limit record in a batch still raises the validation error.
+        too_far = fields.Datetime.now() + timedelta(days=3650)
+        with self.assertRaises(ValidationError):
+            Description.create(
+                [
+                    {"name": "a", "duration": "1"},
+                    {"name": "b", "duration": "-1", "expiration_date": too_far},
+                ]
+            )
 
     # --- persistent key (system bypass) authenticates (AK-T3) ---------------
     def test_check_credentials_persistent_key_never_expires(self):

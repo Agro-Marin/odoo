@@ -112,6 +112,23 @@ class ResUsersApikeys(models.Model):
             )
         )
 
+    def unlink(self) -> bool:
+        # AK-P2 (audit 2026-07-06): revoking a key MUST drop the memoised
+        # credential check. `res.users._check_uid_passwd_cached` memoises
+        # *successful* authentications -- including the API-key path -- in the
+        # registry's `default` cache (see the invalidation contract documented
+        # on that method in res_users.py); without this clear, a revoked key
+        # keeps authenticating RPC until an unrelated cache invalidation.
+        # Clearing here (rather than only in `_remove`) also covers direct
+        # deletion through `res.users.api_key_ids` -- a SELF_WRITEABLE_FIELDS
+        # one2many, so `Command.delete` bypasses `_remove` entirely and
+        # `api_key_ids` is not in `_get_invalidation_fields`. Key *creation*
+        # needs no clear: a failed check raises and ormcache memoises return
+        # values, not exceptions (see the note in `_generate`).
+        res = super().unlink()
+        self.env.registry.clear_cache()
+        return res
+
     def _check_credentials(self, *, scope: str, key: str) -> int | None:
         """Return the user id whose API key matches ``key`` for ``scope``, else None.
 
@@ -157,6 +174,23 @@ class ResUsersApikeys(models.Model):
                 return user_id
         return None
 
+    def _get_max_duration(self) -> float:
+        """Return the maximum API-key duration (in days) for ``self.env.user``.
+
+        The maximum is the highest ``api_key_duration`` across the user's
+        groups. Deliberate decision point: a user whose groups grant no
+        duration at all (``max(..., default=0.0)`` yields ``0.0``, which is
+        also the falsy value of an unset ``api_key_duration``) is coerced to
+        1.0 day rather than being denied key creation outright.
+        """
+        return (
+            max(
+                (group.api_key_duration for group in self.env.user.all_group_ids),
+                default=0.0,
+            )
+            or 1.0
+        )
+
     def _check_expiration_date(self, date: datetime.datetime | None) -> None:
         """Validate ``date`` against the caller's allowed API-key duration.
 
@@ -170,16 +204,11 @@ class ResUsersApikeys(models.Model):
             return
         if not date:
             raise ValidationError(_("The API key must have an expiration date"))
-        max_duration = (
-            max(
-                (group.api_key_duration for group in self.env.user.all_group_ids),
-                default=0.0,
-            )
-            or 1.0
-        )
-        if date > datetime.datetime.now(datetime.UTC).replace(
-            tzinfo=None
-        ) + datetime.timedelta(days=max_duration):
+        max_duration = self._get_max_duration()
+        # fields.Datetime.now() is the same naive-UTC value as
+        # datetime.now(UTC).replace(tzinfo=None) but is freeze-time patchable,
+        # matching _compute_expiration_date.
+        if date > fields.Datetime.now() + datetime.timedelta(days=max_duration):
             raise ValidationError(
                 _("You cannot exceed %(duration)s days.", duration=max_duration)
             )
@@ -251,7 +280,13 @@ class ResUsersApikeys(models.Model):
                 SQL.identifier(self._table),
             )
         )
-        _logger.info("GC %r delete %d entries", self._name, self.env.cr.rowcount)
+        count = self.env.cr.rowcount
+        if count:
+            # AK-P2: a key that authenticated while valid may still be memoised
+            # in res.users._check_uid_passwd_cached past its expiration date;
+            # this raw DELETE bypasses unlink(), so clear the cache here too.
+            self.env.registry.clear_cache()
+        _logger.info("GC %r delete %d entries", self._name, count)
 
 
 class ResUsersApikeysDescription(models.TransientModel):
@@ -278,13 +313,7 @@ class ResUsersApikeysDescription(models.TransientModel):
         )  # Will force the user to enter a date manually
         if self.env.is_system():
             return durations + [persistent_duration, custom_duration]
-        max_duration = (
-            max(
-                (group.api_key_duration for group in self.env.user.all_group_ids),
-                default=0.0,
-            )
-            or 1.0
-        )
+        max_duration = self.env["res.users.apikeys"]._get_max_duration()
         return list(
             filter(lambda duration: int(duration[0]) <= max_duration, durations)
         ) + [custom_duration]
@@ -328,9 +357,13 @@ class ResUsersApikeysDescription(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        res = super().create(vals_list)
-        self.env["res.users.apikeys"]._check_expiration_date(res.expiration_date)
-        return res
+        records = super().create(vals_list)
+        # Validate per record: reading `expiration_date` on the whole batch
+        # would raise an ensure_one ValueError for a multi-record create.
+        apikeys = self.env["res.users.apikeys"]
+        for record in records:
+            apikeys._check_expiration_date(record.expiration_date)
+        return records
 
     @check_identity
     def make_key(self) -> dict[str, Any]:
