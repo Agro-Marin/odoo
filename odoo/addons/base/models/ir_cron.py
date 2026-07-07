@@ -53,6 +53,10 @@ CONSECUTIVE_TIMEOUT_FOR_FAILURE = 3
 MIN_FAILURE_COUNT_BEFORE_DEACTIVATION = 5
 MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
 # crons must satisfy both minimum thresholds before deactivation
+# Autovacuum retention windows: how long ``ir.cron.trigger`` rows (of inactive
+# crons) and ``ir.cron.progress`` rows are kept before garbage collection.
+TRIGGER_RETENTION_PERIOD = timedelta(weeks=1)
+PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
 # custom function to call instead of default PostgreSQL's `pg_notify`
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
@@ -63,16 +67,6 @@ ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
 # ``no``/``off``) actually disable it -- plain ``bool(os.getenv(...))`` treats any
 # non-empty string, including ``"0"``, as true. Unset/empty/unrecognised => off.
 NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), default=False)
-
-
-def _utcnow_naive() -> datetime:
-    """Current time as a naive-UTC datetime (matching how Odoo stores datetimes).
-
-    Explicitly UTC rather than ``fields.Datetime.now()``: the latter reads the
-    process wall clock, which is only UTC when the startup ``time.tzset``
-    monkeypatch applied (absent on platforms without ``tzset``, e.g. Windows).
-    """
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class BadVersionError(Exception):
@@ -732,7 +726,16 @@ class IrCron(models.Model):
                         success=success, done=done, remaining=remaining
                     )
                     if status is CompletionStatus.FULLY_DONE and progress.deactivate:
-                        job["active"] = False
+                        # Deactivation requested by the action through
+                        # ``_commit_progress(deactivate=True)``. Carried as a
+                        # separate flag rather than mutating ``job["active"]``:
+                        # the job dict must stay the DB-authoritative row
+                        # snapshot that ``_update_failure_count`` compares
+                        # against to decide whether an UPDATE is needed at all
+                        # -- overwriting ``active`` in place made the requested
+                        # deactivation look like "no change" and the write was
+                        # silently skipped.
+                        job["deactivate"] = True
                     elif status is CompletionStatus.PARTIALLY_DONE and loop_count == 0:
                         # remaining records were reported but none processed on
                         # the very first pass; hopefully transient.
@@ -781,8 +784,8 @@ class IrCron(models.Model):
         (the reader that decides a trigger is due) uses ``cr.now()`` too, so
         producing trigger ``call_at`` values and the "is it due now" cutoff from
         one clock keeps writer and reader consistent even when the app host's
-        wall clock differs from the DB's (or lacks the startup ``tzset``, e.g.
-        Windows -- see ``_utcnow_naive``).
+        wall clock differs from the DB's (or is not pinned to UTC because the
+        startup ``time.tzset`` monkeypatch is unavailable, e.g. Windows).
         """
         return self.env.cr.now().replace(microsecond=0)
 
@@ -803,6 +806,11 @@ class IrCron(models.Model):
         date is set if the counter was 0. In case both thresholds are
         reached, ``active`` is set to ``False`` and both values are
         reset.
+
+        When the job requested its own deactivation (``job["deactivate"]``,
+        set by :meth:`_run_job` when the action called
+        ``_commit_progress(deactivate=True)``), ``active`` is set to
+        ``False`` regardless of the completion status.
         """
         if status == CompletionStatus.FAILED:
             now = self._now()
@@ -831,9 +839,16 @@ class IrCron(models.Model):
             first_failure_date = None
             active = job["active"]
 
+        if job.get("deactivate"):
+            # Self-deactivation requested by the job itself (see `_run_job`).
+            active = False
+
         # The common case is a healthy job succeeding with these values already
         # at their defaults; skip the write (and the resulting dead row) when
         # nothing actually changes. This fires on every successful cron tick.
+        # ``job`` still holds the row exactly as read by ``_acquire_one_job``
+        # (nothing mutates these three keys), so the comparison is against the
+        # actual DB state, not against an in-flight copy.
         if (failure_count, first_failure_date, active) == (
             job["failure_count"],
             job["first_failure_date"],
@@ -887,9 +902,27 @@ class IrCron(models.Model):
         context timezone, which makes the DST arithmetic unit-testable.
 
         Iterating one interval at a time is required for that per-step DST
-        snapping; it is also cheap (~3us/step, so a minutes-interval job
-        weeks overdue still resolves in well under a second).
+        snapping, which only makes sense for the calendar-length interval
+        types (days/weeks/months). Fixed-length intervals (minutes/hours)
+        take an arithmetic fast path instead: sub-day schedules have no
+        wall-clock time to preserve -- their intent is a fixed absolute
+        cadence -- and a long-overdue high-frequency job (e.g. a 1-minute
+        cron down for weeks) would otherwise iterate hundreds of thousands
+        of steps while holding the acquire row lock.
         """
+        if interval_type in ("minutes", "hours"):
+            interval = timedelta(**{interval_type: interval_number})
+            if nextcall <= now:
+                # Same postcondition as the loop below: advance by the
+                # smallest whole number of intervals that puts ``nextcall``
+                # strictly past ``now``. The loop runs once per pass while
+                # ``nextcall <= now``, i.e. ``(now - nextcall) // interval
+                # + 1`` times (the ``+ 1`` also covers the boundary
+                # ``nextcall == now``, which the loop advances once).
+                steps = (now - nextcall) // interval + 1
+                nextcall += steps * interval
+            return nextcall
+
         # ``interval_type`` is Selection-constrained to relativedelta's own plural
         # kwargs (minutes/hours/days/weeks/months), so build the delta directly.
         interval = relativedelta(**{interval_type: interval_number})
@@ -1196,9 +1229,14 @@ class IrCronTrigger(models.Model):
 
     @api.autovacuum
     def _gc_cron_triggers(self) -> tuple[int, bool]:
-        # active cron jobs are cleared by `_clear_schedule` when the job starts
+        # active cron jobs are cleared by `_clear_schedule` when the job starts.
+        # The cutoff comes from the transaction clock (`cr.now()`, always
+        # available: autovacuum runs inside a cursor) like every other time
+        # comparison in this file, so it is consistent with the `call_at`
+        # values stamped by `_now`/`_trigger` even when the app host's wall
+        # clock differs from the DB's.
         domain = [
-            ("call_at", "<", _utcnow_naive() - relativedelta(weeks=1)),
+            ("call_at", "<", self.env.cr.now() - TRIGGER_RETENTION_PERIOD),
             ("cron_id.active", "=", False),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)
@@ -1227,8 +1265,10 @@ class IrCronProgress(models.Model):
 
     @api.autovacuum
     def _gc_cron_progress(self) -> tuple[int, bool]:
+        # Transaction clock, for parity with the `create_date` values it is
+        # compared against (see `_gc_cron_triggers`).
         records = self.search(
-            [("create_date", "<", _utcnow_naive() - relativedelta(weeks=1))],
+            [("create_date", "<", self.env.cr.now() - PROGRESS_RETENTION_PERIOD)],
             limit=GC_UNLINK_LIMIT,
         )
         records.unlink()
