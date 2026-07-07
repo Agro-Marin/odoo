@@ -487,7 +487,10 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         with self.assertRaises(ValueError):
             Access._get_access_groups("res.partner", "foo")
 
-    @mute_logger("odoo.addons.base.models.ir_model_access")
+    # odoo.db.cursor: the create below deliberately violates the NOT NULL
+    # constraint on ir_model_access.name; without the mute the cursor's
+    # "bad query" ERROR line pollutes the test log even though the test passes.
+    @mute_logger("odoo.addons.base.models.ir_model_access", "odoo.db.cursor")
     def test_create_missing_name_raises_field_error(self):
         """A group-less access-granting ACL without ``name`` raises the
         required-field validation, not a KeyError from the warning. (IMA-C3)

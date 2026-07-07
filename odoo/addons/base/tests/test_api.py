@@ -757,7 +757,12 @@ class TestAPI(SavepointCaseWithUserDemo):
 
         with self.subTest("Should allow cross-group prefetching"):
             byfn = (p0 | p1 | p2).grouped("function")
-            self.env.invalidate_all(flush=False)
+            # Flush before invalidating: since 2b88ae734aa, res.partner
+            # create() reads commercial_partner_id (in _children_sync), which
+            # computes it and marks it dirty; invalidate_all(flush=False)
+            # deliberately keeps dirty entries in cache, so without a flush
+            # the cache would not be empty here.
+            self.env.invalidate_all()
             self.assertFalse(
                 dict(self.env._core.iter_field_items()),
                 "ensure the cache is empty",

@@ -22,6 +22,7 @@ from . import test_install
 from . import test_avatar_mixin
 from . import test_init
 from . import test_ir_actions
+from . import test_ir_actions_audit
 from . import test_ir_actions_report_audit
 from . import test_ir_asset
 from . import test_ir_asset_audit
@@ -29,6 +30,7 @@ from . import test_ir_attachment
 from . import test_ir_attachment_storage
 from . import test_ir_binary
 from . import test_ir_cron
+from . import test_ir_cron_audit
 from . import test_ir_filters
 from . import test_ir_http
 from . import test_ir_mail_server
@@ -41,8 +43,17 @@ from . import test_ir_sequence_date_range
 from . import test_ir_embedded_actions
 from . import test_ir_default
 from . import test_ir_default_audit
+from . import test_ir_autovacuum_audit
 from . import test_ir_demo
+from . import test_ir_logging
+from . import test_ir_mail_server_audit
 from . import test_mail
+from . import test_base_language_wizards_audit
+from . import test_base_module_wizards
+from . import test_change_password_wizard_audit
+from . import test_decimal_precision_audit
+from . import test_report_layout_audit
+from . import test_report_paperformat_audit
 from . import test_menu
 from . import test_mimetypes
 from . import test_misc
@@ -77,6 +88,7 @@ from . import test_res_users
 from . import test_res_users_apikeys
 from . import test_res_users_identitycheck
 from . import test_res_users_log
+from . import test_res_users_settings
 from . import test_reports
 from . import test_test_retry
 from . import test_test_suite

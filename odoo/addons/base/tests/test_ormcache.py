@@ -183,7 +183,12 @@ class TestOrmCache(TransactionCase):
 
         registry.cache_sequences.update(old_sequences)
 
-        with self.assertLogs() as logs:
+        # Pin the logger: a bare assertLogs() listens on the root logger only,
+        # so when the suite runs under a WARNING-level log config the INFO
+        # record is filtered at the "odoo" logger before it ever propagates,
+        # and the assertion fails with "no logs triggered on root". Naming the
+        # logger makes assertLogs force its level to INFO for the block.
+        with self.assertLogs("odoo.registry") as logs:
             registry.check_signaling()
         self.assertEqual(
             logs.output,
@@ -234,7 +239,10 @@ class TestOrmCache(TransactionCase):
 
         registry.cache_sequences.update(old_sequences)
 
-        with self.assertLogs() as logs:
+        # Pin the logger (see test_signaling_01_single): a bare assertLogs()
+        # only captures records that reach the root logger, which an
+        # INFO-suppressing log config prevents.
+        with self.assertLogs("odoo.registry") as logs:
             registry.check_signaling()
         self.assertEqual(
             logs.output,
