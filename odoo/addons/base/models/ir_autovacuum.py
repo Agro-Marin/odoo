@@ -11,6 +11,14 @@ from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
 
+MAX_VACUUM_RUNTIME = 3600
+"""Wall-clock budget (seconds) for one ``_run_vacuum_cleaner`` run.
+
+Once exceeded, methods reporting remaining work are no longer re-enqueued
+(the backlog is deferred to the next daily run); already-queued first-pass
+methods still execute, so every method gets at least one batch.
+"""
+
 
 def is_autovacuum(func: object) -> bool:
     """Return whether ``func`` is an autovacuum method."""
@@ -41,6 +49,11 @@ class IrAutovacuum(models.AbstractModel):
         - **Re-queue contract**: a method may return a 2-tuple
           ``(done, remaining)``; a truthy ``remaining`` requeues it for another
           batch. A ``None`` return runs the method exactly once.
+        - **Wall-clock budget**: once ``MAX_VACUUM_RUNTIME`` seconds have
+          elapsed, re-enqueueing stops (first-pass methods still run), so a
+          huge backlog cannot turn the daily vacuum into one unbounded run.
+          The deferral is only logged -- partial progress is still NOT
+          reported (see the odoo#265091 note below).
         """
         if not self.env.is_admin() or not self.env.context.get("cron_id"):
             raise AccessDenied
@@ -54,6 +67,8 @@ class IrAutovacuum(models.AbstractModel):
         # starving the following ones
         random.shuffle(all_methods)
         queue = collections.deque(all_methods)
+        vacuum_start = time.monotonic()
+        deferred = []
         # Non-queue job: process every method in one pass. We commit per method
         # for isolation but do NOT report progress counts -- partial progress
         # would let the scheduler retry, re-running all methods (see odoo#265091).
@@ -74,13 +89,19 @@ class IrAutovacuum(models.AbstractModel):
                         func_remaining,
                     )
                     if func_remaining:
-                        # IAVAC-C2: appendleft + pop (right end) is intentional --
-                        # a perpetually-"remaining" method is re-enqueued at the
-                        # LEFT and thus processed LAST each cycle, deferring it
-                        # behind fresh work instead of spinning it in a tight
-                        # loop. Do NOT "fix" this to append(); that would starve
-                        # the rest of the queue.
-                        queue.appendleft((model, attr, func))
+                        if time.monotonic() - vacuum_start >= MAX_VACUUM_RUNTIME:
+                            # Budget exhausted: stop RE-enqueueing only --
+                            # methods still awaiting their first pass keep
+                            # running; the remainder waits for the next run.
+                            deferred.append((model._name, attr, func_remaining))
+                        else:
+                            # IAVAC-C2: appendleft + pop (right end) is intentional --
+                            # a perpetually-"remaining" method is re-enqueued at the
+                            # LEFT and thus processed LAST each cycle, deferring it
+                            # behind fresh work instead of spinning it in a tight
+                            # loop. Do NOT "fix" this to append(); that would starve
+                            # the rest of the queue.
+                            queue.appendleft((model, attr, func))
                 _logger.debug(
                     "%s.%s  took %.2fs",
                     model,
@@ -91,6 +112,16 @@ class IrAutovacuum(models.AbstractModel):
                 _logger.exception("Failed %s.%s()", model, attr)
                 self.env.cr.rollback()
                 self.env.invalidate_all()
+        if deferred:
+            _logger.warning(
+                "Autovacuum exceeded its %ss wall-clock budget; deferring "
+                "remaining work to the next run: %s",
+                MAX_VACUUM_RUNTIME,
+                ", ".join(
+                    f"{name}.{attr} (remaining: {remaining!r})"
+                    for name, attr, remaining in deferred
+                ),
+            )
 
     @api.autovacuum
     def _gc_orm_signaling(self) -> None:

@@ -1,5 +1,14 @@
-from odoo import fields, models
+import datetime
+import logging
+
+from odoo import api, fields, models
+from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.tools import sql
+
+_logger = logging.getLogger(__name__)
+
+DEFAULT_LOGGING_RETENTION_DAYS = 180
+"""Default value (days) for the ``base.logging_retention_days`` parameter."""
 
 
 class IrLogging(models.Model):
@@ -53,3 +62,39 @@ class IrLogging(models.Model):
             self.env.cr.execute(
                 "ALTER TABLE ir_logging DROP CONSTRAINT ir_logging_write_uid_fkey"
             )
+
+    @api.autovacuum
+    def _gc_logging(self) -> tuple[int, bool] | None:
+        """Drop log entries older than the configured retention period.
+
+        ir_logging rows are appended by server-action ``log()`` calls and by
+        the ``--log-db`` handler, and would otherwise grow forever. Retention
+        is driven by the ``base.logging_retention_days`` config parameter
+        (default ``DEFAULT_LOGGING_RETENTION_DAYS``); a zero, negative or
+        unparsable value disables the collection (with a warning), for
+        deployments that archive the table externally.
+        """
+        param = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("base.logging_retention_days", DEFAULT_LOGGING_RETENTION_DAYS)
+        )
+        try:
+            retention_days = int(param)
+        except TypeError, ValueError:
+            retention_days = 0
+        if retention_days <= 0:
+            _logger.warning(
+                "Skipping ir.logging garbage collection: "
+                "'base.logging_retention_days' is %r (expected a positive "
+                "number of days)",
+                param,
+            )
+            return None
+        cutoff = self.env.cr.now() - datetime.timedelta(days=retention_days)
+        records = self.sudo().search(
+            [("create_date", "<", cutoff)], limit=GC_UNLINK_LIMIT
+        )
+        records.unlink()
+        # autovacuum contract: (records removed, whether more may remain)
+        return len(records), len(records) == GC_UNLINK_LIMIT

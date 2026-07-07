@@ -1,4 +1,6 @@
 import email.policy
+import logging
+import smtplib
 from email.message import EmailMessage
 from unittest.mock import patch
 
@@ -6,6 +8,8 @@ from odoo.exceptions import UserError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
+
+from odoo.addons.base.models.ir_mail_server import MailDeliveryError
 
 # Path of the model module, used to mute its logger around tested paths.
 _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
@@ -191,3 +195,117 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertIsNone(message["X-Msg-To-Consolidate"])
         # From was rewritten to the provided smtp_from since it differed.
         self.assertEqual(message["From"], "sender@example.com")
+
+
+class _FailingSMTPSession:
+    """Bare caller-supplied SMTP session double whose delivery always fails.
+
+    ``from_filter``/``smtp_from`` mirror the ``(False, False)`` defaults of
+    ``_read_session_context`` for a session that was never stashed.
+    """
+
+    from_filter = False
+    smtp_from = False
+
+    def send_message(self, message, smtp_from, smtp_to_list):
+        raise smtplib.SMTPDataError(554, b"5.7.1 rejected")
+
+
+@tagged("post_install", "-at_install")
+class TestMailServerSendFailureObservability(TransactionCase):
+    """Delivery failures in ``send_email`` must be observable in production:
+    logged at WARNING with the SMTP traceback, and the raised
+    ``MailDeliveryError`` must chain the root cause (``from e``) while keeping
+    its rendered message -- the stored ``mail.mail`` failure_reason -- intact."""
+
+    def _make_message(self):
+        message = EmailMessage(policy=email.policy.SMTP)
+        message["From"] = "sender@example.com"
+        message["To"] = "recipient@example.com"
+        message["Subject"] = "Subject"
+        return message
+
+    def test_send_email_failure_warns_and_chains(self):
+        IrMailServer = self.env["ir.mail_server"]
+        with (
+            # _disable_send() short-circuits delivery in test mode; force the
+            # real send path so the failure branch is exercised.
+            patch.object(
+                type(IrMailServer), "_disable_send", classmethod(lambda cls: False)
+            ),
+            self.assertLogs(_IR_MAIL_SERVER_LOGGER, level="WARNING") as capture,
+            self.assertRaises(MailDeliveryError) as ctx,
+        ):
+            IrMailServer.send_email(
+                self._make_message(), smtp_session=_FailingSMTPSession()
+            )
+
+        # The exception chain carries the root SMTP error (not `from None`).
+        self.assertIsInstance(ctx.exception.__cause__, smtplib.SMTPDataError)
+        # The rendered message (mail.mail failure_reason) is unchanged: short
+        # human message, then the detailed delivery report.
+        rendered = str(ctx.exception)
+        self.assertTrue(rendered.startswith("Mail Delivery Failed\n"))
+        self.assertIn("Mail delivery failed via SMTP server 'unknown'", rendered)
+        self.assertIn("SMTPDataError", rendered)
+        # Logged at WARNING with the traceback attached (exc_info=True).
+        record = next(
+            r for r in capture.records if "Mail delivery failed" in r.getMessage()
+        )
+        self.assertEqual(record.levelno, logging.WARNING)
+        self.assertIsNotNone(record.exc_info)
+
+
+@tagged("post_install", "-at_install")
+class TestMailServerOnchangeEncryption(TransactionCase):
+    """``_onchange_encryption`` must only rewrite ``smtp_port`` when it still
+    holds the default of the encryption mode being left (25 or 465); custom
+    user-entered ports survive an encryption toggle."""
+
+    def _new_server(self, encryption, port):
+        return self.env["ir.mail_server"].new(
+            {
+                "name": "Onchange Server",
+                "smtp_host": "smtp_host",
+                "smtp_encryption": encryption,
+                "smtp_port": port,
+            }
+        )
+
+    def test_default_port_follows_encryption(self):
+        """Default ports keep tracking the encryption mode: 25 <-> 465."""
+        server = self._new_server("none", 25)
+        server.smtp_encryption = "ssl"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 465)
+        server.smtp_encryption = "none"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 25)
+        # The strict variants behave like their plain counterparts.
+        server.smtp_encryption = "ssl_strict"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 465)
+        server.smtp_encryption = "starttls_strict"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 25)
+
+    def test_custom_port_survives_toggle(self):
+        """A custom port (e.g. 2525) is never clobbered by the onchange."""
+        server = self._new_server("none", 2525)
+        server.smtp_encryption = "ssl"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 2525)
+        server.smtp_encryption = "starttls"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 2525)
+
+    def test_starttls_submission_port_survives_ssl_toggle(self):
+        """587 (STARTTLS submission) is not a mode default: toggling to SSL
+        and back must leave it untouched."""
+        server = self._new_server("starttls", 587)
+        server.smtp_encryption = "ssl_strict"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 587)
+        server.smtp_encryption = "starttls"
+        server._onchange_encryption()
+        self.assertEqual(server.smtp_port, 587)
