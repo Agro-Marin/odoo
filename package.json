@@ -1,9 +1,17 @@
 {
+  "name": "odoo",
   "private": true,
   "description": "Odoo 19.0 JS tooling",
   "devDependencies": {
+    "@eslint/js": "^10.0.0",
     "es-module-lexer": "^1.7.0",
     "esbuild": "^0.25.0",
+    "eslint": "^10.0.2",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.0",
     "sass-embedded": "^1.100.0",
     "typescript": "^5.7.2"
   }

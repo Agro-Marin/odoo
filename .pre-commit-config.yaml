@@ -1,0 +1,55 @@
+# Pre-commit configuration for the AgroMarin Odoo core fork (t23543).
+#
+# Deliberately MINIMAL for an upstream-code repo:
+#
+# - ruff-check --fix, pinned to the SAME ruff the CI ratchet measures with
+#   (0.15.2 — requirements-dev.txt / .github/workflows/ruff.yml). NO
+#   ruff-format: formatting is whole-file and would rewrite upstream files
+#   on touch. Note: --fix repairs every fixable finding in a STAGED file,
+#   so touching one of the ~632 baseline-carrying files may shrink the
+#   ratchet floor — after such a cleanup run:
+#     python tooling/ratchet/ratchet.py ruff --count <N> --update
+# - Safe file hygiene checks (line/EOF, syntax, merge markers).
+# - agromarin-commit-format: canonical §7.1 commit-message gate. Requires:
+#     pre-commit install && pre-commit install --hook-type commit-msg
+# - NO OCA / pylint-odoo hooks (addons-style checkers, noisy on upstream
+#   code) and NO eslint hook (JS gate lives in the lint.yml drift-zero
+#   ratchet).
+
+exclude: |
+  (?x)(
+    _vendor/|
+    /static/(src/)?libs?/|
+    \.svg$|
+    (LICENSE.*|COPYING.*)
+  )
+default_language_version:
+  python: python3
+
+repos:
+  # === Ruff (lint only — never format upstream code) ===
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.2 # keep in lockstep with requirements-dev.txt + ruff.yml ratchet
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+
+  # === File checks ===
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-xml
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # === Commit message (AgroMarin canonical §7.1) ===
+  - repo: https://github.com/JemXiaolong/pre-commit-agromarin
+    rev: v3.1.0
+    hooks:
+      - id: agromarin-commit-format
