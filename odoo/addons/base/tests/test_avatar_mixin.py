@@ -1,8 +1,9 @@
-from base64 import b64decode
+from base64 import b64decode, b64encode
 
 from lxml import etree
 
 from odoo.tests.common import TransactionCase
+from odoo.tools import file_open
 
 
 class TestAvatarMixin(TransactionCase):
@@ -87,6 +88,33 @@ class TestAvatarMixin(TransactionCase):
             self.user_without_image.partner_id.avatar_1920,
             self.user_without_image.avatar_1920,
         )
+
+    def test_placeholder_bytes_are_cached(self):
+        """The placeholder image is read from disk once and served from the
+        module-level cache afterwards (same object identity)."""
+        partner = self.external_partner
+        first = partner._avatar_get_placeholder()
+        second = partner._avatar_get_placeholder()
+        self.assertIs(first, second)
+        with file_open(partner._avatar_get_placeholder_path(), "rb") as file:
+            self.assertEqual(first, file.read())
+
+    def test_partner_placeholder_per_type(self):
+        """Non-user, non-contact partners each fall back to the placeholder
+        matching their own type/path."""
+        parent = self.env["res.partner"].create(
+            {"name": "Placeholder Corp", "is_company": True}
+        )
+        delivery, invoice = self.env["res.partner"].create(
+            [
+                {"name": "Ship", "type": "delivery", "parent_id": parent.id},
+                {"name": "Bill", "type": "invoice", "parent_id": parent.id},
+            ]
+        )
+        with file_open("base/static/img/truck.png", "rb") as file:
+            self.assertEqual(delivery.avatar_128, b64encode(file.read()))
+        with file_open("base/static/img/bill.png", "rb") as file:
+            self.assertEqual(invoice.avatar_128, b64encode(file.read()))
 
     def test_hostile_name_avatar_is_escaped_well_formed_svg(self):
         """A hostile name renders as escaped entities in a well-formed SVG,

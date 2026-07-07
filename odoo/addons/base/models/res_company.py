@@ -218,9 +218,7 @@ class ResCompany(models.Model):
             companies_without = self.search([("paperformat_id", "=", False)])
             if companies_without:
                 companies_without.write({"paperformat_id": paperformat_euro.id})
-        sup = super()
-        if hasattr(sup, "init"):
-            sup.init()
+        super().init()
 
     _name_uniq = models.Constraint(
         "unique (name)",
@@ -466,14 +464,13 @@ class ResCompany(models.Model):
         ]
     )
     def _compute_address(self) -> None:
-        address_fields = self._get_company_address_field_names()
         for company in self.filtered(lambda company: company.partner_id):
             # Sudo: partner may be filtered by the res.partner record rule
             # (company_id outside user scope). Company always owns its partner.
             address_data = company.partner_id.sudo().address_get(adr_pref=["contact"])
             if address_data["contact"]:
                 partner = company.partner_id.browse(address_data["contact"]).sudo()
-                company.update({fname: partner[fname] for fname in address_fields})
+                company.update(company._get_company_address_update(partner))
 
     def _inverse_street(self) -> None:
         for company in self:
@@ -513,7 +510,12 @@ class ResCompany(models.Model):
         for company in self:
             company.uses_default_logo = not company.logo or company.logo == default_logo
 
-    @api.depends("root_id")
+    # ``root_id.partner_id.color`` cannot be a dependency: ``root_id`` is a
+    # non-stored compute without ``search=``, so the trigger resolver's inverse
+    # search on it would fail. Instead, the root partner's color change reaches
+    # the branches recursively: ``partner_id.color`` recomputes the root's own
+    # color, and ``parent_id.color`` cascades the invalidation down ``child_ids``.
+    @api.depends("root_id", "parent_id.color", "partner_id.color")
     def _compute_color(self) -> None:
         for company in self:
             company.color = company.root_id.partner_id.color or (
@@ -651,6 +653,7 @@ class ResCompany(models.Model):
         return {
             "active",  # user._get_company_ids and other potential cached search
             "sequence",  # user._get_company_ids and other potential cached search
+            "partner_id",  # _get_company_partner_ids (own-company partner guards)
         }
 
     @api.model
