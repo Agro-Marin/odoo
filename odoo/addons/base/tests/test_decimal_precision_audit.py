@@ -28,6 +28,18 @@ class TestDecimalPrecisionAudit(TransactionCase):
         with self.assertRaises(ValidationError):
             precision.write({"digits": -1})
 
+    def test_precision_get_unknown_application_warns(self):
+        """DP-W1: an unknown application falls back to 2 digits with a warning."""
+        Precision = self.env["decimal.precision"]
+        name = "audit_dp_unknown_application"
+        # make sure the miss is not already cached from a previous run
+        self.env.registry.clear_cache("stable")
+        with self.assertLogs(
+            "odoo.addons.base.models.decimal_precision", "WARNING"
+        ) as capture:
+            self.assertEqual(Precision.precision_get(name), 2)
+        self.assertIn(name, capture.output[0])
+
     def test_precision_get_reflects_write(self):
         """DP-T1: write clears the ormcache, so precision_get returns the new value."""
         Precision = self.env["decimal.precision"]

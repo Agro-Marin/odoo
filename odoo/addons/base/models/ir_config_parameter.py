@@ -2,6 +2,8 @@ import logging
 import uuid
 from typing import Any, Self
 
+import psycopg.errors
+
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
@@ -95,10 +97,27 @@ class IrConfig_Parameter(models.Model):
             else:
                 param.unlink()
             return old
-        else:
-            if value is not False and value is not None:
-                self.create({"key": key, "value": value})
+        if value is False or value is None:
             return False
+        try:
+            # ICP-C1: the search-then-create pair is not atomic: a concurrent
+            # transaction may commit the same key between our search and our
+            # insert, and the unique constraint on `key` would then abort the
+            # whole transaction.  Run the create in a savepoint so that losing
+            # the race degrades into the regular update path below.
+            with self.env.cr.savepoint():
+                self.create({"key": key, "value": value})
+        except psycopg.errors.UniqueViolation:
+            param = self.search([("key", "=", key)])
+            if not param:
+                # the winning row was removed in the meantime; retry the create
+                self.create({"key": key, "value": value})
+                return False
+            old = param.value
+            if str(value) != old:
+                param.write({"value": value})
+            return old
+        return False
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

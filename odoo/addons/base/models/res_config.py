@@ -329,7 +329,11 @@ class ResConfigSettings(models.TransientModel):
                             _logger.warning(WARNING_MESSAGE, value, field, icp)
                             value = 0.0
                     case "boolean":
-                        value = value == "True"
+                        # RCFG-B1: when the parameter is not stored, get_param
+                        # returns the field default itself, which is a bool
+                        # (not the "True"/"False" string form); compare on
+                        # str() so both encodings round-trip correctly.
+                        value = str(value) == "True"
             res[name] = value
 
         res.update(self.get_values())
@@ -351,7 +355,9 @@ class ResConfigSettings(models.TransientModel):
 
         self = self.with_context(active_test=False)
         classified = self._get_classified_fields()
-        current_settings = self.default_get(list(self.fields_get()))
+        # only field names are needed here; fields_get() would build the full
+        # field descriptions for every settings field, which is expensive
+        current_settings = self.default_get(list(self._fields))
 
         # default values fields
         IrDefault = self.env["ir.default"].sudo()
@@ -367,8 +373,12 @@ class ResConfigSettings(models.TransientModel):
                 IrDefault.set(model, field, value)
 
         # group fields: modify group / implied groups
+        # Sort so that removals (falsy values) are processed before additions.
+        # group_ fields may be boolean or selection ('0'/'1' strings) and both
+        # kinds may coexist: normalize the key to bool, as sorted() cannot
+        # compare bool with str (RCFG-S1).
         for name, groups, implied_group in sorted(
-            classified["group"], key=lambda k: self[k[0]]
+            classified["group"], key=lambda k: bool(int(self[k[0]] or 0))
         ):
             # Sudo: writing res.groups (implied_ids) requires group_erp_manager.
             # Settings may be applied from non-standard contexts (module install,
@@ -398,6 +408,12 @@ class ResConfigSettings(models.TransientModel):
             elif field.type == "many2one":
                 # value is a (possibly empty) recordset
                 value = value.id
+            elif field.type == "boolean":
+                # RCFG-B1: serialize explicitly so that False is stored as
+                # "False" and bypasses set_param()'s delete-on-falsy path;
+                # deleting the parameter would make False indistinguishable
+                # from "not set" and let a default=True field silently revert
+                value = str(bool(value))
 
             if current_value == str(value) or current_value == value:
                 continue
@@ -459,15 +475,8 @@ class ResConfigSettings(models.TransientModel):
             # are no longer valid. So we reset the environment.
             self.env.transaction.reset()
 
-        config = self.env["res.config"]._next_todo_action() or {}
-        if config.get("type") != "ir.actions.act_window_close":
-            return config
-
         # force client-side reload (update user menu and current view)
-        return {
-            "type": "ir.actions.client",
-            "tag": "reload",
-        }
+        return self.env["res.config"]._next_todo_action()
 
     def cancel(self) -> dict[str, Any]:
         # ignore the current record, and send the action to reopen the view

@@ -36,7 +36,14 @@ class DecimalPrecision(models.Model):
             "select digits from decimal_precision where name=%s", (application,)
         )
         res = self.env.cr.fetchone()
-        return res[0] if res else 2
+        if not res:
+            # the result is ormcached, so this logs once per registry per name
+            _logger.warning(
+                "Decimal precision '%s' is not defined, using the default of 2 digits",
+                application,
+            )
+            return 2
+        return res[0]
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

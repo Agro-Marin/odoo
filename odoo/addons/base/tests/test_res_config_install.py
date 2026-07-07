@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 
 def just_raise(*args):
@@ -8,6 +8,12 @@ def just_raise(*args):
     raise Exception(msg)
 
 
+# post_install: res.config.settings aggregates fields contributed by every
+# installed module (e.g. the required company_id added by `web`).  Running
+# at_install, during base's load phase, the registry only knows base's fields
+# while the database table already carries the other modules' NOT NULL
+# columns, so create({}) violates those constraints.
+@tagged("post_install", "-at_install")
 class TestResConfigInstall(TransactionCase):
     """Tests for res.config.settings module installation logic."""
 

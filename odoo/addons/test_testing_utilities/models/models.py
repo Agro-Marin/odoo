@@ -392,6 +392,27 @@ class ResConfigTest(models.Model):
 
     param2 = fields.Many2one("res.config", config_parameter="resConfigTest.parameter2")
 
+    param3 = fields.Boolean(
+        string="Test parameter 3",
+        config_parameter="resConfigTest.parameter3",
+        default=True,
+    )
+
+    # one boolean and one selection group_ field, to cover saving settings
+    # where both supported group_ encodings coexist (RCFG-S1)
+    group_test_checkbox = fields.Boolean(
+        string="Test group checkbox",
+        group="base.group_user",
+        implied_group="base.group_multi_currency",
+    )
+
+    group_test_selection = fields.Selection(
+        [("0", "No"), ("1", "Yes")],
+        string="Test group selection",
+        group="base.group_user",
+        implied_group="base.group_multi_company",
+    )
+
 
 class Test_Testing_UtilitiesWide(models.Model):
     _name = "test_testing_utilities.wide"
