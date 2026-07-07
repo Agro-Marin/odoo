@@ -193,6 +193,40 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             "A shared embedded action should be visible to any user",
         )
 
+    def test_active_model_gates_visibility(self):
+        # Cross-model id collision: an active_id identifies a record of the
+        # context's active_model only, so an embedded action bound to another
+        # parent_res_model must be hidden even when that model's table happens
+        # to contain a record with the same id.
+        # self.env.user is the root user (active=False) and would never be
+        # found by the compute's search: use an active user instead.
+        user = self.user_demo
+        cross_model_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "CrossModelAction",
+                "parent_res_model": "res.users",
+                "parent_action_id": self.parent_action.id,
+                "action_id": self.action_1.id,
+            }
+        )
+        self.assertFalse(
+            cross_model_action.with_context(
+                active_model="res.partner", active_id=user.id
+            ).is_visible,
+            "An embedded action on another model than active_model should be hidden",
+        )
+        self.assertTrue(
+            cross_model_action.with_context(
+                active_model="res.users", active_id=user.id
+            ).is_visible,
+            "An embedded action matching active_model should stay visible",
+        )
+        # Flows passing only active_id keep the id-only matching behavior.
+        self.assertTrue(
+            cross_model_action.with_context(active_id=user.id).is_visible,
+            "Without active_model, matching by active_id alone is preserved",
+        )
+
     def test_can_delete_custom_embedded_action(self):
         embedded_action_custo = self.env["ir.embedded.actions"].create(
             {

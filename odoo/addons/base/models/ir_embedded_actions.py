@@ -124,7 +124,7 @@ class IrEmbeddedActions(models.Model):
         "python_method",
         "user_id",
     )
-    @api.depends_context("active_id", "uid")
+    @api.depends_context("active_id", "active_model", "uid")
     def _compute_is_visible(self) -> None:
         """Compute per-user read-time visibility of each embedded action."""
         # Visibility is gated by the parent record matching the domain on the
@@ -134,9 +134,18 @@ class IrEmbeddedActions(models.Model):
         if not active_id:
             self.is_visible = False
             return
+        # active_id only identifies a record of the context's active_model:
+        # when active_model is present, actions on any other parent_res_model
+        # must be hidden instead of matching an unrelated record that happens
+        # to share the same id (cross-model id collision). Without
+        # active_model, keep matching by id alone (flows passing only
+        # active_id).
+        active_model = self.env.context.get("active_model")
         domain_id = [("id", "=", active_id)]
         for parent_res_model, records in self.grouped("parent_res_model").items():
-            if parent_res_model not in self.env:
+            if parent_res_model not in self.env or (
+                active_model and parent_res_model != active_model
+            ):
                 records.is_visible = False
                 continue
             parent_model = self.env[parent_res_model]
@@ -156,9 +165,10 @@ class IrEmbeddedActions(models.Model):
                     except ValueError, SyntaxError:
                         record.is_visible = False
                         continue
-                    record.is_visible = (
-                        record.parent_res_id
-                        in (False, self.env.context.get("active_id", False))
+                    # bool(): the last operand is a recordset — don't assign
+                    # a recordset to the Boolean field via truthiness.
+                    record.is_visible = bool(
+                        record.parent_res_id in (False, active_id)
                         and record.user_id.id in (False, self.env.uid)
                         and active_model_record.filtered_domain(domain_model)
                     )

@@ -30,6 +30,21 @@ def _readable_stored_field_names(records: models.Model) -> list[str]:
     return [name for name in records._get_readable_fields() if name in records._fields]
 
 
+def _safe_eval_dict(expr: str | None, eval_ctx: dict[str, Any], default: Any) -> Any:
+    """safe_eval a stored expression expected to yield a dict, degrading to
+    ``default`` when it is missing, un-evaluable, or not a dict.
+
+    Stored expressions (``context`` and friends) come from data files, imports
+    or manual edits; a corrupt value must degrade instead of making the action
+    unreadable/un-launchable.
+    """
+    try:
+        result = safe_eval(expr or "{}", eval_ctx)
+    except Exception:
+        return default
+    return result if isinstance(result, dict) else default
+
+
 class IrActionsActions(models.Model):
     _name = "ir.actions.actions"
     _description = "Actions"
@@ -113,8 +128,14 @@ class IrActionsActions(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
-        # self.get_bindings() depends on action records
-        self.env.registry.clear_cache()
+        # get_bindings() caches action data, but its underlying query only
+        # selects rows whose binding_model_id is set (see the JOIN in
+        # _get_bindings), so a new action can only stale the cache when it is
+        # created bound. Check the created records rather than vals_list so
+        # bindings set through defaults (e.g. default_binding_model_id in
+        # context) are caught too.
+        if any(action.binding_model_id for action in res):
+            self.env.registry.clear_cache()
         return res
 
     # IRA-L3: fields whose values never feed _get_bindings()/get_bindings(),
@@ -547,9 +568,10 @@ class IrActionsAct_Window(models.Model):
             # KeyError here.
             if not vals.get("name") and vals.get("res_model") in self.env:
                 vals["name"] = self.env[vals["res_model"]]._description
-        # super() (ir.actions.actions.create) clears the registry cache; the
-        # previous pre-super clear here was redundant (and ran before the
-        # records even existed).
+        # super() (ir.actions.actions.create) clears the registry cache when a
+        # created action is bound (binding_model_id set); the previous
+        # pre-super clear here was redundant (and ran before the records even
+        # existed).
         return super().create(vals_list)
 
     def read(
@@ -574,12 +596,9 @@ class IrActionsAct_Window(models.Model):
             if model not in self.env:
                 continue
             raw_context = record.context if record else values.get("context", "{}")
-            try:
-                ctx = safe_eval(raw_context or "{}", eval_ctx)
-                if not isinstance(ctx, dict):
-                    ctx = {}
-            except Exception:
-                ctx = {}
+            # Eval context: the request context, so the stored expression sees
+            # the same variables (lang, uid, ...) as the requesting client.
+            ctx = _safe_eval_dict(raw_context, eval_ctx, {})
             values["help"] = (
                 self.with_context(**ctx)
                 .env[model]
@@ -776,12 +795,9 @@ class IrActionsTodo(models.Model):
         result.setdefault("context", "{}")
 
         # Open a specific record when res_id is provided in the context
-        try:
-            ctx = safe_eval(result["context"], {"user": self.env.user})
-            if not isinstance(ctx, dict):
-                ctx = {}
-        except Exception:
-            ctx = {}
+        # Eval context: only `user` — todo wizard contexts reference the
+        # launching user, never the request context.
+        ctx = _safe_eval_dict(result["context"], {"user": self.env.user}, {})
         if ctx.get("res_id"):
             result["res_id"] = ctx.pop("res_id")
 
@@ -855,6 +871,9 @@ class IrActionsClient(models.Model):
             # repr()'d dict, but a corrupt value (bad data import, manual DB
             # edit) must not make the client action un-loadable — degrade to
             # False rather than crash, consistent with read()/action_launch().
+            # Not _safe_eval_dict: a non-dict payload is legitimate here (see
+            # _inverse_params) and the default is an explicit False, not {};
+            # eval context: only `uid` — params are plain client arguments.
             try:
                 record.params = safe_eval(stored, {"uid": self.env.uid})
             except Exception:
