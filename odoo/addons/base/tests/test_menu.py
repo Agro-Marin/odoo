@@ -29,6 +29,20 @@ class TestMenu(TransactionCase):
         )
         self.assertEqual([child1.id, child2.id], orphans.ids)
 
+    def test_display_name_recomputed_on_ancestor_rename(self):
+        """display_name mirrors complete_name's recursive triggers: renaming an
+        ancestor invalidates the full path of all descendants (regression guard
+        for the depends("parent_id")-only triggers that left it stale)."""
+        Menu = self.env["ir.ui.menu"]
+        root = Menu.create({"name": "Path root"})
+        child = Menu.create({"name": "Child", "parent_id": root.id})
+        grandchild = Menu.create({"name": "Leaf", "parent_id": child.id})
+        self.assertEqual(grandchild.display_name, "Path root/Child/Leaf")
+
+        root.name = "Renamed root"
+        self.assertEqual(grandchild.display_name, "Renamed root/Child/Leaf")
+        self.assertEqual(grandchild.complete_name, "Renamed root/Child/Leaf")
+
 
 class TestMenuVisibility(TransactionCase):
     """Cover the visibility cache and its gates: group gating, the action-model
@@ -233,6 +247,19 @@ class TestMenuMisc(TransactionCase):
 
         copy2 = copy1.copy()
         self.assertEqual(copy2.name, "Original (2)")
+
+    def test_copy_ignores_mid_name_number(self):
+        """Only a trailing "(N)" is a copy counter: a parenthesized number in
+        the middle of the name is left untouched (regression guard for the
+        unanchored NUMBER_PARENS that turned "Budget (2025) Plan" into
+        "Budget (2026) Plan")."""
+        menu = self.Menu.create({"name": "Budget (2025) Plan"})
+        copy1 = menu.copy()
+        self.assertEqual(copy1.name, "Budget (2025) Plan (1)")
+
+        # the trailing counter increments; the mid-name number still does not
+        copy2 = copy1.copy()
+        self.assertEqual(copy2.name, "Budget (2025) Plan (2)")
 
     def test_web_icon_data_built_icon(self):
         """A built icon (class,color[,bg]) yields no image data."""

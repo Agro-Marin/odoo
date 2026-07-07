@@ -1530,12 +1530,24 @@ class IrUiView(models.Model):
         cache="templates",
     )
     def _get_cached_template_info(
-        self, id_or_xmlid: int | str, _view: Self | None = None
+        self,
+        id_or_xmlid: int | str,
+        _view: Self | None = None,
+        _error: Exception | None = None,
     ) -> dict[str, Any]:
-        """Return cached info for the view given by ``id_or_xmlid`` (the prefetched keys plus ``error``)."""
+        """Return cached info for the view given by ``id_or_xmlid`` (the prefetched keys plus ``error``).
+
+        ``_view`` and ``_error`` are warm-push helpers for
+        :meth:`_fetch_template_views`; like ``_view``, ``_error`` is
+        deliberately excluded from the ormcache key.
+        """
         view = None
         error = False
-        if _view is not None:
+        if _error is not None:
+            # warm push of a known-missing template: cache the error so that
+            # _get_template_view raises instead of returning an empty recordset
+            error = _error
+        elif _view is not None:
             view = _view
         elif isinstance(id_or_xmlid, int):
             view = self.env["ir.ui.view"].sudo().browse(id_or_xmlid)
@@ -1652,21 +1664,21 @@ class IrUiView(models.Model):
         # create data and errors
         for view_id in ids:
             if view_id not in view_by_id:
-                # push information in cache
-                self._get_cached_template_info(view_id, _view=False)
-                view_by_id[view_id] = MissingError(
+                error = MissingError(
                     self.env._(
                         "Template does not exist or has been deleted: %s",
                         view_id,
                     )
                 )
+                # push the error in cache
+                self._get_cached_template_info(view_id, _error=error)
+                view_by_id[view_id] = error
         for xmlid in xmlids:
             if xmlid not in view_by_id:
-                # push information in cache
-                self._get_cached_template_info(xmlid, _view=False)
-                view_by_id[xmlid] = MissingError(
-                    self.env._("Template not found: '%s'", xmlid)
-                )
+                error = MissingError(self.env._("Template not found: '%s'", xmlid))
+                # push the error in cache
+                self._get_cached_template_info(xmlid, _error=error)
+                view_by_id[xmlid] = error
         return view_by_id
 
     @tools.ormcache(cache="templates")
@@ -2447,10 +2459,8 @@ class IrUiView(models.Model):
     def _editable_tag_form(self, node: _Element, name_manager: NameManager) -> bool:
         return True
 
-    def _editable_tag_list(
-        self, node: _Element, name_manager: NameManager
-    ) -> str | None:
-        return node.get("editable") or node.get("multi_edit")
+    def _editable_tag_list(self, node: _Element, name_manager: NameManager) -> bool:
+        return bool(node.get("editable") or node.get("multi_edit"))
 
     def _editable_tag_field(self, node: _Element, name_manager: NameManager) -> bool:
         field = name_manager.model._fields.get(node.get("name"))
@@ -2646,14 +2656,9 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        if node_info["validate"] and not node.iterdescendants(tag="field"):
-            # the field of the search view may be within a group node, which is why we must check
-            # for all descendants containing a node with a field tag, if this is not the case
-            # then a search is not possible.
-            self._log_view_warning(
-                "Search tag requires at least one field element", node
-            )
-
+        # The historical "requires at least one field element" warning was removed:
+        # it tested the truthiness of an iterdescendants() generator (always true),
+        # so it never fired — and filter-only search views are legal anyway.
         searchpanels = [child for child in node if child.tag == "searchpanel"]
         if searchpanels:
             if len(searchpanels) > 1:

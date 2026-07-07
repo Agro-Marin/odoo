@@ -10,7 +10,8 @@ from odoo.exceptions import ValidationError
 from odoo.http import request
 
 MENU_ITEM_SEPARATOR = "/"
-NUMBER_PARENS = re.compile(r"\(([0-9]+)\)")
+# anchored at the end of the name: only a trailing "(N)" is a copy counter
+NUMBER_PARENS = re.compile(r"\((\d+)\)\s*$")
 
 
 class IrUiMenu(models.Model):
@@ -40,6 +41,10 @@ class IrUiMenu(models.Model):
     complete_name = fields.Char(
         string="Full Path", compute="_compute_complete_name", recursive=True
     )
+    # like complete_name, display_name embeds the parent's value, so an
+    # ancestor rename must cascade invalidation down the hierarchy; the ORM
+    # only cascades through fields declared recursive (see _set_full_name)
+    display_name = fields.Char(recursive=True)
     web_icon = fields.Char(string="Web Icon File")
     action = fields.Reference(
         selection=[
@@ -64,23 +69,23 @@ class IrUiMenu(models.Model):
         :meth:`_compute_display_name`, which differ only in their
         ``@api.depends`` triggers.
 
+        Each record's path is built from the parent's own ``fname`` value
+        (not by walking ``name`` up the chain): computing any menu's path
+        thereby caches every ancestor's value too, and that cached chain is
+        what lets the ORM's recursive invalidation cascade down to all
+        descendants when an ancestor is renamed.
+
         :param str fname: the name of the Char field to populate
         """
         for menu in self:
-            menu[fname] = menu._get_full_name()
-
-    def _get_full_name(self, level: int = 6) -> str:
-        """Return the full name of ``self`` (up to a certain level)."""
-        if level <= 0:
-            return "..."
-        if self.parent_id:
-            return (
-                (self.parent_id._get_full_name(level - 1) or "")
-                + MENU_ITEM_SEPARATOR
-                + (self.name or "")
-            )
-        else:
-            return self.name
+            if menu.parent_id:
+                menu[fname] = (
+                    (menu.parent_id[fname] or "")
+                    + MENU_ITEM_SEPARATOR
+                    + (menu.name or "")
+                )
+            else:
+                menu[fname] = menu.name
 
     def _read_image(self, path: str) -> bytes | bool:
         if not path:
@@ -211,7 +216,10 @@ class IrUiMenu(models.Model):
         visible_ids = self._visible_menu_ids(self._get_session_debug())
         return self.filtered(lambda menu: menu.id in visible_ids)
 
-    @api.depends("parent_id")
+    # mirror _compute_complete_name's triggers: display_name is recursive and
+    # depends on the parent's display_name, so any ancestor rename propagates
+    # invalidation down the chain (see _set_full_name)
+    @api.depends("name", "parent_id.display_name")
     def _compute_display_name(self) -> None:
         self._set_full_name("display_name")
 
@@ -269,7 +277,9 @@ class IrUiMenu(models.Model):
         for new_menu in new_menus:
             if match := NUMBER_PARENS.search(new_menu.name):
                 next_num = int(match.group(1)) + 1
-                new_menu.name = NUMBER_PARENS.sub(f"({next_num})", new_menu.name)
+                new_menu.name = NUMBER_PARENS.sub(
+                    f"({next_num})", new_menu.name, count=1
+                )
             else:
                 new_menu.name = new_menu.name + " (1)"
         return new_menus
