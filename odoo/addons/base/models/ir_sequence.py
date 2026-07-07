@@ -2,6 +2,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Self
 
+import psycopg.errors
+
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
@@ -100,11 +102,10 @@ def _update_nogap(self: Any, number_increment: int) -> int:
     return number_next
 
 
-def _predict_nextval(self: Any, seq_id: str) -> int:
+def _predict_nextval(self: Any, seq_name: str) -> int:
     """Predict next value for PostgreSQL sequence without consuming it"""
     # Cannot use currval() as it requires prior call to nextval()
-    seqname = f"ir_sequence_{seq_id}"
-    seqtable = SQL.identifier(seqname)
+    seqtable = SQL.identifier(seq_name)
     # Scope the pg_sequences lookup to the current schema (matching
     # `_alter_sequence`'s current_schema filter); pg_sequences is a
     # cluster-wide view, so an unqualified sequencename match could read or
@@ -116,7 +117,7 @@ def _predict_nextval(self: Any, seq_id: str) -> int:
              WHERE schemaname = current_schema AND sequencename = %s),
             is_called
         FROM %s""",
-        seqname,
+        seq_name,
         seqtable,
     )
     rows = self.env.execute_query(query)
@@ -129,6 +130,60 @@ def _predict_nextval(self: Any, seq_id: str) -> int:
     return last_value
 
 
+# Legacy %(key)s placeholders supported in prefix/suffix -> strftime format.
+# Each key also exists with a "range_" and a "current_" variant, formatting
+# the range date and the current datetime respectively.
+_INTERPOLATION_FORMATS = {
+    "year": "%Y",
+    "month": "%m",
+    "day": "%d",
+    "y": "%y",
+    "doy": "%j",
+    "woy": "%W",
+    "weekday": "%w",
+    "h24": "%H",
+    "h12": "%I",
+    "min": "%M",
+    "sec": "%S",
+    "isoyear": "%G",
+    "isoy": "%g",
+    "isoweek": "%V",
+}
+
+
+class _InterpolationDict(dict):
+    """Lazy mapping for the legacy ``%(key)s`` prefix/suffix placeholders.
+
+    Drawing a number is a hot path; formatting the full matrix of
+    14 formats x 3 dates on every draw is wasted work when a pattern only
+    references a few keys (or none). Values are therefore strftime-formatted
+    on first access via ``__missing__`` and cached, so repeated placeholders
+    format once. Unknown keys raise ``KeyError`` exactly like a plain dict,
+    which ``_get_prefix_suffix`` turns into a ``UserError``.
+    """
+
+    def __init__(
+        self, effective_date: datetime, range_date: datetime, now: datetime
+    ) -> None:
+        super().__init__()
+        self._dates = {"": effective_date, "range_": range_date, "current_": now}
+
+    def __missing__(self, key: str) -> str:
+        date, fmt_key = self._dates[""], key
+        for date_prefix in ("range_", "current_"):
+            if key.startswith(date_prefix):
+                date = self._dates[date_prefix]
+                fmt_key = key.removeprefix(date_prefix)
+                break
+        try:
+            fmt = _INTERPOLATION_FORMATS[fmt_key]
+        except KeyError:
+            raise KeyError(key) from None
+        value = date.strftime(fmt)
+        self[key] = value
+        return value
+
+
 class IrSequence(models.Model):
     """Sequence objects that generate unique identifiers in a transaction-safe way."""
 
@@ -136,6 +191,10 @@ class IrSequence(models.Model):
     _description = "Sequence"
     _order = "name, id"
     _allow_sudo_commands = False
+
+    def _pg_sequence_name(self) -> str:
+        """Return the name of the PostgreSQL sequence backing this record."""
+        return "ir_sequence_%03d" % self.id
 
     def _get_number_next_actual(self) -> None:
         """Return number from ir_sequence row when no_gap implementation,
@@ -146,8 +205,7 @@ class IrSequence(models.Model):
             elif seq.implementation != "standard":
                 seq.number_next_actual = seq.number_next
             else:
-                seq_id = "%03d" % seq.id
-                seq.number_next_actual = _predict_nextval(seq, seq_id)
+                seq.number_next_actual = _predict_nextval(seq, seq._pg_sequence_name())
 
     def _set_number_next_actual(self) -> None:
         for seq in self:
@@ -211,14 +269,14 @@ class IrSequence(models.Model):
             if seq.implementation == "standard":
                 _create_sequence(
                     self.env.cr,
-                    "ir_sequence_%03d" % seq.id,
+                    seq._pg_sequence_name(),
                     seq.number_increment or 1,
                     seq.number_next if seq.number_next is not None else 1,
                 )
         return seqs
 
     def unlink(self) -> bool:
-        _drop_sequences(self.env.cr, ["ir_sequence_%03d" % x.id for x in self])
+        _drop_sequences(self.env.cr, [x._pg_sequence_name() for x in self])
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -235,24 +293,36 @@ class IrSequence(models.Model):
                     if "number_next" in vals:
                         _alter_sequence(
                             self.env.cr,
-                            "ir_sequence_%03d" % seq.id,
+                            seq._pg_sequence_name(),
                             number_next=n,
                         )
                     if seq.number_increment != i:
                         _alter_sequence(
                             self.env.cr,
-                            "ir_sequence_%03d" % seq.id,
+                            seq._pg_sequence_name(),
                             number_increment=i,
                         )
                         seq.date_range_ids._alter_sequence(number_increment=i)
                 else:
                     # Case 2: was standard, becomes no_gap.
+                    # Under the standard implementation the row's number_next
+                    # column never advances (draws consume the PG sequence),
+                    # so seed it from the live sequence value before dropping
+                    # — unless the caller sets it explicitly — otherwise
+                    # numbering would restart at a stale value and issue
+                    # duplicate numbers.
+                    if "number_next" not in vals and "number_next_actual" not in vals:
+                        seq.number_next = _predict_nextval(seq, seq._pg_sequence_name())
+                        for sub_seq in seq.date_range_ids:
+                            sub_seq.number_next = _predict_nextval(
+                                sub_seq, sub_seq._pg_sequence_name()
+                            )
                     # Drop the now-unused PG sequence and its sub-sequences.
-                    _drop_sequences(self.env.cr, ["ir_sequence_%03d" % seq.id])
+                    _drop_sequences(self.env.cr, [seq._pg_sequence_name()])
                     for sub_seq in seq.date_range_ids:
                         _drop_sequences(
                             self.env.cr,
-                            ["ir_sequence_%03d_%03d" % (seq.id, sub_seq.id)],
+                            [sub_seq._pg_sequence_name()],
                         )
             elif new_implementation in ("no_gap", None):
                 # Case 3: was no_gap, stays no_gap (or unspecified).
@@ -261,11 +331,11 @@ class IrSequence(models.Model):
             else:
                 # Case 4: was no_gap, becomes standard.
                 # Create the PG sequence and its sub-sequences.
-                _create_sequence(self.env.cr, "ir_sequence_%03d" % seq.id, i, n)
+                _create_sequence(self.env.cr, seq._pg_sequence_name(), i, n)
                 for sub_seq in seq.date_range_ids:
                     _create_sequence(
                         self.env.cr,
-                        "ir_sequence_%03d_%03d" % (seq.id, sub_seq.id),
+                        sub_seq._pg_sequence_name(),
                         i,
                         n,
                     )
@@ -275,7 +345,7 @@ class IrSequence(models.Model):
 
     def _next_do(self) -> str:
         if self.implementation == "standard":
-            number_next = _select_nextval(self.env.cr, "ir_sequence_%03d" % self.id)
+            number_next = _select_nextval(self.env.cr, self._pg_sequence_name())
         else:
             number_next = _update_nogap(self, self.number_increment)
         return self.get_next_char(number_next)
@@ -286,43 +356,23 @@ class IrSequence(models.Model):
         def _interpolate(s, d):
             return (s % d) if s else ""
 
-        def _interpolation_dict():
-            now = range_date = effective_date = datetime.now(self.env.tz)
-            if date or self.env.context.get("ir_sequence_date"):
-                effective_date = fields.Datetime.from_string(
-                    date or self.env.context.get("ir_sequence_date")
-                )
-            if date_range or self.env.context.get("ir_sequence_date_range"):
-                range_date = fields.Datetime.from_string(
-                    date_range or self.env.context.get("ir_sequence_date_range")
-                )
-
-            sequences = {
-                "year": "%Y",
-                "month": "%m",
-                "day": "%d",
-                "y": "%y",
-                "doy": "%j",
-                "woy": "%W",
-                "weekday": "%w",
-                "h24": "%H",
-                "h12": "%I",
-                "min": "%M",
-                "sec": "%S",
-                "isoyear": "%G",
-                "isoy": "%g",
-                "isoweek": "%V",
-            }
-            res = {}
-            for key, format in sequences.items():
-                res[key] = effective_date.strftime(format)
-                res["range_" + key] = range_date.strftime(format)
-                res["current_" + key] = now.strftime(format)
-
-            return res
-
         self.ensure_one()
-        d = _interpolation_dict()
+        if not self.prefix and not self.suffix:
+            # Fast path for the common bare sequence: nothing to interpolate,
+            # skip building the date context entirely.
+            return "", ""
+        now = range_date = effective_date = datetime.now(self.env.tz)
+        if date or self.env.context.get("ir_sequence_date"):
+            effective_date = fields.Datetime.from_string(
+                date or self.env.context.get("ir_sequence_date")
+            )
+        if date_range or self.env.context.get("ir_sequence_date_range"):
+            range_date = fields.Datetime.from_string(
+                date_range or self.env.context.get("ir_sequence_date_range")
+            )
+        # Lazy: only the placeholders actually referenced by the pattern are
+        # strftime-formatted (see _InterpolationDict).
+        d = _InterpolationDict(effective_date, range_date, now)
         try:
             interpolated_prefix = _interpolate(self.prefix, d)
             interpolated_suffix = _interpolate(self.suffix, d)
@@ -352,13 +402,16 @@ class IrSequence(models.Model):
         year = fields.Date.from_string(date).strftime("%Y")
         date_from = f"{year}-01-01"
         date_to = f"{year}-12-31"
+        # Clamp against the *nearest* following range (smallest date_from
+        # after ``date``); picking any later one would leave the new range
+        # overlapping the intermediate ones.
         date_range = self.env["ir.sequence.date_range"].search(
             [
                 ("sequence_id", "=", self.id),
                 ("date_from", ">=", date),
                 ("date_from", "<=", date_to),
             ],
-            order="date_from desc",
+            order="date_from asc",
             limit=1,
         )
         if date_range:
@@ -374,17 +427,28 @@ class IrSequence(models.Model):
         )
         if date_range:
             date_from = date_range.date_to + timedelta(days=1)
-        return (
-            self.env["ir.sequence.date_range"]
-            .sudo()
-            .create(
-                {
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "sequence_id": self.id,
-                }
+        seq_date_range = self.env["ir.sequence.date_range"].sudo()
+        try:
+            with self.env.cr.savepoint():
+                return seq_date_range.create(
+                    {
+                        "date_from": date_from,
+                        "date_to": date_to,
+                        "sequence_id": self.id,
+                    }
+                )
+        except psycopg.errors.UniqueViolation:
+            # A concurrent transaction created the same range between our
+            # caller's search-miss and this insert; recover its (committed)
+            # range instead of surfacing the raw constraint error.
+            return seq_date_range.search(
+                [
+                    ("sequence_id", "=", self.id),
+                    ("date_from", "<=", date),
+                    ("date_to", ">=", date),
+                ],
+                limit=1,
             )
-        )
 
     def _next(self, sequence_date: Any = None) -> str:
         """Return the next interpolated value for this sequence."""
@@ -455,6 +519,10 @@ class IrSequenceDate_Range(models.Model):
         "You cannot create two date ranges for the same sequence with the same date range.",
     )
 
+    def _pg_sequence_name(self) -> str:
+        """Return the name of the PostgreSQL sequence backing this sub-sequence."""
+        return "ir_sequence_%03d_%03d" % (self.sequence_id.id, self.id)
+
     def _get_number_next_actual(self) -> None:
         """Return the sub-sequence's number_next from the date_range row when
         the parent uses the no_gap implementation, and from the PostgreSQL
@@ -463,8 +531,7 @@ class IrSequenceDate_Range(models.Model):
             if seq.sequence_id.implementation != "standard":
                 seq.number_next_actual = seq.number_next
             else:
-                seq_id = "%03d_%03d" % (seq.sequence_id.id, seq.id)
-                seq.number_next_actual = _predict_nextval(seq, seq_id)
+                seq.number_next_actual = _predict_nextval(seq, seq._pg_sequence_name())
 
     def _set_number_next_actual(self) -> None:
         for seq in self:
@@ -502,10 +569,7 @@ class IrSequenceDate_Range(models.Model):
     def _next(self) -> str:
         """Draw the next interpolated value from this date-range sub-sequence."""
         if self.sequence_id.implementation == "standard":
-            number_next = _select_nextval(
-                self.env.cr,
-                "ir_sequence_%03d_%03d" % (self.sequence_id.id, self.id),
-            )
+            number_next = _select_nextval(self.env.cr, self._pg_sequence_name())
         else:
             number_next = _update_nogap(self, self.sequence_id.number_increment)
         return self.sequence_id.get_next_char(number_next)
@@ -523,7 +587,7 @@ class IrSequenceDate_Range(models.Model):
         for seq in self:
             _alter_sequence(
                 self.env.cr,
-                "ir_sequence_%03d_%03d" % (seq.sequence_id.id, seq.id),
+                seq._pg_sequence_name(),
                 number_increment=number_increment,
                 number_next=number_next,
             )
@@ -538,17 +602,14 @@ class IrSequenceDate_Range(models.Model):
                 val = seq.number_next_actual
                 _create_sequence(
                     self.env.cr,
-                    "ir_sequence_%03d_%03d" % (main_seq.id, seq.id),
+                    seq._pg_sequence_name(),
                     main_seq.number_increment or 1,
                     val if val is not None else 1,
                 )
         return seqs
 
     def unlink(self) -> bool:
-        _drop_sequences(
-            self.env.cr,
-            ["ir_sequence_%03d_%03d" % (x.sequence_id.id, x.id) for x in self],
-        )
+        _drop_sequences(self.env.cr, [x._pg_sequence_name() for x in self])
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
