@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -927,6 +928,43 @@ class TestLoginCooldown(TransactionCase):
             ):
                 pass
 
+    @mute_logger("odoo.addons.base.models.res_users")
+    def test_stale_failure_entries_are_pruned(self):
+        """RU-M4: entries are only popped on a successful login from the same
+        source, so one-shot scanning IPs accumulate forever. Once the map
+        grows past LOGIN_FAILURES_PRUNE_THRESHOLD, recording a failure must
+        drop entries whose last failure is older than the cooldown window and
+        keep the fresh ones."""
+        users = self.env["res.users"]
+        with patch(self._REQUEST, self._request("203.0.113.7")):
+            self._fail_once(users)  # seed the registry map with a fresh entry
+        failures_map = self.env.registry._login_failures
+
+        now = datetime.now(UTC)
+        stale = now - timedelta(seconds=120)  # cooldown_duration is 60 (setUp)
+        stale_sources = [f"198.51.100.{i}" for i in range(4)]
+        for source in stale_sources:
+            failures_map[source] = (3, stale)
+        fresh_source = "198.51.100.200"
+        failures_map[fresh_source] = (1, now)
+
+        with (
+            patch(
+                "odoo.addons.base.models.res_users.LOGIN_FAILURES_PRUNE_THRESHOLD",
+                3,
+            ),
+            patch(self._REQUEST, self._request("203.0.113.8")),
+        ):
+            self._fail_once(users)  # map size > threshold -> prune stale
+
+        for source in stale_sources:
+            self.assertNotIn(source, failures_map, "stale entry must be pruned")
+        self.assertIn(fresh_source, failures_map, "in-window entry must survive")
+        self.assertIn("203.0.113.7", failures_map)
+        self.assertIn(
+            "203.0.113.8", failures_map, "the just-failed source must be recorded"
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestResUsersInitPasswordMigration(TransactionCase):
@@ -1081,3 +1119,121 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
             company_b,
             "a self-written company_id that IS a member company must be applied",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestAtLeastOneAdministrator(TransactionCase):
+    """The at-least-one-administrator constraint must count *effective*
+    administrators — users holding base.group_system through an implying
+    group — not only direct members of base.group_system (audit RU-M3).
+    """
+
+    def test_admin_via_implying_group_only(self):
+        group_system = self.env.ref("base.group_system")
+        implying_group = self.env["res.groups"].create(
+            {
+                "name": "RU-M3 Implied Admins",
+                "implied_ids": [Command.link(group_system.id)],
+            }
+        )
+        indirect_admin = self.env["res.users"].create(
+            {
+                "name": "RU-M3 Indirect Admin",
+                "login": "ru_m3_indirect_admin",
+                "group_ids": [Command.set(implying_group.ids)],
+            }
+        )
+        self.assertNotIn(group_system, indirect_admin.group_ids)
+        self.assertIn(group_system, indirect_admin.all_group_ids)
+
+        # Strip DIRECT group_system membership from every direct member. The
+        # pre-RU-M3 constraint only looked at group_system.user_ids and raised
+        # a spurious ValidationError here, even though indirect_admin remains
+        # an effective administrator through the implying group.
+        direct_admins = group_system.user_ids
+        self.assertTrue(direct_admins, "the test DB must have a direct admin")
+        direct_admins.write({"group_ids": [Command.unlink(group_system.id)]})
+
+        self.assertFalse(group_system.user_ids, "no direct member must remain")
+        self.assertTrue(
+            self.env["res.users"].search_count(
+                [
+                    ("all_group_ids", "in", group_system.ids),
+                    ("active", "=", True),
+                ],
+                limit=1,
+            ),
+            "the implied-only admin must still be an effective administrator",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestDeviceLogGC(TransactionCase):
+    """Keep-semantics of res.device.log._gc_device_log (audit RDEV-P3).
+
+    The GC keeps exactly one row per device group (session_identifier,
+    platform, browser, ip_address) — the greatest (last_activity, id), the
+    same tie-break as the res.device view — and groups NULL platform/browser
+    together, as the previous IS NOT DISTINCT FROM self-join did.
+    """
+
+    def _log(self, **vals):
+        base = {
+            "session_identifier": "sid_rdev_p3_a",
+            "platform": "linux",
+            "browser": "firefox",
+            "ip_address": "127.0.0.1",
+            "user_id": self.env.uid,
+            "first_activity": "2026-07-01 10:00:00",
+            "last_activity": "2026-07-01 10:00:00",
+        }
+        base.update(vals)
+        return self.env["res.device.log"].create(base)
+
+    def test_gc_keeps_latest_log_per_device(self):
+        DeviceLog = self.env["res.device.log"]
+
+        # Group A: three logs, distinct last_activity -> keep the newest.
+        self._log(last_activity="2026-07-01 10:00:00")
+        self._log(last_activity="2026-07-01 11:00:00")
+        keep_a = self._log(last_activity="2026-07-01 12:00:00")
+
+        # Group B: same session, NULL platform/browser must group together
+        # (PARTITION BY, like the old IS NOT DISTINCT FROM joins) -> keep the
+        # newest of the two NULL-device rows, independently of group A.
+        self._log(platform=False, browser=False, last_activity="2026-07-01 10:00:00")
+        keep_b = self._log(
+            platform=False, browser=False, last_activity="2026-07-01 11:00:00"
+        )
+
+        # Group C: tie on last_activity -> keep exactly one, the highest id
+        # (view-aligned tie-break; the pre-RDEV-P3 query kept every tied row).
+        self._log(
+            session_identifier="sid_rdev_p3_c", last_activity="2026-07-01 09:00:00"
+        )
+        keep_c = self._log(
+            session_identifier="sid_rdev_p3_c", last_activity="2026-07-01 09:00:00"
+        )
+
+        # Group D: a lone (old) log is its group's latest -> always kept.
+        keep_d = self._log(
+            session_identifier="sid_rdev_p3_d",
+            ip_address="10.0.0.8",
+            last_activity="2020-01-01 00:00:00",
+        )
+
+        self.env.flush_all()
+        DeviceLog._gc_device_log()
+        self.env.invalidate_all()
+
+        survivors = DeviceLog.search(
+            [
+                (
+                    "session_identifier",
+                    "in",
+                    ["sid_rdev_p3_a", "sid_rdev_p3_c", "sid_rdev_p3_d"],
+                )
+            ],
+            order="id",
+        )
+        self.assertEqual(survivors, keep_a | keep_b | keep_c | keep_d)

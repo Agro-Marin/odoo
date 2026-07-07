@@ -42,6 +42,12 @@ _logger = logging.getLogger(__name__)
 
 MIN_ROUNDS = 600_000
 
+# RU-M4 (audit 2026-07-06): size threshold above which _assert_can_auth prunes
+# stale per-source entries from the registry's _login_failures map (entries are
+# otherwise only removed on a successful login from the same source, so
+# scanning IPs accumulate forever).
+LOGIN_FAILURES_PRUNE_THRESHOLD = 1000
+
 
 def _jsonable(o: object) -> bool:
     try:
@@ -596,7 +602,23 @@ class ResUsers(models.Model):
     def _check_at_least_one_administrator(self) -> None:
         if not self.env.registry._init_modules:
             return  # ignore the constraint when updating the module 'base'
-        if not self.env.ref("base.group_system").user_ids:
+        # RU-M3 (audit 2026-07-06): count *effective* administrators, not only
+        # direct members of base.group_system (group_ids/user_ids). Deployments
+        # whose only admins hold a custom group that IMPLIES group_system would
+        # otherwise hit a spurious ValidationError on any group edit. sudo() so
+        # the check is not narrowed by the writing user's record rules.
+        has_admin = (
+            self.env["res.users"]
+            .sudo()
+            .search_count(
+                [
+                    ("all_group_ids", "in", self.env.ref("base.group_system").ids),
+                    ("active", "=", True),
+                ],
+                limit=1,
+            )
+        )
+        if not has_admin:
             raise ValidationError(_("You must have at least an administrator user."))
 
     def _set_password(self) -> None:
@@ -875,7 +897,15 @@ class ResUsers(models.Model):
         # field accesses in onchange logic find values without triggering checks.
         if self == self.env.user:
             user_sudo = self.sudo()
+            fields_ = self._fields
             for field_name in self._self_accessible_fields()[0]:
+                # RU-P2 (audit 2026-07-06): skip binary and relational fields.
+                # Warming them re-fetched 9 multi-MB image columns and 3 x2many
+                # fields on every onchange round-trip, only to discard them;
+                # lazy access checks already cover those fields when needed.
+                field = fields_[field_name]
+                if field.type == "binary" or field.relational:
+                    continue
                 user_sudo[field_name]  # warm ORM cache
         return super().onchange(values, field_names, fields_spec)
 
@@ -1647,11 +1677,25 @@ class ResUsers(models.Model):
         try:
             yield
         except AccessDenied:
+            now = datetime.datetime.now(datetime.UTC)
             failures, __ = reg._login_failures[source]
-            reg._login_failures[source] = (
-                failures + 1,
-                datetime.datetime.now(datetime.UTC),
-            )
+            reg._login_failures[source] = (failures + 1, now)
+            # RU-M4 (audit 2026-07-06): bound the map. Entries are only popped
+            # on a successful login from the same source, so failures from
+            # one-shot scanning IPs accumulate forever. Once the map grows past
+            # the threshold, drop entries whose last failure is older than the
+            # cooldown window: _on_login_cooldown can no longer return True for
+            # them, so removal only resets a counter that is already stale.
+            if len(reg._login_failures) > LOGIN_FAILURES_PRUNE_THRESHOLD:
+                delay = int(
+                    self.env["ir.config_parameter"]
+                    .sudo()
+                    .get_param("base.login_cooldown_duration", 60)
+                )
+                cutoff = now - datetime.timedelta(seconds=delay)
+                for src, (__, last_failure) in list(reg._login_failures.items()):
+                    if last_failure < cutoff:
+                        del reg._login_failures[src]
             raise
         else:
             reg._login_failures.pop(source, None)
@@ -1683,12 +1727,6 @@ class ResUsers(models.Model):
         return failures >= min_failures and (
             datetime.datetime.now(datetime.UTC) - previous
         ) < datetime.timedelta(seconds=delay)
-
-    def _register_hook(self) -> None:
-        if hasattr(self, "check_credentials"):
-            _logger.warning(
-                "The check_credentials method of res.users has been renamed _check_credentials. One of your installed modules defines one, but it will not be called anymore."
-            )
 
     def _mfa_type(self) -> str | None:
         """If an MFA method is enabled, returns its type as a string."""
