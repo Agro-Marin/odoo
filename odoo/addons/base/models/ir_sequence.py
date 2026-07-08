@@ -80,24 +80,26 @@ def _select_nextval(cr: Any, seq_name: str) -> int:
 def _update_nogap(self: Any, number_increment: int) -> int:
     self.flush_recordset(["number_next"])
     table = SQL.identifier(self._table)
+    # Lock, read and increment in a single round trip. NOWAIT keeps a lock
+    # conflict (55P03) immediate and retryable at the RPC level. RETURNING
+    # yields the locked row's pre-increment value rather than the ORM cache,
+    # which may be stale under concurrent access (READ COMMITTED isolation).
     self.env.cr.execute(
         SQL(
-            "SELECT number_next FROM %s WHERE id=%s FOR UPDATE NOWAIT",
+            "WITH locked AS ("
+            "SELECT number_next FROM %s WHERE id=%s FOR UPDATE NOWAIT"
+            ") "
+            "UPDATE %s t SET number_next = t.number_next + %s "
+            "FROM locked WHERE t.id = %s "
+            "RETURNING locked.number_next",
             table,
             self.id,
-        )
-    )
-    # Read the locked row's actual value instead of using the ORM cache,
-    # which may be stale under concurrent access (READ COMMITTED isolation).
-    [number_next] = self.env.cr.fetchone()
-    self.env.cr.execute(
-        SQL(
-            "UPDATE %s SET number_next=number_next+%s WHERE id=%s",
             table,
             number_increment,
             self.id,
         )
     )
+    [number_next] = self.env.cr.fetchone()
     self.invalidate_recordset(["number_next"])
     return number_next
 
@@ -312,18 +314,54 @@ class IrSequence(models.Model):
                     # numbering would restart at a stale value and issue
                     # duplicate numbers.
                     if "number_next" not in vals and "number_next_actual" not in vals:
-                        seq.number_next = _predict_nextval(seq, seq._pg_sequence_name())
-                        for sub_seq in seq.date_range_ids:
-                            sub_seq.number_next = _predict_nextval(
-                                sub_seq, sub_seq._pg_sequence_name()
+                        # Read all seeds first, then write them with direct
+                        # UPDATEs: an ORM assignment would recursively
+                        # re-enter write()/_alter_sequence and RESTART the
+                        # very PG sequences dropped just below.
+                        seq_seed = _predict_nextval(seq, seq._pg_sequence_name())
+                        sub_seeds = [
+                            (
+                                sub_seq.id,
+                                _predict_nextval(sub_seq, sub_seq._pg_sequence_name()),
                             )
-                    # Drop the now-unused PG sequence and its sub-sequences.
-                    _drop_sequences(self.env.cr, [seq._pg_sequence_name()])
-                    for sub_seq in seq.date_range_ids:
-                        _drop_sequences(
-                            self.env.cr,
-                            [sub_seq._pg_sequence_name()],
+                            for sub_seq in seq.date_range_ids
+                        ]
+                        seq.flush_recordset(["number_next"])
+                        self.env.cr.execute(
+                            SQL(
+                                "UPDATE %s SET number_next=%s WHERE id=%s",
+                                SQL.identifier(seq._table),
+                                seq_seed,
+                                seq.id,
+                            )
                         )
+                        seq.invalidate_recordset(["number_next", "number_next_actual"])
+                        if sub_seeds:
+                            sub_seqs = seq.date_range_ids
+                            sub_seqs.flush_recordset(["number_next"])
+                            self.env.cr.execute(
+                                SQL(
+                                    "UPDATE %s t SET number_next = v.number_next"
+                                    " FROM unnest(%s::int[], %s::int[])"
+                                    " AS v(id, number_next)"
+                                    " WHERE t.id = v.id",
+                                    SQL.identifier(sub_seqs._table),
+                                    [sub_id for sub_id, _ in sub_seeds],
+                                    [number for _, number in sub_seeds],
+                                )
+                            )
+                            sub_seqs.invalidate_recordset(
+                                ["number_next", "number_next_actual"]
+                            )
+                    # Drop the now-unused PG sequence and its sub-sequences,
+                    # all in a single statement.
+                    _drop_sequences(
+                        self.env.cr,
+                        [
+                            seq._pg_sequence_name(),
+                            *(s._pg_sequence_name() for s in seq.date_range_ids),
+                        ],
+                    )
             elif new_implementation in ("no_gap", None):
                 # Case 3: was no_gap, stays no_gap (or unspecified).
                 # No PG sequence object to manage; nothing to do.

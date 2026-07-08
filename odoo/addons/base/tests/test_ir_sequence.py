@@ -340,6 +340,28 @@ class TestIrSequenceSwitchImplementation(common.TransactionCase):
         seq.write({"implementation": "no_gap", "number_next": 100})
         self.assertEqual(seq.next_by_id(), "100")
 
+    def test_switch_to_no_gap_seeds_date_range_subsequences(self):
+        """Date-range sub-sequences are seeded from their live PG sequences
+        too (via direct UPDATEs, without re-entering write())."""
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-switch-impl-ranges",
+                "implementation": "standard",
+                "use_date_range": True,
+            }
+        )
+        for i in range(1, 4):
+            self.assertEqual(seq.next_by_id(), str(i))
+        sub_seq = seq.date_range_ids
+        self.assertEqual(len(sub_seq), 1)
+        seq.write({"implementation": "no_gap"})
+        # Both the main row and the sub-sequence row were seeded from their
+        # live PG sequence values before those sequences were dropped...
+        self.assertEqual(sub_seq.number_next, 4)
+        # ...so the sub-sequence numbering continues without duplicates.
+        self.assertEqual(seq.next_by_id(), "4")
+        self.assertEqual(seq.next_by_id(), "5")
+
 
 class TestIrSequenceInterpolationLazy(common.TransactionCase):
     """Pin the lazy ``%(key)s`` interpolation of ``_get_prefix_suffix``: every
