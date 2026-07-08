@@ -40,7 +40,7 @@ class TestPointOfSaleFlow(CommonPosTest):
 
         sale_order = self.env['sale.order'].sudo().create({
             'partner_id': self.partner_stva.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.twenty_dollars_no_tax.product_variant_id.id,
                 'name': self.twenty_dollars_no_tax.product_variant_id.name,
                 'price_unit': self.twenty_dollars_no_tax.product_variant_id.lst_price,
@@ -56,7 +56,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             'line_data': [{
                 'product_id': self.twenty_dollars_no_tax.product_variant_id.id,
                 'pack_lot_ids': [[0, 0, {'lot_name': lot_1.name}]],
-                'sale_order_line_id': sale_order.order_line[0].id,
+                'sale_order_line_id': sale_order.line_ids[0].id,
                 'sale_order_origin_id': sale_order.id,
             }],
             'payment_data': [

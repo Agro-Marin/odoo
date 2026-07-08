@@ -67,7 +67,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
 
         # Test now on a valid sales order
         order = self.empty_order
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -75,12 +75,12 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             })
         ]})
         self._apply_promo_code(order, coupon.code)
-        self.assertEqual(len(order.order_line.ids), 2)
+        self.assertEqual(len(order.line_ids.ids), 2)
 
         # Remove the product A from the sale order
-        order.write({'order_line': [(2, order.order_line[0].id, False)]})
+        order.write({'line_ids': [(2, order.line_ids[0].id, False)]})
         order._update_programs_and_rewards()
-        self.assertEqual(len(order.order_line.ids), 0)
+        self.assertEqual(len(order.line_ids.ids), 0)
 
     def test_program_coupon_double_consuming(self):
         # Test case:
@@ -103,7 +103,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         sale_order_a = self.empty_order.copy()
         sale_order_b = self.empty_order.copy()
 
-        sale_order_a.write({'order_line': [
+        sale_order_a.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -111,11 +111,11 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             })
         ]})
         self._apply_promo_code(sale_order_a, coupon.code)
-        self.assertEqual(len(sale_order_a.order_line.ids), 2)
+        self.assertEqual(len(sale_order_a.line_ids.ids), 2)
 
         sale_order_a._action_cancel()
 
-        sale_order_b.write({'order_line': [
+        sale_order_b.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -123,14 +123,14 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             })
         ]})
         self._apply_promo_code(sale_order_b, coupon.code)
-        self.assertEqual(len(sale_order_b.order_line.ids), 2)
+        self.assertEqual(len(sale_order_b.line_ids.ids), 2)
 
         sale_order_b.action_confirm()
 
         sale_order_a.action_draft()
         sale_order_a.action_confirm()
         # reward line removed automatically
-        self.assertEqual(len(sale_order_a.order_line.ids), 1)
+        self.assertEqual(len(sale_order_a.line_ids.ids), 1)
 
     def test_coupon_code_with_pricelist(self):
         # Test case: Generate a coupon (10% discount) and apply it on an order with a specific pricelist (10% discount)
@@ -155,7 +155,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
 
         order = self.empty_order
         order.pricelist_id = first_pricelist
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_C.id,
                 'name': '1 Product C',
@@ -163,7 +163,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             })
         ]})
         self._apply_promo_code(order, coupon.code)
-        self.assertEqual(len(order.order_line.ids), 2)
+        self.assertEqual(len(order.line_ids.ids), 2)
         self.assertEqual(order.amount_total, 81, "SO total should be 81: (10% of 100 with pricelist) + 10% of 90 with coupon code")
 
     def test_on_next_order_reward_promotion_program(self):
@@ -211,7 +211,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             'list_price': 5,
             'sale_ok': True
         })
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.third_product.id,
                 'name': '1 Third Product',
@@ -224,7 +224,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         with self.assertRaises(ValidationError):
             self._apply_promo_code(order, 'free_B_on_next_order')
         # 5.
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -239,7 +239,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         order_bis = self.empty_order
 
         # 8.
-        order_bis.write({'order_line': [
+        order_bis.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '1 Product B',
@@ -248,11 +248,11 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         ]})
         # 9.
         self._apply_promo_code(order_bis, order._get_reward_coupons()[1].code)
-        self.assertEqual(len(order_bis.order_line), 2, "You should get a free Product B")
+        self.assertEqual(len(order_bis.line_ids), 2, "You should get a free Product B")
         # 10.
         self._apply_promo_code(order_bis, order._get_reward_coupons()[0].code)
-        self.assertEqual(len(order_bis.order_line), 3, "You should get a 10% discount line")
-        self.assertAlmostEqual(order_bis.amount_total, order_bis.order_line[0].price_total * 0.9, 2, "SO total should be null: (Paid product - Free product = 0) + 10% of nothing")
+        self.assertEqual(len(order_bis.line_ids), 3, "You should get a 10% discount line")
+        self.assertAlmostEqual(order_bis.amount_total, order_bis.line_ids[0].price_total * 0.9, 2, "SO total should be null: (Paid product - Free product = 0) + 10% of nothing")
 
     def test_on_next_order_reward_promotion_program_with_requirements(self):
         self.immediate_promotion_program.write({
@@ -267,7 +267,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         })
         order = self.empty_order.copy()
         self.product_A.lst_price = 700
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -277,7 +277,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         self._apply_promo_code(order, 'free_B_on_next_order', no_reward_fail=False)
         self.assertEqual(len(self.immediate_promotion_program.coupon_ids.ids), 1, "You should get a coupon for you next order that will offer a free product B")
         order_bis = self.empty_order
-        order_bis.write({'order_line': [
+        order_bis.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '1 Product B',
@@ -290,9 +290,9 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         order.action_confirm()
         # It should not error even if the SO does not have the requirements (700$ and 1 product A), since these requirements where only used to generate the coupon that we are now applying
         self._apply_promo_code(order_bis, order._get_reward_coupons()[0].code, no_reward_fail=False)
-        self.assertEqual(len(order_bis.order_line), 2, "You should get 1 regular product_B and 1 free product_B")
+        self.assertEqual(len(order_bis.line_ids), 2, "You should get 1 regular product_B and 1 free product_B")
         order_bis._update_programs_and_rewards()
-        self.assertEqual(len(order_bis.order_line), 2, "Free product from a coupon generated from a promotion program on next order should not dissapear")
+        self.assertEqual(len(order_bis.line_ids), 2, "Free product from a coupon generated from a promotion program on next order should not dissapear")
 
     def test_partner_assigned_to_next_order_coupon(self):
         """ Test the assignment of a partner on coupons with program type `next_order_coupons`.
@@ -316,7 +316,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             })],
         })
         order = self.empty_order
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -355,7 +355,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         order = self.empty_order
         order.write({
             'partner_id': self.env.ref('base.public_partner').id,
-            'order_line': [Command.create({'product_id': self.product_A.id})],
+            'line_ids': [Command.create({'product_id': self.product_A.id})],
         })
         generated_coupons = order._try_apply_program(loyalty_program).get('coupon')
         self.assertTrue(generated_coupons, "A coupon should have been generated")
@@ -401,18 +401,18 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         coupon = program.coupon_ids
 
         order = self.empty_order
-        order.order_line = [Command.create({'product_id': self.product_C.id})]
+        order.line_ids = [Command.create({'product_id': self.product_C.id})]
         order.action_confirm()
 
-        order.order_line.product_updatable = True  # in case `sale_project` is installed
+        order.line_ids.product_updatable = True  # in case `sale_project` is installed
         order._apply_program_reward(discount10, coupon)
-        reward_line = order.order_line.filtered('is_reward_line')
+        reward_line = order.line_ids.filtered('is_reward_line')
         self.assertEqual(order.amount_total, 90, "10% discount should be applied")
         self.assertEqual(coupon.points, 9, "10% discount reward should use 1 point")
 
-        order.order_line.product_updatable = True  # in case `sale_project` is installed
+        order.line_ids.product_updatable = True  # in case `sale_project` is installed
         order._apply_program_reward(discount50, coupon)
-        self.assertIn(reward_line, order.order_line, "Reward line should be re-used")
+        self.assertIn(reward_line, order.line_ids, "Reward line should be re-used")
         self.assertEqual(order.amount_total, 50, "50% discount should be applied")
         self.assertEqual(coupon.points, 5, "50% discount reward should use 5 points")
 
@@ -439,7 +439,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         })
         # 2.
         order = self.empty_order.copy()
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -448,7 +448,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         ]})
         order._update_programs_and_rewards()
         self._claim_reward(order, self.p1)
-        self.assertEqual(len(order.order_line), 2, "You should get a discount line") # product + discount
+        self.assertEqual(len(order.line_ids), 2, "You should get a discount line") # product + discount
         # 3.
         self.p1.write({
             'trigger': 'with_code',
@@ -458,11 +458,11 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             'code': 'test',
         })
         order._update_programs_and_rewards()
-        self.assertEqual(len(order.order_line), 1, "You loose a discount line")
+        self.assertEqual(len(order.line_ids), 1, "You loose a discount line")
         # 4.
         self._apply_promo_code(order, 'test')
         # But the above line should not add any reward
-        self.assertEqual(len(order.order_line), 2, "You should get a discount line") # product + discount
+        self.assertEqual(len(order.line_ids), 2, "You should get a discount line") # product + discount
 
     def test_reapply_multiple_global_rewards_when_new_discount_greater(self):
         """ Test applying the maximum reward discount from multiple rewards when the applied
@@ -482,7 +482,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
 
         order = self.empty_order
         self.assertEqual(order.amount_total, 0.0)
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -496,22 +496,22 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         ]})
 
         # The order line should be created with the correct price unit
-        self.assertEqual(len(order.order_line.ids), 2)
-        self.assertEqual(order.order_line[0].price_unit, 100.0)
-        self.assertEqual(order.order_line[1].price_unit, 5.0)
+        self.assertEqual(len(order.line_ids.ids), 2)
+        self.assertEqual(order.line_ids[0].price_unit, 100.0)
+        self.assertEqual(order.line_ids[1].price_unit, 5.0)
         expected_total = order.amount_total * 0.80
 
         # Apply the first coupon
         self._apply_promo_code(order, coupon_1.code)
-        self.assertEqual(len(order.order_line.ids), 3)
+        self.assertEqual(len(order.line_ids.ids), 3)
         msg = "The discount line should be the 10% discount on the sale order total."
-        self.assertEqual(order.order_line[2].price_unit, -10.5, msg=msg)
+        self.assertEqual(order.line_ids[2].price_unit, -10.5, msg=msg)
 
         # Apply the second coupon with multiple rewards
         self._apply_promo_code(order, coupon_2.code)
-        self.assertEqual(len(order.order_line.ids), 3)
+        self.assertEqual(len(order.line_ids.ids), 3)
         msg = "The discount line should be the 20% discount on the sale order total."
-        self.assertEqual(order.order_line[2].price_unit, -21.0, msg=msg)
+        self.assertEqual(order.line_ids[2].price_unit, -21.0, msg=msg)
         msg = "Order total should reflect the 20% discount"
         self.assertAlmostEqual(order.amount_total, expected_total, msg=msg)
 
@@ -534,7 +534,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
 
         order = self.empty_order
         self.assertEqual(order.amount_total, 0.0)
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -543,15 +543,15 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         ]})
 
         # The order line should be created with the correct price unit
-        self.assertEqual(len(order.order_line.ids), 1)
-        self.assertEqual(order.order_line[0].price_unit, 100.0)
+        self.assertEqual(len(order.line_ids.ids), 1)
+        self.assertEqual(order.line_ids[0].price_unit, 100.0)
         expected_total = order.amount_total * 0.80
 
         # Apply the first coupon
         self._apply_promo_code(order, coupon_1.code)
-        self.assertEqual(len(order.order_line.ids), 2)
+        self.assertEqual(len(order.line_ids.ids), 2)
         msg = "The discount line should be the 10% discount on the sale order total."
-        self.assertEqual(order.order_line[1].price_unit, -10.0, msg=msg)
+        self.assertEqual(order.line_ids[1].price_unit, -10.0, msg=msg)
 
         # Apply the second coupon with multiple rewards of higher discount
         rewards = self._apply_promo_code(order, coupon_2.code)
@@ -560,9 +560,9 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         # Choose the reward with the maximum discount
         chosen_reward = rewards.filtered(lambda r: r.discount == 20)
         order._apply_program_reward(chosen_reward, coupon_2)
-        self.assertEqual(len(order.order_line), 2)
+        self.assertEqual(len(order.line_ids), 2)
         msg = "The discount line should be the 20% discount on the sale order total."
-        self.assertEqual(order.order_line[1].price_unit, -20.0, msg=msg)
+        self.assertEqual(order.line_ids[1].price_unit, -20.0, msg=msg)
         msg = "Order total should reflect the 20% discount"
         self.assertAlmostEqual(order.amount_total, expected_total, msg=msg)
 
@@ -585,7 +585,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
 
         order = self.empty_order
         self.assertEqual(order.amount_total, 0.0)
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -594,14 +594,14 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         ]})
 
         # The order line should be created with the correct price unit
-        self.assertEqual(len(order.order_line.ids), 1)
-        self.assertEqual(order.order_line[0].price_unit, 100.0)
+        self.assertEqual(len(order.line_ids.ids), 1)
+        self.assertEqual(order.line_ids[0].price_unit, 100.0)
 
         # Apply the first coupon
         self._apply_promo_code(order, coupon_1.code)
         msg = "The discount line should be the 10% discount on the sale order total."
-        self.assertEqual(order.order_line[1].price_unit, -10.0, msg=msg)
-        self.assertEqual(len(order.order_line.ids), 2)
+        self.assertEqual(order.line_ids[1].price_unit, -10.0, msg=msg)
+        self.assertEqual(len(order.line_ids.ids), 2)
 
         # raise validation error when applying the second coupon with multiple rewards
         # with a discount lower than the applied coupon discount

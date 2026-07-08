@@ -6,20 +6,20 @@
     >
         <div name="o_wsale_unavailable_line_button_container" position="inside">
             <t t-if="not available_qty">
-                <t t-set="in_wishlist" t-value="order_line.product_id._is_in_wishlist()"/>
+                <t t-set="in_wishlist" t-value="line_ids.product_id._is_in_wishlist()"/>
                 <a
                     t-if="not in_wishlist"
                     title="Add to Wishlist"
                     href="#"
                     class="o_add_wishlist_dyn alert-link border-start ps-2 small"
-                    t-att-data-product-template-id="order_line.product_id.product_tmpl_id.id"
-                    t-att-data-product-product-id="order_line.product_id.id"
+                    t-att-data-product-template-id="line_ids.product_id.product_tmpl_id.id"
+                    t-att-data-product-product-id="line_ids.product_id.id"
                     data-action="o_wishlist"
                 >
                     <span
                         class="js_wsc_update_product_qty"
-                        t-att-data-line-id="order_line.id"
-                        t-att-data-product-id="order_line.product_id.id"
+                        t-att-data-line-id="line_ids.id"
+                        t-att-data-product-id="line_ids.product_id.id"
                     >
                         <i class="fa-regular fa-heart" role="presentation" aria-label="Add to Wishlist"/>
                         Wishlist

@@ -106,12 +106,12 @@ class TestWebsiteSaleProductTemplate(WebsiteSaleCommon):
         """Archived products shouldn't appear in carts"""
         self.product.action_archive()
         self.assertNotIn(
-            self.product, self.cart.order_line.product_id,
+            self.product, self.cart.line_ids.product_id,
             "Archived product should be deleted from the cart.",
         )
         self.service_product.product_tmpl_id.action_archive()
         self.assertNotIn(
-            self.service_product, self.cart.order_line.product_id,
+            self.service_product, self.cart.line_ids.product_id,
             "All products from archived product templates should be removed from the cart.",
         )
 

@@ -32,7 +32,7 @@ class TestWebsiteSaleStockProductCombo(HttpCase, WebsiteSaleStockCommon):
                 Command.create({'product_id': product_b.id}),
             ],
         })
-        self.cart.order_line = [Command.create({'product_id': product_b.id, 'product_uom_qty': 3})]
+        self.cart.line_ids = [Command.create({'product_id': product_b.id, 'product_uom_qty': 3})]
 
         with MockRequest(self.env, website=self.website, sale_order_id=self.cart.id):
             self.assertEqual(combo._get_max_quantity(self.website, self.cart), 7)

@@ -254,7 +254,7 @@ class SaleOrderLine(models.Model):
             ),
         }
 
-    def _get_procurement_qty(self, previous_product_uom_qty=False):
+    def _get_procurement_qty(self, previous_product_qty=False):
         self.ensure_one()
         # Specific case when we change the qty on a SO for a kit product.
         # We don't try to be too smart and keep a simple approach: we use the quantity of entire
@@ -263,10 +263,12 @@ class SaleOrderLine(models.Model):
         if bom and self.move_ids:
             moves = self.move_ids.filtered(lambda r: r.state != 'cancel' and r.location_dest_usage != 'inventory')
             filters = self._get_incoming_outgoing_moves_filter()
-            order_qty = previous_product_uom_qty.get(self.id, 0) if previous_product_uom_qty else self.product_uom_qty
+            # `previous_product_qty` (and `product_qty`) are in the line's UoM
+            # (`product_uom_id`), matching the conversion just below.
+            order_qty = previous_product_qty.get(self.id, 0) if previous_product_qty else self.product_qty
             order_qty = self.product_uom_id._compute_quantity(order_qty, bom.product_uom_id)
             qty = moves._compute_kit_quantities(self.product_id, order_qty, bom, filters)
             return bom.product_uom_id._compute_quantity(qty, self.product_uom_id)
-        elif bom and previous_product_uom_qty:
-            return previous_product_uom_qty.get(self.id)
-        return super()._get_procurement_qty(previous_product_qty=previous_product_uom_qty)
+        elif bom and previous_product_qty:
+            return previous_product_qty.get(self.id)
+        return super()._get_procurement_qty(previous_product_qty=previous_product_qty)

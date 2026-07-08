@@ -289,6 +289,57 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         self.assertEqual(len(self.computer_case_size_attribute_lines.product_template_value_ids), 3,
             'Product attribute values (size) were not automatically created')
 
+    def test_complete_inverse_exclusions_symmetry(self):
+        """Regression: the completed exclusion mapping consumed by the JS
+        configurator (`_get_attribute_exclusions()['exclusions']`) must be
+        symmetric. A single one-directional exclusion where one value excludes
+        two values that straddle it in id-order used to silently drop one
+        direction, so the configurator failed to grey out an excluded value.
+        """
+        Attribute = self.env['product.attribute']
+        color, size, material = Attribute.create([{
+            'name': 'Excl Color', 'sequence': 1, 'create_variant': 'no_variant',
+            'value_ids': [Command.create({'name': 'Red'}), Command.create({'name': 'Blue'})],
+        }, {
+            'name': 'Excl Size', 'sequence': 2, 'create_variant': 'no_variant',
+            'value_ids': [Command.create({'name': 'S'}), Command.create({'name': 'M'})],
+        }, {
+            'name': 'Excl Material', 'sequence': 3, 'create_variant': 'no_variant',
+            'value_ids': [Command.create({'name': 'Cotton'}), Command.create({'name': 'Wool'})],
+        }])
+        tmpl = self.env['product.template'].create({
+            'name': 'Exclusion Symmetry',
+            'attribute_line_ids': [
+                Command.create({'attribute_id': a.id, 'value_ids': [Command.set(a.value_ids.ids)]})
+                for a in (color, size, material)
+            ],
+        })
+
+        def ptav(attribute_value):
+            return tmpl.valid_product_template_attribute_line_ids.product_template_value_ids.filtered(
+                lambda p: p.product_attribute_value_id == attribute_value
+            )
+
+        red = ptav(color.value_ids[0])
+        s = ptav(size.value_ids[0])
+        cotton = ptav(material.value_ids[0])
+        # Size S excludes Red (lower id) and Cotton (higher id): a "straddle".
+        s.write({'exclude_for': [Command.create({
+            'product_tmpl_id': tmpl.id,
+            'value_ids': [Command.set((red + cotton).ids)],
+        })]})
+
+        exclusions = tmpl._get_attribute_exclusions()['exclusions']
+        for value_id, excluded_ids in exclusions.items():
+            for excluded_id in excluded_ids:
+                self.assertIn(
+                    value_id, exclusions[excluded_id],
+                    "exclusion %s->%s is not mirrored back" % (value_id, excluded_id),
+                )
+        self.assertIn(red.id, exclusions[s.id], "S must exclude Red")
+        self.assertIn(cotton.id, exclusions[s.id], "S must exclude Cotton")
+        self.assertIn(s.id, exclusions[red.id], "Red must exclude S")
+
     def test_get_variant_for_combination(self):
         computer_ssd_256 = self._get_product_template_attribute_value(self.ssd_256)
         computer_ram_8 = self._get_product_template_attribute_value(self.ram_8)

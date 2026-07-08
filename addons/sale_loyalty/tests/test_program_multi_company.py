@@ -40,7 +40,7 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
     def test_applicable_programs(self):
 
         order = self.empty_order
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -61,7 +61,7 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
             'company_id': self.company_b.id,
             'partner_id': order.partner_id.id,
         })
-        order_b.write({'order_line': [
+        order_b.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -86,7 +86,7 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
 
         # create an order
         order = self.env['sale.order'].create(
-            {'order_line': [
+            {'line_ids': [
                 Command.create({
                     'product_id': self.product_A.id,
                     'name': '1 Product A',
@@ -122,7 +122,7 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
         order = self.empty_order
         order.update(
             {
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': self.product_A.id,
                     }),

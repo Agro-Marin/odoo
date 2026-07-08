@@ -61,8 +61,8 @@ class TestReInvoice(TestStockCommon):
         self.picking_out.with_user(self.user_stock_user).action_confirm()
         self.picking_out.with_user(self.user_stock_user).button_validate()
 
-        self.assertEqual(len(self.sale_order.order_line), 2, 'There should be 2 lines on the SO')
-        new_sale_order_line1 = self.sale_order.order_line.filtered(lambda sol: sol.product_id == self.reinvoicable_product_at_cost)
+        self.assertEqual(len(self.sale_order.line_ids), 2, 'There should be 2 lines on the SO')
+        new_sale_order_line1 = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.reinvoicable_product_at_cost)
         self.assertTrue(new_sale_order_line1, 'A new sale line should have been created with the reinvoicable product at cost')
         self.assertEqual(
             (new_sale_order_line1.price_unit, new_sale_order_line1.qty_delivered, new_sale_order_line1.product_uom_qty, new_sale_order_line1.qty_invoiced),
@@ -71,7 +71,7 @@ class TestReInvoice(TestStockCommon):
         )
         self.assertEqual(new_sale_order_line1.qty_delivered_method, 'stock_move', 'Delivered quantity of SO line should be computed by stock move')
 
-        new_sale_order_line2 = self.sale_order.order_line.filtered(lambda sol: sol.product_id == self.reinvoicable_product_sales_price)
+        new_sale_order_line2 = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.reinvoicable_product_sales_price)
         self.assertTrue(new_sale_order_line2, 'A new sale line should have been created with the reinvoicable product at sales price')
         self.assertEqual(
             (new_sale_order_line2.price_unit, new_sale_order_line2.qty_delivered, new_sale_order_line2.product_uom_qty, new_sale_order_line2.qty_invoiced),

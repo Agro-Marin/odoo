@@ -123,7 +123,7 @@ class TestPoSSaleReport(TestPoSCommon, TestPointOfSaleHttpCommon):
         sale_order = self.env['sale.order'].sudo().create({
             'partner_id': self.customer.id,
             'partner_shipping_id': self.other_customer.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': product_0.id,
             })],
         })
@@ -131,7 +131,7 @@ class TestPoSSaleReport(TestPoSCommon, TestPointOfSaleHttpCommon):
 
         data = self.create_ui_order_data([(product_0, 1)], {}, self.customer, True)
         data['lines'][0][2]['sale_order_origin_id'] = sale_order.id
-        data['lines'][0][2]['sale_order_line_id'] = sale_order.order_line[0].id
+        data['lines'][0][2]['sale_order_line_id'] = sale_order.line_ids[0].id
         order_ids = self.env['pos.order'].sync_from_ui([data])
 
         move_id = self.env['account.move'].browse(order_ids['pos.order'][0]['account_move'])

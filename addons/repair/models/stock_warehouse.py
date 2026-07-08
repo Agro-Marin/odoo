@@ -14,10 +14,15 @@ class StockWarehouse(models.Model):
 
     def _get_sequence_values(self, name=False, code=False):
         values = super(StockWarehouse, self)._get_sequence_values(name=name, code=code)
+        # Honor the name/code params (as the base does) so a warehouse rename or
+        # recode propagates here too; `_update_name_and_code` calls this before
+        # super().write(), so self.name/self.code are still stale.
+        name = name or self.name
+        code = code or self.code
         values.update({
             'repair_type_id': {
-                'name': _('%(name)s Sequence repair', name=self.name),
-                'prefix': self.code + '/' + (self.repair_type_id.sequence_code or 'RO') + '/',
+                'name': _('%(name)s Sequence repair', name=name),
+                'prefix': code + '/' + (self.repair_type_id.sequence_code or 'RO') + '/',
                 'padding': 5,
                 'company_id': self.company_id.id
                 },

@@ -80,7 +80,7 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
 
         cls.sale_order = cls.env['sale.order'].create({
             'partner_id': cls.customer.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': cls.product_A.id,
                     'product_uom_qty': 10,
@@ -100,7 +100,7 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
 
         cls.po_A = cls.env['purchase.order'].create({
             'partner_id': cls.vendor.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': cls.product_A.name,
                     'product_id': cls.product_A.id,
@@ -110,7 +110,7 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
                 })],
         })
 
-        cls.po_A.button_confirm()
+        cls.po_A.action_confirm()
 
         cls.picking_A = cls.po_A.picking_ids[0]
         cls.picking_A.date_planned = (datetime.today() + timedelta(days=10))
@@ -155,7 +155,7 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
 
         so1 = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                     'product_id': dropshipped_product.id,
                     'product_uom_qty': 2,
                     'price_unit': 200.0,
@@ -167,5 +167,5 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         so2.action_confirm()
 
         po = (so1 | so2)._get_purchase_orders()
-        self.assertTrue(po.button_confirm())
+        self.assertTrue(po.action_confirm())
         self.assertNotEqual(len(po.ids), 1)

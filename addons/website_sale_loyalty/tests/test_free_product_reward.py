@@ -78,9 +78,9 @@ class TestFreeProductReward(HttpCaseWithUserPortal, WebsiteSaleCommon):
                 product_id=self.carpet.id,
                 quantity=1,
             )
-            sofa_line = order.order_line.filtered(lambda line: line.product_id.id == self.sofa.id)
-            carpet_reward_line = order.order_line.filtered(lambda line: line.product_id.id == self.carpet.id and line.is_reward_line)
-            carpet_line = order.order_line.filtered(lambda line: line.product_id.id == self.carpet.id and not line.is_reward_line)
+            sofa_line = order.line_ids.filtered(lambda line: line.product_id.id == self.sofa.id)
+            carpet_reward_line = order.line_ids.filtered(lambda line: line.product_id.id == self.carpet.id and line.is_reward_line)
+            carpet_line = order.line_ids.filtered(lambda line: line.product_id.id == self.carpet.id and not line.is_reward_line)
             self.assertEqual(sofa_line.product_uom_qty, 1, "Should have only 1 qty of Sofa")
             self.assertEqual(carpet_reward_line.product_uom_qty, 1, "Should have only 1 qty for the carpet as reward")
             self.assertEqual(carpet_line.product_uom_qty, 1, "Should have only 1 qty for carpet as non reward")
@@ -111,7 +111,7 @@ class TestFreeProductReward(HttpCaseWithUserPortal, WebsiteSaleCommon):
                 quantity=1,
             )
             self.WebsiteSaleController.claim_reward(self.program.reward_ids.id, code=coupon.code)
-            self.assertTrue(cart.order_line.reward_id)
+            self.assertTrue(cart.line_ids.reward_id)
             self.assertFalse(
                 cart._get_claimable_and_showable_rewards(),
                 "Rewards should no longer be claimable if already claimed",

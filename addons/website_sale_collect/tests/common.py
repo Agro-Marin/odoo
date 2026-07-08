@@ -31,7 +31,7 @@ class ClickAndCollectCommon(PaymentCustomCommon, WebsiteSaleStockCommon):
         default_values = {
             'partner_id': self.partner.id,
             'website_id': self.website.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.storable_product.id,
                 'product_uom_qty': 5.0,
             })],

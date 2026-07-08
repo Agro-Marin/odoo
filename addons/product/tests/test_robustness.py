@@ -7,7 +7,7 @@ Tests are organized into sections:
 - Coverage for untested models (product.document, product.category, etc.)
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
@@ -211,7 +211,9 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         # Batch compute all at once
         categories = parent_cat | child_cat | grandchild_cat
         categories.invalidate_recordset(["product_count"])
-        self.assertEqual(parent_cat.product_count, 4, "Parent should include all descendants")
+        self.assertEqual(
+            parent_cat.product_count, 4, "Parent should include all descendants"
+        )
         self.assertEqual(child_cat.product_count, 3, "Child should include grandchild")
         self.assertEqual(grandchild_cat.product_count, 1, "Grandchild has 1 product")
 
@@ -223,8 +225,16 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
         template = self.product.product_tmpl_id
         self.env["product.supplierinfo"].create(
             [
-                {"partner_id": partner1.id, "product_tmpl_id": template.id, "price": 10.0},
-                {"partner_id": partner2.id, "product_tmpl_id": template.id, "price": 20.0},
+                {
+                    "partner_id": partner1.id,
+                    "product_tmpl_id": template.id,
+                    "price": 10.0,
+                },
+                {
+                    "partner_id": partner2.id,
+                    "product_tmpl_id": template.id,
+                    "price": 20.0,
+                },
             ]
         )
 
@@ -238,8 +248,18 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
 
         self.env["product.supplierinfo"].create(
             [
-                {"partner_id": partner.id, "product_tmpl_id": template.id, "price": 50.0, "min_qty": 1},
-                {"partner_id": partner.id, "product_tmpl_id": template.id, "price": 40.0, "min_qty": 10},
+                {
+                    "partner_id": partner.id,
+                    "product_tmpl_id": template.id,
+                    "price": 50.0,
+                    "min_qty": 1,
+                },
+                {
+                    "partner_id": partner.id,
+                    "product_tmpl_id": template.id,
+                    "price": 40.0,
+                    "min_qty": 10,
+                },
             ]
         )
 
@@ -286,7 +306,8 @@ class TestCodeQualityFixes(ProductCommon):
         self.assertFalse(
             hasattr(SupplierInfo, "_compute_price")
             and callable(getattr(SupplierInfo, "_compute_price", None))
-            and getattr(SupplierInfo._fields.get("price"), "compute", None) == "_compute_price",
+            and getattr(SupplierInfo._fields.get("price"), "compute", None)
+            == "_compute_price",
             "price field should not reference a dead _compute_price method",
         )
 
@@ -355,7 +376,9 @@ class TestCodeQualityFixes(ProductCommon):
     def test_q14_check_date_range_constraint(self):
         """Q14: _check_date_range should raise on invalid date range (no dead return)."""
         self._enable_pricelists()
-        with self.assertRaises(ValidationError, msg="Date range constraint not enforced"):
+        with self.assertRaises(
+            ValidationError, msg="Date range constraint not enforced"
+        ):
             self.env["product.pricelist.item"].create(
                 {
                     "pricelist_id": self.pricelist.id,
@@ -483,6 +506,37 @@ class TestPricelistItemConstraints(ProductCommon):
                 }
             )
 
+    def test_margin_zero_max_is_uncapped(self):
+        """A zero max margin means 'no upper cap' and must not clash with a min.
+
+        _compute_price treats a zero max margin as unset, so the constraint must
+        not reject a positive min margin paired with a zero (unset) max margin.
+        """
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "compute_price": "formula",
+                "price_min_margin": 5.0,
+                "price_max_margin": 0.0,
+            }
+        )
+        self.assertTrue(rule.exists())
+
+    def test_price_round_negative_constraint(self):
+        """A negative price_round must be rejected at write time, not at pricing.
+
+        Otherwise float_round() raises later on every price computation for the
+        rule (a data-poisoning 500), instead of failing fast on the bad write.
+        """
+        with self.assertRaises(ValidationError):
+            self.env["product.pricelist.item"].create(
+                {
+                    "pricelist_id": self.pricelist.id,
+                    "compute_price": "formula",
+                    "price_round": -1.0,
+                }
+            )
+
     def test_product_consistency_constraint(self):
         """applied_on requires corresponding product/category fields to be set."""
         # applied_on="1_product" without product_tmpl_id should raise
@@ -600,7 +654,9 @@ class TestResCompanyPricelist(TransactionCase):
                 ("company_id", "=", company.id),
             ]
         )
-        self.assertTrue(pricelist, "Default pricelist should be created for new company")
+        self.assertTrue(
+            pricelist, "Default pricelist should be created for new company"
+        )
 
 
 class TestVariantOptimizations(ProductVariantsCommon):
@@ -654,12 +710,286 @@ class TestVariantOptimizations(ProductVariantsCommon):
         # Remove the color attribute → variants get recreated, combo items cleaned
         self.product_template_sofa.write(
             {
-                "attribute_line_ids": [(2, self.product_template_sofa.attribute_line_ids.id)],
+                "attribute_line_ids": [
+                    (2, self.product_template_sofa.attribute_line_ids.id)
+                ],
             }
         )
         # The old variant is gone, combo item should be cleaned up
         combo_choice.invalidate_recordset()
         self.assertFalse(
-            combo_choice.combo_item_ids.filtered(lambda ci: ci.product_id == self.product_sofa_red),
+            combo_choice.combo_item_ids.filtered(
+                lambda ci: ci.product_id == self.product_sofa_red
+            ),
             "Combo items referencing deleted variants should be cleaned up",
         )
+
+
+class TestPricelistItemComputeHardening(ProductCommon):
+    """Compute/label correctness for product.pricelist.item rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._enable_pricelists()
+
+    def test_percentage_compute_price(self):
+        """`percentage` compute_price applies percent_price to the base price."""
+        product = self._create_product(list_price=200.0)
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "3_global",
+                "compute_price": "percentage",
+                "percent_price": 25.0,
+            }
+        )
+        price = rule._compute_price(
+            product, 1.0, product.uom_id, date=fields.Datetime.now()
+        )
+        self.assertAlmostEqual(price, 150.0, places=2)  # 200 - 25%
+
+    def test_name_recomputes_on_display_applied_on_change(self):
+        """`name` depends on display_applied_on; toggling it must refresh name."""
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "3_global",
+                "display_applied_on": "1_product",
+                "compute_price": "fixed",
+                "fixed_price": 1.0,
+            }
+        )
+        self.assertEqual(rule.name, "All Products")
+        rule.display_applied_on = "2_product_category"
+        self.assertEqual(rule.name, "All Categories")
+
+    def test_rule_amounts_expressed_in_requested_currency(self):
+        """Fixed price & surcharge must be returned in the caller's currency.
+
+        The amounts are stored in the rule's (pricelist) currency; _compute_price
+        must convert them to the requested currency, not leak the rule currency.
+        """
+        company = self.env.company
+        rule_cur = company.currency_id
+        # Pick a different, explicit currency (a fresh DB only activates the
+        # company currency, so a plain search would return nothing).
+        req_cur = self.env.ref("base.EUR")
+        if req_cur == rule_cur:
+            req_cur = self.env.ref("base.USD")
+        req_cur.active = True
+        date = datetime(2099, 1, 1)
+        self.env["res.currency.rate"].create(
+            {
+                "currency_id": req_cur.id,
+                "name": "2099-01-01",
+                "rate": 2.0,  # 1 rule-currency unit -> 2 requested-currency units
+                "company_id": company.id,
+            }
+        )
+        pricelist = self._create_pricelist(currency_id=rule_cur.id)
+        product = self._create_product(list_price=100.0)
+
+        fixed_rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": pricelist.id,
+                "applied_on": "3_global",
+                "compute_price": "fixed",
+                "fixed_price": 50.0,
+            }
+        )
+        got = fixed_rule._compute_price(
+            product, 1.0, product.uom_id, date=date, currency=req_cur
+        )
+        self.assertAlmostEqual(
+            got, rule_cur._convert(50.0, req_cur, company, date), places=2
+        )
+        self.assertAlmostEqual(got, 100.0, places=2)  # 50 * 2.0
+
+        surcharge_rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": pricelist.id,
+                "applied_on": "3_global",
+                "compute_price": "formula",
+                "base": "list_price",
+                "price_discount": 0.0,
+                "price_surcharge": 10.0,
+            }
+        )
+        got2 = surcharge_rule._compute_price(
+            product, 1.0, product.uom_id, date=date, currency=req_cur
+        )
+        base_req = rule_cur._convert(100.0, req_cur, company, date)  # 200
+        surcharge_req = rule_cur._convert(10.0, req_cur, company, date)  # 20
+        self.assertAlmostEqual(got2, base_req + surcharge_req, places=2)  # 220
+
+
+class TestPricelistItemRefactor(ProductCommon):
+    """Locks the product.pricelist.item refactor: currency-consistent rounding,
+    non-stored markup, batched create deduction, and guard-clause applicability.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._enable_pricelists()
+
+    def _second_currency(self, rate):
+        """Activate a currency distinct from the company one, at ``rate``."""
+        company = self.env.company
+        rule_cur = company.currency_id
+        req = self.env.ref("base.EUR")
+        if req == rule_cur:
+            req = self.env.ref("base.USD")
+        req.active = True
+        self.env["res.currency.rate"].search([("currency_id", "=", req.id)]).unlink()
+        self.env["res.currency.rate"].create(
+            {
+                "currency_id": req.id,
+                "name": "2099-01-01",
+                "rate": rate,
+                "company_id": company.id,
+            }
+        )
+        return rule_cur, req
+
+    def test_price_round_is_currency_consistent(self):
+        """price_round is a rule-currency amount and must be converted before it
+        rounds the (already converted) price.
+
+        A rule with price_round=10 stored in currency C rounds to a grid of 10 C.
+        Requested in a currency worth 1/3 of C, that grid is 30 - so 99 must round
+        to 90, not to 100 (rounding on a raw grid of 10 in the wrong currency).
+        """
+        rule_cur, req = self._second_currency(3.0)
+        date = datetime(2099, 1, 1)
+        pricelist = self._create_pricelist(currency_id=rule_cur.id)
+        product = self._create_product(list_price=33.0)  # 99 in req currency
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": pricelist.id,
+                "applied_on": "3_global",
+                "compute_price": "formula",
+                "base": "list_price",
+                "price_discount": 0.0,
+                "price_round": 10.0,
+            }
+        )
+        same = rule._compute_price(
+            product, 1.0, product.uom_id, date=date, currency=rule_cur
+        )
+        self.assertAlmostEqual(same, 30.0, places=2, msg="same-currency grid of 10")
+        cross = rule._compute_price(
+            product, 1.0, product.uom_id, date=date, currency=req
+        )
+        self.assertAlmostEqual(
+            cross, 90.0, places=2, msg="cross-currency grid must convert to 30"
+        )
+
+    def test_price_markup_not_stored_but_inverts(self):
+        """price_markup is a non-stored mirror of -price_discount; editing it
+        persists onto price_discount through the inverse."""
+        PI = self.env["product.pricelist.item"]
+        self.assertFalse(
+            PI._fields["price_markup"].store,
+            "price_markup should not be stored (pure negation of price_discount)",
+        )
+        rule = PI.create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "compute_price": "formula",
+                "base": "standard_price",
+                "price_discount": 15.0,
+            }
+        )
+        self.assertEqual(rule.price_markup, -15.0)
+        rule.price_markup = 40.0
+        rule.invalidate_recordset()
+        self.assertEqual(rule.price_discount, -40.0)
+        self.assertEqual(rule.price_markup, 40.0)
+
+    def test_create_batches_variant_template_deduction(self):
+        """Variant-only rules deduce both product_tmpl_id and applied_on per row."""
+        products = self.env["product.product"].create(
+            [{"name": "BV1"}, {"name": "BV2"}, {"name": "BV3"}]
+        )
+        rules = self.env["product.pricelist.item"].create(
+            [
+                {
+                    "pricelist_id": self.pricelist.id,
+                    "product_id": p.id,
+                    "compute_price": "fixed",
+                    "fixed_price": 1.0,
+                }
+                for p in products
+            ]
+        )
+        for rule, product in zip(rules, products, strict=True):
+            self.assertEqual(rule.product_tmpl_id, product.product_tmpl_id)
+            self.assertEqual(rule.applied_on, "0_product_variant")
+
+    def test_deduce_applied_on_precedence(self):
+        """variant > template > category > global."""
+        PI = self.env["product.pricelist.item"]
+        self.assertEqual(
+            PI._deduce_applied_on(product_id=1, product_tmpl_id=2, categ_id=3),
+            "0_product_variant",
+        )
+        self.assertEqual(
+            PI._deduce_applied_on(product_tmpl_id=2, categ_id=3), "1_product"
+        )
+        self.assertEqual(PI._deduce_applied_on(categ_id=3), "2_product_category")
+        self.assertEqual(PI._deduce_applied_on(), "3_global")
+
+    def test_is_applicable_for_category_descendant(self):
+        """A category rule applies to its category and descendants, not siblings."""
+        parent = self.env["product.category"].create({"name": "RP"})
+        child = self.env["product.category"].create(
+            {"name": "RC", "parent_id": parent.id}
+        )
+        other = self.env["product.category"].create({"name": "RO"})
+        in_child = self._create_product(categ_id=child.id)
+        in_other = self._create_product(categ_id=other.id)
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "2_product_category",
+                "categ_id": parent.id,
+                "compute_price": "fixed",
+                "fixed_price": 1.0,
+            }
+        )
+        self.assertTrue(rule._is_applicable_for(in_child, 1.0))
+        self.assertFalse(rule._is_applicable_for(in_other, 1.0))
+
+    def test_is_applicable_for_min_quantity(self):
+        """min_quantity gates applicability regardless of the target level."""
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "3_global",
+                "min_quantity": 5.0,
+                "compute_price": "fixed",
+                "fixed_price": 1.0,
+            }
+        )
+        product = self._create_product()
+        self.assertFalse(rule._is_applicable_for(product, 4.0))
+        self.assertTrue(rule._is_applicable_for(product, 5.0))
+
+    def test_is_applicable_for_single_variant_template(self):
+        """A variant rule matches a template only when it is its sole variant."""
+        product = self._create_product()
+        template = product.product_tmpl_id
+        rule = self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "0_product_variant",
+                "product_id": product.id,
+                "compute_price": "fixed",
+                "fixed_price": 1.0,
+            }
+        )
+        # Single-variant template is accepted for its variant rule.
+        self.assertTrue(rule._is_applicable_for(template, 1.0))
+        self.assertTrue(rule._is_applicable_for(product, 1.0))

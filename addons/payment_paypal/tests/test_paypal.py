@@ -98,7 +98,7 @@ class PaypalTest(PaypalCommon, PaymentHttpCommon):
         product = self.env['product.product'].create({'name': "$5", 'list_price': 5.0})
         order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [Command.create({'product_id': product.id})],
+            'line_ids': [Command.create({'product_id': product.id})],
         })
         tx = self._create_transaction(flow='direct', sale_order_ids=[Command.set(order.ids)])
 

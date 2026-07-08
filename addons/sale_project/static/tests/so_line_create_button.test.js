@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 
 onRpc("get_first_service_line", function ({ args, model }) {
-    const [solId] = this.env[model].browse(args[0])[0].order_line;
+    const [solId] = this.env[model].browse(args[0])[0].line_ids;
     const productId = this.env["sale.order.line"].browse(solId)[0].product_id;
     const productType = this.env["product.product"].browse(productId)[0].type;
     if (productType === "service") {

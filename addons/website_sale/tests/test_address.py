@@ -169,7 +169,7 @@ class TestCheckoutAddress(WebsiteSaleCommon):
                 msg="The carrier rate must be recalculated when shipping address is changed.",
             )
             self.assertEqual(
-                self.cart.order_line.filtered('is_delivery')[0].price_unit,
+                self.cart.line_ids.filtered('is_delivery')[0].price_unit,
                 10,
                 msg="The recalculated delivery price must be updated on the order.",
             )
@@ -322,7 +322,7 @@ class TestCheckoutAddress(WebsiteSaleCommon):
         so = self.env['sale.order'].create({
             'partner_id': self.partner.id,
             'website_id': self.website.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
                 'name': 'Product test',
             })]
@@ -642,21 +642,21 @@ class TestCheckoutAddress(WebsiteSaleCommon):
         self.partner.country_id = self.country_id
 
         cart = self.empty_cart
-        cart.order_line = [Command.create({'product_id': self.product.id})]
+        cart.line_ids = [Command.create({'product_id': self.product.id})]
         amount_untaxed = cart.amount_untaxed
 
         self.assertEqual(cart.fiscal_position_id, fpos_be)
-        self.assertEqual(cart.order_line.tax_ids, tax_0)
+        self.assertEqual(cart.line_ids.tax_ids, tax_0)
 
         self.partner.country_id = self.env.company.country_id
         self.assertNotEqual(cart.fiscal_position_id, fpos_be)
-        self.assertEqual(cart.order_line.tax_ids, tax_15_incl)
+        self.assertEqual(cart.line_ids.tax_ids, tax_15_incl)
         self.assertEqual(cart.amount_untaxed, amount_untaxed, "Untaxed amount should not change")
 
         cart.action_confirm()
         self.partner.country_id = self.country_id
         self.assertEqual(
-            cart.order_line.tax_ids, tax_15_incl,
+            cart.line_ids.tax_ids, tax_15_incl,
             "Tax should no longer change after order confirmation",
         )
 

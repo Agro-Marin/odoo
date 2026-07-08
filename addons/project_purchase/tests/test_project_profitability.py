@@ -189,7 +189,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             "name": "A purchase order",
             "partner_id": self.partner_a.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 "analytic_distribution": {self.analytic_account.id: analytic_distribution},
                 "product_id": self.product_order.id,
                 "product_qty": 1,
@@ -197,7 +197,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 "currency_id": self.env.company.currency_id.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         self.assertEqual(purchase_order.invoice_state, 'to invoice')
         # The section "purchase_order" should appear as the purchase order is validated, the total should be updated,
         # the "other_purchase_costs" shouldn't change, as we don't take into
@@ -329,7 +329,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             "name": "A purchase order",
             "partner_id": self.partner_a.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 "analytic_distribution": {
                     # this is the analytic_account that is linked to the project
                     self.analytic_account.id: analytic_ratios["project_ratio"],
@@ -341,7 +341,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 "currency_id": self.env.company.currency_id.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         self.assertEqual(purchase_order.invoice_state, 'to invoice')
         self.assertDictEqual(
             self.project._get_profitability_items(False)['costs'],
@@ -489,7 +489,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             "name": "A foreign purchase order",
             "partner_id": self.partner_a.id,
             "company_id": foreign_company.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 "analytic_distribution": {account.id: analytic_distribution},
                 "product_id": self.product_order.id,
                 "product_qty": 1,
@@ -503,7 +503,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 "currency_id": self.foreign_currency.id,
             })],
         })
-        purchase_order_foreign.button_confirm()
+        purchase_order_foreign.action_confirm()
         self.assertEqual(purchase_order_foreign.invoice_state, 'to invoice')
 
         # The section "purchase_order" should appear because the purchase order is validated, the total should be updated,
@@ -526,7 +526,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             "name": "A foreign purchase order",
             "partner_id": self.partner_a.id,
             "company_id": self.env.company.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 "analytic_distribution": {account.id: analytic_distribution},
                 "product_id": self.product_order.id,
                 "product_qty": 1,
@@ -540,7 +540,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 "currency_id": self.env.company.currency_id.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         self.assertEqual(purchase_order.invoice_state, 'to invoice')
 
         # The section "purchase_order" should be updated with the new po values.
@@ -597,7 +597,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             "name": "A purchase order",
             "partner_id": self.partner_a.id,
             "company_id": self.env.company.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 "product_id": self.product_order.id,
                 "product_qty": 1,
                 "price_unit": self.product_order.standard_price,
@@ -624,7 +624,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             'name': "A purchase order",
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'analytic_distribution': {self.analytic_account.id: 100},
                 'product_id': self.product_order.id,
                 'product_qty': 2,  # plural value to check if the price is multiplied more than once
@@ -633,7 +633,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 'currency_id': self.env.company.currency_id.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.action_create_invoice()
         # the profitability should not take taxes into account
         self.assertDictEqual(
@@ -678,7 +678,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             'name': "A purchase order",
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'analytic_distribution': {self.analytic_account.id: 100},
                 'product_id': self.product_order.id,
                 'product_qty': 1,
@@ -686,9 +686,9 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 'currency_id': self.env.company.currency_id.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         # changing the uom to a higher number
-        purchase_order.order_line.product_uom_id = self.env.ref("uom.product_uom_dozen")
+        purchase_order.line_ids.product_uom_id = self.env.ref("uom.product_uom_dozen")
         purchase_order.action_create_invoice()
         self.assertDictEqual(
             self.project._get_profitability_items(False)['costs'],
@@ -719,7 +719,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             'name': 'Cross Purchase Order',
             "partner_id": self.partner_a.id,
             "company_id": self.env.company.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'analytic_distribution': {
                         f"{self.project.account_id.id},{cross_account.id}": cross_distribution,
@@ -732,7 +732,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             ],
         })
 
-        cross_order.button_confirm()
+        cross_order.action_confirm()
         cross_order.action_create_invoice()
         items = self.project._get_profitability_items(with_action=False)['costs']
         self.assertEqual(
@@ -745,12 +745,12 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             'name': "A Purchase",
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'analytic_distribution': {self.analytic_account.id: 100},
                 'product_id': self.product_order.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         vendor_bill = self._create_invoice_for_po(purchase_order)
 
         items = self.project._get_profitability_items(with_action=False)['costs']
@@ -778,12 +778,12 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             "name": "A purchase order",
             "partner_id": self.partner_a.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 'analytic_distribution': {self.analytic_account.id: 100},
                 'product_id': self.product_order.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
         vendor_bill = self._create_invoice_for_po(purchase_order)
         vendor_bill.invoice_line_ids.analytic_distribution = False
@@ -882,7 +882,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             'name': "A purchase order",
             'partner_id': self.partner_a.id,
             'company_id': self.env.company.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product_order.id,
                 'price_unit': 100,
                 'tax_ids': [],
@@ -890,7 +890,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
             })],
             'project_id': self.project.id,
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
         self.assertDictEqual(
             self.project._get_profitability_items(False)['costs'],
@@ -985,7 +985,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         purchase_order = self.env['purchase.order'].create({
             "name": "A purchase order",
             "partner_id": self.partner_a.id,
-            "order_line": [Command.create({
+            "line_ids": [Command.create({
                 "analytic_distribution": {
                     # this is the analytic_account that is linked to the project
                     f"{self.analytic_account.id},{other_analytic_account.id}": 100,
@@ -996,7 +996,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
                 "currency_id": self.env.company.currency_id.id,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
         purchase_order.action_create_invoice()
 

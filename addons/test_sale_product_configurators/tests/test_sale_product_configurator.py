@@ -250,7 +250,7 @@ class TestProductConfiguratorUi(TestProductConfiguratorCommon):
         )
         order = self.env['sale.order'].search([], order='id desc', limit=1)
         self.assertEqual(
-            order.order_line.product_custom_attribute_value_ids.custom_value,
+            order.line_ids.product_custom_attribute_value_ids.custom_value,
             "123456",
         )
 

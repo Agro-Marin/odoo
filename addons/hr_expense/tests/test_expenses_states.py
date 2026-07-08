@@ -70,8 +70,8 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
         self.expenses_all.action_approve()
         self.post_expenses_with_wizard(self.expenses_all)
 
-        self.expenses_all.account_move_id.button_draft()
-        self.expenses_all.account_move_id.button_cancel()
+        self.expenses_all.account_move_id.action_draft()
+        self.expenses_all.account_move_id.action_cancel()
         self.assertRecordValues(self.expenses_all, [
             {'state': 'approved', 'account_move_id': False},
             {'state': 'approved', 'account_move_id': False},
@@ -84,7 +84,7 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
         self.expenses_all.action_approve()
         self.post_expenses_with_wizard(self.expenses_all)
 
-        self.expenses_all.account_move_id.button_draft()
+        self.expenses_all.account_move_id.action_draft()
         self.expenses_all.account_move_id.origin_payment_id.unlink()
         self.expenses_all.account_move_id.unlink()
         self.assertRecordValues(self.expenses_all, [
@@ -113,7 +113,7 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
         self.expenses_employee.action_approve()
         self.post_expenses_with_wizard(self.expenses_employee)
 
-        self.expenses_employee.account_move_id.button_draft()
+        self.expenses_employee.account_move_id.action_draft()
         self.assertEqual(self.expenses_employee.state, 'posted')
         self.assertRecordValues(self.expenses_employee.account_move_id, [
             {'state': 'draft', 'payment_state': 'not_paid'},
@@ -160,7 +160,7 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
 
         self.get_new_payment(self.expenses_employee, self.expenses_employee.total_amount)
 
-        self.expenses_employee.account_move_id.button_draft()
+        self.expenses_employee.account_move_id.action_draft()
         self.expenses_employee.account_move_id.line_ids.remove_move_reconcile()
         self.assertEqual(self.expenses_employee.state, 'posted')
         self.assertRecordValues(self.expenses_employee.account_move_id, [
@@ -173,7 +173,7 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
         self.expenses_company.action_approve()
         self.expenses_company.action_post()
 
-        self.expenses_company.account_move_id.button_draft()
+        self.expenses_company.account_move_id.action_draft()
         self.assertEqual(self.expenses_company.state, 'paid')
         self.assertRecordValues(self.expenses_company.account_move_id, [
             {'state': 'draft', 'payment_state': 'not_paid'},

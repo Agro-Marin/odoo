@@ -71,7 +71,7 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
         cls.cart = cls.env['sale.order'].create({
             'partner_id': cls.partner.id,
             'website_id': cls.website.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': cls.product.id,
                     'product_uom_qty': 5.0,
@@ -107,7 +107,7 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
         default_values = {
             'partner_id': self.partner.id,
             'website_id': self.website.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                 }),

@@ -72,7 +72,7 @@ class TestWebsiteSaleStockProductWarehouse(
         so = self.env['sale.order'].create({
             'website_id': self.website.id,
             'partner_id': self.env.user.partner_id.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.product_A.name,
                 'product_id': self.product_A.id,
                 'product_uom_qty': 5,
@@ -84,11 +84,11 @@ class TestWebsiteSaleStockProductWarehouse(
             website_so = req.cart
             self.assertEqual(website_so, so)
             self.assertEqual(
-                website_so.order_line.product_id.virtual_available,
+                website_so.line_ids.product_id.virtual_available,
                 25,
                 "This quantity should be based on all warehouses.",
             )
 
-            values = so._cart_update_line_quantity(line_id=so.order_line.id, quantity=30)
+            values = so._cart_update_line_quantity(line_id=so.line_ids.id, quantity=30)
             self.assertTrue(values.get('warning', False))
             self.assertEqual(values.get('quantity'), 25)

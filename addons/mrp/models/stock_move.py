@@ -708,8 +708,8 @@ class StockMove(models.Model):
             documents[move.production_id, move.production_id.user_id or self.env.user] = cancelled_dests
         return self.env["stock.picking"]._log_activity(_render_note_exception_cancel_dest, documents)
 
-    def _prepare_move_split_vals(self, qty):
-        defaults = super()._prepare_move_split_vals(qty)
+    def _prepare_move_split_vals(self, qty, force_uom_id=False):
+        defaults = super()._prepare_move_split_vals(qty, force_uom_id=force_uom_id)
         defaults["workorder_id"] = False
         return defaults
 

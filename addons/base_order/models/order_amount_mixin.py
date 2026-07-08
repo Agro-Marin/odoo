@@ -232,7 +232,6 @@ class OrderLineAmountMixin(models.AbstractModel):
     product_qty = fields.Float(
         string="Quantity",
         digits="Product Unit",
-        default=1.0,
         compute="_compute_product_qty",
         store=True,
         precompute=True,

@@ -31,7 +31,7 @@ class TestSaleInvoicing(TestSaleCouponCommon):
 
         order = self.empty_order
         order.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'product_id': product.id,
                 })
@@ -58,13 +58,13 @@ class TestSaleInvoicing(TestSaleCouponCommon):
         self.assertEqual(len(inv.invoice_line_ids), 1)
         invoiceable_lines = order._get_order_lines_invoiceable()
         self.assertEqual(len(invoiceable_lines), 0)
-        inv.button_cancel()
+        inv.action_cancel()
 
-        order.order_line[0].qty_delivered = 1
+        order.line_ids[0].qty_delivered = 1
         # Product is delivered, the two lines can be invoiced.
         self.assertEqual(order.invoice_state, 'to invoice')
         invoiceable_lines = order._get_order_lines_invoiceable()
-        self.assertEqual(order.order_line, invoiceable_lines)
+        self.assertEqual(order.line_ids, invoiceable_lines)
         account_move = order._create_invoices()
         self.assertEqual(len(account_move.invoice_line_ids), 2)
 
@@ -101,7 +101,7 @@ class TestSaleInvoicing(TestSaleCouponCommon):
 
         self._auto_rewards(order, discount_coupon_program)
 
-        self.assertEqual(len(order.order_line), 2, 'Coupon correctly applied')
+        self.assertEqual(len(order.line_ids), 2, 'Coupon correctly applied')
 
         product_11 = self.env['product.product'].create({
             'name': 'Conference Chair',
@@ -116,6 +116,6 @@ class TestSaleInvoicing(TestSaleCouponCommon):
         })
 
         order._update_programs_and_rewards()
-        self.assertEqual(len(order.order_line), 3, 'Coupon correctly applied')
+        self.assertEqual(len(order.line_ids), 3, 'Coupon correctly applied')
 
-        self.assertTrue(order.order_line.sorted(lambda x: x.sequence)[-1].is_reward_line, 'Global coupons appear on the last line')
+        self.assertTrue(order.line_ids.sorted(lambda x: x.sequence)[-1].is_reward_line, 'Global coupons appear on the last line')

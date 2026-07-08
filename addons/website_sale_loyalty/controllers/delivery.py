@@ -34,7 +34,7 @@ class WebsiteSaleLoyaltyDelivery(Delivery):
             res['delivery_discount_minor_amount'] = payment_utils.to_minor_currency_units(
                 shipping_discount, order.currency_id
             )
-        discount_lines = order.order_line.filtered(
+        discount_lines = order.line_ids.filtered(
             lambda line: line.reward_id.reward_type == 'discount'
         )
         groupable_lines = discount_lines.filtered(

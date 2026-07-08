@@ -370,7 +370,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         self.assertFalse(timesheet2.timesheet_invoice_id, "The timesheet2 should not be linked to the invoice")
 
         # invoice SO
-        sale_order.order_line.write({'qty_delivered': 5})
+        sale_order.line_ids.write({'qty_delivered': 5})
         invoice1 = sale_order._create_invoices()
 
         for invoice_line in invoice1.invoice_line_ids:
@@ -511,7 +511,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         wizard.create_invoices()
 
         self.assertTrue(sale_order.invoice_ids, 'One invoice should be created because the timesheet logged is between the period defined in wizard')
-        self.assertTrue(all(line.invoice_state == "to invoice" for line in sale_order.order_line if line.qty_delivered != line.qty_invoiced),
+        self.assertTrue(all(line.invoice_state == "to invoice" for line in sale_order.line_ids if line.qty_delivered != line.qty_invoiced),
                         "All lines that still have some quantity to be invoiced should have an invoice status of 'to invoice', regardless if they were considered for previous invoicing, but didn't belong to the timesheet domain")
 
         invoice = sale_order.invoice_ids[0]
@@ -557,7 +557,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'name': 'first task',
             'partner_id': self.partner_b.id,
             'allocated_hours': 10,
-            'sale_line_id': self.so.order_line[0].id
+            'sale_line_id': self.so.line_ids[0].id
         })
 
         Timesheet.create({
@@ -812,7 +812,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         sale_order = sale_order.copy()
         sale_order.action_confirm()
-        task = sale_order.order_line.task_id
+        task = sale_order.line_ids.task_id
 
         # let's log some timesheets
         self.env['account.analytic.line'].create({
@@ -1057,12 +1057,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         sale_orders = self.env['sale.order'].create([{
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product_delivery_timesheet2.id,
             })],
         }, {
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product_delivery_timesheet2.id,
             })],
         }])
@@ -1088,7 +1088,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         """ Check the billable type of a timesheet with negative time spent """
         sale_order = self.env['sale.order'].create([{
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product_delivery_timesheet2.id,
             })],
         }])

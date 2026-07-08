@@ -12,7 +12,7 @@ class TestBuyGiftCard(TestSaleCouponCommon):
     def test_buying_gift_card(self):
         order = self.empty_order
         self.immediate_promotion_program.active = False
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': 'Ordinary Product A',
@@ -24,14 +24,14 @@ class TestBuyGiftCard(TestSaleCouponCommon):
                 'product_uom_qty': 1.0,
             })
         ]})
-        self.assertEqual(len(order.order_line.ids), 2)
+        self.assertEqual(len(order.line_ids.ids), 2)
         self.assertEqual(len(order._get_reward_coupons()), 0)
         order._update_programs_and_rewards()
         self.assertEqual(len(order._get_reward_coupons()), 1)
-        order.order_line[1].product_uom_qty = 2
+        order.line_ids[1].product_uom_qty = 2
         order._update_programs_and_rewards()
         self.assertEqual(len(order._get_reward_coupons()), 2)
-        order.order_line[1].product_uom_qty = 1
+        order.line_ids[1].product_uom_qty = 1
         order._update_programs_and_rewards()
         self.assertEqual(len(order._get_reward_coupons()), 1)
 
@@ -54,7 +54,7 @@ class TestBuyGiftCard(TestSaleCouponCommon):
         company = order.company_id.partner_id
         company.email = "noreply@company.co"
         order.write({
-            'order_line': [Command.create({'product_id': self.product_gift_card.id})],
+            'line_ids': [Command.create({'product_id': self.product_gift_card.id})],
         })
         order._update_programs_and_rewards()
 

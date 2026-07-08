@@ -615,6 +615,44 @@ class TestBoM(TestMrpCommon):
         ).mapped("qty_available")
         self.assertEqual(kit_product_qty, 8)
 
+    def test_kit_quantity_search(self):
+        """A kit's quantity comes from its components, not its own quants, so it must
+        still be found by a forecast/on-hand quantity search. The `product.product`
+        candidate-set search computes those fields only for products with quants/moves,
+        so `_get_quantity_search_candidates` is overridden in mrp to add phantom kits.
+        """
+        self.env["mrp.bom"].create(
+            {
+                "product_id": self.product_7_3.id,
+                "product_tmpl_id": self.product_7_template.id,
+                "product_uom_id": self.uom_unit.id,
+                "product_qty": 1.0,
+                "type": "phantom",
+                "bom_line_ids": [
+                    Command.create(
+                        {"product_id": self.product_2.id, "product_qty": 3}
+                    ),
+                ],
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.product_2, self.stock_location, 12.0
+        )
+        # The kit has no quants of its own; its qty is derived from the component: 12 // 3.
+        self.assertEqual(self.product_7_3.virtual_available, 4.0)
+        found = self.env["product.product"].search(
+            ["&", ("id", "in", self.product_7_3.ids), ("virtual_available", ">", 0)]
+        )
+        self.assertEqual(
+            found, self.product_7_3, "kit must be found by a virtual_available search"
+        )
+        excluded = self.env["product.product"].search(
+            ["&", ("id", "in", self.product_7_3.ids), ("virtual_available", ">", 10)]
+        )
+        self.assertFalse(
+            excluded, "kit must be excluded when its quantity fails the operator"
+        )
+
     def test_14_bom_kit_qty_multi_uom(self):
         product_unit = self.env["product.product"].create(
             {

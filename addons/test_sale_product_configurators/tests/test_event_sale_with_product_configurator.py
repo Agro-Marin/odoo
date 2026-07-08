@@ -120,5 +120,5 @@ class TestEventProductConfiguratorUi(AccountTestInvoicingCommon, HttpCase):
         sale_order = self.env['sale.order'].search([('create_uid', "=", self.salesman.id)])
 
         # Check that all the so lines are in the so and that the total amount is correct
-        self.assertEqual(len(sale_order.order_line), 4)
+        self.assertEqual(len(sale_order.line_ids), 4)
         self.assertEqual(sale_order.amount_total, 277.73)

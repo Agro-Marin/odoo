@@ -60,11 +60,11 @@ class TestProjectPricingType(TestCommonSaleTimesheet):
         # 3) Set a customer and a SOL in the project and check if the pricing_type is equal to fixed_rate (project rate)
         project.write({
             'partner_id': self.partner_b.id,
-            'sale_line_id': self.so.order_line[0].id,
+            'sale_line_id': self.so.line_ids[0].id,
         })
 
         self.assertEqual(project.sale_order_id, self.so, 'The sales order should be equal to the one set in the project.')
-        self.assertEqual(project.sale_line_id, self.so.order_line[0], 'The sales order item should be the one chosen.')
+        self.assertEqual(project.sale_line_id, self.so.line_ids[0], 'The sales order item should be the one chosen.')
         self.assertEqual(project.pricing_type, 'fixed_rate', 'The pricing type should be equal to fixed_rate since the project has a sales order item.')
         self.assertFalse(project.filtered_domain(_search_pricing_type('=', 'task_rate')))
         self.assertTrue(project.filtered_domain(_search_pricing_type('=', 'fixed_rate')))
@@ -79,7 +79,7 @@ class TestProjectPricingType(TestCommonSaleTimesheet):
         project.write({
             'sale_line_employee_ids': [(0, 0, {
                 'employee_id': self.employee_user.id,
-                'sale_line_id': self.so.order_line[1].id,
+                'sale_line_id': self.so.line_ids[1].id,
             })]
         })
 

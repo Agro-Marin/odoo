@@ -16,11 +16,19 @@ from odoo.addons.purchase import const
 
 class PurchaseOrderLine(models.Model):
     _name = "purchase.order.line"
-    _inherit = ["analytic.mixin"]
+    _inherit = [
+        "order.line.fields.mixin",
+        "order.line.amount.mixin",
+        "order.line.invoice.mixin",
+        "analytic.mixin",
+    ]
     _description = "Purchase Order Line"
     _check_company_auto = True
     _order = "order_id, sequence, id"
     _rec_names_search = ["name", "order_id.name"]
+
+    def _get_order_type(self):
+        return "purchase"
 
     # ------------------------------------------------------------
     # FIELDS
@@ -96,18 +104,6 @@ class PurchaseOrderLine(models.Model):
     locked = fields.Boolean(
         related="order_id.locked",
     )
-    sequence = fields.Integer(string="Sequence", default=10)
-    display_type = fields.Selection(
-        selection=[
-            ("line_section", "Section"),
-            ("line_subsection", "Subsection"),
-            ("line_note", "Note"),
-        ],
-        default=False,
-    )
-    is_downpayment = fields.Boolean(
-        string="Is a down payment",
-    )
     is_expense = fields.Boolean(
         string="Is expense",
         help="Is true if the sales order line comes from an expense or a vendor bills",
@@ -120,27 +116,11 @@ class PurchaseOrderLine(models.Model):
         compute="_compute_parent_id",
     )
 
-    product_id = fields.Many2one(
-        comodel_name="product.product",
-        string="Product",
-        change_default=True,
-        check_company=True,
-        domain=lambda self: self._domain_product_id(),
-        ondelete="restrict",
-        index="btree_not_null",
-    )
     product_categ_id = fields.Many2one(
         related="product_id.categ_id",
     )
     product_type = fields.Selection(
         related="product_id.type",
-        depends=["product_id"],
-    )
-    product_is_archived = fields.Boolean(
-        compute="_compute_product_is_archived",
-    )
-    product_template_attribute_value_ids = fields.Many2many(
-        related="product_id.product_template_attribute_value_ids",
         depends=["product_id"],
     )
     purchase_line_warn_msg = fields.Text(
@@ -162,10 +142,6 @@ class PurchaseOrderLine(models.Model):
         domain="[('type_tax_use', '=', 'purchase')]",
         context={"active_test": False, "hide_original_tax_ids": True},
     )
-    allowed_uom_ids = fields.Many2many(
-        comodel_name="uom.uom",
-        compute="_compute_allowed_uom_ids",
-    )
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
@@ -184,13 +160,6 @@ class PurchaseOrderLine(models.Model):
         precompute=True,
         readonly=False,
     )
-    product_uom_qty = fields.Float(
-        string="Quantity (Reference UoM)",
-        digits="Product Unit",
-        compute="_compute_product_uom_qty",
-        store=True,
-        precompute=True,
-    )
     selected_seller_id = fields.Many2one(
         comodel_name="product.supplierinfo",
         compute="_compute_selected_seller_id",
@@ -198,24 +167,6 @@ class PurchaseOrderLine(models.Model):
         precompute=True,
         help="The vendor pricelist entry that applies to this line based on "
         "partner, product, quantity, UoM, and date.",
-    )
-    name = fields.Text(
-        string="Description",
-        required=True,
-        compute="_compute_name",
-        store=True,
-        precompute=True,
-        readonly=False,
-    )
-    translated_product_name = fields.Text(compute="_compute_translated_product_name")
-    price_unit = fields.Float(
-        string="Unit Price",
-        min_display_digits="Product Price",
-        compute="_compute_price_and_discount",
-        store=True,
-        precompute=True,
-        readonly=False,
-        aggregator="avg",
     )
     price_unit_auto = fields.Float(
         string="Automatic Price",
@@ -257,34 +208,6 @@ class PurchaseOrderLine(models.Model):
         help="If checked, the expected arrival date was manually set and won't be "
         "automatically updated when the seller or order date changes.",
     )
-    price_unit_discounted_taxexc = fields.Float(
-        string="Unit Price Discounted Tax Excluded",
-        min_display_digits="Product Price",
-        compute="_compute_price_unit_discounted_taxexc",
-    )
-    price_subtotal = fields.Monetary(
-        string="Subtotal",
-        compute="_compute_amounts",
-        store=True,
-        precompute=True,
-    )
-    price_tax = fields.Monetary(
-        string="Total Tax",
-        compute="_compute_amounts",
-        store=True,
-        precompute=True,
-    )
-    price_total = fields.Monetary(
-        string="Total",
-        compute="_compute_amounts",
-        store=True,
-        precompute=True,
-    )
-    price_unit_discounted_taxinc = fields.Float(
-        string="Unit Price Discounted Tax Included",
-        min_display_digits="Product Price",
-        compute="_compute_price_unit_discounted_taxinc",
-    )
     # Transfer block
     qty_transferred_method = fields.Selection(
         selection=[
@@ -308,10 +231,6 @@ class PurchaseOrderLine(models.Model):
         readonly=False,
         copy=False,
     )
-    qty_to_transfer = fields.Float(
-        digits="Product Unit",
-        copy=False,
-    )
     # Same than `qty_transferred` but non-stored and depending of the context.
     qty_transferred_at_date = fields.Float(
         string="Received",
@@ -328,47 +247,11 @@ class PurchaseOrderLine(models.Model):
         string="Invoice Lines",
         copy=False,
     )
-    qty_invoiced = fields.Float(
-        string="Invoiced Quantity",
-        digits="Product Unit",
-        compute="_compute_invoice_amounts",
-        store=True,
-    )
-    qty_to_invoice = fields.Float(
-        string="Quantity To Invoice",
-        digits="Product Unit",
-        compute="_compute_invoice_amounts",
-        store=True,
-    )
     # Same than `qty_to_invoice` but non-stored and depending of the context.
     qty_invoiced_at_date = fields.Float(
         string="Billed",
         digits="Product Unit",
         compute="_compute_qty_invoiced_at_date",
-    )
-    amount_taxexc_invoiced = fields.Monetary(
-        string="Untaxed Invoiced Amount",
-        compute="_compute_invoice_amounts",
-        store=True,
-    )
-    amount_taxinc_invoiced = fields.Monetary(
-        string="Invoiced Amount",
-        compute="_compute_invoice_amounts",
-        store=True,
-    )
-    amount_taxexc_to_invoice = fields.Monetary(
-        string="Untaxed Amount To Invoice",
-        compute="_compute_invoice_amounts",
-        store=True,
-    )
-    amount_taxinc_to_invoice = fields.Monetary(
-        string="Un-invoiced Balance",
-        compute="_compute_invoice_amounts",
-        store=True,
-    )
-    amount_to_invoice_at_date = fields.Float(
-        string="Amount",
-        compute="_compute_amount_to_invoice_at_date",
     )
     invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
@@ -382,114 +265,28 @@ class PurchaseOrderLine(models.Model):
     # CONSTRAINT METHODS
     # ------------------------------------------------------------
 
-    _accountable_required_fields = models.Constraint(
-        """CHECK(
-            display_type IS NOT NULL
-            OR is_downpayment
-            OR (
-                product_id IS NOT NULL
-                AND product_uom_id IS NOT NULL
-            )
-        )""",
-        "Missing required fields on accountable purchase order line.",
-    )
-    _non_accountable_null_fields = models.Constraint(
-        """CHECK(
-            display_type IS NULL
-            OR (
-                product_id IS NULL
-                AND (price_unit IS NULL OR price_unit = 0)
-                AND product_uom_id IS NULL
-                AND (product_qty IS NULL OR product_qty = 0)
-                AND (product_uom_qty IS NULL OR product_uom_qty = 0)
-            )
-        )""",
-        "Forbidden values on non-accountable purchase order line",
-    )
-
     # -------------------------------------------------------------------------
     # CRUD METHODS
     # -------------------------------------------------------------------------
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get("display_type") or self.default_get(["display_type"]).get(
-                "display_type",
-            ):
-                vals.update(
-                    product_id=False,
-                    price_unit=False,
-                    product_qty=False,
-                    product_uom_qty=False,
-                    product_uom_id=False,
-                    date_planned=False,
-                )
+    def _get_display_type_nullify_vals(self):
+        return {**super()._get_display_type_nullify_vals(), "date_planned": False}
 
-        lines = super().create(vals_list)
+    def _get_tracked_qty_fields(self):
+        return [*super()._get_tracked_qty_fields(), "qty_transferred"]
 
-        # Hook for lines created in purchase state (handles messaging, pickings, etc.)
-        lines.filtered(
-            lambda l: l.order_id.state == "done",
-        )._hook_on_created_confirmed_lines()
+    def _collect_qty_changes(self, vals, tracked_fields):
+        if self.env.context.get("accrual_entry_date"):
+            # Accrual entries adjust qty_transferred without user-facing tracking.
+            tracked_fields = [f for f in tracked_fields if f != "qty_transferred"]
+        return super()._collect_qty_changes(vals, tracked_fields)
 
-        return lines
-
-    def write(self, vals):
-        self._validate_write_vals(vals)
-
-        # Collect lines with product_qty changes before write
-        if "product_qty" in vals:
-            precision = self.env["decimal.precision"].precision_get("Product Unit")
-            lines_with_qty_change = defaultdict(list)
-            for line in self:
-                if (
-                    line.order_id.state == "done"
-                    and float_compare(
-                        line.product_qty,
-                        vals["product_qty"],
-                        precision_digits=precision,
-                    )
-                    != 0
-                ):
-                    lines_with_qty_change[line.order_id].append(
-                        {
-                            "line": line,
-                            "old_qty": line.product_qty,
-                            "new_qty": vals["product_qty"],
-                        },
-                    )
-
-        # Collect lines with qty_transferred changes before write
-        if "qty_transferred" in vals:
-            lines_with_transferred_change = defaultdict(list)
-            for line in self:
-                if (
-                    not self.env.context.get("accrual_entry_date")
-                    and vals["qty_transferred"] != line.qty_transferred
-                    and line.order_id.state == "done"
-                ):
-                    lines_with_transferred_change[line.order_id].append(
-                        {
-                            "line": line,
-                            "old_qty": line.qty_transferred,
-                            "new_qty": vals["qty_transferred"],
-                        },
-                    )
-
-        result = super().write(vals)
-
-        # Post batched messages for product_qty changes
-        if "product_qty" in vals:
-            for order, changes in lines_with_qty_change.items():
-                self._post_batched_quantity_changes(order, changes, "product_qty")
-
-        # Post batched messages for qty_transferred changes
-        if "qty_transferred" in vals:
-            for order, changes in lines_with_transferred_change.items():
-                self._post_batched_quantity_changes(order, changes, "qty_transferred")
-
-        return result
+    def _post_quantity_changes(self, field_name, changes):
+        changes_by_order = defaultdict(list)
+        for change in changes:
+            changes_by_order[change["line"].order_id].append(change)
+        for order, order_changes in changes_by_order.items():
+            self._post_batched_quantity_changes(order, order_changes, field_name)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_confirmed(self):
@@ -648,12 +445,6 @@ class PurchaseOrderLine(models.Model):
             )
             line.analytic_distribution = distribution or line.analytic_distribution
 
-    @api.depends("product_id")
-    def _compute_product_is_archived(self):
-        """Flag lines whose product has been archived."""
-        for line in self:
-            line.product_is_archived = line.product_id and not line.product_id.active
-
     @api.depends(
         "partner_id", "date_order", "product_id", "product_id.seller_ids.min_qty"
     )
@@ -688,8 +479,9 @@ class PurchaseOrderLine(models.Model):
                 sellers = line._get_sellers_for_partner(date=date)
                 # Further filter by product variant if specified
                 sellers = sellers.filtered(
-                    lambda s, line=line: not s.product_id
-                    or s.product_id == line.product_id
+                    lambda s, line=line: (
+                        not s.product_id or s.product_id == line.product_id
+                    )
                 ).sorted(key=lambda r: r.min_qty)
                 if sellers:
                     line.product_qty = sellers[0].min_qty or 1.0
@@ -803,12 +595,8 @@ class PurchaseOrderLine(models.Model):
                 continue
             line._set_product_description()
 
-    @api.depends("product_id")
-    def _compute_translated_product_name(self):
-        for line in self:
-            line.translated_product_name = line.product_id.with_context(
-                lang=line.partner_id.lang,
-            ).display_name
+    def _get_line_description_lang(self):
+        return self.partner_id.lang
 
     @api.depends(
         "selected_seller_id",
@@ -826,40 +614,15 @@ class PurchaseOrderLine(models.Model):
         "tax_ids",
     )
     def _compute_price_and_discount(self):
-        """Compute price and discount from selected seller or product cost.
+        return super()._compute_price_and_discount()
 
-        Combined compute for atomic updates - price and discount always come
-        from the same source (seller or product cost).
-
-        Manual override detection via price_unit_auto:
-        - price_unit == price_unit_auto → system-set, safe to update
-        - price_unit != price_unit_auto → user override, preserve
-        """
-        for line in self:
-            if line.display_type:
-                line.price_unit = line.discount = line.price_unit_auto = False
-                continue
-            if not line.product_id:
-                continue
-
-            # Always compute what the auto price/discount would be
-            if line.selected_seller_id:
-                auto_price = line._get_price_from_seller()
-                auto_discount = line.selected_seller_id.discount or 0.0
-            else:
-                auto_price = line._get_price_from_product_cost()
-                auto_discount = 0.0
-
-            # Capture old shadow BEFORE updating (for manual override detection)
-            old_shadow = line.price_unit_auto
-
-            # Always update shadow to current computed value
-            line.price_unit_auto = auto_price
-
-            # Only update price_unit/discount if not manually overridden
-            if line._should_update_price(auto_price, old_shadow):
-                line.price_unit = auto_price
-                line.discount = auto_discount
+    def _get_auto_price_and_discount(self):
+        if self.selected_seller_id:
+            return (
+                self._get_price_from_seller(),
+                self.selected_seller_id.discount or 0.0,
+            )
+        return self._get_price_from_product_cost(), 0.0
 
     @api.depends("date_order", "selected_seller_id", "selected_seller_id.delay")
     def _compute_date_planned(self):
@@ -920,16 +683,6 @@ class PurchaseOrderLine(models.Model):
                 )
             )
 
-    @api.depends("price_unit", "discount")
-    def _compute_price_unit_discounted_taxexc(self):
-        for line in self:
-            if line.display_type:
-                line.price_unit_discounted_taxexc = False
-                continue
-            line.price_unit_discounted_taxexc = line.price_unit * (
-                1 - (line.discount or 0.0) / 100.0
-            )
-
     @api.depends("product_qty", "price_unit", "discount", "tax_ids")
     def _compute_amounts(self):
         AccountTax = self.env["account.tax"]
@@ -947,30 +700,12 @@ class PurchaseOrderLine(models.Model):
             line.price_total = base_line["tax_details"]["total_included_currency"]
             line.price_tax = line.price_total - line.price_subtotal
 
-    @api.depends("product_qty", "price_total")
-    def _compute_price_unit_discounted_taxinc(self):
-        for line in self:
-            line.price_unit_discounted_taxinc = (
-                line.price_total / line.product_qty if line.product_qty else 0.0
-            )
-
     @api.depends("qty_transferred_method")
     def _compute_qty_transferred(self):
         lines_manual = self.filtered(
             lambda line: line.qty_transferred_method == "manual",
         )
         lines_manual.qty_transferred = 0.0
-
-    @api.depends_context("accrual_entry_date")
-    @api.depends("qty_transferred")
-    def _compute_qty_transferred_at_date(self):
-        if not self._date_in_the_past():
-            for line in self:
-                line.qty_transferred_at_date = line.qty_transferred
-            return
-        received_quantities = self._prepare_qty_transferred()
-        for line in self:
-            line.qty_transferred_at_date = received_quantities[line]
 
     @api.depends(
         "state",
@@ -1045,17 +780,6 @@ class PurchaseOrderLine(models.Model):
             qty_to_consider - invoiced["qty"]
         )
         self.qty_to_invoice = qty_to_consider - invoiced["qty"]
-
-    @api.depends_context("accrual_entry_date")
-    @api.depends("qty_invoiced")
-    def _compute_qty_invoiced_at_date(self):
-        if not self._date_in_the_past():
-            for line in self:
-                line.qty_invoiced_at_date = line.qty_invoiced
-            return
-        invoiced_quantities = self._prepare_qty_invoiced()
-        for line in self:
-            line.qty_invoiced_at_date = invoiced_quantities[line]
 
     @api.depends_context("accrual_entry_date")
     @api.depends("price_unit", "qty_invoiced_at_date", "qty_transferred_at_date")
@@ -1208,10 +932,6 @@ class PurchaseOrderLine(models.Model):
 
         return subtotal
 
-    def _get_custom_compute_tax_cache_key(self):
-        """Hook method to be able to set/get cached taxes while computing them"""
-        return ()
-
     @api.model
     def _get_date_planned(self, seller, po=False):
         """Return the datetime value to use as Schedule Date (``date_planned``) for
@@ -1238,8 +958,9 @@ class PurchaseOrderLine(models.Model):
                 self.env.context["accrual_entry_date"],
             )
             return self.invoice_line_ids.filtered(
-                lambda l: l.move_id.invoice_date
-                and l.move_id.invoice_date <= accrual_date,
+                lambda l: (
+                    l.move_id.invoice_date and l.move_id.invoice_date <= accrual_date
+                ),
             )
         return self.invoice_line_ids
 
@@ -1266,37 +987,6 @@ class PurchaseOrderLine(models.Model):
             )
         return name
 
-    def _get_line_identifier(self, line):
-        """Get a human-readable identifier for a purchase order line.
-
-        Returns product name if available, otherwise description or line sequence.
-        """
-        if line.product_id:
-            return line.product_id.display_name
-        elif line.name:
-            # Truncate long descriptions
-            name = line.name.split("\n")[0]  # Take first line only
-            return name[:50] + "..." if len(name) > 50 else name
-        else:
-            return _("Line #%s", line.sequence or line.id)
-
-    def _get_protected_fields(self):
-        """Give the fields that should not be modified on a locked PO.
-
-        :returns: list of field names
-        :rtype: list
-        """
-        return [
-            "product_id",
-            "name",
-            "price_unit",
-            "product_uom_id",
-            "product_qty",
-            "tax_ids",
-            "analytic_distribution",
-            "discount",
-        ]
-
     def get_line_parent_section(self):
         if not self.display_type and self.parent_id.display_type == "line_subsection":
             return self.parent_id.parent_id
@@ -1310,8 +1000,10 @@ class PurchaseOrderLine(models.Model):
             recordset: Invoice lines that are posted or in legacy invoicing state.
         """
         return self._get_invoice_lines().filtered(
-            lambda l: l.parent_state == "posted"
-            or l.move_id.payment_state == "invoicing_legacy"
+            lambda l: (
+                l.parent_state == "posted"
+                or l.move_id.payment_state == "invoicing_legacy"
+            )
         )
 
     def _get_price_precision(self):
@@ -1344,59 +1036,19 @@ class PurchaseOrderLine(models.Model):
             price_unit *= self.product_id.uom_id.factor / self.product_uom_id.factor
         return price_unit
 
-    def _get_product_catalog_lines_data(self, **kwargs):
-        """Return information about purchase order lines in `self`.
+    def _get_catalog_single_line_data(self, **kwargs):
+        catalog_info = self.order_id._get_product_price_and_data(self.product_id)
+        catalog_info.update(
+            quantity=self.product_qty,
+            price=self.price_unit * (1 - self.discount / 100),
+            readOnly=self.order_id._is_readonly(),
+        )
+        if self.product_id.uom_id != self.product_uom_id:
+            catalog_info["uomDisplayName"] = self.product_uom_id.display_name
+        return catalog_info
 
-        If `self` is empty, this method returns only the default value(s) needed for the product
-        catalog. In this case, the quantity that equals 0.
-
-        Otherwise, it returns a quantity and a price based on the product of the POL(s) and whether
-        the product is read-only or not.
-
-        A product is considered read-only if the order is considered read-only (see
-        ``PurchaseOrder._is_readonly`` for more details) or if `self` contains multiple records.
-
-        Note: This method cannot be called with multiple records that have different products linked.
-
-        :raise odoo.exceptions.ValueError: ``len(self.product_id) != 1``
-        :rtype: dict
-        :return: A dict with the following structure:
-            {
-                'quantity': float,
-                'price': float,
-                'readOnly': bool,
-                'uomDisplayName': String,
-                'packaging': dict,
-                'warning': String,
-            }
-        """
-        if len(self) == 1:
-            catalog_info = self.order_id._get_product_price_and_data(self.product_id)
-            catalog_info.update(
-                quantity=self.product_qty,
-                price=self.price_unit * (1 - self.discount / 100),
-                readOnly=self.order_id._is_readonly(),
-            )
-            if self.product_id.uom_id != self.product_uom_id:
-                catalog_info["uomDisplayName"] = self.product_uom_id.display_name
-            return catalog_info
-        elif self:
-            self.product_id.ensure_one()
-            order_line = self[0]
-            catalog_info = order_line.order_id._get_product_price_and_data(
-                order_line.product_id,
-            )
-            catalog_info["quantity"] = sum(
-                self.mapped(
-                    lambda line: line.product_uom_id._compute_quantity(
-                        qty=line.product_qty,
-                        to_unit=line.product_id.uom_id,
-                    ),
-                ),
-            )
-            catalog_info["readOnly"] = True
-            return catalog_info
-        return {"quantity": 0}
+    def _get_catalog_multi_line_data(self, **kwargs):
+        return self.order_id._get_product_price_and_data(self.product_id)
 
     def _get_price_from_seller(self):
         """Get price from selected seller's pricelist.
@@ -1430,9 +1082,7 @@ class PurchaseOrderLine(models.Model):
         )
 
         # Convert UoM
-        return seller.product_uom_id._compute_price(
-            price_unit, self.product_uom_id
-        )
+        return seller.product_uom_id._compute_price(price_unit, self.product_uom_id)
 
     def _get_price_from_product_cost(self):
         """Get price from product standard cost (fallback when no seller).
@@ -1508,15 +1158,15 @@ class PurchaseOrderLine(models.Model):
         # Filter by partner (direct or parent company)
         partner = self.partner_id
         parent = self.partner_id.parent_id
-        sellers = sellers.filtered(
-            lambda s: s.partner_id in (partner, parent)
-        )
+        sellers = sellers.filtered(lambda s: s.partner_id in (partner, parent))
 
         # Filter by date validity if provided
         if date:
             sellers = sellers.filtered(
-                lambda s: (not s.date_start or s.date_start <= date)
-                and (not s.date_end or s.date_end >= date)
+                lambda s: (
+                    (not s.date_start or s.date_start <= date)
+                    and (not s.date_end or s.date_end >= date)
+                )
             )
 
         return sellers
@@ -1544,56 +1194,6 @@ class PurchaseOrderLine(models.Model):
         valid_dates.add(no_seller_date.date())
 
         return valid_dates
-
-    def _hook_on_created_confirmed_lines(self):
-        """Hook method called after lines are created in purchase state.
-
-        Base implementation posts batched chatter messages to orders.
-        Child modules should call super() then add their own side-effects.
-
-        Override pattern:
-            def _hook_on_created_confirmed_lines(self):
-                super()._hook_on_created_confirmed_lines()  # Post messages
-                # ... add your custom logic here
-        """
-        # Skip if context flag is set to prevent logging
-        if self.env.context.get("sale_no_log_for_new_lines"):
-            return
-
-        # Group lines by order that need messages (only lines with products)
-        lines_by_order = defaultdict(lambda: self.env["purchase.order.line"])
-        for line in self:
-            if line.product_id:  # Only post messages for product lines
-                lines_by_order[line.order_id] += line
-
-        # Post one batched message per order
-        for order, order_lines in lines_by_order.items():
-            count = len(order_lines)
-            if count == 1:
-                msg = _("Extra line with %s", order_lines.product_id.display_name)
-            elif count <= const.MAX_PRODUCTS_IN_MESSAGE:
-                # Show all products for small batches
-                product_list = (
-                    "<ul>"
-                    + "".join(
-                        f"<li>{p}</li>"
-                        for p in order_lines.mapped("product_id.display_name")
-                    )
-                    + "</ul>"
-                )
-                msg = _(
-                    "Added %(count)s extra lines: %(products)s",
-                    count=count,
-                    products=product_list,
-                )
-            else:
-                # Summarize for large batches
-                msg = _("Added %s extra lines to this purchase order", count)
-            order.message_post(body=msg)
-
-    def _merge_po_line(self, rfq_line):
-        self.product_qty += rfq_line.product_qty
-        self.price_unit = min(self.price_unit, rfq_line.price_unit)
 
     def _prepare_aml_vals(self, **optional_values):
         """Prepare the values to create the new invoice line for a purchase order line.
@@ -1635,14 +1235,6 @@ class PurchaseOrderLine(models.Model):
             res["account_id"] = self.invoice_line_ids.account_id[:1].id
         res.update(optional_values)
         return res
-
-    def _prepare_aml_vals_list(self, **optional_values):
-        """Prepare the list of values to create invoice lines for purchase order lines.
-
-        :param optional_values: any parameter that should be added to the returned invoice lines
-        :rtype: list of dict
-        """
-        return [self._prepare_aml_vals(**optional_values)]
 
     def _post_batched_quantity_changes(self, order, changes, change_type):
         """Post a single batched message for quantity changes.
@@ -1814,18 +1406,18 @@ class PurchaseOrderLine(models.Model):
                     or inv_line.move_id.payment_state == "invoicing_legacy"
                 ):
                     if inv_line.move_id.move_type == "in_invoice":
-                        invoiced_qties[
-                            line
-                        ] += inv_line.product_uom_id._compute_quantity(
-                            inv_line.quantity,
-                            line.product_uom_id,
+                        invoiced_qties[line] += (
+                            inv_line.product_uom_id._compute_quantity(
+                                inv_line.quantity,
+                                line.product_uom_id,
+                            )
                         )
                     elif inv_line.move_id.move_type == "in_refund":
-                        invoiced_qties[
-                            line
-                        ] -= inv_line.product_uom_id._compute_quantity(
-                            inv_line.quantity,
-                            line.product_uom_id,
+                        invoiced_qties[line] -= (
+                            inv_line.product_uom_id._compute_quantity(
+                                inv_line.quantity,
+                                line.product_uom_id,
+                            )
                         )
         return invoiced_qties
 
@@ -1923,14 +1515,14 @@ class PurchaseOrderLine(models.Model):
                         self.product_id.with_context(
                             {"seller_id": None, "lang": lang},
                         ).display_name
-                        + self.name[len(seller_display_name):]
+                        + self.name[len(seller_display_name) :]
                     )
                 elif seller.id != self.selected_seller_id.id:
                     self.name = (
                         self.product_id.with_context(
                             {"seller_id": self.selected_seller_id.id, "lang": lang},
                         ).display_name
-                        + self.name[len(seller_display_name):]
+                        + self.name[len(seller_display_name) :]
                     )
                 return
 
@@ -2019,20 +1611,6 @@ class PurchaseOrderLine(models.Model):
     # VALIDATIONS
     # ------------------------------------------------------------
 
-    def _check_line_unlink(self):
-        """Check whether given lines can be deleted or not.
-
-        * Lines that have been invoiced cannot be deleted (financial tracking required).
-        * Sections, subsections and notes can always be deleted.
-        * Confirmed lines without invoices can be deleted.
-
-        :returns: Purchase Order Lines that cannot be deleted
-        :rtype: `purchase.order.line` recordset
-        """
-        return self.filtered(
-            lambda line: line.state == "done" and not line.display_type,
-        )
-
     @api.model
     def _date_in_the_past(self):
         if "accrual_entry_date" not in self.env.context:
@@ -2044,101 +1622,17 @@ class PurchaseOrderLine(models.Model):
         """Check if any invoice line has a different discount than the PO line."""
         return any(inv_line.discount != self.discount for inv_line in invoice_lines)
 
-    def is_manual_price(self):
-        """Check if current price is a manual override (not from vendor pricelist).
-
-        Manual price detection is based on comparison: if price_unit differs
-        from price_unit_auto, the price is considered manually set.
-
-        :return: True if price differs from automatic vendor/product price
-        :rtype: bool
-        """
-        self.ensure_one()
-        if not self.price_unit_auto:
-            return False
-        precision = self._get_price_precision()
-        return (
-            float_compare(
-                self.price_unit,
-                self.price_unit_auto,
-                precision_digits=precision,
-            )
-            != 0
-        )
-
-    def _should_update_price(self, new_auto_price, old_auto):
-        """Determine if price_unit should be updated.
-
-        Returns True if:
-        - New line without baseline (no price_unit_auto)
-        - Product changed (always reset for new product)
-        - Current price matches auto price (not manually overridden)
-
-        Returns False if:
-        - Line is linked to invoice lines (price locked after invoicing)
-        - Currency changed on confirmed order (preserve historical amounts)
-        - Price differs from auto (manual override, including 0.0 for free products)
-
-        :param new_auto_price: The newly computed automatic price
-        :param old_auto: The previous price_unit_auto value (before this compute)
-        :return: True if price should be updated, False to preserve manual override
-
-        Performance note: Uses _origin for currency comparison instead of direct SQL,
-        eliminating N+1 query pattern when processing multiple lines.
-        """
-        self.ensure_one()
-
+    def _price_update_blocked(self):
         # Don't update if line is linked to invoices
         if self.invoice_line_ids:
-            return False
-
+            return True
         # On confirmed orders, block price updates when only currency changed
         # (prevents recalculation when changing display currency)
-        # Use _origin to compare against database state without SQL query
         if self.state == "done" and self._origin.id:
             original_currency = self._origin.currency_id
             if original_currency and original_currency != self.currency_id:
-                # Currency changed - don't update prices
-                return False
-
-        # Product changed - always reset to new product's price
-        if self._origin.product_id and self._origin.product_id != self.product_id:
-            return True
-
-        # Check if current price is manual (differs from auto)
-        # IMPORTANT: Check old_auto first because 0.0 is a valid intentional
-        # price (e.g., free products). We can't use "not self.price_unit" as it
-        # would treat 0.0 as "no price".
-        #
-        # Logic:
-        # - old_auto is non-zero: we have a baseline, use comparison
-        #   (allows detecting 0.0 as intentional free product when auto is different)
-        # - old_auto is 0.0: this is a new line, always update
-        price_precision = self._get_price_precision()
-        if old_auto:
-            is_manual = (
-                float_compare(
-                    self.price_unit,
-                    old_auto,
-                    precision_digits=price_precision,
-                )
-                != 0
-            )
-            return not is_manual
-
-        # New line without baseline (initial creation / precompute)
-        # Check if current price was explicitly provided in vals
-        # During precompute, vals values are loaded into cache before compute runs
-        # If price_unit is non-zero and differs from auto, user provided explicit value
-        # Explicit non-zero price during creation -> preserve it (do not auto).
-        # Default (0.0) or price matching auto -> switch to auto.
-        return not (
-            self.price_unit
-            and float_compare(
-                self.price_unit, new_auto_price, precision_digits=price_precision
-            )
-            != 0
-        )
+                return True
+        return super()._price_update_blocked()
 
     def _validate_analytic_distribution(self):
         for line in self:
@@ -2197,42 +1691,3 @@ class PurchaseOrderLine(models.Model):
                 lines=error_msg,
             ),
         )
-
-    def _validate_write_locked_order(self, write_vals):
-        """Validate that protected fields are not being modified on a locked order."""
-        locked_lines = self.filtered(lambda l: l.locked)
-        if not locked_lines:
-            return
-
-        protected_fields = self._get_protected_fields()
-        if not any(f in write_vals for f in protected_fields):
-            return
-
-        protected_fields_modified = list(set(protected_fields) & set(write_vals.keys()))
-
-        # Special case: allow changing name for downpayment lines
-        if "name" in protected_fields_modified and all(
-            locked_lines.mapped("is_downpayment"),
-        ):
-            protected_fields_modified.remove("name")
-
-        if not protected_fields_modified:
-            return
-
-        fields = (
-            self.env["ir.model.fields"]
-            .sudo()
-            .search(
-                [
-                    ("name", "in", protected_fields_modified),
-                    ("model", "=", self._name),
-                ],
-            )
-        )
-        if fields:
-            raise UserError(
-                _(
-                    "It is forbidden to modify the following fields in a locked order:\n%s",
-                    "\n".join(fields.mapped("field_description")),
-                ),
-            )

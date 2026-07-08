@@ -1,15 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
+from odoo import api, models
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
 
     def _create_unbuild_sequence(self):
-        unbuild_vals = []
-        for company in self:
-            unbuild_vals.append(
+        return self.env["ir.sequence"].create(
+            [
                 {
                     "name": "Unbuild",
                     "code": "mrp.unbuild",
@@ -19,20 +18,18 @@ class ResCompany(models.Model):
                     "number_next": 1,
                     "number_increment": 1,
                 }
-            )
-        if unbuild_vals:
-            self.env["ir.sequence"].create(unbuild_vals)
+                for company in self
+            ],
+        )
 
     @api.model
     def create_missing_unbuild_sequences(self):
-        company_ids = self.env["res.company"].search([])
-        company_has_unbuild_seq = (
+        having = (
             self.env["ir.sequence"]
             .search([("code", "=", "mrp.unbuild")])
             .mapped("company_id")
         )
-        company_todo_sequence = company_ids - company_has_unbuild_seq
-        company_todo_sequence._create_unbuild_sequence()
+        self._companies_without(having)._create_unbuild_sequence()
 
     def _create_per_company_sequences(self):
         super()._create_per_company_sequences()

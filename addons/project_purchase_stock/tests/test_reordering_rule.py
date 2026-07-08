@@ -50,7 +50,7 @@ class TestReorderingRuleProjectPurchase(TransactionCase):
         ]) - po
         self.assertEqual(len(second_po), 1, "A new purchase order should be created as the first one has a project set")
         self.assertFalse(second_po.project_id, "The new purchase order should have no project since the procurement has none")
-        self.assertEqual(second_po.order_line.product_uom_qty, 1)
+        self.assertEqual(second_po.line_ids.product_uom_qty, 1)
 
         # 3. Another procurement without project → should reuse the second PO
         self.env["stock.rule"].run([self.env['stock.rule'].Procurement(

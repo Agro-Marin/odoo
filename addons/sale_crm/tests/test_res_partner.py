@@ -72,7 +72,7 @@ class TestResPartner(TestCrmCommon):
             {
                 'partner_id': cls.contact_company_1.id,
                 'pricelist_id': cls.test_pricelist.id,
-                'order_line': [
+                'line_ids': [
                     (0, 0, {
                         'product_id': cls.test_product.product_variant_id.id,
                     })
@@ -80,7 +80,7 @@ class TestResPartner(TestCrmCommon):
             }, {
                 'partner_id': cls.contact_1.id,
                 'pricelist_id': cls.test_pricelist.id,
-                'order_line': [
+                'line_ids': [
                     (0, 0, {
                         'product_id': cls.test_product.product_variant_id.id,
                     })

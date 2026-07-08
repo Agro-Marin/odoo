@@ -55,11 +55,11 @@ class TestRepairPurchaseFlow(PurchaseTestCommon):
         repair.action_validate()
 
         purchase = repair.move_ids.created_purchase_line_ids.order_id
-        self.assertEqual(purchase.order_line.product_id, product)
-        self.assertEqual(purchase.order_line.product_qty, 1.0)
-        self.assertEqual(purchase.order_line.move_dest_ids.repair_id, repair)
+        self.assertEqual(purchase.line_ids.product_id, product)
+        self.assertEqual(purchase.line_ids.product_qty, 1.0)
+        self.assertEqual(purchase.line_ids.move_dest_ids.repair_id, repair)
         self.assertEqual(repair.purchase_count, 1)
         self.assertEqual(purchase.repair_count, 1)
-        purchase.button_confirm()
+        purchase.action_confirm()
         self.assertEqual(repair.purchase_count, 1)
         self.assertEqual(purchase.repair_count, 1)

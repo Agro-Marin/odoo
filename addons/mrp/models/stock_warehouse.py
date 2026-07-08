@@ -311,13 +311,18 @@ class StockWarehouse(models.Model):
 
     def _get_sequence_values(self, name=False, code=False):
         values = super()._get_sequence_values(name=name, code=code)
+        # Honor the name/code params (as the base does) so a warehouse rename or
+        # recode propagates to these sequences; `_update_name_and_code` calls
+        # this before super().write(), so self.name/self.code are still stale.
+        name = name or self.name
+        code = code or self.code
         values.update(
             {
                 "pbm_type_id": {
                     "name": _(
-                        "%(name)s Sequence picking before manufacturing", name=self.name
+                        "%(name)s Sequence picking before manufacturing", name=name
                     ),
-                    "prefix": self.code
+                    "prefix": code
                     + "/"
                     + (self.pbm_type_id.sequence_code or "PC")
                     + "/",
@@ -326,9 +331,9 @@ class StockWarehouse(models.Model):
                 },
                 "sam_type_id": {
                     "name": _(
-                        "%(name)s Sequence stock after manufacturing", name=self.name
+                        "%(name)s Sequence stock after manufacturing", name=name
                     ),
-                    "prefix": self.code
+                    "prefix": code
                     + "/"
                     + (self.sam_type_id.sequence_code or "SFP")
                     + "/",
@@ -336,8 +341,8 @@ class StockWarehouse(models.Model):
                     "company_id": self.company_id.id,
                 },
                 "manu_type_id": {
-                    "name": _("%(name)s Sequence production", name=self.name),
-                    "prefix": self.code
+                    "name": _("%(name)s Sequence production", name=name),
+                    "prefix": code
                     + "/"
                     + (self.manu_type_id.sequence_code or "MO")
                     + "/",

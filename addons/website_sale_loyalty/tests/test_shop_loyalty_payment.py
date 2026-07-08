@@ -40,7 +40,7 @@ class TestShopLoyaltyPayment(PaymentHttpCommon, TestSaleCouponCommon):
             'partner_id': self.portal_partner.id,
             'website_id': self.website.id,
             'message_partner_ids': self.portal_partner.ids,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.service_product.id,
                 'tax_ids': None,
             })],

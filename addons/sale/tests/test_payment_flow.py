@@ -1,4 +1,3 @@
-
 from unittest.mock import patch
 
 from odoo.tests import JsonRpcException, tagged
@@ -14,7 +13,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("-at_install", "post_install")
 class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -388,10 +386,14 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
             sale_order_ids=[self.sale_order.id],
             state="done",
         )
-        with mute_logger("odoo.addons.sale.models.payment_transaction"), patch(
-            "odoo.addons.sale.models.sale_order.SaleOrder._create_invoices",
-            return_value=self.env["account.move"],
-        ) as _create_invoices_mock:
+        with (
+            mute_logger("odoo.addons.sale.models.payment_transaction"),
+            patch(
+                "odoo.addons.base_order.models.order_invoice_mixin"
+                ".OrderInvoiceMixin._create_invoices",
+                return_value=self.env["account.move"],
+            ) as _create_invoices_mock,
+        ):
             tx._post_process()
 
         self.assertTrue(_create_invoices_mock.call_args.kwargs["final"])

@@ -23,5 +23,5 @@ class PartnershipCommon(ProductCommon):
         })
         cls.sale_order_partnership = cls.env['sale.order'].create({
             'partner_id': cls.partner.id,
-            'order_line': [Command.create({'product_id': cls.partnership_product.id})],
+            'line_ids': [Command.create({'product_id': cls.partnership_product.id})],
         })

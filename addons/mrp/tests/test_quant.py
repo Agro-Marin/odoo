@@ -47,7 +47,7 @@ class TestMrpQuant(TestMrpCommon):
         )
 
         # Should work without error
-        product_normal.action_open_quants()
+        product_normal.action_view_quants()
 
         # Ensure it's raise an error if we try to update quantity of kit product directly
         with self.assertRaises(

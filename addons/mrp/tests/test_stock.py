@@ -117,6 +117,36 @@ class TestWarehouseMrp(common.TestMrpCommon):
         self.assertTrue(self.picking_type_manu.active)
         self.assertIn(manu_route, warehouse_1_stock_manager._get_all_routes())
 
+    def test_warehouse_rename_recode_updates_mrp_sequences(self):
+        """Renaming/recoding a warehouse must propagate to the sequences of the
+        mrp-added picking types (manufacturing, pick-before / store-after), not
+        only the base ones. Regression for `_update_name_and_code` hardcoding
+        the base eight sequences and for the mrp `_get_sequence_values` override
+        ignoring its name/code params.
+        """
+        warehouse = self.warehouse_1
+        mrp_types = (
+            warehouse.manu_type_id | warehouse.pbm_type_id | warehouse.sam_type_id
+        ).filtered(lambda pt: pt.sequence_id)
+        self.assertTrue(
+            mrp_types, "the warehouse should have mrp picking types with sequences"
+        )
+
+        warehouse.write({"name": "Renamed MRP WH", "code": "RMW"})
+
+        for picking_type in mrp_types:
+            self.assertIn(
+                "Renamed MRP WH",
+                picking_type.sequence_id.name,
+                "sequence name of %s must reflect the new warehouse name"
+                % picking_type.name,
+            )
+            self.assertTrue(
+                picking_type.sequence_id.prefix.startswith("RMW/"),
+                "sequence prefix of %s must reflect the new warehouse code (got %r)"
+                % (picking_type.name, picking_type.sequence_id.prefix),
+            )
+
     def test_manufacturing_rule_other_dest(self):
         """Ensures that a manufacturing rule can define a destination the rule itself and have it
         applied instead of the one from the operation type if location_dest_from_rule is set.

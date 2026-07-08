@@ -31,7 +31,7 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
         """ Test the timesheet cost is reported correctly in sale order line. """
         sale_order = self.env['sale.order'].create({
             'name': 'Test_SO0001',
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_1.id,
                     'price_unit': 1.0,
@@ -51,17 +51,17 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
             'unit_amount': 2,
             'employee_id': self.employee_manager.id,
             'project_id': sale_order.project_ids.id,
-            'task_id': sale_order.order_line.task_id.id,
+            'task_id': sale_order.line_ids.task_id.id,
             'account_id': self.analytic_account_sale.id,
-            'so_line': sale_order.order_line.id,
+            'so_line': sale_order.line_ids.id,
         })
-        sale_order.order_line._compute_purchase_price()
+        sale_order.line_ids._compute_purchase_price()
         # Cost is expressed in SO line uom
         expected_cost = self.uom_day._compute_quantity(
             self.employee_manager.hourly_cost,
             self.env.company.project_time_mode_id
         )
-        self.assertEqual(sale_order.order_line.purchase_price, expected_cost, "Sale order line cost should be number of working hours on one day * timesheet cost of the employee set on the timesheet linked to the SOL.")
+        self.assertEqual(sale_order.line_ids.purchase_price, expected_cost, "Sale order line cost should be number of working hours on one day * timesheet cost of the employee set on the timesheet linked to the SOL.")
 
     def test_no_recompute_purchase_price_not_timesheet(self):
         """
@@ -91,7 +91,7 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
         })
         sale_order = self.env['sale.order'].create({
             'name': 'Test_SO0002',
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_1.id,
                     'price_unit': 1.0,
@@ -101,7 +101,7 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
             'partner_invoice_id': self.partner_b.id,
             'partner_shipping_id': self.partner_b.id,
         })
-        sale_order.order_line.purchase_price = 3
+        sale_order.line_ids.purchase_price = 3
         # Confirm the sales order, create project and task.
         sale_order.action_confirm()
         # Add timesheet line
@@ -111,15 +111,15 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
             'amount': 1,
             'employee_id': self.employee_manager.id,
             'project_id': project.id,
-            'task_id': sale_order.order_line.task_id.id,
+            'task_id': sale_order.line_ids.task_id.id,
             'account_id': self.analytic_account_sale.id,
-            'so_line': sale_order.order_line.id,
+            'so_line': sale_order.line_ids.id,
         })
         self.env.flush_all()
-        self.assertEqual(sale_order.order_line.filtered(lambda sol: sol.product_id == self.product_1).purchase_price, 3)
-        sale_order.order_line = [Command.create({
+        self.assertEqual(sale_order.line_ids.filtered(lambda sol: sol.product_id == self.product_1).purchase_price, 3)
+        sale_order.line_ids = [Command.create({
             'product_id': simple_service.id,
             'price_unit': 1.0,
             'product_uom_qty': 1.0,
         })]
-        self.assertEqual(sale_order.order_line.filtered(lambda sol: sol.product_id == simple_service).purchase_price, 5)
+        self.assertEqual(sale_order.line_ids.filtered(lambda sol: sol.product_id == simple_service).purchase_price, 5)

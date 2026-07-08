@@ -96,11 +96,11 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
             new_form_field(name="selection_test", path='state'),
             new_form_field(name="monetary_test", path='amount_total'),
 
-            new_form_field(name="one2many_test", path='order_line'),
+            new_form_field(name="one2many_test", path='line_ids'),
             new_form_field(name="many2one_test", path='company_id'),
             new_form_field(name="many2many_test", path='company_id.parent_ids'),
         ])
-        sol_1, sol_2 = self.sale_order.order_line
+        sol_1, sol_2 = self.sale_order.line_ids
         form_field_expected_value_map = {
             new_form_fields[0]: "No",  # boolean
             new_form_fields[1]: self.sale_order.name,  # char
@@ -122,7 +122,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
     def test_dynamic_fields_mapping_for_product_document(self):
         self.sale_order.commitment_date = '2121-12-21 12:21:12'
-        sol_1, sol_2 = self.sale_order.order_line
+        sol_1, sol_2 = self.sale_order.line_ids
         sol_1.update({
             'sequence': 0,
             'discount': 4.99,
@@ -142,7 +142,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
             new_form_field(name="selection_test", path='order_id.state'),
             new_form_field(name="monetary_test", path='order_id.amount_total'),
 
-            new_form_field(name="one2many_test", path='order_id.order_line'),
+            new_form_field(name="one2many_test", path='order_id.line_ids'),
             new_form_field(name="many2one_test", path='order_id.company_id'),
             new_form_field(name="many2many_test", path='tax_ids'),
         ])
@@ -214,29 +214,29 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
     def test_onchange_product_removes_previously_selected_documents(self):
         """ Check that changing a line that has a selected document unselect said document. """
 
-        available_doc = self.sale_order.order_line[0].available_product_document_ids
-        self.sale_order.order_line[0].product_document_ids = available_doc  # select the document
+        available_doc = self.sale_order.line_ids[0].available_product_document_ids
+        self.sale_order.line_ids[0].product_document_ids = available_doc  # select the document
 
         self.assertTrue(available_doc, msg="Default order line should have an available document.")
         msg = "The available document should have been selected."
         self.assertEqual(
-            self.sale_order.order_line[0].product_document_ids, available_doc, msg=msg
+            self.sale_order.line_ids[0].product_document_ids, available_doc, msg=msg
         )
 
         so_form = Form(self.sale_order)
-        with so_form.order_line.edit(0) as line:
+        with so_form.line_ids.edit(0) as line:
             line.product_id = self._create_product()
         so_form.save()
 
         msg = "There shouldn't be any available product documents."
-        self.assertFalse(self.sale_order.order_line[0].available_product_document_ids, msg=msg)
+        self.assertFalse(self.sale_order.line_ids[0].available_product_document_ids, msg=msg)
         msg = "There shouldn't be any selected product documents left."
-        self.assertFalse(self.sale_order.order_line[0].product_document_ids, msg=msg)
+        self.assertFalse(self.sale_order.line_ids[0].product_document_ids, msg=msg)
 
     def test_available_documents_order(self):
         product_document = self.product_document.copy()
         product_document.sequence = self.product_document.sequence - 1
-        docs = self.sale_order.order_line[0].available_product_document_ids
+        docs = self.sale_order.line_ids[0].available_product_document_ids
         self.assertEqual(len(docs), 2, "There should be 2 available documents.")
         self.assertEqual(docs[0], product_document, "The first available document should be the one with the lowest sequence.")
         self.assertEqual(
@@ -252,36 +252,36 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         product_document2 = self.product_document.copy({'res_model': 'product.product', 'res_id': product2.id, 'sequence': 99})
         self.sale_order.write(
             {
-                'order_line': [
+                'line_ids': [
                     Command.create({'product_id': self.product.id}),
                     Command.create({'product_id': product2.id}),
                 ]
             }
         )
         self.assertEqual(
-            self.sale_order.order_line[0].available_product_document_ids,
+            self.sale_order.line_ids[0].available_product_document_ids,
             self.product_document | product_doc_copy,
         )
         self.assertFalse(
-            self.sale_order.order_line[1].available_product_document_ids,
+            self.sale_order.line_ids[1].available_product_document_ids,
             "The second order line should not have any available product documents.",
         )
         self.assertEqual(
-            self.sale_order.order_line[0].available_product_document_ids,
-            self.sale_order.order_line[2].available_product_document_ids,
+            self.sale_order.line_ids[0].available_product_document_ids,
+            self.sale_order.line_ids[2].available_product_document_ids,
             "The first and third order lines should have the same available product documents.",
         )
         self.assertEqual(
-            self.sale_order.order_line[3].available_product_document_ids[0].res_model,
+            self.sale_order.line_ids[3].available_product_document_ids[0].res_model,
             'product.product',
             "Alphabetical order of res_model should be respected.",
         )
         self.assertEqual(
-            self.sale_order.order_line[3].available_product_document_ids[0],
+            self.sale_order.line_ids[3].available_product_document_ids[0],
             product_document2,
         )
         self.assertEqual(
-            self.sale_order.order_line[3].available_product_document_ids[1],
+            self.sale_order.line_ids[3].available_product_document_ids[1],
             product_template_document2,
         )
 

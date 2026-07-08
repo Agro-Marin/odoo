@@ -56,7 +56,7 @@ class TestPaymentTransaction(PaymentCustomCommon):
 
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [Command.create({'product_id': self.product.id, 'product_uom_qty': 1})],
+            'line_ids': [Command.create({'product_id': self.product.id, 'product_uom_qty': 1})],
         })
         sale_order.action_confirm()
         tx = self._create_transaction(flow='direct', sale_order_ids=[sale_order.id])

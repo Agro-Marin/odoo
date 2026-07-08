@@ -301,7 +301,7 @@ class TestEventSaleMail(TestEventFullCommon):
             "product_id": ticket.product_id.id,
             "product_uom_qty": 1,
         }
-        self.customer_so.write({"order_line": [(0, 0, order_line_vals)]})
+        self.customer_so.write({"line_ids": [(0, 0, order_line_vals)]})
 
         # check sale mail configuration
         aftersub = self.test_event.event_mail_ids.filtered(
@@ -315,7 +315,7 @@ class TestEventSaleMail(TestEventFullCommon):
             {
                 **self.website_customer_data[0],
                 "partner_id": self.event_customer.id,
-                "sale_order_line_id": self.customer_so.order_line[0].id,
+                "sale_order_line_id": self.customer_so.line_ids[0].id,
             }
         )
         self.assertEqual(self.test_event.registration_ids, registration)

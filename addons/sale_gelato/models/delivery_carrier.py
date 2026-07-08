@@ -29,7 +29,7 @@ class ProviderGelato(models.Model):
         :return: Whether the delivery method is available for the order.
         :rtype: bool
         """
-        is_gelato_order = any(order.order_line.product_id.mapped('gelato_product_uid'))
+        is_gelato_order = any(order.line_ids.product_id.mapped('gelato_product_uid'))
         is_gelato_delivery = self.delivery_type == 'gelato'
         if is_gelato_order and not is_gelato_delivery or not is_gelato_order and is_gelato_delivery:
             return False
@@ -46,7 +46,7 @@ class ProviderGelato(models.Model):
         """
         available_delivery_methods = super().available_carriers(partner, source)
         if source._name == 'sale.order':
-            is_gelato_order = any(source.order_line.product_id.mapped('gelato_product_uid'))
+            is_gelato_order = any(source.line_ids.product_id.mapped('gelato_product_uid'))
         elif source._name == 'stock.picking':
             is_gelato_order = any(source.move_ids.product_id.mapped('gelato_product_uid'))
         else:

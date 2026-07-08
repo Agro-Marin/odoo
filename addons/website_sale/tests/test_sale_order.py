@@ -46,7 +46,7 @@ class TestSaleOrder(SaleCommon):
             {
                 'partner_id': self.partner.id,
                 'company_id': company_1.id,
-                'order_line': [
+                'line_ids': [
                     Command.create(
                         {
                             'product_id': self.product.id,

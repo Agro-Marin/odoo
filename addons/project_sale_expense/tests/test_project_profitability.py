@@ -93,12 +93,12 @@ class TestProjectSaleExpenseProfitability(TestProjectProfitabilityCommon, TestPr
 
         self.post_expenses_with_wizard(expense)
         self.assertEqual(expense.state, 'posted')
-        self.assertRecordValues(self.sale_order.order_line, [
+        self.assertRecordValues(self.sale_order.line_ids, [
             # Original SO line:
             {'is_expense': False, 'product_uom_qty': 10.0, 'qty_delivered': 0.0, 'product_id': self.product_delivery_service.id},
             {'is_expense': True,  'product_uom_qty':  1.0, 'qty_delivered': 1.0, 'product_id': self.company_data['product_order_sales_price'].id},
         ])
-        expense_sol = self.sale_order.order_line.filtered(lambda sol: sol.product_id == self.company_data['product_order_sales_price'])
+        expense_sol = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.company_data['product_order_sales_price'])
 
         expense_profitability = project._get_expenses_profitability_items(False)
         self.assertDictEqual(
@@ -126,7 +126,7 @@ class TestProjectSaleExpenseProfitability(TestProjectProfitabilityCommon, TestPr
 
         self.post_expenses_with_wizard(expense_foreign.with_company(expense_foreign.company_id))
         self.assertEqual(expense_foreign.state, 'posted')
-        expense_sol_foreign = so_foreign.order_line[0]
+        expense_sol_foreign = so_foreign.line_ids[0]
         expense_profitability = project._get_expenses_profitability_items(False)
         self.assertDictEqual(
             expense_profitability.get('revenues', {}),
@@ -276,7 +276,7 @@ class TestProjectSaleExpenseProfitability(TestProjectProfitabilityCommon, TestPr
         })
 
         sale_order.action_confirm()
-        project = sale_order.order_line.project_id
+        project = sale_order.line_ids.project_id
 
         expense = self.create_expenses({
             'name': 'expense',

@@ -494,7 +494,7 @@ class TestSaleService(TestCommonSaleTimesheet):
             5) Create without storing the timesheet to check if remaining hours in SOL does not change.
         """
         # 1) Check the remaining hours in the SOL containing a prepaid service product
-        prepaid_service_sol = self.so.order_line.filtered(lambda sol: sol.product_id.service_policy == 'ordered_prepaid')
+        prepaid_service_sol = self.so.line_ids.filtered(lambda sol: sol.product_id.service_policy == 'ordered_prepaid')
         self.assertEqual(len(prepaid_service_sol), 1, "It should only have one SOL with prepaid service product in this SO.")
         self.assertEqual(prepaid_service_sol.remaining_hours, prepaid_service_sol.product_uom_qty - prepaid_service_sol.qty_delivered, "The remaining hours of this SOL should be equal to the ordered quantity minus the delivered quantity.")
 
@@ -521,7 +521,7 @@ class TestSaleService(TestCommonSaleTimesheet):
 
         # 4) Change the SOL in the task and see if the remaining hours is correctly recomputed.
         task.update({
-            'sale_line_id': self.so.order_line[0].id,
+            'sale_line_id': self.so.line_ids[0].id,
         })
         self.assertEqual(task.remaining_hours_so, False, "Since the SOL doesn't contain a prepaid service product, the remaining_hours_so should be equal to False.")
         self.assertEqual(prepaid_service_sol.remaining_hours, 2, "Since the timesheet on task has the same SOL than the one in the task, the remaining_hours should increase of 1 hour to be equal to 2 hours.")
@@ -821,7 +821,7 @@ class TestSaleService(TestCommonSaleTimesheet):
 
         for amount in (8.1, 8.5, 8.9):
             order = self.sale_order.copy()
-            sol = order.order_line
+            sol = order.line_ids
             order.action_confirm()
 
             self.env['account.analytic.line'].create([{

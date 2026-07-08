@@ -223,7 +223,7 @@ class TestRepair(TestRepairCommon):
         repair.action_create_sale_order()
         # Ensure SO and SOL were created
         self.assertNotEqual(len(repair.sale_order_id), 0)
-        self.assertEqual(len(repair.sale_order_id.order_line), 3)
+        self.assertEqual(len(repair.sale_order_id.line_ids), 3)
         with self.assertRaises(UserError) as err:
             repair.action_create_sale_order()
 
@@ -239,7 +239,7 @@ class TestRepair(TestRepairCommon):
         repair.action_repair_cancel()
         self.assertEqual(repair.state, "cancel")
         self.assertTrue(all(m.state == "cancel" for m in repair.move_ids))
-        self.assertTrue(all(float_is_zero(sol.product_uom_qty, 2) for sol in repair.sale_order_id.order_line))
+        self.assertTrue(all(float_is_zero(sol.product_uom_qty, 2) for sol in repair.sale_order_id.line_ids))
 
         # (*)/cancel -> draft (action_repair_cancel_draft)
             # PRE
@@ -328,15 +328,15 @@ class TestRepair(TestRepairCommon):
         #  Binding from RO to SO
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = self.res_partner_1
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = self.product_order_repair
             line.product_uom_qty = 2.0
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.display_type = 'line_section'
             line.name = 'Dummy Section'
         sale_order = so_form.save()
-        order_line = sale_order.order_line[0]
-        line_section = sale_order.order_line[1]
+        order_line = sale_order.line_ids[0]
+        line_section = sale_order.line_ids[1]
         self.assertEqual(len(sale_order.repair_order_ids), 0)
         sale_order.action_confirm()
         # Quantity set on the "create repair" product doesn't affect the number of RO created
@@ -387,7 +387,7 @@ class TestRepair(TestRepairCommon):
         ro_line_0.repair_line_type = 'add'
         self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.product_uom_qty, 2), 0)
         #   remove and recycle line : not added to SO.
-        sol_count = len(sale_order.order_line)
+        sol_count = len(sale_order.line_ids)
         with ro_form.move_ids.new() as ro_line_form:
             ro_line_form.repair_line_type = 'remove'
             ro_line_form.product_id = self.product_product_12
@@ -398,11 +398,11 @@ class TestRepair(TestRepairCommon):
             ro_line_form.product_uom_qty = 1
         ro_form.save()
         ro_line_1 = repair_order.move_ids[1]
-        self.assertEqual(len(sale_order.order_line), sol_count)
+        self.assertEqual(len(sale_order.line_ids), sol_count)
         # remove to add -> added to SO
         ro_line_1.repair_line_type = 'add'
         sol_part_1 = ro_line_1.sale_line_id
-        self.assertNotEqual(len(sale_order.order_line), sol_count)
+        self.assertNotEqual(len(sale_order.line_ids), sol_count)
         self.assertEqual(float_compare(sol_part_1.product_uom_qty, ro_line_1.product_uom_qty, 2), 0)
         # delete 'remove to add' line in RO -> SOL qty set to 0
         repair_order.move_ids = [(2, ro_line_1.id, 0)]
@@ -493,8 +493,8 @@ class TestRepair(TestRepairCommon):
             ],
         })
         repair.action_create_sale_order()
-        self.assertEqual(repair.sale_order_id.order_line.product_id, self.product_product_11)
-        self.assertEqual(repair.sale_order_id.order_line.purchase_price, 10)
+        self.assertEqual(repair.sale_order_id.line_ids.product_id, self.product_product_11)
+        self.assertEqual(repair.sale_order_id.line_ids.purchase_price, 10)
 
     def test_repair_from_return(self):
         """
@@ -734,7 +734,7 @@ class TestRepair(TestRepairCommon):
         repair_order.action_create_sale_order()
         sale_order = repair_order.sale_order_id
         sale_order.action_confirm()
-        self.assertEqual(sale_order.order_line.qty_delivered, 1.0)
+        self.assertEqual(sale_order.line_ids.qty_delivered, 1.0)
 
     def test_repair_order_uncomplete_moves(self):
         """

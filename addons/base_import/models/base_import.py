@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import base64
 import codecs
 import collections
@@ -16,6 +14,7 @@ from pathlib import Path
 import unicodedata
 from collections import defaultdict
 from collections.abc import Sequence
+import xlrd
 
 import chardet
 import psycopg
@@ -44,7 +43,7 @@ BOM_MAP = {
 
 MIMETYPE_TO_READER = {
     'text/csv': 'csv',
-    'application/vnd.ms-excel': 'xlsx',  # .xls MIME type → treat as xlsx (legacy .xls no longer supported)
+    'application/vnd.ms-excel': 'xls',  # legacy .xls (BIFF), read via xlrd
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
     'application/vnd.oasis.opendocument.spreadsheet': 'ods',
 }
@@ -417,10 +416,47 @@ class Base_ImportImport(models.TransientModel):
             raise UserError(_("Unable to load \"{extension}\" file: requires Python module \"{modname}\"").format(extension=file_extension, modname=requires))
         raise UserError(_("Unsupported file format \"{}\", import only supports CSV, ODS and XLSX").format(self.file_type))
 
+    def _read_xls(self, options):
+
+        book = xlrd.open_workbook(file_contents=self.file or b'')
+        sheets = options['sheets'] = book.sheet_names()
+        sheet_name = options['sheet'] = options.get('sheet') or sheets[0]
+        sheet = book.sheet_by_name(sheet_name)
+        rows = []
+        for rowx, row in enumerate(map(sheet.row, range(sheet.nrows)), 1):
+            values = []
+            for colx, cell in enumerate(row, 1):
+                if cell.ctype is xlrd.XL_CELL_NUMBER:
+                    if cell.value % 1 == 0:
+                        values.append(str(int(cell.value)))
+                    else:
+                        values.append(str(cell.value))
+                elif cell.ctype is xlrd.XL_CELL_DATE:
+                    dt = datetime.datetime(
+                        *xlrd.xldate.xldate_as_tuple(cell.value, book.datemode)
+                    )
+                    values.append(dt if cell.value % 1 else dt.date())
+                elif cell.ctype is xlrd.XL_CELL_BOOLEAN:
+                    values.append('True' if cell.value else 'False')
+                elif cell.ctype is xlrd.XL_CELL_ERROR:
+                    raise ValueError(_(
+                        "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
+                        row=rowx,
+                        col=colx,
+                        cell_value=xlrd.error_text_from_code.get(
+                            cell.value, _("unknown error code %s", cell.value)
+                        ),
+                    ))
+                else:
+                    values.append(cell.value)
+            if any(x and (not isinstance(x, str) or x.strip()) for x in values):
+                rows.append(values)
+        return sheet.nrows, rows
+
     def _read_xlsx(self, options):
-        import openpyxl  # noqa: PLC0415
-        import openpyxl.cell.cell as types  # noqa: PLC0415
-        import openpyxl.styles.numbers as styles  # noqa: PLC0415
+        import openpyxl
+        import openpyxl.cell.cell as types
+        import openpyxl.styles.numbers as styles
         book = openpyxl.load_workbook(io.BytesIO(self.file or b''), data_only=True, read_only=True)
         try:
             sheets = options['sheets'] = book.sheetnames

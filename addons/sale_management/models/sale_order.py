@@ -32,11 +32,11 @@ class SaleOrder(models.Model):
                 order.sale_order_template_id = order.company_id.sale_order_template_id.id
 
     @api.depends('partner_id', 'sale_order_template_id')
-    def _compute_note(self):
-        super()._compute_note()
+    def _compute_notes(self):
+        super()._compute_notes()
         for order in self.filtered('sale_order_template_id'):
             template = order.sale_order_template_id.with_context(lang=order.partner_id.lang)
-            order.note = template.note if not is_html_empty(template.note) else order.note
+            order.notes = template.note if not is_html_empty(template.note) else order.notes
 
     @api.depends('sale_order_template_id')
     def _compute_require_signature(self):

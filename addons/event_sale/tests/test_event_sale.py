@@ -61,7 +61,7 @@ class TestEventSale(TestEventSaleCommon):
                 'event_id': cls.event_0.id,
                 'name': 'Administrator',
                 'email': 'abc@example.com',
-                'sale_order_line_id': cls.sale_order.order_line.id,
+                'sale_order_line_id': cls.sale_order.line_ids.id,
             })],
         })
 
@@ -83,7 +83,7 @@ class TestEventSale(TestEventSaleCommon):
         ticket = self.event_0.event_ticket_ids[0]
 
         customer_so.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
@@ -119,7 +119,7 @@ class TestEventSale(TestEventSaleCommon):
 
         # adding some tickets to SO
         customer_so.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket1.id,
@@ -135,8 +135,8 @@ class TestEventSale(TestEventSaleCommon):
                 })
             ]
         })
-        ticket1_line = customer_so.order_line.filtered(lambda line: line.event_ticket_id == ticket1)
-        ticket2_line = customer_so.order_line.filtered(lambda line: line.event_ticket_id == ticket2)
+        ticket1_line = customer_so.line_ids.filtered(lambda line: line.event_ticket_id == ticket1)
+        ticket2_line = customer_so.line_ids.filtered(lambda line: line.event_ticket_id == ticket2)
         self.assertEqual(customer_so.amount_untaxed, TICKET1_COUNT * 10 + TICKET2_COUNT * 50)
 
         # one existing registration for first ticket
@@ -242,7 +242,7 @@ class TestEventSale(TestEventSaleCommon):
 
         # Create SO in draft with a ticket
         customer_so.write({
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'event_id': self.event_0.id,
                 'event_ticket_id': ticket.id,
                 'product_id': ticket.product_id.id,
@@ -284,7 +284,7 @@ class TestEventSale(TestEventSaleCommon):
         })
 
         customer_so.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
@@ -327,7 +327,7 @@ class TestEventSale(TestEventSaleCommon):
 
         # adding too many tickets to SO in two different lines
         customer_so.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
@@ -372,7 +372,7 @@ class TestEventSale(TestEventSaleCommon):
         })
         # adding too many tickets to SO in two different lines
         customer_so.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
@@ -548,7 +548,7 @@ class TestEventSale(TestEventSaleCommon):
         event = self.env['event.event'].browse(self.event_0.ids)
         self.register_person.action_make_registration()
         self.assertEqual(len(event.registration_ids), 1)
-        self.sale_order.order_line.unlink()
+        self.sale_order.line_ids.unlink()
         self.assertEqual(len(event.registration_ids), 0)
 
     @users('user_salesman')

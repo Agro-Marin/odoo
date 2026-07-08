@@ -218,14 +218,17 @@ class AccountMove(models.Model):
         """Preserve UTM fields (campaign, medium, source) on the reversal entries."""
         if not default_values_list:
             default_values_list = [{} for move in self]
-        for move, default_values in zip(self, default_values_list, strict=True):
-            default_values.update(
-                {
-                    "campaign_id": move.campaign_id.id,
-                    "medium_id": move.medium_id.id,
-                    "source_id": move.source_id.id,
-                },
-            )
+        # Don't mutate the caller's dicts in place: build a fresh list so a
+        # caller reusing its default_values_list doesn't inherit UTM fields.
+        default_values_list = [
+            {
+                **default_values,
+                "campaign_id": move.campaign_id.id,
+                "medium_id": move.medium_id.id,
+                "source_id": move.source_id.id,
+            }
+            for move, default_values in zip(self, default_values_list, strict=True)
+        ]
         return super()._reverse_moves(
             default_values_list=default_values_list,
             cancel=cancel,

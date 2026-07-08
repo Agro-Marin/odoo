@@ -112,7 +112,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             'partner_id': cls.partner_a.id,
             'partner_invoice_id': cls.partner_a.id,
             'partner_shipping_id': cls.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'expense_employee: expense_1 invoicing=order, expense=sales_price',
                 # Using the same name as one of the expense
                 'product_id': cls.company_data['product_order_sales_price'].id,
@@ -187,7 +187,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         """
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'is_expense': False, 'expense_ids': []},
             # [1-6] Expenses Lines: created with the correct quantities and linked to the expense
@@ -211,7 +211,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.sale_expense_all.account_move_id.unlink()
         self.sale_expense_all.action_reset()
 
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] Expense Lines: quantities are reset to 0 and expenses are unlinked
@@ -240,7 +240,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.sale_expense_all._do_approve()  # Skip duplicate wizard
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] CASE 2 Lines: no change
@@ -269,7 +269,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         # CASE 4 steps
         self.sale_expense_all.account_move_id.action_draft()
 
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] EXPENSES Lines: quantities are reset to 0 and expenses are unlinked
@@ -294,7 +294,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         # CASE 5 steps
         self.sale_expense_all.account_move_id.action_post()
 
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] EXPENSE CASE 4 Lines: no change
@@ -323,7 +323,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         # CASE 6 steps
         self.sale_expense_all.account_move_id._reverse_moves()
 
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] EXPENSE Lines: quantities are reset to 0 and expenses are unlinked
@@ -366,7 +366,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.post_expenses_with_wizard(sale_expense_copies_all)  # To ensure there are two different moves
 
         # Check that all the expenses can be found on the sale order
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] Original Lines: Created with the correct quantities
@@ -387,7 +387,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         # Reset the six expenses to draft and check that only them are unlinked
         sale_expense_original_all.account_move_id.action_draft()
-        self.assertRecordValues(self.expense_sale_order.order_line, [
+        self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
             {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] Original Lines: quantities are reset to 0 and expenses are unlinked
@@ -418,7 +418,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.company_data['product_order_sales_price'].name,
                 'product_id': self.company_data['product_order_sales_price'].id,
                 'product_uom_qty': 2.0,
@@ -441,7 +441,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         expense.action_approve()
         self.post_expenses_with_wizard(expense)
 
-        self.assertRecordValues(sale_order.order_line, [
+        self.assertRecordValues(sale_order.line_ids, [
             # Original SO line:
             {'qty_delivered': 0.0, 'product_uom_qty': 2.0, 'is_expense': False},
             # Expense line:
@@ -501,7 +501,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.company_data['product_order_sales_price'].name,
                 'product_id': self.company_data['product_order_sales_price'].id,
                 'product_uom_qty': 1.0,
@@ -524,7 +524,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         expense._do_approve()
         self.post_expenses_with_wizard(expense)
 
-        self.assertRecordValues(sale_order.order_line, [
+        self.assertRecordValues(sale_order.line_ids, [
             # Original SO line:
             {
                 'qty_delivered': 0.0,

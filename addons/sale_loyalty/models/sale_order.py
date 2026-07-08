@@ -1076,7 +1076,7 @@ class SaleOrder(models.Model):
                 lambda c: not c.expiration_date or c.expiration_date >= check_date,
             )
             removed = initial_coupons - self.applied_coupon_ids
-            lines_to_unlink |= self.order_line.filtered(lambda sol: sol.coupon_id in removed)
+            lines_to_unlink |= self.line_ids.filtered(lambda sol: sol.coupon_id in removed)
         point_ids_per_program = defaultdict(lambda: self.env['sale.order.coupon.points'])
         for pe in self.coupon_point_ids:
             # Update coupons that were created for Public User

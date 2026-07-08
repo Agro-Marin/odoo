@@ -21,7 +21,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
 
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.product_a.name,
                 'product_id': self.product_a.id,
                 'product_uom_qty': 2,
@@ -59,7 +59,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
 
         so_values = {
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.product_c.name,
                 'product_id': self.product_c.id,
                 'product_uom_qty': 2,

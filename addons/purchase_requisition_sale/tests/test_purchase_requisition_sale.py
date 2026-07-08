@@ -34,7 +34,7 @@ class TestPurchaseRequisitionSale(TransactionCase):
         # Create a Sale Order for the subcontracted service
         sale_order = self.env['sale.order'].create({
             'partner_id': self.client.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.sub_service.id,
                     'product_uom_qty': 5,

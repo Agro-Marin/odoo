@@ -200,7 +200,7 @@ class TestExpenses(TestExpenseCommon):
         (payment_1 | payment_2).action_draft()
         (payment_1 | payment_2).move_id.line_ids.remove_move_reconcile()
         self.assertEqual(first_expense_by_employee.state, 'posted')
-        expenses_by_employee.account_move_id.button_draft()
+        expenses_by_employee.account_move_id.action_draft()
         expenses_by_employee.account_move_id.unlink()
         self.assertFalse(expenses_by_employee.account_move_id)
 
@@ -670,7 +670,7 @@ class TestExpenses(TestExpenseCommon):
             expense.total_amount = 0.0
 
         # CASE 5: ALLOWS Changing the total_amount(_currency) to 0.0 when the expense is reset to draft
-        expense.account_move_id.button_draft()
+        expense.account_move_id.action_draft()
         expense.account_move_id.unlink()
         expense.action_reset()
         expense.write({'total_amount_currency': 0.0, 'total_amount': 0.0})

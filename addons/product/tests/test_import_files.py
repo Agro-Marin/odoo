@@ -130,10 +130,10 @@ class TestImportFiles(TransactionCase):
 
         results = self.import_product_xls("product.product", filepath="product/static/xls/test_import_update_error.xls")  # update products
         self.assertIn(
-            'The exitings product has different attribute value. "Color:Yellow,Size:M" is not equivalent to "Color:Blue,Size:M" for "__import__.product_product_6"',
+            'The existing product has different attribute values. "Color:Yellow,Size:M" is not equivalent to "Color:Blue,Size:M" for "__import__.product_product_6"',
             results["messages"][0]["message"])
         self.assertIn(
-            'The exitings product has different attribute value. "Color:Black,Size:L" is not equivalent to "Color:Red,Size:L" for "__import__.product_tshirt_SW_red_l"',
+            'The existing product has different attribute values. "Color:Black,Size:L" is not equivalent to "Color:Red,Size:L" for "__import__.product_tshirt_SW_red_l"',
             results["messages"][-1]["message"])
 
         results = self.import_product_xls("product.product", filepath="product/static/xls/test_import_update_error_2.xls")  # update products

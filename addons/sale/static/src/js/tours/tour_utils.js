@@ -82,7 +82,11 @@ function editLineMatching(productName, text) {
 
 function editConfiguration() {
     return {
-        trigger: '[name=product_template_id] button.fa-pencil',
+        // The edit-configuration pencil renders on the line's product widget
+        // regardless of which product field the list shows. This fork defaults
+        // the variant column (product_id) visible and hides product_template_id,
+        // so match the pencil in either field.
+        trigger: '[name=product_id] button.fa-pencil, [name=product_template_id] button.fa-pencil',
         run: 'click',
     }
 }

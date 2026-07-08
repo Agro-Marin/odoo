@@ -13,7 +13,7 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         self.task_rate_task = self.env['project.task'].create({
             'name': 'Task',
             'project_id': self.project_task_rate.id,
-            'sale_line_id': self.so.order_line[0].id,
+            'sale_line_id': self.so.line_ids[0].id,
         })
 
     def test_sol_no_change_if_edited(self):
@@ -45,24 +45,24 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         # Remark, we simulate the action done in the task form view
         edited_timesheet.write({
             "is_so_line_edited": True,
-            "so_line": self.so.order_line[1].id,
+            "so_line": self.so.line_ids[1].id,
         })
-        self.so.order_line._compute_qty_delivered()
+        self.so.line_ids._compute_qty_delivered()
 
         # 3) check if the edited SOL has the one selected and is not the one in the task
         self.assertNotEqual(edited_timesheet.so_line, self.task_rate_task.sale_line_id, "SOL in timesheet should be different than the one in the task.")
-        self.assertEqual(edited_timesheet.so_line, self.so.order_line[1], "SOL in timesheet is the one selected when we manually edit in the timesheet")
+        self.assertEqual(edited_timesheet.so_line, self.so.line_ids[1], "SOL in timesheet is the one selected when we manually edit in the timesheet")
         self.assertEqual(self.task_rate_task.sale_line_id.qty_delivered, timesheet.unit_amount, "The quantity delivered should be the quantity defined in the first timesheet of the task since the so_line in the second timesheet has manually been changed.")
 
         # 4) change the sol on the task
         self.task_rate_task.update({
-            'sale_line_id': self.so.order_line[-1].id,
+            'sale_line_id': self.so.line_ids[-1].id,
         })
         timesheet._compute_so_line()
         edited_timesheet._compute_so_line()
-        self.so.order_line._compute_qty_delivered()
+        self.so.line_ids._compute_qty_delivered()
 
         # 5) check if the timesheet in which the sol has manually edited, does not change but the another ones are the case.
         self.assertEqual(timesheet.so_line, self.task_rate_task.sale_line_id, "SOL in timesheet should be the same than the one in the task.")
         self.assertNotEqual(edited_timesheet.so_line, self.task_rate_task.sale_line_id, "SOL in timesheet which is manually edited should be different than the one in the task.")
-        self.assertEqual(edited_timesheet.so_line, self.so.order_line[1], "SOL in timesheet should still be the same")
+        self.assertEqual(edited_timesheet.so_line, self.so.line_ids[1], "SOL in timesheet should still be the same")

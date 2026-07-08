@@ -23,7 +23,7 @@ class TestWebsiteSaleStockReorderFromPortal(HttpCase, WebsiteSaleStockCommon):
         order = cls.env['sale.order'].create({
             'partner_id': user_admin.partner_id.id,
             'state': 'done',
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': cls.available_product.id,
                     'product_uom_qty': 1,

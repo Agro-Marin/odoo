@@ -266,7 +266,7 @@ class TestWebsiteAllPerformance(TestWebsitePerformanceCommon, TestWebsitePriceLi
             "jsonrpc": "2.0",
             "method": "call",
             "params": {
-                "line_id": self.env['sale.order'].search([], limit=1).order_line.id,
+                "line_id": self.env['sale.order'].search([], limit=1).line_ids.id,
                 "product_id": self.productC.id,
                 "quantity": 0
             }

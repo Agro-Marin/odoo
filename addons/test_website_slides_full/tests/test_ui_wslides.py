@@ -144,7 +144,7 @@ class TestUi(TestUICommon):
         user_portal = self.env.user
         sale_order_data = {
             'partner_id': user_portal.partner_id.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.furniture_course_product.name,
                     'product_id': self.furniture_course_product.id,

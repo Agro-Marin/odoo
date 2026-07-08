@@ -59,7 +59,7 @@ class TestWebsiteSaleReorderFromPortal(HttpCaseWithUserPortal):
         order = self.empty_cart
         order.write({
             'partner_id': user_admin.partner_id.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_1.id,
                 }),
@@ -86,8 +86,8 @@ class TestWebsiteSaleReorderFromPortal(HttpCaseWithUserPortal):
         self.start_tour("/", 'website_sale_reorder_from_portal', login='admin')
 
         reorder_cart = self.env['sale.order'].search([('website_id', '!=', False)], limit=1)
-        previous_lines = order.order_line
-        order_lines = reorder_cart.order_line
+        previous_lines = order.line_ids
+        order_lines = reorder_cart.line_ids
 
         self.assertEqual(previous_lines.product_id, order_lines.product_id)
         self.assertEqual(
@@ -118,7 +118,7 @@ class TestWebsiteSaleReorderFromPortal(HttpCaseWithUserPortal):
         })
 
         order = self.empty_cart.with_user(self.user_portal).sudo()
-        order.order_line = [line_section]
+        order.line_ids = [line_section]
         order.action_confirm()
 
         with MockRequest(self.env, website=self.website):
@@ -127,13 +127,13 @@ class TestWebsiteSaleReorderFromPortal(HttpCaseWithUserPortal):
                 "Reordering a line section should not be allowed",
             )
 
-            order.order_line = [line_archived_product]
+            order.line_ids = [line_archived_product]
             self.assertFalse(
                 order._is_reorder_allowed(),
                 "Reordering an archived product should not be allowed",
             )
 
-            order.order_line = [line_published_product]
+            order.line_ids = [line_published_product]
             self.assertTrue(
                 order._is_reorder_allowed(),
                 "Reordering a published product should be allowed",
@@ -145,7 +145,7 @@ class TestWebsiteSaleReorderFromPortal(HttpCaseWithUserPortal):
                 "Reordering an unpublished product should not be allowed",
             )
 
-            order.order_line = [line_downpayment]
+            order.line_ids = [line_downpayment]
             self.assertFalse(
                 order._is_reorder_allowed(),
                 "Reordering a down payment should not be allowed",

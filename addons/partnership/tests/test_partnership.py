@@ -33,7 +33,7 @@ class TestPartnership(PartnershipCommon):
         })
         with self.assertRaises(ValidationError):
             # A sale order cannot contain partnership products assigning different grade levels
-            self.sale_order_partnership.order_line = [Command.create({'product_id': partnership.id})]
+            self.sale_order_partnership.line_ids = [Command.create({'product_id': partnership.id})]
 
     def test_partnership_product_domain(self):
         ProductTemplate = self.env['product.template']

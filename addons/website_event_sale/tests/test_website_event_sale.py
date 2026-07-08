@@ -58,6 +58,6 @@ class TestWebsiteEventSale(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
 
         self.assertEqual(len(self.event.registration_ids), event_registration_count + 2)
         self.assertTrue(self.env['sale.order'].search([
-            ('order_line.event_ticket_id', '=', self.ticket.id),
-            ('order_line.event_ticket_id', '=', free_ticket.id)
+            ('line_ids.event_ticket_id', '=', self.ticket.id),
+            ('line_ids.event_ticket_id', '=', free_ticket.id)
         ]), "Sale order should be created for the free/paid tickets mix")

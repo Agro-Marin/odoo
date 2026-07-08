@@ -43,7 +43,7 @@ class TestWebsiteSaleStockAbandonedCartEmail(
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(
                 minutes=1),
-            'order_line': order_line
+            'line_ids': order_line
         })
 
         self.assertFalse(self.send_mail_patched(sale_order.id))

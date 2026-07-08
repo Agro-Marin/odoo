@@ -10,7 +10,6 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.numbers.float_utils import float_repr
-from odoo.orm.primitives import MAGIC_COLUMNS
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -18,7 +17,6 @@ from odoo.tools import (
     format_date,
     format_list,
     formatLang,
-    groupby,
 )
 from odoo.tools.translate import _
 
@@ -28,22 +26,15 @@ from odoo.addons.purchase import const
 class PurchaseOrder(models.Model):
     _name = "purchase.order"
     _inherit = [
+        "order.mixin",
+        "order.amount.mixin",
+        "order.invoice.mixin",
+        "order.merge.mixin",
         "account.document.import.mixin",
-        "mail.activity.mixin",
-        "mail.thread",
-        "portal.mixin",
-        "product.catalog.mixin",
     ]
     _description = "Purchase Order"
     _check_company_auto = True
     _order = "priority desc, id desc"
-
-    _STATE_TRANSITIONS = {
-        "draft": {"done", "cancel"},
-        "done": {"cancel"},
-        "cancel": {"draft"},
-    }
-    _LOCKED_WRITABLE_FIELDS = {"locked", "priority"}
 
     @property
     def _rec_names_search(self):
@@ -52,19 +43,19 @@ class PurchaseOrder(models.Model):
         return ["name", "partner_ref"]
 
     # ------------------------------------------------------------
+    # ORDER MIXIN ROUTING HOOKS
+    # ------------------------------------------------------------
+
+    def _get_order_type(self):
+        return "purchase"
+
+    def _get_catalog_product_ok_field(self):
+        return "purchase_ok"
+
+    # ------------------------------------------------------------
     # FIELDS
     # ------------------------------------------------------------
 
-    company_id = fields.Many2one(
-        comodel_name="res.company",
-        string="Company",
-        required=True,
-        default=lambda self: self.env.company,
-        index=True,
-    )
-    company_price_include = fields.Selection(
-        related="company_id.account_price_include",
-    )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Vendor",
@@ -74,11 +65,6 @@ class PurchaseOrder(models.Model):
         index=True,
         tracking=True,
         help="You can find a vendor by its Name, TIN, Email or Internal Reference.",
-    )
-    commercial_partner_id = fields.Many2one(
-        related="partner_id.commercial_partner_id",
-        store=True,
-        index=True,
     )
     partner_bill_count = fields.Integer(
         related="partner_id.supplier_invoice_count",
@@ -103,33 +89,6 @@ class PurchaseOrder(models.Model):
         domain='[("company_id", "in", (False, company_id))]',
         help="Fiscal positions are used to adapt taxes and accounts for particular customers "
         "or sales orders/invoices. The default value comes from the customer.",
-    )
-    currency_id = fields.Many2one(
-        comodel_name="res.currency",
-        string="Currency",
-        required=True,
-        compute="_compute_currency_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        ondelete="restrict",
-    )
-    currency_rate = fields.Float(
-        string="Currency Rate",
-        digits=0,
-        compute="_compute_currency_rate",
-        store=True,
-        precompute=True,
-    )
-    payment_term_id = fields.Many2one(
-        comodel_name="account.payment.term",
-        string="Payment Terms",
-        compute="_compute_payment_term_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        check_company=True,
-        domain="[('company_id', 'in', [False, company_id])]",
     )
     user_id = fields.Many2one(
         comodel_name="res.users",
@@ -162,14 +121,6 @@ class PurchaseOrder(models.Model):
         help="If set, the PO will invoice in this journal; "
         "otherwise the purchase journal with the lowest sequence is used.",
     )
-    name = fields.Char(
-        string="Order Reference",
-        required=True,
-        default=lambda self: _("New"),
-        readonly=True,
-        copy=False,
-        index="trigram",
-    )
     state = fields.Selection(
         selection=const.ORDER_STATE,
         string="Status",
@@ -179,29 +130,12 @@ class PurchaseOrder(models.Model):
         index=True,
         tracking=True,
     )
-    priority = fields.Selection(
-        selection=[
-            ("0", "Normal"),
-            ("1", "Urgent"),
-        ],
-        string="Priority",
-        default="0",
-        index=True,
-    )
     tag_ids = fields.Many2many(
         comodel_name="srm.tag",
         relation="purchase_order_tag_rel",
         column1="order_id",
         column2="tag_id",
         string="Tags",
-    )
-    date_order = fields.Datetime(
-        string="Order Date",
-        required=True,
-        default=fields.Datetime.now,
-        copy=False,
-        index=True,
-        help="Creation date of draft/sent orders,\nConfirmation date of confirmed orders.",
     )
     date_validity = fields.Date(
         string="Expiration",
@@ -268,11 +202,6 @@ class PurchaseOrder(models.Model):
         readonly=True,
         tracking=True,
     )
-    tax_totals = fields.Binary(
-        compute="_compute_tax_totals",
-        exportable=False,
-    )
-
     # Invoice block
     invoice_ids = fields.Many2many(
         comodel_name="account.move",
@@ -283,22 +212,6 @@ class PurchaseOrder(models.Model):
     invoice_count = fields.Integer(
         string="Bill Count",
         compute="_compute_invoice_ids",
-    )
-    amount_taxinc_invoiced = fields.Monetary(
-        string="Already Invoiced (Tax Incl.)",
-        compute="_compute_amounts_invoice",
-    )
-    amount_taxexc_invoiced = fields.Monetary(
-        string="Already Invoiced (Tax Excl.)",
-        compute="_compute_amounts_invoice",
-    )
-    amount_taxexc_to_invoice = fields.Monetary(
-        string="Un-invoiced Balance (Tax Excl.)",
-        compute="_compute_amounts_invoice",
-    )
-    amount_taxinc_to_invoice = fields.Monetary(
-        string="Un-invoiced Balance (Tax Incl.)",
-        compute="_compute_amounts_invoice",
     )
     invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
@@ -323,18 +236,11 @@ class PurchaseOrder(models.Model):
         "products as this reference is usually written on the "
         "delivery order sent by your vendor.",
     )
-    notes = fields.Html(string="Terms and Conditions")
     acknowledged = fields.Boolean(
         string="Acknowledged",
         copy=False,
         tracking=True,
         help="It indicates that the vendor has acknowledged the receipt of the purchase order.",
-    )
-    locked = fields.Boolean(
-        default=False,
-        copy=False,
-        tracking=True,
-        help="Locked orders cannot be modified.",
     )
     sent = fields.Boolean(
         default=False,
@@ -342,44 +248,20 @@ class PurchaseOrder(models.Model):
         tracking=True,
         help="THE Quotation has been sent to the customer.",
     )
-    count_sent = fields.Integer(
-        string="Sent Count",
-        default=0,
-        copy=False,
-    )
     printed_before = fields.Boolean(
         default=False,
         copy=False,
         tracking=True,
         help="THE RFQ has already been printed.",
     )
-    count_print = fields.Integer(
-        string="Print Count",
-        default=0,
-        copy=False,
-    )
     is_late = fields.Boolean(
         string="Is Late",
         store=False,
         search="_search_is_late",
     )
-    has_archived_products = fields.Boolean(
-        compute="_compute_has_archived_products",
-    )
-    is_expired = fields.Boolean(
-        string="Is Expired",
-        compute="_compute_is_expired",
-    )
     show_comparison = fields.Boolean(
         string="Show Comparison",
         compute="_compute_show_comparison",
-    )
-    type_name = fields.Char(
-        string="Type Name",
-        compute="_compute_type_name",
-    )
-    partner_credit_warning = fields.Text(
-        compute="_compute_partner_credit_warning",
     )
     purchase_warning_text = fields.Text(
         string="Purchase Warning",
@@ -435,30 +317,6 @@ class PurchaseOrder(models.Model):
     # CRUD METHODS
     # ------------------------------------------------------------
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            company_id = vals.get(
-                "company_id",
-                self.default_get(["company_id"])["company_id"],
-            )
-            # Ensures default picking type and currency are taken from the right company.
-            self_comp = self.with_company(company_id)
-            if vals.get("name", _("New")) == _("New"):
-                date_order = vals.get(
-                    "date_order",
-                    self_comp.default_get(["date_order"])["date_order"],
-                )
-                seq_date = fields.Datetime.context_timestamp(
-                    self_comp,
-                    fields.Datetime.to_datetime(date_order),
-                )
-                vals["name"] = self_comp.env["ir.sequence"].next_by_code(
-                    "purchase.order",
-                    sequence_date=seq_date,
-                )
-        return super().create(vals_list)
-
     def copy(self, default=None):
         ctx = dict(self.env.context)
         ctx.pop("default_product_id", None)
@@ -480,30 +338,9 @@ class PurchaseOrder(models.Model):
                     ),
                 )
 
-    def write(self, vals):
-        self._validate_write_vals(vals)
-        return super().write(vals)
-
     # ------------------------------------------------------------
     # COMPUTE METHODS
     # ------------------------------------------------------------
-
-    def _compute_access_url(self):
-        super()._compute_access_url()
-        for order in self:
-            order.access_url = f"/my/purchase/{order.id}"
-
-    def _compute_journal_id(self):
-        self.journal_id = False
-
-    def _compute_is_expired(self):
-        today = fields.Date.today()
-        for order in self:
-            order.is_expired = (
-                order.state == "draft"
-                and order.date_validity
-                and order.date_validity < today
-            )
 
     @api.depends_context("lang")
     @api.depends("state")
@@ -580,35 +417,6 @@ class PurchaseOrder(models.Model):
                 or order.company_id.currency_id
             )
 
-    @api.depends("company_id", "currency_id", "date_order")
-    def _compute_currency_rate(self):
-        for order in self:
-            order.currency_rate = self.env["res.currency"]._get_conversion_rate(
-                from_currency=order.company_id.currency_id,
-                to_currency=order.currency_id,
-                company=order.company_id,
-                date=(order.date_order or fields.Datetime.now()).date(),
-            )
-
-    @api.depends("company_id", "partner_id")
-    def _compute_fiscal_position_id(self):
-        """Trigger the change of fiscal position when the shipping address is modified."""
-        cache = {}
-        for order in self:
-            if not order.partner_id:
-                order.fiscal_position_id = False
-                continue
-
-            key = (order.company_id.id, order.partner_id.id)
-            if key not in cache:
-                cache[key] = (
-                    self.env["account.fiscal.position"]
-                    .with_company(order.company_id)
-                    ._get_fiscal_position(order.partner_id)
-                    .id
-                )
-            order.fiscal_position_id = cache[key]
-
     @api.depends(
         "company_id",
         "partner_id",
@@ -658,14 +466,6 @@ class PurchaseOrder(models.Model):
                 if p in order_by_product
             )
 
-    @api.depends("line_ids.product_id")
-    def _compute_has_archived_products(self):
-        """Flag orders whose lines reference an archived (inactive) product."""
-        for order in self:
-            order.has_archived_products = any(
-                not product.active for product in order.line_ids.product_id
-            )
-
     def _get_order_tax_totals_summary(self):
         """Compute tax totals summary for the order.
 
@@ -700,34 +500,6 @@ class PurchaseOrder(models.Model):
         for order in self:
             order.tax_totals = order._get_order_tax_totals_summary()
 
-    @api.depends(
-        "line_ids.amount_taxexc_invoiced",
-        "line_ids.amount_taxexc_to_invoice",
-        "line_ids.amount_taxinc_invoiced",
-        "line_ids.amount_taxinc_to_invoice",
-    )
-    def _compute_amounts_invoice(self):
-        """Compute invoice-related amounts for each order.
-
-        Optimized to iterate over line_ids once instead of 4 separate .mapped() calls.
-        """
-        for order in self:
-            taxexc_invoiced = 0.0
-            taxexc_to_invoice = 0.0
-            taxinc_invoiced = 0.0
-            taxinc_to_invoice = 0.0
-
-            for line in order.line_ids:
-                taxexc_invoiced += line.amount_taxexc_invoiced
-                taxexc_to_invoice += line.amount_taxexc_to_invoice
-                taxinc_invoiced += line.amount_taxinc_invoiced
-                taxinc_to_invoice += line.amount_taxinc_to_invoice
-
-            order.amount_taxexc_invoiced = taxexc_invoiced
-            order.amount_taxexc_to_invoice = taxexc_to_invoice
-            order.amount_taxinc_invoiced = taxinc_invoiced
-            order.amount_taxinc_to_invoice = taxinc_to_invoice
-
     @api.depends_context("show_total_amount")
     @api.depends("currency_id", "name", "partner_ref", "amount_total")
     def _compute_display_name(self):
@@ -742,22 +514,6 @@ class PurchaseOrder(models.Model):
                     currency_obj=order.currency_id,
                 )
             order.display_name = name
-
-    @api.depends("company_id", "partner_id", "amount_total")
-    def _compute_partner_credit_warning(self):
-        for order in self:
-            order = order.with_company(order.company_id)
-            order.partner_credit_warning = ""
-            show_warning = (
-                order.state == "draft" and order.company_id.account_use_credit_limit
-            )
-            if show_warning:
-                order.partner_credit_warning = self.env[
-                    "account.move"
-                ]._build_credit_warning_message(
-                    order.sudo(),  # ensure access to `credit` & `credit_limit` fields
-                    current_amount=(order.amount_total / order.currency_rate),
-                )
 
     @api.depends(
         "partner_id.name",
@@ -788,64 +544,6 @@ class PurchaseOrder(models.Model):
                 if product_msg := line.purchase_line_warn_msg:
                     warnings.add(line.product_id.display_name + " - " + product_msg)
             order.purchase_warning_text = "\n".join(warnings)
-
-    @api.depends(
-        "line_ids.invoice_line_ids",
-        "line_ids.invoice_line_ids.move_id.reversal_move_ids",
-    )
-    def _compute_invoice_ids(self):
-        """Compute invoice_ids for the purchase order.
-
-        The invoice_ids are obtained from:
-        1. Invoice lines directly linked to PO lines
-        2. Refunds created directly from existing invoices (not linked to PO)
-
-        This is necessary since refunds created via "Credit Note" button on an
-        invoice are not directly linked to the original PO.
-
-        Performance: Uses batched queries to avoid N+1 pattern when computing
-        for multiple orders.
-        """
-        # Step 1: Collect directly linked invoices for all orders
-        # Map: order_id -> set of invoice ids
-        order_invoices = {}
-        all_invoice_ids = set()
-
-        for order in self:
-            invoices = order.line_ids.invoice_line_ids.move_id.filtered(
-                lambda r: r.move_type in ("in_invoice", "in_refund"),
-            )
-            order_invoices[order.id] = set(invoices.ids)
-            all_invoice_ids.update(invoices.ids)
-
-        # Step 2: Single batched search for ALL orphan refunds across all orders
-        orphan_refunds_by_reversed_id = {}
-        if all_invoice_ids:
-            orphan_refunds = self.env["account.move"].search(
-                [
-                    ("reversed_entry_id", "in", list(all_invoice_ids)),
-                    ("move_type", "=", "in_refund"),
-                    ("id", "not in", list(all_invoice_ids)),
-                ]
-            )
-            # Index orphan refunds by their reversed_entry_id for quick lookup
-            for refund in orphan_refunds:
-                orphan_refunds_by_reversed_id.setdefault(
-                    refund.reversed_entry_id.id, []
-                ).append(refund.id)
-
-        # Step 3: Assign invoices to each order
-        AccountMove = self.env["account.move"]
-        for order in self:
-            invoice_ids = order_invoices.get(order.id, set())
-
-            # Add orphan refunds for this order's invoices
-            for inv_id in list(invoice_ids):
-                if inv_id in orphan_refunds_by_reversed_id:
-                    invoice_ids.update(orphan_refunds_by_reversed_id[inv_id])
-
-            order.invoice_ids = AccountMove.browse(invoice_ids)
-            order.invoice_count = len(invoice_ids)
 
     @api.depends("state", "line_ids.invoice_state")
     def _compute_invoice_state(self):
@@ -903,91 +601,16 @@ class PurchaseOrder(models.Model):
     # SEARCH METHODS
     # ------------------------------------------------------------
 
-    def _search_invoice_ids(self, operator, value):
-        if operator in Domain.NEGATIVE_OPERATORS:
-            return NotImplemented
-        if operator == "in" and value:
-            falsy_domain = []
-            if False in value:
-                # special case for [('invoice_ids', '=', False)], i.e. "Invoices is not set"
-                #
-                # We cannot just search [('line_ids.invoice_line_ids', '=', False)]
-                # because it returns orders with uninvoiced lines, which is not
-                # same "Invoices is not set" (some lines may have invoices and some
-                # don't)
-                #
-                # A solution is using the 'not any' operators with inverted search first
-                # ("orders with invoiced lines").
-                falsy_domain = [
-                    (
-                        "line_ids",
-                        "not any",
-                        [
-                            (
-                                "invoice_line_ids.move_id.move_type",
-                                "in",
-                                ("in_invoice", "in_refund"),
-                            ),
-                        ],
-                    ),
-                ]
-                if len(value) == 1:
-                    return falsy_domain
-            self.env.cr.execute(
-                """
-                SELECT array_agg(o.id)
-                    FROM purchase_order o
-                    JOIN purchase_order_line ol ON o.id=ol.order_id
-                    JOIN account_move_line_purchase_order_line_rel soli_rel ON soli_rel.order_line_id = ol.id
-                    JOIN account_move_line aml ON aml.id = soli_rel.invoice_line_id
-                    JOIN account_move am ON am.id = aml.move_id
-                WHERE
-                    am.move_type in ('in_invoice', 'in_refund')
-                    AND am.id = ANY(%s)
-                """,
-                (list(value),),
-            )
-            o_ids = self.env.cr.fetchone()[0] or []
-            return [("id", "in", o_ids)] + falsy_domain
-        return [
-            (
-                "line_ids.invoice_line_ids",
-                "any",
-                [
-                    ("move_id.move_type", "in", ("in_invoice", "in_refund")),
-                    ("move_id", operator, value),
-                ],
+    def _get_is_late_search_domain(self, domain, positive):
+        """Late purchases also require a line not yet fully transferred."""
+        lines_domain = Domain("order_id", "any", domain) & Domain.custom(
+            to_sql=lambda model, alias, query: SQL(
+                "%s < %s" if positive else "%s >= %s",
+                model._field_to_sql(alias, "qty_transferred", query),
+                model._field_to_sql(alias, "product_qty", query),
             ),
-        ]
-
-    def _search_is_late(self, operator, value):
-        if operator not in ["=", "!="]:
-            raise ValidationError(_("Unsupported operator."))
-
-        purchase_domain = self._get_domain_is_late(operator, value)
-
-        if (operator == "=" and value) or (operator == "!=" and not value):
-            purchase_lines_late = Domain(
-                "order_id", "any", purchase_domain
-            ) & Domain.custom(
-                to_sql=lambda model, alias, query: SQL(
-                    "%s < %s",
-                    model._field_to_sql(alias, "qty_transferred", query),
-                    model._field_to_sql(alias, "product_qty", query),
-                ),
-            )
-            return Domain("line_ids", "any", purchase_lines_late)
-        else:
-            purchase_lines_on_time = Domain(
-                "order_id", "any", purchase_domain
-            ) & Domain.custom(
-                to_sql=lambda model, alias, query: SQL(
-                    "%s >= %s",
-                    model._field_to_sql(alias, "qty_transferred", query),
-                    model._field_to_sql(alias, "product_qty", query),
-                ),
-            )
-            return Domain("line_ids", "any", purchase_lines_on_time)
+        )
+        return Domain("line_ids", "any", lines_domain)
 
     # ------------------------------------------------------------
     # ONCHANGE METHODS
@@ -1069,36 +692,6 @@ class PurchaseOrder(models.Model):
             ],
         }
 
-    def action_cancel(self):
-        """Cancel purchase orders and their draft invoices.
-
-        Validates cancellation is allowed before proceeding. Draft invoices
-        related to these orders are also cancelled automatically.
-
-        :raises UserError: If orders cannot be cancelled (locked, have posted bills, etc.)
-        :return: True for backwards compatibility
-        :rtype: bool
-        """
-        # Validate all orders upfront before any modifications
-        self._can_cancel()
-        return self._action_cancel()
-
-    def _action_cancel(self):
-        """Implementation of additional mechanism of Purchase Order cancellation.
-
-        This method should be extended when the cancellation should affect
-        other documents.
-        """
-        # Cancel related draft invoices (if any)
-        draft_invoices = self.invoice_ids.filtered(lambda inv: inv.state == "draft")
-        if draft_invoices:
-            draft_invoices.action_cancel()
-
-        # Update state to cancelled
-        self.write({"state": "cancel"})
-
-        return True
-
     def action_confirm(self):
         """Confirm purchase orders.
 
@@ -1133,10 +726,6 @@ class PurchaseOrder(models.Model):
     def action_lock(self):
         """Lock purchase orders to prevent modifications."""
         self.write({"locked": True, "priority": "0"})
-
-    def action_unlock(self):
-        """Unlock purchase orders to allow modifications."""
-        self.write({"locked": False})
 
     def action_merge(self):
         """Merge selected RFQs into oldest one per compatible group.
@@ -1246,110 +835,6 @@ class PurchaseOrder(models.Model):
 
         return target.id
 
-    def _merge_get_target(self, rfqs):
-        """Get the target RFQ for merge (receives merged data).
-
-        Default: oldest RFQ by date_order.
-        Override to use different selection criteria.
-
-        Args:
-            rfqs: recordset of RFQs
-
-        Returns:
-            record: Single RFQ to merge into
-        """
-        return min(rfqs, key=lambda r: r.date_order)
-
-    def _merge_build_line_index(self, target):
-        """Build hash index for O(1) line lookups during merge.
-
-        Args:
-            target: Target RFQ whose lines to index
-
-        Returns:
-            dict: {merge_key: [lines]} for O(1) lookup
-        """
-        index = defaultdict(list)
-        for line in target.line_ids:
-            if line.display_type:
-                continue
-            key = self._merge_get_line_key(line)
-            index[key].append(line)
-        return index
-
-    def _merge_get_line_key(self, line):
-        """Get the key used to match lines for merging.
-
-        Lines with the same key (and similar date_planned) are merged.
-        Override to change matching criteria.
-
-        Args:
-            line: purchase.order.line record
-
-        Returns:
-            tuple: Hashable key for line matching
-        """
-        return (
-            line.product_id.id,
-            line.product_uom_id.id,
-            (
-                frozenset(line.analytic_distribution.items())
-                if line.analytic_distribution
-                else frozenset()
-            ),
-            line.discount,
-        )
-
-    def _merge_lines(self, target, sources, line_index):
-        """Merge lines from source RFQs into target.
-
-        Args:
-            target: Target RFQ
-            sources: Source RFQs (will be cancelled after merge)
-            line_index: Pre-built index for O(1) line lookups
-        """
-        for source_line in sources.line_ids:
-            if source_line.display_type:
-                # Move display lines (sections/notes) directly
-                source_line.order_id = target
-                continue
-
-            key = self._merge_get_line_key(source_line)
-            match = self._merge_find_matching_line(source_line, line_index.get(key, []))
-
-            if match:
-                match._merge_po_line(source_line)
-            else:
-                # Move line to target and add to index for subsequent matches
-                source_line.order_id = target
-                line_index[key].append(source_line)
-
-    def _merge_find_matching_line(self, source_line, candidates):
-        """Find a matching line in candidates for the source line.
-
-        Matches by date_planned within threshold (fuzzy matching).
-
-        Args:
-            source_line: Line to find match for
-            candidates: List of potential matching lines
-
-        Returns:
-            record: Matching line or empty recordset
-        """
-        matches = self.env["purchase.order.line"]
-
-        for candidate in candidates:
-            if self._merge_lines_match_date(candidate, source_line):
-                matches |= candidate
-
-        # If multiple matches, consolidate them first
-        if len(matches) > 1:
-            matches[0].product_qty += sum(matches[1:].mapped("product_qty"))
-            matches[1:].unlink()
-            return matches[0]
-
-        return matches[:1]
-
     def _merge_lines_match_date(self, line1, line2):
         """Check if two lines have matching dates (within threshold).
 
@@ -1378,27 +863,6 @@ class PurchaseOrder(models.Model):
         # Merge vendor references
         all_refs = [target.partner_ref] + list(sources.mapped("partner_ref"))
         target.partner_ref = ", ".join(filter(None, all_refs))
-
-    def _merge_post_messages(self, target, sources):
-        """Post chatter messages about the merge.
-
-        Args:
-            target: Target RFQ
-            sources: Source RFQs that were merged
-        """
-        source_names = ", ".join(sources.mapped("name"))
-
-        # Message on target
-        target.message_post(
-            body=_("Merged with: %(sources)s", sources=source_names),
-        )
-
-        # Message on each source
-        target_link = target._get_html_link()
-        for source in sources:
-            source.message_post(
-                body=_("Merged into %s", target_link),
-            )
 
     def _merge_finalize(self, target, sources):
         """Finalize merge: cancel sources, handle alternatives.
@@ -1492,16 +956,6 @@ class PurchaseOrder(models.Model):
             "view_id": compose_form_id,
             "target": "new",
             "context": ctx,
-        }
-
-    def action_view_business_doc(self):
-        self.ensure_one()
-        return {
-            "name": _("Order"),
-            "type": "ir.actions.act_window",
-            "res_model": "purchase.order",
-            "res_id": self.id,
-            "views": [(False, "form")],
         }
 
     def action_view_invoice(self, invoices=False):
@@ -1694,13 +1148,6 @@ class PurchaseOrder(models.Model):
         res["context"]["partner_id"] = self.partner_id.id
         return res
 
-    def _default_order_line_values(self, child_field=False):
-        default_data = super()._default_order_line_values(child_field)
-        new_default_data = self.env[
-            "purchase.order.line"
-        ]._get_product_catalog_lines_data()
-        return {**default_data, **new_default_data}
-
     def _get_action_add_from_catalog_extra_context(self):
         return {
             **super()._get_action_add_from_catalog_extra_context(),
@@ -1713,104 +1160,32 @@ class PurchaseOrder(models.Model):
             "show_sections": bool(self.id),
         }
 
-    def _get_parent_field_on_child_model(self):
-        return "order_id"
-
-    def _get_product_catalog_domain(self):
-        return super()._get_product_catalog_domain() & Domain("purchase_ok", "=", True)
-
     def _get_product_catalog_order_data(self, products, **kwargs):
         res = super()._get_product_catalog_order_data(products, **kwargs)
         for product in products:
             res[product.id] |= self._get_product_price_and_data(product)
         return res
 
-    def _get_product_catalog_record_lines(
-        self,
-        product_ids,
-        *,
-        section_id=None,
-        **kwargs,
-    ):
-        grouped_lines = defaultdict(lambda: self.env["purchase.order.line"])
-        if section_id is None:
-            section_id = (
-                self.line_ids[:1].id
-                if self.line_ids[:1].display_type == "line_section"
-                else False
-            )
-        for line in self.line_ids:
-            if (
-                line.display_type
-                or line.product_id.id not in product_ids
-                or line.get_line_parent_section().id != section_id
-            ):
-                continue
-            grouped_lines[line.product_id] |= line
-        return grouped_lines
+    def _get_catalog_editable_states(self):
+        return {"draft", "sent"}
 
-    def _is_readonly(self):
-        """Return whether the purchase order is read-only or not based on the state.
-        A purchase order is considered read-only if its state is 'cancel'.
+    def _get_catalog_removed_line_price(self, product, **kwargs):
+        return self._get_product_price_and_data(product)["price"]
 
-        :return: Whether the purchase order is read-only or not.
-        :rtype: bool
-        """
-        self.ensure_one()
-        return self.state == "cancel"
+    def _catalog_on_line_created(self, line, **kwargs):
+        line = super()._catalog_on_line_created(line, **kwargs)
+        if line.selected_seller_id:
+            # Fix the PO line's price on the seller's one.
+            seller = line.selected_seller_id
+            price = seller.price
+            if seller.currency_id != self.currency_id:
+                price = seller.currency_id._convert(price, self.currency_id)
+            line.price_unit = line.price_unit_auto = price
+            line.discount = seller.discount
+        return line
 
-    def _update_order_line_info(
-        self,
-        product_id,
-        quantity,
-        *,
-        section_id=False,
-        child_field="line_ids",
-        **kwargs,
-    ):
-        """Update purchase order line information for a given product or create
-        a new one if none exists yet.
-        :param int product_id: The product, as a `product.product` id.
-        :param int quantity: The quantity selected in the catalog.
-        :param int section_id: The id of section selected in the catalog.
-        :return: The unit price of the product, based on the pricelist of the
-                 purchase order and the quantity selected.
-        :rtype: float
-        """
-        self.ensure_one()
-        pol = self.line_ids.filtered(
-            lambda l: (
-                l.product_id.id == product_id
-                and l.get_line_parent_section().id == section_id
-            ),
-        )
-        if pol:
-            if quantity != 0:
-                pol.product_qty = quantity
-            elif self.state in ["draft", "sent"]:
-                price_unit = self._get_product_price_and_data(pol.product_id)["price"]
-                pol.unlink()
-                return price_unit
-            else:
-                pol.product_qty = 0
-        elif quantity > 0:
-            pol = self.env["purchase.order.line"].create(
-                {
-                    "order_id": self.id,
-                    "product_id": product_id,
-                    "product_qty": quantity,
-                    "sequence": self._get_new_line_sequence(child_field, section_id),
-                },
-            )
-            if pol.selected_seller_id:
-                # Fix the PO line's price on the seller's one.
-                seller = pol.selected_seller_id
-                price = seller.price
-                if seller.currency_id != self.currency_id:
-                    price = seller.currency_id._convert(price, self.currency_id)
-                pol.price_unit = pol.price_unit_auto = price
-                pol.discount = seller.discount
-        return pol.price_unit_discounted_taxexc
+    def _get_catalog_line_price(self, line):
+        return line.price_unit_discounted_taxexc
 
     # ------------------------------------------------------------
     # PRODUCT DOCUMENTS METHODS
@@ -1828,26 +1203,6 @@ class PurchaseOrder(models.Model):
     # ------------------------------------------------------------
     # EDI METHODS
     # ------------------------------------------------------------
-
-    def _get_edi_builders(self):
-        return []
-
-    def create_document_from_attachment(self, attachment_ids):
-        """Create the purchase orders from given attachment_ids
-        and redirect newly create order view.
-
-        :param list attachment_ids: List of attachments process.
-        :return: An action redirecting to related sale order view.
-        :rtype: dict
-        """
-        attachments = self.env["ir.attachment"].browse(attachment_ids)
-        if not attachments:
-            raise UserError(_("No attachment was provided."))
-
-        orders = self.with_context(
-            default_partner_id=self.env.user.partner_id.id,
-        )._create_records_from_attachments(attachments)
-        return orders._get_records_action(name=_("Generated Orders"))
 
     # ------------------------------------------------------------
     # HELPER METHODS
@@ -1877,77 +1232,49 @@ class PurchaseOrder(models.Model):
         self.line_ids = [Command.link(line_id) for line_id in downpayment_lines.ids]
         return downpayment_lines
 
-    def create_invoice(self, attachment_ids=False):
-        """Create the invoice associated to the PO."""
-        # 1) Prepare invoice vals and clean-up the section lines
-        invoice_vals_list = []
-        sequence = 10
-        for order in self:
-            order = order.with_company(order.company_id)
-            pending_section = None
-            # Invoice values.
-            invoice_vals = order._prepare_invoice_vals()
-            # Invoice line values (keep only necessary sections).
-            for line in order.line_ids:
-                if line.display_type in ("line_section", "line_subsection"):
-                    pending_section = line
-                    continue
-                if pending_section:
-                    line_vals = pending_section._prepare_aml_vals()
-                    line_vals.update({"sequence": sequence})
-                    invoice_vals["invoice_line_ids"].append(Command.create(line_vals))
-                    sequence += 1
-                    pending_section = None
-                line_vals = line._prepare_aml_vals()
+    def _get_invoiceable_lines(self, final=False):
+        """Bills cover every line; sections are filtered while building."""
+        self.ensure_one()
+        return self.line_ids
+
+    def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
+        """Keep only the sections directly followed by a product line."""
+        commands = []
+        pending_section = None
+        for line in invoiceable_lines:
+            if line.display_type in ("line_section", "line_subsection"):
+                pending_section = line
+                continue
+            if pending_section:
+                line_vals = pending_section._prepare_aml_vals()
                 line_vals.update({"sequence": sequence})
-                invoice_vals["invoice_line_ids"].append(Command.create(line_vals))
+                commands.append(Command.create(line_vals))
                 sequence += 1
-            invoice_vals_list.append(invoice_vals)
+                pending_section = None
+            line_vals = line._prepare_aml_vals()
+            line_vals.update({"sequence": sequence})
+            commands.append(Command.create(line_vals))
+            sequence += 1
+        return commands, sequence
 
-        # 2) group by (company_id, partner_id, currency_id) for batch creation
-        new_invoice_vals_list = []
-        for _grouping_keys, invoices in groupby(
-            invoice_vals_list,
-            key=lambda x: (
-                x.get("company_id"),
-                x.get("partner_id"),
-                x.get("currency_id"),
-            ),
-        ):
-            origins = set()
-            ref_invoice_vals = None
-            for invoice_vals in invoices:
-                if not ref_invoice_vals:
-                    ref_invoice_vals = invoice_vals
-                else:
-                    ref_invoice_vals["invoice_line_ids"] += invoice_vals[
-                        "invoice_line_ids"
-                    ]
-                origins.add(invoice_vals["invoice_origin"])
-            ref_invoice_vals.update(
-                {
-                    "invoice_origin": ", ".join(origins),
-                },
-            )
-            new_invoice_vals_list.append(ref_invoice_vals)
-        invoice_vals_list = new_invoice_vals_list
+    def _get_invoice_grouping_keys(self):
+        return ["company_id", "partner_id", "currency_id"]
 
-        # 3) Create invoices.
+    def _create_invoice_moves(self, invoice_vals_list):
+        """Plain per-company create (no sudo): billing needs account rights."""
         invoices = self.env["account.move"]
         AccountMove = self.env["account.move"].with_context(
-            default_move_type="in_invoice",
+            default_move_type=self._get_invoice_move_types()[0],
         )
         for vals in invoice_vals_list:
             invoices |= AccountMove.with_company(vals["company_id"]).create(vals)
+        return invoices
 
-        # 4) Some moves might actually be refunds: convert them if the total amount is negative
-        # We do this after the moves have been created since we need taxes, etc. to know if the total
-        # is actually negative or not
-        invoices.filtered(
-            lambda m: m.currency_id.round(m.amount_total) < 0,
-        ).action_switch_move_type()
+    def create_invoice(self, attachment_ids=False):
+        """Create the invoice associated to the PO."""
+        invoices = self._create_invoices()
 
-        # 5) Link the attachments to the invoice
+        # Link the attachments to the invoice
         if attachment_ids:
             attachments = self.env["ir.attachment"].browse(attachment_ids)
             if attachments:
@@ -2060,11 +1387,6 @@ class PurchaseOrder(models.Model):
         """
         return {"product_qty": 0}
 
-    def _get_domain_is_late(self, operator, value):
-        return Domain(
-            [("state", "=", "done"), ("date_planned", "<=", fields.Datetime.now())]
-        )
-
     def _get_duplicate_orders(self):
         """Fetch duplicated orders.
 
@@ -2103,17 +1425,6 @@ class PurchaseOrder(models.Model):
         )
 
         return {order_id: set(duplicate_ids) for order_id, duplicate_ids in result}
-
-    def _get_invoice_grouping_keys(self):
-        """Return list of fields to group invoices by.
-
-        Purchase orders are grouped by company, partner, and currency.
-        This method can be overridden to customize grouping behavior.
-
-        :return: List of field names for grouping
-        :rtype: list[str]
-        """
-        return ["company_id", "partner_id", "currency_id", "fiscal_position_id"]
 
     def get_localized_date_planned(self, date_planned=False):
         """Returns the localized date planned in the timezone of the order's user or the
@@ -2369,45 +1680,23 @@ class PurchaseOrder(models.Model):
 
         :return: A dictionary to create a new PO section line.
         """
-        self.ensure_one()
-        return {
-            "order_id": self.id,
-            "display_type": "line_section",
-            "is_downpayment": True,
-            "sequence": (self.line_ids[-1:].sequence or 9) + 1,
-            "name": _("Down Payments"),
-        }
+        values = super()._prepare_down_payment_line_section_values()
+        values.update(
+            sequence=(self.line_ids[-1:].sequence or 9) + 1,
+            name=_("Down Payments"),
+        )
+        return values
 
     def _prepare_grouped_data(self, rfq):
         return (rfq.partner_id.id, rfq.currency_id.id, rfq.dest_address_id.id)
 
     def _prepare_invoice_vals(self):
         """Prepare the dict of values to create the new invoice for a purchase order."""
-        self.ensure_one()
-        move_type = self.env.context.get("default_move_type", "in_invoice")
+        values = super()._prepare_invoice_vals()
         partner_bank_id = self.commercial_partner_id.bank_ids.filtered_domain(
             [("company_id", "in", (False, self.company_id.id))],
         )[:1]
-        values = {
-            "company_id": self.company_id.id,
-            "currency_id": self.currency_id.id,
-            "partner_id": self.partner_id.id,
-            "invoice_payment_term_id": self.payment_term_id.id,
-            "fiscal_position_id": (
-                self.fiscal_position_id
-                or self.fiscal_position_id._get_fiscal_position(self.partner_id)
-            ).id,
-            "partner_bank_id": partner_bank_id.id,
-            "invoice_user_id": self.user_id.id,
-            "move_type": move_type,
-            "narration": self.notes,
-            "invoice_origin": self.name,
-            "invoice_line_ids": [],
-        }
-
-        if self.journal_id:
-            values["journal_id"] = self.journal_id.id
-
+        values["partner_bank_id"] = partner_bank_id.id
         return values
 
     def _prepare_supplierinfo(self, partner, line, price, currency):
@@ -2538,78 +1827,7 @@ class PurchaseOrder(models.Model):
     # VALIDATIONS
     # ------------------------------------------------------------
 
-    def _can_confirm(self):
-        """Validate that purchase orders can be confirmed.
-
-        Validates in order:
-        1. Orders are in correct state (draft or sent)
-        2. Orders have at least one line
-        3. All lines have products assigned
-        4. (Extensible) Custom validations from other modules
-
-        This method is designed to be extensible in two ways:
-
-        Method 1 - Override this method (simple):
-            class PurchaseOrder(models.Model):
-                _inherit = 'purchase.order'
-
-                def _can_confirm(self):
-                    super()._can_confirm()
-                    self._can_confirm_budget_available()  # Custom validation
-
-        Method 2 - Use validation registry (recommended for complex scenarios):
-            class PurchaseOrder(models.Model):
-                _inherit = 'purchase.order'
-
-                def _get_can_confirm_validation_methods(self):
-                    methods = super()._get_can_confirm_validation_methods()
-                    methods.append('_can_confirm_budget_available')
-                    return methods
-
-        :raises UserError: If any validation fails
-        """
-        # Execute all registered validation methods dynamically
-        for method_name in self._get_can_confirm_validation_methods():
-            if hasattr(self, method_name):
-                getattr(self, method_name)()
-            # Note: If method doesn't exist, skip silently to allow gradual adoption
-
-    def _get_can_confirm_validation_methods(self):
-        """Return list of validation method names to be called by _can_confirm.
-
-        This method can be overridden by other modules to add custom validation
-        methods without modifying the core _can_confirm method. This is useful
-        for modules that need to add domain-specific confirmation restrictions.
-
-        Example usage in custom budget module:
-
-        class PurchaseOrder(models.Model):
-            _inherit = 'purchase.order'
-
-            def _get_can_confirm_validation_methods(self):
-                methods = super()._get_can_confirm_validation_methods()
-                methods.append('_can_confirm_budget_available')
-                return methods
-
-            def _can_confirm_budget_available(self):
-                orders_over_budget = self.filtered(
-                    lambda o: o.amount_total > o.department_id.available_budget
-                )
-                if orders_over_budget:
-                    raise UserError(
-                        _("Cannot confirm orders exceeding available budget: %s",
-                          format_list(self.env, orders_over_budget.mapped("display_name")))
-                    )
-
-        :return: List of validation method names to call
-        :rtype: list[str]
-        """
-        return [
-            "_can_confirm_proper_state",
-            "_can_confirm_has_lines",
-            "_can_confirm_lines_have_product",
-            "_can_confirm_analytic_distribution",
-        ]
+    # Note: If method doesn't exist, skip silently to allow gradual adoption
 
     def _can_confirm_has_lines(self):
         """Ensure orders have at least one order line.
@@ -2764,40 +1982,6 @@ class PurchaseOrder(models.Model):
                 ),
             )
 
-    def _can_cancel(self):
-        """Validate that purchase orders can be cancelled.
-
-        Validates in order:
-        1. Orders are not in 'cancel' state already
-        2. Orders are not locked
-        3. Orders have no posted vendor bills
-        4. (Extensible) Custom validations from other modules
-
-        This method is designed to be extensible in two ways:
-
-        Method 1 - Override this method (simple):
-            class PurchaseOrder(models.Model):
-                _inherit = 'purchase.order'
-
-                def _can_cancel(self):
-                    super()._can_cancel()
-                    self._can_cancel_except_receipts()  # Custom validation
-
-        Method 2 - Use validation registry (recommended for complex scenarios):
-            class PurchaseOrder(models.Model):
-                _inherit = 'purchase.order'
-
-                def _get_can_cancel_validation_methods(self):
-                    methods = super()._get_can_cancel_validation_methods()
-                    methods.append('_can_cancel_except_receipts')
-                    return methods
-
-        :raises UserError: If any validation fails
-        """
-        # Execute all registered validation methods dynamically
-        for method_name in self._get_can_cancel_validation_methods():
-            if hasattr(self, method_name):
-                getattr(self, method_name)()
             # Note: If method doesn't exist, skip silently to allow gradual adoption
 
     def _get_can_cancel_validation_methods(self):
@@ -2912,115 +2096,3 @@ class PurchaseOrder(models.Model):
     # ------------------------------------------------------------
     # WRITE VALIDATION
     # ------------------------------------------------------------
-
-    def _validate_write_vals(self, vals):
-        """Run all registered write validators before persisting ``vals``."""
-        for method_name in self._get_validate_write_vals_methods():
-            getattr(self, method_name)(vals)
-
-    def _get_validate_write_vals_methods(self):
-        """Validator method names for write. Override to extend."""
-        return [
-            "_validate_write_locked_order",
-            "_validate_write_state_frozen_fields",
-            "_validate_write_state_transition",
-        ]
-
-    def _get_state_frozen_fields(self):
-        """Map of ``{state: {field names frozen in that state}}``.
-
-        Empty for purchase: unlike ``sale.order`` (which freezes ``pricelist_id``
-        in ``done``), purchase has no per-state frozen-field rule and no
-        ``pricelist_id`` analog. Kept as an extensible hook; confirmed and locked
-        orders are already frozen by ``_validate_write_locked_order``.
-        """
-        return {}
-
-    def _validate_write_locked_order(self, vals):
-        """Freeze all user-editable business fields on locked orders.
-
-        Whitelist model: only ``_LOCKED_WRITABLE_FIELDS`` may change while
-        locked. Scoped over ``_get_user_editable_fields`` so framework writes
-        (chatter, activities, stored-compute) are never blocked. Bypassable
-        via the ``bypass_locked_check`` context key.
-        """
-        if self.env.context.get("bypass_locked_check"):
-            return
-        locked = self.filtered("locked")
-        if not locked:
-            return
-        forbidden = (
-            set(vals) & locked._get_user_editable_fields()
-        ) - self._LOCKED_WRITABLE_FIELDS
-        if forbidden:
-            raise UserError(
-                _(
-                    "This order is locked and cannot be modified. "
-                    "Unlock it first to change: %s",
-                    locked._get_field_labels(forbidden),
-                ),
-            )
-
-    def _get_user_editable_fields(self):
-        """User-settable business fields.
-
-        Excludes computed/display (readonly), related, and magic columns, so
-        framework and computed writes fall outside the locked whitelist.
-        """
-        return {
-            name
-            for name, field in self._fields.items()
-            if field.store
-            and not field.related
-            and not field.readonly
-            and name not in MAGIC_COLUMNS
-        }
-
-    def _validate_write_state_frozen_fields(self, vals):
-        """Reject writes to fields frozen in the record's current state."""
-        frozen_map = self._get_state_frozen_fields()
-        changed = set(vals)
-        for order in self:
-            frozen = frozen_map.get(order.state, set()) & changed
-            if frozen:
-                raise UserError(
-                    _(
-                        "You cannot modify %(fields)s on a %(state)s order.",
-                        fields=order._get_field_labels(frozen),
-                        state=order.state,
-                    ),
-                )
-
-    def _validate_write_state_transition(self, vals):
-        """Reject illegal ``state`` transitions on raw writes."""
-        if "state" not in vals:
-            return
-        target = vals["state"]
-        for order in self:
-            if order.state == target:
-                continue  # no-op self-write
-            if target not in self._STATE_TRANSITIONS.get(order.state, set()):
-                raise UserError(
-                    _(
-                        "Cannot move order %(name)s from %(src)s to %(dst)s.",
-                        name=order.display_name,
-                        src=order.state,
-                        dst=target,
-                    ),
-                )
-
-    def _get_field_labels(self, field_names):
-        """Comma-joined human field labels for ``field_names`` on this model."""
-        fields_info = (
-            self.env["ir.model.fields"]
-            .sudo()
-            .search(
-                [
-                    ("name", "in", list(field_names)),
-                    ("model", "=", self._name),
-                ],
-            )
-        )
-        return ", ".join(fields_info.mapped("field_description")) or ", ".join(
-            sorted(field_names),
-        )
