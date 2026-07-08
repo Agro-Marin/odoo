@@ -4158,7 +4158,11 @@ class AccountMove(models.Model):
     def search_read(
         self, domain=None, fields=None, offset=0, limit=None, order=None, **read_kwargs
     ):
-        fields = fields or self._get_default_read_fields()
+        # Mirror read(): only substitute the default field set when the caller
+        # asked for "all" (fields is None). An explicit empty list is the
+        # idiomatic "just ids" call and must NOT be inflated to every field.
+        if fields is None:
+            fields = self._get_default_read_fields()
         return super().search_read(domain, fields, offset, limit, order, **read_kwargs)
 
     def copy_data(self, default=None):
@@ -7560,19 +7564,33 @@ class AccountMove(models.Model):
                 # cron framework replays the job. Disabling auto_post here would
                 # wrongly punish a move that merely lost a race.
                 raise
-            except Exception as e:
-                # Isolate the failing move: record the reason, disable its
-                # auto-post so it is not re-selected on every subsequent run
-                # (which would permanently stall autoposting for everyone), and
-                # commit progress past it. Broad by design — a deterministic
-                # UserError or a bug on one move must not poison the cron.
+            except (UserError, ValidationError) as e:
+                # Deterministic, user-actionable error (unbalanced entry, closed
+                # period, tax/config issue, ...). Record the reason on the move
+                # and move on; the entry stays scheduled and is retried on the
+                # next run, matching upstream. We never silently disable
+                # auto_post: these entries (recurring / asset depreciation) would
+                # then stop posting unnoticed.
                 self.env.cr.rollback()
                 msg = _(
                     "The move could not be posted for the following reason: %(error_message)s",
                     error_message=e,
                 )
                 move.message_post(body=msg, message_type="comment")
-                move.auto_post = "no"
+                self.env["ir.cron"]._commit_progress(1)
+            except Exception:
+                # Unexpected error (a bug or a non-PG transient failure). Isolate
+                # it so it cannot abort the rest of the batch, but keep it
+                # scheduled: a transient failure self-heals next run, and a real
+                # bug stays visible in the log instead of silently disabling a
+                # healthy entry. Logged with the traceback for observability.
+                self.env.cr.rollback()
+                _logger.warning(
+                    "Auto-post cron: skipping move %s this run after an "
+                    "unexpected error; it will be retried.",
+                    move.id,
+                    exc_info=True,
+                )
                 self.env["ir.cron"]._commit_progress(1)
 
     @api.model
