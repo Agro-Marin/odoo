@@ -30,11 +30,15 @@ export class BarcodeDialog extends Component {
     /**
      * Detection success handler
      *
+     * Notifies before closing: closing fires the dialog service's `onClose`
+     * hook, which `scanBarcode()` uses to resolve `null` on manual close —
+     * the actual result must win that one-shot settle race.
+     *
      * @param {string} result found code
      */
     onResult(result) {
-        this.props.close();
         this.props.onResult(result);
+        this.props.close();
     }
 
     /**
@@ -51,21 +55,35 @@ export class BarcodeDialog extends Component {
 /**
  * Opens the BarcodeScanning dialog and begins code detection using the device's camera.
  *
- * @returns {Promise<string>} resolves when a {qr,bar}code has been detected
+ * @returns {Promise<string|null>} resolves with the detected {qr,bar}code, or
+ *  `null` when the user closes the dialog without scanning (X button / ESC)
  */
 export async function scanBarcode(env, facingMode = "environment") {
-    let res;
-    let rej;
-    const promise = new Promise((resolve, reject) => {
-        res = resolve;
-        rej = reject;
+    return new Promise((resolve, reject) => {
+        // One-shot guard: result, error and close must not double-settle.
+        let settled = false;
+        const settle = (settler, value) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            settler(value);
+        };
+        env.services.dialog.add(
+            BarcodeDialog,
+            {
+                facingMode,
+                onResult: (result) => settle(resolve, result),
+                onError: (error) => settle(reject, error),
+            },
+            {
+                // Manual close (X / ESC) is the normal cancel path: resolve
+                // `null` so awaiting consumers unblock instead of leaking a
+                // forever-pending promise.
+                onClose: () => settle(resolve, null),
+            },
+        );
     });
-    env.services.dialog.add(BarcodeDialog, {
-        facingMode,
-        onResult: (result) => res(result),
-        onError: (error) => rej(error),
-    });
-    return promise;
 }
 
 // Named-object export so tests can patch `scanBarcode` via patchWithCleanup.

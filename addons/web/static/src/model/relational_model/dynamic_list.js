@@ -361,17 +361,24 @@ export class DynamicList extends DataPoint {
         for (const fieldName of Object.keys(changes)) {
             if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
                 const list = editedRecord.data[fieldName];
-                const commands = list._getCommands();
+                let commands = list._getCommands();
                 if ("display_name" in list.activeFields) {
-                    // add display_name to LINK commands to prevent a web_read by selected record
-                    for (const command of commands) {
+                    // add display_name to LINK commands to prevent a web_read by selected record.
+                    // Pass-through commands (LINK included) are shared by reference with the
+                    // edited record's own command log (see serializeCommands), so build fresh
+                    // LINK tuples instead of mutating command[2] in place — otherwise we'd
+                    // rewrite the edited record's stored commands.
+                    commands = commands.map((command) => {
                         if (command[0] === x2ManyCommands.LINK) {
                             const relRecord = list._cache[command[1]];
-                            command[2] = {
-                                display_name: relRecord.data.display_name,
-                            };
+                            return [
+                                command[0],
+                                command[1],
+                                { display_name: relRecord.data.display_name },
+                            ];
                         }
-                    }
+                        return command;
+                    });
                 }
                 for (const record of selectedRecords) {
                     if (record !== editedRecord) {

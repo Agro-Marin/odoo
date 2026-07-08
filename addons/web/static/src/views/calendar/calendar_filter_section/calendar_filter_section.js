@@ -3,7 +3,7 @@
 
 /** @module @web/views/calendar/calendar_filter_section/calendar_filter_section - Collapsible sidebar filter section for a calendar filter field (attendees, resources) */
 
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillRender, useState } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { Transition } from "@web/components/transition";
 import { _t } from "@web/core/l10n/translation";
@@ -35,6 +35,18 @@ export class CalendarFilterSection extends Component {
         });
         this.addDialog = useOwnedDialogs();
         this.orm = useService("orm");
+
+        // Reserve a unique id namespace for this section instance so the input
+        // ids it emits never collide with a sibling section's.
+        this.filterIdBase = nextId++;
+        this.filterIdSeq = 0;
+        // Reset the per-render sequence before every render: a given template
+        // position then always yields the same id, so element ids stay stable
+        // across re-renders instead of churning on each eval (nextFilterId used
+        // to bump a module-global, changing every id on every render).
+        onWillRender(() => {
+            this.filterIdSeq = 0;
+        });
     }
 
     get autoCompleteProps() {
@@ -62,8 +74,8 @@ export class CalendarFilterSection extends Component {
     }
 
     get nextFilterId() {
-        nextId += 1;
-        return nextId;
+        this.filterIdSeq += 1;
+        return `${this.filterIdBase}_${this.filterIdSeq}`;
     }
 
     get section() {

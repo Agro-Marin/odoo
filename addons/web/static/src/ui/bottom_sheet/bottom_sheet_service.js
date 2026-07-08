@@ -40,25 +40,31 @@ export const bottomSheetService = {
          */
         const add = (target, component, props = {}, options = {}) => {
             let closed = false;
-            function removeAndUpdateCount() {
+            // Count / body-class bookkeeping lives in the overlay ``onRemove``
+            // (not in the returned closer) so it runs on EVERY removal path —
+            // including OverlayContainer.handleError calling ``overlay.remove()``
+            // directly when a BottomSheet subtree crashes. Otherwise the count
+            // would never decrement and ``bottom-sheet-open`` would stick on
+            // <body> forever.
+            const onRemove = async (/** @type {any} */ removeParams) => {
                 // Close can be requested more than once (e.g. by concurrent
                 // animation listeners): only decrement the count once.
                 if (closed) {
                     return;
                 }
                 closed = true;
-                _remove();
+                await options.onClose?.(removeParams);
                 bottomSheetCount--;
                 if (bottomSheetCount === 0) {
                     document.body.classList.remove("bottom-sheet-open");
                 } else if (bottomSheetCount === 1) {
                     document.body.classList.remove("bottom-sheet-open-multiple");
                 }
-            }
+            };
             const _remove = overlay.add(
                 BottomSheet,
                 {
-                    close: removeAndUpdateCount,
+                    close: () => _remove(),
                     component,
                     componentProps: markRaw(props),
                     ref: options.ref,
@@ -67,7 +73,7 @@ export const bottomSheetService = {
                 },
                 {
                     env: options.env,
-                    onRemove: options.onClose,
+                    onRemove,
                     rootId: /** @type {ShadowRoot} */ (target.getRootNode())?.host?.id,
                 },
             );
@@ -78,7 +84,7 @@ export const bottomSheetService = {
                 document.body.classList.add("bottom-sheet-open-multiple");
             }
 
-            return removeAndUpdateCount;
+            return _remove;
         };
 
         return { add };

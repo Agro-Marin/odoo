@@ -35,7 +35,14 @@ export class IndexedDB {
          */
         this._db = null;
         this.mutex = new Mutex();
-        this.mutex.exec(() => this._checkVersion(version));
+        // The returned promise is intentionally not awaited (the constructor
+        // can't be async), but it must still be observed: ``_checkVersion`` ->
+        // ``_execute`` calls ``indexedDB.open`` synchronously, which THROWS in
+        // private-browsing / storage-disabled contexts.  Without this catch
+        // that throw surfaces as an unhandled promise rejection.  Swallow it
+        // here — subsequent read/write/invalidate calls each open their own
+        // connection and degrade gracefully (their ``onerror`` arm resolves).
+        this.mutex.exec(() => this._checkVersion(version)).catch(() => {});
     }
 
     // -------------------------------------------------------------------------
@@ -298,7 +305,11 @@ export class IndexedDB {
                 if (newTables.size !== 0) {
                     db.close();
                     const version = db.version + 1;
-                    return this._execute(callback, version).then(resolve);
+                    // Forward BOTH arms: a failing version-bump upgrade (e.g.
+                    // the ``onupgradeneeded`` transaction aborts) must reject
+                    // this promise, not leave it pending forever with an
+                    // unhandled rejection dangling off the inner ``_execute``.
+                    return this._execute(callback, version).then(resolve, reject);
                 }
                 // Cache the connection for subsequent operations. Drop (and
                 // close) it as soon as another context requests a version

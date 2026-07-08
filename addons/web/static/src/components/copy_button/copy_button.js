@@ -46,7 +46,9 @@ export class CopyButton extends Component {
     async onClick() {
         let write, content;
         if (typeof this.props.content === "function") {
-            content = this.props.content();
+            // Await so an async provider yields its resolved value; otherwise a
+            // Promise would be handed to clipboard.write() and rejected.
+            content = await this.props.content();
         } else {
             content = this.props.content;
         }

@@ -360,4 +360,75 @@ describe("urgent save (sendBeacon path)", () => {
         // fields are excluded so the server fails open on them.
         expect(payload.params.kwargs.known_values).toEqual({ name: "orig" });
     });
+
+    // The beacon-success branch merges _changes into _values and clears the
+    // change bag, but — like the reload:false branch — must ALSO clear each
+    // x2many list's staged commands. Otherwise, if the page survives the beacon
+    // (bfcache Back after tab close), the stale CREATE/LINK commands remain and
+    // the next save re-serializes them, duplicating child rows.
+    test("clears x2many list commands on beacon success", async () => {
+        mockSendBeacon(() => true);
+
+        const list = {
+            clearCommandsCalls: 0,
+            _clearCommands() {
+                this.clearCommandsCalls++;
+            },
+            _abandonRecords() {},
+            _getCommands() {
+                return [[0, "virt-1", { name: "child" }]];
+            },
+        };
+        const rec = {
+            resId: 7,
+            resIds: [7],
+            resModel: "res.partner",
+            context: {},
+            dirty: true,
+            activeFields: { lines: {} },
+            fields: { lines: { type: "one2many" } },
+            fieldNames: ["lines"],
+            data: { lines: list },
+            config: { isRoot: false, context: {} },
+            isInEdition: true,
+            _changes: markRaw({ lines: list }),
+            _values: markRaw({}),
+            _checkValidity: () => true,
+            _getChanges: () => ({ lines: list._getCommands() }),
+            clearChangesCalls: 0,
+            _clearChanges() {
+                this.clearChangesCalls++;
+                this._changes = markRaw({});
+            },
+            _discard: () => {},
+            _load: async () => {},
+            _setData: () => {},
+            model: {
+                _closeUrgentSaveNotification: null,
+                urgentSave: { isActive: true },
+                useSendBeaconToSaveUrgently: true,
+                env: { inDialog: false },
+                load: async () => {},
+                _patchConfig: () => {},
+                _updateSimilarRecords: () => {},
+                hooks: {
+                    lifecycle: {
+                        onWillSaveRecord: async () => {},
+                        onRecordSaved: async () => {},
+                        onWillLoadRoot: () => {},
+                    },
+                    ui: {},
+                },
+                orm: { webSave: async () => [{ id: 7 }] },
+            },
+        };
+
+        const result = await save(rec, { reload: false });
+
+        expect(result).toBe(true);
+        // The x2many list's staged commands were cleared exactly once, before
+        // the change bag was emptied.
+        expect(list.clearCommandsCalls).toBe(1);
+        expect(rec.clearChangesCalls).toBe(1);
+    });
 });

@@ -352,26 +352,71 @@ export function formatDuration(seconds, showFullDuration) {
     const numberOfValuesToDisplay = showFullDuration ? 2 : 1;
     /** @type {Array<"years" | "months" | "days" | "hours" | "minutes">} */
     const durationKeys = ["years", "months", "days", "hours", "minutes"];
+    /** Plural Luxon key -> singular Intl "unit" identifier. */
+    const intlUnitByKey = {
+        years: "year",
+        months: "month",
+        days: "day",
+        hours: "hour",
+        minutes: "minute",
+    };
 
-    if (seconds < 60) {
-        seconds = 60;
+    // Work on the magnitude and remember the sign separately. The minimum
+    // granularity is one minute: sub-minute durations (including negative or
+    // zero ones) are floored to whole minutes.
+    const sign = seconds < 0 ? -1 : 1;
+    let magnitude = Math.abs(Math.trunc(seconds));
+    magnitude -= magnitude % 60;
+
+    const duration = Duration.fromObject({ seconds: magnitude }).shiftTo(...durationKeys);
+    const locale = /** @type {any} */ (duration).loc.locale;
+
+    /**
+     * Formats a single unit value using the locale, avoiding `toHuman` (whose
+     * output we would otherwise have to split on a comma — a separator that
+     * does not exist in "and"-joined locales such as `ar`, which would make
+     * every unit show regardless of `numberOfValuesToDisplay`).
+     *
+     * @param {number} value
+     * @param {"years" | "months" | "days" | "hours" | "minutes"} key
+     * @returns {string}
+     */
+    const formatUnit = (value, key) => {
+        let formatted = new Intl.NumberFormat(locale, {
+            style: "unit",
+            unit: intlUnitByKey[key],
+            unitDisplay: displayStyle,
+        }).format(value);
+        // In narrow English, both "month" and "minute" render as "…m"; the
+        // original code disambiguated months as "…M".
+        if (!showFullDuration && key === "months" && locale.includes("en")) {
+            formatted = formatted.replace("m", "M");
+        }
+        return formatted;
+    };
+
+    // Take the first N non-zero units, largest first.
+    /** @type {Array<["years" | "months" | "days" | "hours" | "minutes", number]>} */
+    const parts = [];
+    for (const key of durationKeys) {
+        const value = duration.get(key);
+        if (value) {
+            parts.push([key, value]);
+            if (parts.length >= numberOfValuesToDisplay) {
+                break;
+            }
+        }
     }
-    seconds -= seconds % 60;
 
-    let duration = Duration.fromObject({
-        seconds: seconds,
-    }).shiftTo(...durationKeys);
-    duration = duration.shiftTo(...durationKeys.filter((key) => duration.get(key)));
-    const durationSplit = duration.toHuman({ unitDisplay: displayStyle }).split(",");
-
-    if (
-        !showFullDuration &&
-        /** @type {any} */ (duration).loc.locale.includes("en") &&
-        duration.months > 0
-    ) {
-        durationSplit[0] = durationSplit[0].replace("m", "M");
+    if (!parts.length) {
+        // Below the minimum granularity: report "0 minutes".
+        return formatUnit(0, "minutes");
     }
-    return durationSplit.slice(0, numberOfValuesToDisplay).join(",");
+
+    // Carry the sign on the leading (largest) unit only.
+    return parts
+        .map(([key, value], index) => formatUnit(index === 0 ? sign * value : value, key))
+        .join(", ");
 }
 
 //-----------------------------------------------------------------------------

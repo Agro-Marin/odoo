@@ -40,6 +40,10 @@ export class GraphModel extends Model {
         this._fetchDataPoints = (...args) => this.race.add(_fetchDataPoints(...args));
 
         this.initialGroupBy = null;
+        // Last graph_* context values consumed, so a favorite/filter that keeps
+        // carrying the same key across reloads does not re-override an
+        // in-session UI change (see _consumeContextParams).
+        this.contextParamsSeen = {};
 
         this.metaData = params;
         this.data = null;
@@ -61,6 +65,12 @@ export class GraphModel extends Model {
             this.initialGroupBy =
                 searchParams.context.graph_groupbys || this.metaData.groupBy; // = arch groupBy --> change that
         }
+        // Fold the favorite/action context (graph_measure/graph_mode/...) into
+        // this.metaData when it actually changes — e.g. when a favorite/filter
+        // carrying such a key is (de)activated. While that key stays the same
+        // across reloads it is NOT re-applied, so an in-session choice made via
+        // updateMetaData is preserved instead of snapping back on every reload.
+        this._consumeContextParams(searchParams.context);
         const metaData = this._buildMetaData();
         await addPropertyFieldDefs(
             this.orm,
@@ -108,6 +118,51 @@ export class GraphModel extends Model {
     //--------------------------------------------------------------------------
 
     /**
+     * Fold the graph_* keys carried by the favorite/action context into
+     * this.metaData, but only for keys whose context value changed since the
+     * last load. A favorite/filter seeds measure/mode/order/stacked/cumulated
+     * when it is (de)activated; while it stays active the same value keeps
+     * arriving on every reload, and re-applying it would clobber an in-session
+     * choice made through updateMetaData. Tracking the last-seen value and
+     * acting only on changes lets both behaviours coexist.
+     *
+     * @protected
+     * @param {Object} context
+     */
+    _consumeContextParams(context) {
+        const metaData = this.metaData;
+        const seen = this.contextParamsSeen;
+        const changed = (key) => {
+            if (context[key] === seen[key]) {
+                return false;
+            }
+            seen[key] = context[key];
+            return true;
+        };
+        if (changed("graph_measure") && context.graph_measure) {
+            metaData.measure = context.graph_measure;
+        }
+        if (changed("graph_mode") && context.graph_mode) {
+            metaData.mode = context.graph_mode;
+        }
+        if (metaData.mode !== "pie" && metaData.mode !== "scatter") {
+            if (changed("graph_order") && "graph_order" in context) {
+                metaData.order = context.graph_order;
+            }
+            if (changed("graph_stacked") && "graph_stacked" in context) {
+                metaData.stacked = context.graph_stacked;
+            }
+            if (
+                metaData.mode === "line" &&
+                changed("graph_cumulated") &&
+                "graph_cumulated" in context
+            ) {
+                metaData.cumulated = context.graph_cumulated;
+            }
+        }
+    }
+
+    /**
      * @protected
      * @param {Object} [params={}]
      * @returns {Object}
@@ -117,22 +172,10 @@ export class GraphModel extends Model {
 
         const metaData = { ...this.metaData, context };
         metaData.domain = domain;
-        metaData.measure = context.graph_measure || metaData.measure;
-        metaData.mode = context.graph_mode || metaData.mode;
+        // measure/mode/order/stacked/cumulated are seeded from context ONCE in
+        // load() (see _consumeContextParams); here they carry over from
+        // this.metaData so in-session UI choices are not clobbered on reload.
         metaData.groupBy = groupBy.length ? groupBy : this.initialGroupBy;
-        if (metaData.mode !== "pie" && metaData.mode !== "scatter") {
-            metaData.order =
-                "graph_order" in context ? context.graph_order : metaData.order;
-            if ("graph_stacked" in context) {
-                metaData.stacked = context.graph_stacked;
-            }
-            if (metaData.mode === "line") {
-                metaData.cumulated =
-                    "graph_cumulated" in context
-                        ? context.graph_cumulated
-                        : metaData.cumulated;
-            }
-        }
 
         this._normalize(metaData);
 
@@ -302,9 +345,11 @@ export class GraphModel extends Model {
         /** @type {any[]} */
         const dataPoints = /** @type {any} */ (this).dataPoints;
         if (mode === "line" || mode === "scatter") {
+            // Drop the falsy ("None") x-axis group, identified by the raw-value
+            // flag set in _loadDataPoints — not by matching the display label,
+            // which would also drop a real record named like the falsy label.
             processedDataPoints = dataPoints.filter(
-                (dataPoint) =>
-                    dataPoint.labels[0] !== this._getDefaultFilterLabel(groupBy[0]),
+                (dataPoint) => !dataPoint.isFalsyXGroup,
             );
         } else if (mode === "pie") {
             processedDataPoints = dataPoints.filter(
@@ -441,7 +486,12 @@ export class GraphModel extends Model {
             const { __domain, __count } = group;
             const labels = [];
             const rawValues = [];
-            for (const gb of groupBy) {
+            // Tracks whether the x-axis group (first groupBy) is the falsy
+            // ("None") group. Recorded from the raw value here rather than
+            // recovered later by comparing the display label, so a record whose
+            // label literally reads like the falsy label is not misidentified.
+            let isFalsyXGroup = false;
+            for (const [gbIndex, gb] of groupBy.entries()) {
                 let label;
                 const val = group[gb.spec];
                 rawValues.push({ [gb.spec]: val });
@@ -453,6 +503,9 @@ export class GraphModel extends Model {
                     label = val === false ? "0" : `${val}`;
                 } else if (val === false) {
                     label = this._getDefaultFilterLabel(gb);
+                    if (gbIndex === 0) {
+                        isFalsyXGroup = true;
+                    }
                 } else if (["many2many", "many2one"].includes(type)) {
                     const [id, name] = val;
                     const key = JSON.stringify([fieldName, name]);
@@ -491,6 +544,7 @@ export class GraphModel extends Model {
                 domain: __domain,
                 value,
                 labels,
+                isFalsyXGroup,
                 identifier: JSON.stringify(rawValues),
                 cumulatedStart: cumulatedStartValue[groupId] || 0,
             };

@@ -16,6 +16,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { unique } from "@web/core/utils/collections/arrays";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
@@ -127,6 +128,9 @@ export class ExportDataDialog extends Component {
         this.availableFormats = [];
         this.templates = [];
         this.isCompatible = false;
+        // Guards the export-template namelist fetch: rapid template switches
+        // must not leave state.exportList out of sync with state.templateId.
+        this.exportListKeepLast = new KeepLast();
 
         this.state = useState({
             exportList: [],
@@ -302,10 +306,12 @@ export class ExportDataDialog extends Component {
         if (!value || value === "new_template") {
             return;
         }
-        const fields = await rpc("/web/export/namelist", {
-            model: this.props.root.resModel,
-            export_id: Number(value),
-        });
+        const fields = await this.exportListKeepLast.add(
+            rpc("/web/export/namelist", {
+                model: this.props.root.resModel,
+                export_id: Number(value),
+            }),
+        );
         // Don't safe the result in this.knownFields because, the result is only partial
         this.state.exportList = fields;
     }
@@ -433,12 +439,17 @@ export class ExportDataDialog extends Component {
             );
         }
         this.state.disabled = true;
-        await this.props.download(
-            this.state.exportList,
-            this.isCompatible,
-            this.availableFormats[this.state.selectedFormat].tag,
-        );
-        this.state.disabled = false;
+        try {
+            await this.props.download(
+                this.state.exportList,
+                this.isCompatible,
+                this.availableFormats[this.state.selectedFormat].tag,
+            );
+        } finally {
+            // Re-enable the button even if the download rejects, otherwise a
+            // single failed export would leave it permanently disabled.
+            this.state.disabled = false;
+        }
     }
 
     /** Delete the currently selected export template after confirmation. */

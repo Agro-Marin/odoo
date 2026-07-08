@@ -30,15 +30,22 @@ export class FloatToggleField extends Component {
     // we probably want to have a state and a useEffect or onWillUpateProps
     /** Advances to the next value in the range cycle and updates the record. */
     onChange() {
-        let currentIndex = this.props.range.indexOf(
-            this.props.record.data[this.props.name] * this.factor,
-        );
+        const range = this.props.range;
+        const current = this.props.record.data[this.props.name] * this.factor;
+        // `Array.indexOf` uses exact float equality: a factor that doesn't
+        // round-trip (e.g. value * factor = 0.30000000000000004) would never
+        // match its range entry and silently reset to range[0]. Match within an
+        // epsilon instead. A value that is genuinely off the range still matches
+        // nothing (index -1), preserving the previous "advance to range[0]"
+        // behaviour for arbitrary values.
+        const EPSILON = 1e-6;
+        let currentIndex = range.findIndex((v) => Math.abs(v - current) < EPSILON);
         currentIndex++;
-        if (currentIndex > this.props.range.length - 1) {
+        if (currentIndex > range.length - 1) {
             currentIndex = 0;
         }
         this.props.record.update({
-            [this.props.name]: this.props.range[currentIndex] / this.factor,
+            [this.props.name]: range[currentIndex] / this.factor,
         });
     }
 

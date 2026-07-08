@@ -421,6 +421,23 @@ describe("throttleForAnimation", () => {
         await runAllTimers();
         expect.verifySteps([]);
     });
+
+    test("cancel() releases the pending trailing call's awaiter", async () => {
+        const throttledFn = throttleForAnimation((value) => {
+            expect.step(`${value}`);
+            return value;
+        });
+        throttledFn(1);
+        expect.verifySteps(["1"]);
+
+        throttledFn(2).then((v) => expect.step(`settled ${v}`));
+        throttledFn.cancel();
+        await runAllTimers();
+        // func is NOT executed for the cancelled trailing call, but its
+        // promise settles (with undefined, same contract as debounce.cancel())
+        // so a caller that awaits it — e.g. around unmount — does not hang.
+        expect.verifySteps(["settled undefined"]);
+    });
 });
 
 describe("throttleForAnimationScrollEvent", () => {

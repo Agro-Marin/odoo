@@ -66,9 +66,9 @@ export function convertRgbToHsl(r, g, b) {
         if (maxColor === blue) {
             hue = 4 + (red - green) / delta;
         }
-        if (maxColor) {
-            saturation = delta / (1 - Math.abs(2 * lightness - 1));
-        }
+        // Inside `if (delta)` we have delta = maxColor - minColor > 0 with
+        // minColor >= 0, so maxColor is always > 0 here — no guard needed.
+        saturation = delta / (1 - Math.abs(2 * lightness - 1));
     }
     hue = 60 * hue;
     return {
@@ -359,7 +359,11 @@ export function standardizeGradient(gradient) {
     return gradient;
 }
 
-export const RGBA_REGEX = /[\d.]{1,5}/g;
+// Matches one numeric component (integer or decimal) of an rgb()/rgba()
+// string. The old `/[\d.]{1,5}/g` capped each match at 5 chars, so a long
+// component such as the alpha in "rgba(255,255,255,0.12345)" split into two
+// matches ("0.123" + "45"), corrupting the parsed value.
+export const RGBA_REGEX = /\d+(?:\.\d+)?/g;
 
 /**
  * Takes a color (rgb, rgba or hex) and returns its hex representation. If the
@@ -478,13 +482,13 @@ export function blendColors(color, node) {
                 Number.parseInt(val, 16),
             );
         } else if (bgColor.startsWith("rgb")) {
-            bgRgbValues = (bgColor.match(/[\d.]{1,5}/g) || []).map((val) =>
+            bgRgbValues = (bgColor.match(RGBA_REGEX) || []).map((val) =>
                 Number.parseInt(val, 10),
             );
         }
     }
 
-    const values = color.match(/[\d.]{1,5}/g) || [];
+    const values = color.match(RGBA_REGEX) || [];
     const alpha = values.length === 4 ? Number.parseFloat(values.pop()) : 1;
 
     return (

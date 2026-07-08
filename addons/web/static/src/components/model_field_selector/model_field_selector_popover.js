@@ -354,7 +354,16 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * Handle keyboard navigation within the search input.
+     * Handle keyboard navigation within the popover.
+     *
+     * The handler is bound on the popover root so that Escape closes it from
+     * any focused element, but the virtual-focus list navigation (arrows +
+     * Enter) is meaningful only for the search input. Keydowns bubbling up from
+     * the debug input (or a focused field button) must NOT be reinterpreted as
+     * search navigation — otherwise e.g. ArrowLeft at caret 0 in the debug input
+     * would call goToPreviousPage(), and Enter on a relation button would
+     * double-fire selectField() on top of the button's own activation.
+     *
      * @param {KeyboardEvent} ev
      * @returns {Promise<void>}
      */
@@ -362,6 +371,17 @@ export class ModelFieldSelectorPopover extends Component {
     async onInputKeydown(ev) {
         const { page } = this.state;
         const target = /** @type {HTMLInputElement} */ (ev.target);
+        // Escape always closes the popover, whichever inner element has focus.
+        if (ev.key === "Escape") {
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.props.close();
+            return;
+        }
+        // Everything below is search-input-only virtual-focus navigation.
+        if (!target.closest(".o_model_field_selector_popover_search")) {
+            return;
+        }
         switch (ev.key) {
             case "ArrowUp": {
                 if (target.selectionStart === 0) {
@@ -370,7 +390,9 @@ export class ModelFieldSelectorPopover extends Component {
                 break;
             }
             case "ArrowDown": {
-                if (target.selectionStart === page.query.length) {
+                // Compare against the live input value, not page.query, which
+                // lags behind by the 250ms search debounce.
+                if (target.selectionStart === target.value.length) {
                     page.focus("next");
                 }
                 break;
@@ -382,7 +404,7 @@ export class ModelFieldSelectorPopover extends Component {
                 break;
             }
             case "ArrowRight": {
-                if (target.selectionStart === page.query.length) {
+                if (target.selectionStart === target.value.length) {
                     const focusedFieldName = this.state.page.focusedFieldName;
                     if (focusedFieldName) {
                         const fieldDef = this.state.page.fieldDefs[focusedFieldName];
@@ -394,20 +416,15 @@ export class ModelFieldSelectorPopover extends Component {
                 break;
             }
             case "Enter": {
+                // Always neutralize the native Enter (form submit / bubbling to
+                // outer listeners) so selecting a field can't double-fire.
+                ev.preventDefault();
+                ev.stopPropagation();
                 const focusedFieldName = this.state.page.focusedFieldName;
                 if (focusedFieldName) {
                     const fieldDef = this.state.page.fieldDefs[focusedFieldName];
                     this.selectField(fieldDef);
-                } else {
-                    ev.preventDefault();
-                    ev.stopPropagation();
                 }
-                break;
-            }
-            case "Escape": {
-                ev.preventDefault();
-                ev.stopPropagation();
-                this.props.close();
                 break;
             }
         }

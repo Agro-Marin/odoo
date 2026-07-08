@@ -24,8 +24,28 @@ class SettingRecord extends formView.Model.Record {
         ) {
             dirty = this.dirty;
             if (this.dirty) {
-                (async () => {
-                    const isDiscard = await /** @type {any} */ (this.model)._onChangeHeaderFields();
+                // Settings exemption to the base (dirty, _changes) invariant:
+                // a header-field edit on an already-dirty record runs the
+                // confirm/discard flow and only *then* applies or reverts
+                // ``changes``.
+                //
+                // This MUST stay fire-and-forget (return undefined, do not
+                // await the flow here). ``update()`` awaits ``_update()`` inside
+                // ``model.mutex.exec`` (see record.js), and the confirm flow
+                // itself re-enters that same mutex via
+                // ``saveCoordinator.requestDiscard()/requestSave()`` — so
+                // returning/awaiting this promise would deadlock the mutex (the
+                // "edit header field" Save/Discard paths hang). Releasing the
+                // mutex first, then running the flow detached, is required.
+                //
+                // The only correctness improvement here over the original is the
+                // ``.catch``: the detached promise's rejections were previously
+                // unhandled; log them instead so a server-side failure in the
+                // flow can't surface as an uncaught rejection.
+                /** @type {any} */ (async () => {
+                    const isDiscard = await /** @type {any} */ (
+                        this.model
+                    )._onChangeHeaderFields();
                     if (isDiscard) {
                         await /** @type {any} */ (super._update)(changes);
                         this.dirty = false;
@@ -35,7 +55,9 @@ class SettingRecord extends formView.Model.Record {
                         const undoChanges = this._applyChanges(changes);
                         undoChanges();
                     }
-                })();
+                })().catch((/** @type {any} */ error) => {
+                    console.error(error);
+                });
                 return;
             }
         }

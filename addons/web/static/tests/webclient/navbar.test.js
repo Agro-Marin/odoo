@@ -511,6 +511,40 @@ test("'more' menu sections properly updated on app change", async () => {
     );
 });
 
+test.tags("desktop");
+test("'more' menu keeps a valid access key with 9 visible sections", async () => {
+    // Boundary case: 10 sections, 1 pushed into the "More" dropdown → 9 visible.
+    // The hotkey is ((9 + 1) % 10) = "0". The operator-precedence bug computed
+    // (9 + (1 % 10)) = "10", which is never a valid single-key access key.
+    class MyNavbar extends NavBar {
+        get currentAppSections() {
+            return Array.from({ length: 10 }, (_, i) => ({
+                id: 100 + i,
+                appID: 1,
+                name: `Section ${i}`,
+                xmlid: `sec_${i}`,
+                childrenTree: [],
+            }));
+        }
+        set currentAppSections(_) {}
+        async adapt() {
+            // Deterministically push exactly one section into "More".
+            this.currentAppSectionsExtra = [this.currentAppSections.at(-1)];
+            return this.render();
+        }
+    }
+
+    const env = await makeMockEnv();
+    Object.defineProperty(env, "isSmall", { get: () => false });
+    await mountWithCleanup(MyNavbar);
+    await animationFrame();
+
+    expect(".o_menu_sections_more button[title='More Menu']").toHaveAttribute(
+        "data-hotkey",
+        "0",
+    );
+});
+
 test("Do not execute adapt when navbar is destroyed", async () => {
     expect.assertions(3);
 

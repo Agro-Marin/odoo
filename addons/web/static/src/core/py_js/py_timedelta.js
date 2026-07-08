@@ -162,4 +162,36 @@ export class PyTimeDelta {
     total_seconds() {
         return this.days * 86400 + this.seconds + this.microseconds / 1000000;
     }
+
+    /**
+     * String representation matching CPython's ``timedelta.__str__``:
+     * ``"[D day[s], ]H:MM:SS[.ffffff]"`` — e.g. ``"1 day, 2:03:04"``.
+     * @returns {string}
+     */
+    toString() {
+        const mm = Math.floor(this.seconds / 60);
+        const ss = this.seconds % 60;
+        const hh = Math.floor(mm / 60);
+        const m = mm % 60;
+        let s = `${hh}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+        if (this.days) {
+            const plural = Math.abs(this.days) !== 1 ? "s" : "";
+            s = `${this.days} day${plural}, ${s}`;
+        }
+        if (this.microseconds) {
+            s = `${s}.${String(this.microseconds).padStart(6, "0")}`;
+        }
+        return s;
+    }
+
+    /**
+     * Ordering protocol: JS relational operators coerce objects through
+     * ToPrimitive → ``valueOf``, so two timedeltas compare by total duration
+     * (equality stays on the ``isEqual`` hook and is unaffected).
+     *
+     * @returns {number}
+     */
+    valueOf() {
+        return this.total_seconds();
+    }
 }

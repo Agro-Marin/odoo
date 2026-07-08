@@ -36,30 +36,68 @@ const validFieldTypes = [
     "html",
 ];
 
+/**
+ * Shape of a single ``supportedAttributes`` / ``supportedOptions`` entry.
+ *
+ * Deliberately permissive: registry validation QUARANTINES failing entries
+ * in production (see @web/core/registry ``validateSchema``), so an
+ * over-strict shape would silently remove field widgets fleet-wide. The
+ * shape below was derived from a sweep of every declaration in community,
+ * enterprise and agromarin (172 entries, 2026-07):
+ *
+ * - ``name`` is the only universal key (e.g. enterprise's
+ *   ``integration_state_selection`` declares no ``label``) — everything
+ *   else is optional.
+ * - ``default`` mirrors the option's runtime type: booleans (floatField),
+ *   numbers (integerField), strings and objects (hr_skills
+ *   ``formatted_date``) all occur — any type is accepted.
+ * - ``choices[].value`` is not always a string (dateTimeField uses
+ *   booleans) — any type is accepted.
+ * - ``"*": true`` tolerates addon-specific extras (e.g. ``placeholder``
+ *   on dateTimeField's options) without quarantining the widget.
+ */
+const supportedInfoEntryShape = {
+    name: String,
+    label: { type: String, optional: true },
+    type: { type: String, optional: true },
+    availableTypes: { type: Array, element: String, optional: true },
+    default: { optional: true },
+    help: { type: String, optional: true },
+    choices: /* choices if type == selection */ {
+        type: Array,
+        element: {
+            type: Object,
+            shape: {
+                label: { type: String, optional: true },
+                value: { optional: true },
+                "*": true,
+            },
+        },
+        optional: true,
+    },
+    /**
+     * If true, the listed fields come from the relation.
+     * e.g.: the field is a relational one like many2many_tags, so
+     * property 'field' will search on the relation.
+     * */
+    isRelationalField: { type: Boolean, optional: true },
+    placeholder: { type: String, optional: true },
+    "*": true,
+};
+
 const supportedInfoValidation = {
     type: Array,
-    element: Object,
-    shape: {
-        label: String,
-        name: String,
-        type: String,
-        availableTypes: { type: Array, element: String, optional: true },
-        default: { type: String, optional: true },
-        help: { type: String, optional: true },
-        choices: /* choices if type == selection */ {
-            type: Array,
-            element: Object,
-            shape: { label: String, value: String },
-            optional: true,
-        },
-        /**
-         * If true, the listed fields come from the relation.
-         * e.g.: the field is a relational one like many2many_tags, so
-         * property 'field' will search on the relation.
-         * */
-        isRelationalField: { type: Boolean, optional: false },
-    },
     optional: true,
+    element: [
+        { type: Object, shape: supportedInfoEntryShape },
+        // stock_action_field composes its supportedOptions with a nested
+        // Object.values(...) array (not spread) — tolerate one level of
+        // nesting rather than quarantining that widget.
+        {
+            type: Array,
+            element: { type: Object, shape: supportedInfoEntryShape },
+        },
+    ],
 };
 
 fieldRegistry.addValidation({
@@ -89,20 +127,25 @@ fieldRegistry.addValidation({
         optional: true,
     },
     relatedFields: {
+        // Function forms (e.g. many2ManyTagsField) are opaque to the
+        // schema — only array literals are shape-checked. Entries are
+        // field descriptions merged into the model spec, so ``"*": true``
+        // keeps legitimate extra description keys from quarantining the
+        // widget; ``name`` is the only key every declaration provides.
         type: [
             Function,
             {
                 type: Array,
-                element: Object,
-                shape: {
-                    name: String,
-                    type: String,
-                    readonly: { type: Boolean, optional: true },
-                    selection: {
-                        type: Array,
-                        element: { type: Array, element: String },
+                element: {
+                    type: Object,
+                    shape: {
+                        name: String,
+                        type: { type: String, optional: true },
+                        relation: { type: String, optional: true },
+                        readonly: { type: Boolean, optional: true },
+                        selection: { type: Array, optional: true },
+                        "*": true,
                     },
-                    optional: true,
                 },
             },
         ],

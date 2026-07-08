@@ -222,7 +222,7 @@ export class PropertyTags extends Component {
             return;
         }
 
-        const newValue = newLabel ? newLabel.toLowerCase().replace(" ", "_") : "";
+        const newValue = newLabel ? newLabel.toLowerCase().replace(/\s+/g, "_") : "";
         const existingTag = this.props.tags.find((tag) => tag[0] === newValue);
 
         if (existingTag) {

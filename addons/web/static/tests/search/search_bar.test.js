@@ -160,6 +160,20 @@ test("basic rendering", async () => {
     expect(queryFirst`.o_searchview input`).toBeFocused();
 });
 
+test("computeState is null-safe when the input is not rendered", async () => {
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+    });
+    // Simulate the input being unrendered (collapsed search bar, or a resize
+    // that collapsed the bar while a loadMore promise was still resolving):
+    // inputRef.el is null. computeState must not throw when writing the value.
+    searchBar.inputRef = { el: null };
+    await searchBar.computeState({ query: "First", expanded: [], subItems: [] });
+    expect(searchBar.state.query).toBe("First");
+});
+
 test.tags("desktop");
 test("navigation with facets", async () => {
     await mountWithSearch(SearchBar, {
@@ -964,6 +978,53 @@ test("should wait label promises for many2many search defaults", async () => {
     expect(getFacetTexts()[0].replace("\n", "")).toBe(
         "M2mFirst record or Second record",
     );
+});
+
+test("many2one search default on a missing record does not crash the view", async () => {
+    // The record targeted by the default may have been deleted since the
+    // action context was written: the read returns no result and the facet
+    // must fall back to a string label instead of crashing the view.
+    onRpc("read", ({ args }) => {
+        expect.step(`read ${args[0]}`);
+    });
+
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+        context: { search_default_company: 42 },
+    });
+    expect.verifySteps(["read 42"]);
+    expect(`.o_cp_searchview`).toHaveCount(1);
+    expect(getFacetTexts()[0].replace("\n", "")).toBe("Company42");
+    expect(searchBar.env.searchModel.domain).toEqual([["company", "=", 42]]);
+});
+
+test("invalid selection search default does not crash the view", async () => {
+    Partner._fields.selection_field = fields.Selection({
+        string: "Selection Field",
+        selection: [
+            ["abc", "ABC"],
+            ["def", "DEF"],
+        ],
+    });
+
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <field name="selection_field"/>
+            </search>
+        `,
+        context: { search_default_selection_field: "ghi" },
+    });
+    expect(`.o_cp_searchview`).toHaveCount(1);
+    expect(getFacetTexts()[0].replace("\n", "")).toBe("Selection Fieldghi");
+    expect(searchBar.env.searchModel.domain).toEqual([
+        ["selection_field", "=", "ghi"],
+    ]);
 });
 
 test("globalContext keys in name_search", async () => {

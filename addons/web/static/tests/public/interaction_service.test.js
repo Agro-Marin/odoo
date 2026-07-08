@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, xml } from "@odoo/owl";
+import { Component, markup, xml } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { Interaction } from "@web/public/interaction";
 
@@ -314,6 +314,66 @@ test("recover from error as much as possible when applying dynamiccontent", asyn
         "An error occured while updating dynamic attribute 'b' (in interaction 'Test')",
     );
     expect(".test").toHaveOuterHTML(`<div class="test" a="aa" b="b" c="cc"></div>`);
+});
+
+test("global stop does not restart interactions from restored t-out content", async () => {
+    class Inner extends Interaction {
+        static selector = ".inner";
+
+        setup() {
+            expect.step("inner setup");
+        }
+        destroy() {
+            expect.step("inner destroy");
+        }
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        dynamicContent = {
+            _root: { "t-out": () => markup`<span class="dynamic">Hello</span>` },
+        };
+    }
+
+    const { core } = await startInteraction(
+        [Inner, Test],
+        `<div class="test"><span class="inner">Hi</span></div>`,
+    );
+    // Inner was started on the initial content, then stopped when the t-out
+    // of Test replaced that content.
+    expect.verifySteps(["inner setup", "inner destroy"]);
+    expect(queryOne(".test .dynamic")).toHaveText("Hello");
+
+    core.stopInteractions();
+    // The initial content is restored, but stopping must not resurrect the
+    // Inner interaction it contains: no live interaction may survive a stop.
+    expect(queryOne(".test .inner")).toHaveText("Hi");
+    expect.verifySteps([]);
+    expect(core.interactions).toHaveLength(0);
+});
+
+test("a crashed setup leaves the interaction retryable", async () => {
+    let boom = true;
+    class Test extends Interaction {
+        static selector = ".test";
+
+        setup() {
+            if (boom) {
+                throw new Error("boom");
+            }
+            expect.step("setup");
+        }
+    }
+
+    const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+        waitForStart: false,
+    });
+    await expect(core.isReady).rejects.toThrow("boom");
+    expect(core.interactions).toHaveLength(0);
+
+    boom = false;
+    await core.startInteractions();
+    expect.verifySteps(["setup"]);
+    expect(core.interactions).toHaveLength(1);
 });
 
 test("interactions are stopped in reverse order", async () => {

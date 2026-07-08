@@ -3,14 +3,12 @@
 
 /** @module @web/fields/selection/radio/radio_field - Radio button group field for Selection and Many2one columns */
 
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
 import { registerField } from "@web/fields/_registry";
 import { isFalseEmpty } from "@web/fields/field_utils";
-import { useSpecialData } from "@web/fields/relational/special_data";
+import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { getFieldDomain } from "@web/model/relational_model/utils";
 
 let nextId = 0;
 /**
@@ -20,8 +18,8 @@ let nextId = 0;
  *     domain?: any[] | Function;
  * }} RadioFieldProps
  */
-/** @extends {Component<RadioFieldProps>} */
-export class RadioField extends Component {
+/** @extends {SelectionLikeField} */
+export class RadioField extends SelectionLikeField {
     static template = "web.RadioField";
     static props = {
         ...standardFieldProps,
@@ -33,56 +31,29 @@ export class RadioField extends Component {
         orientation: "vertical",
     };
 
-    /** @type {any} */
-    specialData;
-
     setup() {
+        // Reuses type detection and the `name_search`-backed special data from
+        // `SelectionLikeField` (shared with badge/selection). `name_search` is
+        // bounded by the ORM's default limit, unlike the previous unbounded
+        // `web_search_read` this field used to issue.
+        super.setup();
         this.id = `radio_field_${nextId++}`;
-        this.type = this.props.record.fields[this.props.name].type;
-        if (this.type === "many2one") {
-            this.specialData = useSpecialData(async (orm, props) => {
-                const { relation } = props.record.fields[props.name];
-                const domain = getFieldDomain(props.record, props.name, props.domain);
-                const kwargs = {
-                    specification: { display_name: 1 },
-                    domain,
-                };
-                const { records } = await orm.call(
-                    relation,
-                    "web_search_read",
-                    [],
-                    kwargs,
-                );
-                return records.map((record) => [record.id, record.display_name]);
-            });
-        }
     }
 
+    /** @returns {Array<[any, string]>} Options as `[value, label]` pairs */
     get items() {
         switch (this.type) {
             case "selection":
                 return this.props.record.fields[this.props.name].selection;
-            case "many2one": {
+            case "many2one":
                 return this.specialData.data;
-            }
             default:
                 return [];
         }
     }
-    get value() {
-        const value = this.props.record.data[this.props.name];
-        switch (this.type) {
-            case "selection":
-                return value;
-            case "many2one":
-                return value?.id;
-            default:
-                return null;
-        }
-    }
 
     /**
-     * @param {any} value
+     * @param {[any, string]} value the clicked `[value, label]` option
      */
     onChange(value) {
         switch (this.type) {

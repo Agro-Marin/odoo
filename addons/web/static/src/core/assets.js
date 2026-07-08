@@ -29,6 +29,14 @@ const log = makeAssetLog("js");
 
 export const globalBundleCache = new Map();
 export const assetCacheByDocument = new WeakMap();
+// Per-document cache of cross-document ESM bundle loads, keyed by the
+// specifier signature.  Dedups repeated ``loadESMBundle`` calls into the
+// SAME foreign document so overlapping import-map keys aren't re-injected and
+// the module graph isn't re-imported.  A rejected load is evicted so a later
+// call may retry.  Main-document loads are intentionally excluded — they are
+// deduped upstream (``getBundle``/``injectedImportMapKeys``) and mutate global
+// import-map state that this per-doc cache does not model.
+export const crossDocESMBundleCache = new WeakMap();
 // Track specifiers that are resolvable by the page's *existing* import
 // maps — whether injected by this module or rendered server-side into
 // the initial HTML.  Chromium's multi-importmap support merges maps by
@@ -277,38 +285,46 @@ export const assets = {
         // so concurrent calls for the same bundle share a single fetch.
         const promise = (async () => {
             const response = await fetch(url);
+            if (!response.ok) {
+                throw new AssetsLoadingError(
+                    `The loading of ${url} failed with HTTP status ${response.status}`,
+                );
+            }
             const cssLibs = [];
             const jsLibs = [];
             let esmSpecifiers = null;
             let esmImportMap = null;
-            if (!response.bodyUsed) {
-                const result = await response.json();
-                if (result.is_esm) {
-                    // ESM bundle: native modules are loaded via import().
-                    // Skip .esm.js files (esbuild output) — they have
-                    // import statements that fail as regular <script>.
-                    // Keep .min.js (UMD libs like Bootstrap).
-                    esmSpecifiers = result.specifiers || [];
-                    esmImportMap = result.import_map || null;
-                    // Include ESM template URL so templates self-register
-                    // via registerTemplate() when imported.
-                    if (result.template_url) {
-                        esmSpecifiers.push(result.template_url);
+            const result = await response.json();
+            if (!result || typeof result !== "object") {
+                throw new AssetsLoadingError(
+                    `The loading of ${url} failed: unexpected bundle descriptor`,
+                );
+            }
+            if (result.is_esm) {
+                // ESM bundle: native modules are loaded via import().
+                // Skip .esm.js files (esbuild output) — they have
+                // import statements that fail as regular <script>.
+                // Keep .min.js (UMD libs like Bootstrap).
+                esmSpecifiers = result.specifiers || [];
+                esmImportMap = result.import_map || null;
+                // Include ESM template URL so templates self-register
+                // via registerTemplate() when imported.
+                if (result.template_url) {
+                    esmSpecifiers.push(result.template_url);
+                }
+                for (const { src, type } of Object.values(result.files || {})) {
+                    if (type === "link" && src) {
+                        cssLibs.push(src);
+                    } else if (type === "script" && src && !src.includes(".esm.")) {
+                        jsLibs.push(src);
                     }
-                    for (const { src, type } of Object.values(result.files || {})) {
-                        if (type === "link" && src) {
-                            cssLibs.push(src);
-                        } else if (type === "script" && src && !src.includes(".esm.")) {
-                            jsLibs.push(src);
-                        }
-                    }
-                } else {
-                    for (const { src, type } of Object.values(result)) {
-                        if (type === "link" && src) {
-                            cssLibs.push(src);
-                        } else if (type === "script" && src) {
-                            jsLibs.push(src);
-                        }
+                }
+            } else {
+                for (const { src, type } of Object.values(result)) {
+                    if (type === "link" && src) {
+                        cssLibs.push(src);
+                    } else if (type === "script" && src) {
+                        jsLibs.push(src);
                     }
                 }
             }
@@ -324,6 +340,9 @@ export const assets = {
         })().catch((reason) => {
             cacheMap.delete(bundleName);
             log("getBundle:error", bundleName, reason);
+            if (reason instanceof AssetsLoadingError) {
+                throw reason;
+            }
             throw new AssetsLoadingError(`The loading of ${url} failed`, {
                 cause: reason,
             });
@@ -477,6 +496,20 @@ export const assets = {
             }
             return;
         }
+        // Cross-document dedup: a repeated load of the same specifier set into
+        // the same foreign document must NOT re-inject overlapping import-map
+        // keys nor re-import the graph.  Everything from here to the terminal
+        // ``new Promise`` below runs synchronously (no ``await``), so the cache
+        // entry is installed before any concurrent caller can observe a miss.
+        const cacheKey = JSON.stringify(specifiers);
+        if (!crossDocESMBundleCache.has(targetDoc)) {
+            crossDocESMBundleCache.set(targetDoc, new Map());
+        }
+        const bundleCache = crossDocESMBundleCache.get(targetDoc);
+        if (bundleCache.has(cacheKey)) {
+            log("loadESMBundle:crossDoc cache-hit", "specs=", specifiers.length);
+            return bundleCache.get(cacheKey);
+        }
         // Cross-document: run the imports inside targetDoc so they use
         // its import map and register into its own odoo.loader.  Build
         // an extra import map for the target document that combines:
@@ -569,15 +602,22 @@ export const assets = {
         scriptEl.type = "module";
         scriptEl.textContent = scriptText;
         const win = /** @type {Window} */ (targetDoc.defaultView);
-        await new Promise((resolve, reject) => {
+        const settlePromise = new Promise((resolve, reject) => {
             // Done/error are paired listeners on the target window: whichever
-            // fires must remove BOTH (a `{once: true}` pair only removes the
-            // one that fired, leaking the other). The script element "error"
+            // fires must remove ALL (a `{once: true}` pair only removes the
+            // one that fired, leaking the others). The script element "error"
             // listener covers the case where the injected module never runs
             // (e.g. parse failure) — without it the promise hangs forever.
+            // ``pagehide`` covers the remaining hang: if ``targetDoc`` is
+            // navigated away or the iframe is torn down before the injected
+            // module dispatches done/error, no event would ever settle the
+            // promise; the teardown listener rejects it instead of leaking a
+            // pending promise (and its retained listeners) forever — mirroring
+            // the main-document ``onLoadAndError`` ``pagehide`` cleanup.
             const settle = (/** @type {() => void} */ fn) => {
                 win.removeEventListener(doneEvent, onDone);
                 win.removeEventListener(errorEvent, onError);
+                win.removeEventListener("pagehide", onPageHide);
                 scriptEl.removeEventListener("error", onScriptError);
                 fn();
             };
@@ -597,11 +637,25 @@ export const assets = {
                         }),
                     ),
                 );
+            const onPageHide = () =>
+                settle(() =>
+                    reject(
+                        new AssetsLoadingError(
+                            `The loading of an ESM bundle was interrupted: the target document was unloaded`,
+                        ),
+                    ),
+                );
             win.addEventListener(doneEvent, onDone);
             win.addEventListener(errorEvent, onError);
+            win.addEventListener("pagehide", onPageHide);
             scriptEl.addEventListener("error", onScriptError);
             (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
         });
+        // Keep the shared promise in the per-document cache; evict on failure so
+        // a later call may retry (a resolved load stays cached — dedup hit).
+        bundleCache.set(cacheKey, settlePromise);
+        settlePromise.catch(() => bundleCache.delete(cacheKey));
+        return settlePromise;
     },
 
     /**
@@ -616,40 +670,58 @@ export const assets = {
         if (cacheMap.has(url)) {
             return /** @type {Promise<void>} */ (cacheMap.get(url));
         }
-        if (retryCount === 0) {
-            log("loadCSS", url);
-        } else {
-            log("loadCSS:retry", url, "attempt=", retryCount);
-        }
-        const linkEl = targetDoc.createElement("link");
-        linkEl.setAttribute("href", url);
-        linkEl.type = "text/css";
-        linkEl.rel = "stylesheet";
-        const promise = new Promise((resolve, reject) =>
-            onLoadAndError(linkEl, resolve, async (error) => {
+        // Cache the WHOLE retry chain up front, and keep the entry in the
+        // cache until the chain finally settles.  The previous code deleted
+        // the cache entry inside each error handler (at T0) but only
+        // re-populated it after the multi-second backoff — leaving a window
+        // in which a concurrent ``loadCSS(url)`` missed the cache and kicked
+        // off an *independent* parallel load+retry chain (duplicate <link>s
+        // and duplicated retries).  A single ``attempt`` recursion that never
+        // touches the cache closes that window: the entry is dropped only on
+        // terminal rejection (so a later call may retry from scratch) and is
+        // kept on success.
+        /**
+         * @param {number} attempt
+         * @returns {Promise<void>}
+         */
+        const runAttempt = (attempt) => {
+            if (attempt === 0) {
+                log("loadCSS", url);
+            } else {
+                log("loadCSS:retry", url, "attempt=", attempt);
+            }
+            const linkEl = targetDoc.createElement("link");
+            linkEl.setAttribute("href", url);
+            linkEl.type = "text/css";
+            linkEl.rel = "stylesheet";
+            const attemptPromise = new Promise((resolve, reject) =>
+                onLoadAndError(linkEl, resolve, async (error) => {
+                    if (attempt < assets.retries.count) {
+                        const delay =
+                            assets.retries.delay + assets.retries.extraDelay * attempt;
+                        await new Promise((res) => browser.setTimeout(res, delay));
+                        linkEl.remove();
+                        runAttempt(attempt + 1).then(resolve, reject);
+                    } else {
+                        reject(
+                            new AssetsLoadingError(`The loading of ${url} failed`, {
+                                cause: error,
+                            }),
+                        );
+                    }
+                }),
+            );
+            targetDoc.head.appendChild(linkEl);
+            return attemptPromise;
+        };
+        const promise = /** @type {Promise<void>} */ (
+            runAttempt(retryCount).catch((reason) => {
+                // Terminal failure: evict so a future caller can retry fresh.
                 cacheMap.delete(url);
-                if (retryCount < assets.retries.count) {
-                    const delay =
-                        assets.retries.delay + assets.retries.extraDelay * retryCount;
-                    await new Promise((res) => browser.setTimeout(res, delay));
-                    linkEl.remove();
-                    loadCSS(url, { retryCount: retryCount + 1, targetDoc })
-                        .then(resolve)
-                        .catch((reason) => {
-                            cacheMap.delete(url);
-                            reject(reason);
-                        });
-                } else {
-                    reject(
-                        new AssetsLoadingError(`The loading of ${url} failed`, {
-                            cause: error,
-                        }),
-                    );
-                }
-            }),
+                throw reason;
+            })
         );
         cacheMap.set(url, promise);
-        targetDoc.head.appendChild(linkEl);
         return promise;
     },
 

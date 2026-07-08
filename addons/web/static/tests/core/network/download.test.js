@@ -15,6 +15,20 @@ test("handles connection error when behind a server", async () => {
     await expect(download({ data: {}, url: "/some_url" })).rejects.toThrow(error);
 });
 
+test("maps 503 Service Unavailable to ConnectionLostError (like rpc.js)", async () => {
+    // 503/504 used to fall through to the HTML-error-parse path, surfacing the
+    // proxy's raw HTML page instead of a clean connection error.
+    mockFetch(() => new Response("", { status: 503 }));
+    const error = new ConnectionLostError("/some_url");
+    await expect(download({ data: {}, url: "/some_url" })).rejects.toThrow(error);
+});
+
+test("maps 504 Gateway Timeout to ConnectionLostError (like rpc.js)", async () => {
+    mockFetch(() => new Response("", { status: 504 }));
+    const error = new ConnectionLostError("/some_url");
+    await expect(download({ data: {}, url: "/some_url" })).rejects.toThrow(error);
+});
+
 test("handles connection error when network unavailable", async () => {
     mockFetch(() => Promise.reject());
 

@@ -139,6 +139,35 @@ test("toggling through multiple ways", async () => {
     expect.verifySteps(["true", "false", "true", "false"]);
 });
 
+test.tags("desktop");
+test("pressing ENTER on a disabled checkbox does nothing", async () => {
+    class Parent extends Component {
+        static components = { CheckBox };
+        static props = {};
+        static template = xml`<CheckBox disabled="true" onChange.bind="onChange" value="state.value" />`;
+
+        setup() {
+            this.state = useState({ value: false });
+        }
+
+        onChange(checked) {
+            this.state.value = checked;
+            expect.step("changed");
+        }
+    }
+
+    await mountWithCleanup(Parent);
+
+    expect(`.o-checkbox input`).not.toBeEnabled();
+    expect(`.o-checkbox input`).not.toBeChecked();
+
+    await contains(".o-checkbox input").press("Enter");
+
+    // The Enter hotkey must be a no-op on a disabled checkbox, like onClick.
+    expect(`.o-checkbox input`).not.toBeChecked();
+    expect.verifySteps([]);
+});
+
 test("checkbox with props indeterminate", async () => {
     class Parent extends Component {
         static components = { CheckBox };

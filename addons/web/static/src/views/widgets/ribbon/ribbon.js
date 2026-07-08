@@ -45,7 +45,7 @@ export class RibbonWidget extends Component {
 export const ribbonWidget = {
     component: RibbonWidget,
     extractProps: ({ attrs }) => ({
-        text: attrs.title || attrs.text,
+        text: attrs.title || attrs.text || "",
         title: attrs.tooltip,
         bgClass: attrs.bg_color,
     }),

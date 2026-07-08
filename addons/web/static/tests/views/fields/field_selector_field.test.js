@@ -153,6 +153,34 @@ test("model option", async () => {
     );
 });
 
+test("model option as a literal model name", async () => {
+    // ``model`` is a literal model name here, not a field on the record. The
+    // widget must resolve it directly instead of silently falling back to the
+    // current record's model (update.record.action).
+    await mountView({
+        type: "form",
+        resModel: "update.record.action",
+        arch: /* xml */ `
+            <form>
+                <field name="update_path" widget="field_selector" options="{'model': 'lead'}"/>
+            </form>
+        `,
+    });
+    await contains(".o_field_widget[name='update_path'] .o_input").click();
+    expect(queryAllTexts(".o_model_field_selector_popover_item")).toEqual(
+        [
+            "Contact",
+            "Created on",
+            "Display name",
+            "Id",
+            "Last Modified on",
+            "Note",
+            "Salesperson",
+        ],
+        { message: "should display fields of the literal model" },
+    );
+});
+
 test("follow_relations option", async () => {
     await mountView({
         type: "form",

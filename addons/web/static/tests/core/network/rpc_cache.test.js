@@ -1572,3 +1572,218 @@ test("RAM model-index: overwriting same key with a different model rebalances th
     // Entry survives — it now belongs to res.users.
     expect(await rpcCache.ramCache.read("web_read", "k")).toBe(2);
 });
+
+// ---------------------------------------------------------------------------
+// onFulfilled robustness: throwing subscriber callbacks
+// ---------------------------------------------------------------------------
+//
+// A subscriber callback that throws must not abort ``onFulfilled`` before the
+// cache bookkeeping (pendingRequests cleanup, RAM write, disk-write
+// scheduling).  Pre-fix, one throwing callback left a dead entry in
+// ``pendingRequests``: every future read joined it forever, all
+// ``update: "always"`` refreshes for that key died, and the throw escaped as
+// an unhandled rejection.
+
+test("throwing subscriber callback does not wedge the key nor starve other callbacks", async () => {
+    patchWithCleanup(console, {
+        error: () => expect.step("console.error"),
+    });
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+
+    // Seed the caches.
+    await rpcCache.read("table", "key", () => Promise.resolve({ test: 1 }), {
+        type: "disk",
+    });
+    await tick();
+    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
+        'encrypted data:{"test":1}',
+    );
+
+    // Refresh with two subscribers on the same pending request: the first
+    // throws, the second must still be notified.
+    const def = new Deferred();
+    rpcCache.read(
+        "table",
+        "key",
+        () => {
+            expect.step("refresh fallback");
+            return def;
+        },
+        {
+            type: "disk",
+            update: "always",
+            callback: () => {
+                expect.step("callback 1 (throws)");
+                throw new Error("subscriber boom");
+            },
+        },
+    );
+    rpcCache.read(
+        "table",
+        "key",
+        () => expect.step("should not be called (pending request)"),
+        {
+            type: "disk",
+            update: "always",
+            callback: (value) => expect.step(`callback 2: ${value.test}`),
+        },
+    );
+    expect.verifySteps(["refresh fallback"]);
+
+    def.resolve({ test: 2 });
+    await tick();
+    expect.verifySteps(["callback 1 (throws)", "console.error", "callback 2: 2"]);
+
+    // Bookkeeping ran despite the throw: no dead pending request, RAM and
+    // disk both hold the fresh value.
+    expect(Object.keys(rpcCache.pendingRequests)).toEqual([]);
+    expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
+        status: "fulfilled",
+        value: { test: 2 },
+    });
+    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
+        'encrypted data:{"test":2}',
+    );
+
+    // Later reads/refreshes of the same key still work: the fallback fires
+    // again and its callback is delivered.
+    const def2 = new Deferred();
+    rpcCache
+        .read(
+            "table",
+            "key",
+            () => {
+                expect.step("second refresh fallback");
+                return def2;
+            },
+            {
+                type: "disk",
+                update: "always",
+                callback: (value) => expect.step(`callback 3: ${value.test}`),
+            },
+        )
+        .then((r) => expect.step(`read resolved with ${r.test}`));
+    await tick();
+    expect.verifySteps(["second refresh fallback", "read resolved with 2"]);
+
+    def2.resolve({ test: 3 });
+    await tick();
+    expect.verifySteps(["callback 3: 3"]);
+});
+
+// ---------------------------------------------------------------------------
+// Disk-cache stale-persist race (invalidation generations)
+// ---------------------------------------------------------------------------
+//
+// ``onFulfilled`` removes the request from ``pendingRequests`` and then runs
+// the async encrypt→IDB-write chain.  An invalidation landing in that window
+// can no longer flag the request; pre-fix its IDB clear was queued first and
+// the write landed after it, durably persisting pre-invalidation data (served
+// as truth on the next reload for ``update: "once"`` consumers such as
+// get_views).  The per-table generation counter must drop such writes.
+
+/**
+ * Gate ``rpcCache.crypto.encrypt`` on a deferred so a test can act inside
+ * the RPC-resolution → disk-write window.
+ *
+ * @param {RPCCache} rpcCache
+ * @returns {Deferred} resolve it to let pending encryptions proceed
+ */
+function gateEncrypt(rpcCache) {
+    const gate = new Deferred();
+    const crypto = rpcCache.crypto;
+    const originalEncrypt = crypto.encrypt.bind(crypto);
+    crypto.encrypt = async (value) => {
+        await gate;
+        return originalEncrypt(value);
+    };
+    return gate;
+}
+
+test("invalidate between RPC resolution and disk write persists NO stale entry", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const gate = gateEncrypt(rpcCache);
+
+    const def = new Deferred();
+    rpcCache.read("table", "key", () => def, { type: "disk" });
+    def.resolve({ test: 123 });
+    await tick();
+
+    // The RPC resolved: the request already left ``pendingRequests`` (so
+    // ``invalidate`` cannot flag it) while the encrypt is still gated.
+    expect(Object.keys(rpcCache.pendingRequests)).toEqual([]);
+
+    // Invalidation arrives inside the window.
+    rpcCache.invalidate("table");
+    await tick();
+
+    // Release the encryption: the queued write must be skipped as stale.
+    gate.resolve();
+    await tick();
+    await tick();
+    expect(rpcCache.indexedDB.mockIndexedDB?.table?.key).toBe(undefined);
+    // RAM stays empty too — nothing resurrects the invalidated value.
+    expect(rpcCache.ramCache.read("table", "key")).toBe(undefined);
+});
+
+test("invalidateByModel between RPC resolution and disk write persists NO stale entry", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const gate = gateEncrypt(rpcCache);
+
+    const def = new Deferred();
+    rpcCache.read("web_read", "key", () => def, {
+        type: "disk",
+        model: "res.partner",
+    });
+    def.resolve({ id: 1 });
+    await tick();
+    expect(Object.keys(rpcCache.pendingRequests)).toEqual([]);
+
+    rpcCache.invalidateByModel(["web_read"], "res.partner");
+    await tick();
+
+    gate.resolve();
+    await tick();
+    await tick();
+    expect(rpcCache.indexedDB.mockIndexedDB?.web_read?.key).toBe(undefined);
+});
+
+test("invalidating an unrelated table does not drop a concurrent disk write", async () => {
+    // Pins the per-table generation design: only invalidations touching the
+    // write's own table may skip the persist.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const gate = gateEncrypt(rpcCache);
+
+    const def = new Deferred();
+    rpcCache.read("table", "key", () => def, { type: "disk" });
+    def.resolve({ test: 123 });
+    await tick();
+
+    // Unrelated-table invalidation inside the window: must NOT affect the
+    // pending write for "table".
+    rpcCache.invalidate("other_table");
+    await tick();
+
+    gate.resolve();
+    await tick();
+    await tick();
+    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
+        'encrypted data:{"test":123}',
+    );
+});

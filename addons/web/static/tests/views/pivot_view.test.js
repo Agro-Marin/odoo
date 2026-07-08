@@ -318,6 +318,22 @@ test("pivot rendering with widget and options", async () => {
     expect("td.o_pivot_cell_value:contains(32:00:00)").toHaveCount(1);
 });
 
+test("pivot rendering with monetary widget on a non-monetary measure", async () => {
+    // "foo" is a plain Integer with no currency_field, so its cells carry no
+    // currencyIds. Forcing the "monetary" format via the widget must not crash
+    // when dereferencing currencyIds (which is undefined here).
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+				<pivot string="Partners">
+					<field name="foo" type="measure" widget="monetary"/>
+				</pivot>
+			`,
+    });
+    expect(".o_pivot_cell_value").toHaveCount(1);
+});
+
 test("pivot rendering with widget and options from model field", async () => {
     Partner._fields.biz = fields.Float({ digits: [16, 2] });
     Partner._records[0].biz = 0.3333333;
@@ -1406,6 +1422,64 @@ test("expand all with a delay", async () => {
     expect("tbody tr").toHaveCount(8);
 });
 
+test("expanding two headers in quick succession opens both", async () => {
+    // Three sibling product groups. Expanding one (xphone) by "customer"
+    // establishes the sub-groupby while xphone stays open, so xpad and xdesk
+    // remain closed AND expandable by "customer" (a leaf-only collapse here
+    // would splice the sub-groupby away). We then fire the xpad and xdesk
+    // expansions back-to-back while their read_group is still pending: both
+    // go through the model's shared keepLast (in _subdivideGroup), so without
+    // serialization the second would supersede the first's read_group and its
+    // header would never open. The expandMutex must open BOTH.
+    Product._records.push({ id: 99, name: "xdesk" });
+    Partner._records.push({
+        id: 5,
+        foo: 7,
+        bar: true,
+        product_id: 99,
+        customer: 1,
+        date: "2016-05-05",
+    });
+
+    let def = null;
+    onRpc("formatted_read_grouping_sets", () => def);
+    const view = await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+			<pivot>
+				<field name="foo" type="measure"/>
+				<field name="product_id" type="row"/>
+			</pivot>`,
+    });
+    const model = findComponent(view, (c) => c instanceof PivotController).model;
+
+    // rows: Total, xphone, xpad, xdesk
+    expect("tbody tr").toHaveCount(4);
+    expect(".o_pivot_header_cell_closed:contains(xpad)").toHaveCount(1);
+    expect(".o_pivot_header_cell_closed:contains(xdesk)").toHaveCount(1);
+
+    // Establish "customer" as the row sub-groupby by expanding xphone (id 37);
+    // xphone stays expanded, so xpad/xdesk stay closed but expandable.
+    await model.addGroupBy({ groupId: [[37], []], fieldName: "customer", type: "row" });
+    await animationFrame();
+
+    // Fire BOTH remaining expansions back-to-back while read_group is pending.
+    def = new Deferred();
+    model.expandGroup([[41], []], "row"); // xpad
+    model.expandGroup([[99], []], "row"); // xdesk
+    def.resolve();
+    await animationFrame();
+    await animationFrame();
+    await animationFrame();
+
+    // Both headers must now be open (neither expansion was dropped).
+    expect(".o_pivot_header_cell_opened:contains(xpad)").toHaveCount(1);
+    expect(".o_pivot_header_cell_opened:contains(xdesk)").toHaveCount(1);
+    expect(".o_pivot_header_cell_closed:contains(xpad)").toHaveCount(0);
+    expect(".o_pivot_header_cell_closed:contains(xdesk)").toHaveCount(0);
+});
+
 test("can download a file", async () => {
     expect.assertions(1);
 
@@ -1530,6 +1604,40 @@ test("correctly save measures and groupbys to favorite", async () => {
     await toggleSaveFavorite();
     await editFavoriteName("Fav3");
     await saveFavorite();
+});
+
+test.tags("desktop");
+test("a measure toggled after a favorite survives a filter toggle", async () => {
+    Partner._fields.bouh = fields.Integer({ string: "bouh", aggregator: "sum" });
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        // mimics a favorite/action context pinning the active measures
+        context: { pivot_measures: ["foo"] },
+        arch: `
+			<pivot string="Partners">
+				<field name="foo" type="measure"/>
+				<field name="bouh" type="measure"/>
+			</pivot>`,
+        searchViewArch: `
+			<search>
+				<filter string="Bar" name="bar" domain="[('bar','=',True)]"/>
+			</search>`,
+    });
+
+    // the favorite context seeds a single active measure
+    expect(queryAllTexts(".o_pivot_measure_row")).toEqual(["Foo"]);
+
+    // the user adds the "bouh" measure through the Measures menu
+    await toggleMenu("Measures");
+    await toggleMenuItem("bouh");
+    expect(queryAllTexts(".o_pivot_measure_row").sort()).toEqual(["Foo", "bouh"]);
+
+    // toggling a filter reloads: the still-present pivot_measures context must
+    // NOT snap the measures back to the favorite's single-measure set
+    await toggleSearchBarMenu();
+    await toggleMenuItem("Bar");
+    expect(queryAllTexts(".o_pivot_measure_row").sort()).toEqual(["Foo", "bouh"]);
 });
 
 test.tags("desktop");

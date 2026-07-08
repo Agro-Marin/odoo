@@ -587,3 +587,41 @@ test("TemplateRegistry: blockId cursor advances when register type alternates", 
     scoped.registerTemplate("tr-cur-2", "/c", `<t t-name="tr-cur-2"/>`);
     expect(scoped.blockId).toBeGreaterThan(after2);
 });
+
+test("TemplateRegistry: registering after a negative-lookup probe serves the real template", () => {
+    const scoped = new TemplateRegistry();
+    // Probe an unknown name first. ``getTemplate`` memoises the ``null`` miss
+    // behind a ``has()`` guard, so without eviction on registration the null
+    // would be served forever.
+    expect(scoped.getTemplate("tr-probe")).toBe(null);
+    scoped.registerTemplate(
+        "tr-probe",
+        "/addon_probe",
+        `<t t-name="tr-probe"><div class="real">real</div></t>`,
+    );
+    const tmpl = scoped.getTemplate("tr-probe");
+    expect(tmpl).not.toBe(null);
+    expect(tmpl.textContent).toMatch(/real/);
+});
+
+test("TemplateRegistry: unregistering an extension does not re-apply it on re-get", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate(
+        "tr-ext-base",
+        "/addon_base",
+        `<t t-name="tr-ext-base"><div class="base">base</div></t>`,
+    );
+    const unregExt = scoped.registerTemplateExtension(
+        "tr-ext-base",
+        "/addon_ext",
+        `<t t-inherit="tr-ext-base" t-inherit-mode="extension"><xpath expr="div" position="inside"><span class="ext">ext</span></xpath></t>`,
+    );
+    // First build applies the extension.
+    expect(scoped.getTemplate("tr-ext-base").textContent).toMatch(/ext/);
+    // After unregistering, a re-get must NOT re-apply the removed extension
+    // from the stale parsed/processed caches.
+    unregExt();
+    const rebuilt = scoped.getTemplate("tr-ext-base");
+    expect(rebuilt.textContent).toMatch(/base/);
+    expect(rebuilt.textContent).not.toMatch(/ext/);
+});

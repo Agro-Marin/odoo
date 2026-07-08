@@ -108,7 +108,8 @@ export class RelationalRecord extends DataPoint {
         //   3. Whenever ``_changes`` is cleared, ``dirty`` MUST be reset
         //      on the same atomic step — use ``_clearChanges()``. The
         //      ``keepChanges`` reload path instead derives ``dirty`` from
-        //      the preserved change set (see ``_setData``).
+        //      the preserved change set and invalid-field flags (see
+        //      ``_setData`` — Invariant 2 must survive that reload).
         //
         // Field components debounce typing locally; ``isDirty()`` (async)
         // first calls ``model._askChanges()`` to flush pending field-level
@@ -174,26 +175,45 @@ export class RelationalRecord extends DataPoint {
         if (!keepChanges) {
             this._clearChanges();
         } else {
-            // ``keepChanges`` preserves ``_changes`` across a server reload
-            // (stale-while-revalidate cache callbacks in
-            // ``relational_model.js``): ``dirty`` must be derived from the
-            // preserved change set, not reset — a user edit racing the
-            // network revalidation would otherwise end up with
-            // ``dirty=false`` while ``_changes`` still holds the edit,
-            // and every ``isDirty()`` gate (pager, action buttons) would
-            // silently discard it.
-            this.dirty = !this._changeSet.isEmpty;
+            // ``keepChanges`` preserves the whole pending-edit layer across
+            // a server reload (stale-while-revalidate cache callbacks in
+            // ``relational_model.js``) — only the server layer (``_values``)
+            // is refreshed:
+            //  - ``dirty`` must be derived from the preserved edit state,
+            //    not reset: ``_changes`` non-empty OR pending invalid input
+            //    (Invariant 2 — invalid input never reaches ``_changes``,
+            //    but ``setInvalidField`` marked the record dirty, so
+            //    ``dirty && _invalidFields.size`` is the evidence; testing
+            //    ``_invalidFields`` alone would falsely flag a pristine
+            //    record whose unset-required fields were flagged by
+            //    ``_checkValidity``). A user edit racing the network
+            //    revalidation would otherwise end up with ``dirty=false``,
+            //    and every ``isDirty()`` gate (pager, action buttons)
+            //    would silently discard it.
+            //  - ``_invalidFields`` must survive (see below): the DOM input
+            //    still holds the rejected text, so wiping the flags would
+            //    let a save proceed without the value the user typed.
+            //  - ``_savePoint`` must survive (see below): it snapshots that
+            //    same pending-edit layer (see ``record_savepoint.js``),
+            //    e.g. when an x2many form dialog opens; wiping it while
+            //    keeping ``_changes`` would send a later Discard through
+            //    the no-savepoint branch, clearing pre-dialog edits too.
+            this.dirty =
+                !this._changeSet.isEmpty ||
+                (this.dirty && this._invalidFields.size > 0);
             this._assertChangeSetInvariant();
         }
         this.data = { ...this._values, ...this._changes };
         this._setEvalContext();
         this._initialTextValues = { ...this._textValues };
 
-        this._invalidFields.clear();
+        if (!keepChanges) {
+            this._invalidFields.clear();
+            this._savePoint = undefined;
+        }
         if (!this.isNew && this.isInEdition && !this._parentRecord) {
             this._checkValidity();
         }
-        this._savePoint = undefined;
     }
 
     // -------------------------------------------------------------------------
@@ -437,8 +457,8 @@ export class RelationalRecord extends DataPoint {
      * exists to catch.  Call sites are checkpoints where the invariant
      * must strictly hold: after ``_clearChanges`` and after both
      * ``_setData`` branches (the ``keepChanges: true`` path derives
-     * ``dirty`` from the preserved change set, so it upholds the
-     * invariant too).
+     * ``dirty`` from the preserved change set and invalid-field flags,
+     * so it upholds the invariant too).
      *
      * Production: silent (assertion skipped entirely).  Debug: emits
      * ``console.warn`` with a structured payload so the offending

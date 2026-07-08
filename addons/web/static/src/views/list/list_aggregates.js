@@ -159,10 +159,16 @@ export function useListAggregates({
                     continue;
                 }
                 const field = fields[fieldName];
-                const fieldValues = values
-                    .map((v) => v[fieldName])
-                    .filter((v) => v || v === 0);
-                if (!fieldValues.length) {
+                // Build value/record pairs in a single pass so that per-record
+                // currency information stays aligned with the filtered values.
+                const fieldEntries = [];
+                for (const record of values) {
+                    const value = record[fieldName];
+                    if (value || value === 0) {
+                        fieldEntries.push({ value, record });
+                    }
+                }
+                if (!fieldEntries.length) {
                     continue;
                 }
                 const type = field.type;
@@ -196,19 +202,19 @@ export function useListAggregates({
                             if (currencies.size > 1) {
                                 multiCurrency = true;
                                 currencyId = user.activeCompany?.currency_id;
-                                for (let i = 0; i < values.length; i++) {
-                                    let currency = values[i][currencyField]?.id;
+                                for (const entry of fieldEntries) {
+                                    let currency = entry.record[currencyField]?.id;
                                     if (
                                         /** @type {any} */ (list).isGrouped &&
                                         !list.selection.length
                                     ) {
                                         currency =
-                                            values[i][currencyField]?.length > 1
+                                            entry.record[currencyField]?.length > 1
                                                 ? currencyId
-                                                : values[i][currencyField]?.[0];
+                                                : entry.record[currencyField]?.[0];
                                     }
                                     if (currency !== currencyId) {
-                                        fieldValues[i] *= currency
+                                        entry.value *= currency
                                             ? (state.currencyRates[currency]?.rate ?? 1)
                                             : 1;
                                     }
@@ -218,7 +224,10 @@ export function useListAggregates({
                     }
                 }
                 if (func) {
-                    const aggregatedValue = computeAggregatedValue(fieldValues, func);
+                    const aggregatedValue = computeAggregatedValue(
+                        fieldEntries.map((entry) => entry.value),
+                        func,
+                    );
                     const formatter =
                         formatters.get(
                             /** @type {string} */ (widget),
@@ -277,8 +286,9 @@ export function useListAggregates({
                 escape: true,
             };
             if (field.type === "monetary") {
-                const currencies = group.aggregates[field.currency_field];
-                if (currencies.length > 1 && aggregateValue !== false) {
+                const currencyField = resolveCurrencyField(fields, column);
+                const currencies = group.aggregates[currencyField];
+                if (currencies?.length > 1 && aggregateValue !== false) {
                     formatOptions.currencyId = user.activeCompany?.currency_id;
                     return {
                         value: formatter
@@ -288,7 +298,7 @@ export function useListAggregates({
                         rawValue: aggregateValue,
                     };
                 }
-                formatOptions.currencyId = currencies[0];
+                formatOptions.currencyId = currencies?.[0];
             }
             return {
                 value: formatter

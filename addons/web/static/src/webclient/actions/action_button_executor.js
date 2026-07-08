@@ -25,6 +25,47 @@ import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js"
 export class InvalidButtonParamsError extends Error {}
 
 /**
+ * Sentinel resolved when a ``keepLast``-guarded button task is superseded by a
+ * newer task on the same {@link KeepLast} (e.g. a programmatic ``doAction``
+ * fired while the button's RPC was still in flight). KeepLast silently discards
+ * the superseded wrapper — it never resolves nor rejects — so awaiting it
+ * directly hangs the caller and, critically, skips the ``finally`` that releases
+ * a ``block-ui`` overlay, stranding the full-screen spinner until a page reload.
+ * Staying internal to this module, the sentinel is a plain resolve value and
+ * never reaches the error service.
+ *
+ * @type {unique symbol}
+ */
+const SUPERSEDED = Symbol("action button superseded");
+
+/**
+ * Await a KeepLast-guarded task, resolving with {@link SUPERSEDED} instead of
+ * hanging forever when the task is discarded by a newer one on the same
+ * KeepLast. Callers must bail out (letting their ``finally`` run) on the
+ * sentinel.
+ *
+ * @template T
+ * @param {import("@web/core/utils/concurrency").KeepLast} keepLast
+ * @param {Promise<T>} promise the raw task promise (always settles)
+ * @returns {Promise<T | typeof SUPERSEDED>}
+ */
+function addOrSupersede(keepLast, promise) {
+    // `keepLast.add` registers its `.then` on `promise` first; the guard below
+    // registers second, so on a non-superseded settlement the wrapper resolves
+    // `guarded` before the sentinel is produced and `guarded` wins the race
+    // (an extra microtask makes that ordering robust). When superseded, the
+    // wrapper stays pending forever and the sentinel resolves instead.
+    const guarded = keepLast.add(promise);
+    return Promise.race([
+        guarded,
+        promise.then(
+            () => Promise.resolve().then(() => SUPERSEDED),
+            () => Promise.resolve().then(() => SUPERSEDED),
+        ),
+    ]);
+}
+
+/**
  * Build the positional ``args`` for a ``call_button`` RPC: the record id(s)
  * followed by any explicit ``args`` arch attribute (a Python-literal list).
  *
@@ -136,7 +177,12 @@ export async function executeActionButton(
                     model: params.resModel,
                 },
             );
-            action = await am.keepLast.add(callProm);
+            action = await addOrSupersede(am.keepLast, callProm);
+            if (action === SUPERSEDED) {
+                // A newer task discarded this one; bail out so the `finally`
+                // releases the block-ui overlay instead of hanging forever.
+                return;
+            }
             action =
                 action && typeof action === "object"
                     ? action
@@ -149,7 +195,15 @@ export async function executeActionButton(
             context.active_id = params.resId ?? null;
             context.active_ids = params.resIds;
             context.active_model = params.resModel;
-            action = await am.keepLast.add(am._loadAction(params.name, context));
+            action = await addOrSupersede(
+                am.keepLast,
+                am._loadAction(params.name, context),
+            );
+            if (action === SUPERSEDED) {
+                // A newer task discarded this one; bail out so the `finally`
+                // releases the block-ui overlay instead of hanging forever.
+                return;
+            }
         } else {
             throw new InvalidButtonParamsError("Missing type for doActionButton request");
         }

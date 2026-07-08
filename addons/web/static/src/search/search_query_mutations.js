@@ -39,6 +39,35 @@ function checkOrderByCountStatus(searchModel) {
 }
 
 /**
+ * Run `fn` with search-model notifications blocked, restoring the previous
+ * `blockNotification` state afterwards — even if `fn` throws.
+ *
+ * A raw `blockNotification = true; …; blockNotification = false` window has two
+ * failure modes this guards against:
+ *   - a throw inside the window (e.g. the `facets` getter hitting a favorite
+ *     whose stored domain doesn't parse) would leave the flag stuck `true`,
+ *     silencing every subsequent `_notify()` until a full reload;
+ *   - hardcoding `false` on exit would prematurely unblock when the window is
+ *     nested inside another blocked window (e.g. splitAndAddDomain calling
+ *     createNewGroupBy). Restoring the captured value keeps nesting correct.
+ *
+ * Sibling helpers in this search layer (notably search_split_domain.js, which
+ * open-codes the same try/finally) should adopt this helper too.
+ *
+ * @param {SearchModel} searchModel
+ * @param {() => void} fn - synchronous callback run inside the blocked window
+ */
+export function withNotificationsBlocked(searchModel, fn) {
+    const wasBlocked = searchModel.blockNotification;
+    searchModel.blockNotification = true;
+    try {
+        fn();
+    } finally {
+        searchModel.blockNotification = wasBlocked;
+    }
+}
+
+/**
  * Create an ir.filters record on the server.
  * @param {SearchModel} searchModel
  * @param {Object} irFilter
@@ -95,13 +124,16 @@ export function clearQuery(searchModel) {
  * @param {SearchModel} searchModel
  */
 export function clearFilters(searchModel) {
-    searchModel.blockNotification = true;
-    searchModel.facets.forEach((facet) => {
-        if (facet.type !== "groupBy") {
-            searchModel.deactivateGroup(facet.groupId);
-        }
+    // The `facets` getter runs inside this window and can throw on a favorite
+    // whose stored domain doesn't parse; withNotificationsBlocked guarantees the
+    // flag is reset so a throw can't permanently silence the model.
+    withNotificationsBlocked(searchModel, () => {
+        searchModel.facets.forEach((facet) => {
+            if (facet.type !== "groupBy") {
+                searchModel.deactivateGroup(facet.groupId);
+            }
+        });
     });
-    searchModel.blockNotification = false;
     searchModel._notify();
 }
 
@@ -115,25 +147,25 @@ export async function createNewFavorite(searchModel, params) {
     const { preFavorite, irFilter } = searchModel._getIrFilterDescription(params);
     const serverSideId = await searchModel._createIrFilters(irFilter);
 
-    searchModel.blockNotification = true;
-    searchModel.clearQuery();
-    const favorite = {
-        ...preFavorite,
-        type: "favorite",
-        id: searchModel.nextId,
-        groupId: searchModel.nextGroupId,
-        groupNumber:
-            preFavorite.userIds.length === 1
-                ? FAVORITE_PRIVATE_GROUP
-                : FAVORITE_SHARED_GROUP,
-        removable: true,
-        serverSideId,
-    };
-    searchModel.searchItems[searchModel.nextId] = favorite;
-    searchModel.query.push({ searchItemId: searchModel.nextId });
-    searchModel.nextGroupId++;
-    searchModel.nextId++;
-    searchModel.blockNotification = false;
+    withNotificationsBlocked(searchModel, () => {
+        searchModel.clearQuery();
+        const favorite = {
+            ...preFavorite,
+            type: "favorite",
+            id: searchModel.nextId,
+            groupId: searchModel.nextGroupId,
+            groupNumber:
+                preFavorite.userIds.length === 1
+                    ? FAVORITE_PRIVATE_GROUP
+                    : FAVORITE_SHARED_GROUP,
+            removable: true,
+            serverSideId,
+        };
+        searchModel.searchItems[searchModel.nextId] = favorite;
+        searchModel.query.push({ searchItemId: searchModel.nextId });
+        searchModel.nextGroupId++;
+        searchModel.nextId++;
+    });
     searchModel._notify();
     return serverSideId;
 }
@@ -194,24 +226,29 @@ export function createNewGroupBy(searchModel, fieldName, { interval, invisible }
     if (invisible) {
         preSearchItem.invisible = "True";
     }
-    if (["date", "datetime"].includes(fieldType)) {
-        searchModel.searchItems[searchModel.nextId] = Object.assign(
-            {
-                type: "dateGroupBy",
-                defaultIntervalId: interval || DEFAULT_INTERVAL,
-            },
-            preSearchItem,
-        );
-        searchModel.toggleDateGroupBy(searchModel.nextId);
-    } else {
-        searchModel.searchItems[searchModel.nextId] = Object.assign(
-            { type: "groupBy" },
-            preSearchItem,
-        );
-        searchModel.toggleSearchItem(searchModel.nextId);
-    }
-    searchModel.nextGroupNumber++;
-    searchModel.nextId++;
+    // toggleDateGroupBy/toggleSearchItem each end with their own _notify(); block
+    // notifications around the toggle so the trailing _notify() below is the only
+    // reload — otherwise "Add Custom Group" triggers two full reloads.
+    withNotificationsBlocked(searchModel, () => {
+        if (["date", "datetime"].includes(fieldType)) {
+            searchModel.searchItems[searchModel.nextId] = Object.assign(
+                {
+                    type: "dateGroupBy",
+                    defaultIntervalId: interval || DEFAULT_INTERVAL,
+                },
+                preSearchItem,
+            );
+            searchModel.toggleDateGroupBy(searchModel.nextId);
+        } else {
+            searchModel.searchItems[searchModel.nextId] = Object.assign(
+                { type: "groupBy" },
+                preSearchItem,
+            );
+            searchModel.toggleSearchItem(searchModel.nextId);
+        }
+        searchModel.nextGroupNumber++;
+        searchModel.nextId++;
+    });
     searchModel._notify();
 }
 
@@ -260,7 +297,12 @@ export function toggleSearchItem(searchModel, searchItemId) {
         checkOrderByCountStatus(searchModel);
     } else {
         if (searchItem.type === "favorite") {
+            // Clearing the query must also reset orderByCount (as clearQuery
+            // does): a favorite carrying group_by would otherwise load with a
+            // stale {name:"__count"} sort it never contained, because
+            // computeOrderBy injects it whenever groupBy.length && orderByCount.
             searchModel.query = [];
+            searchModel.orderByCount = false;
         }
         searchModel.query.push({ searchItemId });
     }

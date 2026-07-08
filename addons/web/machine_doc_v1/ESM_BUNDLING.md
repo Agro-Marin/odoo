@@ -15,20 +15,20 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
                                 │  odoo/tools/assets/esm_graph.py:57 / :63
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│ AssetsBundle.__init__()   assetsbundle.py:1431                       │
+│ AssetsBundle.__init__()   assetsbundle.py:1513                       │
 │   files partitioned into:                                            │
 │     • self.javascripts         (classic JS; legacy bundle)           │
 │     • self.native_modules      (@odoo-module [native]; esbuild fuel) │
 │     • self.templates           (XML for QWeb)                        │
 │     • self.stylesheets         (SCSS/CSS)                            │
 │   Only when bundle name ∈ esm_registry().bundles                     │
-│   (assetsbundle.py:1505 sets self._is_esm_bundle).                   │
+│   (assetsbundle.py:1539 sets self._is_esm_bundle).                   │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
 │ HTTP GET /odoo                                                       │
-│   ir_qweb._get_asset_nodes(bundle, debug)  ir_qweb.py:3496           │
+│   ir_qweb._get_asset_nodes(bundle, debug)  ir_qweb_assets.py         │
 └──────────┬────────────────────────────────┬──────────────────────────┘
            │  debug mode                    │  production
            ▼                                ▼
@@ -41,25 +41,32 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │       /<addon>/static/... │                     ▼
 └────────────┬──────────────┘   ┌────────────────────────────────────────┐
              │                  │ esbuild_native_bundle()                │
-             │                  │   assetsbundle.py:1813                 │
+             │                  │   assetsbundle.py:1847                 │
              │                  │                                        │
-             │                  │ 1. Generate entry.js (tempfile):       │
-             │                  │      import * as __m0 from "./path0";  │
+             │                  │ 1. Generate entry.js (piped on STDIN — │
+             │                  │    nothing written to the code tree):  │
+             │                  │      import * as __owl from "@odoo/owl";│
+             │                  │      import * as __m0 from "./path0";   │
              │                  │      ...                               │
-             │                  │      odoo.loader.registerNativeModules │
-             │                  │        ({ "@spec/0": __m0, ... });     │
+             │                  │      odoo.loader.registerNativeModules(│
+             │                  │        {"@odoo/owl":__owl,"@spec/0":..})│
+             │                  │      (+ hoot-family modules.set aliases)│
              │                  │                                        │
-             │                  │ 2. subprocess(esbuild,                 │
-             │                  │      --bundle --format=esm             │
-             │                  │      --minify --keep-names             │
-             │                  │      --target=<target>                 │
+             │                  │ 2. subprocess(esbuild, cwd=odoo_root,  │
+             │                  │      --bundle --format=esm --minify    │
+             │                  │      --keep-names --target=<target>    │
              │                  │      --external:@odoo/*                │
-             │                  │      --alias:<per-lib>...              │
+             │                  │      --external:/web/static/lib/*      │
+             │                  │      --external:<EXTERNAL_BARE_SPEC>...│
+             │                  │      --alias:<@odoo/* per-lib>...      │
+             │                  │      --resolve-extensions=.js,.mjs,... │
+             │                  │      --outfile --metafile [--sourcemap]│
              │                  │      timeout=<timeout_s>)              │
              │                  │                                        │
              │                  │ 3. Read output.js + metafile.json      │
-             │                  │ 4. Write attachment                    │
-             │                  │     /web/assets/esm/<hash>/<bundle>.js │
+             │                  │ 4. Write attachment (+ .meta.json,     │
+             │                  │    .esm.js.map siblings):              │
+             │                  │  /web/assets/esm/<hash>/<bundle>.esm.js│
              │                  └─────────────────┬──────────────────────┘
              │                                    │
              └───────────────────┬────────────────┘
@@ -72,7 +79,7 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │     <link rel="modulepreload" href=".../specs"> (prod only)               │
 │   [legacy bundle, if any]                                                 │
 │   post_nodes:                                                             │
-│     <script type="module" src=".../esm/<hash>/bundle.js"                  │
+│     <script type="module" src=".../esm/<hash>/<bundle>.esm.js"            │
 │             data-bridge="<bundle>"></script>                              │
 │     <script type="module">import { templates } from @web/core/...</script>│
 └───────────────────────────────┬───────────────────────────────────────────┘
@@ -109,29 +116,49 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild (old `IMPORT_MAP_INCLUDES`); used for test-runner bundles |
 | `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map |
 
-Example (`point_of_sale/__manifest__.py` style):
+Example:
 
 ```python
+# web/__manifest__.py — the only manifest using all four keys:
 'esm': {
-    'bundles': ['point_of_sale._assets_pos'],
-    'dynamic_children': {'web.assets_web': ['web_tour.automatic']},
+    'bundles': [...14 bundles...],
+    'dynamic_children': {'web.assets_web': ['web.assets_clickbot',
+                                            'web.assets_emoji']},
+    'import_map_includes': {'web.assets_unit_tests_setup':
+                            ['web.assets_unit_tests']},
+    'secondary_import_map_includes': {'web.assets_web': ['web.assets_tests'],
+                                      'web.assets_frontend': ['web.assets_tests']},
 }
+# web_tour/__manifest__.py — the CHILD declares its lazy bundles under the parent:
+'esm': {
+    'bundles': ['web_tour.automatic', 'web_tour.interactive', 'web_tour.recorder'],
+    'dynamic_children': {'web.assets_web': ['web_tour.automatic',
+                                            'web_tour.interactive',
+                                            'web_tour.recorder']},
+}
+# point_of_sale/__manifest__.py — bundles-only (no children/includes).
 ```
 
 Invariants (same as the old class-level `_validate_esm_config`) are enforced
-by `validate_esm_config` (esm_registry.py:205) when the registry is built:
-- Every `dynamic_children` parent and child is a registered ESM bundle
-- Every `import_map_includes` parent and include is a registered ESM bundle
-- No bundle is both dynamic child AND include-satellite of the same parent
-- No duplicate names within a children list
-- Unknown keys under `esm` are rejected (`_ESM_MANIFEST_KEYS`, esm_registry.py:65)
+by `validate_esm_config` (`esm_registry.py`) when the registry is built —
+loud by design, so a bad manifest fails the first render/bundle that touches
+the registry.  For ALL THREE mappings (`dynamic_children`,
+`import_map_includes`, AND `secondary_import_map_includes`):
+- Every parent is a registered ESM bundle (in `bundles`)
+- Every child is a registered ESM bundle (in `bundles`)
+- No duplicate name within a parent's merged children list
+Plus, cross-mapping: no bundle is both a dynamic child AND an
+import-map-include of the same parent.  Unknown keys under `esm` are rejected
+(`_ESM_MANIFEST_KEYS`); a non-Mapping `esm`, a bare-string `bundles`, or a
+non-dict mapping value raise `TypeError` earlier in the build.
 
 The esbuild alias table `_LIB_CANDIDATES` (vendored `@odoo/*` paths)
 lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py:299).
 Cross-file invariants enforced at module-load
-(`AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)`,
-assetsbundle.py:1397, invoked at :2759; `ODOO_EXTERNAL_LIBS` itself is
-defined in odoo/libs/constants.py:72 with a class alias at ir_qweb.py:3800):
+(`AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)` in
+assetsbundle.py, invoked at module load (end of the file); `ODOO_EXTERNAL_LIBS`
+itself is defined in odoo/libs/constants.py with a class alias
+`IrQweb._ODOO_EXTERNAL_LIBS` in ir_qweb_assets.py):
 - Every `ODOO_EXTERNAL_LIBS` entry has a matching `_LIB_CANDIDATES` alias,
   an `EXTERNAL_BARE_SPECIFIERS` membership, or `--external:@odoo/*`
   pattern coverage
@@ -149,6 +176,26 @@ persistent `es-module-lexer` node worker (`odoo/tools/assets/esm_lexer.py` +
 `npm install` that provides esbuild); the historical regex extractor in
 `esm_graph.py` remains as the automatic fallback when the worker is
 unavailable or a source doesn't lex.
+
+Worker robustness contract (`esm_lexer.py`):
+- **POSIX-only.** The worker uses `select` on pipes; on non-POSIX the regex
+  path is always used.
+- **Hard per-request deadline** (`_REQUEST_TIMEOUT_S`, 10s). The pipes are
+  binary + non-blocking and BOTH the request write and the response read are
+  gated by a wall-clock deadline (`_write_all` / `_read_line`), so a worker
+  that stopped reading (full ~64 KB pipe) or emitted a partial line can never
+  block a caller past the budget — a plain `stdin.write` / `readline` could.
+- **Respawn-once, then disable.** A worker that dies mid-request is respawned
+  and the request retried once; a *spawn* failure (no `node`) disables the
+  worker for the process immediately; and `_MAX_CONSECUTIVE_FAILURES` (2)
+  consecutive request failures also disable it — so a present-but-broken
+  worker degrades the whole process to the regex path fast instead of paying
+  the 10s budget on every module (which would be minutes across a big bundle).
+- **Discovery parity.** The regex fallback (`_IMPORT_ANY_RE`) covers named /
+  default / namespace / mixed (`import D, { y } from …`) / bindingless
+  side-effect imports, matching the worker's specifier discovery. `has_default`
+  can differ cosmetically for `export { x as default }`, harmless because the
+  shim emits the default block unconditionally.
 
 ## Logger taxonomy (Python ↔ JS)
 
@@ -201,13 +248,13 @@ unset or unparseable.
 
 | Key | Default | Class constant (file:line) | Effect |
 |-----|---------|---------------------------|--------|
-| `timeout_s` | `30` | `EsbuildCompiler._ESBUILD_TIMEOUT_S` (odoo/tools/assets/esbuild.py:423) | subprocess timeout (seconds) |
-| `target` | `"es2023"` | `EsbuildCompiler._ESBUILD_TARGET` (esbuild.py:427) | esbuild `--target=`. es2023 so esbuild stops downlevel-polyfilling `Promise.withResolvers`; all es2023 features have >18mo support on Chrome 110+/Safari 16+/FF 115+. |
-| `source_maps` | `""` | `EsbuildCompiler._ESBUILD_SOURCE_MAPS` (esbuild.py:455) | esbuild `--sourcemap=<mode>`. `""` (off), `"linked"` (sidecar `.js.map` + `sourceMappingURL` comment — DevTools fetches only when opened), `"external"` (sidecar without comment), `"inline"` (base64 data URL appended — ~2x bundle size). Unknown modes silently fall back to `""`. |
-| `cooldown_s` | `60.0` | `IrQweb._ESBUILD_COOLDOWN_S` (ir_qweb.py:3959) | Circuit-breaker cooldown after 1st failure |
-| `extended_cooldown_s` | `600.0` | `IrQweb._ESBUILD_EXTENDED_COOLDOWN_S` (ir_qweb.py:3960) | Cooldown after 2nd consecutive failure |
-| `lock_retries` | `1` | `IrQweb._ESBUILD_LOCK_RETRIES` (ir_qweb.py:4151) | Advisory-lock retry count |
-| `lock_retry_sleep_s` | `0.2` | `IrQweb._ESBUILD_LOCK_RETRY_SLEEP_S` (ir_qweb.py:4152) | Sleep between lock attempts |
+| `timeout_s` | `30` | `EsbuildCompiler._ESBUILD_TIMEOUT_S` (odoo/tools/assets/esbuild.py) | subprocess timeout (seconds) |
+| `target` | `"es2023"` | `EsbuildCompiler._ESBUILD_TARGET` (esbuild.py) | esbuild `--target=`. es2023 so esbuild stops downlevel-polyfilling `Promise.withResolvers`; all es2023 features have >18mo support on Chrome 110+/Safari 16+/FF 115+. |
+| `source_maps` | `""` | `EsbuildCompiler._ESBUILD_SOURCE_MAPS` (esbuild.py) | esbuild `--sourcemap=<mode>`. `""` (off), `"linked"` (sidecar `.js.map` + `sourceMappingURL` comment — DevTools fetches only when opened), `"external"` (sidecar without comment), `"inline"` (base64 data URL appended — ~2x bundle size). Unknown modes silently fall back to `""`. |
+| `cooldown_s` | `60.0` | `IrQweb._ESBUILD_COOLDOWN_S` (ir_qweb_assets.py) | Circuit-breaker cooldown after 1st failure |
+| `extended_cooldown_s` | `600.0` | `IrQweb._ESBUILD_EXTENDED_COOLDOWN_S` (ir_qweb_assets.py) | Cooldown after 2nd consecutive failure |
+| `lock_retries` | `1` | `IrQweb._ESBUILD_LOCK_RETRIES` (ir_qweb_assets.py) | Advisory-lock retry count |
+| `lock_retry_sleep_s` | `0.2` | `IrQweb._ESBUILD_LOCK_RETRY_SLEEP_S` (ir_qweb_assets.py) | Sleep between lock attempts |
 | `force_fallback_bundles` | `""` | — | Comma-separated bundle names to force into debug path |
 
 Operators set these via the UI (Settings → Technical → System Parameters)
@@ -225,8 +272,8 @@ env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
 | esbuild subprocess non-zero exit | Syntax error in an ESM source | `odoo.assets.esbuild WARNING event=failed bundle=<name> exit=<code>` + stderr on next line |
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
 | Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
-| `DuplicatedKeyError` in registry | Module loaded twice (separate instances) | Missing data-URI bridge; check `_build_native_to_legacy_bridge` |
-| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py:22` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override at `ir_qweb.py:4790`. |
+| `DuplicatedKeyError` in registry | Module loaded twice (separate instances) | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
+| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py:22` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_esm_prod_nodes` (`ir_qweb_assets.py`). |
 
 ## Serving & caching
 
@@ -240,15 +287,38 @@ a missing row is a hard 404, and regeneration happens through the render
 path after `ir.attachment.unlink`'s assets-cache clear.
 
 Persistence is decoupled from the request transaction:
-`IrQweb._persist_esm_attachment_rows` creates attachment rows through a
-dedicated read-write registry cursor that commits independently (same
-invariant as `BridgeShimManager._persist_bridges_via_rw_cursor`), so a
-request rollback can never orphan an ormcached bundle URL, and read-only
-replica renders persist + reference by URL instead of inlining the bundle.
-Inlining survives only as the degradation path when no writable cursor
-exists at all (read-only test cursors, primary down). Content reverts
-(A → B → A) reuse the old row and bump its `write_date`, which
+`IrQweb._persist_esm_attachment_rows` (bundle/templates/sourcemap) and
+`BridgeShimManager._persist_bridges_via_rw_cursor` (loader bridges) create
+attachment rows through a dedicated read-write registry cursor that commits
+independently, so a request rollback can never orphan an ormcached bundle
+URL, and read-only replica renders persist + reference by URL instead of
+inlining the bundle. Inlining survives only as the degradation path when no
+writable cursor exists at all (read-only test cursors, primary down). Content
+reverts (A → B → A) reuse the old row and bump its `write_date`, which
 `_gc_esm_assets` uses for newest-per-name liveness.
+
+**Current-cursor guard (deadlock avoidance).** The out-of-band cursor exists
+ONLY to survive an HTTP-request rollback. When there is no request — registry
+preload / asset pregeneration (`lifecycle._run_post_install_tests` →
+`_pregenerate_assets_bundles`), cron, CLI — the current cursor is already the
+durable one, and opening a SECOND real `registry.cursor()` on the same thread
+self-deadlocks: this thread holds `ir_attachment` locks on the current cursor,
+so the second cursor's INSERT waits on a lock only the now-suspended thread can
+release (a one-thread/two-cursor cycle Postgres cannot break). Both savers
+therefore persist on the current cursor when there is no request. **The two
+guards are intentionally NOT identical:**
+
+- `_persist_esm_attachment_rows`: `if _module.current_test or not request:`
+  → current cursor. The `current_test` term is required because a plain
+  `TransactionCase`'s `registry.cursor()` is a REAL cursor whose out-of-band
+  commit would leak rows past the test rollback.
+- `_persist_bridge_shims`: `if not request:` → current cursor, else the rw
+  cursor **even under a test**. A bare `current_test` branch here would break
+  HttpCase tours: the browser fetches loader-bridge URLs on SEPARATE
+  TestCursors, and only the `registry.cursor()` path publishes rows visible to
+  them; persisting on the render's own cursor left dynamic-child bridges
+  unfetchable (`Failed to fetch dynamically imported module`). Do not "unify"
+  these guards.
 
 ## Service worker
 
@@ -273,6 +343,7 @@ entry exercises exactly one method (`registerNativeModules`). Current surface:
 | `modules: Map<string, any>` | field | Shared map of specifier → module namespace.  Populated by `registerNativeModules`; consulted by bridge shims so sibling bundles see the SAME object for `@web/core/registry` etc. |
 | `bus: EventTarget` | field | Loader lifecycle events.  One event today: `rebind` (CustomEvent, `detail.specifiers`), fired when `registerNativeModules` re-binds a known specifier to a DIFFERENT namespace object — a singleton-split signal in production, the expected signal under dev hot-reload.  Subscribe via `odoo.loader.bus.addEventListener("rebind", …)`. |
 | `registerNativeModules(map)` | method | Bulk-assign `specifier → namespace` into `modules`.  Last-write-wins on duplicate keys; same-object re-binds stay silent, different-object re-binds dispatch `rebind` + a debug-gated `[asset.loader]` log (never a throw — it runs at bundle top level).  Called by the esbuild-generated entry and by `@web/core/assets.loadESMBundle`. |
+| `handleAssetLoadError(target)` | method | One-shot, rate-limited (60 s via `sessionStorage`) `location.reload()` that self-heals a 404'd content-addressed bundle/bridge URL — e.g. a client holding an old page after a GC sweep or `clear_cache("assets")`. Invoked by the capture-phase resource-load `error` listener in the inline reporter. |
 
 ### Error reporting
 
@@ -291,6 +362,15 @@ covers the window where the bundle itself fails to parse/evaluate and
 mirror of `@web/core/errors/error_beacon` — keep payload fields and
 endpoint in sync with that module and
 `observability.py::js_error`.
+
+The reporter installs three listeners: bubble-phase `error` (runtime
+errors, `kind:"error"`), capture-phase `error` (resource-load failures —
+a 404'd module/link — which beacon `kind:"asset_load_error"` AND call
+`odoo.loader.handleAssetLoadError(target)` for the one-shot self-heal
+reload above), and `unhandledrejection`. Each payload carries a
+`phase` of `pre_boot` / `post_boot` (from `odoo.isReady`), so a beacon
+tells you whether the failure happened before or after the web client
+mounted.
 
 ## See also
 

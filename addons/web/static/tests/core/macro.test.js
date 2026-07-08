@@ -256,3 +256,40 @@ test("macro timeout if element is not visible", async () => {
     await waitForMacro();
     expect.verifySteps(["TIMEOUT step failed to complete within 1000 ms."]);
 });
+
+test("a string action fails fast at construction", async () => {
+    // `action` is always CALLED, so a string action can never work; the schema
+    // must reject it up front instead of letting it die at runtime.
+    expect(
+        () =>
+            new Macro({
+                name: "test",
+                steps: [{ action: "doStuff" }],
+            }),
+    ).toThrow(/Error in schema for Macro/);
+});
+
+test("Macro.STOP halts the macro without onComplete or onError", async () => {
+    await mountWithCleanup(TestComponent);
+    const span = queryOne("span.value");
+    expect(span).toHaveText("0");
+    new Macro({
+        name: "test",
+        steps: [
+            // Returning the sentinel halts the macro before the next step.
+            { action: () => Macro.STOP },
+            {
+                trigger: "button.inc",
+                async action(trigger) {
+                    await click(trigger);
+                },
+            },
+        ],
+        onComplete: () => expect.step("onComplete"),
+        onError: () => expect.step("onError"),
+    }).start(queryOne(".counter"));
+    await waitForMacro();
+    // The second step never ran and no completion/error callback fired.
+    expect(span).toHaveText("0");
+    expect.verifySteps([]);
+});

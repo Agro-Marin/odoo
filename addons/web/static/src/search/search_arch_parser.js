@@ -228,17 +228,22 @@ export class SearchArchParser {
                 };
                 if (fieldType === "selection") {
                     const option = selection.find((sel) => sel[0] === value);
-                    if (!option) {
-                        throw Error();
+                    if (option) {
+                        preField.defaultAutocompleteValue.label = option[1];
                     }
-                    preField.defaultAutocompleteValue.label = option[1];
+                    // No matching option (e.g. stale value in the action
+                    // context): keep the raw value as label instead of
+                    // crashing the entire search view.
                 } else if (fieldType === "many2one") {
                     this.labels.push(async (orm) => {
                         const results = await orm.call(
                             relation, "read", [value, ["display_name"]], { context },
                         );
+                        // The record may no longer exist (e.g. stale id in
+                        // the action context): fall back to a string label
+                        // instead of crashing the entire search view.
                         preField.defaultAutocompleteValue.label =
-                            results[0]["display_name"];
+                            results[0]?.display_name ?? String(value);
                     });
                 } else if (
                     ["many2many", "one2many"].includes(fieldType) &&
@@ -258,7 +263,10 @@ export class SearchArchParser {
                 }
             }
         } else {
-            throw Error(); //but normally this should have caught earlier with view arch validation server side
+            // Normally caught earlier by server-side view arch validation.
+            throw new Error(
+                "Invalid search view arch: a <field> node has no 'name' attribute.",
+            );
         }
         if (node.hasAttribute("string")) {
             preField.description = node.getAttribute("string");

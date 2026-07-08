@@ -81,6 +81,11 @@ export class Many2XAutocomplete extends Component {
         searchMoreLimit: { type: Number, optional: true },
         searchThreshold: { type: Number, optional: true },
         setInputFloats: { type: Function, optional: true },
+        // Escape hatch disabling the empty-search memoization of search()
+        // entirely. Creation flows going through this component already
+        // invalidate the memo (see invalidateEmptySearch()); only pass this
+        // when the searchable set can change outside of the component's
+        // knowledge (e.g. product_name_and_description).
         preventMemoization: { type: Boolean, optional: true },
         slots: { optional: true },
         specification: { type: Object, optional: true },
@@ -108,12 +113,24 @@ export class Many2XAutocomplete extends Component {
     keepLast;
     /** @type {any} */
     selectCreate;
+    /**
+     * Backing store for lastEmptySearch. A container object is required
+     * because template getters (autoCompleteProps → sources) bind their
+     * callbacks to a derived render context (an Object.create() of the
+     * component), so a plain instance property assigned from search() would
+     * be shadowed on that derived object and stay invisible to the
+     * invalidation hooks running on the component itself. Mutating a shared
+     * container keeps a single storage for every `this`.
+     *
+     * @type {{ value: { context: Object, domain: any[], name: string } | null }}
+     */
+    emptySearchMemo = { value: null };
 
     setup() {
         this.orm = useService("orm");
 
         this.autoCompleteContainer = useForwardRefToParent("autocomplete_container");
-        const { activeActions, resModel, update, isToMany, fieldString } = this.props;
+        const { activeActions, resModel, isToMany, fieldString } = this.props;
 
         this.keepLast = new KeepLast();
 
@@ -124,14 +141,18 @@ export class Many2XAutocomplete extends Component {
                 activeActions,
                 isToMany,
                 onRecordSaved: (record) =>
-                    update([{ ...record.data, id: record.resId }]),
+                    this.update([{ ...record.data, id: record.resId }]),
                 onRecordDiscarded: () => {
                     if (!isToMany) {
-                        this.props.update(false);
+                        this.update(false);
                     }
                 },
                 fieldString,
                 onClose: () => {
+                    // A record may have been created through the dialog (even
+                    // by a subclass bypassing onRecordSaved), so a past empty
+                    // search result may no longer hold.
+                    this.invalidateEmptySearch();
                     const autoCompleteInput = /** @type {HTMLElement} */ (
                         this.autoCompleteContainer.el
                     ).querySelector("input");
@@ -159,10 +180,10 @@ export class Many2XAutocomplete extends Component {
             onSelected: (resId) => {
                 const resIds = Array.isArray(resId) ? resId : [resId];
                 const values = resIds.map((id) => ({ id }));
-                return update(values);
+                return this.update(values);
             },
             onCreateEdit: ({ context }) => this.openMany2X({ context }),
-            onUnselect: isToMany ? undefined : () => update(),
+            onUnselect: isToMany ? undefined : () => this.update(),
         });
     }
 
@@ -255,8 +276,7 @@ export class Many2XAutocomplete extends Component {
             this.lastEmptySearch &&
             deepEqual(this.lastEmptySearch.domain, domain) &&
             deepEqual(this.lastEmptySearch.context, context) &&
-            (name.startsWith(this.lastEmptySearch.name) ||
-                name.length < this.props.searchThreshold)
+            name.startsWith(this.lastEmptySearch.name)
         ) {
             return [];
         }
@@ -281,6 +301,47 @@ export class Many2XAutocomplete extends Component {
             };
         }
         return records;
+    }
+
+    /**
+     * Last (domain, context, name) triple of a web_name_search call that
+     * returned no records; search() then skips the RPC for narrower queries.
+     * Reset through invalidateEmptySearch() whenever a record may have come
+     * into existence or the searchable set may have changed. Prototype
+     * accessors over emptySearchMemo so that reads and writes share one
+     * storage whatever object `this` is bound to (see emptySearchMemo).
+     *
+     * @returns {{ context: Object, domain: any[], name: string } | null}
+     */
+    get lastEmptySearch() {
+        return this.emptySearchMemo.value;
+    }
+
+    set lastEmptySearch(memo) {
+        this.emptySearchMemo.value = memo;
+    }
+
+    /**
+     * Drops the empty-search memoization so the next search() call hits the
+     * server again. Must be called whenever a record may have come into
+     * existence (quick create, create-and-edit dialog) or the searchable set
+     * may have changed.
+     */
+    invalidateEmptySearch() {
+        this.lastEmptySearch = null;
+    }
+
+    /**
+     * Relays a value change to the parent field. Any update may create a
+     * record or change the searchable set, so the empty-search memoization
+     * is invalidated first.
+     *
+     * @param {Array<Object>|false} [values]
+     * @returns {any}
+     */
+    update(values) {
+        this.invalidateEmptySearch();
+        return this.props.update(values);
     }
 
     /** @param {string} request - User input to prefill the creation form */
@@ -432,6 +493,7 @@ export class Many2XAutocomplete extends Component {
             onSelect: async () => {
                 try {
                     await this.props.quickCreate(request);
+                    this.invalidateEmptySearch();
                 } catch (e) {
                     this.onQuickCreateError(e, request);
                 }
@@ -473,7 +535,7 @@ export class Many2XAutocomplete extends Component {
             label: label
                 ? highlightText(request, odoomark(label), "text-primary fw-bold")
                 : _t("Unnamed"),
-            onSelect: () => this.props.update([record]),
+            onSelect: () => this.update([record]),
         };
     }
 
@@ -555,7 +617,7 @@ export class Many2XAutocomplete extends Component {
     /** @param {{ inputValue: string }} params - Clears the value when input is emptied */
     onChange({ inputValue }) {
         if (!inputValue.length) {
-            this.props.update(false);
+            this.update(false);
         }
     }
 }

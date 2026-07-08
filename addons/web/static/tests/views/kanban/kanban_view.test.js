@@ -10398,6 +10398,53 @@ test("keynav: grouped kanban", async () => {
 });
 
 test.tags("desktop");
+test("keynav: ArrowUp works in x2many kanban without a search model", async () => {
+    // An x2many kanban embedded in a form has no searchModel in its env.
+    // ArrowUp card navigation must still work there (regression: it used
+    // to be registered only when a searchModel was present).
+    class Subtask extends models.Model {
+        _name = "subtask";
+
+        name = fields.Char();
+
+        _records = [
+            { id: 1, name: "subtask #1" },
+            { id: 2, name: "subtask #2" },
+        ];
+    }
+    defineModels([Subtask]);
+    Partner._fields.subtask_ids = fields.One2many({ relation: "subtask" });
+    Partner._records[0].subtask_ids = [1, 2];
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="subtask_ids" mode="kanban">
+                    <kanban>
+                        <templates>
+                            <t t-name="card">
+                                <field name="name"/>
+                            </t>
+                        </templates>
+                    </kanban>
+                </field>
+            </form>`,
+    });
+
+    // Focus the second card, then ArrowUp should move focus to the first.
+    await pointerDown(getKanbanRecord({ index: 1 }));
+    expect(getKanbanRecord({ index: 1 })).toBeFocused();
+
+    await press("ArrowUp");
+    expect(getKanbanRecord({ index: 0 })).toBeFocused({
+        message: "ArrowUp should move card focus even without a search model",
+    });
+});
+
+test.tags("desktop");
 test("keynav: grouped kanban with empty columns", async () => {
     Partner._records[1].state = "abc";
 
@@ -11387,6 +11434,119 @@ test("filtered column is reloaded when dragging out its last record", async () =
         "web_search_read",
         "web_resequence",
     ]);
+});
+
+test.tags("desktop");
+test("empty-bar deselection reload failure does not raise an unhandled rejection", async () => {
+    // Regression: emptying a bar-filtered column makes updateCounts' trailing sweep
+    // deselect the now-empty bar via selectBar(group.id, { value: null }), which
+    // awaits an applyFilter reload RPC. That fire-and-forget call must be caught,
+    // otherwise a failing reload becomes an unhandled promise rejection -- which the
+    // hoot error harness reports as an unverified error, failing the test.
+    let searchReadCount = 0;
+    onRpc("web_search_read", () => {
+        searchReadCount++;
+        if (searchReadCount === 2) {
+            // The reload fired by deselecting the just-emptied column's bar.
+            throw makeServerError({ message: "deselect reload boom" });
+        }
+    });
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban default_group_by="bar">
+                <progressbar field="foo" colors='{"yop": "success", "blip": "danger"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div>
+                            <field name="id"/>
+                            <field name="foo"/>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+
+    // Apply an active filter on the "Yes" column (isolates its single "yop" record).
+    await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-success").click();
+    expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
+    expect(getKanbanRecordTexts(1)).toEqual(["1yop"]);
+
+    // Drag its only record out: the filtered column empties, its bar is deselected,
+    // and the deselection reload (2nd web_search_read) rejects. With the fix that
+    // rejection is caught, so no unhandled rejection surfaces.
+    await contains(".o_kanban_group.o_kanban_group_show .o_kanban_record").dragAndDrop(
+        queryFirst(".o_kanban_group:first-child"),
+    );
+
+    expect(".o_kanban_view").toHaveCount(1);
+});
+
+test("stale in-flight _updateProgressBar does not clobber a reloaded domain's counts", async () => {
+    // Regression for the _pbEpoch protocol. A quick-create fires a fire-and-forget
+    // _updateProgressBar (read_progress_bar) that we hold in flight; a search-domain
+    // reload then completes with fresh counts (loadProgressBar). When the stale
+    // _updateProgressBar finally resolves it must NOT overwrite the reloaded counts.
+    // loadProgressBar bumping/stamping _pbEpoch makes the stale response fail the
+    // epoch check, so the group-datapoint-id comparison is defense-in-depth rather
+    // than the only fence.
+    let pbCall = 0;
+    let staleDef;
+    onRpc("read_progress_bar", async () => {
+        pbCall++;
+        if (pbCall === 2) {
+            // The quick-create's _updateProgressBar (previous domain): hold it.
+            staleDef = new Deferred();
+            await staleDef;
+        }
+        // Fall through to the real (domain-accurate) computation.
+    });
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban default_group_by="bar">
+                <progressbar field="foo" colors='{"yop": "success", "blip": "danger"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div>
+                            <field name="id"/>
+                            <field name="foo"/>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>`,
+        searchViewArch: `
+            <search>
+                <filter name="only_blip" string="Only blip" domain="[['foo', '=', 'blip']]"/>
+            </search>`,
+    });
+
+    // Initial state: the "Yes" column has yop + blip + Other (gnap).
+    expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 blip", "1 Other"]);
+
+    // Quick-create a record in the "No" column: this fires a fire-and-forget
+    // _updateProgressBar whose read_progress_bar (2nd call) we hold in flight.
+    await quickCreateKanbanRecord(0);
+    await editKanbanRecordQuickCreateInput("display_name", "New");
+    await validateKanbanRecord();
+
+    // Reload on a new domain (foo = blip): its own read_progress_bar resolves
+    // normally and applies fresh counts. Both columns now show only blip.
+    await toggleSearchBarMenu();
+    await toggleMenuItem("Only blip");
+    expect(getKanbanColumnTooltips(0)).toEqual(["1 blip"]);
+    expect(getKanbanColumnTooltips(1)).toEqual(["1 blip"]);
+
+    // The stale _updateProgressBar (previous domain) resolves late: it must be
+    // discarded, leaving the reloaded counts untouched (no reappearing "yop").
+    staleDef.resolve();
+    await animationFrame();
+    expect(getKanbanColumnTooltips(0)).toEqual(["1 blip"]);
+    expect(getKanbanColumnTooltips(1)).toEqual(["1 blip"]);
 });
 
 test("kanban widget can extract props from attrs", async () => {
@@ -15517,4 +15677,38 @@ test("add o-navigable to buttons with dropdown-item class and view buttons", asy
     expect(".o-dropdown--menu .dropdown-item.o-navigable:nth-child(3)").toHaveClass(
         "focus",
     );
+});
+
+test(`focusNextCard does not crash when the focused card is in no rendered group`, async () => {
+    // The focused ``.o_kanban_record`` is not part of any group inside ``area``
+    // (e.g. it was filtered out or the DOM changed underneath): the lookup loop
+    // leaves ``iCard === -1`` and ``iGroup === cards.length``. Reading
+    // ``cards[iGroup].length`` in the down/up branches would then throw.
+    const fixture = getFixture();
+
+    const area = document.createElement("div");
+    const group = document.createElement("div");
+    group.classList.add("o_kanban_group");
+    const inAreaCard = document.createElement("div");
+    inAreaCard.classList.add("o_kanban_record");
+    group.appendChild(inAreaCard);
+    area.appendChild(group);
+    fixture.appendChild(area);
+
+    // The focused card lives OUTSIDE ``area``, so it is never found in ``cards``.
+    const orphanCard = document.createElement("div");
+    orphanCard.classList.add("o_kanban_record");
+    orphanCard.tabIndex = -1;
+    fixture.appendChild(orphanCard);
+    orphanCard.focus();
+    expect(document.activeElement).toBe(orphanCard);
+
+    const mockRenderer = { props: { list: { isGrouped: true } } };
+    for (const direction of ["down", "up", "right", "left"]) {
+        expect(
+            KanbanRenderer.prototype.focusNextCard.call(mockRenderer, area, direction),
+        ).toBe(undefined);
+    }
+    // Focus never moved onto a card inside the area.
+    expect(document.activeElement).toBe(orphanCard);
 });

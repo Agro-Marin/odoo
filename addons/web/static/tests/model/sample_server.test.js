@@ -316,6 +316,28 @@ describe("RPC calls", () => {
         expect(result.groups.every((g) => g.__count === g.__records.length)).toBe(true);
     });
 
+    test("'web_read_group': many2one groups including a falsy (no-record) group", async () => {
+        const server = new DeterministicSampleServer("res.users", fields["res.users"]);
+        const existingGroups = [
+            { cover_image_id: [1, "cover.png"], count: 0, __records: [] },
+            { cover_image_id: false, count: 0, __records: [] }, // users with no cover image
+        ];
+        server.setExistingGroups(existingGroups);
+        // Must not throw "TypeError: false[0]" for the falsy m2o group.
+        const result = await server.mockRpc({
+            method: "web_read_group",
+            model: "res.users",
+            groupBy: ["cover_image_id"],
+            aggregates: ["__count"],
+            auto_unfold: true,
+            unfold_read_specification: { display_name: {} },
+        });
+        expect(result.groups).toHaveLength(2);
+        expect(result.groups.reduce((acc, g) => acc + g.__count, 0)).toBe(
+            MAIN_RECORDSET_SIZE,
+        );
+    });
+
     test("'web_read_group': 'max' aggregator", async () => {
         const server = new DeterministicSampleServer("res.users", fields["res.users"]);
         const result = await server.mockRpc({

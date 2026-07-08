@@ -3,7 +3,7 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, queryAllTexts, queryFirst, queryRect } from "@odoo/hoot-dom";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { mockDate, runAllTimers } from "@odoo/hoot-mock";
 import {
     mockService,
     mountWithCleanup,
@@ -31,7 +31,7 @@ const FAKE_PROPS = {
 };
 
 async function start(props = {}, target) {
-    await mountWithCleanup(CalendarCommonRenderer, {
+    return await mountWithCleanup(CalendarCommonRenderer, {
         props: { ...FAKE_PROPS, ...props },
         target,
     });
@@ -210,4 +210,78 @@ test(`Week: automatically scroll to 6am`, async () => {
 test("Month: remove row when no day of current month", async () => {
     await start({ model: { ...FAKE_MODEL, scale: "month" } });
     expect(".fc-day-other, .fc-day-disabled").toHaveCount(4);
+});
+
+test(`o_past_event: an all-day event on its last day today is not styled past`, async () => {
+    // All-day records normalize their end to start-of-day, so a single-day
+    // all-day event today has end === midnight of today. It must not be greyed
+    // out until the day is actually over (start of the following day).
+    mockDate("2021-07-16T12:00:00");
+    const today = luxon.DateTime.now().startOf("day");
+    const model = {
+        ...FAKE_MODEL,
+        records: {
+            10: { id: 10, title: "all day today", isAllDay: true, start: today, end: today },
+            11: {
+                id: 11,
+                title: "all day yesterday",
+                isAllDay: true,
+                start: today.minus({ days: 1 }),
+                end: today.minus({ days: 1 }),
+            },
+            12: {
+                id: 12,
+                title: "timed, already ended today",
+                isAllDay: false,
+                start: today.plus({ hours: 8 }),
+                end: today.plus({ hours: 9 }),
+            },
+        },
+    };
+    const renderer = await start({ model });
+    // FIX: today's all-day event is not past.
+    expect(renderer.eventClassNames({ event: { id: 10 } })).not.toInclude("o_past_event");
+    // Regression guards: a genuinely finished event is still styled past.
+    expect(renderer.eventClassNames({ event: { id: 11 } })).toInclude("o_past_event");
+    expect(renderer.eventClassNames({ event: { id: 12 } })).toInclude("o_past_event");
+});
+
+test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowed`, async () => {
+    const renderer = await start();
+    // Build Dates with native local-tz setters. isSelectionAllowed and
+    // FullCalendar's select payload compare via local Date methods
+    // (toDateString / getHours), so the wall-clock components must be set in
+    // the runtime-local zone — a bare ``new Date(y, m, d, h)`` is interpreted
+    // as UTC by Hoot's MockDate and would drift under a non-UTC runtime.
+    const atLocal = (year, monthIndex, day, hour) => {
+        const d = new Date();
+        d.setFullYear(year, monthIndex, day);
+        d.setHours(hour, 0, 0, 0);
+        return d;
+    };
+    // 23:00 -> 24:00 rolls the end over to 00:00 of the next day; the last slot
+    // of a day must still be selectable.
+    expect(
+        renderer.isSelectionAllowed({
+            allDay: false,
+            start: atLocal(2021, 6, 16, 23),
+            end: atLocal(2021, 6, 17, 0),
+        }),
+    ).toBe(true);
+    // A single-slot selection within the day stays allowed.
+    expect(
+        renderer.isSelectionAllowed({
+            allDay: false,
+            start: atLocal(2021, 6, 16, 8),
+            end: atLocal(2021, 6, 16, 9),
+        }),
+    ).toBe(true);
+    // A genuinely cross-day selection is still refused.
+    expect(
+        renderer.isSelectionAllowed({
+            allDay: false,
+            start: atLocal(2021, 6, 16, 22),
+            end: atLocal(2021, 6, 17, 1),
+        }),
+    ).toBe(false);
 });

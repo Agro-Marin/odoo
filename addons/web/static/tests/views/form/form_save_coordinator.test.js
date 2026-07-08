@@ -22,6 +22,10 @@
  *     fails.
  *   - ``requestDiscard`` calls ``record.discard`` and returns to clean.
  *   - Multi-company recovery is invoked transparently before the dialog UX.
+ *   - Dialog mode rethrows payload-less (non-RPC) errors instead of
+ *     routing them to ``FormErrorDialog``.
+ *   - Epoch ownership: overlapping saves/discards in either order — the
+ *     later requester owns the settlement, the earlier one is a no-op.
  *
  * Module under test: views/form/form_save_coordinator.js
  */
@@ -181,7 +185,12 @@ describe("FormSaveCoordinator — errorMode", () => {
         let onSaveErrorCalls = 0;
         let capturedError = null;
         let onErrorPassedToSave = null;
-        const fakeError = new Error("rpc-failed");
+        // RPC-shaped: the dialog path is reserved for errors carrying a
+        // server payload (``error.data``); payload-less errors are
+        // rethrown before the hook (see the dedicated test below).
+        const fakeError = Object.assign(new Error("rpc-failed"), {
+            data: { message: "rpc-failed" },
+        });
         const { coordinator } = makeContext({
             save: async ({ onError } = {}) => {
                 onErrorPassedToSave = onError;
@@ -212,6 +221,44 @@ describe("FormSaveCoordinator — errorMode", () => {
         // so callers like shouldExecuteAction can block menu actions
         // on any save error regardless of dialog resolution.
         expect(coordinator.lastError).toBe(fakeError);
+    });
+
+    test("errorMode='dialog' rethrows payload-less errors instead of opening the dialog", async () => {
+        // ``ConnectionLostError`` / ``ConnectionTimeoutError`` (and any
+        // non-RPC throw) carry no ``.data``: ``FormErrorDialog`` requires
+        // ``props.data``, so routing such an error to the dialog hook
+        // would TypeError inside the controller and mask the original
+        // failure (offline save via breadcrumb → no dialog, undefined
+        // navigation state).  The coordinator must keep it out of the
+        // dialog path: rethrow into ``requestSave``'s catch, which
+        // settles status to "error", records the original error in
+        // ``lastError`` and resolves false so navigation cleanly blocks.
+        let dialogCalls = 0;
+        const connectionError = new Error("Connection lost"); // no ``.data``
+        const { coordinator } = makeContext({
+            save: async ({ onError } = {}) => {
+                // Mirror record_save.js: the raised error is routed
+                // through the caller-provided onError callback; a throw
+                // from the callback propagates out of ``record.save()``.
+                return await onError(connectionError, {
+                    discard: () => {},
+                    retry: () => true,
+                });
+            },
+            hooks: {
+                onSaveError: async () => {
+                    dialogCalls++;
+                    return true;
+                },
+            },
+        });
+
+        const result = await coordinator.requestSave({ errorMode: "dialog" });
+
+        expect(dialogCalls).toBe(0); // dialog never opened
+        expect(result).toBe(false);
+        expect(coordinator.status).toBe("error");
+        expect(coordinator.lastError).toBe(connectionError); // not masked
     });
 
     test("errorMode='rethrow' propagates the error to the caller", async () => {
@@ -607,4 +654,46 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         expect(coordinator.status).toBe("clean"); // discard's settlement preserved
     });
 
+    test("requestSave mid-discard supersedes the discard's settlement", async () => {
+        // Mirror of the previous test: the user clicks Discard on a dirty
+        // record whose ``root.discard()`` is held up by the model mutex
+        // (e.g. a slow onchange), then clicks Save.  The save's ``begin``
+        // claims a newer epoch, so when the discard finally resolves it
+        // must NOT apply its ``discard`` transition — that would settle
+        // ``saving → clean`` under the in-flight save, whose terminal
+        // ``ok`` would then be an invalid transition from ``clean`` (and
+        // the rescue ``failed`` would throw again from ``clean``, escaping
+        // ``requestSave`` regardless of errorMode).
+        let resolveDiscard, resolveSave;
+        const discardPromise = new Promise((r) => (resolveDiscard = r));
+        const savePromise = new Promise((r) => (resolveSave = r));
+        let discardCalls = 0;
+        const { coordinator } = makeContext({
+            discard: () => {
+                discardCalls++;
+                return discardPromise;
+            },
+            save: () => savePromise,
+        });
+        coordinator.status = "dirty";
+
+        const discardPending = coordinator.requestDiscard();
+        const savePending = coordinator.requestSave();
+        // Pump microtasks so both calls are in flight.
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(discardCalls).toBe(1);
+        expect(coordinator.status).toBe("saving"); // save's begin applied
+
+        // The discard resolves first — its stale settlement is a no-op.
+        resolveDiscard();
+        await discardPending;
+        expect(coordinator.status).toBe("saving"); // save still owns the state
+
+        // The save's terminal owns the current epoch and settles cleanly.
+        resolveSave(true);
+        const saved = await savePending;
+        expect(saved).toBe(true);
+        expect(coordinator.status).toBe("clean");
+    });
 });

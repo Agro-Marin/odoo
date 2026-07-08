@@ -95,6 +95,13 @@ export class Domain {
      */
     static not(domain) {
         const result = new Domain(domain);
+        if (!result.ast.value.length) {
+            // An empty domain is TRUE; the server maps ~TRUE -> FALSE. Prefixing
+            // "!" onto an empty AST would produce the malformed ["!"] (no
+            // operand), which crashes toString()/contains() and the server
+            // rejects. Return FALSE instead.
+            return new Domain([FALSE_LEAF]);
+        }
         result.ast.value.unshift({ type: ASTType.String, value: "!" });
         return result;
     }
@@ -186,30 +193,31 @@ export class Domain {
                 }
                 return 1;
             } else if (leaf.type === ASTType.String) {
-                // Special case: both children of OR are removed leaves —
-                // replace the whole OR+children with a single neutral value.
-                if (
-                    leaf.value === "|" &&
-                    elements[idx + 1].type === ASTType.Tuple &&
-                    elements[idx + 2].type === ASTType.Tuple &&
-                    keysToRemove.includes(/** @type {any} */ (elements[idx + 1]).value[0].value) &&
-                    keysToRemove.includes(/** @type {any} */ (elements[idx + 2]).value[0].value)
-                ) {
+                // Generalized neutralization: when EVERY leaf of the subtree
+                // rooted at a connector is removed, the whole subtree must
+                // collapse to the neutral element of the ENCLOSING context
+                // (TRUE inside "&", FALSE inside "|"), not be rebuilt
+                // leaf-by-leaf. Rebuilding ["&", removed, removed] inside an
+                // OR as AND(TRUE, TRUE) = TRUE would absorb the whole OR
+                // (match ALL records); ["!", removed] would become
+                // NOT(TRUE) = FALSE (match nothing).
+                //
+                // When the connector matches the enclosing context ("&"
+                // inside "&", "|" inside "|"), recursing is already sound —
+                // each removed leaf becomes the shared neutral element and,
+                // e.g., AND(TRUE, TRUE) is the neutral TRUE — and it
+                // preserves the historical leaf-per-leaf output shape.
+                if (leaf.value !== operatorCtx && isFullyRemoved(elements, idx)) {
                     pushNeutral(operatorCtx, newDomain);
-                    return 3;
+                    return subtreeSize(elements, idx);
                 }
                 if (leaf.value === "!") {
-                    const childSize = subtreeSize(elements, idx + 1);
-                    if (isFullyRemoved(elements, idx + 1)) {
-                        // The entire negated subtree is removed. Replace
-                        // "!" + subtree with a neutral value. Without this,
-                        // we'd emit ["!", TRUE_LEAF] = NOT(TRUE) = FALSE,
-                        // which silently filters out all records.
-                        pushNeutral(operatorCtx, newDomain);
-                        return 1 + childSize;
-                    }
+                    // Under a negation the roles of the neutral elements
+                    // swap: a removed subtree inside "!" must evaluate so
+                    // that NOT(subtree) is neutral for the outer context.
+                    const invertedCtx = operatorCtx === "&" ? "|" : "&";
                     newDomain.ast.value.push(leaf);
-                    return 1 + processLeaf(elements, idx + 1, "&", newDomain);
+                    return 1 + processLeaf(elements, idx + 1, invertedCtx, newDomain);
                 }
                 newDomain.ast.value.push(leaf);
                 const firstLeafSkip = processLeaf(
@@ -264,6 +272,10 @@ export class Domain {
     /**
      * Check if the set of records represented by a domain contains a record
      * Warning: smart dates (see parseSmartDateInput) are not handled here.
+     * Warning: the relational operators ``any``/``child_of``/``parent_of``
+     * cannot be resolved without the related records, so they are treated as an
+     * always-match approximation (``not any`` is the dual of ``any`` so that
+     * negation stays consistent).
      *
      * @param {Record<string, any>} record
      * @returns {boolean}
@@ -390,8 +402,22 @@ function normalizeDomainAST(domain, op = "&") {
         // non-empty path below already ``slice()``s for the same reason.
         return { type: domain.type, value: [] };
     }
+    // Simulate the prefix-notation parse (mirroring the server's
+    // normalize_domain): ``expected`` is the number of operands still owed at
+    // the current position. Counting operators/leaves without tracking
+    // position would accept garbage such as [leaf, "&", leaf] — a complete
+    // expression followed by a dangling operator — which the server rejects
+    // and which the matching stack machine cannot evaluate.
+    /** @type {AST[]} */
+    const values = [];
     let expected = 1;
     for (const child of domain.value) {
+        if (expected === 0) {
+            // The expression is already complete: join the extra segment
+            // with the implicit operator, as in [leaf, leaf] ≡ ["&", leaf, leaf].
+            values.unshift({ type: ASTType.String, value: op });
+            expected = 1;
+        }
         switch (child.type) {
             case ASTType.String:
                 if (child.value === "&" || child.value === "|") {
@@ -402,19 +428,15 @@ function normalizeDomainAST(domain, op = "&") {
                 break;
             case ASTType.List:
             case ASTType.Tuple:
-                if (child.value.length === 3) {
-                    expected--;
-                    break;
+                if (child.value.length !== 3) {
+                    throw new InvalidDomainError("Invalid domain AST");
                 }
-                throw new InvalidDomainError("Invalid domain AST");
+                expected--;
+                break;
             default:
                 throw new InvalidDomainError("Invalid domain AST");
         }
-    }
-    const values = domain.value.slice();
-    while (expected < 0) {
-        expected++;
-        values.unshift({ type: ASTType.String, value: op });
+        values.push(child);
     }
     if (expected > 0) {
         throw new InvalidDomainError(
@@ -422,6 +444,37 @@ function normalizeDomainAST(domain, op = "&") {
         );
     }
     return { type: ASTType.List, value: values };
+}
+
+/**
+ * Translate a SQL LIKE pattern into a (non-anchored) regular-expression source
+ * string, mirroring the PostgreSQL LIKE semantics used by the server:
+ *  - ``%`` matches any run of characters -> ``.*``
+ *  - ``_`` matches exactly one character -> ``.``
+ *  - ``\`` escapes the next character, so ``\%``/``\_``/``\\`` match a literal
+ *    ``%``/``_``/``\`` (and any other ``\x`` a literal ``x``).
+ * Every other character is regex-escaped. The value is coerced with String()
+ * so a numeric operand does not crash escapeRegExp.
+ * @param {any} value
+ * @returns {string}
+ */
+function likeToRegExp(value) {
+    const pattern = String(value);
+    let out = "";
+    for (let i = 0; i < pattern.length; i++) {
+        const ch = pattern[i];
+        if (ch === "\\" && i + 1 < pattern.length) {
+            // Escaped character: emit it literally (regex-escaped).
+            out += escapeRegExp(pattern[++i]);
+        } else if (ch === "%") {
+            out += ".*";
+        } else if (ch === "_") {
+            out += ".";
+        } else {
+            out += escapeRegExp(ch);
+        }
+    }
+    return out;
 }
 
 /**
@@ -448,13 +501,22 @@ function matchCondition(record, condition) {
             return matchCondition(parent, [restField, operator, value]);
         }
     }
+    // NB: a field absent from the record reads as `undefined` here (NOT coalesced
+    // to False). On the server every field exists and unset reads as False, but on
+    // the client an absent field usually means "not loaded" rather than "false",
+    // and coalescing would break the invariant that `contains` agrees with
+    // expressionFromTree (which does not coalesce free variables).
     const fieldValue = typeof field === "number" ? field : record[field];
-    const isNot = operator.startsWith("not ");
-    switch (operator) {
+    // The server lowercases operators (ast.py). Do the same once so that
+    // ["a", "IN", [1]] and other upper/mixed-case operators resolve instead of
+    // falling through the case-sensitive switch and throwing.
+    const op = typeof operator === "string" ? operator.toLowerCase() : operator;
+    const isNot = op.startsWith("not ");
+    switch (op) {
         case "=?":
-            // When value is false or null the condition is always true;
-            // otherwise =? behaves identically to =.
-            if ([false, null].includes(value)) {
+            // Server (optimizations.py): `if not value: return TRUE`. Use
+            // truthiness so 0 and "" (not just false/null) are always-true.
+            if (!value) {
                 return true;
             }
             return matchCondition(record, [field, "=", value]);
@@ -486,8 +548,7 @@ function matchCondition(record, condition) {
             if (fieldValue === false) {
                 return isNot;
             }
-            const pattern = escapeRegExp(value).replaceAll("%", ".*");
-            return new RegExp(pattern).test(fieldValue) !== isNot;
+            return new RegExp(likeToRegExp(value)).test(fieldValue) !== isNot;
         }
         case "=like":
         case "not =like":
@@ -495,17 +556,14 @@ function matchCondition(record, condition) {
                 return isNot;
             }
             return (
-                new RegExp(
-                    "^" + escapeRegExp(value).replaceAll("%", ".*") + "$",
-                ).test(fieldValue) !== isNot
+                new RegExp("^" + likeToRegExp(value) + "$").test(fieldValue) !== isNot
             );
         case "ilike":
         case "not ilike": {
             if (fieldValue === false) {
                 return isNot;
             }
-            const pattern = escapeRegExp(value).replaceAll("%", ".*");
-            return new RegExp(pattern, "i").test(fieldValue) !== isNot;
+            return new RegExp(likeToRegExp(value), "i").test(fieldValue) !== isNot;
         }
         case "=ilike":
         case "not =ilike":
@@ -513,18 +571,22 @@ function matchCondition(record, condition) {
                 return isNot;
             }
             return (
-                Boolean(
-                    new RegExp(
-                        "^" + escapeRegExp(value).replaceAll("%", ".*") + "$",
-                        "i",
-                    ).test(fieldValue),
-                ) !== isNot
+                new RegExp("^" + likeToRegExp(value) + "$", "i").test(fieldValue) !==
+                isNot
             );
         case "any":
-        case "not any":
+            // Approximation: `any`/`child_of`/`parent_of` need the related
+            // records to evaluate, which contains() does not have, so they
+            // always match (see the caveat on Domain.contains). `not any` is
+            // defined as the dual of `any` so negation stays consistent: both
+            // `!(x any y)` and `x not any y` yield the same result.
             return true;
+        case "not any":
+            return !matchCondition(record, [field, "any", value]);
         case "child_of":
         case "parent_of":
+            // Always-match approximation (see the caveat on Domain.contains):
+            // hierarchy resolution needs the related records.
             return true;
     }
     throw new InvalidDomainError("could not match domain");
@@ -570,11 +632,22 @@ function matchDomain(record, domain) {
         const item = domain[i];
         const operator = typeof item === "string" && operators[item];
         if (operator) {
-            const operands = condStack.splice(-OPERATOR_ARITY[item]);
+            const arity = OPERATOR_ARITY[item];
+            if (condStack.length < arity) {
+                throw new InvalidDomainError(
+                    `invalid domain (missing operand(s) for "${item}")`,
+                );
+            }
+            const operands = condStack.splice(-arity);
             condStack.push(operator(...operands));
         } else {
             condStack.push(item);
         }
+    }
+    if (condStack.length !== 1) {
+        // Leftover operands mean the prefix expression was malformed; the
+        // final pop() would silently evaluate only the first segment.
+        throw new InvalidDomainError("invalid domain (unconsumed segment(s))");
     }
     return matchCondition(record, condStack.pop());
 }

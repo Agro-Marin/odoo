@@ -161,6 +161,7 @@ class WebSuite(HOOTCommon):
             "@web/views/view_service",
             "@web/views/view",
             "@web/views/view_utils",
+            "@web/views/module_views",
             preset="desktop",
         )
 
@@ -310,6 +311,7 @@ class MobileWebSuite(HOOTCommon):
             "@web/views/view_service",
             "@web/views/view",
             "@web/views/view_utils",
+            "@web/views/module_views",
             preset="mobile",
             tag="-headless",
         )

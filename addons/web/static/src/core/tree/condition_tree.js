@@ -117,8 +117,8 @@ export const TRUE_TREE = condition(1, "=", 1);
 export const FALSE_TREE = condition(0, "=", 1);
 
 /**
- * @param {Value} value
- * @returns {Value}
+ * @param {Value|Tree} value
+ * @returns {Value|Tree}
  */
 function cloneValue(value) {
     if (value instanceof Expression) {
@@ -126,6 +126,9 @@ function cloneValue(value) {
     }
     if (Array.isArray(value)) {
         return /** @type {Value} */ (value.map(cloneValue));
+    }
+    if (isTree(value)) {
+        return cloneTree(/** @type {Tree} */ (value));
     }
     return value;
 }

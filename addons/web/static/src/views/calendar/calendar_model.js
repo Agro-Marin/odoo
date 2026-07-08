@@ -15,7 +15,6 @@ import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
-import { KeepLast } from "@web/core/utils/concurrency";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { useDebounced } from "@web/core/utils/timing";
 import { getFieldCodec } from "@web/core/field_codec";
@@ -48,8 +47,15 @@ export class CalendarModel extends Model {
      * @param {{ notification: Object }} services
      */
     setup(params, { notification }) {
+        // Monotonic load epoch. Every load() captures the current value and
+        // only applies its result if it is still the latest when it settles.
+        // Superseding a load (a newer load() or an explicit filter mutation)
+        // just bumps this counter, so the superseded load resolves normally
+        // instead of hanging — unlike KeepLast, whose wrapper for a superseded
+        // task never settles and would leave `await this.load()` callers
+        // (createRecord/updateRecord/multiCreateRecords/quick-create) stuck.
         /** @protected */
-        this.keepLast = new KeepLast();
+        this.currentLoadId = 0;
         this.notification = notification;
 
         const formViewFromConfig = (this.env.config.views || []).find(
@@ -112,7 +118,15 @@ export class CalendarModel extends Model {
         }
         browser.localStorage.setItem(this.storageKey, this.meta.scale);
         const data = { ...this.data };
-        await this.keepLast.add(this.updateData(data));
+        const loadId = ++this.currentLoadId;
+        await this.updateData(data);
+        if (loadId !== this.currentLoadId) {
+            // Superseded by a newer load() or by an explicit filter mutation
+            // while updateData was in flight: resolve normally without applying
+            // this now-stale data (and without notifying), so awaiting callers
+            // are released instead of hanging forever.
+            return;
+        }
         this.data = data;
         this.notify();
     }
@@ -329,7 +343,9 @@ export class CalendarModel extends Model {
         const section = this.data.filterSections[fieldName];
         if (section) {
             // remove the filter directly, to provide a direct feedback to the user
-            this.keepLast.add(Promise.resolve());
+            // Cancel any in-flight load so it won't overwrite this optimistic
+            // update; bumping the epoch releases its awaiting caller cleanly.
+            this.currentLoadId++;
             section.filters = section.filters.filter((f) => f.recordId !== recordId);
         }
         if (info?.writeResModel) {
@@ -351,7 +367,9 @@ export class CalendarModel extends Model {
 
     async updateFilters(fieldName, filters, active) {
         // update filters directly, to provide a direct feedback to the user
-        this.keepLast.add(Promise.resolve());
+        // Cancel any in-flight load so it won't overwrite this optimistic
+        // update; bumping the epoch releases its awaiting caller cleanly.
+        this.currentLoadId++;
         for (const filter of filters) {
             filter.active = active;
         }
@@ -378,11 +396,23 @@ export class CalendarModel extends Model {
     }
     async updateRecord(record, options = {}) {
         const rawRecord = this.buildRawRecord(record, options);
-        delete rawRecord.name; // name is immutable.
-        await this.orm.write(this.meta.resModel, [record.id], rawRecord, {
-            context: this.meta.context,
-        });
-        await this.load();
+        // The name is immutable here: buildRawRecord maps the title onto
+        // create_name_field when the arch defines one, so delete the mapped
+        // key — deleting only the literal "name" key would let a title
+        // overwrite the record name on such views.
+        delete rawRecord[this.meta.fieldMapping.create_name_field || "name"];
+        try {
+            await this.orm.write(this.meta.resModel, [record.id], rawRecord, {
+                context: this.meta.context,
+            });
+        } finally {
+            // Reload even when the write is rejected (server constraint,
+            // access error, ...): drag/drop and resize handlers have already
+            // let FullCalendar render the event at its new slot, and only a
+            // reload re-syncs the UI with the server state. The rejection
+            // still propagates so the standard error dialog is shown.
+            await this.load();
+        }
     }
 
     //--------------------------------------------------------------------------

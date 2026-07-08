@@ -228,7 +228,13 @@ export class SelectMenu extends Component {
     }
 
     get canDeselect() {
-        return !this.props.required && this.selectedChoice !== undefined;
+        if (this.props.required) {
+            return false;
+        }
+        if (this.props.multiSelect) {
+            return this.selectedChoice.length > 0;
+        }
+        return this.selectedChoice !== undefined;
     }
 
     get multiSelectChoices() {
@@ -298,7 +304,8 @@ export class SelectMenu extends Component {
     }
 
     onInputClear() {
-        this.props.onSelect(null);
+        // multiSelect consumers expect an array value, single-select a scalar.
+        this.props.onSelect(this.props.multiSelect ? [] : null);
         this.dropdownState.close();
     }
 

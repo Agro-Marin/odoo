@@ -218,18 +218,26 @@ export function parseInteger(value, { allowOperation = false } = {}) {
         decimalPoint: decimalPointRegex,
         truncate: true,
     });
-    if (!Number.isInteger(parsed)) {
+    // Only fall back to the English separators when the locale parse could not
+    // interpret the input at all (NaN). Falling back on a valid-but-non-integer
+    // result (e.g. "2,5" -> 2.5 in a comma-decimal locale) would silently
+    // reinterpret "," as a thousands separator and yield 25 — a 10x error.
+    // A finite non-integer is a genuine parse; reject it instead.
+    if (Number.isNaN(parsed)) {
         parsed = parseNumber(value, {
             thousandsSep: ",",
             decimalPoint: ".",
             truncate: true,
         });
-        if (!Number.isInteger(parsed)) {
+        if (Number.isNaN(parsed)) {
             throw new InvalidNumberError(`"${value}" is not a correct number`);
         }
     }
     if (!Number.isFinite(parsed)) {
         throw new InvalidNumberError(`"${value}" is not a valid number`);
+    }
+    if (!Number.isInteger(parsed)) {
+        throw new InvalidNumberError(`"${value}" is not a correct number`);
     }
     if (parsed < -2147483648 || parsed > 2147483647) {
         throw new InvalidNumberError(

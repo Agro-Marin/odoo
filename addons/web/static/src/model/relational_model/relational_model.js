@@ -468,6 +468,14 @@ export class RelationalModel extends Model {
                     }
 
                     // multi record case: either grouped or ungrouped
+                    if (root.records.some((r) => r.isInEdition || r.dirty)) {
+                        // A record is being edited (see ``editedRecord``) or
+                        // has unsaved changes: _setData would rebuild all
+                        // record datapoints, thus destroy the edition state
+                        // (row in edition, pending changes) => ignore this
+                        // update.
+                        return;
+                    }
                     if (root.config.groupBy.length) {
                         // result is the response of a web_read_group rpc
                         // in case there're less groups, we don't want to keep displaying groups

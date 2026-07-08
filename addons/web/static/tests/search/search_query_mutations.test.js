@@ -26,6 +26,7 @@ import {
     toggleDateFilter,
     toggleDateGroupBy,
     toggleSearchItem,
+    withNotificationsBlocked,
 } from "@web/search/search_query_mutations";
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP, SPECIAL } from "@web/search/search_state";
 
@@ -57,6 +58,11 @@ function makeSearchModel(overrides = {}) {
         facets: [],
 
         _notify() {
+            // Mirror the real SearchModel: a blocked notification is a no-op,
+            // so tests can assert how many *reloads* an operation triggers.
+            if (this.blockNotification) {
+                return;
+            }
             notifications.push("notify");
         },
         deactivateGroup(groupId) {
@@ -209,6 +215,67 @@ describe("clearFilters", () => {
         expect(model.query.length).toBe(1);
         expect(model.query[0].searchItemId).toBe(10);
     });
+
+    test("a throwing facets getter does not permanently silence the model", () => {
+        const model = makeSearchModel();
+        // Simulate a corrupt favorite whose stored domain fails to parse while
+        // the facets getter runs inside the notifications-blocked window.
+        Object.defineProperty(model, "facets", {
+            configurable: true,
+            get() {
+                throw new Error("unparseable domain");
+            },
+        });
+
+        expect(() => clearFilters(model)).toThrow();
+
+        // blockNotification must have been reset by the try/finally, so a
+        // subsequent search still notifies rather than being silenced forever.
+        expect(model.blockNotification).toBe(false);
+        const before = model._notifications.length;
+        clearQuery(model);
+        expect(model._notifications.length).toBe(before + 1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// withNotificationsBlocked
+// ---------------------------------------------------------------------------
+
+describe("withNotificationsBlocked", () => {
+    test("suppresses notifications inside the window", () => {
+        const model = makeSearchModel();
+
+        withNotificationsBlocked(model, () => {
+            model._notify();
+            model._notify();
+        });
+
+        expect(model._notifications.length).toBe(0);
+    });
+
+    test("resets blockNotification even when the callback throws", () => {
+        const model = makeSearchModel();
+
+        expect(() =>
+            withNotificationsBlocked(model, () => {
+                throw new Error("boom");
+            }),
+        ).toThrow();
+
+        expect(model.blockNotification).toBe(false);
+    });
+
+    test("restores the previous blocked state (nesting-safe)", () => {
+        const model = makeSearchModel({ blockNotification: true });
+
+        withNotificationsBlocked(model, () => {
+            expect(model.blockNotification).toBe(true);
+        });
+
+        // Restored to the captured value, not hardcoded false.
+        expect(model.blockNotification).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -289,6 +356,29 @@ describe("toggleSearchItem", () => {
         toggleSearchItem(model, 1);
 
         // dateFilter is silently ignored
+        expect(model.query.length).toBe(0);
+    });
+
+    test("activating a favorite resets orderByCount (no stale __count sort)", () => {
+        const model = makeSearchModel({ orderByCount: "Desc" });
+        addItem(model, 1, { type: "groupBy", groupId: 1 }, true);
+        addItem(model, 2, { type: "favorite", groupId: 2, groupBys: ["state"] });
+
+        toggleSearchItem(model, 2);
+
+        // Only the favorite is active, and the count sort it never carried is
+        // cleared so computeOrderBy won't inject {name:"__count"}.
+        expect(model.query.length).toBe(1);
+        expect(model.query[0].searchItemId).toBe(2);
+        expect(model.orderByCount).toBe(false);
+    });
+
+    test("ignores items flagged isInvalid (e.g. corrupt favorite)", () => {
+        const model = makeSearchModel();
+        addItem(model, 1, { type: "favorite", groupId: 1, isInvalid: true });
+
+        toggleSearchItem(model, 1);
+
         expect(model.query.length).toBe(0);
     });
 });
@@ -533,6 +623,26 @@ describe("createNewGroupBy", () => {
         createNewGroupBy(model, "name");
 
         expect(model.searchItems[1].custom).toBe(true);
+    });
+
+    test("non-date field: notifies exactly once (single reload)", () => {
+        const model = makeSearchModel();
+        model.searchViewFields = { name: { string: "Name", type: "char" } };
+
+        createNewGroupBy(model, "name");
+
+        // The inner toggleSearchItem._notify() is blocked; only the trailing
+        // _notify() fires — "Add Custom Group" must not double-reload.
+        expect(model._notifications.length).toBe(1);
+    });
+
+    test("date field: notifies exactly once (single reload)", () => {
+        const model = makeSearchModel();
+        model.searchViewFields = { order_date: { string: "Order Date", type: "date" } };
+
+        createNewGroupBy(model, "order_date");
+
+        expect(model._notifications.length).toBe(1);
     });
 });
 

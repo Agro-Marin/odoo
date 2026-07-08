@@ -40,7 +40,7 @@ export class AceField extends Component {
         useBus(
             model.bus,
             ModelEvent.WILL_SAVE_URGENTLY,
-            /** @type {any} */ (() => this.commitChanges()),
+            /** @type {any} */ ((ev) => ev.detail?.proms?.push(this.commitChanges())),
         );
         useBus(
             model.bus,

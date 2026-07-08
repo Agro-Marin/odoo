@@ -11,31 +11,33 @@ test("new instance starts empty", () => {
     expect(Object.keys(cs.raw)).toEqual([]);
 });
 
-test("setField accumulates pending edits and exposes them via raw", () => {
+test("direct writes through raw accumulate pending edits", () => {
+    // Production writes edits via ``record._changes[field] = value``, which
+    // lands on the bag returned by ``raw`` (see ``Record._applyChanges``).
     const cs = new ChangeSet();
-    cs.setField("name", "Alice");
-    cs.setField("age", 30);
+    cs.raw.name = "Alice";
+    cs.raw.age = 30;
 
     expect(cs.isEmpty).toBe(false);
     expect(cs.raw).toEqual({ name: "Alice", age: 30 });
-    expect(cs.has("name")).toBe(true);
-    expect(cs.has("missing")).toBe(false);
+    expect("name" in cs.raw).toBe(true);
+    expect("missing" in cs.raw).toBe(false);
 });
 
-test("delete removes a single field", () => {
+test("deleting a key through raw removes a single field", () => {
     const cs = new ChangeSet();
-    cs.setField("name", "Alice");
-    cs.setField("age", 30);
-    cs.delete("name");
+    cs.raw.name = "Alice";
+    cs.raw.age = 30;
+    delete cs.raw.name;
 
-    expect(cs.has("name")).toBe(false);
+    expect("name" in cs.raw).toBe(false);
     expect(cs.raw).toEqual({ age: 30 });
 });
 
 test("clear drops all pending edits", () => {
     const cs = new ChangeSet();
-    cs.setField("name", "Alice");
-    cs.setField("age", 30);
+    cs.raw.name = "Alice";
+    cs.raw.age = 30;
     cs.clear();
 
     expect(cs.isEmpty).toBe(true);
@@ -44,10 +46,10 @@ test("clear drops all pending edits", () => {
 
 test("replace swaps in a new initial bag wholesale", () => {
     const cs = new ChangeSet();
-    cs.setField("old", true);
+    cs.raw.old = true;
     cs.replace({ fresh: 1, also_fresh: 2 });
 
-    expect(cs.has("old")).toBe(false);
+    expect("old" in cs.raw).toBe(false);
     expect(cs.raw).toEqual({ fresh: 1, also_fresh: 2 });
 });
 
@@ -58,15 +60,15 @@ test("raw returns the live underlying bag (direct property writes land)", () => 
     const cs = new ChangeSet();
     cs.raw.inline = "written";
 
-    expect(cs.has("inline")).toBe(true);
+    expect("inline" in cs.raw).toBe(true);
     expect(cs.raw.inline).toBe("written");
 });
 
-test("clear + setField cycle does not leak prior entries", () => {
+test("clear + write cycle does not leak prior entries", () => {
     const cs = new ChangeSet();
-    cs.setField("a", 1);
+    cs.raw.a = 1;
     cs.clear();
-    cs.setField("b", 2);
+    cs.raw.b = 2;
 
     expect(cs.raw).toEqual({ b: 2 });
 });

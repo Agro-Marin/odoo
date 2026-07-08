@@ -18,6 +18,7 @@ import {
     getModifier,
     isComponentNode,
     isTextNode,
+    makeIsVisibleExpr,
     makeSeparator,
     ViewCompiler,
 } from "@web/views/view_compiler";
@@ -39,13 +40,12 @@ function appendAttf(el, attr, string) {
     el.setAttribute(attrKey, appendToExpr(attrVal, string));
 }
 
-function appendToExpr(expr, string) {
-    if (!expr) {
-        return `{{${string} }}`;
-    }
-    const re = /{{.*}}/;
-    const oldString = re.exec(expr);
-    return oldString ? `${oldString} {{${string} }}` : `${expr} {{${string} }}`;
+export function appendToExpr(expr, string) {
+    // Append the new interpolation to the existing expression, preserving any
+    // literal text around it. (The former implementation re-extracted only the
+    // `{{...}}` span with a regex, silently dropping static text such as the
+    // "foo " in `t-attf-class="foo {{expr}}"`.)
+    return expr ? `${expr} {{${string} }}` : `{{${string} }}`;
 }
 
 /**
@@ -175,16 +175,7 @@ export class FormCompiler extends ViewCompiler {
                 continue;
             }
             hasContent = true;
-            let isVisibleExpr;
-            if (!invisible || invisible === "False" || invisible === "0") {
-                isVisibleExpr = "true";
-            } else if (invisible === "True" || invisible === "1") {
-                isVisibleExpr = "false";
-            } else {
-                isVisibleExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
-                    invisible,
-                )},__comp__.props.record.evalContextWithVirtualIds)`;
-            }
+            const isVisibleExpr = makeIsVisibleExpr(invisible);
             const mainSlot = createElement("t", {
                 "t-set-slot": `slot_${slotId++}`,
                 isVisible: isVisibleExpr,
@@ -445,16 +436,7 @@ export class FormCompiler extends ViewCompiler {
             }
 
             if (slotContent && !isTextNode(slotContent)) {
-                let isVisibleExpr;
-                if (!invisible || invisible === "False" || invisible === "0") {
-                    isVisibleExpr = "true";
-                } else if (invisible === "True" || invisible === "1") {
-                    isVisibleExpr = "false";
-                } else {
-                    isVisibleExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
-                        invisible,
-                    )},__comp__.props.record.evalContextWithVirtualIds)`;
-                }
+                const isVisibleExpr = makeIsVisibleExpr(invisible);
                 mainSlot.setAttribute("isVisible", isVisibleExpr);
                 if (itemSpan > 0) {
                     mainSlot.setAttribute("itemSpan", `${itemSpan}`);
@@ -653,16 +635,7 @@ export class FormCompiler extends ViewCompiler {
                 );
             }
 
-            let isVisibleExpr;
-            if (!invisible || invisible === "False" || invisible === "0") {
-                isVisibleExpr = "true";
-            } else if (invisible === "True" || invisible === "1") {
-                isVisibleExpr = "false";
-            } else {
-                isVisibleExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
-                    invisible,
-                )},__comp__.props.record.evalContextWithVirtualIds)`;
-            }
+            const isVisibleExpr = makeIsVisibleExpr(invisible);
             pageSlot.setAttribute("isVisible", isVisibleExpr);
 
             params.notebookPageFields = [];

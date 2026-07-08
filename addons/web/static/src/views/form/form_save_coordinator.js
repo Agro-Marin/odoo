@@ -115,11 +115,12 @@ export class FormSaveCoordinator extends SignalStore {
 
     /**
      * Monotonic counter incremented on every ``begin`` (new save in flight)
-     * and every ``discard`` (in-flight saves invalidated by a discard).
-     * Each save captures its own ``_saveEpoch`` on entry; its terminal
-     * event (``ok`` / ``recoverable`` / ``failed``) is silently dropped
-     * when the current epoch has moved on, because the state has already
-     * been settled by a concurrent save or discard.  This is the only
+     * and on every discard (in-flight saves invalidated by a discard).
+     * Each save — and each discard — captures its own ``_saveEpoch`` on
+     * entry; its settlement (``ok`` / ``recoverable`` / ``failed`` for
+     * saves, ``discard`` for discards) is silently dropped when the
+     * current epoch has moved on, because the state has already been
+     * settled by a concurrent save or discard.  This is the only
      * legitimate source of stale terminals — misrouted outcomes from
      * outside ``requestSave`` / ``requestUrgentSave`` still surface as
      * ``InvalidFormSaveTransitionError``.
@@ -301,13 +302,27 @@ export class FormSaveCoordinator extends SignalStore {
     }
 
     /**
-     * Discard pending changes and return to a clean state.  Bumps
-     * ``_saveEpoch`` so any save still in flight finishes as a no-op
-     * (its terminal would otherwise race the discard transition).
+     * Discard pending changes and return to a clean state.  Claims the
+     * epoch (like a save) so the discard is ordered against concurrent
+     * saves in both directions:
+     *
+     *   - a save already in flight when the discard starts finishes as a
+     *     no-op — its terminal would otherwise race the ``discard``
+     *     transition;
+     *   - a save started while ``root.discard()`` is pending (queued
+     *     behind the model mutex, e.g. a slow onchange) supersedes the
+     *     discard: applying ``discard`` after that save's ``begin`` would
+     *     settle ``saving → clean`` under the save's feet, turning its
+     *     own terminal into an invalid transition from ``clean``.
      */
     async requestDiscard() {
-        ++this._saveEpoch;
+        const ownerEpoch = ++this._saveEpoch;
         await this.model.root.discard();
+        if (ownerEpoch !== this._saveEpoch) {
+            // A newer save (or discard) claimed the epoch while
+            // ``root.discard()`` was pending — it owns the settlement.
+            return;
+        }
         this._transition("discard");
         this.lastError = null;
     }
@@ -319,7 +334,11 @@ export class FormSaveCoordinator extends SignalStore {
      *   - ``dialog``  — render ``FormErrorDialog`` (via ``hooks.onSaveError``)
      *                   with discard / redirect / stay choices.  The
      *                   multi-company recovery pre-check runs first and
-     *                   may shortcut to ``retry()``.
+     *                   may shortcut to ``retry()``.  Errors without a
+     *                   server payload (no ``error.data`` — e.g.
+     *                   ``ConnectionLostError``) cannot feed the dialog
+     *                   and are rethrown instead; ``requestSave``'s catch
+     *                   settles them as ``failed`` and resolves false.
      *   - ``rethrow`` — propagate the error to the caller's try/catch by
      *                   re-throwing inside the onError callback.  Matches
      *                   the historical ``onSaveError(error, opts, false)``
@@ -364,6 +383,17 @@ export class FormSaveCoordinator extends SignalStore {
                 // downstream consumers (``shouldExecuteAction`` etc.)
                 // see the eventual success.
                 return callbacks.retry();
+            }
+            if (!error?.data) {
+                // ``FormErrorDialog`` requires a server-provided payload
+                // (``props.data`` / ``props.message``).  Non-RPC failures
+                // (``ConnectionLostError``, timeouts, programming errors)
+                // carry none: rendering the dialog would TypeError on
+                // ``error.data.message`` and mask the original failure.
+                // Rethrow instead — ``requestSave``'s catch records the
+                // error, settles status to "error" and resolves false, so
+                // the caller (e.g. breadcrumb navigation) cleanly blocks.
+                throw error;
             }
             // Recovery failed → dialog UX runs.  Record the error in
             // ``lastError`` so it survives even when the dialog

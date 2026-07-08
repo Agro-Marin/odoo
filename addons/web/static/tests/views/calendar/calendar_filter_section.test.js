@@ -1,8 +1,8 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, queryAllTexts } from "@odoo/hoot-dom";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { click, queryAll, queryAllTexts } from "@odoo/hoot-dom";
+import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
 
@@ -18,6 +18,26 @@ test(`render filter panel`, async () => {
     expect(`.o_calendar_filter`).toHaveCount(1);
     expect(`.o_calendar_filter .o_cw_filter_label`).toHaveText("Attendees");
     expect(`.o_calendar_filter .o_calendar_filter_item`).toHaveCount(3);
+});
+
+test(`filter element ids are stable across re-renders`, async () => {
+    const section = await mountWithCleanup(CalendarFilterSection, {
+        props: {
+            model: FAKE_MODEL,
+            section: FAKE_FILTER_SECTIONS[0],
+        },
+    });
+    const idsBefore = queryAll(`.o_calendar_filter_item input`).map((el) => el.id);
+    expect(idsBefore).toHaveLength(3);
+    // Ids are unique within a render (each label/input pair must match).
+    expect(new Set(idsBefore).size).toBe(3);
+
+    // Force a re-render without changing the data: ids must not churn (the
+    // getter used to bump a module-global on every template eval).
+    section.render();
+    await animationFrame();
+    const idsAfter = queryAll(`.o_calendar_filter_item input`).map((el) => el.id);
+    expect(idsAfter).toEqual(idsBefore);
 });
 
 test(`filters are correctly sorted`, async () => {

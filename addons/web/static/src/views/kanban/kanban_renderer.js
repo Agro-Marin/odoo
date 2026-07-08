@@ -681,6 +681,12 @@ export class KanbanRenderer extends Component {
                 break;
             }
         }
+        // The focused card belongs to no rendered group (e.g. it was filtered
+        // out or the DOM changed under us): iGroup has run past the end of
+        // ``cards``, so any ``cards[iGroup]`` access below would throw. Bail.
+        if (iCard === -1) {
+            return;
+        }
         // Find next card to focus
         let nextCard;
         switch (direction) {

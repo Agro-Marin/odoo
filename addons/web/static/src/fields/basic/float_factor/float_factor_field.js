@@ -18,17 +18,28 @@ export class FloatFactorField extends FloatField {
         factor: 1,
     };
 
+    /** @returns {number} the multiplication factor, guarded against 0 */
+    get factor() {
+        const factor = this.props.factor;
+        if (!factor) {
+            console.warn("float_factor: factor must be non-zero; falling back to 1");
+            return 1;
+        }
+        return factor;
+    }
+
     /**
      * @param {string} value - user input to parse
      * @returns {number} parsed float divided by the factor
      */
     parse(value) {
-        return super.parse(value) / this.props.factor;
+        return super.parse(value) / this.factor;
     }
 
-    /** @returns {number} stored value multiplied by the factor */
+    /** @returns {number|false} stored value multiplied by the factor, or false when unset */
     get value() {
-        return this.props.record.data[this.props.name] * this.props.factor;
+        const value = this.props.record.data[this.props.name];
+        return value === false ? false : value * this.factor;
     }
 }
 

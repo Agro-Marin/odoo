@@ -167,22 +167,26 @@ export class Notebook extends Component {
         if (!props.slots && !props.pages) {
             return [];
         }
-        if (props.pages) {
-            for (const page of props.pages) {
-                page.isVisible = true;
-            }
-        }
         this.disabledPages = [];
         /** @type {[string, any][]} */
         const pages = [];
         /** @type {[string, any][]} */
         const pagesWithIndex = [];
-        for (const [k, v] of Object.entries({
-            ...props.slots,
-            ...props.pages,
-        })) {
+        // Merge slot descriptors (keyed by slot name) with programmatic pages
+        // (given as an array). Programmatic page descriptors are shallow-copied
+        // (with isVisible forced on) rather than mutated, and the two sources
+        // are kept as separate entries so a slot literally named "0" is never
+        // clobbered by the first array-indexed page.
+        const entries = [
+            ...Object.entries(props.slots || {}),
+            ...(props.pages || []).map(
+                /** @returns {[string, any]} */
+                (page, i) => [String(i), { ...page, isVisible: true }],
+            ),
+        ];
+        for (const [k, v] of entries) {
             const id = v.id || k;
-            if (v.index) {
+            if (v.index !== undefined) {
                 pagesWithIndex.push([id, v]);
             } else {
                 pages.push([id, v]);

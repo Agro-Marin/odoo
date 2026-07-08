@@ -210,6 +210,27 @@ test("validity updated on input and cannot apply non-valid time strings", async 
 });
 
 test.tags("desktop");
+test("rounding a near-midnight time does not wrap back to the start of the day", async () => {
+    await mountWithCleanup(TimePicker, {
+        props: {
+            // default minutesRounding is 5
+            onChange: (value) => expect.step(`${value.hour}:${value.minute}`),
+        },
+    });
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+
+    await edit("23:58", { confirm: "enter" });
+    await animationFrame();
+
+    // 23:58 rounds DOWN to 23:55 instead of wrapping to 0:00 of the same day
+    // (which would send a datetime consumer back ~24h).
+    expect("input.o_time_picker_input").toHaveValue("23:55");
+    expect.verifySteps(["23:55"]);
+});
+
+test.tags("desktop");
 test("arrow keys navigation, enter selects items, up/down arrow updates the input value", async () => {
     await mountWithCleanup(TimePicker, {
         props: {

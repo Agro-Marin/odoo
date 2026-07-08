@@ -177,8 +177,19 @@ export function makeControllerComponent(am) {
         onMounted() {
             const { controller, action, nextStack, resolve } = this.props._context;
             if (action.target === "new") {
+                // Remove the previous committed dialog (if any): this
+                // mounted dialog replaces it. The synchronous head of the
+                // removal chain (dialog service onRemove → am._removeDialog)
+                // nulls ``am.dialog`` before the next line runs, and fires
+                // no user callback because ``_dispatchTargetNew`` already
+                // transferred the previous dialog's ``onClose`` to
+                // ``am.nextDialog``.
                 am.dialog?.remove();
+                // Commit the new dialog and clear the pending slot so the
+                // two never alias — ``_dispatchTargetNew`` only removes a
+                // still-pending (never mounted) ``nextDialog``.
                 am.dialog = am.nextDialog;
+                am.nextDialog = null;
             } else {
                 controller.getGlobalState = () => {
                     const exportFns = this.__getGlobalState__.callbacks;

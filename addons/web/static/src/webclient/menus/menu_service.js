@@ -129,10 +129,35 @@ export const menuService = {
                 });
             menusData = JSON.parse(storedMenus);
         } else {
-            const res = await fetchMenus();
+            // Cold boot: no usable stored copy for this registry version.
+            let res;
+            try {
+                res = await fetchMenus();
+            } catch {
+                // Parse-time preload rejected: treat as unusable.
+                res = null;
+            }
+            if (!res || !res.menus) {
+                // The preload was unusable: ``odoo.loadMenusPromise`` can
+                // resolve ``null`` when the server computed a 304 against a
+                // stale/mismatched localStorage copy, which would otherwise
+                // leave ``menusData`` undefined and blank the webclient.
+                // Refetch the full payload unconditionally (no cached hash →
+                // never a 304).
+                try {
+                    res = await fetchMenus(true);
+                } catch {
+                    res = null;
+                }
+            }
             if (res && res.menus) {
                 menusData = res.menus;
                 persistMenus(res.menus, res.hash);
+            } else if (storedMenus) {
+                // Last resort: a stale (version-mismatched) stored copy is
+                // still better than a blank client. Serve it rather than
+                // leaving ``menusData`` undefined.
+                menusData = JSON.parse(storedMenus);
             }
         }
 

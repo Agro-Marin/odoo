@@ -1015,3 +1015,71 @@ describe("patchInfo", () => {
         expect(patchInfo(A).patchedKeys).toEqual(["staticFn"]);
     });
 });
+
+describe("single-use extension", () => {
+    test("patching the same target twice with the same extension throws a clear error", () => {
+        class A {
+            fn() {
+                return "base";
+            }
+        }
+        const ext = {
+            fn() {
+                return "patch:" + super.fn();
+            },
+        };
+        patch(A.prototype, ext);
+        // Reusing the same extension object used to throw the opaque
+        // "TypeError: Cyclic __proto__ value"; it must now be a clear message.
+        expect(() => patch(A.prototype, ext)).toThrow(/already used in a patch/);
+        expect(() => patch(A.prototype, ext)).not.toThrow(/Cyclic/);
+    });
+
+    test("sharing one extension across two targets throws and leaves the first intact", () => {
+        class A {
+            fn() {
+                return "a";
+            }
+        }
+        class B {
+            fn() {
+                return "b";
+            }
+        }
+        const shared = {
+            fn() {
+                return "s:" + super.fn();
+            },
+        };
+        patch(A.prototype, shared);
+        expect(new A().fn()).toBe("s:a");
+        // Reusing on a second target would re-parent `shared` onto B's skeleton,
+        // corrupting A's `super` chain — it must throw instead.
+        expect(() => patch(B.prototype, shared)).toThrow(/already used in a patch/);
+        // A's super chain is untouched.
+        expect(new A().fn()).toBe("s:a");
+    });
+
+    test("unpatch still re-applies surviving extensions (fresh objects each)", () => {
+        class A {
+            fn() {
+                return "a";
+            }
+        }
+        const unpatch1 = patch(A.prototype, {
+            fn() {
+                return "1:" + super.fn();
+            },
+        });
+        patch(A.prototype, {
+            fn() {
+                return "2:" + super.fn();
+            },
+        });
+        expect(new A().fn()).toBe("2:1:a");
+        unpatch1();
+        // Removing the first patch re-applies the second against a fresh
+        // description; the single-use guard must not block that.
+        expect(new A().fn()).toBe("2:a");
+    });
+});

@@ -427,7 +427,10 @@ export class DateTimePicker extends Component {
 
         this.maxDate = parseLimitDate(props.maxDate, getMaxValidDate());
         this.minDate = parseLimitDate(props.minDate, getMinValidDate());
-        if (this.props.type === "date") {
+        // Use the incoming ``props`` (not ``this.props``, which is still the
+        // previous value during onWillUpdateProps): a dynamic date<->datetime
+        // switch must expand the day boundaries per the NEW type immediately.
+        if (props.type === "date") {
             this.maxDate = this.maxDate.endOf("day");
             this.minDate = this.minDate.startOf("day");
         }

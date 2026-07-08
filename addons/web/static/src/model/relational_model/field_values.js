@@ -188,7 +188,12 @@ function getAggregatesFromGroupData(groupData, fields) {
 function getDisplayNameFromGroupData(field, rawValue) {
     switch (field.type) {
         case "selection": {
-            return Object.fromEntries(field.selection)[rawValue];
+            // A falsy raw value has no entry in the selection map; fall back to
+            // the falsy label like every other field type instead of returning
+            // ``undefined``.
+            return rawValue
+                ? Object.fromEntries(field.selection)[rawValue]
+                : field.falsy_value_label || _t("None");
         }
         case "boolean": {
             return rawValue ? _t("Yes") : _t("No");

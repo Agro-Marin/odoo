@@ -75,12 +75,19 @@ export function computeAppsAndMenuItems(menuTree) {
  * @param {string[]} order - ordered array of xmlid strings
  */
 export function reorderApps(apps, order) {
+    // Snapshot the original positions *before* sorting. Calling
+    // ``apps.indexOf(a)`` inside the comparator reads the array while it is
+    // being mutated by ``sort`` — the returned index reflects the partially
+    // sorted state, which makes the comparator inconsistent (unspecified per
+    // the ES spec) and only accidentally preserves the original order.
+    const pos = new Map(apps.map((a, i) => [a, i]));
     apps.sort((a, b) => {
         const aIndex = order.indexOf(a.xmlid);
         const bIndex = order.indexOf(b.xmlid);
         if (aIndex === -1 && bIndex === -1) {
-            // if both items are not present, sort by original order
-            return apps.indexOf(a) - apps.indexOf(b);
+            // Neither app is in the custom order: keep their original
+            // relative order deterministically via the precomputed positions.
+            return pos.get(a) - pos.get(b);
         }
         // not found items always before found ones
         if (aIndex === -1) {

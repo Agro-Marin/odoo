@@ -237,6 +237,9 @@ class InteractionService {
                 this.interactions.push(interaction);
                 proms.push(interaction.start());
             } catch (e) {
+                // Forget the (el, I) pair: a later startInteractions() may
+                // retry it, and keeping it would retain `el` forever.
+                this.activeInteractions.delete(el, I);
                 this._trackProm(Promise.reject(e));
             }
         } else {

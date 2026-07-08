@@ -657,3 +657,33 @@ test("StateSelectionField - hotkey handling when there are more than 3 options a
         message: "green color and Done state have been set",
     });
 });
+
+test("StateSelectionField shows the label by default outside kanban (form)", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `<form><field name="selection" widget="state_selection"/></form>`,
+    });
+    // With no `hide_label` option, non-kanban views default to showing the
+    // label (defaultProps.showLabel is no longer dead).
+    expect(".o_status_label").toHaveCount(1);
+});
+
+test("StateSelectionField hides the label by default in kanban", async () => {
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: /* xml */ `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="selection" widget="state_selection"/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+    // Kanban keeps the compact colored-dot default (no label).
+    expect(".o_field_state_selection .o_status").toHaveCount(5);
+    expect(".o_status_label").toHaveCount(0);
+});

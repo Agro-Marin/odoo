@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import { condition, expression } from "@web/core/tree/condition_tree";
+import { cloneTree, condition, connector, expression } from "@web/core/tree/condition_tree";
 import { constructDomainFromTree } from "@web/core/tree/construct_domain_from_tree";
 import { constructExpressionFromTree } from "@web/core/tree/construct_expression_from_tree";
 import { constructTreeFromDomain } from "@web/core/tree/construct_tree_from_domain";
@@ -544,4 +544,44 @@ test("evaluation . expressionFromTree = contains . domainFromTree", () => {
             new Domain(domainFromTree(tree)).contains(record),
         );
     }
+});
+
+test(`cloneTree deep-clones the nested tree value of an "any" condition`, () => {
+    const subTree = condition("name", "=", "abc");
+    const original = condition("partner_id", "any", subTree);
+    const clone = /** @type {any} */ (cloneTree(original));
+    expect(clone).toEqual(original);
+    expect(clone).not.toBe(original);
+    expect(clone.value).not.toBe(subTree);
+    clone.value.value = "def";
+    expect(subTree.value).toBe("abc");
+    expect(clone.value.value).toBe("def");
+});
+
+test("cloneTree deep-clones an array of trees used as condition value", () => {
+    const subTrees = [condition("name", "=", "abc"), condition("city", "=", "ghent")];
+    const original = condition("partner_id", "any", /** @type {any} */ (subTrees));
+    const clone = /** @type {any} */ (cloneTree(original));
+    expect(clone).toEqual(original);
+    expect(clone.value).not.toBe(subTrees);
+    expect(clone.value[0]).not.toBe(subTrees[0]);
+    expect(clone.value[1]).not.toBe(subTrees[1]);
+    clone.value[0].value = "def";
+    expect(subTrees[0].value).toBe("abc");
+    expect(clone.value[0].value).toBe("def");
+});
+
+test("cloneTree deep-clones connector children two levels deep", () => {
+    const leaf = condition("name", "=", "abc");
+    const inner = connector("|", [leaf, condition("city", "=", "ghent")]);
+    const original = connector("&", [inner, condition("active", "=", true)]);
+    const clone = /** @type {any} */ (cloneTree(original));
+    expect(clone).toEqual(original);
+    expect(clone.children).not.toBe(original.children);
+    expect(clone.children[0]).not.toBe(inner);
+    expect(clone.children[0].children).not.toBe(inner.children);
+    expect(clone.children[0].children[0]).not.toBe(leaf);
+    clone.children[0].children[0].value = "def";
+    expect(leaf.value).toBe("abc");
+    expect(clone.children[0].children[0].value).toBe("def");
 });

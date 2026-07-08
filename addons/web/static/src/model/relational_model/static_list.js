@@ -255,6 +255,14 @@ export class StaticList extends DataPoint {
                     ...record.config,
                     ...params,
                     activeFields,
+                    // Keep the list's live, merged ``fields`` object (identity
+                    // === ``list.fields``). ``...params`` spreads in the caller's
+                    // ``params.fields`` snapshot, a DIFFERENT object that diverges
+                    // from ``list.fields`` as properties splice / applyCommands
+                    // mutate the two independently. ``this.fields`` was just
+                    // extended in place with ``params.fields`` above, so it is the
+                    // authoritative merged set.
+                    fields: this.fields,
                 };
 
                 // case 1: the record already exists
@@ -682,6 +690,25 @@ export class StaticList extends DataPoint {
             throw new Error("You must provide a virtualId if the record has no id");
         }
         const id = resId || params.virtualId;
+        const cachedRecord = this._cache[id];
+        if (
+            cachedRecord &&
+            (cachedRecord.dirty || Object.keys(cachedRecord._changes).length)
+        ) {
+            // A cached datapoint that carries pending ``_changes`` must NOT be
+            // replaced by a fresh one: replacing it drops those changes AND the
+            // ORM commands ``serializeCommands`` derives from them (e.g. an
+            // onchange-mandated sub-record UPDATE queued via deferred-command
+            // replay — the empty UPDATE would then be dropped and never reach the
+            // server). This path is hit by a restricted-field reload: ``sort()``
+            // reloads a record with only the orderBy fields as activeFields when
+            // that record's activeFields lack the sort column. Merge the
+            // freshly-loaded values into the existing datapoint instead —
+            // ``_applyValues`` assigns the new server values while preserving
+            // ``_changes`` (and the record's fuller activeFields).
+            cachedRecord._applyValues(data);
+            return cachedRecord;
+        }
         /** @type {any} */
         const config = {
             context: this.context,

@@ -100,14 +100,22 @@ export function imageUrl(
         if (DateTime && unique instanceof DateTime) {
             // `.ts` is luxon's internal epoch-ms, not in @types/luxon's public surface.
             urlParams.unique = /** @type {any} */ (unique).ts;
-        } else if (DateTime) {
+        } else if (DateTime && typeof unique === "string") {
+            // Only a string can be parsed as an SQL datetime; DateTime.fromSQL
+            // throws on any non-string input, so it must be guarded.
             const dateTimeFromUnique = DateTime.fromSQL(unique);
             if (dateTimeFromUnique.isValid) {
                 urlParams.unique = /** @type {any} */ (dateTimeFromUnique).ts;
-            } else if (typeof unique === "string" && unique.length) {
+            } else if (unique.length) {
                 urlParams.unique = unique;
             }
-        } else if (typeof unique === "string" && unique.length) {
+        } else if (typeof unique === "string") {
+            if (unique.length) {
+                urlParams.unique = unique;
+            }
+        } else {
+            // Truthy but neither a DateTime nor a string (e.g. a numeric
+            // timestamp): use it directly as a cache-busting token.
             urlParams.unique = unique;
         }
     }

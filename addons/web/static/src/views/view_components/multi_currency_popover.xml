@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="web.MultiCurrencyPopover">
-        <div class="o_multi_currency_popover">
+        <div class="o_multi_currency_popover" t-ref="root">
             <div class="popover-body">
                 <t t-foreach="currencies" t-as="currency" t-key="currency.id">
                     <div>

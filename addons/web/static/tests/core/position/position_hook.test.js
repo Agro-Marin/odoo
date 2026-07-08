@@ -154,6 +154,36 @@ test("should flip direction and store it", async () => {
     expect.verifySteps(["top-middle"]);
 });
 
+test("does not mutate the caller's (frozen) options object", async () => {
+    // A shared/frozen options object must not be mutated to memorize the last
+    // position: doing so cross-contaminates components sharing it and throws on
+    // a frozen object.
+    const options = Object.freeze({
+        onPositioned: (el, { direction, variant }) => {
+            expect.step(`${direction}-${variant}`);
+        },
+    });
+    class TestComp extends Component {
+        static template = xml`
+            <div id="container" style="position: relative; height: 450px; width: 450px">
+                <div id="target" t-ref="target" style="width: 50px; height: 50px"/>
+                <div id="popper" t-ref="popper" style="height: 100px; width: 100px"/>
+            </div>
+        `;
+        static props = ["*"];
+        setup() {
+            const target = useRef("target");
+            usePosition("popper", () => target.el, options);
+        }
+    }
+
+    // Must not throw despite the frozen options, and must still position.
+    await mountWithCleanup(TestComp);
+    expect.verifySteps(["bottom-middle"]);
+    // The frozen options object was left untouched (no memorized `position`).
+    expect("position" in options).toBe(false);
+});
+
 test("can disable auto-flipping", async () => {
     const TestComp = getTestComponent({
         flip: false,

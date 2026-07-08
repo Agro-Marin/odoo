@@ -289,8 +289,19 @@ function urlToState(/** @type {URL} */ urlObj) {
 let state;
 /** @type {any} */
 let pushTimeout;
-/** @type {{ replace: boolean, reload: boolean, state: Record<string, any>, title?: string }} */
+/** @type {{ replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace", title?: string }} */
 let pushArgs;
+
+/**
+ * Fresh, empty aggregation bucket for the debounced push/replace.
+ * `mode` starts at the weakest intent ("replace"); a "push" call upgrades it so
+ * that an intended new history entry is never silently downgraded when several
+ * pushState/replaceState calls are batched into a single history operation.
+ * @returns {{ replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace" }}
+ */
+function makePushArgs() {
+    return { replace: false, reload: false, state: {}, mode: "replace" };
+}
 /** @type {Set<string>} */
 let _lockedKeys;
 let _hiddenKeysFromUrl = new Set();
@@ -306,11 +317,7 @@ export function startRouter() {
         browser.history.replaceState(browser.history.state, "", url.href);
     }
     pushTimeout = null;
-    pushArgs = {
-        replace: false,
-        reload: false,
-        state: {},
-    };
+    pushArgs = makePushArgs();
     _lockedKeys = new Set(["debug", "lang"]);
     _hiddenKeysFromUrl = new Set([...PATH_KEYS, "actionStack"]);
 }
@@ -323,7 +330,7 @@ export function startRouter() {
  */
 browser.addEventListener("popstate", (ev) => {
     browser.clearTimeout(pushTimeout);
-    pushArgs = { replace: false, reload: false, state: {} };
+    pushArgs = makePushArgs();
     if (!ev.state) {
         // We are coming from a click on an anchor.
         // Add the current state to the history entry so that a future loadstate behaves as expected.
@@ -405,8 +412,11 @@ function makeDebouncedPush(mode) {
         const nextState = computeNextState(pushArgs.state, pushArgs.replace);
         const url = browser.location.origin + router.stateToUrl(nextState);
         if (!compareUrls(url + browser.location.hash, browser.location.href)) {
-            // If the route changed: pushes or replaces browser state
-            if (mode === "push") {
+            // If the route changed: pushes or replaces browser state.
+            // The effective mode comes from the aggregation bucket (not the
+            // closure `mode`): batched pushState/replaceState calls share one
+            // history operation, and a "push" intent must win over "replace".
+            if (pushArgs.mode === "push") {
                 // Because doPush is delayed, the history entry will have the wrong name.
                 // We set the document title to what it was at the time of the pushState
                 // call, then push, which generates the history entry with the right title
@@ -434,17 +444,18 @@ function makeDebouncedPush(mode) {
     return function pushOrReplaceState(state, options = {}) {
         pushArgs.replace ||= options.replace;
         pushArgs.reload ||= options.reload;
+        // A "push" intent is stronger than "replace": once any batched call
+        // asks for a new history entry, keep it — never downgrade to replace.
+        if (mode === "push") {
+            pushArgs.mode = "push";
+        }
         pushArgs.title = document.title;
         Object.assign(pushArgs.state, state);
         browser.clearTimeout(pushTimeout);
         const push = () => {
             doPush();
             pushTimeout = null;
-            pushArgs = {
-                replace: false,
-                reload: false,
-                state: {},
-            };
+            pushArgs = makePushArgs();
         };
         if (options.sync) {
             push();
@@ -466,7 +477,12 @@ export const router = {
     // TODO: stop debouncing these and remove the ugly hack to have the correct title for history entries
     pushState: makeDebouncedPush("push"),
     replaceState: makeDebouncedPush("replace"),
-    cancelPushes: () => browser.clearTimeout(pushTimeout),
+    cancelPushes: () => {
+        browser.clearTimeout(pushTimeout);
+        // Also drop the aggregated args so a cancelled state does not resurface
+        // merged into the next push.
+        pushArgs = makePushArgs();
+    },
     addLockedKey: (/** @type {string} */ key) => _lockedKeys.add(key),
     hideKeyFromUrl: (/** @type {string} */ key) => _hiddenKeysFromUrl.add(key),
     skipLoad: false,

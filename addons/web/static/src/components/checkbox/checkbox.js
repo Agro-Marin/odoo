@@ -72,6 +72,10 @@ export class CheckBox extends Component {
         useHotkey(
             "Enter",
             ({ area }) => {
+                // Match onClick/onChange: a disabled checkbox must not toggle.
+                if (this.props.disabled) {
+                    return;
+                }
                 const oldValue = /** @type {HTMLInputElement} */ (
                     area.querySelector("input")
                 ).checked;

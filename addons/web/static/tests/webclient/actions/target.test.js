@@ -136,6 +136,29 @@ describe("new", () => {
         expect.verifySteps(["Close Action"]);
     });
 
+    test("dialog replacing another dialog: on_close fires once per contract", async () => {
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, {
+            onClose: (infos) => expect.step(`origin on_close ${infos}`),
+        });
+        expect(".o_technical_modal").toHaveCount(1);
+        // Dialog B replaces dialog A: A's on_close must not fire on
+        // replacement; it transfers to B and supersedes B's own onClose.
+        await getService("action").doAction(5, {
+            onClose: () => expect.step("replacement on_close"),
+        });
+        await animationFrame();
+        expect(".o_technical_modal").toHaveCount(1);
+        expect.verifySteps([]);
+        await getService("action").doAction({
+            type: "ir.actions.act_window_close",
+            infos: "closed",
+        });
+        expect.verifySteps(["origin on_close closed"]);
+        await animationFrame();
+        expect(".o_technical_modal").toHaveCount(0);
+    });
+
     test("footer buttons are moved to the dialog footer", async () => {
         Partner._views["form"] = `
             <form>
@@ -314,6 +337,9 @@ describe("new", () => {
         expect(".o_technical_modal .modal-footer button.infooter").toHaveCount(1);
         expect(".o_technical_modal .modal-footer button:visible").toHaveCount(1);
         await getService("action").doAction(25);
+        // The replaced dialog is removed once the new one is mounted; flush
+        // the removal render before asserting.
+        await animationFrame();
         expect(".o_technical_modal .modal-body button.infooter").toHaveCount(0);
         expect(".o_technical_modal .modal-footer button.infooter").toHaveCount(0);
         expect('.o_technical_modal .modal-body button[special="save"]').toHaveCount(0);
@@ -519,28 +545,35 @@ describe("new", () => {
         await getService("action").doAction(action);
         expect(".o_dialog .modal-dialog").toHaveClass("modal-lg");
 
+        // Each doAction below replaces the current dialog; the replaced one
+        // is removed once the new one is mounted, so flush that render
+        // before asserting.
         await getService("action").doAction({
             ...action,
             context: { dialog_size: "small" },
         });
+        await animationFrame();
         expect(".o_dialog .modal-dialog").toHaveClass("modal-sm");
 
         await getService("action").doAction({
             ...action,
             context: { dialog_size: "medium" },
         });
+        await animationFrame();
         expect(".o_dialog .modal-dialog").toHaveClass("modal-md");
 
         await getService("action").doAction({
             ...action,
             context: { dialog_size: "large" },
         });
+        await animationFrame();
         expect(".o_dialog .modal-dialog").toHaveClass("modal-lg");
 
         await getService("action").doAction({
             ...action,
             context: { dialog_size: "extra-large" },
         });
+        await animationFrame();
         expect(".o_dialog .modal-dialog").toHaveClass("modal-xl");
     });
 

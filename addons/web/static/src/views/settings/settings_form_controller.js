@@ -104,7 +104,14 @@ export class SettingsFormController extends formView.Controller {
         return _t("Settings");
     }
 
-    async beforeLeave() {
+    /** @param {{ forceLeave?: boolean }} [options] */
+    async beforeLeave({ forceLeave } = {}) {
+        // Honour ``forceLeave`` like the base FormController: an action that
+        // explicitly forces navigation (doAction(..., { forceLeave: true }))
+        // must not be blocked by the settings confirmation dialog.
+        if (forceLeave) {
+            return;
+        }
         const dirty = await this.model.root.isDirty();
         if (dirty) {
             return this._confirmSave();
@@ -168,22 +175,38 @@ export class SettingsFormController extends formView.Controller {
             this.dialogService.add(SettingsConfirmationDialog, {
                 body: _t("Would you like to save your changes?"),
                 confirm: async () => {
-                    await this.save();
-                    // It doesn't make sense to do the action of the button
-                    // as the res.config.settings `execute` method will trigger a reload.
+                    // Whether the save succeeds or the server rejects it, the
+                    // button's action is never run here: on success
+                    // res.config.settings.execute triggers a reload; on failure
+                    // we stay on the form. Either way ``_continue`` is false.
+                    //
+                    // The try/finally is essential: SettingsConfirmationDialog
+                    // (a ConfirmationDialog) closes and RETHROWS when this
+                    // callback throws, so without settling in ``finally`` the
+                    // outer Promise — and every ``beforeLeave`` awaiting it —
+                    // would hang forever, blocking all navigation until reload.
                     _continue = false;
-                    resolve();
+                    try {
+                        await this.save();
+                    } finally {
+                        resolve();
+                    }
                 },
                 cancel: async () => {
                     // Discard the pending edits, then persist the reverted
-                    // values so the button's action executes against a
-                    // saved record — same discard-then-save sequence as
-                    // before, now via the coordinator so ``status`` stays
-                    // accurate.
-                    await this.saveCoordinator.requestDiscard();
-                    await this.saveCoordinator.requestSave({ errorMode: "rethrow" });
-                    _continue = true;
-                    resolve();
+                    // values so the button's action executes against a saved
+                    // record — via the coordinator so ``status`` stays accurate.
+                    // As above, always resolve() so a server-side failure during
+                    // the discard-then-save can't leave the promise pending; on
+                    // failure ``_continue`` stays false and we remain on the form.
+                    _continue = false;
+                    try {
+                        await this.saveCoordinator.requestDiscard();
+                        await this.saveCoordinator.requestSave({ errorMode: "rethrow" });
+                        _continue = true;
+                    } finally {
+                        resolve();
+                    }
                 },
                 stayHere: () => {
                     _continue = false;

@@ -127,7 +127,10 @@ download._download = (/** @type {any} */ options) =>
         configureBlobDownloadXHR(xhr, {
             onSuccess: resolve,
             onFailure: reject,
-            url: options.url,
+            // The `form` call pattern has no options.url; the request target is
+            // the form's action. Fall back to it so ConnectionLostError carries
+            // the real URL instead of `undefined`.
+            url: options.form?.action ?? options.url,
         });
         xhr.send(data);
     });
@@ -173,8 +176,11 @@ function configureBlobDownloadXHR(
             const downloadBlob = new Blob([xhr.response], { type: "application/octet-stream" });
             _download(downloadBlob, filename, "application/octet-stream");
             onSuccess(filename);
-        } else if (xhr.status === 502) {
-            // If Odoo is behind another server (nginx)
+        } else if (xhr.status >= 502 && xhr.status <= 504) {
+            // Bad Gateway (502) / Service Unavailable (503) / Gateway Timeout
+            // (504): Odoo is behind another server (nginx) that could not reach
+            // it. Surface a ConnectionLostError instead of trying to parse the
+            // proxy's raw HTML error page. Matches rpc.js's status handling.
             onFailure(new ConnectionLostError(url));
         } else {
             const decoder = new FileReader();

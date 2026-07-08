@@ -150,6 +150,28 @@ test("close action with provided infos", async () => {
     );
 });
 
+test("on_close chaining a follow-up inline action fires exactly once", async () => {
+    onRpc("/web/action/load", async (request) => {
+        const { params } = await request.json();
+        expect.step(`load action ${params.action_id}`);
+    });
+    await mountWithCleanup(WebClient);
+    function onClose() {
+        expect.step("on_close");
+        // The inline follow-up closes all dialogs when it dispatches
+        // (_dispatchInline calls dialog.closeAll()); that must not re-enter
+        // the on_close of the dialog already being closed.
+        return getService("action").doAction(1);
+    }
+    await getService("action").doAction(5, { onClose });
+    expect(".o_technical_modal .o_form_view").toHaveCount(1);
+    await getService("action").doAction({ type: "ir.actions.act_window_close" });
+    await animationFrame();
+    expect(".o_technical_modal").toHaveCount(0);
+    expect(".o_kanban_view").toHaveCount(1);
+    expect.verifySteps(["load action 5", "on_close", "load action 1"]);
+});
+
 test.tags("desktop");
 test("history back called within on_close", async () => {
     let list;

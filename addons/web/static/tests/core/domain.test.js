@@ -514,6 +514,51 @@ describe("Basic Properties", () => {
         expect(() => new Domain([1])).toThrow(/Invalid domain representation/);
     });
 
+    test("malformed positional domains throw on construction", () => {
+        // A complete expression followed by a dangling operator is invalid
+        // in prefix notation — the server parser raises for these too.
+        expect(() => new Domain([["a", "=", 1], "&", ["b", "=", 2]])).toThrow(
+            /invalid domain .* \(missing 1 segment/,
+        );
+        expect(() => new Domain(`[("a", "=", 1), "&", ("b", "=", 2)]`)).toThrow(
+            /invalid domain .* \(missing 1 segment/,
+        );
+        expect(() => new Domain([["a", "=", 1], "!"])).toThrow(
+            /invalid domain .* \(missing 1 segment/,
+        );
+        expect(
+            () => new Domain([["a", "=", 1], ["b", "=", 2], "&"]),
+        ).toThrow(/invalid domain .* \(missing 2 segment/);
+        // Mid-list operators that still receive their operands stay valid
+        // (server parity): [A, "&", B, C] means A AND (B AND C).
+        const domain = new Domain([["a", "=", 1], "&", ["b", "=", 2], ["c", "=", 3]]);
+        expect(domain.toList()).toEqual([
+            "&",
+            ["a", "=", 1],
+            "&",
+            ["b", "=", 2],
+            ["c", "=", 3],
+        ]);
+        expect(domain.contains({ a: 1, b: 2, c: 3 })).toBe(true);
+        expect(domain.contains({ a: 1, b: 2, c: 4 })).toBe(false);
+    });
+
+    test("matching a malformed evaluated domain throws", () => {
+        // Simulate a corrupted AST reaching the prefix stack machine: the
+        // leftover operand must raise instead of silently matching only the
+        // first segment.
+        const leftover = new Domain(["&", ["a", "=", 1], ["b", "=", 2]]);
+        leftover.ast.value.shift(); // drop the "&" -> evaluates to [A, B]
+        expect(() => leftover.contains({ a: 1, b: 99 })).toThrow(
+            /invalid domain \(unconsumed segment/,
+        );
+        const starved = new Domain(["&", ["a", "=", 1], ["b", "=", 2]]);
+        starved.ast.value.pop(); // drop an operand -> evaluates to ["&", A]
+        expect(() => starved.contains({ a: 1 })).toThrow(
+            /invalid domain \(missing operand/,
+        );
+    });
+
     test("follow relations", () => {
         expect(
             new Domain([["partner.city", "ilike", "Bru"]]).contains({
@@ -542,6 +587,73 @@ describe("Basic Properties", () => {
         expect(domain.contains({ a: [], b: [4] })).toBe(true);
         expect(domain.contains({ a: [1] })).toBe(false);
         expect(domain.contains({ b: [] })).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Client/server matching parity (matchCondition / operator handling)
+// ---------------------------------------------------------------------------
+describe("Matching parity", () => {
+    test("Domain.not([]) is FALSE and matches nothing (no crash)", () => {
+        // Empty domain is TRUE; server maps ~TRUE -> FALSE. The old code
+        // produced the malformed ["!"] which crashed toString()/contains().
+        expect(() => Domain.not([]).toString()).not.toThrow();
+        expect(Domain.not([]).toString()).toBe('[(0, "=", 1)]');
+        expect(Domain.not([]).contains({})).toBe(false);
+        expect(Domain.not([]).contains({ a: 1 })).toBe(false);
+        // A non-empty domain is still negated the usual way.
+        expect(Domain.not([["a", "=", 1]]).toString()).toBe('["!", ("a", "=", 1)]');
+    });
+
+    test("'=?' is always-true for any falsy value (0, '', false, null)", () => {
+        const record = { a: 5 };
+        expect(new Domain([["a", "=?", 0]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "=?", ""]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "=?", false]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "=?", null]]).contains(record)).toBe(true);
+        // Truthy value: behaves like '='.
+        expect(new Domain([["a", "=?", 5]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "=?", 3]]).contains(record)).toBe(false);
+    });
+
+    test("operators are matched case-insensitively", () => {
+        expect(new Domain([["a", "IN", [1, 2, 3]]]).contains({ a: 2 })).toBe(true);
+        expect(new Domain([["a", "IN", [1, 2, 3]]]).contains({ a: 9 })).toBe(false);
+        expect(new Domain([["a", "LIKE", "ab"]]).contains({ a: "xabx" })).toBe(true);
+        expect(new Domain([["a", "Not In", [1]]]).contains({ a: 2 })).toBe(true);
+    });
+
+    test("like: '_' wildcard, non-string value, and escaped '\\%'/'\\_'", () => {
+        // '_' matches exactly one character.
+        expect(new Domain([["a", "=like", "a_c"]]).contains({ a: "abc" })).toBe(true);
+        expect(new Domain([["a", "=like", "a_c"]]).contains({ a: "abbc" })).toBe(false);
+        // Non-string value must not crash escapeRegExp.
+        expect(new Domain([["a", "like", 12]]).contains({ a: "x123" })).toBe(true);
+        expect(new Domain([["a", "like", 12]]).contains({ a: "x13" })).toBe(false);
+        // '%' remains a multi-char wildcard.
+        expect(new Domain([["a", "=like", "a%c"]]).contains({ a: "abbbc" })).toBe(true);
+        // Escaped '\%' / '\_' match literal '%' / '_'.
+        expect(new Domain([["a", "=like", "a\\%c"]]).contains({ a: "a%c" })).toBe(true);
+        expect(new Domain([["a", "=like", "a\\%c"]]).contains({ a: "abbc" })).toBe(
+            false,
+        );
+        expect(new Domain([["a", "=like", "a\\_c"]]).contains({ a: "a_c" })).toBe(true);
+        expect(new Domain([["a", "=like", "a\\_c"]]).contains({ a: "abc" })).toBe(
+            false,
+        );
+    });
+
+    test("'any' / 'not any' negation duality (always-match approximation)", () => {
+        const sub = [["x", "=", 1]];
+        expect(new Domain([["a", "any", sub]]).contains({ a: 5 })).toBe(true);
+        expect(new Domain([["a", "not any", sub]]).contains({ a: 5 })).toBe(false);
+        // !(x any y) is consistent with (x not any y).
+        expect(new Domain(["!", ["a", "any", sub]]).contains({ a: 5 })).toBe(
+            new Domain([["a", "not any", sub]]).contains({ a: 5 }),
+        );
+        // child_of / parent_of stay always-true.
+        expect(new Domain([["a", "child_of", [1]]]).contains({ a: 5 })).toBe(true);
+        expect(new Domain([["a", "parent_of", [1]]]).contains({ a: 5 })).toBe(true);
     });
 });
 
@@ -758,5 +870,62 @@ describe("Remove domain leaf", () => {
             ["sale_line_id", "!=", false],
         ]);
         expect(newDomain.toList({})).toEqual(expectedDomain.toList({}));
+    });
+
+    test("Fully removed AND subtree inside OR becomes FALSE (neutral of OR).", () => {
+        const domain = ["|", "&", ["a", "=", 1], ["a", "=", 2], ["b", "=", 3]];
+        const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
+        // Leaf-wise replacement would give OR(AND(TRUE, TRUE), b) = TRUE,
+        // silently matching ALL records; the OR must reduce to b = 3.
+        expect(newDomain.toString()).toBe(`["|", (0, "=", 1), ("b", "=", 3)]`);
+        expect(newDomain.contains({ a: 99, b: 3 })).toBe(true);
+        expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
+    });
+
+    test("Fully removed 3-leaf OR becomes TRUE like the 2-leaf case.", () => {
+        const domain = ["|", "|", ["a", "=", 1], ["a", "=", 2], ["a", "=", 3]];
+        const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
+        expect(newDomain.toString()).toBe(`[(1, "=", 1)]`);
+        expect(newDomain.contains({ a: 999 })).toBe(true);
+    });
+
+    test("Fully removed subtrees under '!' neutralize the enclosing context.", () => {
+        // Whole domain is a removed negation -> stays TRUE.
+        let newDomain = Domain.removeDomainLeaves(["!", ["a", "=", 1]], ["a"]);
+        expect(newDomain.contains({ a: 1 })).toBe(true);
+        // AND(NOT(removed), b) reduces to b.
+        newDomain = Domain.removeDomainLeaves(
+            ["&", "!", ["a", "=", 1], ["b", "=", 3]],
+            ["a"],
+        );
+        expect(newDomain.contains({ a: 1, b: 3 })).toBe(true);
+        expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
+        // OR(NOT(removed), b) reduces to b.
+        newDomain = Domain.removeDomainLeaves(
+            ["|", "!", ["a", "=", 1], ["b", "=", 3]],
+            ["a"],
+        );
+        expect(newDomain.contains({ a: 1, b: 3 })).toBe(true);
+        expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
+        // Removed AND under NOT collapses before negation: NOT(AND(a, a)) -> TRUE.
+        newDomain = Domain.removeDomainLeaves(
+            ["!", "&", ["a", "=", 1], ["a", "=", 2]],
+            ["a"],
+        );
+        expect(newDomain.contains({ a: 1 })).toBe(true);
+        // Partial removal under NOT keeps the remaining constraint negated.
+        newDomain = Domain.removeDomainLeaves(
+            ["!", "&", ["a", "=", 1], ["b", "=", 3]],
+            ["a"],
+        );
+        expect(newDomain.contains({ b: 3 })).toBe(false);
+        expect(newDomain.contains({ b: 4 })).toBe(true);
+        // Double negation of a removed leaf: AND(NOT(NOT(removed)), b) -> b.
+        newDomain = Domain.removeDomainLeaves(
+            ["&", "!", "!", ["a", "=", 1], ["b", "=", 3]],
+            ["a"],
+        );
+        expect(newDomain.contains({ a: 9, b: 3 })).toBe(true);
+        expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
     });
 });

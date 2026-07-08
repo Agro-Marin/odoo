@@ -940,6 +940,49 @@ test("items are selected only when the mouse moves, not just on enter", async ()
     );
 });
 
+test.tags("desktop");
+test("keyboard-activated option survives a stray mouseleave", async () => {
+    class Parent extends Component {
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = buildSources(() => [
+            item("one", () => expect.step("one")),
+            item("two", () => expect.step("two")),
+            item("three", () => expect.step("three")),
+        ]);
+    }
+
+    // Use raw focus()/click() (no hoot pointer helpers) so no mousemove fires
+    // and mouse selection stays inactive throughout.
+    await mountWithCleanup(Parent);
+    queryOne(`.o-autocomplete input`).focus();
+    queryOne(`.o-autocomplete input`).click();
+    await animationFrame();
+
+    // Keyboard-activate the second option.
+    await press("arrowdown");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item:nth-child(2) .dropdown-item").toHaveClass(
+        "ui-state-active",
+    );
+
+    // A stray mouseleave with no preceding mousemove (mouse selection inactive)
+    // must not wipe the keyboard-activated option.
+    queryOne(".o-autocomplete--dropdown-item:nth-child(2)").dispatchEvent(
+        new MouseEvent("mouseleave"),
+    );
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item:nth-child(2) .dropdown-item").toHaveClass(
+        "ui-state-active",
+    );
+
+    // Enter still selects the surviving option.
+    await press("Enter");
+    expect.verifySteps(["two"]);
+});
+
 test("do not attempt to scroll if element is null", async () => {
     const def = new Deferred();
     class Parent extends Component {

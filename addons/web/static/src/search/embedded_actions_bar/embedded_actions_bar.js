@@ -460,6 +460,10 @@ export class EmbeddedActions {
     async deleteAction(action) {
         const { visibleEmbeddedActions, embeddedActions, currentEmbeddedAction } =
             this.embeddedInfos;
+        // Delete on the server first: if unlink is refused (e.g. ACL), it throws
+        // before we mutate local state or persist visibility/order, so the tab
+        // stays and res.users.settings keeps referencing the still-existing action.
+        await this.orm.unlink("ir.embedded.actions", [action.id]);
         const embeddedActionIndex = visibleEmbeddedActions.indexOf(action.id);
         if (embeddedActionIndex !== -1) {
             visibleEmbeddedActions.splice(embeddedActionIndex, 1);
@@ -472,7 +476,6 @@ export class EmbeddedActions {
             embedded_actions_visibility: visibleEmbeddedActions,
             embedded_actions_order: order,
         });
-        await this.orm.unlink("ir.embedded.actions", [action.id]);
         if (action.id === currentEmbeddedAction?.id) {
             const { active_id, active_model } = this.env.searchModel.globalContext;
             const actionContext = action.context ? makeContext([action.context]) : {};

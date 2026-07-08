@@ -104,7 +104,7 @@ export function rpcErrorHandler(env, error, originalError) {
             subType: originalError.subType,
             code: originalError.code,
             type: originalError.type,
-            serverHost: /** @type {any} */ (error).event?.target?.location.host,
+            serverHost: /** @type {any} */ (error).event?.target?.location?.host,
             model: originalError.model,
         });
         return true;
@@ -174,8 +174,9 @@ export function lostConnectionHandler(env, error, originalError) {
                     );
                 })
                 .catch(() => {
-                    // exponential backoff, with some jitter
-                    delay = delay * 1.5 + 500 * Math.random();
+                    // exponential backoff, with some jitter, capped so the
+                    // retry interval can't grow without bound on a long outage.
+                    delay = Math.min(delay * 1.5 + 500 * Math.random(), 60_000);
                     browser.setTimeout(checkConnection, delay);
                 });
         }, delay);
@@ -257,7 +258,7 @@ export function defaultHandler(env, error) {
         traceback: error.traceback,
         message: error.message,
         name: error.name,
-        serverHost: /** @type {any} */ (error).event?.target?.location.host,
+        serverHost: /** @type {any} */ (error).event?.target?.location?.host,
     });
     return true;
 }

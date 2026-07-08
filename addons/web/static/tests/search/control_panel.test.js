@@ -24,6 +24,20 @@ class Foo extends models.Model {
 }
 defineModels([Foo]);
 
+test("default embedded infos arrays are per-instance, not shared globally", async () => {
+    // With no embedded actions, each control panel falls back to the default
+    // infos. Its `embeddedActions` array must be a fresh instance per panel —
+    // a shared module constant would let a single push leak into every panel.
+    const cp1 = await mountWithSearch(ControlPanel, { resModel: "foo" });
+    const cp2 = await mountWithSearch(ControlPanel, { resModel: "foo" });
+
+    expect(cp1.state.embeddedInfos.embeddedActions).not.toBe(
+        cp2.state.embeddedInfos.embeddedActions,
+    );
+    cp1.state.embeddedInfos.embeddedActions.push("leak");
+    expect(cp2.state.embeddedInfos.embeddedActions).toHaveLength(0);
+});
+
 test("simple rendering", async () => {
     await mountWithSearch(ControlPanel, { resModel: "foo" });
 

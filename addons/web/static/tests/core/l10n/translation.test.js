@@ -15,6 +15,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { localization } from "@web/core/l10n/localization";
 import {
     _t as basic_t,
     translatedTerms,
@@ -285,6 +286,44 @@ test("[preload] localStorage marker mirrors the IndexedDB cache state", async ()
     expect(browser.localStorage.getItem("webclient_translations_version")).toBe(
         `${session.registry_hash}/en`,
     );
+});
+
+test.tags("headless");
+test("[cold boot] fetch failure falls back to usable localization defaults", async () => {
+    patchWithCleanup(IndexedDB.prototype, {
+        // Cold boot: nothing cached, the fetch is the only source of
+        // lang_parameters.
+        read() {
+            return undefined;
+        },
+        write() {
+            expect.step("unexpected cache write");
+        },
+    });
+    patchWithCleanup(console, {
+        error: () => expect.step("console.error"),
+    });
+    onRpc("/web/webclient/translations", () => {
+        expect.step("translations fetch");
+        throw new Error("Connection refused");
+    });
+    // Boot completes: the failure must neither reject env creation nor leave
+    // translationIsReady pending.
+    await makeMockEnv();
+    expect.verifySteps(["translations fetch", "console.error"]);
+    // The en-US-like fallback keeps every formatter usable (before the fix,
+    // localization stayed empty and any access threw / produced garbage).
+    expect(localization.dateFormat).toBe("MM/dd/yyyy");
+    expect(localization.timeFormat).toBe("HH:mm:ss");
+    expect(localization.dateTimeFormat).toBe("MM/dd/yyyy HH:mm:ss");
+    expect(localization.decimalPoint).toBe(".");
+    expect(localization.thousandsSep).toBe(",");
+    expect(localization.grouping).toEqual([3, 0]);
+    expect(localization.direction).toBe("ltr");
+    expect(localization.weekStart).toBe(7);
+    // Terms simply stay untranslated.
+    expect(translatedTerms[translationLoaded]).toBe(true);
+    expect(_t("Hello")).toBe("Hello");
 });
 
 test("[cache] update the cache if hash are different - template", async () => {

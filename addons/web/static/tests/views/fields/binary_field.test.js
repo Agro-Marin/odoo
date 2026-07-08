@@ -498,3 +498,45 @@ test("doesn't crash if value is not a string", async () => {
     });
     expect(".o_field_binary input").toHaveValue("");
 });
+
+test("download sends the filename field NAME, not its resolved value", async () => {
+    onRpc("/web/content", async (request) => {
+        expect.step("/web/content");
+        const body = await request.formData();
+        // `filename_field` must be the NAME of the filename field ("foo"), so
+        // the server can resolve/refresh the filename — not the already-resolved
+        // filename value ("coucou.txt").
+        expect(body.get("filename_field")).toBe("foo", {
+            message: "filename_field must carry the field name, not its value",
+        });
+        return new Blob([body.get("data") || ""], { type: "text/plain" });
+    });
+
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `
+            <form edit="0">
+                <field name="document" filename="foo"/>
+                <field name="foo"/>
+            </form>
+        `,
+    });
+
+    const deferred = new Deferred();
+    const downloadOnClick = (ev) => {
+        const target = ev.target;
+        if (target.tagName === "A" && "download" in target.attributes) {
+            ev.preventDefault();
+            document.removeEventListener("click", downloadOnClick);
+            deferred.resolve();
+        }
+    };
+    document.addEventListener("click", downloadOnClick);
+    after(() => document.removeEventListener("click", downloadOnClick));
+
+    await contains(`.o_field_widget[name="document"] a`).click();
+    await deferred;
+    expect.verifySteps(["/web/content"]);
+});

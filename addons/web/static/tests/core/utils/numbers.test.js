@@ -151,6 +151,54 @@ describe("roundPrecision", () => {
         expect(roundPrecision(1.8, 1, "UP")).toBe(2);
         expect(roundPrecision(-1.8, 1, "UP")).toBe(-2);
     });
+
+    test("large magnitudes (no spurious digits)", () => {
+        // The magnitude-relative epsilon that rescues representation-error ties
+        // must not, once the value is large, grow past the .5 boundary and add a
+        // spurious low-order digit. Before the fix, formatFloat(1e13) at 2 digits
+        // rounded to 10000000000000.01. These clean values must round to
+        // themselves for every "nearest" method (the bug starts above ~5.6e12).
+        for (const value of [
+            5.6e12, 1e13, 1.23456789e14, 1e15, -1e13, -1.23456789e14,
+        ]) {
+            for (const method of ["HALF-UP", "HALF-DOWN", "HALF-EVEN"]) {
+                expect(roundPrecision(value, 0.01, method)).toBe(value);
+                expect(roundPrecision(value, 1, method)).toBe(value);
+            }
+        }
+        // Default method (HALF-UP) via the digit-based entry points.
+        expect(roundPrecision(1e13, 0.01)).toBe(1e13);
+        expect(roundDecimals(1e13, 2)).toBe(1e13);
+        expect(roundDecimals(-1.23456789e14, 2)).toBe(-1.23456789e14);
+        // Truncating methods keep the un-capped epsilon; on values that are exact
+        // integers at the target precision they must stay put (not step away).
+        for (const method of ["UP", "DOWN"]) {
+            expect(roundPrecision(1e13, 0.01, method)).toBe(1e13);
+            expect(roundPrecision(5.6e12, 0.01, method)).toBe(5.6e12);
+            expect(roundPrecision(1e13, 1, method)).toBe(1e13);
+            expect(roundPrecision(-1e13, 0.01, method)).toBe(-1e13);
+        }
+        // A genuine half at large magnitude must still break the tie per method.
+        expect(roundPrecision(1e13 + 0.5, 1, "HALF-UP")).toBe(1e13 + 1);
+        expect(roundPrecision(1e13 + 0.5, 1, "HALF-DOWN")).toBe(1e13);
+        expect(roundPrecision(-(1e13 + 0.5), 1, "HALF-UP")).toBe(-(1e13 + 1));
+    });
+
+    test("representation-error rescue is preserved", () => {
+        // The epsilon still tips ties that IEEE-754 stores just below .5 up to
+        // the correct value (its whole reason for existing); the cap only removes
+        // the large-magnitude over-nudge, so these small-value rescues are intact.
+        expect(roundPrecision(0.145, 0.01)).toBe(0.15);
+        expect(roundPrecision(1.005, 0.01)).toBe(1.01);
+        expect(roundPrecision(2.675, 0.01)).toBe(2.68);
+        expect(roundPrecision(2.665, 0.01)).toBe(2.67);
+        expect(roundPrecision(0.045, 0.01)).toBe(0.05);
+        expect(roundPrecision(-0.145, 0.01)).toBe(-0.15);
+        expect(roundPrecision(-2.675, 0.01)).toBe(-2.68);
+        // currency-rate precisions (1e-6, 1e-12) keep working
+        expect(roundPrecision(1.2345675, 1e-6)).toBe(1.234568);
+        expect(roundPrecision(1.234567891234, 1e-12)).toBe(1.234567891234);
+    });
 });
 
 test("roundDecimals", () => {
@@ -325,6 +373,34 @@ describe("formatFloat", () => {
             thousandsSep: "@",
         });
         expect(formatFloat(6000)).toBe("60@00!00");
+    });
+
+    test("extreme magnitudes", () => {
+        allowTranslations();
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
+
+        // `toString`/`toFixed` switch to exponential notation at 1e21: keep
+        // the scientific format instead of a plausible-looking "1.00"
+        expect(formatFloat(1e21)).not.toBe("1.00");
+        expect(formatFloat(1e21)).toBe("1e+21");
+        expect(formatFloat(1.5e21)).toBe("1.5e+21");
+        expect(formatFloat(-1.5e21)).toBe("-1.5e+21");
+        expect(formatFloat(123456789012.34)).toBe("123,456,789,012.34");
+
+        // `toString` also switches to exponential notation below 1e-6:
+        // high-precision digits (e.g. currency rates) must stay padded decimals
+        expect(formatFloat(1.2e-7, { digits: [16, 12] })).toBe("0.000000120000");
+        expect(formatFloat(1e-7, { digits: [16, 7] })).toBe("0.0000001");
+
+        // the humanReadable path is unaffected
+        expect(formatFloat(1e21, { humanReadable: true })).toBe("1e+21");
+        expect(formatFloat(1234567, { humanReadable: true, decimals: 2 })).toBe(
+            "1.23M",
+        );
     });
 
     test("humanReadable", () => {

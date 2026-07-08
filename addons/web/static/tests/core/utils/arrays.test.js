@@ -9,7 +9,6 @@ import {
     isIterable,
     rotate,
     sections,
-    shallowEqual,
     slidingWindow,
     sortBy,
     symmetricalDifference,
@@ -17,6 +16,7 @@ import {
     zip,
     zipWith,
 } from "@web/core/utils/collections/arrays";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 
 describe.current.tags("headless");
 
@@ -171,6 +171,15 @@ describe("intersection", () => {
         expect(intersection([1, 2], [2, 3])).toEqual([2]);
         expect(intersection([1, 2, 3], [1, 2, 3])).toEqual([1, 2, 3]);
     });
+
+    test("preserves first-argument order", () => {
+        // Set.prototype.intersection iterates the SMALLER set, which would
+        // order the result by the shorter input; the result must always
+        // follow the first argument's order.
+        expect(intersection([1, 2, 3, 4], [3, 1])).toEqual([1, 3]);
+        expect(intersection([3, 1], [1, 2, 3, 4])).toEqual([3, 1]);
+        expect(intersection(["b", "a", "c"], ["c", "a"])).toEqual(["a", "c"]);
+    });
 });
 
 describe("cartesian", () => {
@@ -201,6 +210,17 @@ describe("cartesian", () => {
             ],
             { message: "the internal structure of elements should be preserved" },
         );
+    });
+
+    test("cartesian product of a single array returns a fresh copy", () => {
+        // Every other arity produces a new array; n = 1 must too, so callers
+        // can mutate the result without corrupting their input.
+        const input = [1, 2, 3];
+        const result = cartesian(input);
+        expect(result).toEqual([1, 2, 3]);
+        expect(result).not.toBe(input);
+        result.push(4);
+        expect(input).toEqual([1, 2, 3]);
     });
 
     test("cartesian product of two arrays", () => {

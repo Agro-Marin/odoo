@@ -135,4 +135,51 @@ describe("Cache", () => {
         // All resolve to the same key, so getValue called only once
         expect(callCount).toBe(1);
     });
+
+    test("throws on a non-primitive path segment when getKey is absent", () => {
+        const cache = new Cache((x) => x);
+        // Objects/functions would all coerce to "[object Object]" and collide
+        // into one slot; null/undefined collide with "null"/"undefined".
+        expect(() => cache.read({})).toThrow(/invalid path segment/);
+        expect(() => cache.read("model", [1, 2])).toThrow(/invalid path segment/);
+        expect(() => cache.read(null)).toThrow(/invalid path segment/);
+        expect(() => cache.read(undefined)).toThrow(/invalid path segment/);
+        // Primitive segments are still accepted.
+        expect(cache.read("ok")).toBe("ok");
+        expect(cache.read(1)).toBe(1);
+    });
+
+    test("object path segments are allowed when a getKey is provided", () => {
+        const cache = new Cache((o) => o.v, JSON.stringify);
+        expect(cache.read({ v: 5 })).toBe(5);
+        expect(cache.read({ v: 5 })).toBe(5);
+    });
+
+    test("read() self-evicts a rejected promise instead of poisoning the slot", async () => {
+        let calls = 0;
+        const cache = new Cache(async (k) => {
+            calls++;
+            if (calls === 1) {
+                throw new Error("boom");
+            }
+            return "recovered";
+        });
+        await expect(cache.read("k")).rejects.toThrow(/boom/);
+        // Let the self-eviction .catch run.
+        await Promise.resolve();
+        // The rejected slot was evicted, so the next read recomputes.
+        expect(await cache.read("k")).toBe("recovered");
+        expect(calls).toBe(2);
+    });
+
+    test("read() keeps a resolved promise cached", async () => {
+        let calls = 0;
+        const cache = new Cache(async () => {
+            calls++;
+            return "v";
+        });
+        expect(await cache.read("k")).toBe("v");
+        expect(await cache.read("k")).toBe("v");
+        expect(calls).toBe(1);
+    });
 });

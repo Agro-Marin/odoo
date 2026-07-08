@@ -371,8 +371,10 @@ export class ListController extends MultiRecordController {
         { force, newWindow } = /** @type {any} */ ({ force: false }),
     ) {
         const dirty = await record.isDirty();
-        if (dirty) {
-            await record.save();
+        if (dirty && !(await record.save())) {
+            // Save failed (e.g. invalid required field): stay on the row
+            // rather than navigating away with an invalid unsaved record.
+            return;
         }
         if (this.props.allowOpenAction && this.archInfo.openAction) {
             this.actionService.doActionButton(

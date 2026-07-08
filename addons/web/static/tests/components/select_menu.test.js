@@ -802,6 +802,47 @@ test("When multiSelect is enable, allow deselecting elements by clicking the sel
     expect(".o_select_menu .o_tag").toHaveCount(0);
 });
 
+test("When multiSelect is enable, the clear button calls 'onSelect' with an empty array", async () => {
+    class MyParent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`
+            <SelectMenu
+                multiSelect="true"
+                choices="choices"
+                value="state.value"
+                onSelect.bind="this.onSelect"
+            >
+                <span class="select_menu_test">Select tags</span>
+            </SelectMenu>
+        `;
+        setup() {
+            this.state = useState({ value: ["a", "b"] });
+            this.choices = [
+                { label: "A", value: "a" },
+                { label: "B", value: "b" },
+                { label: "C", value: "c" },
+            ];
+        }
+        onSelect(newValue) {
+            expect.step(newValue);
+            this.state.value = newValue;
+        }
+    }
+
+    await mountSingleApp(MyParent);
+    expect(".o_select_menu_toggler_clear").toHaveCount(1);
+
+    await click(".o_select_menu_toggler_clear");
+    await animationFrame();
+    expect.verifySteps([[]]);
+
+    // Clearing an already empty multiSelect is not possible: the component
+    // re-renders without crashing and no longer displays the clear button.
+    expect(".o_select_menu").toHaveCount(1);
+    expect(".o_select_menu_toggler_clear").toHaveCount(0);
+});
+
 test.tags("desktop");
 test("Navigation is possible from the input when it is focused", async () => {
     class MyParent extends Component {
@@ -1307,6 +1348,45 @@ test("In the BottomSheet, a 'Clear' button is present", async () => {
     expect(".o_select_menu_menu .o_clear_button").toHaveCount(1);
     await contains(".o_select_menu_menu .o_clear_button").click();
     expect.verifySteps(["Cleared"]);
+});
+
+test.tags("mobile");
+test("In the BottomSheet, the 'Clear' button of a multiSelect calls 'onSelect' with an empty array", async () => {
+    class MyParent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`
+            <SelectMenu
+                multiSelect="true"
+                choices="choices"
+                value="state.value"
+                onSelect.bind="this.onSelect"
+            />
+        `;
+        setup() {
+            this.state = useState({ value: ["hello"] });
+            this.choices = [
+                { label: "Hello", value: "hello" },
+                { label: "World", value: "world" },
+            ];
+        }
+        onSelect(value) {
+            expect.step("Cleared");
+            expect(value).toEqual([]);
+            this.state.value = value;
+        }
+    }
+    await mountSingleApp(MyParent);
+    await contains(".o_select_menu_toggler").click();
+    expect(".o_select_menu_menu .o_clear_button").toHaveCount(1);
+    await contains(".o_select_menu_menu .o_clear_button").click();
+    expect.verifySteps(["Cleared"]);
+
+    // With an empty value, the component re-renders without crashing and the
+    // "Clear" button is not displayed anymore.
+    await animationFrame();
+    await contains(".o_select_menu_toggler").click();
+    expect(".o_select_menu_menu .o_clear_button").toHaveCount(0);
 });
 
 test("Ensure items are properly sorted", async () => {

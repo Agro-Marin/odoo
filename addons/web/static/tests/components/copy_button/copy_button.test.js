@@ -34,6 +34,22 @@ test("copies an object to the clipboard", async () => {
     expect.verifySteps(["write: {oneKey: oneValue}"]);
 });
 
+test("copies a string from an async function to the clipboard", async () => {
+    // A function-typed `content` may be async; its resolved value must be
+    // awaited before being handed to the clipboard.
+    const content = async () => "async content";
+    await mountWithCleanup(CopyButton, { props: { content } });
+    await click(".o_clipboard_button");
+    expect.verifySteps(["writeText: async content"]);
+});
+
+test("copies an object from an async function to the clipboard", async () => {
+    const content = async () => ({ oneKey: "oneValue" });
+    await mountWithCleanup(CopyButton, { props: { content } });
+    await click(".o_clipboard_button");
+    expect.verifySteps(["write: {oneKey: oneValue}"]);
+});
+
 test("does not submit forms", async () => {
     class Parent extends Component {
         static props = ["*"];

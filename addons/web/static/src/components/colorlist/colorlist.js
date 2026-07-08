@@ -56,6 +56,19 @@ export class ColorList extends Component {
             },
             () => [this.state.isExpanded],
         );
+        // Move focus to the first color button *after* the expand render.
+        // Focusing synchronously in onToggle would target the collapsed
+        // toggler, which the render then removes, dropping focus to <body>.
+        useEffect(
+            (isExpanded) => {
+                if (isExpanded) {
+                    /** @type {HTMLElement | null} */ (
+                        this.colorlistRef.el?.querySelector("button")
+                    )?.focus();
+                }
+            },
+            () => [this.state.isExpanded],
+        );
     }
     get colors() {
         return /** @type {any} */ (this.constructor).COLORS;
@@ -80,7 +93,8 @@ export class ColorList extends Component {
             ev.preventDefault();
             ev.stopPropagation();
             this.state.isExpanded = !this.state.isExpanded;
-            /** @type {HTMLElement} */ (this.colorlistRef.el.firstElementChild).focus();
+            // Focusing happens in the isExpanded useEffect, once the color
+            // buttons have actually been rendered.
         }
     }
 }

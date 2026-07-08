@@ -22,6 +22,17 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
     if (category.hierarchize) {
         category.parentField = parentField;
     }
+    // Rebuild the values Map each fetch so values removed server-side don't
+    // linger across domain reloads (they'd otherwise keep counting toward
+    // hasValues and grow the Map unbounded). Preserve only the synthetic `false`
+    // ("All") root, which the server never returns; reset its childrenIds since
+    // they're recomputed below.
+    const allRoot = category.values.get(false);
+    category.values = new Map();
+    if (allRoot) {
+        allRoot.childrenIds = [];
+        category.values.set(false, allRoot);
+    }
     for (const value of values) {
         category.values.set(value.id, {
             ...value,

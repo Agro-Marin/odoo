@@ -34,6 +34,10 @@ export function useDateTimePicker(params) {
 
     const picker = useService("datetime_picker").create(serviceParams);
     onWillDestroy(() => {
+        // Proactively tear down the popover on owner destroy. The service marks
+        // itself destroyed first (its own onWillDestroy, registered earlier), so
+        // the resulting onClose no longer applies against the destroyed owner.
+        picker.close();
         picker.disable();
     });
     return picker;

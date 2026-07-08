@@ -217,6 +217,38 @@ test("dialog component crashes", async () => {
     expect.verifyErrors(["Error: Some Error"]);
 });
 
+test("throwing onClose still cleans up stack and body class", async () => {
+    class CustomDialog extends Component {
+        static components = { Dialog };
+        static template = xml`<Dialog title="'Boom'">content</Dialog>`;
+        static props = ["*"];
+    }
+    const close = getService("dialog").add(
+        CustomDialog,
+        {},
+        {
+            onClose: () => {
+                expect.step("onClose");
+                throw new Error("onClose failed");
+            },
+        },
+    );
+    await animationFrame();
+    expect(".o_dialog").toHaveCount(1);
+    expect(document.body).toHaveClass("modal-open");
+
+    // ``close`` returns the (rejected) removal promise; swallow the error so the
+    // test asserts the bookkeeping ran despite the throwing onClose.
+    await close().catch((error) => expect.step(error.message));
+    await animationFrame();
+
+    // Even though onClose threw, the dialog left the stack and the body scroll
+    // lock was released (no dialog stuck with ``modal-open`` on <body>).
+    expect(".o_dialog").toHaveCount(0);
+    expect(document.body).not.toHaveClass("modal-open");
+    expect.verifySteps(["onClose", "onClose failed"]);
+});
+
 test("two dialogs, close the first one, closeAll", async () => {
     class CustomDialog extends Component {
         static components = { Dialog };

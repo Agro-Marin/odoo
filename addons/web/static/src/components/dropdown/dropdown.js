@@ -268,6 +268,7 @@ export class Dropdown extends Component {
         if (this.state.isOpen && !this.hasParent) {
             this.state.close();
         } else {
+            this._captureFocusBeforeOpen();
             this.state.open();
         }
     }
@@ -279,8 +280,23 @@ export class Dropdown extends Component {
 
         if (this.hasParent || this.group.isOpen) {
             this.target?.focus();
+            this._captureFocusBeforeOpen();
             this.state.open();
         }
+    }
+
+    /**
+     * Snapshot the element to restore focus to on close, taken at the opening
+     * gesture — BEFORE state.open() kicks off the dropdown-nesting reactive
+     * cascade. Opening this dropdown closes any open sibling, and that sibling
+     * restores its own focus first; reading document.activeElement later (in
+     * openPopover) would capture the sibling's restored element and land focus
+     * there on close instead of on our toggler.
+     */
+    _captureFocusBeforeOpen() {
+        this._pendingFocusEl = /** @type {HTMLElement | null} */ (
+            document.activeElement
+        );
     }
 
     onStateChanged(state) {
@@ -388,10 +404,21 @@ export class Dropdown extends Component {
             items: this.props.items,
             slots: this.props.slots,
         };
-        // Capture focus target before opening so it isn't shifted to the popover
-        this._focusedElBeforeOpen = /** @type {HTMLElement | null} */ (
-            document.activeElement
-        );
+        // Restore-focus anchor. Prefer the element captured at the opening
+        // gesture (handleClick/handleMouseEnter, before the nesting cascade);
+        // fall back to the current active element for programmatic/manual opens.
+        // Either way, only keep it when it belongs to this dropdown's toggler —
+        // otherwise (a sibling that closed and restored its own focus while we
+        // were opening, e.g. via its click-away handler on the same pointerdown)
+        // anchor on the toggler so closing lands focus on the control that
+        // opened the menu instead of the sibling's old target.
+        const captured =
+            this._pendingFocusEl !== undefined
+                ? this._pendingFocusEl
+                : /** @type {HTMLElement | null} */ (document.activeElement);
+        this._pendingFocusEl = undefined;
+        this._focusedElBeforeOpen =
+            captured && this.target.contains(captured) ? captured : this.target;
         this.popover.open(this.target, props);
     }
 

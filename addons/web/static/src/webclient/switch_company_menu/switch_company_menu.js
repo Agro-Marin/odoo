@@ -131,20 +131,27 @@ class CompanySelector {
     }
 
     toggleSelectAll(companyIds) {
-        const anySelected = companyIds.some((id) =>
+        // Disallowed companies (e.g. ancestors only shown for the tree
+        // structure) can never be activated: selecting them would render
+        // their checkbox checked and show Confirm for a no-op switch.
+        const allowedCompanyIds = companyIds.filter((id) =>
+            this._isCompanyAllowed(id),
+        );
+        const anySelected = allowedCompanyIds.some((id) =>
             this.selectedCompaniesIds.includes(id),
         );
 
         if (anySelected) {
-            // If any company is selected, unselect all of them.
-            for (let i = this.selectedCompaniesIds.length - 1; i >= 0; i--) {
-                if (companyIds.includes(this.selectedCompaniesIds[i])) {
-                    this.selectedCompaniesIds.splice(i, 1);
+            // If any company is selected, unselect all of them, cascading
+            // to their child companies as the per-item checkboxes do.
+            for (const companyId of allowedCompanyIds) {
+                if (this.selectedCompaniesIds.includes(companyId)) {
+                    this._deselectCompany(companyId);
                 }
             }
         } else {
             // If none is selected, select all.
-            for (const companyId of companyIds) {
+            for (const companyId of allowedCompanyIds) {
                 this.selectedCompaniesIds.push(companyId);
             }
         }
@@ -274,7 +281,11 @@ export class SwitchCompanyMenu extends Component {
 
         useHotkey("control+enter", () => this.confirm(), {
             bypassEditableProtection: true,
-            isAvailable: () => this.companySelector.hasSelectionChanged,
+            // The hotkey lives for the component's lifetime: without the
+            // isOpen guard, a draft selection surviving a close could be
+            // applied by a later Ctrl+Enter pressed anywhere in the app.
+            isAvailable: () =>
+                this.dropdown.isOpen && this.companySelector.hasSelectionChanged,
         });
 
         useCommand(_t("Switch Company"), () => this.dropdown.open(), {
@@ -419,12 +430,19 @@ export class SwitchCompanyMenu extends Component {
             }
         } else {
             this.resetState();
+            // Closing without confirming discards the draft selection:
+            // reset() re-seeds it from the currently active companies, so
+            // pending toggles cannot be applied by a later confirm.
+            this.companySelector.reset();
         }
     }
 
     confirm() {
-        this.dropdown.close();
+        // Apply before closing (as the "loginto" path does): closing
+        // triggers handleDropdownChange(false), which resets the draft
+        // selection that apply() must still read.
         this.companySelector.apply();
+        this.dropdown.close();
     }
 
     selectAll() {

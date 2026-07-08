@@ -40,6 +40,7 @@ export class FileViewer extends Component {
         this.iframeViewerPdfRef = useRef("iframeViewerPdf");
 
         this.isDragging = false;
+        this.didDrag = false;
         this.dragStartX = 0;
         this.dragStartY = 0;
 
@@ -105,6 +106,7 @@ export class FileViewer extends Component {
         this.state.scale = 1;
         this.state.angle = 0;
         this.state.imageLoaded = false;
+        this.state.isIframeLoaded = false;
         this.translate = { dx: 0, dy: 0, x: 0, y: 0 };
     }
 
@@ -153,9 +155,9 @@ export class FileViewer extends Component {
     }
 
     /**
-     * @param {DragEvent} ev
+     * @param {PointerEvent} ev
      */
-    onMousedownImage(ev) {
+    onPointerdownImage(ev) {
         if (this.isDragging) {
             return;
         }
@@ -163,11 +165,26 @@ export class FileViewer extends Component {
             return;
         }
         this.isDragging = true;
+        this.didDrag = false;
         this.dragStartX = ev.clientX;
         this.dragStartY = ev.clientY;
+        // Capture the pointer so move/up events keep flowing during the pan
+        // (retargeted to the image, bubbling through the main view) even when
+        // the pointer leaves the image. Untrusted pointers (tests) cannot be
+        // captured — the main view's pointerup handler still ends the drag.
+        try {
+            ev.target.setPointerCapture(ev.pointerId);
+        } catch {
+            // no active pointer to capture (synthetic event)
+        }
     }
 
-    onMouseupImage() {
+    /**
+     * Ends an image pan. Bound on the main view (pointerup/pointercancel) so
+     * it fires both when the pointer is captured by the image (the event
+     * retargets to the image and bubbles here) and when it is not.
+     */
+    onPointerupView() {
         if (!this.isDragging) {
             return;
         }
@@ -180,15 +197,38 @@ export class FileViewer extends Component {
     }
 
     /**
-     * @param {DragEvent} ev
+     * @param {PointerEvent} ev
      */
-    onMousemoveView(ev) {
+    onPointermoveView(ev) {
         if (!this.isDragging) {
             return;
         }
         this.translate.dx = ev.clientX - this.dragStartX;
         this.translate.dy = ev.clientY - this.dragStartY;
+        if (this.translate.dx || this.translate.dy) {
+            this.didDrag = true;
+        }
         this.updateZoomerStyle();
+    }
+
+    /**
+     * The click composed at the end of an image pan released over the main
+     * view must not close the viewer; only a genuine click does.
+     */
+    onClickView() {
+        if (this.didDrag) {
+            this.didDrag = false;
+            return;
+        }
+        this.close();
+    }
+
+    /**
+     * Consumes a drag-end click landing on the image (its `.stop` keeps it
+     * from the main view) so the next genuine click still closes the viewer.
+     */
+    onClickImage() {
+        this.didDrag = false;
     }
 
     resetZoom() {

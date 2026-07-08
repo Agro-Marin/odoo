@@ -31,19 +31,22 @@ export class ActionSwiper extends Component {
     static props = {
         onLeftSwipe: {
             type: Object,
-            args: {
+            // `shape` (not `args`, which OWL ignores) validates the sub-props.
+            // icon/bgColor are optional: some callers (e.g. the settings page)
+            // pass only an action, and the template already guards on them.
+            shape: {
                 action: Function,
-                icon: String,
-                bgColor: String,
+                icon: { type: String, optional: true },
+                bgColor: { type: String, optional: true },
             },
             optional: true,
         },
         onRightSwipe: {
             type: Object,
-            args: {
+            shape: {
                 action: Function,
-                icon: String,
-                bgColor: String,
+                icon: { type: String, optional: true },
+                bgColor: { type: String, optional: true },
             },
             optional: true,
         },

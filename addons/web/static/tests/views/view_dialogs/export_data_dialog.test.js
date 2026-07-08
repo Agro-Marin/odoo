@@ -1123,6 +1123,80 @@ test("Export dialog: disable button during export", async () => {
     expect(".o_select_button").toBeEnabled();
 });
 
+test("Export dialog: button is re-enabled after a failed export", async () => {
+    expect.errors(1);
+    let def;
+    patchWithCleanup(download, {
+        _download: () => (def = new Deferred()),
+    });
+    onRpc("/web/export/formats", () => [{ tag: "xls", label: "Excel" }]);
+    onRpc("/web/export/get_fields", () => fetchedFields.root);
+
+    await mountView({
+        type: "list",
+        resModel: "partner",
+        arch: `<list export_xlsx="1"><field name="foo"/></list>`,
+        loadActionMenus: true,
+    });
+
+    await openExportDialog();
+    expect(".o_select_button").toBeEnabled();
+    await contains(".o_select_button").click();
+    expect(".o_select_button").not.toBeEnabled();
+    // the download rejects: the button must be re-enabled by the finally block,
+    // not left permanently disabled.
+    def.reject(new Error("export failed"));
+    await animationFrame();
+    expect(".o_select_button").toBeEnabled();
+    expect.verifyErrors(["export failed"]);
+});
+
+test("Export dialog: rapid template switch keeps the last selection", async () => {
+    onRpc("/web/export/formats", () => [{ tag: "csv", label: "CSV" }]);
+    onRpc("/web/export/get_fields", () => [...fetchedFields.root]);
+    const slowTemplate = new Deferred();
+    onRpc("/web/export/namelist", async (request) => {
+        const { params } = await request.json();
+        if (params.export_id === 1) {
+            await slowTemplate; // template 1's fields arrive late
+            return [{ id: "foo", string: "Foo" }];
+        }
+        return [{ id: "bar", string: "Bar" }];
+    });
+    onRpc(({ method }) => {
+        if (method === "search_read") {
+            return [
+                { id: 1, name: "Template 1" },
+                { id: 2, name: "Template 2" },
+            ];
+        }
+    });
+
+    await mountView({
+        type: "list",
+        resModel: "partner",
+        arch: `<list export_xlsx="1"><field name="foo"/></list>`,
+        loadActionMenus: true,
+    });
+    await openExportDialog();
+
+    // switch to template 1 (its namelist is delayed) then quickly to template 2
+    await select("1", { target: ".o_exported_lists_select" });
+    await select("2", { target: ".o_exported_lists_select" });
+    await animationFrame();
+
+    // template 2 resolved first: its fields are shown, consistent with its id
+    expect(".o_exported_lists_select").toHaveValue("2");
+    expect(queryAllTexts(".o_fields_list .o_export_field")).toEqual(["Bar"]);
+
+    // template 1's late response must be discarded (KeepLast), not clobber the
+    // list and leave exportList mismatched with the selected templateId
+    slowTemplate.resolve();
+    await animationFrame();
+    expect(".o_exported_lists_select").toHaveValue("2");
+    expect(queryAllTexts(".o_fields_list .o_export_field")).toEqual(["Bar"]);
+});
+
 test("Export dialog: no column_invisible fields in default export list", async () => {
     onRpc("/web/export/formats", () => [{ tag: "xls", label: "Excel" }]);
     onRpc("/web/export/get_fields", () => fetchedFields.root);

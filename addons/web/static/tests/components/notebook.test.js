@@ -211,6 +211,44 @@ test("notebook pages rendered by a template component", async () => {
     );
 });
 
+test("a programmatic page with index 0 is ordered first", async () => {
+    // A page requesting the first position (index: 0) must be placed before an
+    // unindexed page, even when it appears later in the `pages` array. The old
+    // `if (v.index)` check treated index 0 as "no index", dropping such a page
+    // into the unordered bucket.
+    class Page extends Component {
+        static template = xml`<h3 t-esc="props.heading"/>`;
+        static props = ["*"];
+    }
+
+    class Parent extends Component {
+        static template = xml`<Notebook pages="pages"/>`;
+        static components = { Notebook };
+        static props = ["*"];
+        setup() {
+            this.pages = [
+                {
+                    Component: Page,
+                    title: "Unindexed",
+                    props: { heading: "Unindexed" },
+                },
+                {
+                    Component: Page,
+                    index: 0,
+                    title: "Zero",
+                    props: { heading: "Zero" },
+                },
+            ];
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    expect(".o_notebook_headers .nav-item:first-child a").toHaveText("Zero");
+    expect(".o_notebook_headers .nav-item:nth-child(2) a").toHaveText("Unindexed");
+    expect(".o_notebook_headers .nav-item:first-child a").toHaveClass("active");
+    expect(".active h3").toHaveText("Zero");
+});
+
 test("each page is different", async () => {
     class Page extends Component {
         static template = xml`<h3>Coucou</h3>`;

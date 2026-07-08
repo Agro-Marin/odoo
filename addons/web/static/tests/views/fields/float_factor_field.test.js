@@ -1,6 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { FloatFactorField } from "@web/fields/basic/float_factor/float_factor_field";
 import {
     clickSave,
     contains,
@@ -10,6 +11,7 @@ import {
     models,
     mountView,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 
 class Partner extends models.Model {
@@ -83,4 +85,46 @@ test("FloatFactorField comma as decimal point", async () => {
     await clickSave();
 
     expect.verifySteps(["save"]);
+});
+
+test("FloatFactorField.value passes an unset value through as false", () => {
+    // An unset float is ``false``; ``false * factor`` would coerce it to 0 and
+    // render "0.00" instead of the empty string a plain float renders. The
+    // getter must pass ``false`` through so the formatter yields "".
+    const makeField = (data, factor) =>
+        Object.create(FloatFactorField.prototype, {
+            props: {
+                value: { record: { data: { qux: data } }, name: "qux", factor },
+            },
+        });
+
+    expect(makeField(false, 0.5).value).toBe(false, {
+        message: "an unset value must stay false, not become 0",
+    });
+    expect(makeField(9, 0.5).value).toBe(4.5, {
+        message: "a set value must still be multiplied by the factor",
+    });
+});
+
+test("FloatFactorField guards against a zero factor", async () => {
+    const warnings = [];
+    patchWithCleanup(console, { warn: (...args) => warnings.push(args) });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="qux" widget="float_factor" options="{'factor': 0}" digits="[16,2]" />
+            </form>`,
+    });
+
+    // A zero factor falls back to 1 instead of rendering NaN, and warns.
+    expect(".o_field_widget[name='qux'] input").toHaveValue("9.10", {
+        message: "a zero factor should fall back to 1",
+    });
+    expect(warnings.length).toBe(1, {
+        message: "a zero factor should emit a warning",
+    });
 });

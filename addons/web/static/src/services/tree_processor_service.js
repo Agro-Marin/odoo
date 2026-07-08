@@ -373,13 +373,17 @@ export const treeProcessorService = {
                 const valueType = value[1];
                 values = [IN_RANGE_OPTIONS.find(([t]) => t === valueType)[1].toString()];
             } else {
-                values = (Array.isArray(value) ? value : [value])
-                    .slice(0, limit)
-                    .map((val, index) =>
-                        index < limit - 1
-                            ? formatValue(val, dis, fieldDef, coModeldisplayNames)
-                            : "...",
-                    );
+                const rawValues = Array.isArray(value) ? value : [value];
+                // Only append the "..." ellipsis when the list is actually
+                // longer than ``limit``. A list of exactly ``limit`` elements is
+                // shown in full — nothing is truncated.
+                const truncated = rawValues.length > limit;
+                values = rawValues
+                    .slice(0, truncated ? limit - 1 : limit)
+                    .map((val) => formatValue(val, dis, fieldDef, coModeldisplayNames));
+                if (truncated) {
+                    values.push("...");
+                }
             }
 
             let join;

@@ -330,10 +330,18 @@ export class CustomColorPicker extends Component {
         if (!rgb) {
             return;
         }
+        // A 6-digit hex carries no alpha, yet convertCSSColorToRgba fills in
+        // opacity: 100. Assigning that would silently reset a user-set opacity,
+        // contradicting this method's contract ("Opacity is left unchanged").
+        // Only honor the parsed opacity for an 8-digit (alpha-carrying) hex.
+        const rgbToApply = { ...rgb };
+        if (hex.replace("#", "").length !== 8) {
+            delete rgbToApply.opacity;
+        }
         Object.assign(
             this.colorComponents,
             { hex: hex },
-            rgb,
+            rgbToApply,
             convertRgbToHsl(rgb.red, rgb.green, rgb.blue),
         );
         this._updateCssColor();

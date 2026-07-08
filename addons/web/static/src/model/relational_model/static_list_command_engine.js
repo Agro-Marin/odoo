@@ -254,9 +254,15 @@ export function applyCommands(
                 const valuesById = Object.fromEntries(
                     recordValues.map((v) => [v.id, v]),
                 );
-                for (let i = 0; i < recordsToLoad.length; i++) {
-                    const record = recordsToLoad[i];
-                    record._applyValues(valuesById[record.resId] || recordValues[i]);
+                for (const record of recordsToLoad) {
+                    if (!valuesById[record.resId]) {
+                        // The server returned fewer records than requested
+                        // (e.g. concurrently deleted): never fall back to
+                        // index-based access, as that would merge ANOTHER
+                        // record's values (id included) into this record.
+                        continue;
+                    }
+                    record._applyValues(valuesById[record.resId]);
                     const commands = list._unknownRecordCommands[record.resId];
                     if (commands) {
                         delete list._unknownRecordCommands[record.resId];

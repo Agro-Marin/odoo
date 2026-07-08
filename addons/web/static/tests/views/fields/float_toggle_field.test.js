@@ -97,3 +97,29 @@ test("kanban view (readonly) with option force_button", async () => {
         message: "float_field field value should be changed",
     });
 });
+
+test("steps from the nearest range value despite float imprecision", async () => {
+    // 0.1 * 3 = 0.30000000000000004, which a strict `indexOf` over the range
+    // never matches, so the buggy code silently reset to range[0] (0.00). The
+    // nearest-match must pick 0.3 and advance to the next entry (0.6).
+    Partner._records[0].float_field = 0.1;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="float_field" widget="float_toggle" options="{'factor': 3, 'range': [0, 0.3, 0.6]}" digits="[5,2]"/>
+            </form>`,
+    });
+
+    expect("button.o_field_float_toggle").toHaveText("0.30", {
+        message: "0.1 * 3 must render as 0.30",
+    });
+
+    await contains("button.o_field_float_toggle").click();
+
+    expect("button.o_field_float_toggle").toHaveText("0.60", {
+        message: "must advance to the entry after the nearest one (0.3 -> 0.6), not reset to 0.00",
+    });
+});

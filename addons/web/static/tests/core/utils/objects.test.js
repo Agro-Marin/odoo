@@ -44,6 +44,15 @@ describe("shallowEqual", () => {
         expect(shallowEqual({ a: () => {} }, { a: () => {} })).toBe(false);
     });
 
+    test("different key sets with undefined values", () => {
+        // Same key COUNT but different key SETS: missing keys read as
+        // ``undefined``, which must not compare equal to an explicit
+        // ``undefined`` value.
+        expect(shallowEqual({ a: undefined }, { b: undefined })).toBe(false);
+        expect(shallowEqual({ a: undefined }, { a: undefined })).toBe(true);
+        expect(shallowEqual({ a: undefined, b: 1 }, { b: 1, c: undefined })).toBe(false);
+    });
+
     test("custom comparison function", () => {
         const dateA = new Date();
         const dateB = new Date(dateA);
@@ -99,6 +108,24 @@ test("deepEqual", () => {
     const b = { x: 1 };
     b.self = b;
     expect(deepEqual(a, b)).toBe(true);
+
+    // divergent cycles: a 1-cycle vs a 2-cycle — one node is compared against
+    // two counterpart nodes alternately, so the guard must be keyed on the
+    // pair (a single-slot guard flip-flopped and stack-overflowed). Both
+    // unfold to {x: {x: {x: ...}}}, hence structurally equal.
+    const one = {};
+    one.x = one;
+    const twoA = {};
+    const twoB = { x: twoA };
+    twoA.x = twoB;
+    expect(deepEqual(one, twoA)).toBe(true);
+
+    // structurally unequal cyclic pairs stay unequal
+    const c = { v: 1 };
+    c.self = c;
+    const d = { v: 2 };
+    d.self = d;
+    expect(deepEqual(c, d)).toBe(false);
 });
 
 test("deepCopy", () => {

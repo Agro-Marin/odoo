@@ -71,7 +71,7 @@ for (let dbm = 0, i = 1; i < DAYS_IN_MONTH.length; ++i) {
  * @param {number} month - 1-indexed
  * @returns {number}
  */
-function daysInMonth(year, month) {
+export function daysInMonth(year, month) {
     if (month === 2 && isLeap(year)) {
         return 29;
     }

@@ -3,7 +3,13 @@
 
 /** @module @web/core/py_js/py_interpreter - AST-walking interpreter for Python expressions used in domains and QWeb */
 
-import { BUILTINS, EvaluationError, execOnIterable } from "./py_builtin.js";
+import {
+    BUILTINS,
+    EvaluationError,
+    execOnIterable,
+    pyRepr,
+    pyStr,
+} from "./py_builtin.js";
 import {
     NotSupportedError,
     PyDate,
@@ -119,12 +125,60 @@ function isEqual(left, right) {
         }
         return false;
     }
-    if (left instanceof Object && left.isEqual) {
+    // Typed Py* objects (PyDate, PyTimeDelta, ...) carry their own equality.
+    // Guard with a typeof check so a plain context dict that happens to have an
+    // ``isEqual`` key (a data value, not a method) doesn't get called.
+    if (left instanceof Object && typeof left.isEqual === "function") {
         return left.isEqual(right);
     }
-    if (Array.isArray(left) && Array.isArray(right)) {
+    if (Array.isArray(left) || Array.isArray(right)) {
+        if (!Array.isArray(left) || !Array.isArray(right)) {
+            return false;
+        }
         return (
             left.length === right.length && left.every((v, i) => isEqual(v, right[i]))
+        );
+    }
+    if (left instanceof Set || right instanceof Set) {
+        if (
+            !(left instanceof Set) ||
+            !(right instanceof Set) ||
+            left.size !== right.size
+        ) {
+            return false;
+        }
+        for (const v of left) {
+            let found = false;
+            for (const w of right) {
+                if (isEqual(v, w)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (
+        left !== null &&
+        right !== null &&
+        typeof left === "object" &&
+        typeof right === "object"
+    ) {
+        // Plain dicts: deep-compare own enumerable keys. If either side exposes
+        // a custom ``isEqual`` method it's a typed Py* object, not a dict.
+        if (typeof left.isEqual === "function" || typeof right.isEqual === "function") {
+            return false;
+        }
+        const leftKeys = Object.keys(left);
+        const rightKeys = Object.keys(right);
+        if (leftKeys.length !== rightKeys.length) {
+            return false;
+        }
+        return leftKeys.every(
+            (k) => Object.hasOwn(right, k) && isEqual(left[k], right[k]),
         );
     }
     return left === right;
@@ -137,13 +191,20 @@ function isEqual(left, right) {
  */
 function isIn(left, right) {
     if (Array.isArray(right)) {
-        return right.includes(left);
+        // Python ``in`` uses ``==`` per element, so deep-compare (``[1,2] in
+        // [[1,2]]`` is True) rather than JS strict ``includes``.
+        return right.some((x) => isEqual(left, x));
     }
     if (typeof right === "string" && typeof left === "string") {
         return right.includes(left);
     }
     if (right instanceof Set) {
-        return right.has(left);
+        for (const x of right) {
+            if (isEqual(left, x)) {
+                return true;
+            }
+        }
+        return false;
     }
     if (right != null && typeof right === "object") {
         return Object.hasOwn(right, left);
@@ -280,6 +341,115 @@ function _applyUnaryOp(ast, recurse) {
 }
 
 /**
+ * Python-ish type name for error messages.
+ * @param {any} value
+ * @returns {string}
+ */
+function pyTypeName(value) {
+    if (value === null || value === undefined) {
+        return "NoneType";
+    }
+    if (Array.isArray(value)) {
+        return "list";
+    }
+    switch (typeof value) {
+        case "boolean":
+            return "bool";
+        case "number":
+            return Number.isInteger(value) ? "int" : "float";
+        case "string":
+            return "str";
+        case "object":
+            return value.constructor?.name || "object";
+        default:
+            return typeof value;
+    }
+}
+
+/**
+ * printf-style ``%`` formatting for strings (``'%s' % val`` /
+ * ``'%s=%d' % (a, b)``). Supports the conversions that show up in real Odoo
+ * expressions: s, r, d/i, f, e/g, x/X, o and the ``%%`` literal, with optional
+ * flags / width / precision.
+ *
+ * @param {string} fmt
+ * @param {any} value single value or a tuple (array) of values
+ * @returns {string}
+ */
+function pyStringFormat(fmt, value) {
+    const values = Array.isArray(value) ? value.slice() : [value];
+    let i = 0;
+    return fmt.replace(
+        /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([sriduxXofeEgG%])/g,
+        (m, mapKey, flags, width, prec, conv) => {
+            if (conv === "%") {
+                return "%";
+            }
+            let arg;
+            if (mapKey != null) {
+                arg = value?.[mapKey];
+            } else {
+                if (i >= values.length) {
+                    throw new EvaluationError(
+                        "not enough arguments for format string",
+                    );
+                }
+                arg = values[i++];
+            }
+            let str;
+            switch (conv) {
+                case "s":
+                    str = pyStr(arg);
+                    break;
+                case "r":
+                    str = pyRepr(arg);
+                    break;
+                case "d":
+                case "i":
+                case "u":
+                    str = String(Math.trunc(Number(arg)));
+                    break;
+                case "f":
+                case "e":
+                case "E":
+                case "g":
+                case "G": {
+                    const p = prec != null ? Number(prec) : 6;
+                    str =
+                        conv === "f"
+                            ? Number(arg).toFixed(p)
+                            : conv === "e" || conv === "E"
+                              ? Number(arg).toExponential(p)
+                              : String(Number(arg));
+                    if (conv === "E" || conv === "G") {
+                        str = str.toUpperCase();
+                    }
+                    break;
+                }
+                case "x":
+                    str = Math.trunc(Number(arg)).toString(16);
+                    break;
+                case "X":
+                    str = Math.trunc(Number(arg)).toString(16).toUpperCase();
+                    break;
+                case "o":
+                    str = Math.trunc(Number(arg)).toString(8);
+                    break;
+                default:
+                    str = pyStr(arg);
+            }
+            if (width) {
+                const w = Number(width);
+                str = flags.includes("-")
+                    ? str.padEnd(w)
+                    : str.padStart(w, flags.includes("0") ? "0" : " ");
+            }
+            return str;
+        },
+    );
+}
+
+/**
  * Apply a binary operator.
  * @param {import("./ast_type.js").ASTBinaryOperator} ast
  * @param {(ast: AST) => any} recurse evaluator for sub-expressions
@@ -320,8 +490,20 @@ function _applyBinaryOp(ast, recurse) {
             if (Array.isArray(left) && Array.isArray(right)) {
                 return [...left, ...right];
             }
-
-            return left + right;
+            // str + str and numeric + numeric only. Python raises TypeError on
+            // ``'a' + 1``; JS would silently coerce to "a1", so reject it.
+            if (typeof left === "string" && typeof right === "string") {
+                return left + right;
+            }
+            const leftNumeric = typeof left === "number" || typeof left === "boolean";
+            const rightNumeric =
+                typeof right === "number" || typeof right === "boolean";
+            if (leftNumeric && rightNumeric) {
+                return left + right;
+            }
+            throw new EvaluationError(
+                `unsupported operand type(s) for +: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+            );
         }
         case "-": {
             const isRightDelta = right instanceof PyRelativeDelta;
@@ -354,6 +536,24 @@ function _applyBinaryOp(ast, recurse) {
                 return delta.multiply(number);
             }
 
+            // Python sequence repetition: str * int and list * int (either
+            // order). ``'ab' * 2`` → "abab", ``[1] * 3`` → [1, 1, 1].
+            const leftSeq = typeof left === "string" || Array.isArray(left);
+            const rightSeq = typeof right === "string" || Array.isArray(right);
+            if (leftSeq !== rightSeq) {
+                const seq = leftSeq ? left : right;
+                const count = leftSeq ? right : left;
+                const n = Math.max(0, Math.trunc(Number(count)));
+                if (typeof seq === "string") {
+                    return seq.repeat(n);
+                }
+                const result = [];
+                for (let k = 0; k < n; k++) {
+                    result.push(...seq);
+                }
+                return result;
+            }
+
             return left * right;
         }
         case "/":
@@ -362,6 +562,10 @@ function _applyBinaryOp(ast, recurse) {
             }
             return left / right;
         case "%":
+            if (typeof left === "string") {
+                // printf-style string formatting: ``'%s' % 5`` → "5".
+                return pyStringFormat(left, right);
+            }
             if (right === 0) {
                 throw new EvaluationError("ZeroDivisionError: modulo by zero");
             }
@@ -570,6 +774,16 @@ export function evaluate(ast, context = {}) {
                 const key = _evaluate(ast.key);
                 if (BLOCKED_PROPERTIES.has(key)) {
                     throw new EvaluationError(`Access to '${key}' is forbidden`);
+                }
+                if (
+                    typeof key === "number" &&
+                    key < 0 &&
+                    (typeof dict === "string" || Array.isArray(dict))
+                ) {
+                    // Python negative indexing (``lst[-1]`` → last element). JS
+                    // bracket access returns undefined for negative indices, so
+                    // use ``.at`` which counts from the end.
+                    return dict.at(key);
                 }
                 return dict[key];
             }

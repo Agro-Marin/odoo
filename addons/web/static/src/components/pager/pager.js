@@ -181,9 +181,15 @@ export class Pager extends Component {
     }
 
     async updateTotal() {
-        if (!this.state.isDisabled) {
-            this.state.isDisabled = true;
+        if (this.state.isDisabled) {
+            return;
+        }
+        this.state.isDisabled = true;
+        try {
             await this.props.updateTotal();
+        } finally {
+            // Always re-enable the pager, even if the count RPC rejects, so a
+            // transient failure doesn't leave navigation permanently disabled.
             this.state.isDisabled = false;
         }
     }
@@ -204,9 +210,6 @@ export class Pager extends Component {
      */
     onInputChange(ev) {
         this.setValue(/** @type {HTMLInputElement} */ (ev.target).value);
-        if (!this.state.isDisabled) {
-            ev.preventDefault();
-        }
     }
     /**
      * @param {KeyboardEvent} ev
@@ -227,9 +230,8 @@ export class Pager extends Component {
     }
     onValueClick() {
         if (this.props.isEditable && !this.state.isEditing && !this.state.isDisabled) {
-            if (this.inputRef.el) {
-                this.inputRef.el.focus();
-            }
+            // The input only exists once `isEditing` is true; useAutofocus then
+            // focuses it on mount, so there is nothing to focus here.
             this.state.isEditing = true;
         }
     }

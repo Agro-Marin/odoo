@@ -362,7 +362,8 @@ export class DateTimeField extends Component {
      * @param {number} index
      */
     isDateInTheFuture(index) {
-        return this.values[index] > today();
+        const now = this.field.type === "date" ? today() : DateTime.local();
+        return this.values[index] > now;
     }
 
     /**

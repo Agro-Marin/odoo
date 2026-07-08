@@ -76,6 +76,19 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
     const sign = Math.sign(normalizedValue);
     const epsilonMagnitude = Math.log2(Math.abs(normalizedValue));
     const epsilon = 2 ** (epsilonMagnitude - 50);
+    // For the "nearest" (HALF-*) methods, `epsilon` is nudged toward the .5 tie
+    // boundary only to rescue a value pushed just under a genuine tie by IEEE-754
+    // representation error. Being magnitude-relative (~4 ULP of normalizedValue),
+    // it grows past .5 once normalizedValue is large (its ULP approaches and
+    // exceeds 1), and then spuriously flips a clean value to the next integer:
+    // e.g. formatFloat(1e13) at 2 digits gave "10000000000000.01". Cap it below
+    // the boundary (keeping ~2 ULP of clearance, `0.5 - epsilon / 2`, which stays
+    // >= a few ULP where the ULP is fine and reaches 0 once normalizedValue has no
+    // representable fractional part) so the nudge can only ever rescue values
+    // already within representation error of a tie, never cross a boundary. The
+    // truncating UP/DOWN methods keep the un-capped `epsilon`: there it measures
+    // proximity-to-integer and must track the ULP to leave exact integers intact.
+    const halfEpsilon = Math.max(0, Math.min(epsilon, 0.5 - epsilon / 2));
     let roundedValue;
 
     switch (method) {
@@ -84,17 +97,17 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
             break;
         }
         case "HALF-DOWN": {
-            roundedValue = Math.round(normalizedValue - sign * epsilon);
+            roundedValue = Math.round(normalizedValue - sign * halfEpsilon);
             break;
         }
         case "HALF-UP": {
-            roundedValue = Math.round(normalizedValue + sign * epsilon);
+            roundedValue = Math.round(normalizedValue + sign * halfEpsilon);
             break;
         }
         case "HALF-EVEN": {
             const integral = Math.floor(normalizedValue);
             const remainder = Math.abs(normalizedValue - integral);
-            const isHalf = Math.abs(0.5 - remainder) < epsilon;
+            const isHalf = Math.abs(0.5 - remainder) < halfEpsilon;
             roundedValue = isHalf
                 ? integral + (integral & 1)
                 : Math.round(normalizedValue);
@@ -118,10 +131,18 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
  * @returns {string}
  */
 function formatFixedDecimals(value, decimals) {
+    // `Number.prototype.toString` and `toFixed` both switch to exponential
+    // notation at 1e21: return that representation deliberately (as
+    // `humanNumber` does) instead of feeding it to the integer/decimal split
+    // of the callers. Rounding is a no-op at such magnitudes anyway.
+    if (Math.abs(value) >= 1e21) {
+        return String(value);
+    }
     const rounded = roundDecimals(value, decimals);
-    const [intPart, decPart = ""] = rounded.toString().split(".");
-    const paddedDecimals = decPart.padEnd(decimals, "0").slice(0, decimals);
-    return decimals === 0 ? intPart : `${intPart}.${paddedDecimals}`;
+    // `rounded` already carries the HALF-UP rounding: `toFixed` only pads or
+    // truncates trailing zeros, and never uses exponential notation for
+    // values below 1e21 (unlike `toString`, which switches below 1e-6 too).
+    return rounded.toFixed(decimals);
 }
 
 /**
@@ -273,7 +294,14 @@ export function formatFloat(value, options = {}) {
         "thousandsSep" in options ? options.thousandsSep : l10n.thousandsSep;
     const decimalPoint =
         "decimalPoint" in options ? options.decimalPoint : l10n.decimalPoint;
-    const formatted = formatFixedDecimals(value, precision).split(".");
+    const fixed = formatFixedDecimals(value, precision);
+    if (fixed.includes("e")) {
+        // exponential notation (|value| >= 1e21): thousands separators and
+        // the decimal point substitution below do not apply (as in
+        // `humanNumber`, the scientific format is kept as is).
+        return fixed;
+    }
+    const formatted = fixed.split(".");
     formatted[0] = insertThousandsSep(formatted[0], thousandsSep, grouping);
     if (formatted[1]) {
         formatted[1] = formatted[1].replace(/0+$/, "");

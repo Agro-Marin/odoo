@@ -1,7 +1,15 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { click, edit, keyDown, keyUp, queryAll, queryAllTexts } from "@odoo/hoot-dom";
+import {
+    click,
+    edit,
+    keyDown,
+    keyUp,
+    manuallyDispatchProgrammaticEvent,
+    queryAll,
+    queryAllTexts,
+} from "@odoo/hoot-dom";
 import {
     advanceTime,
     animationFrame,
@@ -1081,6 +1089,62 @@ test("multi_create: selection with shift", async () => {
 
     expect(".o_selection_box").toHaveText("1\nselected");
     expect(queryAll(".fc-day.o-highlight").map((el) => el.dataset.date)).toEqual([
+        "2019-03-13",
+    ]);
+});
+
+test.tags("desktop");
+test("multi_create: click uses the event's ctrl state, not stale window state", async () => {
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        context: { default_name: "Sick" },
+    });
+
+    // Seed a multi-cell selection with a drag (a proven interaction).
+    await selectDateRange("2019-03-04", "2019-03-06");
+    expect(".fc-day.o-highlight").toHaveCount(3);
+
+    // Simulate Ctrl held on the window but NOT reflected on the click event — a
+    // keydown whose matching keyup was swallowed while the window was blurred.
+    // manuallyDispatchProgrammaticEvent dispatches a raw event without touching
+    // hoot's synthetic modifier state, so the following click's ev.ctrlKey is
+    // false. The old code trusted the stale window boolean and toggled; reading
+    // ev.ctrlKey makes the click replace, collapsing the selection to one day.
+    await manuallyDispatchProgrammaticEvent(window, "keydown", { key: "Control" });
+    await contains(".fc-day[data-date='2019-03-13']").click();
+    await manuallyDispatchProgrammaticEvent(window, "keyup", { key: "Control" });
+
+    expect(".fc-day.o-highlight").toHaveCount(1);
+    expect(queryAll(".fc-day.o-highlight").map((el) => el.dataset.date)).toEqual([
+        "2019-03-13",
+    ]);
+});
+
+test.tags("desktop");
+test("multi_create: window blur clears a stuck ctrl for drag selection", async () => {
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        context: { default_name: "Sick" },
+    });
+
+    await selectDateRange("2019-03-04", "2019-03-06");
+    expect(".fc-day.o-highlight").toHaveCount(3);
+
+    // Hold Ctrl, then lose focus: the keyup never arrives, but the blur must
+    // reset the tracked modifier (read by the drag path) so the next drag
+    // replaces instead of adding.
+    await keyDown("Control");
+    await manuallyDispatchProgrammaticEvent(window, "blur");
+
+    await selectDateRange("2019-03-11", "2019-03-13");
+    await keyUp("Control");
+
+    expect(".fc-day.o-highlight").toHaveCount(3);
+    expect(queryAll(".fc-day.o-highlight").map((el) => el.dataset.date)).toEqual([
+        "2019-03-11",
+        "2019-03-12",
         "2019-03-13",
     ]);
 });

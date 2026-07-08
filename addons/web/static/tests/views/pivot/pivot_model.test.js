@@ -10,9 +10,12 @@
  *  - views/pivot/pivot_group_tree.js  — tree data structure operations
  *  - views/pivot/pivot_value_utils.js — groupBy normalization, value sanitization
  *  - views/pivot/pivot_measurements.js — measure spec building
+ *  - views/pivot/pivot_export.js — exported table width (Excel column guard)
+ *  - views/pivot/pivot_model.js — getTableWidth on a fabricated column tree
  */
 
 import { describe, expect, test } from "@odoo/hoot";
+import { computeExportedTableWidth } from "@web/views/pivot/pivot_export";
 import {
     addGroup,
     findGroup,
@@ -23,6 +26,7 @@ import {
     sortTree,
 } from "@web/views/pivot/pivot_group_tree";
 import { getMeasureSpecs } from "@web/views/pivot/pivot_measurements";
+import { PivotModel } from "@web/views/pivot/pivot_model";
 import {
     getGroupBySpecs,
     getGroupDomain,
@@ -481,5 +485,85 @@ describe("getMeasureSpecs — aggregator normalization", () => {
         };
 
         expect(() => getMeasureSpecs(config)).toThrow();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// computeExportedTableWidth — Excel export column count
+// ---------------------------------------------------------------------------
+
+describe("computeExportedTableWidth — exported column count", () => {
+    // The XLSX controller writes 1 title column, then measureCount value
+    // columns per leaf column group, plus measureCount columns for the
+    // "Total" group when there is more than one leaf.
+
+    test("single measure keeps the historical leafCount + 2 width", () => {
+        expect(computeExportedTableWidth(2, 1)).toBe(4);
+        expect(computeExportedTableWidth(5, 1)).toBe(7);
+        expect(computeExportedTableWidth(9000, 1)).toBe(9002);
+    });
+
+    test("each measure adds a column per leaf and one in the Total group", () => {
+        // leafCount × 2 + 2 (Total group) + 1 (title column)
+        expect(computeExportedTableWidth(3, 2)).toBe(9);
+        expect(computeExportedTableWidth(3, 3)).toBe(13);
+        expect(computeExportedTableWidth(9000, 2)).toBe(18003);
+    });
+
+    test("a single leaf column group has no extra Total group", () => {
+        expect(computeExportedTableWidth(1, 1)).toBe(2);
+        expect(computeExportedTableWidth(1, 3)).toBe(4);
+    });
+
+    test("detects multi-measure tables over Excel's 16384-column limit", () => {
+        const EXCEL_MAX_COLUMNS = 16384;
+        // 9,000 leaves fit with one measure but overflow with two: the
+        // pre-fix guard (leafCount + 2 = 9002) let this export through
+        // and produced a corrupt workbook.
+        expect(computeExportedTableWidth(9000, 1) <= EXCEL_MAX_COLUMNS).toBe(true);
+        expect(computeExportedTableWidth(9000, 2) > EXCEL_MAX_COLUMNS).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// PivotModel.getTableWidth — export guard width from the column group tree
+// ---------------------------------------------------------------------------
+
+describe("PivotModel.getTableWidth — export guard width", () => {
+    /**
+     * Fabricate the minimal model state getTableWidth reads: a column group
+     * tree with `leafCount` first-level leaves and the active measures.
+     * @param {number} leafCount
+     * @param {string[]} activeMeasures
+     */
+    function makeFakeModel(leafCount, activeMeasures) {
+        const colGroupTree = makeTree();
+        for (let i = 1; i <= leafCount; i++) {
+            addGroup(colGroupTree, [`G${i}`], [i]);
+        }
+        return { data: { colGroupTree }, metaData: { activeMeasures } };
+    }
+
+    test("single measure matches the historical width", () => {
+        const model = makeFakeModel(3, ["__count"]);
+
+        expect(PivotModel.prototype.getTableWidth.call(model)).toBe(5);
+    });
+
+    test("two measures widen every leaf and the Total group", () => {
+        const model = makeFakeModel(3, ["__count", "amount"]);
+
+        // 3 leaves × 2 measures + 2 (Total group) + 1 (title) = 9
+        expect(PivotModel.prototype.getTableWidth.call(model)).toBe(9);
+    });
+
+    test("over-limit multi-measure table now trips the 16384 export guard", () => {
+        const model = makeFakeModel(9000, ["__count", "amount"]);
+
+        const width = PivotModel.prototype.getTableWidth.call(model);
+        expect(width).toBe(18003);
+        // The renderer refuses to call /web/pivot/export_xlsx when
+        // getTableWidth() > 16384 (see PivotRenderer.onDownloadButtonClicked).
+        expect(width > 16384).toBe(true);
     });
 });

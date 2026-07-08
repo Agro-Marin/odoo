@@ -284,3 +284,50 @@ test("Signature widget works inside of a dropdown", async () => {
     expect(".modal-dialog").toHaveCount(0, { message: "Should have no modal opened" });
     expect.verifySteps(["onClickSignature", "uploadSignature"]);
 });
+
+test.tags("desktop");
+test("Signature widget on an unsaved record persists via the record (no write to id=false)", async () => {
+    // On a new (unsaved) record ``resId`` is false. Writing to id ``false``
+    // throws server-side and the captured signature is lost. The widget must
+    // instead route through the record (update + save).
+    onRpc("web_save", ({ args }) => {
+        expect.step("web_save");
+        expect("sign" in args[1]).toBe(true);
+    });
+    onRpc("write", () => {
+        expect.step("write");
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        // no resId => new (unsaved) record
+        arch: /* xml */ `
+            <form>
+                <header>
+                    <widget name="signature" string="Sign" full_name="display_name" signature_field="sign"/>
+                </header>
+                <field name="display_name"/>
+            </form>`,
+    });
+
+    // set a name to enable the auto-sign feature
+    await contains(".o_field_widget[name=display_name] input").edit("test");
+
+    await click(".o_widget_signature button.o_sign_button");
+    await waitFor(".modal .modal-body");
+    await click(".o_web_sign_auto_button");
+
+    let maxDelay = 100;
+    while (queryFirst(".modal-footer button.btn-primary")["disabled"] && maxDelay > 0) {
+        await animationFrame();
+        maxDelay--;
+    }
+    expect(maxDelay).toBeGreaterThan(0, { message: "Timeout exceeded" });
+
+    await clickModalButton({ text: "Adopt & Sign" });
+
+    expect(".modal-dialog").toHaveCount(0, { message: "Should have no modal opened" });
+    // The record was saved (web_save) and no write to a false id was attempted.
+    expect.verifySteps(["web_save"]);
+});

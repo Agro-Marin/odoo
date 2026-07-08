@@ -181,7 +181,13 @@ export class SearchBar extends Component {
         this.state.query = query;
         this.subItems = subItems;
 
-        /** @type {HTMLInputElement} */ (this.inputRef.el).value = query;
+        // The input may not be rendered (e.g. collapsed search bar on small
+        // screens, or a resize that collapsed the bar while a loadMore promise
+        // was still resolving), so `inputRef.el` can be null here — guard it,
+        // like the FOCUS_SEARCH handler does.
+        if (this.inputRef.el) {
+            /** @type {HTMLInputElement} */ (this.inputRef.el).value = query;
+        }
 
         const trimmedQuery = this.state.query.trim();
 

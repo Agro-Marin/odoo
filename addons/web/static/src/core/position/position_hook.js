@@ -51,6 +51,12 @@ export const POSITION_BUS = Symbol("position-bus");
 export function usePosition(refName, getTarget, options = {}) {
     const ref = useRef(refName);
     let lock = false;
+    // Memorize the last computed position in hook-local state instead of
+    // mutating the caller's `options` object: two components sharing one options
+    // object would otherwise cross-contaminate each other, and a frozen options
+    // object would throw on assignment.
+    /** @type {string | undefined} */
+    let lastPosition;
     const update = () => {
         const targetEl = getTarget();
         if (!ref.el || !targetEl?.isConnected || lock) {
@@ -58,8 +64,11 @@ export function usePosition(refName, getTarget, options = {}) {
             return;
         }
         const repositionOptions = omit(options, "onPositioned");
+        if (lastPosition) {
+            repositionOptions.position = lastPosition;
+        }
         const solution = reposition(ref.el, targetEl, repositionOptions);
-        options.position = `${solution.direction}-${solution.variant}`; // memorize last position
+        lastPosition = `${solution.direction}-${solution.variant}`; // memorize last position
         options.onPositioned?.(ref.el, solution);
     };
 

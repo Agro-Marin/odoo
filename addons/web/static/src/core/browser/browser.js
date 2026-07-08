@@ -147,11 +147,16 @@ export const browser =
 export function makeRAMLocalStorage() {
     /** @type {{[key: string]: string}} */
     let store = Object.create(null);
+    // NB: the real Web Storage API fires ``storage`` events only in OTHER
+    // documents sharing the origin — never in the window that performed the
+    // write. This in-memory fallback (used when window.localStorage is
+    // unavailable, e.g. Safari Private Browsing) is single-window by nature,
+    // so it must dispatch NO ``storage`` events at all; doing so on set/remove
+    // (but not clear) previously gave same-window listeners phantom
+    // cross-tab notifications the native API never produces.
     return {
         setItem(key, value) {
-            const newValue = String(value);
-            store[key] = newValue;
-            window.dispatchEvent(new StorageEvent("storage", { key, newValue }));
+            store[key] = String(value);
         },
         getItem(key) {
             return store[key] ?? null;
@@ -161,7 +166,6 @@ export function makeRAMLocalStorage() {
         },
         removeItem(key) {
             delete store[key];
-            window.dispatchEvent(new StorageEvent("storage", { key, newValue: null }));
         },
         get length() {
             return Object.keys(store).length;

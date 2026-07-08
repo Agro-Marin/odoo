@@ -8,9 +8,12 @@ import {
     defineMenus,
     defineModels,
     fields,
+    getService,
+    makeMockEnv,
     models,
     mountWebClient,
     onRpc,
+    patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
@@ -238,4 +241,35 @@ test(`use stored menus, and update on load_menus return`, async () => {
         },
     });
     expect.verifySteps(["Update Menus"]);
+});
+
+test.tags("desktop");
+test(`cold boot: a null parse-time preload refetches menus (no blank client)`, async () => {
+    // No stored menus for this registry version → cold path. The bootstrap
+    // preload resolves null (a 304 the server computed against a stale
+    // localStorage copy), which must NOT leave menusData undefined. The
+    // service should refetch the full payload from the server instead.
+    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
+    await makeMockEnv();
+    // getApps() dereferences menusData.root — it throws if the cold boot left
+    // it undefined (the blank-webclient bug).
+    expect(getService("menu").getApps().map((app) => app.name)).toEqual(["App1"]);
+});
+
+test.tags("desktop");
+test(`cold boot: falls back to stored menus when preload is null and refetch fails`, async () => {
+    // Version-mismatched stored copy present (still the cold path), the preload
+    // resolves null, AND the server refetch rejects. Rather than a blank
+    // client, the stale stored copy is served.
+    browser.localStorage.webclient_menus_version = "stale-version-hash";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "StoredApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
+    onRpc("/web/webclient/load_menus", () => {
+        throw new Error("load_menus unavailable");
+    });
+    await makeMockEnv();
+    expect(getService("menu").getApps().map((app) => app.name)).toEqual(["StoredApp"]);
 });

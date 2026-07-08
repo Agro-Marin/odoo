@@ -78,7 +78,7 @@ export class ModelFieldSelector extends Component {
             update: (path, _fieldInfo, debug = false) => {
                 this.newPath = path;
                 if (!debug) {
-                    this.updateState({ ...this.props, path }, true);
+                    this.updateState({ ...this.props, path });
                 }
             },
             showSearchInput: this.props.showSearchInput,
@@ -90,13 +90,14 @@ export class ModelFieldSelector extends Component {
         });
     }
 
-    async updateState(params, isConcurrent) {
+    async updateState(params) {
         const { resModel, path, allowEmpty } = params;
-        let prom = this.fieldService.loadPathDescription(resModel, path, allowEmpty);
-        if (isConcurrent) {
-            prom = this.keepLast.add(prom);
-        }
-        const state = await prom;
+        // Route every load through the same keepLast so a slow popover-driven
+        // load can't resolve after a newer props-driven load and overwrite
+        // state.displayNames with stale data (and vice versa).
+        const state = await this.keepLast.add(
+            this.fieldService.loadPathDescription(resModel, path, allowEmpty),
+        );
         Object.assign(this.state, state);
     }
 

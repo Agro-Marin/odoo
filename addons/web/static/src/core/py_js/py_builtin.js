@@ -8,6 +8,69 @@ import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_d
 export class EvaluationError extends Error {}
 
 /**
+ * Python ``repr()``: the unambiguous representation. Strings get quotes, lists
+ * render as ``[1, 2]``, dicts as ``{'a': 1}``, sets as ``{1, 2}`` / ``set()``.
+ * Typed Py* objects (PyDate, PyTimeDelta, ...) defer to their own toString.
+ *
+ * @param {any} value
+ * @returns {string}
+ */
+export function pyRepr(value) {
+    if (value === null || value === undefined) {
+        return "None";
+    }
+    if (typeof value === "boolean") {
+        return value ? "True" : "False";
+    }
+    if (typeof value === "string") {
+        return `'${value}'`;
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map(pyRepr).join(", ")}]`;
+    }
+    if (value instanceof Set) {
+        return value.size === 0 ? "set()" : `{${[...value].map(pyRepr).join(", ")}}`;
+    }
+    if (typeof value === "object") {
+        // A typed Py* object defines its own toString; a plain dict doesn't.
+        if (value.toString !== Object.prototype.toString) {
+            return value.toString();
+        }
+        const entries = Object.keys(value).map(
+            (k) => `${pyRepr(k)}: ${pyRepr(value[k])}`,
+        );
+        return `{${entries.join(", ")}}`;
+    }
+    return String(value);
+}
+
+/**
+ * Python ``str()``: containers render like ``repr`` (``str([1, 2])`` → "[1, 2]"),
+ * top-level strings stay unquoted, and typed Py* objects use their toString.
+ *
+ * @param {any} value
+ * @returns {string}
+ */
+export function pyStr(value) {
+    if (value === null || value === undefined) {
+        return "None";
+    }
+    if (typeof value === "boolean") {
+        return value ? "True" : "False";
+    }
+    if (Array.isArray(value) || value instanceof Set) {
+        return pyRepr(value);
+    }
+    if (typeof value === "object") {
+        // Plain dicts render via repr; typed Py* objects (custom toString) do not.
+        return value.toString === Object.prototype.toString
+            ? pyRepr(value)
+            : value.toString();
+    }
+    return String(value);
+}
+
+/**
  * Python-compatible round() with half-to-even (banker's rounding).
  *
  * Unlike a naive multiply→round→divide approach, this examines the IEEE-754
@@ -243,13 +306,7 @@ export const BUILTINS = {
 
     /** Convert to string. */
     str(/** @type {any} */ value) {
-        if (value === null || value === undefined) {
-            return "None";
-        }
-        if (typeof value === "boolean") {
-            return value ? "True" : "False";
-        }
-        return String(value);
+        return pyStr(value);
     },
 
     /** Round a number to a given number of decimal places (banker's rounding). */

@@ -113,6 +113,35 @@ test("useTransition hook (initially not visible)", async () => {
     await animationFrame();
 });
 
+test("useTransition hook (initially not visible) does not fire onLeave on init", async () => {
+    patchWithCleanup(transitionConfig, {
+        disabled: false,
+    });
+    class Parent extends Component {
+        static template = xml`<div t-if="transition.shouldMount" t-att-class="transition.className"/>`;
+        static props = ["*"];
+        setup() {
+            this.transition = useTransition({
+                name: "test",
+                initialVisibility: false,
+                onLeave: () => expect.step("leave"),
+            });
+        }
+    }
+
+    // noMainContainer, because the await for the mount of the main container
+    // will already change the transition
+    await mountWithCleanup(Parent, { noMainContainer: true });
+    expect(".test").toHaveCount(0);
+
+    // The initial `shouldMount = initialVisibility` (false) assignment must not
+    // have scheduled a spurious leave timer.
+    await runAllTimers();
+    await animationFrame();
+    expect(".test").toHaveCount(0);
+    expect.verifySteps([]);
+});
+
 test("Transition HOC", async () => {
     patchWithCleanup(transitionConfig, {
         disabled: false,

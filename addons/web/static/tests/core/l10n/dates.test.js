@@ -14,6 +14,7 @@ import {
     deserializeDateTime,
     formatDate,
     formatDateTime,
+    formatDuration,
     parseDate,
     parseDateTime,
     serializeDate,
@@ -133,6 +134,40 @@ test("parseDate with different numbering system", async () => {
     patchWithCleanup(Settings, { defaultNumberingSystem: "arab", defaultLocale: "ar" });
 
     expect(parseDate("٠١ فبراير, ٢٠٢٣").toISO()).toBe("2023-02-01T00:00:00.000+01:00");
+});
+
+test("formatDuration respects the unit count in an 'and'-joined locale", async () => {
+    // In Arabic, `Duration.toHuman` joins units with "و" (and), not a comma.
+    // The old comma-split therefore never separated the units, so the narrow
+    // (single-unit) form wrongly rendered *all* units.
+    patchWithCleanup(Settings, { defaultLocale: "ar" });
+
+    const twoHoursThreeMinutes = 2 * 3600 + 3 * 60;
+    // Narrow => a single (largest) unit only.
+    expect(formatDuration(twoHoursThreeMinutes, false)).toBe("2 س");
+    // The minutes part must be dropped: same as formatting just the hours.
+    expect(formatDuration(twoHoursThreeMinutes, false)).toBe(formatDuration(2 * 3600, false));
+    // Full => the two largest units.
+    expect(formatDuration(twoHoursThreeMinutes, true)).toBe("ساعتان, 3 دقائق");
+
+    const threeDaysPlus = 3 * 86400 + 5 * 3600 + 9 * 60;
+    expect(formatDuration(threeDaysPlus, false)).toBe("3 ي");
+});
+
+test("formatDuration handles zero, sub-minute and negative durations", async () => {
+    patchWithCleanup(Settings, { defaultLocale: "en" });
+
+    // Below the minute granularity => "0 minutes" (was wrongly forced to 1).
+    expect(formatDuration(0, false)).toBe("0m");
+    expect(formatDuration(30, false)).toBe("0m");
+    // Negative durations keep their sign (was wrongly rendered as "1 minute").
+    expect(formatDuration(-90, false)).toBe("-1m");
+    expect(formatDuration(-90, true)).toBe("-1 minute");
+    // Regular cases still work.
+    expect(formatDuration(2 * 3600 + 3 * 60, false)).toBe("2h");
+    expect(formatDuration(2 * 3600 + 3 * 60, true)).toBe("2 hours, 3 minutes");
+    // Months are disambiguated from minutes in narrow English ("1M" not "1m").
+    expect(formatDuration(40 * 86400 + 3 * 3600, false)).toBe("1M");
 });
 
 test("parseDateTime", async () => {

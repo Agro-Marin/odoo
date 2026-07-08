@@ -1,7 +1,10 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { findDependencyCycle } from "@web/core/utils/dependency_graph";
+import {
+    createWaveResolver,
+    findDependencyCycle,
+} from "@web/core/utils/dependency_graph";
 
 describe.current.tags("headless");
 
@@ -119,5 +122,43 @@ describe("findDependencyCycle", () => {
         }
         graph.set("n1000", []);
         expect(findDependencyCycle(graph)).toBe(null);
+    });
+});
+
+describe("createWaveResolver", () => {
+    test("untrack then re-track re-imposes the dependency", () => {
+        const r = createWaveResolver({ isLoaded: () => false });
+        r.track("b", ["a"]);
+        expect(r.pendingOf("b")).toBe(1);
+        expect(r.hasReady()).toBe(false);
+
+        // Drop the entry, then register it again with the same dep.
+        r.untrack("b");
+        expect(r.pendingOf("b")).toBe(undefined);
+
+        r.track("b", ["a"]);
+        // Regression guard: a stale reverse edge would let the re-track skip
+        // counting "a", declaring "b" ready with an unmet dependency.
+        expect(r.pendingOf("b")).toBe(1);
+        expect(r.hasReady()).toBe(false);
+
+        // Resolving the dep releases "b" exactly once.
+        r.propagate("a");
+        expect(r.pendingOf("b")).toBe(0);
+        expect(r.shift()).toBe("b");
+        expect(r.hasReady()).toBe(false);
+    });
+
+    test("untrack removes the entry from every dependents set", () => {
+        const r = createWaveResolver({ isLoaded: () => false });
+        r.track("b", ["a"]);
+        r.untrack("b");
+        // With the stale edge gone, propagate("a") must not resurrect "b".
+        r.propagate("a");
+        expect(r.hasReady()).toBe(false);
+        // A fresh entry on the same dep still resolves correctly afterwards.
+        r.track("c", ["a"]);
+        r.propagate("a");
+        expect(r.shift()).toBe("c");
     });
 });
