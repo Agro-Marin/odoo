@@ -4,7 +4,7 @@ import functools
 import hashlib
 import logging
 import re
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -69,9 +69,9 @@ def _check_external_libs_once() -> None:
 class AssetsBundle:
     """Compile, version and persist the JS/CSS/XML assets of one named bundle."""
 
-    # @import matcher used by ``css()`` / ``css_with_sourcemap`` to hoist and
-    # comment @import rules. The stylesheet preprocessor's own import sanitizer
-    # and split-marker regexes live on :class:`CssPipeline`.
+    # @import matcher used by ``css()`` and ``CssPipeline.sourcemap_bundle``
+    # to hoist and comment @import rules. The stylesheet preprocessor's own
+    # import sanitizer and split-marker regexes live on :class:`CssPipeline`.
     rx_css_import = re.compile(r"(@import[^;{]+;?)", re.MULTILINE)
 
     # Source extensions the ``__init__`` file loop has a case-arm for.
@@ -721,27 +721,51 @@ class AssetsBundle:
 
         return js_attachment[0]
 
+    def _save_with_sourcemap(
+        self,
+        extension: str,
+        body_builder: Callable[[SourceMapGenerator, str], str],
+    ) -> IrAttachment:
+        """Persist a debug bundle body together with its linked sourcemap.
+
+        The choreography shared by :meth:`js_with_sourcemap` and
+        :meth:`css_with_sourcemap`: get-or-create the ``<extension>.map``
+        attachment (so its URL exists before the body is built), have
+        *body_builder* — a pipeline ``sourcemap_bundle`` method — build the
+        body from the generator and that map URL, save the ``<extension>``
+        attachment, then point the generator at the saved URL and persist the
+        map content.
+
+        :param body_builder: called with ``(generator, sourcemap_url)``;
+            returns the full bundle body, sourceMappingURL link included
+        :return: the ir.attachment for the un-minified bundle
+        """
+        map_attachment = self.get_attachments(
+            f"{extension}.map"
+        ) or self.save_attachment(f"{extension}.map", "")
+        generator = SourceMapGenerator(
+            source_root=_sourcemap_source_root(self.get_asset_url("debug", extension)),
+        )
+        content_bundle = body_builder(generator, map_attachment.url)
+        attachment = self.save_attachment(extension, content_bundle)
+
+        generator.file = attachment.url
+        map_attachment.write({"raw": generator.get_content()})
+
+        return attachment
+
     def js_with_sourcemap(self, template_bundle: str | None = None) -> IrAttachment:
         """Create the ir.attachment for the un-minified JS bundle and
         create/modify the ir.attachment for the linked sourcemap.
 
         :return: the ir.attachment for the un-minified JS bundle
         """
-        sourcemap_attachment = self.get_attachments("js.map") or self.save_attachment(
-            "js.map", ""
+        return self._save_with_sourcemap(
+            "js",
+            lambda generator, sourcemap_url: self._js.sourcemap_bundle(
+                generator, sourcemap_url, template_bundle or ""
+            ),
         )
-        generator = SourceMapGenerator(
-            source_root=_sourcemap_source_root(self.get_asset_url("debug", "js")),
-        )
-        content_bundle = self._js.sourcemap_bundle(
-            generator, sourcemap_attachment.url, template_bundle or ""
-        )
-        js_attachment = self.save_attachment("js", content_bundle)
-
-        generator.file = js_attachment.url
-        sourcemap_attachment.write({"raw": generator.get_content()})
-
-        return js_attachment
 
     def xml(self) -> list[XMLBlock]:
         """Delegates to :meth:`XmlTemplatePipeline.xml`."""
@@ -799,54 +823,19 @@ class AssetsBundle:
         """Create the ir.attachment for the un-minified CSS bundle and
         create/modify the ir.attachment for the linked sourcemap.
 
+        The body itself is assembled by :meth:`CssPipeline.sourcemap_bundle`
+        from the render list the ``preprocess_css`` call in :meth:`css` just
+        populated.
+
         :param content_import_rules: string containing all the @import rules to put at the beginning of the bundle
         :return: the ir.attachment for the un-minified CSS bundle
         """
-        sourcemap_attachment = self.get_attachments("css.map") or self.save_attachment(
-            "css.map", ""
+        return self._save_with_sourcemap(
+            "css",
+            lambda generator, sourcemap_url: self._css.sourcemap_bundle(
+                generator, sourcemap_url, content_import_rules
+            ),
         )
-        generator = SourceMapGenerator(
-            source_root=_sourcemap_source_root(self.get_asset_url("debug", "css")),
-        )
-
-        # adds the @import rules at the beginning of the bundle
-        content_bundle_list = [content_import_rules]
-        content_line_count = content_import_rules.count("\n") + 1
-        # Iterate the pipeline's assembled render list (the optional @at-rules
-        # fragment + the bundle's stylesheets with their compiled content),
-        # populated by the ``preprocess_css`` call ``css()`` made just above.
-        # Reading it here — rather than a mutated ``self.stylesheets`` — is what
-        # lets preprocess leave the source list untouched.
-        for asset in self._css._rendered_assets:
-            if asset.content:
-                content = asset.with_header(asset.content)
-                if asset.url:
-                    generator.add_source(asset.url, content, content_line_count)
-                # comments all @import rules that have been added at the
-                # beginning of the bundle (string-aware: an ``@import`` inside a
-                # ``content: "…"`` value is left intact, not commented out)
-                content = _rewrite_css_outside_strings(
-                    self.rx_css_import,
-                    lambda matchobj: f"/* {matchobj.group(0)} */",
-                    content,
-                )
-                content_bundle_list.append(content)
-                content_line_count += content.count("\n") + 1
-
-        content_bundle = (
-            "\n".join(content_bundle_list)
-            + f"\n/*# sourceMappingURL={sourcemap_attachment.url} */"
-        )
-        css_attachment = self.save_attachment("css", content_bundle)
-
-        generator.file = css_attachment.url
-        sourcemap_attachment.write(
-            {
-                "raw": generator.get_content(),
-            }
-        )
-
-        return css_attachment
 
     @functools.cached_property
     def _css(self) -> CssPipeline:
@@ -854,10 +843,10 @@ class AssetsBundle:
 
         The pipeline reads this bundle's ``stylesheets`` and rebuilds
         ``css_errors`` (see :class:`CssPipeline`); it assembles the rendered
-        output into its own ``_rendered_assets`` rather than mutating the
-        bundle's source list, and ``css_with_sourcemap`` reads that back. A
+        output into its own private render list rather than mutating the
+        bundle's source list, and its ``sourcemap_bundle`` reads that back. A
         single instance per bundle keeps the render list available across the
-        ``preprocess`` → ``css_with_sourcemap`` call sequence.
+        ``preprocess`` → ``sourcemap_bundle`` call sequence.
         """
         return CssPipeline(self)
 

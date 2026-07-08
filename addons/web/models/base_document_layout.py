@@ -378,7 +378,7 @@ class BaseDocumentLayout(models.TransientModel):
         """Compile *scss* into a CSS string for the live-preview iframe."""
         if not scss.strip():
             return ""
-        asset = ScssStylesheetAsset(None, inline="// css_for_preview")
+        asset = ScssStylesheetAsset.for_inline_compile("// css_for_preview")
         css_code = asset.compile(scss)
         return Markup(css_code) if isinstance(scss, Markup) else css_code
 
