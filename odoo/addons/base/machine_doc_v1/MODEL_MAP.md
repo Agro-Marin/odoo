@@ -868,7 +868,7 @@ Actions embedded within views (tabs, sub-views).
 - `python_method` (Char) — Alternative: method returning action
 - `user_id` (Many2one → res.users) — NULL = shared
 - `is_deletable` (Boolean, computed), `is_visible` (Boolean, computed)
-- `domain` (Char), `context` (Char), `groups_ids` (Many2many → res.groups)
+- `domain` (Char), `context` (Char), `group_ids` (Many2many → res.groups)
 
 ---
 

@@ -554,7 +554,7 @@ env['res.partner'].create({'name': partner_name})
  <field name="default_view_mode" />
  <field name="parent_res_model" />
  <field name="domain" />
- <field name="groups_ids" widget="many2many_tags" />
+ <field name="group_ids" widget="many2many_tags" />
  </group>
  </group>
  </sheet>

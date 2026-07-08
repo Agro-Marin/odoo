@@ -590,7 +590,7 @@
             <field name="python_method">action_project_timesheets</field>
             <field name="domain">[('allow_timesheets', '=', True)]</field>
             <field name="context">{'from_embedded_action': true}</field>
-            <field name="groups_ids" eval="[(4, ref('hr_timesheet.group_hr_timesheet_user'))]" />
+            <field name="group_ids" eval="[(4, ref('hr_timesheet.group_hr_timesheet_user'))]" />
         </record>
 
         <record id="project_embedded_action_timesheets_dashboard" model="ir.embedded.actions">
@@ -602,7 +602,7 @@
             <field name="python_method">action_project_timesheets</field>
             <field name="domain">[('allow_timesheets', '=', True)]</field>
             <field name="context">{'from_embedded_action': true}</field>
-            <field name="groups_ids" eval="[(4, ref('hr_timesheet.group_hr_timesheet_user'))]" />
+            <field name="group_ids" eval="[(4, ref('hr_timesheet.group_hr_timesheet_user'))]" />
         </record>
 
         <record id="act_hr_timesheet_line_by_project_view_tree" model="ir.actions.act_window.view">

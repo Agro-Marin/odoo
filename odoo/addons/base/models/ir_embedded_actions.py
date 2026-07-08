@@ -57,7 +57,7 @@ class IrEmbeddedActions(models.Model):
         default="{}",
         help="Context dictionary as Python expression, empty by default (Default: {})",
     )
-    groups_ids = fields.Many2many(
+    group_ids = fields.Many2many(
         "res.groups",
         help="Groups that can execute the embedded action. Leave empty to allow everybody.",
     )
@@ -118,7 +118,7 @@ class IrEmbeddedActions(models.Model):
 
     @api.depends(
         "domain",
-        "groups_ids",
+        "group_ids",
         "parent_res_model",
         "parent_res_id",
         "python_method",
@@ -128,7 +128,7 @@ class IrEmbeddedActions(models.Model):
     def _compute_is_visible(self) -> None:
         """Compute per-user read-time visibility of each embedded action."""
         # Visibility is gated by the parent record matching the domain on the
-        # active id, by the user belonging to one of groups_ids (if any), and by
+        # active id, by the user belonging to one of group_ids (if any), and by
         # owner-or-shared scoping on user_id.
         active_id = self.env.context.get("active_id", False)
         if not active_id:
@@ -153,7 +153,7 @@ class IrEmbeddedActions(models.Model):
                 domain_id, order="id"
             )
             for record in records:
-                action_groups = record.groups_ids
+                action_groups = record.group_ids
                 is_valid_method = not record.python_method or hasattr(
                     parent_model, record.python_method
                 )
@@ -199,5 +199,5 @@ class IrEmbeddedActions(models.Model):
             "filter_ids",
             "domain",
             "context",
-            "groups_ids",
+            "group_ids",
         }
