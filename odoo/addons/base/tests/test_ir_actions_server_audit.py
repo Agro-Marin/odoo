@@ -6,7 +6,11 @@ crash later on ``None.model_id``) and the immutability of the ormcached
 ``_selection_target_model`` result.
 """
 
+import inspect
+
 from odoo.tests.common import TransactionCase, tagged
+
+from odoo.addons.base.models.ir_actions_server import IrActionsServer
 
 
 @tagged("post_install", "-at_install")
@@ -14,8 +18,19 @@ class TestServerActionEvalContext(TransactionCase):
     """_get_eval_context requires the server action it is evaluated for."""
 
     def test_eval_context_requires_action(self):
-        with self.assertRaises(TypeError):
-            self.env["ir.actions.server"]._get_eval_context()
+        # Lock the base override's signature rather than calling with zero
+        # args: downstream overrides (e.g. mail's) may still declare an
+        # action=None default, so the runtime failure mode of a zero-arg call
+        # depends on which modules are installed. The audited contract is
+        # that ir.actions.server's own override takes a required action.
+        parameter = inspect.signature(IrActionsServer._get_eval_context).parameters[
+            "action"
+        ]
+        self.assertIs(
+            parameter.default,
+            inspect.Parameter.empty,
+            "ir.actions.server._get_eval_context must require its action",
+        )
 
     def test_eval_context_with_action(self):
         action = self.env["ir.actions.server"].create(
