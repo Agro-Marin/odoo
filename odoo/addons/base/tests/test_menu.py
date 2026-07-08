@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.tests.common import TransactionCase, new_test_user
 
@@ -260,6 +262,52 @@ class TestMenuMisc(TransactionCase):
         # the trailing counter increments; the mid-name number still does not
         copy2 = copy1.copy()
         self.assertEqual(copy2.name, "Budget (2025) Plan (2)")
+
+    def _count_cache_clears(self):
+        """Return (patcher, calls) counting registry cache invalidations
+        while the patcher is active."""
+        registry_class = type(self.env.registry)
+        calls = []
+        original = registry_class.clear_cache
+
+        def counting(reg, *cache_names):
+            calls.append(cache_names)
+            return original(reg, *cache_names)
+
+        return patch.object(registry_class, "clear_cache", counting), calls
+
+    def test_multi_copy_names_and_single_invalidation(self):
+        """Copying menus suffixes every copy's name at insert time: one
+        batched create() invalidation, no per-copy rename writes (each of
+        which used to wipe the whole registry cache)."""
+        menus = self.Menu.create([{"name": f"Multi {i}"} for i in range(3)])
+        patcher, calls = self._count_cache_clears()
+        with patcher:
+            copies = menus.copy()
+        self.assertEqual(
+            copies.mapped("name"), ["Multi 0 (1)", "Multi 1 (1)", "Multi 2 (1)"]
+        )
+        self.assertEqual(
+            len(calls),
+            1,
+            "copying N menus must invalidate the cache once (the batched "
+            "create), not once per copied menu",
+        )
+
+    def test_copy_suffixes_explicit_default_name(self):
+        """Behavior parity with the historical post-copy rename: an explicit
+        default name is suffixed too."""
+        menu = self.Menu.create({"name": "Original"})
+        copy = menu.copy({"name": "Custom"})
+        self.assertEqual(copy.name, "Custom (1)")
+
+    def test_empty_operations_do_not_invalidate_cache(self):
+        patcher, calls = self._count_cache_clears()
+        with patcher:
+            self.assertFalse(self.Menu.create([]))
+            self.assertTrue(self.Menu.browse().write({"name": "x"}))
+            self.assertTrue(self.Menu.browse().unlink())
+        self.assertEqual(calls, [])
 
     def test_web_icon_data_built_icon(self):
         """A built icon (class,color[,bg]) yields no image data."""
