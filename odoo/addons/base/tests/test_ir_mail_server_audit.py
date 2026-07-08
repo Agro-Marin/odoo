@@ -54,6 +54,16 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
     # MS-T1: write() archive guard
     # ------------------------------------------------------------------
 
+    def test_smtp_connection_test_disabled_send_raises_clean_error(self):
+        """With _disable_send() active (test mode), _connect__ returns None;
+        test_smtp_connection must short-circuit with an intelligible UserError
+        instead of an AttributeError on None wrapped in a misleading
+        'Connection Test Failed' message."""
+        self.assertTrue(self.IrMailServer._disable_send())
+        with self.assertRaises(UserError) as ctx:
+            self.server_a.test_smtp_connection()
+        self.assertIn("outgoing emails are disabled", str(ctx.exception))
+
     def test_archive_unused_server_succeeds(self):
         """In base, _active_usages_compute returns {} so archiving always works."""
         # Sanity: the base implementation reports no usage.
