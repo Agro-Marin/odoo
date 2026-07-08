@@ -6,10 +6,16 @@ class ReportStockQuantity(models.Model):
     _auto = False
     _description = "Stock Quantity Report"
 
+    # Columns actually read by the SQL view below.  This drives ``to_flush``:
+    # any pending change to one of these fields is flushed to the database
+    # before the view is queried, so a read-after-write in the same transaction
+    # (tests, server actions, computed fields that read this report) sees fresh
+    # data.  Keep it in sync with the ``init`` query — a field listed here but
+    # not read is harmless, but a field read and not listed causes stale reads.
     _depends = {
         "product.product": ["product_tmpl_id"],
-        "product.template": ["type"],
-        "stock.location": ["parent_path"],
+        "product.template": ["is_storable", "uom_id"],
+        "stock.location": ["usage", "warehouse_id"],
         "stock.move": [
             "company_id",
             "date",
@@ -18,10 +24,12 @@ class ReportStockQuantity(models.Model):
             "location_id",
             "product_id",
             "product_qty",
+            "product_uom",
+            "quantity",
             "state",
         ],
         "stock.quant": ["company_id", "location_id", "product_id", "quantity"],
-        "stock.warehouse": ["view_location_id"],
+        "uom.uom": ["factor"],
     }
 
     date = fields.Date(string="Date", readonly=True)
@@ -55,25 +63,23 @@ class ReportStockQuantity(models.Model):
             - the source warehouse is kept if the SM is not the duplicated one
             - the dest warehouse is kept if the SM is not the duplicated one and is not an interwarehouse
                 OR the SM is the duplicated one and is an interwarehouse
+
+        A location is mapped to its warehouse through the stored ``stock_location.warehouse_id`` column
+        (maintained from ``parent_path``), which resolves a location nested in several warehouses to the
+        innermost one -- so joining on it, rather than re-deriving the mapping with ``parent_path LIKE``,
+        is both sargable and free of the double-counting a plain LIKE match would cause on nested warehouses.
         """
         tools.drop_view_if_exists(self.env.cr, "report_stock_quantity")
         query = f"""
 CREATE or REPLACE VIEW report_stock_quantity AS (
 WITH
-    warehouse_cte AS(
-        SELECT sl.id as sl_id, w.id as w_id
-        FROM stock_location sl
-        LEFT JOIN stock_warehouse w
-            ON sl.parent_path LIKE concat('%%/', w.view_location_id, '/%%')
-            OR sl.parent_path LIKE concat(w.view_location_id, '/%%')
-    ),
     existing_sm (id, product_id, tmpl_id, product_qty, quantity, date, state, company_id, whs_id, whd_id) AS (
         SELECT m.id, m.product_id, pt.id, m.product_qty,
             m.quantity * move_uom.factor / pt_uom.factor AS quantity,
-            m.date, m.state, m.company_id, source.w_id, dest.w_id
+            m.date, m.state, m.company_id, source.warehouse_id, dest.warehouse_id
         FROM stock_move m
-        LEFT JOIN warehouse_cte source ON source.sl_id = m.location_id
-        LEFT JOIN warehouse_cte dest ON dest.sl_id = CASE
+        LEFT JOIN stock_location source ON source.id = m.location_id
+        LEFT JOIN stock_location dest ON dest.id = CASE
             WHEN m.state != 'done' THEN COALESCE(m.location_final_id, m.location_dest_id)
             ELSE m.location_dest_id
         END
@@ -82,10 +88,10 @@ WITH
         LEFT JOIN uom_uom pt_uom ON pt_uom.id = pt.uom_id
         LEFT JOIN uom_uom move_uom ON move_uom.id = m.product_uom
         WHERE pt.is_storable = true AND
-            source.w_id IS DISTINCT FROM dest.w_id AND
+            source.warehouse_id IS DISTINCT FROM dest.warehouse_id AND
             m.product_qty != 0 AND
             m.state NOT IN ('draft', 'cancel') AND
-            (m.state != 'done' or m.date >= ((now() at time zone 'utc')::date - interval '%(report_period)s month'))
+            (m.state != 'done' or m.date >= ((now() at time zone 'utc')::date - make_interval(months => %(report_period)s)))
     ),
     all_sm (id, product_id, tmpl_id, product_qty, quantity, date, state, company_id, whs_id, whd_id) AS (
         SELECT sm.id, sm.product_id, sm.tmpl_id,
@@ -149,18 +155,15 @@ FROM (SELECT
         date.*::date,
         {self._get_product_qty_col()} as product_qty,
         q.company_id,
-        wh.id as warehouse_id
+        l.warehouse_id as warehouse_id
     FROM
-        GENERATE_SERIES((now() at time zone 'utc')::date - interval '%(report_period)s month',
-        (now() at time zone 'utc')::date + interval '%(report_period)s month', '1 day'::interval) date,
+        GENERATE_SERIES((now() at time zone 'utc')::date - make_interval(months => %(report_period)s),
+        (now() at time zone 'utc')::date + make_interval(months => %(report_period)s), '1 day'::interval) date,
         stock_quant q
     LEFT JOIN stock_location l on (l.id=q.location_id)
-    LEFT JOIN stock_warehouse wh
-            ON l.parent_path LIKE concat('%%/', wh.view_location_id, '/%%')
-            OR l.parent_path LIKE concat(wh.view_location_id, '/%%')
     LEFT JOIN product_product pp on pp.id=q.product_id
     WHERE
-        (l.usage = 'internal' AND wh.id IS NOT NULL) OR
+        (l.usage = 'internal' AND l.warehouse_id IS NOT NULL) OR
         l.usage = 'transit'
     UNION ALL
     SELECT
@@ -170,11 +173,11 @@ FROM (SELECT
         'forecast' as state,
         GENERATE_SERIES(
         CASE
-            WHEN m.state = 'done' THEN (now() at time zone 'utc')::date - interval '%(report_period)s month'
-            ELSE GREATEST(m.date::date, (now() at time zone 'utc')::date - interval '%(report_period)s month')
+            WHEN m.state = 'done' THEN (now() at time zone 'utc')::date - make_interval(months => %(report_period)s)
+            ELSE GREATEST(m.date::date, (now() at time zone 'utc')::date - make_interval(months => %(report_period)s))
         END,
         CASE
-            WHEN m.state != 'done' THEN (now() at time zone 'utc')::date + interval '%(report_period)s month'
+            WHEN m.state != 'done' THEN (now() at time zone 'utc')::date + make_interval(months => %(report_period)s)
             ELSE m.date::date - interval '1 day'
         END, '1 day'::interval)::date date,
         CASE

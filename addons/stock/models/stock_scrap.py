@@ -32,7 +32,8 @@ class StockScrap(models.Model):
         domain="[('type', '=', 'consu')]",
     )
     allowed_uom_ids = fields.Many2many(
-        comodel_name="uom.uom", compute="_compute_allowed_uom_ids"
+        comodel_name="uom.uom",
+        compute="_compute_allowed_uom_ids",
     )
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
@@ -190,22 +191,24 @@ class StockScrap(models.Model):
 
     @api.onchange("lot_id")
     def _onchange_serial_number(self):
-        if self.product_id.tracking == "serial" and self.lot_id:
-            message, recommended_location = (
-                self.env["stock.quant"]
-                .sudo()
-                ._check_serial_number(
-                    self.product_id,
-                    self.lot_id,
-                    self.company_id,
-                    self.location_id,
-                    self.picking_id.location_dest_id,
-                )
+        if self.product_id.tracking != "serial" or not self.lot_id:
+            return None
+        message, recommended_location = (
+            self.env["stock.quant"]
+            .sudo()
+            ._check_serial_number(
+                self.product_id,
+                self.lot_id,
+                self.company_id,
+                self.location_id,
+                self.picking_id.location_dest_id,
             )
-            if message:
-                if recommended_location:
-                    self.location_id = recommended_location
-                return {"warning": {"title": _("Warning"), "message": message}}
+        )
+        if not message:
+            return None
+        if recommended_location:
+            self.location_id = recommended_location
+        return {"warning": {"title": _("Warning"), "message": message}}
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_done(self):

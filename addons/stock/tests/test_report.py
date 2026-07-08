@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-
 from datetime import date, datetime, timedelta
 from re import findall
 
-from odoo.tests import Form, TransactionCase
 from odoo import Command
+from odoo.tests import Form, TransactionCase
 
 
 class TestReportsCommon(TransactionCase):
@@ -751,7 +749,7 @@ class TestReports(TestReportsCommon):
         """Checks report data for product is empty. Then creates and process
         some operations and checks the report data accords rigthly these operations.
         """
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -771,7 +769,7 @@ class TestReports(TestReportsCommon):
             move_line.product_uom_qty = 2
         receipt = receipt_form.save()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -791,7 +789,7 @@ class TestReports(TestReportsCommon):
             move_line.product_uom_qty = 5
         delivery = delivery_form.save()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -801,7 +799,7 @@ class TestReports(TestReportsCommon):
 
         # Confirms the delivery: must have one report line and no more pending qty out now.
         delivery.action_confirm()
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -817,7 +815,7 @@ class TestReports(TestReportsCommon):
         #   - line with 2 qty (from the receipt to the delivery)
         #   - line with 3 qty (delivery, unavailable)
         receipt.action_confirm()
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -854,7 +852,7 @@ class TestReports(TestReportsCommon):
         receipt.move_ids.picked = True
         receipt.button_validate()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -902,7 +900,7 @@ class TestReports(TestReportsCommon):
         delivery = delivery_form.save()
         delivery.action_confirm()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, _docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         self.assertEqual(len(lines), 2, "Must have 2 line.")
@@ -1008,7 +1006,7 @@ class TestReports(TestReportsCommon):
         delivery_7.action_confirm()
 
         # Order must be: 7, 5, 3, 1, 2, 4, 6
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -1061,7 +1059,7 @@ class TestReports(TestReportsCommon):
         receipt_3.action_confirm()
 
         # Check report lines (link and order).
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -1111,7 +1109,7 @@ class TestReports(TestReportsCommon):
             }
         )
         reordering_rule.action_replenish()
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, _docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         pickings = self.env["stock.picking"].search(
@@ -1156,14 +1154,14 @@ class TestReports(TestReportsCommon):
             move_line.product_uom_qty = 5
         delivery = delivery_form.save()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
         self.assertEqual(len(lines), 1, "Must have 1 line.")
         self.assertEqual(draft_picking_qty["out"], 5)
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids,
             context={"warehouse_id": wh_2.id},
         )
@@ -1173,7 +1171,7 @@ class TestReports(TestReportsCommon):
 
         # Confirm the delivery -> The report still have 1 line.
         delivery.action_confirm()
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -1182,7 +1180,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["document_out"]["id"], delivery.id)
         self.assertEqual(lines[0]["quantity"], 5)
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids,
             context={"warehouse_id": wh_2.id},
         )
@@ -1202,7 +1200,7 @@ class TestReports(TestReportsCommon):
             move_line.product_uom_qty = 8
         delivery_2 = delivery_form.save()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -1211,7 +1209,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["document_out"]["id"], delivery.id)
         self.assertEqual(lines[0]["quantity"], 5)
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids,
             context={"warehouse_id": wh_2.id},
         )
@@ -1220,7 +1218,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(draft_picking_qty["out"], 8)
         # Confirm the second delivery -> The report must now have 1 line.
         delivery_2.action_confirm()
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -1229,7 +1227,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["document_out"]["id"], delivery.id)
         self.assertEqual(lines[0]["quantity"], 5)
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids,
             context={"warehouse_id": wh_2.id},
         )
@@ -1348,7 +1346,7 @@ class TestReports(TestReportsCommon):
             move_line.product_uom_qty = 5
         wh_2_receipt = receipt_form.save()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         draft_picking_qty = self.sum_dicts(docs["product"], "draft_picking_qty")
@@ -1356,7 +1354,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(draft_picking_qty["in"], 2)
         self.assertEqual(draft_picking_qty["out"], 0)
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids,
             context={"warehouse_id": wh_2.id},
         )
@@ -1369,14 +1367,14 @@ class TestReports(TestReportsCommon):
         wh_1_receipt.action_confirm()
         wh_2_receipt.action_confirm()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
         self.assertEqual(len(lines), 2, "Must have 2 lines.")
         self.assertEqual(lines[1]["document_in"]["id"], wh_1_receipt.id)
         self.assertEqual(lines[1]["quantity"], 2)
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids,
             context={"warehouse_id": wh_2.id},
         )
@@ -1479,7 +1477,7 @@ class TestReports(TestReportsCommon):
         receipt_2 = receipt_form.save()
         receipt_2.action_confirm()
 
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=product_template.ids
         )
         self.assertEqual(
@@ -1506,7 +1504,7 @@ class TestReports(TestReportsCommon):
         delivery.action_confirm()
 
         gamejoy_pocket_blue.action_archive()
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=product_template.ids
         )
         self.assertEqual(
@@ -3097,3 +3095,100 @@ class TestReports(TestReportsCommon):
             out_move.ids, [1.0], picking_in.move_ids.ids
         )
         self.assertEqual(picking_out.move_ids.mapped("quantity"), [1.0, 2.0])
+
+    def test_report_reception_assign_all_with_expected_line(self):
+        """A report that shows both an assignable line and an "expected" (draft)
+        line for the same outgoing move: the "Assign all" button sends every
+        not-yet-assigned line - including the expected one, whose `move_ins` is
+        `False`. `action_assign` must tolerate that empty entry (it used to
+        raise `IndexError` on `browse(False)[0]`) and still link the assignable
+        incoming move, without splitting the out for the un-linkable draft qty.
+        """
+        warehouse = self.env.ref("stock.warehouse0")
+        supplier_loc = self.ref("stock.stock_location_suppliers")
+        stock_loc = warehouse.lot_stock_id.id
+
+        def make_receipt(qty):
+            return self.env["stock.picking"].create(
+                {
+                    "picking_type_id": self.ref("stock.picking_type_in"),
+                    "location_id": supplier_loc,
+                    "location_dest_id": stock_loc,
+                    "move_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.product.id,
+                                "product_uom": self.ref("uom.product_uom_unit"),
+                                "product_uom_qty": qty,
+                            }
+                        )
+                    ],
+                }
+            )
+
+        # Outgoing demand of 10 -> the out this report tries to cover.
+        delivery = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.ref("stock.picking_type_out"),
+                "location_id": stock_loc,
+                "location_dest_id": self.ref("stock.stock_location_customers"),
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product.id,
+                            "product_uom": self.ref("uom.product_uom_unit"),
+                            "product_uom_qty": 10.0,
+                        }
+                    )
+                ],
+            }
+        )
+        delivery.action_confirm()
+
+        # Confirmed receipt of 6 -> assignable line; draft receipt of 10 -> the
+        # remaining 4 shows up as a non-assignable "expected" line.
+        receipt_confirmed = make_receipt(6.0)
+        receipt_confirmed.action_confirm()
+        receipt_draft = make_receipt(10.0)
+
+        report = self.env["report.stock.report_reception"]
+        data = report.get_report_data(
+            [receipt_confirmed.id, receipt_draft.id], {"report_type": "html"}
+        )
+        lines = [
+            line
+            for source_lines in data["sources_to_lines"].values()
+            for line in source_lines
+        ]
+        # one assignable line (move_ins set) + one expected line (move_ins False)
+        self.assertEqual(len(lines), 2)
+        assignable = next(line for line in lines if line["is_qty_assignable"])
+        expected = next(line for line in lines if not line["is_qty_assignable"])
+        self.assertEqual(assignable["quantity"], 6.0)
+        self.assertEqual(expected["quantity"], 4.0)
+        self.assertFalse(expected["move_ins"])
+        self.assertEqual(assignable["move_out_id"], expected["move_out_id"])
+
+        # Reproduce exactly what the "Assign all" handler builds: every
+        # not-yet-assigned line, expected one (move_ins=False) included.
+        move_ids, qtys, in_ids = [], [], []
+        for line in lines:
+            if line["is_assigned"]:
+                continue
+            move_ids.append(line["move_out_id"])
+            qtys.append(line["quantity"])
+            in_ids.append(line["move_ins"])
+        self.assertIn(False, in_ids, "the expected line must contribute a False entry")
+
+        # Must not raise, and must link the assignable incoming move to the out.
+        report.action_assign(move_ids, qtys, in_ids)
+
+        linked_out = receipt_confirmed.move_ids.move_dest_ids
+        self.assertTrue(
+            linked_out,
+            "the confirmed receipt should have been linked to the delivery",
+        )
+        self.assertEqual(linked_out.procure_method, "make_to_order")
+        self.assertEqual(linked_out.product_qty, 6.0)
+        # the out was split once (6 linked + 4 remaining), not twice
+        self.assertEqual(len(delivery.move_ids), 2)

@@ -30,7 +30,9 @@ export class ReceptionReportTable extends Component {
         const quantities = [];
         const inIds = [];
         for (const line of this.props.lines) {
-            if (line.is_assigned) continue;
+            // Skip lines with nothing to assign (already assigned, or "expected"
+            // draft lines that carry no incoming moves to link).
+            if (line.is_assigned || !line.is_qty_assignable) continue;
             moveIds.push(line.move_out_id);
             quantities.push(line.quantity);
             inIds.push(line.move_ins);
