@@ -45,7 +45,7 @@ class UnlinkMixin(_ModelStubs):
         self.check_access("unlink")
         prof.mark("acl")
 
-        from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+        from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
         for func in self._ondelete_methods:
             # func._ondelete is True if it should be called during uninstallation
@@ -159,7 +159,7 @@ class UnlinkMixin(_ModelStubs):
         if (backend := self.env.backend) is not None:
             return backend.delete(self, sub_ids, Data, Attachment)
 
-        from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+        from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
         cr = self.env.cr
         records = self.browse(sub_ids)

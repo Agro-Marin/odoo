@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from math import ceil
 from markupsafe import Markup
 
-from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.addons.resource.models.utils import HOURS_PER_DAY
 
 from odoo import api, fields, models

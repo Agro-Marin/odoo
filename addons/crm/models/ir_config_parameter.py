@@ -2,7 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, models
-from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 
 class IrConfig_Parameter(models.Model):

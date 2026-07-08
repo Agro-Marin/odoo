@@ -31,7 +31,7 @@ from odoo.tools.translate import (
     get_po_paths,
 )
 
-from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -5,7 +5,7 @@ import werkzeug
 from collections import defaultdict, OrderedDict
 
 from odoo import api, fields, models
-from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import MissingError
 from odoo.http import request
 from odoo.modules import Manifest
