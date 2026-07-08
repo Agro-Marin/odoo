@@ -140,9 +140,9 @@ class IrModelFieldsSelection(models.Model):
 
     def _update_selection(
         self, model_name: str, field_name: str, selection: list[tuple[str, str]]
-    ) -> dict[str, dict[str, Any]]:
-        """Set the selection of a field to the given list, and return the row
-        values of the given selection records.
+    ) -> None:
+        """Set the selection of a field to the given list of pairs
+        ``(value, label)``.
         """
         field_id = self.env["ir.model.fields"]._get_ids(model_name)[field_name]
 
@@ -176,18 +176,13 @@ class IrModelFieldsSelection(models.Model):
                 rows_to_update.append(dict(new_row, id=cur_row["id"]))
 
         if rows_to_insert:
-            row_ids = query_insert(self.env.cr, self._table, rows_to_insert)
-            # update cur_rows for output
-            for row, row_id in zip(rows_to_insert, row_ids, strict=True):
-                cur_rows[row["value"]] = dict(row, id=row_id)
+            query_insert(self.env.cr, self._table, rows_to_insert)
 
         for row in rows_to_update:
             query_update(self.env.cr, self._table, row, ["id"])
 
         if rows_to_remove:
             self.browse(rows_to_remove).unlink()
-
-        return cur_rows
 
     def _existing_selection_data(
         self, model_name: str, field_name: str
@@ -254,8 +249,8 @@ class IrModelFieldsSelection(models.Model):
 
         ``company_dependent`` fields are stored as ``{company_id: value}`` jsonb
         instead of a plain scalar column. :meth:`write` (value rename) and
-        :meth:`_get_records` (value match) must both branch on this predicate so
-        their stored-column SQL can never diverge (SEL-C1).
+        :meth:`_get_records_by_value` (value match) must both branch on this
+        predicate so their stored-column SQL can never diverge (SEL-C1).
 
         :param field: the selection/reference field -- an ``ir.model.fields``
             record or an ORM field; only ``company_dependent`` is read.
@@ -302,8 +297,8 @@ class IrModelFieldsSelection(models.Model):
                     # column. company_dependent fields are jsonb keyed by company
                     # ({company_id: value}); a value rename is global, so every
                     # company key holding the old value must migrate. Mirror the
-                    # storage-shape branch in _get_records so the two cannot
-                    # diverge (SEL-C1).
+                    # storage-shape branch in _get_records_by_value so the two
+                    # cannot diverge (SEL-C1).
                     if self._is_jsonb_stored(selection.field_id):
                         query = SQL(
                             "UPDATE %s AS t SET %s = ("
@@ -528,35 +523,3 @@ class IrModelFieldsSelection(models.Model):
         return {
             value: company_model.browse(ids) for value, ids in self.env.cr.fetchall()
         }
-
-    def _get_records(self) -> Any:
-        """Return the records that currently hold this selection value.
-
-        For a company-dependent (jsonb) field the match is scoped to
-        ``self.env.company``; :meth:`_process_ondelete` therefore iterates on a
-        ``with_company`` recordset so each company is handled in its own context.
-        The coupling on the ambient company is intentional and documented here
-        rather than threaded through a parameter (SEL-C3).
-        """
-        self.ensure_one()
-        Model = self.env[self.field_id.model]
-        Model.flush_model([self.field_id.name])
-        if self._is_jsonb_stored(self.field_id):
-            # company-dependent fields are stored as jsonb (e.g; {company_id: value})
-            query = SQL(
-                "SELECT id FROM %s WHERE %s ->> %s = %s",
-                SQL.identifier(Model._table),
-                SQL.identifier(self.field_id.name),
-                str(self.env.company.id),
-                self.value,
-            )
-        else:
-            # normal selection fields are stored as general datatype
-            query = SQL(
-                "SELECT id FROM %s WHERE %s = %s",
-                SQL.identifier(Model._table),
-                SQL.identifier(self.field_id.name),
-                self.value,
-            )
-        self.env.cr.execute(query)
-        return Model.browse(r[0] for r in self.env.cr.fetchall())
