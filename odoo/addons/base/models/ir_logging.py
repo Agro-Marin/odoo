@@ -55,10 +55,9 @@ class IrLogging(models.Model):
         if sql.constraint_definition(
             self.env.cr, "ir_logging", "ir_logging_write_uid_fkey"
         ):
-            # DROP CONSTRAINT unconditionally takes an ACCESS EXCLUSIVE lock
-            # on the table, even "IF EXISTS" is set and not matching; disabling
-            # the relevant trigger instead acquires SHARE ROW EXCLUSIVE, which
-            # still conflicts with the ROW EXCLUSIVE needed for an insert
+            # Only drop when the constraint actually exists: DROP CONSTRAINT
+            # unconditionally takes an ACCESS EXCLUSIVE lock on the table,
+            # even when "IF EXISTS" is set and does not match.
             self.env.cr.execute(
                 "ALTER TABLE ir_logging DROP CONSTRAINT ir_logging_write_uid_fkey"
             )
