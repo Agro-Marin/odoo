@@ -194,7 +194,6 @@ class ReportPaperformat(models.Model):
     _description = "Paper Format Config"
 
     name = fields.Char("Name", required=True)
-    default = fields.Boolean("Default paper format?")
     format = fields.Selection(
         [(ps["key"], ps["description"]) for ps in PAPER_SIZES],
         "Paper size",

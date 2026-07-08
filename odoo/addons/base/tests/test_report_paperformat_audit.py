@@ -57,3 +57,8 @@ class TestReportPaperformatAudit(TransactionCase):
                     "page_width": 100,
                 }
             )
+
+    def test_default_field_dropped(self):
+        """The write-only `default` field was dropped: company defaults resolve
+        via res.company.paperformat_id, and nothing ever read the flag."""
+        self.assertNotIn("default", self.env["report.paperformat"]._fields)

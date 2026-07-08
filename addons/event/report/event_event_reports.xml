@@ -3,7 +3,6 @@
 
     <record id="paperformat_event_badge" model="report.paperformat">
         <field name="name">Custom Paperformat for the Event Badge report</field>
-        <field name="default" eval="False"/>
         <field name="disable_shrinking" eval="True"/>
         <field name="format">A4</field>
         <field name="page_height">0</field>
@@ -18,7 +17,6 @@
 
     <record id="paperformat_event_full_page_ticket" model="report.paperformat">
         <field name="name">Custom Paperformat for the Event Full Page Ticket report</field>
-        <field name="default" eval="False"/>
         <field name="disable_shrinking" eval="True"/>
         <field name="format">A4</field>
         <field name="page_height">0</field>

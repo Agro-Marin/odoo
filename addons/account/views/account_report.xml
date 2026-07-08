@@ -55,7 +55,6 @@
         <!-- The top margin on the default A4 format is way too big -->
         <record id="paperformat_euro_bank_statement" model="report.paperformat">
             <field name="name">A4 - statement</field>
-            <field name="default" eval="True" />
             <field name="format">A4</field>
             <field name="page_height">0</field>
             <field name="page_width">0</field>

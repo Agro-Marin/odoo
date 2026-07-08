@@ -4,7 +4,6 @@
         <!-- Paper Format -->
         <record id="paperformat_survey_certification" model="report.paperformat">
             <field name="name">Survey Certification</field>
-            <field name="default" eval="True"/>
             <field name="format">A4</field>
             <field name="orientation">Landscape</field>
             <field name="margin_top">0</field>
