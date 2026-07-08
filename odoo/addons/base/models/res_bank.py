@@ -59,17 +59,17 @@ class ResBank(models.Model):
             return domain
         return super()._search_display_name(operator, value)
 
+    def _sanitize_vals(self, vals: ValuesType) -> ValuesType:
+        if bic := vals.get("bic"):
+            vals["bic"] = bic.upper()
+        return vals
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        for vals in vals_list:
-            if vals.get("bic", False):
-                vals["bic"] = vals["bic"].upper()
-        return super().create(vals_list)
+        return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if vals.get("bic", False):
-            vals["bic"] = vals["bic"].upper()
-        return super().write(vals)
+        return super().write(self._sanitize_vals(vals))
 
     @api.onchange("country")
     def _onchange_country_id(self) -> None:
@@ -90,16 +90,12 @@ class ResPartnerBank(models.Model):
     _check_company_domain = models.check_company_domain_parent_of
 
     @api.model
-    def get_supported_account_types(self) -> list[tuple[str, str]]:
-        return self._get_supported_account_types()
-
-    @api.model
     def _get_supported_account_types(self) -> list[tuple[str, str]]:
         return [("bank", _("Normal"))]
 
     active = fields.Boolean(default=True)
     acc_type = fields.Selection(
-        selection=lambda x: x.env["res.partner.bank"].get_supported_account_types(),
+        selection=lambda x: x.env["res.partner.bank"]._get_supported_account_types(),
         compute="_compute_acc_type",
         string="Type",
         help="Bank account type: Normal or IBAN. Inferred from the bank account number.",
@@ -282,25 +278,22 @@ class ResPartnerBank(models.Model):
         for bank in self:
             bank.color = 10 if bank.allow_out_payment else 1
 
-    def _sanitize_vals(self, vals: dict[str, Any]) -> None:
-        if "acc_number" in vals:
-            # acc_number is the canonical field; discard any direct sanitized value
-            vals.pop("sanitized_acc_number", None)
-            vals["sanitized_acc_number"] = sanitize_account_number(vals["acc_number"])
-        elif "sanitized_acc_number" in vals:
+    def _sanitize_vals(self, vals: ValuesType) -> ValuesType:
+        if "acc_number" not in vals and "sanitized_acc_number" in vals:
             # Do not allow writing sanitized directly — treat it as acc_number
             vals["acc_number"] = vals.pop("sanitized_acc_number")
+        if "acc_number" in vals:
+            # acc_number is canonical: sanitized_acc_number is always derived
+            # from it, overriding any sanitized value passed alongside.
             vals["sanitized_acc_number"] = sanitize_account_number(vals["acc_number"])
+        return vals
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        for vals in vals_list:
-            self._sanitize_vals(vals)
-        return super().create(vals_list)
+        return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
-        self._sanitize_vals(vals)
-        return super().write(vals)
+        return super().write(self._sanitize_vals(vals))
 
     def action_archive_bank(self) -> dict[str, str]:
         """Archive the account and reload the client view."""

@@ -90,6 +90,21 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         bank.partner_id = partner_b
         self.assertEqual(bank.acc_holder_name, "Holder B")
 
+    def test_bank_bic_uppercased_on_create_and_write(self):
+        """res.bank normalizes bic to uppercase on both create and write."""
+        bank = self.env["res.bank"].create({"name": "Bic Bank", "bic": "gebabebb"})
+        self.assertEqual(bank.bic, "GEBABEBB")
+        bank.write({"bic": "bbrubebb"})
+        self.assertEqual(bank.bic, "BBRUBEBB")
+
+    def test_acc_type_selection_uses_private_hook(self):
+        """The acc_type selection resolves through _get_supported_account_types
+        (the public shim was removed); base supports the 'bank' type."""
+        selection = (
+            self.env["res.partner.bank"]._fields["acc_type"].get_values(self.env)
+        )
+        self.assertIn("bank", selection)
+
     def test_unlink_archives_instead_of_deleting(self):
         """unlink() archives the account (active=False) rather than deleting it."""
         partner = self.env["res.partner"].create({"name": "Pepper Test"})

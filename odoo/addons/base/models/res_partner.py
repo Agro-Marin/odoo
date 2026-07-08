@@ -5,7 +5,7 @@ import logging
 import re
 import typing
 from collections import defaultdict
-from typing import Any, Self
+from typing import Any, Literal, Self
 from urllib.parse import urlsplit, urlunsplit
 
 from odoo import Command, _, api, fields, models, tools
@@ -15,6 +15,7 @@ from odoo.libs.datetime.tz import all_timezones
 from odoo.libs.datetime.tz import timezone as get_timezone
 
 if typing.TYPE_CHECKING:
+    from .res_partner_category import ResPartnerCategory
     from .res_users import ResUsers
 
 
@@ -39,7 +40,7 @@ def _find_duplicate(
     country_id: int | None,
     company_id: int | None,
     company_scoped: bool = False,
-) -> Any:
+) -> ResPartner | Literal[False]:
     """Find first duplicate candidate matching the given criteria.
 
     Replaces per-partner ``search(domain, limit=1)`` calls with Python-only
@@ -177,7 +178,7 @@ class ResPartner(models.Model):
     # the partner types that must be added to a partner's complete name, like "Delivery"
     _complete_name_displayed_types = ("invoice", "delivery", "other")
 
-    def _default_category(self) -> Self:
+    def _default_category(self) -> ResPartnerCategory:
         return self.env["res.partner.category"].browse(
             self.env.context.get("category_id")
         )
@@ -516,18 +517,13 @@ class ResPartner(models.Model):
             return "base/static/img/puzzle.png"
         return super()._avatar_get_placeholder_path()
 
-    def _get_complete_name(self, type_description: dict[str, str] | None = None) -> str:
+    def _get_complete_name(self, type_description: dict[str, str]) -> str:
         """Build the full display name for a single partner.
 
-        :param type_description: Pre-computed ``{type_key: label}`` mapping.
-            When *None*, the mapping is built on-the-fly (backward compat).
+        :param type_description: Pre-computed ``{type_key: label}`` mapping,
+            i.e. ``dict(self._fields["type"]._description_selection(self.env))``.
         """
         self.ensure_one()
-
-        if type_description is None:
-            type_description = dict(
-                self._fields["type"]._description_selection(self.env)
-            )
 
         name = self.name or ""
         if self.company_name or self.parent_id:
@@ -625,7 +621,7 @@ class ResPartner(models.Model):
         # Single query: fetch all active users sorted by (share ASC, id ASC).
         # share=False (internal) sorts before share=True (portal), then
         # smallest id wins — so the first user per partner is always the best.
-        best_user: dict[int, object] = {}
+        best_user: dict[int, ResUsers] = {}
         all_users = Users.search_fetch(
             [("partner_id", "in", self.ids), ("active", "=", True)],
             ["partner_id", "share"],
@@ -1271,6 +1267,49 @@ class ResPartner(models.Model):
         if public_partner_ids:
             self.filtered(lambda p: p.id in public_partner_ids).is_public = True
 
+    def _raise_linked_user_error(
+        self, users: ResUsers, operation: str
+    ) -> typing.NoReturn:
+        """Raise the archive/delete refusal for partners linked to active users.
+
+        :param users: the linked active users blocking the operation
+        :param operation: ``"archive"`` or ``"delete"``, selecting the wording
+        """
+        names = ", ".join(users.mapped("display_name"))
+        if self.env["res.users"].sudo(False).has_access("write"):
+            if operation == "archive":
+                error_msg = _(
+                    "You cannot archive contacts linked to an active user.\n"
+                    "You first need to archive their associated user.\n\n"
+                    "Linked active users : %(names)s",
+                    names=names,
+                )
+            else:
+                error_msg = _(
+                    "You cannot delete contacts linked to an active user.\n"
+                    "You should rather archive them after archiving their associated user.\n\n"
+                    "Linked active users : %(names)s",
+                    names=names,
+                )
+            raise RedirectWarning(error_msg, users._action_show(), _("Go to users"))
+        if operation == "archive":
+            raise ValidationError(
+                _(
+                    "You cannot archive contacts linked to an active user.\n"
+                    "Ask an administrator to archive their associated user first.\n\n"
+                    "Linked active users :\n%(names)s",
+                    names=names,
+                )
+            )
+        raise ValidationError(
+            _(
+                "You cannot delete contacts linked to an active user.\n"
+                "Ask an administrator to archive their associated user first.\n\n"
+                "Linked active users :\n%(names)s",
+                names=names,
+            )
+        )
+
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("active") is False:
             # When creating a user for a partner, the user is automatically added to partner.user_ids.
@@ -1282,23 +1321,7 @@ class ResPartner(models.Model):
                 self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
             )
             if users:
-                if self.env["res.users"].sudo(False).has_access("write"):
-                    error_msg = _(
-                        "You cannot archive contacts linked to an active user.\n"
-                        "You first need to archive their associated user.\n\n"
-                        "Linked active users : %(names)s",
-                        names=", ".join([u.display_name for u in users]),
-                    )
-                    action_error = users._action_show()
-                    raise RedirectWarning(error_msg, action_error, _("Go to users"))
-                raise ValidationError(
-                    _(
-                        "You cannot archive contacts linked to an active user.\n"
-                        "Ask an administrator to archive their associated user first.\n\n"
-                        "Linked active users :\n%(names)s",
-                        names=", ".join([u.display_name for u in users]),
-                    )
-                )
+                self._raise_linked_user_error(users, "archive")
         if vals.get("website"):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("parent_id"):
@@ -1427,25 +1450,8 @@ class ResPartner(models.Model):
         # Sudo: safety check must find all linked users, including those hidden
         # by the res.users record rule (users in other companies).
         users = self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
-        if not users:
-            return  # no linked user, operation is allowed
-        if self.env["res.users"].sudo(False).has_access("write"):
-            error_msg = _(
-                "You cannot delete contacts linked to an active user.\n"
-                "You should rather archive them after archiving their associated user.\n\n"
-                "Linked active users : %(names)s",
-                names=", ".join([u.display_name for u in users]),
-            )
-            action_error = users._action_show()
-            raise RedirectWarning(error_msg, action_error, _("Go to users"))
-        raise ValidationError(
-            _(
-                "You cannot delete contacts linked to an active user.\n"
-                "Ask an administrator to archive their associated user first.\n\n"
-                "Linked active users :\n%(names)s",
-                names=", ".join([u.display_name for u in users]),
-            )
-        )
+        if users:
+            self._raise_linked_user_error(users, "delete")
 
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
         partners = super(
