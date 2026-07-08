@@ -66,6 +66,23 @@ describe("Basic Properties", () => {
         expect(new Domain(["!", ["a", "=?", 3]]).contains(record)).toBe(false);
     });
 
+    test("'any'/'not any'/hierarchy operators in contains()", () => {
+        // contains() has no access to the related/hierarchy records these
+        // operators need, so it approximates: `any`, `child_of`, `parent_of`
+        // always match, and `not any` is defined as the strict dual of `any`
+        // (never matches) so client-side negation stays consistent with the
+        // server's De Morgan handling. This test locks that contract.
+        const value = [["id", "=", 1]];
+        expect(new Domain([["line_ids", "any", value]]).contains({})).toBe(true);
+        expect(new Domain([["parent_id", "child_of", 1]]).contains({})).toBe(true);
+        expect(new Domain([["parent_id", "parent_of", 1]]).contains({})).toBe(true);
+        // `not any` never matches, and agrees with `!(x any y)`.
+        expect(new Domain([["line_ids", "not any", value]]).contains({})).toBe(false);
+        expect(new Domain(["!", ["line_ids", "any", value]]).contains({})).toBe(
+            new Domain([["line_ids", "not any", value]]).contains({}),
+        );
+    });
+
     test("or", () => {
         const currentDomain = [
             "|",
