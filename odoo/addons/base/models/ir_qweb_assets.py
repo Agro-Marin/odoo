@@ -10,11 +10,12 @@ rendering. ``_compile_directive_call_assets`` (in ``ir_qweb.py``) is the only
 templating entry point; it calls ``self._get_asset_nodes`` on the merged model.
 """
 
+import contextlib
 import hashlib
 import json as json_mod  # stdlib json; odoo.tools.json is not needed here
 import logging
 import time
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ from odoo.libs.constants import (
 )
 from odoo.modules import module as _module
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
+from odoo.tools.assets.esm_graph import _parse_odoo_module_header
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.misc import file_path, str2bool
 
@@ -456,9 +458,7 @@ class IrQweb(models.AbstractModel):
         paths — extracted so the two stay in lockstep.
         """
         n_bridges = sum(
-            1
-            for v in import_map.values()
-            if v.startswith("/web/assets/esm/bridges/")
+            1 for v in import_map.values() if v.startswith("/web/assets/esm/bridges/")
         )
         n_data = sum(1 for v in import_map.values() if v.startswith("data:"))
         n_real = len(import_map) - n_bridges - n_data
@@ -819,16 +819,73 @@ class IrQweb(models.AbstractModel):
     # with one short retry rather than a blocking acquire so we don't
     # tie up web workers behind a slow esbuild on a deployment where
     # reverse-proxy timeouts are shorter than esbuild startup.
+    #
+    # The lock statement must NEVER run on a read-only request cursor:
+    # PostgreSQL forbids advisory-lock acquisition during recovery, so on
+    # a hot standby it raises SQLSTATE 55000 (ReadOnlySqlTransaction),
+    # which the http layer does not retry — a hard 500 for a plain
+    # readonly render.  ``_esbuild_lock_cursor`` picks the legal cursor.
 
     _ESBUILD_LOCK_RETRIES: int = 1
     _ESBUILD_LOCK_RETRY_SLEEP_S: float = 0.2
 
-    def _esbuild_try_acquire_lock(self, bundle: str) -> bool:
-        """Try to take the per-bundle advisory lock.
+    @contextlib.contextmanager
+    def _esbuild_lock_cursor(self, bundle: str):
+        """Yield the cursor on which to take the esbuild advisory lock.
+
+        Read-write renders keep the historical behavior: the lock is taken
+        on the request cursor and held until the request transaction ends,
+        spanning both the build and the attachment persist.
+
+        Read-only renders cannot take the lock on their own cursor
+        (``pg_try_advisory_xact_lock`` is forbidden during recovery — see
+        the section comment above), so they take it on a dedicated
+        read-write REGISTRY cursor (a primary cursor even on a
+        replica-routed render, mirroring ``_persist_esm_attachment_rows``)
+        held open for the duration of the build; the transaction-scoped
+        lock releases when this context exits (rolled back — nothing is
+        written on it).  The release therefore happens after the build but
+        before the persist — acceptable, as the lock's purpose is
+        serializing the esbuild subprocess and the persist is idempotent
+        (content-addressed).
+
+        Yields ``None`` when no cursor may legally take the lock (a
+        read-only TEST cursor — a real registry cursor would escape the
+        test transaction — or the primary being unreachable): the caller
+        must skip esbuild and degrade to the debug-mode fallback.
+        """
+        if not self.env.cr.readonly:
+            yield self.env.cr
+            return
+        if _module.current_test:
+            yield None
+            return
+        try:
+            rw_cr = self.env.registry.cursor(readonly=False)
+        except Exception:
+            log_event(
+                _lock_log,
+                logging.WARNING,
+                "rw_cursor_unavailable",
+                bundle=bundle,
+            )
+            yield None
+            return
+        try:
+            yield rw_cr
+        finally:
+            rw_cr.rollback()
+            rw_cr.close()
+
+    def _esbuild_try_acquire_lock(self, bundle: str, cr=None) -> bool:
+        """Try to take the per-bundle advisory lock on cursor *cr*.
 
         Returns True if acquired; the lock is transaction-scoped and
-        releases automatically when the current cursor's transaction
-        commits or rolls back (no manual release needed).
+        releases automatically when the cursor's transaction commits or
+        rolls back (no manual release needed).  ``cr`` defaults to the
+        request cursor; readonly renders must pass the read-write cursor
+        from ``_esbuild_lock_cursor`` instead (advisory locks are illegal
+        on a cursor in recovery).
 
         Returns False after ``retries + 1`` attempts, in which case the
         caller should fall back to the debug-mode path.  ``retries`` and
@@ -836,6 +893,8 @@ class IrQweb(models.AbstractModel):
         ``web.esbuild.lock_retries`` / ``lock_retry_sleep_s`` (defaults
         come from ``_ESBUILD_LOCK_RETRIES`` / ``_ESBUILD_LOCK_RETRY_SLEEP_S``).
         """
+        if cr is None:
+            cr = self.env.cr
         retries = self._get_esbuild_setting(
             "lock_retries",
             default=self._ESBUILD_LOCK_RETRIES,
@@ -848,11 +907,11 @@ class IrQweb(models.AbstractModel):
         )
         key = f"esbuild:{bundle}"
         for attempt in range(retries + 1):
-            self.env.cr.execute(
+            cr.execute(
                 "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
                 (key,),
             )
-            got = self.env.cr.fetchone()[0]
+            got = cr.fetchone()[0]
             if got:
                 log_event(
                     _lock_log,
@@ -941,15 +1000,16 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None = None,
     ) -> EsmNodePair:
-        """Cached production native-ESM nodes (non-debug, read-write only).
+        """Cached production native-ESM nodes (non-debug).
 
         Runs the full assembly via ``_get_native_module_nodes_impl`` and caches
         the resulting nodes, so warm renders skip bundle construction, the
         esbuild subprocess, and the template parse entirely. A production
-        attempt that declines (esbuild circuit open, lock contention, or build
-        failure) raises ``_EsmFallbackError`` instead of returning the degraded
-        debug rendering — ormcache never stores an exception, so the fallback
-        is never cached.
+        attempt that declines (esbuild circuit open, lock contention, build
+        failure, or an inline-persist degradation on a render with no
+        writable cursor) raises ``_EsmFallbackError`` instead of returning
+        the degraded rendering — ormcache never stores an exception, so a
+        degraded result is never cached.
         """
         return self._get_native_module_nodes_impl(
             bundle,
@@ -966,20 +1026,25 @@ class IrQweb(models.AbstractModel):
     ) -> EsmNodePair:
         """Dispatch native-ESM node generation through the assets cache.
 
-        Production (non-debug, read-write) renders go through the ormcached
-        ``_get_native_module_nodes_cached``. ``?debug=assets``, read-only
-        cursors (which inline the bundle rather than persist an attachment),
-        and the esbuild-declined fallback all render uncached via
-        ``_get_native_module_nodes_impl``.
+        Production (non-debug) renders go through the ormcached
+        ``_get_native_module_nodes_cached`` — read-only cursors included:
+        attachment persistence runs on a dedicated read-write registry
+        cursor (``_persist_esm_attachment_rows``) and the advisory build
+        lock is taken through ``_esbuild_lock_cursor``, so nothing in the
+        cached path writes on the request cursor. Gating the cache on
+        ``cr.readonly`` (as this method historically did) made EVERY
+        replica-routed render pay the full uncached assembly — bundle
+        construction, the esbuild subprocess and the template parse per
+        request — and executed the advisory lock on the standby cursor,
+        which PostgreSQL forbids during recovery (hard 500).
+
+        ``?debug=assets`` and the esbuild-declined fallback render uncached
+        via ``_get_native_module_nodes_impl``.
         """
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
             assets_params = self.env["ir.asset"]._get_asset_params()
-        if (
-            not debug_assets
-            and not self.env.cr.readonly
-            and bundle not in self._esbuild_forced_fallback_bundles()
-        ):
+        if not debug_assets and bundle not in self._esbuild_forced_fallback_bundles():
             try:
                 pre, post = self._get_native_module_nodes_cached(
                     bundle, assets_params=assets_params
@@ -1136,7 +1201,12 @@ class IrQweb(models.AbstractModel):
             )
             if esbuild_result.code:
                 return self._esm_prod_nodes(
-                    bundle, asset_bundle, esbuild_result, assets_params, child_bundles
+                    bundle,
+                    asset_bundle,
+                    esbuild_result,
+                    assets_params,
+                    child_bundles,
+                    raise_on_decline=_raise_on_decline,
                 )
             if _raise_on_decline:
                 raise _EsmFallbackError
@@ -1191,75 +1261,303 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
                 reason=circuit_reason,
             )
-        elif not self._esbuild_try_acquire_lock(bundle):
-            # Another request is mid-build; degrade THIS render to
-            # debug-mode so the user's page loads without waiting.
-            # Emitted at INFO because contention is interesting for
-            # capacity planning (frequent misses → consider
-            # pre-generation via ``_pregenerate_assets_bundles``).
-            log_event(
-                _fallback_log,
-                logging.INFO,
-                "lock_contention",
-                bundle=bundle,
-            )
         else:
-            # Pre-compute dynamic children's native-module specs so
-            # the parent's esbuild call can externalise them (see
-            # the docstring on ``esbuild_native_bundle``).  Done
-            # here because qweb already has access to ``_get_asset_bundle``
-            # and the cost is paid by the import-map merge below
-            # anyway — handing the same data to esbuild costs only
-            # a set comprehension.
-            _child_specs: set[str] = set()
-            for _child_name in esm_registry().dynamic_children.get(bundle, ()):
-                _child_ab = self._get_asset_bundle(
-                    _child_name,
-                    js=True,
-                    css=False,
-                    debug_assets=(_child_name in esm_registry().dynamic_bundle_names),
+            with self._esbuild_lock_cursor(bundle) as lock_cr:
+                if lock_cr is None:
+                    # No cursor may legally take the advisory lock (readonly
+                    # render with the primary unreachable, or a readonly test
+                    # cursor).  Skip esbuild rather than run an unserialized
+                    # build whose attachment could not be persisted anyway;
+                    # the caller degrades to the debug-mode nodes.
+                    log_event(
+                        _fallback_log,
+                        logging.INFO,
+                        "lock_unavailable",
+                        bundle=bundle,
+                    )
+                elif not self._esbuild_try_acquire_lock(bundle, cr=lock_cr):
+                    # Another request is mid-build; degrade THIS render to
+                    # debug-mode so the user's page loads without waiting.
+                    # Emitted at INFO because contention is interesting for
+                    # capacity planning (frequent misses → consider
+                    # pre-generation via ``_pregenerate_assets_bundles``).
+                    log_event(
+                        _fallback_log,
+                        logging.INFO,
+                        "lock_contention",
+                        bundle=bundle,
+                    )
+                else:
+                    # Pre-compute dynamic children's native-module specs so
+                    # the parent's esbuild call can externalise them (see
+                    # the docstring on ``esbuild_native_bundle``).  Done here
+                    # because qweb already has access to ``_get_asset_bundle``
+                    # and the cost is paid by the import-map merge in
+                    # ``_esm_prod_nodes`` anyway — handing the same data to
+                    # esbuild costs only a set comprehension.
+                    child_bundles = self._get_dynamic_child_bundles(
+                        bundle, assets_params, debug_assets=False
+                    )
+                    _child_specs = {
+                        asset.module_path
+                        for child_ab in child_bundles
+                        for asset in child_ab.native_modules
+                    }
+                    try:
+                        esbuild_result = asset_bundle.esbuild_native_bundle(
+                            timeout_s=self._get_esbuild_setting(
+                                "timeout_s",
+                                default=EsbuildCompiler._ESBUILD_TIMEOUT_S,
+                                cast=int,
+                            ),
+                            target=self._get_esbuild_setting(
+                                "target",
+                                default=EsbuildCompiler._ESBUILD_TARGET,
+                            ),
+                            source_maps=self._get_esbuild_setting(
+                                "source_maps",
+                                default=EsbuildCompiler._ESBUILD_SOURCE_MAPS,
+                            ),
+                            dynamic_child_specs=frozenset(_child_specs) or None,
+                        )
+                        self._esbuild_circuit_record_success(bundle)
+                    except Exception as e:
+                        # Distinct ``odoo.assets.fallback`` event so alerting
+                        # on prod→debug degradation doesn't require
+                        # string-matching on a free-form message.  The
+                        # degraded rendering is handled by falling through
+                        # into the debug-mode branch below.
+                        log_event(
+                            _fallback_log,
+                            logging.WARNING,
+                            "esbuild_exception",
+                            bundle=bundle,
+                            err=type(e).__name__,
+                            msg=str(e)[:200],
+                        )
+                        self._esbuild_circuit_record_failure(
+                            bundle,
+                            reason=type(e).__name__,
+                        )
+                        esbuild_result = EsbuildResult("", None, None)
+        return esbuild_result, child_bundles
+
+    # ─────────────────────────────────────────────────────────────────
+    # Import-map assembly helpers, shared by the production and debug
+    # node builders (previously three diverging inline copies)
+    # ─────────────────────────────────────────────────────────────────
+
+    def _get_dynamic_child_bundles(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        *,
+        debug_assets: bool,
+    ) -> list[AssetsBundle]:
+        """Construct the ``AssetsBundle`` of every dynamic child of *bundle*.
+
+        Shared by the esbuild spec scan (``_esm_run_esbuild``), the
+        production import-map merge and the debug import-map merge.
+        Construction policy: debug renders build every child per-file
+        (``debug_assets=True``); production builds only the truly dynamic
+        children (runtime ``loadBundle`` targets) that way, so their
+        import map exposes individually loadable URLs.
+        """
+        registry = esm_registry()
+        return [
+            self._get_asset_bundle(
+                child_name,
+                js=True,
+                css=False,
+                debug_assets=debug_assets
+                or child_name in registry.dynamic_bundle_names,
+                assets_params=assets_params,
+            )
+            for child_name in registry.dynamic_children.get(bundle, ())
+        ]
+
+    @staticmethod
+    def _merge_child_import_maps(
+        import_map: dict[str, str],
+        child_bundles: list[AssetsBundle],
+    ) -> list[AssetsBundle]:
+        """Merge every child bundle's import map into *import_map* (in place).
+
+        Pre-registers dynamic ESM bundle specifiers so runtime ``import()``
+        (after ``loadBundle``) can resolve them — only URLs are added,
+        modules are NOT eagerly loaded.  Only ``import_map`` is consumed
+        (``with_bridges=False``): bridges are built separately under each
+        caller's policy, so the discarded per-child bridge build (and its
+        attachment persistence) is skipped.
+
+        :return: the subset of *child_bundles* that are dynamic (runtime
+            ``loadBundle`` targets), for the caller's bridge assembly.
+        """
+        dynamic_names = esm_registry().dynamic_bundle_names
+        dynamic_bundles = []
+        for child_ab in child_bundles:
+            child_data = child_ab.get_native_module_data(with_bridges=False)
+            import_map.update(child_data["import_map"])
+            if child_ab.name in dynamic_names:
+                dynamic_bundles.append(child_ab)
+        return dynamic_bundles
+
+    def _merge_include_import_maps(
+        self,
+        bundle: str,
+        import_map: dict[str, str],
+        assets_params: dict[str, Any] | None,
+        *,
+        debug_assets: bool,
+        resolve_bridges: bool,
+    ) -> tuple[str, ...]:
+        """Merge import-map entries from *bundle*'s IMPORT_MAP_INCLUDES
+        satellites (e.g. test bundles that skip esbuild and rely on the
+        parent's import map for bare-specifier resolution) into
+        *import_map*, in place.
+
+        The two callers differ only in declared bridge policy:
+
+        ``resolve_bridges=False`` — production.  Reuses the ormcached
+        native data (keyed by bundle + assets_params) instead of
+        rebuilding the include per render.  The include's bridge shims
+        cover specifiers its OWN files import from elsewhere — mostly the
+        parent's modules (absent from the map, added here) but also
+        DYNAMIC-CHILD specifiers, which already have a direct URL from the
+        child merge.  Those must keep the direct URL (first-wins
+        ``setdefault``): the parent's esbuild output externalizes
+        dynamic-child specs and imports them through the map at page-load
+        time, when ``odoo.loader.modules`` is not yet populated — a shim
+        there yields undefined exports — and the direct URL preserves
+        singleton identity for the satellite (browsers singleton ES
+        modules by URL).
+
+        ``resolve_bridges=True`` — debug nodes.  Bridge SHIMS read
+        ``odoo.loader.modules``, which nothing populates without an
+        esbuild bundle, so merging them verbatim shadows the parent's
+        direct URLs and poisons the whole module graph (verified
+        2026-06-10: the hoot runner failed all ~1311 tests under
+        ``?debug=assets`` with every shim-routed export ``undefined``).
+        Instead the include's bridge specifier KEYS are discovered —
+        building and persisting the shim values (~340 attachment writes
+        per debug render) was pure waste — and each is resolved to a
+        direct URL via ``_resolve_bridge_specifiers_to_urls``
+        (``drop_unresolved=True``: a clean "module not found" beats an
+        undefined-property crash).
+
+        :return: the include bundle names (callers use truthiness to
+            decide satellite-only work).
+        """
+        include_names = tuple(esm_registry().import_map_includes.get(bundle, ()))
+        for include_name in include_names:
+            if not resolve_bridges:
+                include_data = self._get_native_module_data_cached(
+                    include_name,
                     assets_params=assets_params,
                 )
-                child_bundles.append(_child_ab)
-                _child_specs.update(a.module_path for a in _child_ab.native_modules)
-            try:
-                esbuild_result = asset_bundle.esbuild_native_bundle(
-                    timeout_s=self._get_esbuild_setting(
-                        "timeout_s",
-                        default=EsbuildCompiler._ESBUILD_TIMEOUT_S,
-                        cast=int,
-                    ),
-                    target=self._get_esbuild_setting(
-                        "target",
-                        default=EsbuildCompiler._ESBUILD_TARGET,
-                    ),
-                    source_maps=self._get_esbuild_setting(
-                        "source_maps",
-                        default=EsbuildCompiler._ESBUILD_SOURCE_MAPS,
-                    ),
-                    dynamic_child_specs=frozenset(_child_specs) or None,
-                )
-                self._esbuild_circuit_record_success(bundle)
-            except Exception as e:
-                # Distinct ``odoo.assets.fallback`` event so alerting
-                # on prod→debug degradation doesn't require
-                # string-matching on a free-form message.  The
-                # degraded rendering is handled by falling through
-                # into the debug-mode branch below.
-                log_event(
-                    _fallback_log,
-                    logging.WARNING,
-                    "esbuild_exception",
-                    bundle=bundle,
-                    err=type(e).__name__,
-                    msg=str(e)[:200],
-                )
-                self._esbuild_circuit_record_failure(
-                    bundle,
-                    reason=type(e).__name__,
-                )
-                esbuild_result = EsbuildResult("", None, None)
-        return esbuild_result, child_bundles
+                import_map.update(include_data["import_map"])
+                for spec, shim_url in include_data.get("bridge_import_map", {}).items():
+                    import_map.setdefault(spec, shim_url)
+                continue
+            include_ab = self._get_asset_bundle(
+                include_name,
+                js=True,
+                css=False,
+                debug_assets=debug_assets,
+                assets_params=assets_params,
+            )
+            include_data = include_ab.get_native_module_data(with_bridges=False)
+            import_map.update(include_data["import_map"])
+            # The exclusion set is the include's own import-map keys, i.e.
+            # the exact ``native_specifiers`` the bridge build would use.
+            discovered, _ext_seen = include_ab._bridges._discover_bridge_specifiers(
+                set(include_data["import_map"]),
+                set(self._ODOO_EXTERNAL_LIBS),
+            )
+            self._resolve_bridge_specifiers_to_urls(
+                import_map,
+                discovered,
+                drop_unresolved=True,
+            )
+        return include_names
+
+    def _merge_secondary_import_maps(
+        self,
+        bundle: str,
+        import_map: dict[str, str],
+        assets_params: dict[str, Any] | None,
+        *,
+        debug_assets: bool,
+    ) -> None:
+        """Merge NEW import-map specifiers from *bundle*'s secondary
+        satellite bundles (e.g. ``web.assets_tests`` loaded via the
+        conditional template) into *import_map*, in place.
+
+        First-wins (``setdefault``): only specifiers not already present
+        are added, so the parent's resolved URLs are never overridden by
+        the satellite's bridge shims — which would create circular shim
+        references during the parent's bridge initialisation.
+        """
+        for sec_name in esm_registry().secondary_import_map_includes.get(bundle, ()):
+            sec_ab = self._get_asset_bundle(
+                sec_name,
+                js=True,
+                css=False,
+                debug_assets=debug_assets,
+                assets_params=assets_params,
+            )
+            # Only ``import_map`` is consumed; skip the bridge build.
+            sec_data = sec_ab.get_native_module_data(with_bridges=False)
+            for spec, url in sec_data["import_map"].items():
+                import_map.setdefault(spec, url)
+
+    def _resolve_bridge_specifiers_to_urls(
+        self,
+        import_map: dict[str, str],
+        discovered: Iterable[str],
+        *,
+        drop_unresolved: bool,
+    ) -> dict[str, str]:
+        """Resolve *discovered* bridge specifiers to DIRECT URLs in
+        *import_map* (in place) — the debug-mode bridge policy.
+
+        In debug mode bridge shims (modules reading from
+        ``odoo.loader.modules``) cannot work: no esbuild bundle
+        pre-populates the modules map, so the shim's read is undefined and
+        it crashes.  For each discovered specifier:
+
+        1. an existing DIRECT URL (anything outside
+           ``/web/assets/esm/bridges/`` and ``data:``) is kept — it
+           already hits the source bytes, and browsers singleton ES
+           modules by URL so every bundle importing the specifier shares
+           the same instance;
+        2. otherwise prefer the canonical ``_ODOO_EXTERNAL_LIBS`` mapping
+           (deep-import aliases resolve to vendored paths the
+           ``@addon/...`` → ``/addon/static/src/...`` convention cannot
+           compute), then the convention-derived static URL;
+        3. an unresolvable specifier is left out of the result;
+           ``drop_unresolved=True`` additionally removes its stale
+           bridge/data mapping so the browser gets a clean "module not
+           found" instead of an undefined-property crash.
+
+        :return: the ``{specifier: url}`` mappings applied.
+        """
+        resolved_map = {}
+        for spec in discovered:
+            current = import_map.get(spec)
+            if current and not current.startswith(
+                ("/web/assets/esm/bridges/", "data:")
+            ):
+                continue
+            resolved = self._ODOO_EXTERNAL_LIBS.get(
+                spec
+            ) or self._specifier_to_static_url(spec)
+            if resolved:
+                import_map[spec] = resolved
+                resolved_map[spec] = resolved
+            elif current and drop_unresolved:
+                del import_map[spec]
+        return resolved_map
 
     def _esm_prod_nodes(
         self,
@@ -1268,6 +1566,8 @@ class IrQweb(models.AbstractModel):
         esbuild_result: EsbuildResult,
         assets_params: dict[str, Any] | None,
         child_bundles: list[AssetsBundle] | None = None,
+        *,
+        raise_on_decline: bool = False,
     ) -> EsmNodePair:
         """Assemble production native-ESM nodes from a successful esbuild build.
 
@@ -1283,6 +1583,12 @@ class IrQweb(models.AbstractModel):
         :param list child_bundles: dynamic-child ``AssetsBundle`` objects
             already constructed by ``_esm_run_esbuild`` (same construction
             parameters as the fallback below); ``None`` constructs them.
+        :param bool raise_on_decline: raise ``_EsmFallbackError`` instead of
+            inlining the bundle when no writable cursor is reachable for the
+            attachment persist. Set by the ormcached caller: nodes carrying
+            the multi-MB inline degradation must never enter the process
+            cache, where they would be served to every later request long
+            after the primary is back.
         :return: ``(pre, post)`` flanking the legacy bundle
         """
         esbuild_code = esbuild_result.code
@@ -1300,26 +1606,10 @@ class IrQweb(models.AbstractModel):
         # instead of re-running every child's ``__init__`` (15
         # constructions saved per cold ``web.assets_web`` render).
         if child_bundles is None:
-            child_bundles = [
-                self._get_asset_bundle(
-                    lazy_name,
-                    js=True,
-                    css=False,
-                    debug_assets=lazy_name in esm_registry().dynamic_bundle_names,
-                    assets_params=assets_params,
-                )
-                for lazy_name in esm_registry().dynamic_children.get(bundle, ())
-            ]
-        dynamic_bundles = []
-        for lazy_ab in child_bundles:
-            is_dynamic = lazy_ab.name in esm_registry().dynamic_bundle_names
-            # Only ``import_map`` is consumed here — the combined
-            # dynamic-child bridge is built separately below — so skip
-            # the per-child bridge build + attachment persistence.
-            lazy_data = lazy_ab.get_native_module_data(with_bridges=False)
-            prod_import_map.update(lazy_data["import_map"])
-            if is_dynamic:
-                dynamic_bundles.append(lazy_ab)
+            child_bundles = self._get_dynamic_child_bundles(
+                bundle, assets_params, debug_assets=False
+            )
+        dynamic_bundles = self._merge_child_import_maps(prod_import_map, child_bundles)
 
         # Build instance-sharing bridges for dynamic bundles.
         # Combine ALL dynamic bundles' native_modules so that
@@ -1338,56 +1628,26 @@ class IrQweb(models.AbstractModel):
             )
             prod_import_map.update(bridge_map)
 
-        # Include import map entries from associated bundles
-        # (e.g. test bundles that skip esbuild and rely on the
-        # parent's import map for bare-specifier resolution).
-        include_names = esm_registry().import_map_includes.get(bundle, ())
-        for include_name in include_names:
-            # debug_assets=False here → reuse the ormcached native
-            # module data (keyed by bundle + assets_params) instead of
-            # rebuilding the bundle and its bridge on every render.
-            include_data = self._get_native_module_data_cached(
-                include_name,
-                assets_params=assets_params,
-            )
-            prod_import_map.update(include_data["import_map"])
-            # The include's bridges cover specifiers its OWN files import
-            # from elsewhere — mostly this parent's modules (absent from
-            # the map, added here) but also DYNAMIC-CHILD specifiers,
-            # which already have a direct URL from the child merge above.
-            # Those must keep the direct URL: the parent's esbuild output
-            # externalizes dynamic-child specs and imports them through
-            # the map at page-load time, when ``odoo.loader.modules`` is
-            # not yet populated — a shim there yields undefined exports.
-            # The direct URL also preserves singleton identity for the
-            # satellite (browsers singleton ES modules by URL).  Same
-            # first-wins rule the secondary-includes loop below applies.
-            for spec, shim_url in include_data.get("bridge_import_map", {}).items():
-                prod_import_map.setdefault(spec, shim_url)
-
-        # Include NEW import-map specifiers from secondary
-        # satellite bundles (e.g. ``web.assets_tests`` loaded
-        # via the conditional template).  Only specifiers not
-        # already in the parent are added so we don't override
-        # the parent's resolved URLs with the satellite's
-        # bridge shims (which would create circular shim
-        # references during the parent's bridge initialisation).
-        secondary_names = esm_registry().secondary_import_map_includes.get(
+        # Include import map entries from associated bundles (test
+        # bundles that skip esbuild and rely on the parent's import map),
+        # with the production bridge policy (cached data + first-wins
+        # shims — see the helper's docstring).
+        include_names = self._merge_include_import_maps(
             bundle,
-            [],
+            prod_import_map,
+            assets_params,
+            debug_assets=False,
+            resolve_bridges=False,
         )
-        for sec_name in secondary_names:
-            sec_ab = self._get_asset_bundle(
-                sec_name,
-                js=True,
-                css=False,
-                debug_assets=False,
-                assets_params=assets_params,
-            )
-            # Only ``import_map`` is consumed; skip the bridge build.
-            sec_data = sec_ab.get_native_module_data(with_bridges=False)
-            for spec, url in sec_data["import_map"].items():
-                prod_import_map.setdefault(spec, url)
+
+        # Include NEW import-map specifiers from secondary satellite
+        # bundles (first-wins — see the helper's docstring).
+        self._merge_secondary_import_maps(
+            bundle,
+            prod_import_map,
+            assets_params,
+            debug_assets=False,
+        )
 
         # When satellites exist, they load individual source
         # files from this bundle.  Those files may import bare
@@ -1435,12 +1695,8 @@ class IrQweb(models.AbstractModel):
             # the asset's native module_path and key it under
             # the alias too, so the satellite reads from
             # ``odoo.loader.modules`` instead of re-fetching.
-            from odoo.tools.assets.esm_graph import (
-                _parse_odoo_module_header as _parse_hdr,
-            )
-
             for asset in asset_bundle.native_modules:
-                header = _parse_hdr(asset.raw_content)
+                header = _parse_odoo_module_header(asset.raw_content)
                 if not (header and header["alias"]):
                     continue
                 alias = header["alias"]
@@ -1553,7 +1809,13 @@ class IrQweb(models.AbstractModel):
                 "save_failed_inline",
                 bundle=bundle,
                 readonly=bool(self.env.cr.readonly),
+                declined=raise_on_decline,
             )
+            if raise_on_decline:
+                # The ormcached caller: decline instead of inlining so the
+                # degraded multi-MB inline nodes never enter the process
+                # cache (the uncached re-run inlines or falls back).
+                raise _EsmFallbackError from None
         if esm_url:
             post.append(
                 (
@@ -1602,7 +1864,11 @@ class IrQweb(models.AbstractModel):
                     "save_failed_inline",
                     bundle=f"{bundle}.templates",
                     readonly=bool(self.env.cr.readonly),
+                    declined=raise_on_decline,
                 )
+                if raise_on_decline:
+                    # Same never-cache-the-inline rule as the main bundle.
+                    raise _EsmFallbackError from None
             if tpl_url:
                 post.append(
                     (
@@ -1684,87 +1950,36 @@ class IrQweb(models.AbstractModel):
         # can resolve bare specifiers externalized by esbuild.
         import_map.update(self._ODOO_EXTERNAL_LIBS)
 
-        # Pre-register dynamic ESM bundle specifiers in the import map
-        # so that runtime import() (after loadBundle) can resolve them.
-        # Only URLs are added — modules are NOT eagerly loaded.
+        # Pre-register dynamic ESM bundle specifiers in the import map.
+        # ALL children are built per-file here (debug_assets=True) — even
+        # on a fallback render — because there is no esbuild output to
+        # load them from.
+        lazy_bundles = self._get_dynamic_child_bundles(
+            bundle, assets_params, debug_assets=True
+        )
+        self._merge_child_import_maps(import_map, lazy_bundles)
 
-        lazy_bundles = []
-        for lazy_name in esm_registry().dynamic_children.get(bundle, ()):
-            lazy_ab = self._get_asset_bundle(
-                lazy_name,
-                js=True,
-                css=False,
-                debug_assets=True,
-                assets_params=assets_params,
-            )
-            # Only ``import_map`` is consumed (no bridge used here); skip the
-            # discarded per-child bridge build.
-            lazy_data = lazy_ab.get_native_module_data(with_bridges=False)
-            import_map.update(lazy_data["import_map"])
-            lazy_bundles.append(lazy_ab)
-
-        # Include import map entries from associated bundles (e.g. test
-        # bundles that skip esbuild and rely on the parent's import map).
-        for include_name in esm_registry().import_map_includes.get(bundle, ()):
-            include_ab = self._get_asset_bundle(
-                include_name,
-                js=True,
-                css=False,
-                debug_assets=debug_assets,
-                assets_params=assets_params,
-            )
-            include_data = include_ab.get_native_module_data(with_bridges=False)
-            import_map.update(include_data["import_map"])
-            # The include's modules import cross-bundle specifiers the map
-            # must resolve, but bridge SHIMS read ``odoo.loader.modules`` —
-            # non-functional in debug mode (same reason as the conversion
-            # loop below).  Merging them verbatim shadowed the parent's
-            # direct URLs and poisoned the whole module graph: verified
-            # 2026-06-10, the hoot runner failed all ~1311 tests under
-            # ``?debug=assets`` (vs 8 genuine failures in production mode)
-            # with every shim-routed export ``undefined``.  Discover the
-            # specifier KEYS only — building and persisting the shim values
-            # (~340 attachment writes per debug render) was pure waste once
-            # every entry gets converted anyway — and resolve each to a
-            # direct URL: keep an existing direct mapping, else derive the
-            # static URL, else drop for a clean "module not found".  The
-            # exclusion set is the include's own import-map keys, i.e. the
-            # exact ``native_specifiers`` the bridge build would have used.
-            discovered, _ext_seen = include_ab._bridges._discover_bridge_specifiers(
-                set(include_data["import_map"]),
-                set(self._ODOO_EXTERNAL_LIBS),
-            )
-            for _spec in discovered:
-                _current = import_map.get(_spec)
-                if _current and not _current.startswith(
-                    ("/web/assets/esm/bridges/", "data:")
-                ):
-                    continue
-                _resolved = self._ODOO_EXTERNAL_LIBS.get(
-                    _spec
-                ) or self._specifier_to_static_url(_spec)
-                if _resolved:
-                    import_map[_spec] = _resolved
-                elif _current:
-                    del import_map[_spec]
+        # Include import map entries from associated bundles (test bundles
+        # that skip esbuild and rely on the parent's import map), with the
+        # debug bridge policy: discovered bridge specifiers are resolved
+        # to direct URLs — shims read ``odoo.loader.modules``, which
+        # nothing populates in debug mode (see the helper's docstring).
+        self._merge_include_import_maps(
+            bundle,
+            import_map,
+            assets_params,
+            debug_assets=debug_assets,
+            resolve_bridges=True,
+        )
 
         # Include NEW import-map specifiers from secondary satellite
-        # bundles (e.g. ``web.assets_tests`` loaded via the conditional
-        # template).  Only specifiers not already in the parent are
-        # added so we don't override the parent's resolved URLs with
-        # the satellite's bridge shims.
-        for sec_name in esm_registry().secondary_import_map_includes.get(bundle, ()):
-            sec_ab = self._get_asset_bundle(
-                sec_name,
-                js=True,
-                css=False,
-                debug_assets=debug_assets,
-                assets_params=assets_params,
-            )
-            # Only ``import_map`` is consumed; skip the bridge build.
-            sec_data = sec_ab.get_native_module_data(with_bridges=False)
-            for spec, url in sec_data["import_map"].items():
-                import_map.setdefault(spec, url)
+        # bundles (first-wins — see the helper's docstring).
+        self._merge_secondary_import_maps(
+            bundle,
+            import_map,
+            assets_params,
+            debug_assets=debug_assets,
+        )
 
         # Instance-sharing bridge: data: URI shims that re-export from
         # ``odoo.loader.modules`` so dynamic bundles share the parent
@@ -1778,56 +1993,23 @@ class IrQweb(models.AbstractModel):
             all_native_specifiers.update(m.module_path for m in lazy_ab.native_modules)
             combined_native_modules.extend(lazy_ab.native_modules)
 
-        # In debug mode, bridge shims (modules reading from
-        # odoo.loader.modules) CANNOT work: there is no esbuild
-        # bundle to pre-populate the modules map, so _m is undefined
-        # and the shim crashes.  Discover the specifier KEYS only —
-        # building and persisting shim attachments here was pure waste
-        # (same reasoning as the include-path conversion above) — and
-        # resolve each to a direct URL:
-        # 1. If the specifier already has a direct URL in import_map
-        #    (from native_data or _ODOO_EXTERNAL_LIBS), keep it —
-        #    the existing URL is already correct.
-        # 2. Otherwise, resolve the @addon/... specifier back to a
-        #    served static URL.  This is always safe in debug:
-        #    browsers singleton ES modules by URL, so every bundle
-        #    that imports the same specifier shares the exact same
-        #    module instance.
-        # 3. If the specifier can't be resolved (unusual), leave it
-        #    out — the browser gets a clean "module not found"
-        #    instead of the confusing undefined-property crash.
+        # Discover the whole graph's bridge specifier KEYS (main + dynamic
+        # children) and resolve each to a direct URL — same debug bridge
+        # policy as the include merge above (shims cannot work without an
+        # esbuild bundle; see ``_resolve_bridge_specifiers_to_urls``).
+        # ``drop_unresolved=False`` matches this pass's historical
+        # behavior: a pre-existing shim mapping for an unresolvable
+        # specifier is left alone rather than removed.
         discovered, _ext_seen = asset_bundle._bridges._discover_bridge_specifiers(
             all_native_specifiers,
             set(self._ODOO_EXTERNAL_LIBS),
             modules=combined_native_modules,
         )
-        resolved_bridges = {}
-        for _spec in discovered:
-            _current = import_map.get(_spec)
-            # A "direct URL" here means a real source/asset URL pointing
-            # at a file NOT generated by ``_persist_bridge_shims``
-            # (i.e. anything outside ``/web/assets/esm/bridges/``).  If
-            # the spec already resolves to such a URL, a bridge is
-            # redundant — the direct URL hits the source bytes, a
-            # shim would only proxy through ``odoo.loader.modules``.
-            if (
-                _current
-                and not _current.startswith("/web/assets/esm/bridges/")
-                and not _current.startswith("data:")
-            ):
-                continue
-            # No direct URL — prefer the canonical mapping in
-            # _ODOO_EXTERNAL_LIBS (deep-import aliases like
-            # @odoo/hoot-dom-helpers-events resolve to a vendored
-            # path that the ``@addon/...`` → ``/addon/static/src/...``
-            # convention can't compute), then fall back to the
-            # convention-derived static URL.
-            _resolved = self._ODOO_EXTERNAL_LIBS.get(
-                _spec
-            ) or self._specifier_to_static_url(_spec)
-            if _resolved:
-                resolved_bridges[_spec] = _resolved
-        import_map.update(resolved_bridges)
+        resolved_bridges = self._resolve_bridge_specifiers_to_urls(
+            import_map,
+            discovered,
+            drop_unresolved=False,
+        )
 
         # Check if a previous ESM bundle on this page already rendered
         # an import map (e.g. the setup bundle on the test page).

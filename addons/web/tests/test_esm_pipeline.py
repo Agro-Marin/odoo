@@ -24,14 +24,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from psycopg.errors import ReadOnlySqlTransaction
+
 import odoo
 from odoo.db import db_connect
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
 from odoo.tests.common import TransactionCase
-from odoo.tools.assets.esbuild import EsbuildCompiler
+from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, _parse_odoo_module_header
+from odoo.addons.base.models.ir_qweb_assets import _EsmFallbackError
 
 
 class TestAssetLogHelper(TransactionCase):
@@ -1500,11 +1503,15 @@ class TestQwebAssetHelpers(TransactionCase):
 
     def test_link_to_node_script_and_xml(self):
         tag, attrs = self._qweb._link_to_node("/x/a.js")
-        self.assertEqual((tag, attrs["type"], attrs.get("src")),
-                         ("script", "text/javascript", "/x/a.js"))
+        self.assertEqual(
+            (tag, attrs["type"], attrs.get("src")),
+            ("script", "text/javascript", "/x/a.js"),
+        )
         tag, attrs = self._qweb._link_to_node("/x/a.xml")
-        self.assertEqual((tag, attrs["type"], attrs.get("data-src")),
-                         ("script", "text/xml", "/x/a.xml"))
+        self.assertEqual(
+            (tag, attrs["type"], attrs.get("data-src")),
+            ("script", "text/xml", "/x/a.xml"),
+        )
 
     # ── _import_map_url_breakdown ──
     def test_import_map_url_breakdown(self):
@@ -1538,6 +1545,454 @@ class TestQwebAssetHelpers(TransactionCase):
         self.assertEqual(last, "//# sourceMappingURL=b.esm.js.map")
         self.assertEqual(out.count("sourceMappingURL"), 1)
         self.assertIn("TPL;", out)
+
+
+class TestNativeNodesDispatch(TransactionCase):
+    """Dispatch matrix of ``_get_native_module_nodes``: readonly x debug x
+    forced-fallback (audit finding — readonly renders must use the cache).
+
+    Production renders go through the "assets" ormcache on READ-ONLY cursors
+    too: the historical ``not cr.readonly`` gate forced every replica-routed
+    render through the full uncached assembly (bundle construction, the
+    esbuild subprocess, the template XML parse) per request — and executed
+    ``pg_try_advisory_xact_lock`` on the standby cursor, which PostgreSQL
+    forbids during recovery (SQLSTATE 55000, not retried by http: hard 500).
+    The gate's rationale was stale: attachment persistence moved to a
+    dedicated RW registry cursor (``_persist_esm_attachment_rows``) and the
+    advisory lock now goes through ``_esbuild_lock_cursor``.
+    """
+
+    BUNDLE = "web.assets_web"
+    PRE = [("script", {"type": "importmap", "data-bundle": "t", "text": "{}"})]
+    POST = [("script", {"type": "module", "text": "t"})]
+
+    @property
+    def _qweb(self):
+        return self.env["ir.qweb"]
+
+    def _run(self, *, debug="", readonly=False, cached=None, impl=None):
+        """Call the dispatcher with both branches patched; return the mocks."""
+        ir_qweb = self._qweb
+        patches = [
+            patch.object(
+                type(ir_qweb),
+                "_get_native_module_nodes_cached",
+                **(cached or {"return_value": (self.PRE, self.POST)}),
+            ),
+            patch.object(
+                type(ir_qweb),
+                "_get_native_module_nodes_impl",
+                **(impl or {"return_value": (self.PRE, self.POST)}),
+            ),
+        ]
+        if readonly:
+            patches.append(patch.object(self.env.cr, "_readonly", True))
+        with patches[0] as cached_mock, patches[1] as impl_mock:
+            if readonly:
+                with patches[2]:
+                    result = ir_qweb._get_native_module_nodes(self.BUNDLE, debug=debug)
+            else:
+                result = ir_qweb._get_native_module_nodes(self.BUNDLE, debug=debug)
+        return result, cached_mock, impl_mock
+
+    def test_readwrite_prod_uses_cache(self):
+        result, cached_mock, impl_mock = self._run()
+        self.assertEqual(result, (self.PRE, self.POST))
+        cached_mock.assert_called_once()
+        impl_mock.assert_not_called()
+
+    def test_readonly_prod_uses_cache(self):
+        """The core fix: a readonly render must hit the ormcached branch."""
+        result, cached_mock, impl_mock = self._run(readonly=True)
+        self.assertEqual(result, (self.PRE, self.POST))
+        cached_mock.assert_called_once()
+        impl_mock.assert_not_called()
+
+    def test_debug_assets_bypasses_cache(self):
+        for readonly in (False, True):
+            with self.subTest(readonly=readonly):
+                result, cached_mock, impl_mock = self._run(
+                    debug="assets", readonly=readonly
+                )
+                self.assertEqual(result, (self.PRE, self.POST))
+                cached_mock.assert_not_called()
+                impl_mock.assert_called_once()
+
+    def test_forced_fallback_bypasses_cache(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "web.esbuild.force_fallback_bundles", self.BUNDLE
+        )
+        self.addCleanup(
+            self.env["ir.config_parameter"].sudo().set_param,
+            "web.esbuild.force_fallback_bundles",
+            "",
+        )
+        for readonly in (False, True):
+            with self.subTest(readonly=readonly):
+                result, cached_mock, impl_mock = self._run(readonly=readonly)
+                self.assertEqual(result, (self.PRE, self.POST))
+                cached_mock.assert_not_called()
+                impl_mock.assert_called_once()
+
+    def test_decline_falls_back_uncached(self):
+        """A declined cached attempt re-renders uncached — readonly included."""
+        for readonly in (False, True):
+            with self.subTest(readonly=readonly):
+                result, cached_mock, impl_mock = self._run(
+                    readonly=readonly,
+                    cached={"side_effect": _EsmFallbackError},
+                )
+                self.assertEqual(result, (self.PRE, self.POST))
+                cached_mock.assert_called_once()
+                impl_mock.assert_called_once()
+
+
+class TestEsbuildLockCursor(TransactionCase):
+    """``_esbuild_lock_cursor`` / the advisory lock's legal-cursor contract.
+
+    ``pg_try_advisory_xact_lock`` is forbidden during recovery, so a readonly
+    request cursor must NEVER execute it; the lock either moves to a
+    read-write registry cursor or (readonly test cursors, primary down)
+    esbuild is skipped entirely.
+    """
+
+    @property
+    def _qweb(self):
+        return self.env["ir.qweb"]
+
+    def test_readwrite_yields_request_cursor(self):
+        with self._qweb._esbuild_lock_cursor("b.x") as lock_cr:
+            self.assertIs(lock_cr, self.env.cr)
+
+    def test_readonly_test_cursor_yields_none(self):
+        with patch.object(self.env.cr, "_readonly", True):
+            with self._qweb._esbuild_lock_cursor("b.x") as lock_cr:
+                self.assertIsNone(lock_cr)
+
+    def test_acquire_lock_runs_on_the_given_cursor(self):
+        executed = []
+
+        fake_cr = SimpleNamespace(
+            execute=lambda sql, params=None: executed.append(sql),
+            fetchone=lambda: (True,),
+        )
+        got = self._qweb._esbuild_try_acquire_lock("b.x", cr=fake_cr)
+        self.assertTrue(got)
+        self.assertEqual(len(executed), 1)
+        self.assertIn("pg_try_advisory_xact_lock", executed[0])
+
+    def test_readonly_run_esbuild_skips_lock_and_build(self):
+        """On a readonly test cursor the whole esbuild stage is skipped:
+        no advisory-lock SQL on the request cursor, no subprocess, empty
+        result → the caller degrades to the debug-mode nodes."""
+        ir_qweb = self._qweb
+        with (
+            patch.object(self.env.cr, "_readonly", True),
+            patch.object(
+                type(ir_qweb),
+                "_esbuild_try_acquire_lock",
+                side_effect=AssertionError("lock must not be attempted"),
+            ),
+            patch.object(
+                AssetsBundle,
+                "esbuild_native_bundle",
+                side_effect=AssertionError("esbuild must not run"),
+            ),
+        ):
+            result, child_bundles = ir_qweb._esm_run_esbuild(
+                "web.assets_web", SimpleNamespace(), None
+            )
+        self.assertEqual(result.code, "")
+        self.assertEqual(child_bundles, [])
+
+
+class TestProdNodesDeclineNotCached(TransactionCase):
+    """``_esm_prod_nodes(raise_on_decline=True)`` must raise instead of
+    inlining when no writable cursor is reachable for the attachment persist:
+    ormcache never stores exceptions, so the multi-MB inline degradation can
+    never enter the process cache (where it would be served to every later
+    request long after the primary is back)."""
+
+    BUNDLE = "g4.decline.bundle"  # no children/includes registered
+
+    @property
+    def _qweb(self):
+        return self.env["ir.qweb"]
+
+    def _fake_bundle(self):
+        return SimpleNamespace(
+            name=self.BUNDLE,
+            generate_esm_template_bundle=lambda use_import: "",
+        )
+
+    def test_decline_raises_instead_of_inlining(self):
+        ir_qweb = self._qweb
+        with patch.object(
+            type(ir_qweb),
+            "_save_esm_attachment",
+            side_effect=ReadOnlySqlTransaction("no writable cursor"),
+        ):
+            with self.assertRaises(_EsmFallbackError):
+                ir_qweb._esm_prod_nodes(
+                    self.BUNDLE,
+                    self._fake_bundle(),
+                    EsbuildResult("CODE;", None, None),
+                    None,
+                    [],
+                    raise_on_decline=True,
+                )
+
+    def test_uncached_rerun_still_inlines(self):
+        """Without the flag (the uncached re-run) the inline degradation
+        stays available — functionally identical, just heavier."""
+        ir_qweb = self._qweb
+        with patch.object(
+            type(ir_qweb),
+            "_save_esm_attachment",
+            side_effect=ReadOnlySqlTransaction("no writable cursor"),
+        ):
+            _pre, post = ir_qweb._esm_prod_nodes(
+                self.BUNDLE,
+                self._fake_bundle(),
+                EsbuildResult("CODE;", None, None),
+                None,
+                [],
+            )
+        module_nodes = [
+            attrs
+            for tag, attrs in post
+            if tag == "script" and attrs.get("type") == "module"
+        ]
+        self.assertEqual(len(module_nodes), 1)
+        self.assertEqual(module_nodes[0].get("text"), "CODE;")
+        self.assertNotIn("src", module_nodes[0])
+
+
+class TestImportMapMergeHelpers(TransactionCase):
+    """Direct unit tests for the shared import-map assembly helpers extracted
+    from the prod/debug node builders (previously three diverging inline
+    copies)."""
+
+    @property
+    def _qweb(self):
+        return self.env["ir.qweb"]
+
+    @staticmethod
+    def _fake_registry(**overrides):
+        reg = SimpleNamespace(
+            dynamic_children={},
+            dynamic_bundle_names=set(),
+            import_map_includes={},
+            secondary_import_map_includes={},
+        )
+        for key, value in overrides.items():
+            setattr(reg, key, value)
+        return reg
+
+    @staticmethod
+    def _fake_ab(name, import_map, bridge_import_map=None, discovered=()):
+        def get_native_module_data(with_bridges=True):
+            data = {"import_map": dict(import_map)}
+            if bridge_import_map is not None:
+                data["bridge_import_map"] = dict(bridge_import_map)
+            return data
+
+        return SimpleNamespace(
+            name=name,
+            get_native_module_data=get_native_module_data,
+            _bridges=SimpleNamespace(
+                _discover_bridge_specifiers=lambda specs, ext, modules=None: (
+                    list(discovered),
+                    set(),
+                ),
+            ),
+        )
+
+    def _patch_registry(self, reg):
+        return patch(
+            "odoo.addons.base.models.ir_qweb_assets.esm_registry",
+            return_value=reg,
+        )
+
+    def test_dynamic_child_construction_policy(self):
+        """Debug builds every child per-file; production per-file only for
+        the truly dynamic (runtime ``loadBundle``) children."""
+        reg = self._fake_registry(
+            dynamic_children={"parent": ("child.dyn", "child.plain")},
+            dynamic_bundle_names={"child.dyn"},
+        )
+        built = []
+
+        def fake_get_asset_bundle(bundle, js, css, debug_assets, assets_params):
+            built.append((bundle, debug_assets))
+            return SimpleNamespace(name=bundle)
+
+        ir_qweb = self._qweb
+        with (
+            self._patch_registry(reg),
+            patch.object(
+                type(ir_qweb),
+                "_get_asset_bundle",
+                side_effect=fake_get_asset_bundle,
+            ),
+        ):
+            ir_qweb._get_dynamic_child_bundles("parent", None, debug_assets=False)
+            self.assertEqual(built, [("child.dyn", True), ("child.plain", False)])
+            built.clear()
+            ir_qweb._get_dynamic_child_bundles("parent", None, debug_assets=True)
+            self.assertEqual(built, [("child.dyn", True), ("child.plain", True)])
+
+    def test_merge_child_import_maps(self):
+        """Children's maps merge in order; the dynamic subset is returned."""
+        reg = self._fake_registry(dynamic_bundle_names={"child.dyn"})
+        dyn = self._fake_ab("child.dyn", {"@a/x": "/a/static/src/x.js"})
+        plain = self._fake_ab(
+            "child.plain",
+            {"@b/y": "/b/static/src/y.js", "@a/x": "/b/override.js"},
+        )
+        import_map = {}
+        with self._patch_registry(reg):
+            dynamic = self._qweb._merge_child_import_maps(import_map, [dyn, plain])
+        self.assertEqual(dynamic, [dyn])
+        # last child wins on conflicts (plain dict update, in child order)
+        self.assertEqual(
+            import_map,
+            {"@a/x": "/b/override.js", "@b/y": "/b/static/src/y.js"},
+        )
+
+    def test_merge_includes_production_policy(self):
+        """Production: cached include data, bridge shims are first-wins."""
+        reg = self._fake_registry(import_map_includes={"parent": ("inc.a",)})
+        ir_qweb = self._qweb
+        with (
+            self._patch_registry(reg),
+            patch.object(
+                type(ir_qweb),
+                "_get_native_module_data_cached",
+                return_value={
+                    "import_map": {"@inc/mod": "/inc/static/src/mod.js"},
+                    "bridge_import_map": {
+                        "@parent/kept": "/web/assets/esm/bridges/aa.js",
+                        "@child/direct": "/web/assets/esm/bridges/bb.js",
+                    },
+                },
+            ) as cached_mock,
+        ):
+            import_map = {"@child/direct": "/child/static/src/direct.js"}
+            include_names = ir_qweb._merge_include_import_maps(
+                "parent",
+                import_map,
+                None,
+                debug_assets=False,
+                resolve_bridges=False,
+            )
+        self.assertEqual(include_names, ("inc.a",))
+        cached_mock.assert_called_once()
+        self.assertEqual(import_map["@inc/mod"], "/inc/static/src/mod.js")
+        # a NEW bridge shim is added...
+        self.assertEqual(import_map["@parent/kept"], "/web/assets/esm/bridges/aa.js")
+        # ...but an existing direct URL (dynamic-child spec) is never
+        # overridden by the include's shim (first-wins).
+        self.assertEqual(import_map["@child/direct"], "/child/static/src/direct.js")
+
+    def test_merge_includes_debug_policy_resolves_bridges(self):
+        """Debug: discovered bridge specifiers become direct URLs (shims
+        read ``odoo.loader.modules``, which nothing populates in debug)."""
+        reg = self._fake_registry(import_map_includes={"parent": ("inc.a",)})
+        include_ab = self._fake_ab(
+            "inc.a",
+            {"@inc/mod": "/inc/static/src/mod.js"},
+            discovered=["@web/core/registry", "unresolvable-bare"],
+        )
+        ir_qweb = self._qweb
+        with (
+            self._patch_registry(reg),
+            patch.object(
+                type(ir_qweb),
+                "_get_asset_bundle",
+                return_value=include_ab,
+            ),
+        ):
+            import_map = {
+                "unresolvable-bare": "data:text/javascript,shim",
+            }
+            ir_qweb._merge_include_import_maps(
+                "parent",
+                import_map,
+                None,
+                debug_assets=True,
+                resolve_bridges=True,
+            )
+        self.assertEqual(import_map["@inc/mod"], "/inc/static/src/mod.js")
+        self.assertEqual(
+            import_map["@web/core/registry"], "/web/static/src/core/registry.js"
+        )
+        # unresolvable shim entries are DROPPED for a clean "module not found"
+        self.assertNotIn("unresolvable-bare", import_map)
+
+    def test_merge_secondary_is_first_wins(self):
+        reg = self._fake_registry(secondary_import_map_includes={"parent": ("sec.a",)})
+        sec_ab = self._fake_ab(
+            "sec.a",
+            {
+                "@parent/mod": "/web/assets/esm/bridges/shim.js",  # must lose
+                "@sec/new": "/sec/static/src/new.js",  # must be added
+            },
+        )
+        ir_qweb = self._qweb
+        with (
+            self._patch_registry(reg),
+            patch.object(type(ir_qweb), "_get_asset_bundle", return_value=sec_ab),
+        ):
+            import_map = {"@parent/mod": "/parent/static/src/mod.js"}
+            ir_qweb._merge_secondary_import_maps(
+                "parent", import_map, None, debug_assets=False
+            )
+        self.assertEqual(
+            import_map,
+            {
+                "@parent/mod": "/parent/static/src/mod.js",
+                "@sec/new": "/sec/static/src/new.js",
+            },
+        )
+
+    def test_resolve_bridge_specifiers_matrix(self):
+        qweb = self._qweb
+        base_map = {
+            "@a/direct": "/a/static/src/direct.js",
+            "@b/shimmed": "/web/assets/esm/bridges/cc.js",
+            "@c/data": "data:text/javascript,x",
+            "bare-unresolvable": "/web/assets/esm/bridges/dd.js",
+        }
+
+        import_map = dict(base_map)
+        resolved = qweb._resolve_bridge_specifiers_to_urls(
+            import_map,
+            ["@a/direct", "@b/shimmed", "@c/data", "bare-unresolvable", "@d/new"],
+            drop_unresolved=True,
+        )
+        # direct URL kept as-is, not re-resolved
+        self.assertEqual(import_map["@a/direct"], "/a/static/src/direct.js")
+        self.assertNotIn("@a/direct", resolved)
+        # bridge shim and data: URI replaced by convention-derived URLs
+        self.assertEqual(import_map["@b/shimmed"], "/b/static/src/shimmed.js")
+        self.assertEqual(import_map["@c/data"], "/c/static/src/data.js")
+        # discovered-but-absent specifier resolved and added
+        self.assertEqual(import_map["@d/new"], "/d/static/src/new.js")
+        # unresolvable shim dropped when drop_unresolved=True
+        self.assertNotIn("bare-unresolvable", import_map)
+
+        import_map = dict(base_map)
+        qweb._resolve_bridge_specifiers_to_urls(
+            import_map,
+            ["bare-unresolvable"],
+            drop_unresolved=False,
+        )
+        # ...and left alone when drop_unresolved=False (historical behavior
+        # of the main debug pass)
+        self.assertEqual(
+            import_map["bare-unresolvable"], "/web/assets/esm/bridges/dd.js"
+        )
 
 
 class TestGeneratedAssetDomains(TransactionCase):
