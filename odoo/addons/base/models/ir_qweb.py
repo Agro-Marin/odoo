@@ -392,7 +392,7 @@ from psycopg.errors import (
 )
 
 from odoo import api, models, tools
-from odoo.exceptions import MissingError, UserError
+from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.constants import SUPPORTED_DEBUGGER
 from odoo.libs.lru import LRU
@@ -1702,16 +1702,12 @@ class IrQweb(models.AbstractModel):
         if sub_refs:
             self._preload_trees(list(sub_refs))
 
-        # not found template
-        for ref in missing_refs:
-            if ref not in compile_batch:
-                compile_batch[ref] = {
-                    "xmlid": ref,
-                    "ref": ref,
-                    "error": MissingError(
-                        self.env._("External ID can not be loaded: %s", ref)
-                    ),
-                }
+        # ``missing_refs`` keys come from ``compile_batch`` by construction
+        # (and nothing above deletes entries), so every ref is resolved here;
+        # unknown refs already carry an ``error`` entry from ``_preload_views``.
+        assert all(ref in compile_batch for ref in missing_refs), (
+            "_preload_views must return an entry for every requested ref"
+        )
 
         return compile_batch
 
@@ -2406,7 +2402,7 @@ class IrQweb(models.AbstractModel):
                 for name, value in attrib.items()
                 if value or isinstance(value, str)
             )
-            self._append_text(f"<{el_tag}{''.join(attributes)}", compile_context)
+            self._append_text(f"<{el_tag}{attributes}", compile_context)
             if el_tag in VOID_ELEMENTS:
                 self._append_text("/>", compile_context)
             else:
