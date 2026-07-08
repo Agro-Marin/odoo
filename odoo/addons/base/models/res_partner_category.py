@@ -45,23 +45,34 @@ class ResPartnerCategory(models.Model):
     @api.depends("name", "parent_id.name")
     def _compute_display_name(self) -> None:
         """Compute the slash-joined full ancestor path as display name."""
-        names = {category.id: [] for category in self}
-        # Walk the hierarchy one level at a time, advancing every category's
-        # cursor together. Reading name on the whole frontier prefetches the
-        # level in a single query instead of one read per category, while
-        # preserving the per-record walk semantics.
-        cursors = {category.id: category for category in self}
-        while cursors:
-            frontier = self.browse().union(*cursors.values())
-            frontier.fetch(["name", "parent_id"])
-            next_cursors = {}
-            for root_id, current in cursors.items():
-                names[root_id].append(current.name or "")
-                if current.parent_id:
-                    next_cursors[root_id] = current.parent_id
-            cursors = next_cursors
-        for category in self:
-            category.display_name = " / ".join(reversed(names[category.id]))
+        # Stored records: resolve the whole ancestor chain from parent_path
+        # (_parent_store=True), which is structurally cycle-proof and needs a
+        # single batched name fetch — no level-by-level parent_id walk.
+        stored = self.filtered(lambda c: isinstance(c.id, int) and c.parent_path)
+        ancestor_ids_by_record = {
+            category.id: [int(id_) for id_ in category.parent_path.split("/")[:-1]]
+            for category in stored
+        }
+        ancestors = self.browse(
+            {id_ for ids in ancestor_ids_by_record.values() for id_ in ids}
+        )
+        ancestors.fetch(["name"])
+        for category in stored:
+            category.display_name = " / ".join(
+                self.browse(id_).name or ""
+                for id_ in ancestor_ids_by_record[category.id]
+            )
+        # NewId/onchange records have no parent_path yet: fall back to the
+        # parent_id walk, guarded against cycles transiently present in cache.
+        for category in self - stored:
+            names = []
+            seen_ids = set()
+            current = category
+            while current and current.id not in seen_ids:
+                seen_ids.add(current.id)
+                names.append(current.name or "")
+                current = current.parent_id
+            category.display_name = " / ".join(reversed(names))
 
     @api.model
     def _search_display_name(self, operator: str, value: str) -> list:

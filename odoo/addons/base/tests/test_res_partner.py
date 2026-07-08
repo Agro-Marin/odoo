@@ -116,6 +116,26 @@ class TestPartner(TransactionCaseWithUserDemo):
             test_partner.active, "Activating user must active related partner"
         )
 
+    def test_display_name_show_address_follows_address_write(self):
+        """display_name rendered with show_address must be recomputed when an
+        address field it renders (street/city/zip) changes."""
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Movers Inc",
+                "street": "1 Old Street",
+                "city": "Oldtown",
+                "country_id": self.env.ref("base.us").id,
+            }
+        )
+        shown = partner.with_context(show_address=True)
+        self.assertIn("1 Old Street", shown.display_name)
+        partner.street = "42 New Street"
+        self.assertIn("42 New Street", shown.display_name)
+        self.assertNotIn("1 Old Street", shown.display_name)
+        partner.write({"city": "Newtown", "zip": "99999"})
+        self.assertIn("Newtown", shown.display_name)
+        self.assertIn("99999", shown.display_name)
+
     def test_default_get_company_only_when_requested(self):
         """default_get must not inject company_id when it is not requested."""
         parent = self.env["res.partner"].create(
@@ -2035,6 +2055,14 @@ class TestPartnerCategory(TransactionCase):
         a.invalidate_recordset(["name"])
         c.invalidate_recordset(["display_name"])
         self.assertEqual(c.display_name, " / B / C")
+
+    def test_display_name_new_record_fallback(self):
+        """NewId (onchange/Form) records have no parent_path yet: display_name
+        falls back to the parent_id walk and still renders the full path."""
+        Category = self.env["res.partner.category"]
+        parent = Category.create({"name": "Stored Parent"})
+        draft = Category.new({"name": "Draft Child", "parent_id": parent.id})
+        self.assertEqual(draft.display_name, "Stored Parent / Draft Child")
 
     def test_display_name_invalidated_on_parent_rename(self):
         """Renaming a direct parent invalidates the child display_name
