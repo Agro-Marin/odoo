@@ -291,14 +291,14 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
                     "parent_res_model": "res.partner",
                     "parent_action_id": self.parent_action.id,
                     "action_id": self.action_2.id,
-                    "groups_ids": [(6, 0, [nested_arbitrary_group.id])],
+                    "group_ids": [(6, 0, [nested_arbitrary_group.id])],
                 },
                 {
                     "name": "EmbeddedActionCusto2",
                     "parent_res_model": "res.partner",
                     "parent_action_id": self.parent_action.id,
                     "action_id": self.action_2.id,
-                    "groups_ids": [(6, 0, [arbitrary_group.id])],
+                    "group_ids": [(6, 0, [arbitrary_group.id])],
                 },
             ]
         )

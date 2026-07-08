@@ -34,7 +34,7 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
  * @property {string} [filter_ids]
  * @property {string} [domain]
  * @property {string} [context]
- * @property {any} [groups_ids]
+ * @property {any} [group_ids]
  */
 
 /**
@@ -383,7 +383,7 @@ export class EmbeddedActions {
             python_method,
             domain,
             context,
-            groups_ids,
+            group_ids,
         } = currentEmbeddedAction;
         const values = {
             parent_action_id: parent_action_id[0],
@@ -394,7 +394,7 @@ export class EmbeddedActions {
             default_view_mode: this.env.config.viewType,
             domain,
             context,
-            groups_ids,
+            group_ids,
             name: newActionName,
         };
         if (python_method) {
