@@ -90,3 +90,20 @@ class TestGetAddressFields(TransactionCase):
         )
         self.assertFalse(country.address_format)
         self.assertEqual(country.get_address_fields(), [])
+
+    def test_get_address_fields_ignores_literal_parentheses(self):
+        """Only %(field)s placeholders are field names: literal parenthesized
+        text in the format must not leak into the result (it is consumed by
+        portal/website address forms as field names)."""
+        country = self.env["res.country"].create(
+            {
+                "name": "Arstotzka",
+                "code": "AA",
+                "address_format": "%(street)s (near the park)\n"
+                "%(zip)s %(city)s (P.O. Box)\n%(country_name)s",
+            }
+        )
+        self.assertEqual(
+            country.get_address_fields(),
+            ["street", "zip", "city", "country_name"],
+        )

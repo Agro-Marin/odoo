@@ -162,12 +162,13 @@ class ResCountry(models.Model):
         if "code" in vals or "phone_code" in vals:
             # _phone_code_for caches code -> phone_code; bust it when either changes.
             self.env.registry.clear_cache("stable")
-        if "address_view_id" in vals or "vat_label" in vals:
-            # Changing the address view of the company must invalidate the view cached for res.partner
-            # because of _view_get_address
-            # Same goes for vat_label
-            # because of _get_view override from FormatVATLabelMixin
-            self.env.registry.clear_cache("templates")
+        # NB: no clear_cache("templates") for address_view_id / address_format /
+        # vat_label. The view-cache consumers of those fields (format.address.mixin
+        # and format.vat.label.mixin) key their _get_view_cache_key on the field
+        # VALUES, so changing them yields a new cache key — stale entries are
+        # simply never served again. The old explicit invalidation was both too
+        # broad (it flushed every template) and too narrow (it skipped
+        # address_format, the common reorder branch of _view_get_address).
         return res
 
     def unlink(self) -> bool:
@@ -177,9 +178,12 @@ class ResCountry(models.Model):
     def get_address_fields(self) -> list[str]:
         """Return the address placeholder names parsed from ``address_format``."""
         self.ensure_one()
+        # Match only real %(field)s placeholders: a laxer \((.+?)\) would also
+        # capture literal parenthesized text into "field names" consumed by the
+        # portal/website address forms.
         # ``address_format`` is not required and may be cleared to False; guard
         # re.findall against a non-string value so callers do not raise TypeError.
-        return re.findall(r"\((.+?)\)", self.address_format or "")
+        return re.findall(r"%\((\w+)\)s", self.address_format or "")
 
     @api.depends("code")
     def _compute_image_url(self) -> None:
@@ -217,8 +221,9 @@ class ResCountry(models.Model):
     @api.depends("country_group_ids")
     def _compute_country_group_codes(self) -> None:
         """Compute the JSON list of country group codes for this country."""
-        # Fall back to [""] rather than [] so the stored Json is never coerced to
-        # False; this keeps the value a valid iterable for downstream consumers.
+        # Fall back to [""] rather than [] so the (non-stored, cached) Json
+        # value is never coerced to False; this keeps it a valid iterable for
+        # downstream consumers.
         for country in self:
             country.country_group_codes = [
                 g.code for g in country.country_group_ids if g.code

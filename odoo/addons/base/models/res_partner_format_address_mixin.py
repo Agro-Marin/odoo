@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 from lxml import etree
@@ -53,7 +54,12 @@ class FormatAddressMixin(models.AbstractModel):
             and (not address_view_id.model or address_view_id.model == self._name)
         ):
             # render the partner address accordingly to address_view_id
-            for address_node in arch.xpath("//div[hasclass('o_address_format')]"):
+            address_nodes = arch.xpath("//div[hasclass('o_address_format')]")
+            if address_nodes:
+                # Fetch and validate the sub-view ONCE, before touching arch:
+                # doing it per node could bail out (return) after an earlier
+                # iteration already mutated arch, returning a half-rewritten
+                # view.
                 Partner = self.env["res.partner"].with_context(no_address_format=True)
                 sub_arch, _sub_view = Partner._get_view(address_view_id.id, "form")
                 # if the model is different than res.partner, there are chances that the view won't work
@@ -65,12 +71,20 @@ class FormatAddressMixin(models.AbstractModel):
                         )
                     except ValueError:
                         return arch
-                new_address_node = sub_arch.find('.//div[@class="o_address_format"]')
-                # Prefer the inner address div if present, else the whole sub-view.
-                replacement = (
-                    new_address_node if new_address_node is not None else sub_arch
-                )
-                address_node.getparent().replace(address_node, replacement)
+                for address_node in address_nodes:
+                    # Deep-copy per node: an lxml element lives at a single
+                    # place in a tree, so replacing several nodes with the same
+                    # element would silently move it around instead of
+                    # duplicating it.
+                    node_arch = copy.deepcopy(sub_arch)
+                    new_address_node = node_arch.find(
+                        './/div[@class="o_address_format"]'
+                    )
+                    # Prefer the inner address div if present, else the whole sub-view.
+                    replacement = (
+                        new_address_node if new_address_node is not None else node_arch
+                    )
+                    address_node.getparent().replace(address_node, replacement)
         elif address_format and not self.env.context.get("no_address_format"):
             # For the zip, city and state fields we need to move them around in order to follow the country address format.
             # The purpose of this is to help the user by following a format he is used to.
@@ -118,13 +132,20 @@ class FormatAddressMixin(models.AbstractModel):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """The override of _get_view, using _view_get_address,
-        changing the architecture according to the address view of the company,
-        makes the view cache dependent on the company.
-        Different companies could use each a different address view"""
+        """Key the view cache on the address-layout inputs of _view_get_address.
+
+        The ``_get_view`` override rewrites the arch from the company country's
+        ``address_view_id`` and ``address_format``, so those VALUES are the
+        cache key — not the company identity. Keying on the values (instead of
+        ``self.env.company``) both dedupes the cache across same-country
+        companies and keeps it fresh when a company's country (or the country's
+        layout fields) changes, without any explicit invalidation.
+        """
         key = super()._get_view_cache_key(view_id, view_type, **options)
+        country = self.env.company.country_id
         return key + (
-            self.env.company,
+            country.address_view_id.id,
+            country.address_format,
             self.env.context.get("no_address_format"),
         )
 
