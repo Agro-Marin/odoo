@@ -2842,8 +2842,17 @@ class IrUiView(models.Model):
                 name_manager.must_exist_action(name, node)
                 name_manager.has_action(name)
         elif type_ and not (
-            self._is_qweb_based_view(node_info["view_type"])
-            and type_ in ("open", "archive", "unarchive", "delete", "set_cover")
+            (
+                self._is_qweb_based_view(node_info["view_type"])
+                # "button" is the plain HTML type attribute passing through a
+                # qweb-based arch untouched
+                and type_
+                in ("open", "archive", "unarchive", "delete", "set_cover", "button")
+            )
+            # the list renderer handles type="edit" itself (group/record edit
+            # buttons, see web list_renderer.xml); inside <groupby> blocks the
+            # nested validation pass runs with view_type="groupby"
+            or (node_info["view_type"] in ("list", "groupby") and type_ == "edit")
         ):
             # Unknown button types used to be silently accepted (and skipped the
             # icon accessibility check below). Only a warning — not an error —
