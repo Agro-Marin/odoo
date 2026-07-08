@@ -235,26 +235,31 @@ class ResCompany(models.Model):
         inactive_companies = self.filtered(lambda c: not c.active)
         if not inactive_companies:
             return
-        user_counts = dict(
-            self.env["res.users"]._read_group(
-                [
-                    ("company_id", "in", inactive_companies.ids),
-                    ("active", "=", True),
-                ],
-                groupby=["company_id"],
-                aggregates=["__count"],
-            )
+        # _read_group only returns non-empty groups, so every returned company
+        # is an offender (count >= 1) — no per-group `if count` filter needed.
+        offenders = self.env["res.users"]._read_group(
+            [
+                ("company_id", "in", inactive_companies.ids),
+                ("active", "=", True),
+            ],
+            groupby=["company_id"],
+            aggregates=["__count"],
         )
-        for company, count in user_counts.items():
-            if count:
-                raise ValidationError(
-                    self.env._(
-                        "The company %(company_name)s cannot be archived because it is still used "
-                        "as the default company of %(active_users)s users.",
-                        company_name=company.name,
-                        active_users=count,
-                    )
+        if offenders:
+            raise ValidationError(
+                self.env._(
+                    "The following companies cannot be archived because they are still "
+                    "used as the default company of active users:\n%(details)s",
+                    details="\n".join(
+                        self.env._(
+                            "- %(company_name)s (%(active_users)s users)",
+                            company_name=company.name,
+                            active_users=count,
+                        )
+                        for company, count in offenders
+                    ),
                 )
+            )
 
     @api.constrains(
         lambda self: self._get_company_root_delegated_field_names() + ["parent_id"]

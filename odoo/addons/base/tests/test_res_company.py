@@ -23,9 +23,7 @@ class TestCompany(TransactionCase):
         )
 
         # The company cannot be archived because it still has active users
-        with self.assertRaisesRegex(
-            ValidationError, "The company foo cannot be archived"
-        ):
+        with self.assertRaisesRegex(ValidationError, r"cannot be archived[\s\S]*foo"):
             company.action_archive()
 
         # The company can be archived because it has no active users
@@ -47,6 +45,27 @@ class TestCompany(TransactionCase):
             }
         )
         user.action_unarchive()
+
+    def test_check_active_aggregates_all_offending_companies(self):
+        """Archiving several companies with active users reports ALL offenders
+        in a single ValidationError instead of only the first one."""
+        company_a, company_b = self.env["res.company"].create(
+            [{"name": "arch co A"}, {"name": "arch co B"}]
+        )
+        for i, company in enumerate((company_a, company_b)):
+            self.env["res.users"].create(
+                {
+                    "name": f"arch user {i}",
+                    "login": f"arch_user_{i}",
+                    "company_id": company.id,
+                    "company_ids": company.ids,
+                }
+            )
+        with self.assertRaises(ValidationError) as capture:
+            (company_a + company_b).action_archive()
+        message = str(capture.exception)
+        self.assertIn("arch co A", message)
+        self.assertIn("arch co B", message)
 
     def test_logo_check(self):
         """Ensure uses_default_logo is properly (re-)computed."""
