@@ -58,7 +58,7 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
     }
 }
 
-patch(ProductLabelSectionAndNoteListRender.prototype, ProductNameAndDescriptionListRendererMixin);
+patch(ProductLabelSectionAndNoteListRender.prototype, ProductNameAndDescriptionListRendererMixin());
 
 export class ProductLabelSectionAndNoteOne2Many extends SectionAndNoteFieldOne2Many {
     static components = {

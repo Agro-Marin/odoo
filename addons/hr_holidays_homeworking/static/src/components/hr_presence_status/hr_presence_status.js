@@ -84,8 +84,8 @@ const patchHrPresenceStatusPill = () => ({
     },
 });
 
-patch(HrPresenceStatusPill.prototype, patchHrPresenceStatusPill);
-patch(HrPresenceStatusPrivatePill.prototype, patchHrPresenceStatusPill);
+patch(HrPresenceStatusPill.prototype, patchHrPresenceStatusPill());
+patch(HrPresenceStatusPrivatePill.prototype, patchHrPresenceStatusPill());
 
 const patchHrPresenceStatusPrivate = () => ({
     get label() {

@@ -80,7 +80,7 @@ export class MovesListRenderer extends ListRenderer {
     }
 }
 
-patch(MovesListRenderer.prototype, ProductNameAndDescriptionListRendererMixin);
+patch(MovesListRenderer.prototype, ProductNameAndDescriptionListRendererMixin());
 
 export class StockMoveX2ManyField extends X2ManyField {
     static components = { ...X2ManyField.components, ListRenderer: MovesListRenderer };
