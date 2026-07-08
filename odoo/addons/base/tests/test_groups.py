@@ -1486,3 +1486,122 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
             hierarchy["privileges"],
             "unlink did not invalidate the groups-family view_group_hierarchy",
         )
+
+
+class TestAllUsersCount(common.TransactionCase):
+    """all_users_count computed via search_count (RG-P2).
+
+    The count must not materialize the whole implied-user population into
+    the ORM cache, and must keep matching len(all_user_ids): users whose
+    direct groups intersect the groups implying this one, under the caller's
+    active_test — the all_user_ids recordset filters archived users out at
+    access time in the default context (RelationalMulti._make_corecords).
+    """
+
+    def test_count_includes_implied_users(self):
+        Groups = self.env["res.groups"]
+        group_base = Groups.create({"name": "auc base"})
+        group_implying = Groups.create(
+            {
+                "name": "auc implying",
+                "implied_ids": [Command.link(group_base.id)],
+            }
+        )
+        Users = self.env["res.users"]
+        Users.create(
+            {
+                "name": "auc direct",
+                "login": "auc_direct",
+                "group_ids": [Command.link(group_base.id)],
+            }
+        )
+        Users.create(
+            {
+                "name": "auc implied",
+                "login": "auc_implied",
+                "group_ids": [Command.link(group_implying.id)],
+            }
+        )
+        Users.create(
+            {
+                "name": "auc archived",
+                "login": "auc_archived",
+                "active": False,
+                "group_ids": [Command.link(group_implying.id)],
+            }
+        )
+        # Default context: archived members excluded, like len(all_user_ids).
+        self.assertEqual(group_base.all_users_count, 2)
+        self.assertEqual(group_implying.all_users_count, 1)
+        self.assertEqual(
+            group_base.all_users_count,
+            len(group_base.all_user_ids),
+            "the count must match the relational field it no longer reads",
+        )
+        self.assertEqual(
+            group_implying.all_users_count, len(group_implying.all_user_ids)
+        )
+        # active_test=False context: archived members included, like the
+        # relational read (invalidate first: the non-stored integer cache is
+        # context-independent, for the old compute too).
+        self.env.invalidate_all()
+        base_no_active_test = group_base.with_context(active_test=False)
+        implying_no_active_test = group_implying.with_context(active_test=False)
+        self.assertEqual(base_no_active_test.all_users_count, 3)
+        self.assertEqual(implying_no_active_test.all_users_count, 2)
+        self.assertEqual(
+            base_no_active_test.all_users_count,
+            len(base_no_active_test.all_user_ids),
+        )
+        self.assertEqual(
+            implying_no_active_test.all_users_count,
+            len(implying_no_active_test.all_user_ids),
+        )
+
+
+class TestPrivilegeGroupSorting(common.TransactionCase):
+    """_sorted_privilege_group_ids precomputes the implication counts (RG-P3).
+
+    The order contract is unchanged: by number of the privilege's groups each
+    group implies (self included), then sequence, then id.
+    """
+
+    def test_sorted_by_implication_depth_then_sequence(self):
+        privilege = self.env["res.groups.privilege"].create({"name": "sort priv"})
+        Groups = self.env["res.groups"]
+        g1 = Groups.create(
+            {"name": "priv g1", "privilege_id": privilege.id, "sequence": 5}
+        )
+        g2 = Groups.create(
+            {
+                "name": "priv g2",
+                "privilege_id": privilege.id,
+                "sequence": 3,
+                "implied_ids": [Command.link(g1.id)],
+            }
+        )
+        g3 = Groups.create(
+            {
+                "name": "priv g3",
+                "privilege_id": privilege.id,
+                "sequence": 4,
+                "implied_ids": [Command.link(g2.id)],
+            }
+        )
+        result = Groups._sorted_privilege_group_ids(privilege)
+        # implication counts (self included): g1 -> 1, g2 -> 2, g3 -> 3
+        self.assertEqual(result, [g1.id, g2.id, g3.id])
+        # same-count groups fall back to sequence: give g3 its own privilege
+        # so g2/g1 stay, then equalize counts via a fresh pair
+        ga = Groups.create(
+            {"name": "priv ga", "privilege_id": privilege.id, "sequence": 9}
+        )
+        gb = Groups.create(
+            {"name": "priv gb", "privilege_id": privilege.id, "sequence": 1}
+        )
+        result = Groups._sorted_privilege_group_ids(privilege)
+        # ga/gb imply only themselves (count 1, like g1): sequence decides
+        self.assertEqual(result, [gb.id, g1.id, ga.id, g2.id, g3.id])
+        # the hierarchy consumed by the web client uses the helper's order
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertEqual(hierarchy["privileges"][privilege.id]["group_ids"], result)

@@ -205,10 +205,22 @@ class ResUsers(models.Model):
         if context and not user_lang_valid and request:
             best_lang = request.best_lang
             if best_lang and best_lang != context["lang"]:
-                langset = {code for code, _ in self.env["res.lang"].get_installed()}
-                if best_lang in langset:
+                if best_lang in self._get_installed_lang_codes():
                     return frozendict({**context, "lang": best_lang})
         return context
+
+    @api.model
+    @tools.ormcache()
+    def _get_installed_lang_codes(self) -> frozenset[str]:
+        """Installed language codes, memoised as a frozenset.
+
+        Used by :meth:`context_get` for the per-request ``Accept-Language``
+        overlay (hit on every request of users without a valid own lang, e.g.
+        the shared public user), so the set must not be rebuilt each time.
+        Cached in the ``default`` group: installing/removing a language clears
+        the ``stable`` group (res.lang caches), which cascades to ``default``.
+        """
+        return frozenset(code for code, _name in self.env["res.lang"].get_installed())
 
     @api.model
     @tools.ormcache("self.env.uid")
@@ -917,10 +929,22 @@ class ResUsers(models.Model):
 
     @api.depends("all_group_ids")
     def _compute_accesses_count(self) -> None:
+        # Count via search_count instead of len() on the relational fields:
+        # reading `groups.model_access` / `groups.rule_groups` would pull
+        # every reachable ACL/rule id into the ORM cache just to count them
+        # (thousands of records per user-form render). Semantics preserved:
+        # search_count inherits the caller's active_test (default: archived
+        # ACLs/rules excluded), exactly like the x2many recordsets it
+        # replaces (see RelationalMulti._make_corecords), and the model ACLs
+        # on ir.model.access / ir.rule stay enforced.
+        IrModelAccess = self.env["ir.model.access"]
+        IrRule = self.env["ir.rule"]
         for user in self:
             groups = user.all_group_ids
-            user.accesses_count = len(groups.model_access)
-            user.rules_count = len(groups.rule_groups)
+            user.accesses_count = IrModelAccess.search_count(
+                [("group_id", "in", groups.ids)]
+            )
+            user.rules_count = IrRule.search_count([("groups", "in", groups.ids)])
             user.groups_count = len(groups)
 
     @api.depends("res_users_settings_ids")
@@ -1073,15 +1097,20 @@ class ResUsers(models.Model):
                 if env.user in self:
                     reset_cached_properties(env)
 
-        if "group_ids" in vals and self.ids:
-            # Clear caches linked to the users.
-            self.env["ir.model.access"].call_cache_clearing_methods()
-
         # per-method / per-model caches have been removed so the various
         # clear_cache/clear_caches methods pretty much just end up calling
         # Registry.clear_cache
-        invalidation_fields = self._get_invalidation_fields()
-        if invalidation_fields & vals.keys():
+        if "group_ids" in vals and self.ids:
+            # Clear caches linked to the users. Clearing the "stable" cache
+            # group cascades to "default" (see _CACHES_BY_KEY in the ORM
+            # registry), so this single call already covers the plain
+            # registry.clear_cache() of the branch below — running both would
+            # clear the "default" caches twice per group_ids write. group_ids
+            # deliberately stays in _get_invalidation_fields(): it documents
+            # the invalidation contract for overrides and still triggers the
+            # branch below for writes on empty recordsets.
+            self.env["ir.model.access"].call_cache_clearing_methods()
+        elif self._get_invalidation_fields() & vals.keys():
             self.env.registry.clear_cache()
 
         return res

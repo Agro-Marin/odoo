@@ -183,8 +183,10 @@ class ResGroups(models.Model):
         # Deliberately restricted to active users: an archived user holding two
         # disjoint user-type groups cannot log in, so it is harmless, and
         # re-validating dormant data on every group write would not scale. Note
-        # the asymmetry with _compute_all_user_ids, which uses active_test=False
-        # to count archived users in all_user_ids / all_users_count.
+        # the asymmetry with _compute_all_user_ids, which fills the all_user_ids
+        # cache with active_test=False so archived members are reachable in
+        # active_test=False contexts (the recordset — and all_users_count —
+        # still exclude them in the default context at access time).
         domain = (
             Domain("active", "=", True)
             & Domain("group_ids", "in", self.ids)
@@ -497,20 +499,7 @@ class ResGroups(models.Model):
                     "category_id": privilege.category_id.id,
                     "description": privilege.description,
                     "placeholder": privilege.placeholder,
-                    "group_ids": [
-                        group.id
-                        for group in privilege.group_ids.sorted(
-                            lambda g, privilege=privilege: (
-                                (
-                                    len(g.all_implied_ids & privilege.group_ids)
-                                    if g.privilege_id
-                                    else 0
-                                ),
-                                g.sequence,
-                                g.id,
-                            )
-                        )
-                    ],
+                    "group_ids": self._sorted_privilege_group_ids(privilege),
                 }
                 for privilege in self.env["res.groups.privilege"].search([])
             },
@@ -527,6 +516,32 @@ class ResGroups(models.Model):
                 )
             ],
         }
+
+    @api.model
+    def _sorted_privilege_group_ids(self, privilege: Any) -> list[int]:
+        """Return ``privilege``'s group ids ordered by implication depth
+        (number of the privilege's groups each group implies), then sequence,
+        then id.
+
+        The implication counts are precomputed into a dict so the recordset
+        intersection runs once per group instead of on every comparison of
+        the O(n log n) sort.
+        """
+        privilege_groups = privilege.group_ids
+        implied_count = {
+            group.id: (
+                len(group.all_implied_ids & privilege_groups)
+                if group.privilege_id
+                else 0
+            )
+            for group in privilege_groups
+        }
+        return [
+            group.id
+            for group in privilege_groups.sorted(
+                lambda g: (implied_count[g.id], g.sequence, g.id)
+            )
+        ]
 
     @api.model
     @tools.ormcache(cache="groups")
@@ -571,8 +586,21 @@ class ResGroups(models.Model):
 
     @api.depends("all_user_ids")
     def _compute_all_users_count(self) -> None:
+        # Count via search_count instead of len(all_user_ids): reading the
+        # relational field would materialize the entire implied-user
+        # population into the ORM cache per count render. Semantics
+        # preserved: users whose direct groups intersect the groups implying
+        # this one, inheriting the caller's active_test — the x2many
+        # recordset it replaces filtered archived users out at access time in
+        # the default context (RelationalMulti._make_corecords), even though
+        # _compute_all_user_ids fills the cache with active_test=False. Runs
+        # as superuser (compute_sudo=True on the field), like the
+        # sudo-computed relational read it replaces.
+        Users = self.env["res.users"]
         for group in self:
-            group.all_users_count = len(group.all_user_ids)
+            group.all_users_count = Users.search_count(
+                [("group_ids", "in", group.all_implied_by_ids.ids)]
+            )
 
     def action_show_all_users(self) -> dict[str, Any]:
         self.ensure_one()
