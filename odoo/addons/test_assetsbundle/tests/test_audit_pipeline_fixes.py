@@ -3,8 +3,9 @@
 Pins the ASI-defusing join between the last legacy JS file and the template
 IIFE (production and debug bodies), autoprefixing of plain ``.css`` assets in
 an ``autoprefix`` bundle (the artifact URL claimed it; only Sass output got
-it), the tool-named / decode-safe ``_run_cli_pipe`` failures, and the
-immutability of the cached XML template parse tree across serialization.
+it), the ``for_inline_compile`` constructor for bundle-less SCSS compiles,
+the tool-named / decode-safe ``_run_cli_pipe`` failures, and the immutability
+of the cached XML template parse tree across serialization.
 """
 
 import re
@@ -14,6 +15,8 @@ from odoo.tests.common import BaseCase, TransactionCase
 from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     CompileError,
+    ScssStylesheetAsset,
+    WebAsset,
 )
 from odoo.addons.base.models.assetsbundle.common import _run_cli_pipe
 
@@ -141,6 +144,22 @@ class TestPlainCssAutoprefix(TransactionCase):
             r"\.mix-css\{-webkit-appearance:none;"
             r"-moz-appearance:none;appearance:none[;}]",
         )
+
+
+class TestForInlineCompile(TransactionCase):
+    """``for_inline_compile`` is the one sanctioned bundle-less construction."""
+
+    def test_compiles_standalone_scss(self):
+        asset = ScssStylesheetAsset.for_inline_compile("// preview")
+        css = asset.compile("$c: red;\nbody { color: $c; }")
+        # bundle=None selects the production "compressed" output style.
+        self.assertIn("body{color:red}", css)
+
+    def test_no_content_error_survives_missing_bundle(self):
+        # The inline-or-url ValueError itself used to crash on bundle.name
+        # when bundle was None — the guard must name the failure instead.
+        with self.assertRaisesRegex(ValueError, "<no bundle>"):
+            WebAsset(None)
 
 
 class TestRunCliPipeFailures(BaseCase):

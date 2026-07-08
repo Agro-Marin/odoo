@@ -65,8 +65,13 @@ class WebAsset:
         self._ir_attach: IrAttachment | None = None
         self._last_modified = last_modified
         if not inline and not url:
+            # ``bundle`` is guarded here only so the error itself cannot crash:
+            # the constructor contract is a real AssetsBundle (the sole
+            # sanctioned bundle-less construction is
+            # ``ScssStylesheetAsset.for_inline_compile``, which always inlines).
+            bundle_name = bundle.name if bundle is not None else "<no bundle>"
             raise ValueError(
-                f"An asset should either be inlined or url linked, defined in bundle {bundle.name!r}"
+                f"An asset should either be inlined or url linked, defined in bundle {bundle_name!r}"
             )
 
     def generate_error(self, msg: str) -> str:
@@ -133,8 +138,19 @@ class WebAsset:
     @property
     def content(self) -> str:
         if self._content is None:
-            self._content = self.inline or self._fetch_content()
+            self._content = self._raw_source()
         return self._content
+
+    def _raw_source(self) -> str:
+        """The asset's unprocessed source: inline if present, else fetched.
+
+        Uncached — :attr:`content` layers the caching on top, and
+        ``StylesheetAsset.get_source`` deliberately re-reads through this to
+        recompile from the original source. ``inline`` is the empty string for
+        file-backed assets (see ``_get_asset_content``), so the ``or`` falls
+        through to the fetch exactly when there is no inline body.
+        """
+        return self.inline or self._fetch_content()
 
     def _fetch_content(self) -> str:
         """Fetch content from file or database."""
@@ -290,9 +306,7 @@ class XMLAsset(WebAsset):
         template file.
         """
         try:
-            # Mirror ``WebAsset.content``'s ``inline or fetch`` (inline is the
-            # empty string for file-backed assets — see _get_asset_content).
-            raw = self.inline or WebAsset._fetch_content(self)
+            raw = self._raw_source()
         except AssetError as e:
             raise self._error(str(e)) from e
         parser = etree.XMLParser(
@@ -444,8 +458,10 @@ class StylesheetAsset(WebAsset):
     def get_source(self) -> str:
         # ``odoo-split:`` namespaces the marker so it cannot collide with a
         # legitimate CSS loud comment Sass preserves — see ``CssPipeline.rx_css_split``.
-        content = self.inline or self._fetch_content()
-        return f"/*! odoo-split:{self.id} */\n{content}"
+        # ``_raw_source`` (not ``content``): the compile input must be re-read
+        # from the original source, bypassing the ``_content`` cache that
+        # ``preprocess`` later overwrites with the compiled fragment.
+        return f"/*! odoo-split:{self.id} */\n{self._raw_source()}"
 
     @classmethod
     def _minify_css_body(cls, content: str) -> str:
@@ -536,6 +552,25 @@ class PreprocessedCSS(StylesheetAsset):
 
 class ScssStylesheetAsset(PreprocessedCSS):
     """Compile SCSS (.scss) using Dart Sass (embedded protocol or CLI)."""
+
+    @classmethod
+    def for_inline_compile(
+        cls, source: str = "// inline compile"
+    ) -> ScssStylesheetAsset:
+        """Build a bundle-less asset whose sole purpose is :meth:`compile`.
+
+        The document-layout preview (``base_document_layout``) compiles
+        wizard SCSS outside any bundle; this is the ONE sanctioned
+        bundle-less construction — ``WebAsset.__init__``'s contract is
+        otherwise a real :class:`AssetsBundle`. ``bundle=None``
+        deliberately selects the production ``compressed`` output style
+        (see :attr:`output_style`).
+
+        :param source: placeholder inline content satisfying the
+            inline-or-url invariant; :meth:`compile` takes the real SCSS
+            explicitly.
+        """
+        return cls(None, inline=source)
 
     # Process-wide one-shot guard for the embedded-Sass → CLI fallback warning
     # (see :meth:`_warn_embedded_fallback`). A class attribute, not a module

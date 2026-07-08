@@ -16,6 +16,8 @@ from odoo.tools.sass_embedded import SassCompileError
 if TYPE_CHECKING:
     # Typing-only sibling import: ``bundle`` imports this module at runtime,
     # so the reverse edge stays under TYPE_CHECKING to avoid an import cycle.
+    from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
+
     from .bundle import AssetsBundle
 from .assets import PreprocessedCSS, StylesheetAsset
 from .common import (
@@ -91,12 +93,12 @@ class CssPipeline:
     the bundle's ``stylesheets`` and rebuilds the bundle's ``css_errors``. It
     does NOT mutate the source ``stylesheets`` list: the Sass-hoisted
     ``@at-rules`` fragment and the per-file compiled content are assembled into
-    the pipeline's own :attr:`_rendered_assets`, which ``css_with_sourcemap``
-    reads back. Keeping the source list immutable makes :meth:`preprocess` a
-    pure rebuild — no idempotency guard, and ``get_checksum`` sees the same
-    assets no matter when it runs. The bundle keeps one pipeline
-    (``AssetsBundle._css``) so that render list survives the ``preprocess`` →
-    ``css_with_sourcemap`` call sequence.
+    the pipeline's own (fully private) :attr:`_rendered_assets`, which
+    :meth:`sourcemap_bundle` reads back. Keeping the source list immutable
+    makes :meth:`preprocess` a pure rebuild — no idempotency guard, and
+    ``get_checksum`` sees the same assets no matter when it runs. The bundle
+    keeps one pipeline (``AssetsBundle._css``) so that render list survives
+    the ``preprocess`` → ``sourcemap_bundle`` call sequence.
     """
 
     # @import sanitizer pattern. ``([^;{]*;?)`` (group 3) captures the post-quote
@@ -152,9 +154,9 @@ class CssPipeline:
         # The ordered render list :meth:`preprocess` assembles — the optional
         # Sass-hoisted @at-rules fragment (as a synthetic StylesheetAsset)
         # followed by the bundle's stylesheets, each carrying its compiled
-        # content. ``css_with_sourcemap`` reads it back. Held here instead of
-        # injected into ``bundle.stylesheets`` so preprocess never mutates the
-        # bundle's source list.
+        # content. :meth:`sourcemap_bundle` reads it back. Held here instead
+        # of injected into ``bundle.stylesheets`` so preprocess never mutates
+        # the bundle's source list.
         self._rendered_assets: list[StylesheetAsset] = []
 
     def preprocess(self) -> str:
@@ -309,6 +311,47 @@ class CssPipeline:
         for asset in bundle.stylesheets:
             bundle.css_errors.extend(asset.errors)
         return bundle_css
+
+    def sourcemap_bundle(
+        self,
+        generator: SourceMapGenerator,
+        sourcemap_url: str,
+        content_import_rules: str,
+    ) -> str:
+        """Build the un-minified debug CSS body, populating *generator*.
+
+        Iterates the render list :meth:`preprocess` assembled (the optional
+        @at-rules fragment + the bundle's stylesheets with their compiled
+        content) — owning that iteration here keeps :attr:`_rendered_assets`
+        fully private to the pipeline. Adds a per-file source mapping to
+        *generator* and appends the ``sourceMappingURL`` link; the caller owns
+        the ``css`` / ``css.map`` attachment I/O. Mirrors
+        :meth:`JsPipeline.sourcemap_bundle`.
+
+        :param content_import_rules: the ``@import`` rules ``css()`` hoisted,
+            re-emitted at the top of the bundle (they must precede any rule)
+        """
+        content_bundle_list = [content_import_rules]
+        content_line_count = content_import_rules.count("\n") + 1
+        for asset in self._rendered_assets:
+            if asset.content:
+                content = asset.with_header(asset.content)
+                if asset.url:
+                    generator.add_source(asset.url, content, content_line_count)
+                # comment out the @import rules hoisted to the top of the
+                # bundle (string-aware: an ``@import`` inside a
+                # ``content: "…"`` value is left intact, not commented out)
+                content = _rewrite_css_outside_strings(
+                    self._bundle.rx_css_import,
+                    lambda matchobj: f"/* {matchobj.group(0)} */",
+                    content,
+                )
+                content_bundle_list.append(content)
+                content_line_count += content.count("\n") + 1
+        return (
+            "\n".join(content_bundle_list)
+            + f"\n/*# sourceMappingURL={sourcemap_url} */"
+        )
 
     def compile_css(self, compiler: Callable[[str], str], source: str) -> str:
         """Sanitize @import rules, remove duplicates, then compile.
