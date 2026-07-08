@@ -11,6 +11,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import SUPERUSER_ID, _, api, fields, models, modules
+from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import (
@@ -1142,9 +1143,10 @@ class AccountMove(models.Model):
     def _compute_is_storno(self):
         for move in self:
             is_refund = move.move_type in ("out_refund", "in_refund")
-            move.is_storno = move.is_storno or (
-                is_refund and move.company_id.account_storno
-            )
+            # `is_storno` is a non-stored readonly compute, so reading it here
+            # always yields the protected default (False) — the former
+            # `move.is_storno or ...` was dead. The value is fully derived.
+            move.is_storno = is_refund and move.company_id.account_storno
 
     @api.depends("company_id", "invoice_filter_type_domain", "move_type")
     def _compute_suitable_journal_ids(self):
@@ -1335,7 +1337,7 @@ class AccountMove(models.Model):
                 ]
             ).sorted(key=_bank_selection_key)[:1]
 
-    @api.depends("partner_id")
+    @api.depends("partner_id", "move_type", "company_id")
     def _compute_invoice_payment_term_id(self):
         for move in self:
             move = move.with_company(move.company_id)
@@ -1552,6 +1554,7 @@ class AccountMove(models.Model):
         "state",
         "company_id",
         "reconciled_payment_ids.state",
+        "matched_payment_ids.state",
     )
     def _compute_payment_state(self):
         def _invoice_qualifies(move):
@@ -1963,7 +1966,7 @@ class AccountMove(models.Model):
                 move.invoice_outstanding_credits_debits_widget
             )
 
-    @api.depends("partner_id", "company_id")
+    @api.depends("partner_id", "company_id", "move_type")
     def _compute_preferred_payment_method_line_id(self):
         for move in self:
             partner = move.partner_id.with_company(move.company_id)
@@ -3370,17 +3373,33 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
 
     def _search_journal_group_id(self, operator, value):
-        field = "name" if "like" in operator else "id"
+        # A negated operator must invert the *membership* domain, not the group
+        # lookup. Searching groups with the negated operator (e.g. `id != value`)
+        # and OR-ing their ledgers yields "belongs to some other ledger", which
+        # is not the complement of "belongs to this ledger" — and collapses to
+        # match-nothing when `value` is the only group. So resolve the groups with
+        # the positive operator, build the membership domain, then negate it.
+        positive_operator = {
+            "!=": "=",
+            "not in": "in",
+            "not like": "like",
+            "not ilike": "ilike",
+            "not =like": "=like",
+            "not =ilike": "=ilike",
+        }.get(operator)
+        search_operator = positive_operator or operator
+        field = "name" if "like" in search_operator else "id"
         journal_groups = self.env["account.journal.group"].search(
-            [(field, operator, value)]
+            [(field, search_operator, value)]
         )
-        return Domain.OR(
+        membership = Domain.OR(
             [
                 Domain("journal_id", "not in", group.excluded_journal_ids.ids)
                 & Domain("journal_id.company_id", "=?", group.company_id.id)
                 for group in journal_groups
             ]
         )
+        return ~membership if positive_operator else membership
 
     def _search_reconciled_payment_ids(self, operator, value):
         if operator not in ("in", "="):
@@ -4128,7 +4147,11 @@ class AccountMove(models.Model):
         ]
 
     def read(self, fields=None, load="_classic_read"):
-        fields = fields or self._get_default_read_fields()
+        # Only substitute the default field set when the caller asked for "all"
+        # (fields is None). An explicit empty list is the idiomatic "just ids"
+        # call and must NOT be inflated to every default field.
+        if fields is None:
+            fields = self._get_default_read_fields()
         return super().read(fields, load)
 
     @api.model
@@ -4526,6 +4549,23 @@ class AccountMove(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    def _unlink_forbid_hashed(self):
+        # A hashed move is the anchor of an inalterability chain; deleting it
+        # breaks the chain that write() otherwise treats as sacrosanct. In
+        # practice a hashed move is already posted (so the posted-line guard and
+        # the "cannot reset a locked entry to draft" check block it), but guard
+        # deletion explicitly too, independent of the restrictive-audit-trail flag.
+        if not self.env.context.get("force_delete") and any(
+            self.mapped("inalterable_hash")
+        ):
+            raise UserError(
+                _(
+                    "You cannot delete a journal entry that has been secured with "
+                    "an inalterability hash."
+                )
+            )
+
+    @api.ondelete(at_uninstall=False)
     def _unlink_account_audit_trail_except_once_post(self):
         if not self.env.context.get("force_delete") and any(
             move.posted_before and move.company_id.restrictive_audit_trail
@@ -4539,14 +4579,21 @@ class AccountMove(models.Model):
             )
 
     def unlink(self):
-        self._update_sequence_made_gap(invalidate_current=True)
-        self = self.with_context(
-            skip_invoice_sync=True, dynamic_unlink=True
-        )  # no need to sync to delete everything
-        logger_message = self._get_unlink_logger_message()
-        self.line_ids.remove_move_reconcile()
-        self.line_ids.unlink()
-        res = super().unlink()
+        # Make the destructive body atomic with the deletion guards. Those guards
+        # (posted-line check, sequence-chain, restrictive audit trail) fire inside
+        # `super().unlink()`, i.e. *after* we have already un-reconciled counterpart
+        # moves and dropped the sequence-gap marker. Without a savepoint, a caller
+        # that catches the guard's UserError without its own rollback (some cron /
+        # script flows) would keep a live move whose reconciliation was destroyed.
+        with self.env.cr.savepoint():
+            self._update_sequence_made_gap(invalidate_current=True)
+            moves = self.with_context(
+                skip_invoice_sync=True, dynamic_unlink=True
+            )  # no need to sync to delete everything
+            logger_message = moves._get_unlink_logger_message()
+            moves.line_ids.remove_move_reconcile()
+            moves.line_ids.unlink()
+            res = super(AccountMove, moves).unlink()
         if logger_message:
             _logger.info(logger_message)
         return res
@@ -6671,7 +6718,16 @@ class AccountMove(models.Model):
             # if computed with the mixin we are guaranteed to not have gaps, need to bypass to avoid concurrency issues
             if not move.name or move.name == "/":
                 return False
-            format_string, format_values = move._get_sequence_format_param(move.name)
+            try:
+                format_string, format_values = move._get_sequence_format_param(
+                    move.name
+                )
+            except ValidationError:
+                # The name doesn't parse under the current (possibly just
+                # overridden) sequence regex, so it can't be keyed against the
+                # mixin cache. Treat it as not mixin-computed and fall back to
+                # normal gap detection instead of crashing the whole gap update.
+                return False
             format_values.pop("seq")
             # Keyed on `self` (the written/unlinked batch), not `move`, on
             # purpose: for single-record operations this matches the mixin's
@@ -6756,8 +6812,17 @@ class AccountMove(models.Model):
                 current_move.made_sequence_gap = current_made_gap
 
             if move_n1:
+                # When the current move leaves the sequence (unlink / rename to
+                # "/"), its slot becomes a hole, so the following move is a gap —
+                # regardless of whether current had a predecessor. The old
+                # `invalidate_current and move_p1` missed this whenever the
+                # predecessor was itself removed first (its sequence_prefix turns
+                # to "" and it drops out of the prefix-filtered window), so
+                # deleting/renaming the first of several moves flagged nothing.
+                # Over-flagging on a later restore is corrected by the paired
+                # invalidate_current=False pass via check_around.
                 n1_made_gap = bool(
-                    (invalidate_current and move_p1)
+                    invalidate_current
                     or check_around(
                         self.browse() if invalidate_current else current_move,
                         move_n1,
@@ -7035,6 +7100,11 @@ class AccountMove(models.Model):
         return self.action_force_register_payment()
 
     def action_force_register_payment(self):
+        # NB: intentionally NOT guarded on `state == 'posted'`. This is the
+        # "force" entry point — a hidden gear-menu action lets users register a
+        # payment on a *draft* move on purpose (see test_in_invoice_payment_
+        # register_wizard). The posted-state check belongs only on the regular
+        # action_register_payment wrapper.
         if any(m.move_type == "entry" for m in self):
             raise UserError(
                 _("You cannot register payments for miscellaneous entries.")
@@ -7462,7 +7532,9 @@ class AccountMove(models.Model):
             ("date", "<=", fields.Date.context_today(self)),
             ("auto_post", "!=", "no"),
         ]
-        moves = self.search(domain, limit=batch_size)
+        # Lock the batch up front (SKIP LOCKED) so concurrent cron workers don't
+        # both select and race on the same drafts.
+        moves = self.search(domain, limit=batch_size).try_lock_for_update()
         remaining = len(moves) if len(moves) < batch_size else self.search_count(domain)
         self.env["ir.cron"]._commit_progress(remaining=remaining)
 
@@ -7470,9 +7542,9 @@ class AccountMove(models.Model):
             moves._post()
             self.env["ir.cron"]._commit_progress(len(moves))
             return
-        except (
-            UserError
-        ):  # if at least one move cannot be posted, handle moves one by one
+        except Exception:
+            # Any failure (not just UserError) drops to per-move handling so a
+            # single poison move can't abort the whole batch.
             self.env.cr.rollback()
 
         for move in moves:
@@ -7483,7 +7555,17 @@ class AccountMove(models.Model):
                     continue
                 move._post()
                 self.env["ir.cron"]._commit_progress(1)
-            except UserError as e:
+            except PG_RETRY_EXCEPTIONS:
+                # Transient serialization / lock conflict: let it propagate so the
+                # cron framework replays the job. Disabling auto_post here would
+                # wrongly punish a move that merely lost a race.
+                raise
+            except Exception as e:
+                # Isolate the failing move: record the reason, disable its
+                # auto-post so it is not re-selected on every subsequent run
+                # (which would permanently stall autoposting for everyone), and
+                # commit progress past it. Broad by design — a deterministic
+                # UserError or a bug on one move must not poison the cron.
                 self.env.cr.rollback()
                 msg = _(
                     "The move could not be posted for the following reason: %(error_message)s",
@@ -7492,9 +7574,6 @@ class AccountMove(models.Model):
                 move.message_post(body=msg, message_type="comment")
                 move.auto_post = "no"
                 self.env["ir.cron"]._commit_progress(1)
-            # No commit on unexpected exceptions: _commit_progress() commits
-            # the cursor, and committing from a finally block would persist a
-            # half-posted move before the error propagates.
 
     @api.model
     def _cron_account_move_send(self, job_count=10):
@@ -8616,26 +8695,36 @@ class AccountMove(models.Model):
     def _refunds_origin_required(self):
         return False
 
-    def _set_reversed_entry(self, credit_note):
-        """Try to find the original invoice for a single credit_note."""
-        if len(credit_note) != 1 or credit_note.move_type != "out_refund":
-            return
+    def _set_reversed_entry(self, credit_notes):
+        """Link each out_refund credit note to the original invoice it reverses.
 
-        # Subset test: every sale order line of the credit note must also be on
-        # the candidate invoice. Recordset `in` is *singleton membership*
-        # (`len(item) == 1 and item.id in self`), so it silently failed for any
-        # credit note spanning more than one sale order line.
-        credit_note_sale_lines = credit_note.invoice_line_ids.sale_line_ids
-        original_invoice = self.filtered(
-            lambda inv: (
-                inv.move_type == "out_invoice"
-                and credit_note_sale_lines
-                and set(credit_note_sale_lines.ids)
-                <= set(inv.invoice_line_ids.sale_line_ids.ids)
+        `self` is the set of candidate original invoices; `credit_notes` may hold
+        several refunds (e.g. one sale-order invoicing run switching multiple
+        negative moves), so process them individually instead of no-oping on a
+        multi-record set.
+        """
+        for credit_note in credit_notes:
+            if credit_note.move_type != "out_refund":
+                continue
+
+            # Subset test: every sale order line of the credit note must also be
+            # on the candidate invoice. Recordset `in` is *singleton membership*
+            # (`len(item) == 1 and item.id in self`), so it silently failed for
+            # any credit note spanning more than one sale order line.
+            credit_note_sale_lines = credit_note.invoice_line_ids.sale_line_ids
+            original_invoice = self.filtered(
+                lambda inv, sale_lines=credit_note_sale_lines: (
+                    inv.move_type == "out_invoice"
+                    and sale_lines
+                    and set(sale_lines.ids)
+                    <= set(inv.invoice_line_ids.sale_line_ids.ids)
+                )
             )
-        )
-        if len(original_invoice) == 1 and original_invoice._refunds_origin_required():
-            credit_note.reversed_entry_id = original_invoice.id
+            if (
+                len(original_invoice) == 1
+                and original_invoice._refunds_origin_required()
+            ):
+                credit_note.reversed_entry_id = original_invoice.id
 
     @api.model
     def get_invoice_localisation_fields_required_to_invoice(self, country_id):
