@@ -472,6 +472,17 @@ class IrMail_Server(models.Model):
         :raises UserError: if the connection fails and if ``autodetect_max_email_size`` and
             the server doesn't support the auto-detection of email max size
         """
+        if self._disable_send():
+            # _connect__() returns None in this mode; without this guard the
+            # probe below would crash with an AttributeError on None wrapped
+            # in a misleading "Connection Test Failed" message.
+            raise UserError(
+                _(
+                    "Testing the SMTP connection is not possible because "
+                    "outgoing emails are disabled (test mode or registry "
+                    "initialization)."
+                )
+            )
         for server in self:
             smtp = False
             try:
