@@ -31,6 +31,23 @@ _MOBILE_PLATFORMS = frozenset(
     }
 )
 
+# Single source of truth for the columns identifying one "device" (RDEV-P4,
+# audit 2026-07-07): both the ``res.device`` SQL view de-dup (ResDevice._where)
+# and the ``res.device.log`` GC (ResDeviceLog._gc_device_log) derive their
+# grouping from this constant so the two queries cannot drift apart again
+# (the view used to de-dup on user_id while GC de-dupped on ip_address).
+# The boolean flags a nullable column: those must be compared NULL-safely
+# (IS NOT DISTINCT FROM) in join conditions; window-function PARTITION BY
+# groups NULLs together natively. The column order matches the leading
+# columns of ``ResDeviceLog._composite_idx``.
+_DEVICE_IDENTITY_COLUMNS = (
+    # (column, nullable)
+    ("user_id", True),
+    ("session_identifier", False),
+    ("platform", True),
+    ("browser", True),
+)
+
 
 class ResDeviceLog(models.Model):
     _name = "res.device.log"
@@ -188,13 +205,21 @@ class ResDeviceLog(models.Model):
         # had no supporting index (both composite indexes are partial on
         # `revoked`, which GC does not filter on) and degraded quadratically
         # per device group; a single window-function pass sorts once instead.
-        # PARTITION BY groups NULLs together, matching the old
-        # IS NOT DISTINCT FROM joins for NULL platform/browser/ip_address.
-        # Deliberate change: on last_activity ties the old query kept every
-        # tied row; this keeps exactly one — greatest (last_activity, id) —
-        # aligning GC with the res.device view tie-break (see ResDevice._where).
-        # last_activity is never NULL in practice (the single insert path in
-        # _update_device always sets it).
+        # PARTITION BY groups NULLs together, matching NULL-safe device
+        # identity comparison. Deliberate change: on last_activity ties the
+        # old query kept every tied row; this keeps exactly one — greatest
+        # (last_activity, id) — aligning GC with the res.device view
+        # tie-break (see ResDevice._where). last_activity is never NULL in
+        # practice (the single insert path in _update_device always sets it).
+        #
+        # RDEV-P4 (audit 2026-07-07): the partition derives from
+        # _DEVICE_IDENTITY_COLUMNS, the same constant the res.device view
+        # de-dups on, plus ip_address: GC deliberately keeps one row per IP
+        # of a device so _compute_linked_ip_addresses retains the IP history
+        # of rows the view itself hides.
+        partition_columns = SQL(", ").join(
+            SQL.identifier(column) for column, _nullable in _DEVICE_IDENTITY_COLUMNS
+        )
         self.env.cr.execute(
             SQL(
                 """
@@ -204,15 +229,15 @@ class ResDeviceLog(models.Model):
                 FROM (
                     SELECT id,
                            row_number() OVER (
-                               PARTITION BY session_identifier, platform,
-                                            browser, ip_address
+                               PARTITION BY %(partition_columns)s, ip_address
                                ORDER BY last_activity DESC, id DESC
                            ) AS rn
                     FROM res_device_log
                 ) ranked
                 WHERE ranked.rn > 1
             )
-        """
+        """,
+                partition_columns=partition_columns,
             )
         )
         _logger.info("GC device logs delete %d entries", self.env.cr.rowcount)
@@ -332,17 +357,27 @@ class ResDevice(models.Model):
 
     @api.model
     def _where(self) -> str:
-        """Return the WHERE clause keeping the latest non-revoked log per device."""
-        return """
+        """Return the WHERE clause keeping the latest non-revoked log per device.
+
+        The device identity join derives from ``_DEVICE_IDENTITY_COLUMNS``
+        (RDEV-P4) — the same constant ``ResDeviceLog._gc_device_log`` partitions
+        on — so the view and the GC can never de-dup on diverging column sets.
+        All fragments interpolated below are module-level literals, not user
+        input (see the SQL wrapper rule, coding_guidelines §10.4).
+        """
+        identity_join = "\n                        AND ".join(
+            f"D2.{column} IS NOT DISTINCT FROM D.{column}"
+            if nullable
+            else f"D2.{column} = D.{column}"
+            for column, nullable in _DEVICE_IDENTITY_COLUMNS
+        )
+        return f"""
             WHERE
                 NOT EXISTS (
                     SELECT 1
                     FROM res_device_log D2
                     WHERE
-                        D2.user_id = D.user_id
-                        AND D2.session_identifier = D.session_identifier
-                        AND D2.platform IS NOT DISTINCT FROM D.platform
-                        AND D2.browser IS NOT DISTINCT FROM D.browser
+                        {identity_join}
                         AND (
                             D2.last_activity > D.last_activity
                             OR (D2.last_activity = D.last_activity AND D2.id > D.id)
