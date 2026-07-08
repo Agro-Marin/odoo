@@ -1322,3 +1322,132 @@ class TestDeviceLogGC(TransactionCase):
             order="id",
         )
         self.assertEqual(survivors, keep_a | keep_b | keep_c | keep_d)
+
+
+class TestAccessesCount(UsersCommonCase):
+    """accesses_count / rules_count computed via search_count (RU-P5).
+
+    The compute must not materialize every reachable ir.model.access /
+    ir.rule record into the ORM cache; the counts must keep matching the
+    x2many reads they replaced, which filter archived ACLs/rules at access
+    time under the caller's active_test (RelationalMulti._make_corecords).
+    """
+
+    def test_counts_match_relational_reads(self):
+        user = self.user_internal
+        groups = user.all_group_ids
+        self.assertEqual(user.groups_count, len(groups))
+        self.assertEqual(user.accesses_count, len(groups.model_access))
+        self.assertEqual(user.rules_count, len(groups.rule_groups))
+        self.assertGreater(user.accesses_count, 0)
+        self.assertGreater(user.rules_count, 0)
+
+    def test_counts_follow_active_test_like_the_relational_reads(self):
+        group = self.env["res.groups"].create({"name": "accesses count group"})
+        model_partner = self.env.ref("base.model_res_partner")
+        rule = self.env["ir.rule"].create(
+            {
+                "name": "accesses count rule",
+                "model_id": model_partner.id,
+                "groups": [Command.link(group.id)],
+                "domain_force": "[(1, '=', 1)]",
+            }
+        )
+        acl = self.env["ir.model.access"].create(
+            {
+                "name": "accesses count acl",
+                "model_id": model_partner.id,
+                "group_id": group.id,
+                "perm_read": True,
+            }
+        )
+        self.user_internal.write({"group_ids": [Command.link(group.id)]})
+        user = self.user_internal
+        groups = user.all_group_ids
+        self.assertIn(acl, groups.model_access)
+        self.assertIn(rule, groups.rule_groups)
+        active_accesses = user.accesses_count
+        active_rules = user.rules_count
+        self.assertEqual(active_accesses, len(groups.model_access))
+        self.assertEqual(active_rules, len(groups.rule_groups))
+
+        # Archiving removes them from the default-context counts, exactly
+        # like the x2many recordsets (filtered at access time)...
+        rule.action_archive()
+        acl.action_archive()
+        self.env.invalidate_all()
+        self.assertNotIn(acl, groups.model_access)
+        self.assertNotIn(rule, groups.rule_groups)
+        self.assertEqual(user.accesses_count, active_accesses - 1)
+        self.assertEqual(user.rules_count, active_rules - 1)
+        self.assertEqual(user.accesses_count, len(groups.model_access))
+        self.assertEqual(user.rules_count, len(groups.rule_groups))
+
+        # ... while an active_test=False context keeps seeing them, as the
+        # relational reads did (invalidate first: the non-stored integer
+        # cache is context-independent, for the old compute too).
+        self.env.invalidate_all()
+        user_no_active_test = user.with_context(active_test=False)
+        groups_no_active_test = user_no_active_test.all_group_ids
+        self.assertIn(acl, groups_no_active_test.model_access)
+        self.assertIn(rule, groups_no_active_test.rule_groups)
+        self.assertEqual(
+            user_no_active_test.accesses_count,
+            len(groups_no_active_test.model_access),
+        )
+        self.assertEqual(
+            user_no_active_test.rules_count,
+            len(groups_no_active_test.rule_groups),
+        )
+
+
+class TestWriteCacheInvalidation(UsersCommonCase):
+    """Cache invalidation contract of res.users.write (RU-P6).
+
+    A group_ids write clears the "stable" cache group, whose cascade already
+    covers the "default" group; the invalidation-fields branch is skipped in
+    that case (no double clear). These tests pin that the cascade keeps
+    invalidating the default-cached per-uid context — with and without
+    group_ids in the same write.
+    """
+
+    def _user_context_lang(self, user):
+        return self.env["res.users"].with_user(user).context_get()["lang"]
+
+    def test_lang_only_write_invalidates_context_cache(self):
+        self.env["res.lang"]._activate_lang("fr_FR")
+        user = self.user_internal
+        self.assertEqual(self._user_context_lang(user), "en_US")  # prime cache
+        user.write({"lang": "fr_FR"})
+        self.assertEqual(self._user_context_lang(user), "fr_FR")
+
+    def test_combined_group_and_lang_write_invalidates_context_cache(self):
+        # group_ids takes the call_cache_clearing_methods() branch; the lang
+        # invalidation must still happen through the stable->default cascade.
+        self.env["res.lang"]._activate_lang("fr_FR")
+        user = self.user_internal
+        self.assertEqual(self._user_context_lang(user), "en_US")  # prime cache
+        group = self.env["res.groups"].create({"name": "cache inval group"})
+        user.write({"group_ids": [Command.link(group.id)], "lang": "fr_FR"})
+        self.assertEqual(self._user_context_lang(user), "fr_FR")
+        self.assertIn(group, user.all_group_ids)
+
+
+class TestInstalledLangCodes(TransactionCase):
+    """Memoised installed-language codes used by context_get (RU-P7)."""
+
+    def test_codes_match_get_installed_and_track_activation(self):
+        Users = self.env["res.users"]
+        codes = Users._get_installed_lang_codes()
+        self.assertIsInstance(codes, frozenset)
+        self.assertIn("en_US", codes)
+        self.assertEqual(
+            codes,
+            frozenset(code for code, _name in self.env["res.lang"].get_installed()),
+        )
+        if "fr_FR" in codes:
+            self.skipTest("fr_FR already installed; cannot test invalidation")
+        # activating a language must invalidate the memoised set
+        self.env["res.lang"]._activate_lang("fr_FR")
+        self.assertIn("fr_FR", Users._get_installed_lang_codes())
+
