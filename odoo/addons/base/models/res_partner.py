@@ -1276,10 +1276,17 @@ class ResPartner(models.Model):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("parent_id"):
             vals["company_name"] = False
-        # NB: no bank-account holder-name sync here — res.partner.bank's
-        # acc_holder_name is a stored computed field (@api.depends on
-        # partner_id.name), so renaming a partner already recomputes every
-        # linked bank's holder name. A manual loop here would be redundant.
+        if vals.get("name"):
+            # Guarded bank-account holder-name sync: acc_holder_name is a
+            # user-editable default (stored compute depending on partner_id
+            # only — see res.partner.bank), so a rename does NOT recompute it.
+            # Follow the rename only on accounts still matching the current
+            # (pre-write) partner name; hand-customized names are preserved.
+            banks_to_sync = self.bank_ids.filtered(
+                lambda bank: bank.acc_holder_name == bank.partner_id.name
+            )
+            if banks_to_sync:
+                banks_to_sync.acc_holder_name = vals["name"]
 
         # filter to keep only really updated values -> field synchronize goes through
         # partner tree and we should avoid infinite loops in case same value is
