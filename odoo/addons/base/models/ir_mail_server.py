@@ -759,8 +759,15 @@ class IrMail_Server(models.Model):
         key_filename = ssl_private_key or tools.config.get(
             "smtp_ssl_private_key_filename"
         )
+        server = host or tools.config.get("smtp_server")
         if cert_filename and key_filename:
-            ssl_context = self._ssl_context_from_cert_files(cert_filename, key_filename)
+            # The client-certificate context must still honour the encryption
+            # strictness of the transport: 'strict' variants get server
+            # certificate + hostname verification, exactly like the
+            # record-based path (_ssl_context_from_certificate).
+            ssl_context = self._ssl_context_from_cert_files(
+                cert_filename, key_filename, encryption, server
+            )
         elif encryption not in (None, "none"):
             # Without a client certificate, the raw-parameter path still has to
             # honour the encryption strictness the caller asked for. Skipping
@@ -773,7 +780,7 @@ class IrMail_Server(models.Model):
             ssl_context = None
 
         return _SmtpTransport(
-            server=host or tools.config.get("smtp_server"),
+            server=server,
             port=tools.config.get("smtp_port", 25) if port is None else port,
             user=user or tools.config.get("smtp_user"),
             password=password or tools.config.get("smtp_password"),
@@ -845,9 +852,7 @@ class IrMail_Server(models.Model):
         # rewrite the envelope FROM to receive bounces (see _SmtpSessionContext).
         self._stash_session_context(
             connection,
-            _SmtpSessionContext(
-                from_filter=transport.from_filter, smtp_from=smtp_from
-            ),
+            _SmtpSessionContext(from_filter=transport.from_filter, smtp_from=smtp_from),
         )
         return connection
 
@@ -931,13 +936,32 @@ class IrMail_Server(models.Model):
         return ssl_context
 
     def _ssl_context_from_cert_files(
-        self, cert_filename: str, key_filename: str
+        self,
+        cert_filename: str,
+        key_filename: str,
+        encryption: str | None = None,
+        smtp_server: str | None = None,
     ) -> PyOpenSSLContext:
         """Build a client-auth SSL context from certificate/key files on disk
-        (CLI/config ``--smtp-ssl-*-filename`` arguments)."""
+        (CLI/config ``--smtp-ssl-*-filename`` arguments).
+
+        The 'strict' encryption variants verify the peer and its hostname
+        (mirroring :meth:`_ssl_context_from_certificate`); the lax variants
+        disable verification.
+        """
         try:
             ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            ssl_context.verify_mode = ssl.CERT_NONE
+            if encryption in ("ssl_strict", "starttls_strict"):
+                ssl_context.set_default_verify_paths()
+                ssl_context._ctx.set_verify(
+                    VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
+                    functools.partial(
+                        _verify_check_hostname_callback,
+                        hostname=smtp_server,
+                    ),
+                )
+            else:  # ssl, starttls, none/None
+                ssl_context.verify_mode = ssl.CERT_NONE
             ssl_context.load_cert_chain(cert_filename, keyfile=key_filename)
             # Check that the private key matches the certificate
             ssl_context._ctx.check_privatekey()
