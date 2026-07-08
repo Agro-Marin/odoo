@@ -2948,6 +2948,28 @@ class TestQWebBasic(TransactionCase):
         self.assertIsInstance(cm.exception.__cause__, ValueError)
         self.assertIn("'widget' option", str(cm.exception.__cause__))
 
+    def test_static_node_scheme_not_scrubbed(self):
+        """The malicious-scheme scrub targets dynamic attributes only; static
+        (template-author) attributes pass through — wired via the explicit
+        ``is_static`` keyword instead of the old in-band ``__is_static_node``
+        sentinel (which could leak into the rendered HTML)."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "static-scheme",
+                "type": "qweb",
+                "arch_db": """<t t-name="static-scheme">
+                    <a href="javascript:alert(2)">static</a>
+                    <a t-att-href="url">dynamic</a>
+                </t>""",
+            }
+        )
+        rendered = str(
+            self.env["ir.qweb"]._render(view.id, {"url": "javascript:alert(1)"})
+        )
+        self.assertIn('href="javascript:alert(2)"', rendered)
+        self.assertNotIn("javascript:alert(1)", rendered)
+        self.assertNotIn("__is_static_node", rendered)
+
     def test_void_element(self):
         view = self.env["ir.ui.view"].create(
             {
@@ -3550,7 +3572,7 @@ class TestQWebHelpers(TransactionCase):
         # static node attributes come from the (trusted) template: not scrubbed
         self.assertEqual(
             qweb._post_processing_att(
-                "a", {"href": "javascript:alert(1)", "__is_static_node": True}
+                "a", {"href": "javascript:alert(1)"}, is_static=True
             )["href"],
             "javascript:alert(1)",
         )

@@ -2352,9 +2352,7 @@ class IrQweb(models.AbstractModel):
         """Compile a purely static element into a list of string."""
         if not el.nsmap:
             unqualified_el_tag = el_tag = el.tag
-            attrib = self._post_processing_att(
-                el.tag, dict(el.attrib) | {"__is_static_node": True}
-            )
+            attrib = self._post_processing_att(el.tag, dict(el.attrib), is_static=True)
         else:
             # Etree will remove the ns prefixes indirection by inlining the corresponding
             # nsmap definition into the tag attribute. Restore the tag and prefix here.
@@ -2386,9 +2384,7 @@ class IrQweb(models.AbstractModel):
                 else:
                     attrib[name] = value
 
-            attrib = self._post_processing_att(
-                el.tag, attrib | {"__is_static_node": True}
-            )
+            attrib = self._post_processing_att(el.tag, attrib, is_static=True)
 
             # Update the dict of inherited namespaces before continuing the recursion. Note:
             # since `compile_context['nsmap']` is a dict (and therefore mutable) and we do **not**
@@ -3655,11 +3651,15 @@ class IrQweb(models.AbstractModel):
                 # every render after the first emits an empty <script>. Read with
                 # .get and pass a 'text'-free copy to attribute post-processing.
                 text_content = asset_attrs.get("text") if asset_attrs else None
+                # Asset nodes are framework-generated static markup (bundle
+                # URLs, media/defer attributes): post-process them as static
+                # attributes, like the other compile-time static nodes.
                 attrs = self._post_processing_att(
                     tagName,
                     {k: v for k, v in asset_attrs.items() if k != "text"}
                     if asset_attrs
                     else {},
+                    is_static=True,
                 )
                 for name, value in attrs.items():
                     if value or isinstance(value, str):
@@ -3700,7 +3700,7 @@ class IrQweb(models.AbstractModel):
             raise ValueError(f"unsupported t-debug value: {debugger}")
 
     def _post_processing_att(
-        self, tagName: str, atts: dict[str, Any]
+        self, tagName: str, atts: dict[str, Any], *, is_static: bool = False
     ) -> dict[str, Any]:
         """Method called at compile time for static nodes and at running time
         for dynamic attributes.
@@ -3708,9 +3708,17 @@ class IrQweb(models.AbstractModel):
         May be overridden to filter or modify the attributes (during compilation
         for static nodes, or after compilation for dynamic elements).
 
+        :param is_static: ``True`` when called at compile time on the
+            attributes of a purely static node (template-author content).
+            Dynamic attributes (``is_static=False``) additionally get the
+            malicious-scheme scrub below. An explicit keyword rather than an
+            in-band ``__is_static_node`` key smuggled through ``atts``: the
+            sentinel leaked into the rendered HTML whenever an override
+            returned before calling ``super()``.
+
         :rtype: dict
         """
-        if not atts.pop("__is_static_node", False):
+        if not is_static:
             for attr in ("href", "src", "action", "formaction"):
                 if (value := atts.get(attr)) and MALICIOUS_SCHEMES(
                     URL_CONTROL_CHARS.sub("", str(value))
