@@ -363,6 +363,13 @@ class TestHttpSession(TestHttpBase):
             self.env["ir.http"]._gc_sessions()
             mock.assert_not_called()
 
+        # Documented off-values do not count as "set": the GC still runs.
+        for off_value in ("0", "false", "no"):
+            with patch.dict(os.environ, {"ODOO_SKIP_GC_SESSIONS": off_value}):
+                mock.reset_mock()
+                self.env["ir.http"]._gc_sessions()
+                mock.assert_called_once()
+
     def test_session09_logout(self):
         sid = self.authenticate("admin", "admin").sid
         self.assertTrue(odoo.http.root.session_store.get(sid), "session should exist")

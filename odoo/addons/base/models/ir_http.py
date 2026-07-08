@@ -25,7 +25,7 @@ from odoo.libs.json import dumps_bytes as json_dumps_bytes
 from odoo.modules.registry import Registry
 from odoo.service import security
 from odoo.tools.json import json_default
-from odoo.tools.misc import get_lang
+from odoo.tools.misc import get_lang, str2bool
 from odoo.tools.translate import code_translations
 
 _logger = logging.getLogger(__name__)
@@ -454,7 +454,10 @@ class IrHttp(models.AbstractModel):
 
     @api.autovacuum
     def _gc_sessions(self) -> None:
-        if os.getenv("ODOO_SKIP_GC_SESSIONS"):
+        # str2bool so the documented off-values ("0"/"false"/"no"/...) do not
+        # count as "set" and skip the GC (same pattern as ir_cron's
+        # ODOO_NOTIFY_CRON_CHANGES).
+        if str2bool(os.getenv("ODOO_SKIP_GC_SESSIONS", ""), default=False):
             return
         http.root.session_store.vacuum(
             max_lifetime=http.get_session_max_inactivity(self.env)
