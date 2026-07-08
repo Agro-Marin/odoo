@@ -108,3 +108,30 @@ class TestCronTriggerCoalesce(TransactionCase):
         self.assertEqual(len(triggers), 1)
         # No quantization: the sub-minute seconds are preserved verbatim.
         self.assertEqual(triggers.call_at, at)
+
+
+@tagged("post_install", "-at_install")
+class TestCronTriggerIndexes(TransactionCase):
+    """Pin the ir_cron_trigger index layout: a composite (cron_id, call_at)
+    serves both the ready-jobs EXISTS probe and plain cron_id lookups, so the
+    old single-column cron_id index must be gone; call_at keeps its own index
+    for the autovacuum GC scan."""
+
+    def test_trigger_index_layout(self):
+        self.env.cr.execute(
+            "SELECT indexname, indexdef FROM pg_indexes"
+            " WHERE tablename = 'ir_cron_trigger'"
+        )
+        indexes = dict(self.env.cr.fetchall())
+        composite = indexes.get("ir_cron_trigger_cron_id_call_at_idx")
+        self.assertTrue(composite, f"composite index missing, got: {sorted(indexes)}")
+        self.assertIn("(cron_id, call_at)", composite)
+        # call_at keeps a dedicated index (leading column call_at) for the GC.
+        self.assertTrue(
+            any("(call_at)" in d for d in indexes.values()),
+            f"call_at index missing, got: {indexes}",
+        )
+        # The composite's prefix covers cron_id, so the field must no longer
+        # declare its own index. (Checked on the declaration, not pg_indexes:
+        # on a legacy database the ORM keeps the now-"unexpected" old index.)
+        self.assertFalse(self.env["ir.cron.trigger"]._fields["cron_id"].index)

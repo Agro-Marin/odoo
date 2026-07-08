@@ -1224,8 +1224,15 @@ class IrCronTrigger(models.Model):
     _rec_name = "cron_id"
     _allow_sudo_commands = False
 
-    cron_id = fields.Many2one("ir.cron", index=True, required=True, ondelete="cascade")
+    cron_id = fields.Many2one("ir.cron", required=True, ondelete="cascade")
+    # `call_at` keeps its own index: `_gc_cron_triggers` scans on call_at alone.
     call_at = fields.Datetime(index=True, required=True)
+
+    # The ready-jobs EXISTS probe (`_get_ready_jobs_condition`) filters on
+    # ``cron_id = ... AND call_at <= now``; this composite serves both that
+    # probe and plain cron_id lookups (e.g. `_clear_schedule`), so a separate
+    # single-column cron_id index would be redundant (its prefix covers it).
+    _cron_id_call_at_idx = models.Index("(cron_id, call_at)")
 
     @api.autovacuum
     def _gc_cron_triggers(self) -> tuple[int, bool]:
