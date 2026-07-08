@@ -447,6 +447,93 @@ class TestResCurrency(TransactionCase):
         newest.company_id = other_company
         self.assertAlmostEqual(currency.rate, rate_before / 2)
 
+    def test_rate_change_of_company_currency_invalidates_other_currencies(self):
+        """RCUR-C2: rate/inverse_rate/rate_string of a currency are computed
+        against the company currency's own rate rows — a cross-record
+        dependency @api.depends cannot express.  Creating, writing or deleting
+        a rate of the *company* currency must therefore invalidate all three
+        fields model-wide, not only inverse_rate.
+        """
+        company_currency, other = self.env["res.currency"].create(
+            [
+                {"name": "CMX", "symbol": "M"},
+                {"name": "CXX", "symbol": "X"},
+            ]
+        )
+        company = self.env["res.company"].create(
+            {"name": "rate invalidation co", "currency_id": company_currency.id}
+        )
+        company_rate = self.env["res.currency.rate"].create(
+            {
+                "name": "2020-01-01",
+                "rate": 20,
+                "currency_id": company_currency.id,
+                "company_id": company.id,
+            }
+        )
+        self.env["res.currency.rate"].create(
+            {
+                "name": "2020-01-01",
+                "rate": 2,
+                "currency_id": other.id,
+                "company_id": company.id,
+            }
+        )
+        other = other.with_company(company).with_context(date="2020-06-01")
+
+        # prime the cache: 2 units of 'other' per 20 units of company currency
+        self.assertAlmostEqual(other.rate, 2 / 20)
+        self.assertIn(f"{2 / 20:.6f}", other.rate_string)
+
+        # write on the COMPANY currency's rate row: 'other' owns no changed
+        # rate row, so only the model-wide invalidation can refresh it
+        company_rate.rate = 10
+        self.assertAlmostEqual(other.rate, 2 / 10)
+        self.assertAlmostEqual(other.inverse_rate, 10 / 2)
+        self.assertIn(f"{2 / 10:.6f}", other.rate_string)
+
+        # create a newer rate row for the company currency
+        newer = self.env["res.currency.rate"].create(
+            {
+                "name": "2020-03-01",
+                "rate": 4,
+                "currency_id": company_currency.id,
+                "company_id": company.id,
+            }
+        )
+        self.assertAlmostEqual(other.rate, 2 / 4)
+        self.assertIn(f"{2 / 4:.6f}", other.rate_string)
+
+        # unlink it: back to the previous company-currency rate
+        newer.unlink()
+        self.assertAlmostEqual(other.rate, 2 / 10)
+        self.assertIn(f"{2 / 10:.6f}", other.rate_string)
+
+    def test_sanitize_vals_does_not_mutate_caller_dict(self):
+        """RCUR-S1: redundant rate encodings are dropped from a copy; the
+        caller-owned vals dict is left untouched by create() and write().
+        """
+        currency = self.env["res.currency"].create({"name": "SAN", "symbol": "S"})
+        create_vals = {
+            "name": "2020-01-01",
+            "rate": 2.0,
+            "company_rate": 999.0,
+            "inverse_company_rate": 999.0,
+            "currency_id": currency.id,
+            "company_id": self.env.company.id,
+        }
+        create_vals_copy = dict(create_vals)
+        rate = self.env["res.currency.rate"].create(create_vals)
+        self.assertEqual(create_vals, create_vals_copy)
+        # 'rate' won: the redundant encodings were dropped, not applied
+        self.assertAlmostEqual(rate.rate, 2.0)
+
+        write_vals = {"rate": 3.0, "company_rate": 123.0}
+        write_vals_copy = dict(write_vals)
+        rate.write(write_vals)
+        self.assertEqual(write_vals, write_vals_copy)
+        self.assertAlmostEqual(rate.rate, 3.0)
+
     def test_company_rate_history_fallbacks(self):
         """RCUR-P1: company_rate uses the record's own rate, else the latest
         rate strictly before its date, else the identity rate 1.0.
