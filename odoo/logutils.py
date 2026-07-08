@@ -329,6 +329,8 @@ class LogRecord(logging.LogRecord):
         self.perf_info = ""
         self.pid = os.getpid()
         self.dbname = getattr(threading.current_thread(), "dbname", "?")
+        uid = getattr(threading.current_thread(), "uid", None)
+        self.uid = uid if uid is not None else "-"
 
 
 showwarning: object = None
@@ -426,7 +428,7 @@ def init_logger() -> None:
             return
 
     # create a format for log messages and dates
-    format = "%(asctime)s %(pid)s %(levelname)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
+    format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
     # Normal Handler on stderr
     handler = logging.StreamHandler()
 
