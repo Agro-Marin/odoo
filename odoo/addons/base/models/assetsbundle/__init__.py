@@ -19,6 +19,10 @@ package); pipeline internals are imported from their defining module.
 Note: module-level functions patched by string path in tests are patched at
 their real home (``...assetsbundle.css_pipeline._check_rtlcss``,
 ``...assetsbundle.assets.minify_js``) — patch where the name is looked up.
+
+The ``ODOO_EXTERNAL_LIBS`` / esbuild cross-check that used to run here at
+import time now runs lazily on first bundle construction — see
+``bundle._check_external_libs_once``.
 """
 
 # Re-exported from their origin so tests importing them THROUGH this module
@@ -50,7 +54,3 @@ from .common import (
 from .css_pipeline import CssPipeline, _check_rtlcss
 from .store import AssetAttachmentStore
 from .xml_pipeline import XmlTemplatePipeline
-
-# The ``ODOO_EXTERNAL_LIBS`` / esbuild cross-check that used to run here at
-# import time now runs lazily on first bundle construction — see
-# ``bundle._check_external_libs_once``.

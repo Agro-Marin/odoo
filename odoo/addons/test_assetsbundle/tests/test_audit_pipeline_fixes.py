@@ -196,7 +196,7 @@ class TestXmlTemplateTreeImmutable(TransactionCase):
             env=self.env,
             css=False,
         )
-        rendered = bundle._xmltemplates.generate_xml_bundle()
+        rendered = bundle._xml.generate_xml_bundle()
         self.assertIn('xml:space="preserve"', rendered)
         (asset,) = bundle.templates
         for element in asset.template_elements:

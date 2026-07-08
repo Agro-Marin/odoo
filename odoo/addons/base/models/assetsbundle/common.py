@@ -1,23 +1,13 @@
-from __future__ import annotations
-
 import logging
 import re
 import subprocess
 from collections.abc import Callable, Sequence
 from subprocess import PIPE, Popen
-from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from lxml import etree
 
 from odoo.libs.asset_log import get_asset_logger
-
-if TYPE_CHECKING:
-    # Model-class imports must stay typing-only: base/models/__init__
-    # imports assetsbundle FIRST, and registering ir.attachment before
-    # model 'base' exists aborts registry load (house pattern — see
-    # ir_attachment.py's own TYPE_CHECKING block).
-    pass
-
 
 _logger = logging.getLogger("odoo.addons.base.models.assetsbundle")
 

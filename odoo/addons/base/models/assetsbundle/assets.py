@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import functools
 import posixpath
 import re
@@ -351,7 +349,7 @@ class XMLAsset(WebAsset):
 class StylesheetAsset(WebAsset):
     """Plain CSS asset with relative-URL rewriting and regex minification."""
 
-    rx_import = re.compile(r"""@import\s+('|")(?!'|"|/|https?://)""", re.UNICODE)
+    rx_import = re.compile(r"""@import\s+('|")(?!'|"|/|https?://)""")
     # ``rx_url`` matches ``url(`` followed by the optional opening quote
     # and captures the relative body up to (but not including) the
     # closing quote or paren.  Capturing the body lets us prefix
@@ -364,9 +362,8 @@ class StylesheetAsset(WebAsset):
     # §10.2 for the FA-solid preload example.
     rx_url = re.compile(
         r"""(?<!")url\s*\(\s*(?P<q>['"]|)(?!['"]|/|https?://|data:|\#\{str)(?P<body>[^'")\s]*)""",
-        re.UNICODE,
     )
-    rx_charset = re.compile(r'(@charset "[^"]+";)', re.UNICODE)
+    rx_charset = re.compile(r'(@charset "[^"]+";)')
     # The two CSS spans minification must NOT reach into — comments and string
     # literals — tokenized by the shared module-level ``_CSS_STRING_OR_COMMENT``
     # (see its definition for the alternation-order rationale: whichever of a

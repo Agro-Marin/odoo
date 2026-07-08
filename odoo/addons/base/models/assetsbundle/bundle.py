@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import functools
 import hashlib
 import logging
@@ -72,7 +70,7 @@ class AssetsBundle:
     # @import matcher used by ``css()`` and ``CssPipeline.sourcemap_bundle``
     # to hoist and comment @import rules. The stylesheet preprocessor's own
     # import sanitizer and split-marker regexes live on :class:`CssPipeline`.
-    rx_css_import = re.compile(r"(@import[^;{]+;?)", re.MULTILINE)
+    rx_css_import = re.compile(r"(@import[^;{]+;?)")
 
     # Source extensions the ``__init__`` file loop has a case-arm for.
     # Anything else is a misconfiguration tripwire (see the loop), NOT a
@@ -99,7 +97,7 @@ class AssetsBundle:
         cls,
         import_map: Mapping[str, str],
         bare_specifiers: Collection[str] = EXTERNAL_BARE_SPECIFIERS,
-        lib_candidates: Mapping[str, tuple[str, ...]] | None = None,
+        lib_candidates: Mapping[str, tuple[str, ...]] = EsbuildCompiler._LIB_CANDIDATES,
     ) -> None:
         """Cross-check ``ODOO_EXTERNAL_LIBS`` against the esbuild externals.
 
@@ -146,7 +144,8 @@ class AssetsBundle:
             defaults to the live ``EXTERNAL_BARE_SPECIFIERS``; tests pass
             fabricated sets.
         :param lib_candidates: esbuild's inline-alias table — defaults to
-            the live ``EsbuildCompiler._LIB_CANDIDATES``; tests pass
+            the live table (bound once, in the signature, so the cross-layer
+            read is visible here rather than buried in the body); tests pass
             fabricated mappings.
         """
         missing_alias = [
@@ -177,8 +176,6 @@ class AssetsBundle:
                 f"on disk: {missing_files}. Browsers would 404 on the "
                 f"import-map fetch.",
             )
-        if lib_candidates is None:
-            lib_candidates = EsbuildCompiler._LIB_CANDIDATES
         missing_aliases = [
             f"{alias} -> {'/'.join(parts)}"
             for alias, parts in lib_candidates.items()
@@ -688,12 +685,13 @@ class AssetsBundle:
         return JsPipeline(self)
 
     @functools.cached_property
-    def _xmltemplates(self) -> XmlTemplatePipeline:
+    def _xml(self) -> XmlTemplatePipeline:
         """OWL-template rendering pipeline bound to this bundle, built once.
 
         Owns ``xml`` / ``generate_xml_bundle`` and the delivery wrappers; the
         methods below stay as thin façades for the public/test surface and the
-        ``ir_qweb`` call sites. Mirrors :attr:`_css`.
+        ``ir_qweb`` call sites. Completes the ``_js`` / ``_css`` / ``_store``
+        / ``_bridges`` collaborator naming series.
         """
         return XmlTemplatePipeline(self)
 
@@ -709,9 +707,7 @@ class AssetsBundle:
             # as a separate <script type="module"> — see
             # _get_native_module_nodes() and generate_esm_template_bundle().
             template_bundle = (
-                self._xmltemplates.legacy_template_iife()
-                if self._has_legacy_templates
-                else ""
+                self._xml.legacy_template_iife() if self._has_legacy_templates else ""
             )
             if is_minified:
                 content_bundle = self._js.minified_bundle(template_bundle)
@@ -769,11 +765,11 @@ class AssetsBundle:
 
     def xml(self) -> list[XMLBlock]:
         """Delegates to :meth:`XmlTemplatePipeline.xml`."""
-        return self._xmltemplates.xml()
+        return self._xml.xml()
 
     def generate_esm_template_bundle(self, use_import=True) -> str:
         """Delegates to :meth:`XmlTemplatePipeline.generate_esm_template_bundle`."""
-        return self._xmltemplates.generate_esm_template_bundle(use_import)
+        return self._xml.generate_esm_template_bundle(use_import)
 
     @classmethod
     def _render_css_error_banner(
