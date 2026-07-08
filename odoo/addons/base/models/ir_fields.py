@@ -45,8 +45,12 @@ class FakeField(NamedTuple):
 # stand-in used for per-subproperty relational coercion. ``Converter`` is the
 # shape returned by :meth:`IrFieldsConverter.to_field`: a callable mapping a
 # ``fromtype`` value to ``(write_value, warnings)`` (or raising ``ValueError``).
+# ``RecordConverter`` is the record-level shape returned by
+# :meth:`IrFieldsConverter.for_model`: a callable mapping a record-ish dict and
+# a ``log(field, exception)`` callback to a dict of converted write() values.
 type FieldLike = fields.Field | FakeField
 type Converter = Callable[[Any], tuple[Any, list]]
+type RecordConverter = Callable[[dict, Callable], dict]
 
 
 class RefLookup(NamedTuple):
@@ -177,18 +181,19 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def for_model(
         self, model: models.BaseModel, fromtype: type | str = str
-    ) -> Converter:
+    ) -> RecordConverter:
         """Returns a converter object for the model. A converter is a
         callable taking a record-ish (a dictionary representing an odoo
-        record with values of typetag ``fromtype``) and returning a converted
-        record matching what :meth:`odoo.models.Model.write` expects.
+        record with values of typetag ``fromtype``) and a ``log`` callback,
+        and returning a converted record matching what
+        :meth:`odoo.models.Model.write` expects.
 
         The import savepoint is read from the ``import_savepoint`` context key.
 
         :param model: :class:`odoo.models.Model` for the conversion base
         :param fromtype:
-        :returns: a converter callable
-        :rtype: Any
+        :returns: a record-level converter callable
+        :rtype: RecordConverter
         """
         # make sure model is new api
         model = self.env[model._name]
