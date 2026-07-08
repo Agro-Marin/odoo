@@ -2573,7 +2573,11 @@ class IrQweb(models.AbstractModel):
         else:
             code.append(indent_code("values['__qweb_options__'] = {}", level))
 
-        el.set("t-consumed-options", str(bool(code)))
+        # Marker consumed by ``_compile_directive_out`` (and popped by
+        # ``t-call``); ``_compile_directive_consumed_options`` raises if it is
+        # still present after all directives ran. Every branch above appends
+        # code, so the marker is unconditional.
+        el.set("t-consumed-options", "True")
 
         return code
 
@@ -3181,7 +3185,7 @@ class IrQweb(models.AbstractModel):
 
         _ref, path, xml = compile_context["_qweb_error_path_xml"]
 
-        code_options = el.attrib.pop("t-consumed-options", "None")
+        has_options = el.attrib.pop("t-consumed-options", None) is not None
         tag_open = self._compile_directive(
             el, compile_context, "tag-open", level + 1
         ) + self._flush_text(compile_context, level + 1)
@@ -3198,7 +3202,7 @@ class IrQweb(models.AbstractModel):
         # even the value of content is None and without default value)
 
         # Fast path: the t-call content slot with no widget is emitted verbatim.
-        if expr == T_CALL_SLOT and code_options != "True":
+        if expr == T_CALL_SLOT and not has_options:
             code.append(indent_code("if True:", level))
             code.extend(tag_open)
             code.append(indent_code(f"yield values.get({T_CALL_SLOT}, '')", level + 1))
@@ -3206,7 +3210,7 @@ class IrQweb(models.AbstractModel):
             return code
 
         set_code, force_display_dependent = self._compile_out_set_content(
-            el, ttype, expr, code_options, level
+            el, ttype, expr, has_options, level
         )
         code.extend(set_code)
         code.extend(
@@ -3238,11 +3242,15 @@ class IrQweb(models.AbstractModel):
         el: etree._Element,
         ttype: str,
         expr: str,
-        code_options: str,
+        has_options: bool,
         level: int,
     ) -> tuple[list[str], bool]:
         """Emit the code that assigns ``content`` (and merges any widget/field
         attributes into ``__qweb_attrs__``) for a ``t-out``/``t-field`` node.
+
+        :param has_options: the node carried ``t-options``/``t-options-*``
+            (the ``t-consumed-options`` marker), so the value goes through
+            ``_get_widget``.
 
         :return: ``(code_lines, force_display_dependent)`` where the flag is set
             when a widget/field may force the tag to be displayed even for a
@@ -3270,7 +3278,7 @@ class IrQweb(models.AbstractModel):
         else:
             code = [indent_code(f"content = {self._compile_expr(expr)}", level)]
 
-        force_display_dependent = code_options == "True"
+        force_display_dependent = has_options
         if force_display_dependent:
             code.append(
                 indent_code(
@@ -3771,7 +3779,17 @@ class IrQweb(models.AbstractModel):
             * string or None: content
             * boolean: force_display display the tag if the content and default_content are None
         """
-        field_options["type"] = field_options["widget"]
+        widget = field_options.get("widget")
+        if not widget:
+            # A bare KeyError here was the only feedback for a ``t-options``
+            # on a ``t-out``/``t-esc`` without a widget; name the fix instead.
+            msg = (
+                f"t-options on the t-out/t-esc {expression!r} requires a "
+                "'widget' option, e.g. t-options-widget=\"'date'\" or "
+                "t-options=\"{'widget': 'date'}\""
+            )
+            raise ValueError(msg)
+        field_options["type"] = widget
         field_options["tagName"] = tagName
         field_options["expression"] = expression
         inherit_branding = self.env.context.get("inherit_branding")

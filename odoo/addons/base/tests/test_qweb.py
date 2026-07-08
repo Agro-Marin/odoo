@@ -2931,6 +2931,23 @@ class TestQWebBasic(TransactionCase):
         self.assertIn("unreadable_file_template.xml", str(cm.exception))
         self.assertNotIn("%s", str(cm.exception))
 
+    def test_t_out_options_without_widget(self):
+        """``t-options`` on a ``t-out`` without a ``widget`` key used to die
+        with a bare ``KeyError: 'widget'``; it must name the missing option."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "options-no-widget",
+                "type": "qweb",
+                "arch_db": """<t t-name="options-no-widget">
+                    <span t-out="5" t-options-format="'x'"/>
+                </t>""",
+            }
+        )
+        with self.assertRaises(QWebError) as cm:
+            self.env["ir.qweb"]._render(view.id, {})
+        self.assertIsInstance(cm.exception.__cause__, ValueError)
+        self.assertIn("'widget' option", str(cm.exception.__cause__))
+
     def test_void_element(self):
         view = self.env["ir.ui.view"].create(
             {
