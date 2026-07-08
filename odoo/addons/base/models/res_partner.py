@@ -441,6 +441,13 @@ class ResPartner(models.Model):
     # _order; setting index="trigram" on the field instead would swap the
     # btree for the GIN index (one index per field in check_indexes).
     _complete_name_trgm_index = models.Index(_complete_name_trgm_index_definition)
+    # GIN index backing the `barcode @> jsonb_build_object(company_id, value)`
+    # containment probe of _check_barcode_unicity; a btree expression index
+    # cannot serve it because the company slot key is only known at runtime.
+    # jsonb_path_ops (hashes whole key/value paths, supports @> only) is far
+    # more selective here than the default jsonb_ops, which indexes every key
+    # and value separately.
+    _barcode_gin_index = models.Index("USING gin (barcode jsonb_path_ops)")
 
     def _compute_application_statistics(self) -> None:
         result = self._compute_application_statistics_hook()
@@ -934,24 +941,44 @@ class ResPartner(models.Model):
         like duplicates of that default value and raise spuriously (RP-L1).
         """
         # Flush pending barcode writes so the freshly-written jsonb slots are
-        # visible to the raw query below.
+        # visible to the raw queries below.
         self.flush_model(["barcode"])
         cid = str(self.env.company.id)
+        # Read the explicit per-company slots of the records under check.
         self.env.cr.execute(
             tools.SQL(
-                "SELECT 1 FROM res_partner"
-                " WHERE barcode ->> %(cid)s IN ("
-                "    SELECT barcode ->> %(cid)s FROM res_partner"
-                "    WHERE id = ANY(%(ids)s) AND barcode ->> %(cid)s IS NOT NULL"
-                " )"
-                " GROUP BY barcode ->> %(cid)s HAVING count(*) > 1"
-                " LIMIT 1",
+                "SELECT id, barcode ->> %(cid)s FROM res_partner"
+                " WHERE id = ANY(%(ids)s) AND barcode ->> %(cid)s IS NOT NULL",
                 cid=cid,
                 ids=list(self.ids),
             )
         )
-        if self.env.cr.fetchone():
-            raise ValidationError(_("Another partner already has this barcode"))
+        ids_by_value: dict[str, list[int]] = defaultdict(list)
+        for partner_id, value in self.env.cr.fetchall():
+            ids_by_value[value].append(partner_id)
+        for value, ids in ids_by_value.items():
+            if len(ids) > 1:
+                # duplicate within the checked batch itself
+                raise ValidationError(_("Another partner already has this barcode"))
+            # Probe the rest of the table with a jsonb containment condition:
+            # unlike `barcode ->> %(cid)s = %(value)s` (whose runtime jsonb key
+            # defeats any expression index and forces a seq scan), `@>` is
+            # supported by the GIN index on barcode (_barcode_gin_index).
+            self.env.cr.execute(
+                tools.SQL(
+                    # explicit ::text casts: jsonb_build_object is variadic
+                    # "any", so the server-side binding cannot infer the
+                    # parameter types on its own
+                    "SELECT 1 FROM res_partner"
+                    " WHERE barcode @> jsonb_build_object(%(cid)s::text, %(value)s::text)"
+                    " AND id != %(id)s LIMIT 1",
+                    cid=cid,
+                    value=value,
+                    id=ids[0],
+                )
+            )
+            if self.env.cr.fetchone():
+                raise ValidationError(_("Another partner already has this barcode"))
 
     def _convert_fields_to_values(self, field_names: list[str]) -> dict[str, Any]:
         """Returns dict of write() values for synchronizing ``field_names``"""

@@ -1976,11 +1976,12 @@ class TestCustomFields(TestCommonCustomFields):
 
         # create a non-computed field, and assert how many queries it takes.
         # The baseline includes verifying res.partner's GIN trigram index on
-        # complete_name (added for autocomplete): creating a field forces a
-        # registry reload, whose schema check now validates that extra index —
+        # complete_name (added for autocomplete) and the GIN index on barcode
+        # (added for _check_barcode_unicity): creating a field forces a
+        # registry reload, whose schema check now validates those extra indexes —
         # a handful of schema-time queries paid only on reload, not per request.
         model_id = self.env["ir.model"]._get_id("res.partner")
-        query_count = 53
+        query_count = 57
         with self.assertQueryCount(query_count):
             self.env.registry.clear_cache()
             self.env["ir.model.fields"].create(
