@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 from contextlib import contextmanager
 from functools import partial
+from unittest.mock import patch
 
 from lxml import etree
 from lxml.builder import E
@@ -28,6 +29,9 @@ class ViewXMLID(common.TransactionCase):
         self.assertTrue(view)
         self.assertTrue(view.model_data_id)
         self.assertEqual(view.model_data_id.complete_name, "base.view_company_form")
+        # xml_id is assigned by the same compute, from the same ir.model.data
+        # rows, so the two fields can never disagree
+        self.assertEqual(view.xml_id, "base.view_company_form")
 
 
 class ViewCase(TransactionCaseWithUserDemo):
@@ -3261,7 +3265,7 @@ class TestViews(ViewCase):
                 "view_access",
                 "inherit_id",
             ),
-            """Field “inherit_id” used in domain of <field name="group_ids"> ([('view_access', '=', inherit_id)]) is present in view but is in select multi.""",
+            """Field “inherit_id” used in domain="[('view_access', '=', inherit_id)]" is present in view but is in select multi.""",
         )
 
         arch = """
@@ -4743,16 +4747,20 @@ Forbidden use of `__comp__` in arch.""",
         Custom = self.env["ir.ui.view.custom"]
 
         def make():
-            view = self.View.create({
-                "name": "cust_base",
-                "model": "ir.ui.view",
-                "arch": '<form><field name="name"/></form>',
-            })
-            custom = Custom.create({
-                "ref_id": view.id,
-                "user_id": self.env.uid,
-                "arch": '<form><field name="name"/></form>',
-            })
+            view = self.View.create(
+                {
+                    "name": "cust_base",
+                    "model": "ir.ui.view",
+                    "arch": '<form><field name="name"/></form>',
+                }
+            )
+            custom = Custom.create(
+                {
+                    "ref_id": view.id,
+                    "user_id": self.env.uid,
+                    "arch": '<form><field name="name"/></form>',
+                }
+            )
             return view, custom
 
         # metadata-only writes must preserve the customization
@@ -4766,9 +4774,9 @@ Forbidden use of `__comp__` in arch.""",
 
         # arch / combination-affecting writes must drop it
         view, custom = make()
-        view.write({
-            "arch": '<form><field name="name"/><field name="create_uid"/></form>'
-        })
+        view.write(
+            {"arch": '<form><field name="name"/><field name="create_uid"/></form>'}
+        )
         self.assertFalse(custom.exists(), "arch write must drop customization")
 
         view, custom = make()
@@ -4780,21 +4788,25 @@ Forbidden use of `__comp__` in arch.""",
         so that postprocessing and validation stay in sync.
         """
         # res.users exposes login_date, a valid date_start candidate.
-        self.View.create({
-            "name": "cal ok",
-            "model": "res.users",
-            "arch": '<calendar date_start="login_date" aggregate="id:count">'
-                    '<field name="name"/></calendar>',
-        })
+        self.View.create(
+            {
+                "name": "cal ok",
+                "model": "res.users",
+                "arch": '<calendar date_start="login_date" aggregate="id:count">'
+                '<field name="name"/></calendar>',
+            }
+        )
         with mute_logger("odoo.addons.base.models.ir_ui_view"):
             with self.assertRaises(ValidationError):
-                self.View.create({
-                    "name": "cal bad",
-                    "model": "res.users",
-                    "arch": '<calendar date_start="login_date" '
-                            'aggregate="nonexistent_field:count">'
-                            '<field name="name"/></calendar>',
-                })
+                self.View.create(
+                    {
+                        "name": "cal bad",
+                        "model": "res.users",
+                        "arch": '<calendar date_start="login_date" '
+                        'aggregate="nonexistent_field:count">'
+                        '<field name="name"/></calendar>',
+                    }
+                )
 
 
 @tagged("post_install", "-at_install")
@@ -6006,6 +6018,101 @@ class TestTemplateCache(ViewCase):
             self.View._get_template_view(missing_id, raise_if_not_found=True)
 
 
+class TestViewRefResolution(ViewCase):
+    """The *_view_ref context keys resolve through the cached xmlid resolver
+    and complain (instead of silently falling back) on bad references."""
+
+    def test_view_ref_wrong_model_warns_and_falls_back(self):
+        default_id = self.View.default_view("res.partner", "form")
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_ui_view_base", level="WARNING"
+        ) as capture:
+            view_data = (
+                self.env["res.partner"]
+                .with_context(form_view_ref="base.module_category_hidden")
+                .get_view()
+            )
+        self.assertEqual(view_data["id"], default_id)
+        self.assertIn("ir.module.category record, not an ir.ui.view", capture.output[0])
+
+    def test_view_ref_dangling_warns_and_falls_back(self):
+        default_id = self.View.default_view("res.partner", "form")
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_ui_view_base", level="WARNING"
+        ) as capture:
+            view_data = (
+                self.env["res.partner"]
+                .with_context(form_view_ref="base.there_is_no_such_xmlid")
+                .get_view()
+            )
+        self.assertEqual(view_data["id"], default_id)
+        self.assertIn("does not match any record", capture.output[0])
+
+    def test_view_cache_key_order_insensitive(self):
+        """The same *_view_ref combination spelled in a different context
+        insertion order must produce one cache key, not two."""
+        Partner = self.env["res.partner"]
+        key1 = Partner.with_context(
+            form_view_ref="a.b", list_view_ref="c.d"
+        )._get_view_cache_key(view_type="form")
+        key2 = Partner.with_context(
+            list_view_ref="c.d", form_view_ref="a.b"
+        )._get_view_cache_key(view_type="form")
+        self.assertEqual(key1, key2)
+
+
+class TestButtonTypeValidation(ViewCase):
+    def test_unknown_button_type_warns(self):
+        self.assertWarning(
+            '<form><button type="bogus" title="Bogus"/></form>',
+            expected_message="Unknown button type 'bogus'",
+        )
+
+    def test_kanban_client_button_types_accepted(self):
+        # open/archive/unarchive/delete/set_cover are handled client-side by
+        # the kanban renderer and must not warn in qweb-based views
+        view = self.assertValid(
+            """
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="name"/>
+                        <button type="delete" title="Delete"/>
+                    </t>
+                </templates>
+            </kanban>
+        """
+        )
+        self.assertTrue(view)
+
+    def test_button_without_name_still_gets_icon_check(self):
+        # an object/action button without a name used to skip the icon
+        # accessibility check entirely
+        self.assertWarning(
+            '<form><button type="object" icon="fa-solid fa-trash"/></form>',
+            expected_message=(
+                "A button with icon attribute (fa-solid fa-trash) must have "
+                "title in its tag, parents, descendants or have text"
+            ),
+        )
+
+
+class TestViewCacheInvalidation(ViewCase):
+    def test_empty_create_unlink_do_not_clear_templates_cache(self):
+        registry_class = type(self.env.registry)
+        calls = []
+        original = registry_class.clear_cache
+
+        def counting(reg, *cache_names):
+            calls.append(cache_names)
+            return original(reg, *cache_names)
+
+        with patch.object(registry_class, "clear_cache", counting):
+            self.assertFalse(self.View.create([]))
+            self.assertTrue(self.View.browse().unlink())
+        self.assertEqual(calls, [])
+
+
 class TestValidationTools(common.BaseCase):
     def test_get_expression_identities(self):
         self.assertEqual(
@@ -6093,12 +6200,18 @@ class TestAccessibilityChecks(common.BaseCase):
 
     def test_class_accessibility_modal_and_button(self):
         self.assertEqual(
-            view_validation.check_class_accessibility(E.div({"class": "modal"}), "modal"),
+            view_validation.check_class_accessibility(
+                E.div({"class": "modal"}), "modal"
+            ),
             ['"modal" class should only be used with "dialog" role'],
         )
         # a bare .btn on a <div> is not a real button
         self.assertEqual(
-            len(view_validation.check_class_accessibility(E.div({"class": "btn"}), "btn")),
+            len(
+                view_validation.check_class_accessibility(
+                    E.div({"class": "btn"}), "btn"
+                )
+            ),
             1,
         )
         # ...but on a <button> it is fine

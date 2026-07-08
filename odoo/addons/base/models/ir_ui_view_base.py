@@ -6,7 +6,7 @@ from lxml.builder import E
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
-from odoo.tools import SQL, _, config, frozendict
+from odoo.tools import _, config, frozendict
 
 # ir_ui_view is imported before ir_ui_view_base (see models/__init__.py) and
 # never imports back, so this cross-module reuse of the compiled XPath is
@@ -340,15 +340,32 @@ class Base(models.AbstractModel):
             view_ref = self.env.context.get(view_ref_key)
             if view_ref:
                 if "." in view_ref:
-                    module, view_ref = view_ref.split(".", 1)
-
-                    sql = SQL(
-                        "SELECT res_id FROM ir_model_data WHERE model='ir.ui.view' AND module=%s AND name=%s",
-                        module,
-                        view_ref,
-                    )
-                    if view_ref_res := self.env.execute_query(sql):
-                        [[view_id]] = view_ref_res
+                    # go through the ormcached xmlid resolver rather than a raw
+                    # ir_model_data query, and complain instead of silently
+                    # falling back when the reference is dangling or points to
+                    # another model
+                    ref_model, ref_res_id = self.env[
+                        "ir.model.data"
+                    ]._xmlid_to_res_model_res_id(view_ref, raise_if_not_found=False)
+                    if ref_model == "ir.ui.view":
+                        view_id = ref_res_id
+                    elif ref_model:
+                        _logger.warning(
+                            "%r=%r for model %s refers to a %s record, not an "
+                            "ir.ui.view; falling back on the default view.",
+                            view_ref_key,
+                            view_ref,
+                            self._name,
+                            ref_model,
+                        )
+                    else:
+                        _logger.warning(
+                            "%r=%r for model %s does not match any record; "
+                            "falling back on the default view.",
+                            view_ref_key,
+                            view_ref,
+                            self._name,
+                        )
                 else:
                     _logger.warning(
                         "%r requires a fully-qualified external id (got: %r for model %s). "
@@ -426,15 +443,20 @@ class Base(models.AbstractModel):
         :return: a cache key
         :rtype: tuple
         """
+        # sorted: context insertion order must not leak into the cache key,
+        # otherwise the same *_view_ref combination spelled in a different
+        # order creates duplicate templates-cache entries
         return (
             view_id,
             view_type,
             options.get("mobile"),
             self.env.lang,
         ) + tuple(
-            (key, value)
-            for key, value in self.env.context.items()
-            if key.endswith("_view_ref")
+            sorted(
+                (key, value)
+                for key, value in self.env.context.items()
+                if key.endswith("_view_ref")
+            )
         )
 
     @api.model
@@ -569,7 +591,8 @@ class Base(models.AbstractModel):
                     if "write_date" in self.env[model]._fields:
                         model_fields.add("write_date")
             case "search":
-                view_models[self._name] = list(self._fields.keys())
+                # a set, like every other branch (.update()/.add() on sets)
+                view_models[self._name] = set(self._fields)
             case "graph":
                 view_models[self._name].update(
                     fname

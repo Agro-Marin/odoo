@@ -8,7 +8,7 @@ import re
 import types
 import typing
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Self
 
@@ -27,7 +27,7 @@ from odoo.exceptions import (
 )
 from odoo.fields import Domain
 from odoo.modules.module import get_resource_from_path
-from odoo.tools import SQL, _, config, partition, unique
+from odoo.tools import SQL, _, config, frozendict, partition, unique
 from odoo.tools.convert import _fix_multiple_roots
 from odoo.tools.misc import ConstantMapping, file_path
 from odoo.tools.template_inheritance import apply_inheritance_specs, locate_node
@@ -73,18 +73,20 @@ _NESTED_VIEW_TAGS = frozenset({"form", "list", "graph", "kanban", "calendar"})
 # or compiled templates, so it must invalidate the "templates" ormcache (a
 # registry-wide, cross-worker signal). Writing other fields (name, arch_prev,
 # arch_updated, arch_fs, ...) leaves already-compiled templates valid.
-_TEMPLATE_CACHE_FIELDS = frozenset({
-    "arch",
-    "arch_base",
-    "arch_db",
-    "active",
-    "inherit_id",
-    "mode",
-    "priority",
-    "key",
-    "model",
-    "group_ids",
-})
+_TEMPLATE_CACHE_FIELDS = frozenset(
+    {
+        "arch",
+        "arch_base",
+        "arch_db",
+        "active",
+        "inherit_id",
+        "mode",
+        "priority",
+        "key",
+        "model",
+        "group_ids",
+    }
+)
 
 # Some views have a js compiler that generates an owl template from the arch. In that template,
 # `__comp__` is a reserved keyword giving access to the component instance (e.g. the form renderer
@@ -297,7 +299,7 @@ class IrUiView(models.Model):
     )
     xml_id = fields.Char(
         string="External ID",
-        compute="_compute_xml_id",
+        compute="_compute_model_data_id",
         help="ID of the view defined in xml file",
     )
     group_ids = fields.Many2many(
@@ -465,8 +467,9 @@ class IrUiView(models.Model):
         grouped by ``res_id`` and kept in ir.model.data._order
         ("module, model, name").
 
-        Shared by :meth:`_compute_xml_id` and :meth:`_compute_model_data_id` so
-        both always agree on which external id wins when a view has several
+        Used by :meth:`_compute_model_data_id`, which assigns both
+        ``model_data_id`` and ``xml_id`` from the same rows so they always
+        agree on which external id wins when a view has several
         (the first row per view).
         """
         rows_by_view: dict[int, list[dict[str, Any]]] = collections.defaultdict(list)
@@ -481,13 +484,15 @@ class IrUiView(models.Model):
 
     @api.depends("write_date")
     def _compute_model_data_id(self) -> None:
-        # First ir.model.data row per view wins (see _get_ir_model_data_rows),
-        # matching _compute_xml_id so model_data_id and xml_id never disagree
-        # when a view has several external ids.
+        # Single compute for model_data_id AND xml_id: both are derived from
+        # the same _get_ir_model_data_rows() query (first row per view wins),
+        # so they can never disagree when a view has several external ids and
+        # the query only runs once.
         rows_by_view = self._get_ir_model_data_rows()
         for view in self:
             rows = rows_by_view.get(view.id)
             view.model_data_id = rows[0]["id"] if rows else False
+            view.xml_id = f"{rows[0]['module']}.{rows[0]['name']}" if rows else ""
 
     def _search_model_data_id(
         self, operator: str, value: Any
@@ -585,13 +590,6 @@ class IrUiView(models.Model):
                         source = apply_inheritance_specs(source, spec)
             view.invalid_locators = invalid_locators or False
 
-    @api.depends("write_date")
-    def _compute_xml_id(self) -> None:
-        rows_by_view = self._get_ir_model_data_rows()
-        for view in self:
-            rows = rows_by_view.get(view.id)
-            view.xml_id = f"{rows[0]['module']}.{rows[0]['name']}" if rows else ""
-
     def _valid_inheritance(self, arch: _Element) -> None:
         """Check whether view inheritance is based on translated attribute."""
         for node in _xpath_position(arch):
@@ -640,7 +638,7 @@ class IrUiView(models.Model):
                 if not self.env.context.get("_skip_primary_extensions_check") and (
                     view.inherit_id or view.inherit_children_ids
                 ):
-                    self._check_sibling_primary_views(view, views)
+                    self._check_sibling_primary_views(view)
 
                 if view.type == "qweb":
                     continue
@@ -743,14 +741,13 @@ class IrUiView(models.Model):
             )
         ) from None
 
-    def _check_sibling_primary_views(self, view: Self, views: Self) -> None:
+    def _check_sibling_primary_views(self, view: Self) -> None:
         """Verify that the primary views extending ``view`` (or a view on its
         ancestor chain) can still be combined, raising otherwise.
 
         Called from :meth:`_check_xml`; ``self`` is the original ``_check_xml``
-        receiver (so the intermediate recordsets keep its environment/context),
-        ``view`` is the view currently being checked and ``views`` is the whole
-        checked recordset (used to resolve already-loaded ids during upgrades).
+        receiver (so the intermediate recordsets keep its environment/context)
+        and ``view`` is the view currently being checked.
         """
         root = view
         while root.inherit_id and root.mode != "primary":
@@ -768,25 +765,9 @@ class IrUiView(models.Model):
         # During an upgrade, we can only use the views that have been
         # fully upgraded already.
         if self.pool._init and sibling_primary_views and self.pool._init_modules:
-            query = sibling_primary_views._get_filter_xmlid_query()
-            sql = SQL(
-                query,
-                res_ids=tuple(sibling_primary_views.ids),
-                modules=tuple(self.pool._init_modules),
+            sibling_primary_views = sibling_primary_views._filter_loaded_views(
+                include_loaded_xmlids=True
             )
-            loaded_view_ids = {id_ for (id_,) in self.env.execute_query(sql)}
-            loaded_view_ids.update(
-                {
-                    id
-                    for id, xid in (
-                        sibling_primary_views - views.browse(loaded_view_ids)
-                    )
-                    .get_external_id()
-                    .items()
-                    if xid in self.pool.loaded_xmlids
-                }
-            )
-            sibling_primary_views = sibling_primary_views.browse(loaded_view_ids)
 
         # Check if we know how to apply inheritances
         sibling_primary_views._get_combined_archs()
@@ -876,6 +857,9 @@ class IrUiView(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        if not vals_list:
+            # nothing to create: don't wipe the registry-wide templates cache
+            return self.browse()
         # single source of truth for the valid view types (see _editable_node)
         valid_types = self._get_view_type_tags()
         # Prefetch parent view types in batch to avoid N+1 queries
@@ -914,9 +898,9 @@ class IrUiView(models.Model):
                                     valid_types=", ".join(sorted(valid_types)),
                                 )
                             )
-                    except (etree.ParseError, ValueError):
-                        # don't raise here, the constraint that runs `self._check_xml` will
-                        # do the job properly.
+                    except etree.ParseError, ValueError:
+                        # don't raise here, the explicit `self._check_xml()`
+                        # call right after create() will do the job properly.
                         pass
             if not values.get("key") and values.get("type") == "qweb":
                 values["key"] = f"gen_key.{str(uuid.uuid4())[:6]}"
@@ -989,6 +973,9 @@ class IrUiView(models.Model):
         return res
 
     def unlink(self) -> bool:
+        if not self:
+            # nothing to unlink: don't wipe the registry-wide templates cache
+            return True
         # if in uninstall mode and has children views, emulate an ondelete cascade
         if self.env.context.get("_force_unlink", False) and self.inherit_children_ids:
             self.inherit_children_ids.unlink()
@@ -1137,7 +1124,11 @@ class IrUiView(models.Model):
 
         return views
 
-    def _filter_loaded_views(self, check_view_ids: set[int]) -> Self:
+    def _filter_loaded_views(
+        self,
+        check_view_ids: Collection[int] = (),
+        include_loaded_xmlids: bool = False,
+    ) -> Self:
         """
         During the module upgrade phase it may happen that a view is
         present in the database but the fields it relies on are not
@@ -1145,6 +1136,16 @@ class IrUiView(models.Model):
         to modules whose code is already loaded. Custom views defined
         directly in the database are loaded only after the module
         initialization phase is completely finished.
+
+        Single source of truth for the "already loaded" filter, shared by
+        :meth:`_get_combined_archs` and :meth:`_check_sibling_primary_views`.
+
+        :param check_view_ids: view ids to consider loaded regardless of their
+            external id (typically the views currently being combined)
+        :param include_loaded_xmlids: also consider loaded the views whose
+            external id was already processed in this upgrade
+            (``pool.loaded_xmlids``), e.g. sibling primary views defined
+            earlier in the module currently being loaded
         """
         # check that all found ids have a corresponding xml_id in a loaded module
         ids_to_check = [vid for vid in self.ids if vid not in check_view_ids]
@@ -1156,9 +1157,19 @@ class IrUiView(models.Model):
             loaded_modules += (install_module,)
         query = self._get_filter_xmlid_query()
         sql = SQL(query, res_ids=tuple(ids_to_check), modules=loaded_modules)
-        valid_view_ids = {
-            id_ for (id_,) in self.env.execute_query(sql)
-        } | check_view_ids
+        valid_view_ids = {id_ for (id_,) in self.env.execute_query(sql)} | set(
+            check_view_ids
+        )
+        if include_loaded_xmlids:
+            valid_view_ids.update(
+                id_
+                for id_, xid in self.browse(
+                    vid for vid in ids_to_check if vid not in valid_view_ids
+                )
+                .get_external_id()
+                .items()
+                if xid in self.pool.loaded_xmlids
+            )
         return self.browse(vid for vid in self.ids if vid in valid_view_ids)
 
     def _check_view_access(self) -> bool:
@@ -1211,7 +1222,7 @@ class IrUiView(models.Model):
         *,
         from_exception: BaseException | None = None,
         from_traceback: Any = None,
-    ) -> None:
+    ) -> typing.NoReturn:
         """Handle a view error by raising an exception.
 
         :param str message: message to raise or log, augmented with contextual
@@ -1258,15 +1269,14 @@ class IrUiView(models.Model):
 
     def inherit_branding(self, specs_tree: _Element) -> _Element:
         for node in specs_tree.iterchildren(tag=etree.Element):
-            xpath = node.getroottree().getpath(node)
             if node.tag in {"data", "xpath"} or node.get("position"):
                 self.inherit_branding(node)
             elif node.get("t-field"):
-                node.set("data-oe-xpath", xpath)
+                node.set("data-oe-xpath", node.getroottree().getpath(node))
                 self.inherit_branding(node)
             else:
                 node.set("data-oe-id", str(self.id))
-                node.set("data-oe-xpath", xpath)
+                node.set("data-oe-xpath", node.getroottree().getpath(node))
                 node.set("data-oe-model", "ir.ui.view")
                 node.set("data-oe-field", "arch")
         return specs_tree
@@ -1408,7 +1418,10 @@ class IrUiView(models.Model):
         # used as a stack.  An exception is made for primary views, which are
         # pushed at the other end of the queue, so that they are applied after
         # all extensions have been applied.
-        queue = collections.deque(sorted(hierarchy[self], key=lambda v: v.mode))
+        # extensions first, then primary children (see the traversal note above)
+        queue = collections.deque(
+            sorted(hierarchy[self], key=lambda v: v.mode == "primary")
+        )
         tree_cut_off_view = self.env.context.get("ir_ui_view_tree_cut_off_view")
         while queue:
             view = queue.popleft()
@@ -1508,8 +1521,7 @@ class IrUiView(models.Model):
         if not context:
             return {}
         return {
-            m.group("view_type"): m.group("view_id")
-            for m in ref_re.finditer(context)
+            m.group("view_type"): m.group("view_id") for m in ref_re.finditer(context)
         }
 
     # ------------------------------------------------------
@@ -1534,7 +1546,7 @@ class IrUiView(models.Model):
         id_or_xmlid: int | str,
         _view: Self | None = None,
         _error: Exception | None = None,
-    ) -> dict[str, Any]:
+    ) -> frozendict:
         """Return cached info for the view given by ``id_or_xmlid`` (the prefetched keys plus ``error``).
 
         ``_view`` and ``_error`` are warm-push helpers for
@@ -1558,9 +1570,6 @@ class IrUiView(models.Model):
                 error = MissingError(
                     self.env._("Template not found: '%s'", id_or_xmlid)
                 )
-            except UserError as e:
-                view = None
-                error = e
         else:
             preload = self.sudo()._preload_views([id_or_xmlid])
             if id_or_xmlid in preload:
@@ -1574,7 +1583,9 @@ class IrUiView(models.Model):
             for f in self._get_cached_template_prefetched_keys()
         }
         info["error"] = error
-        return info
+        # frozendict: the value lives in the shared "templates" ormcache (like
+        # _get_view_cache's), so it must not be mutable by callers
+        return frozendict(info)
 
     @api.model
     def _get_template_view(
@@ -1697,11 +1708,10 @@ class IrUiView(models.Model):
         """
         self._clear_preload_views_cache_if_needed()
 
-        context = {
-            k: self.env.context.get(k)
-            for k in self.env["ir.qweb"]._get_template_cache_keys()
-        }
-        cache_key = tuple(context.values())
+        # Reuse ir.qweb's single-source cache signature (falsy context values
+        # collapse to False) instead of rebuilding a raw .get(k) variant that
+        # would key the same context under several entries.
+        cache_key = self.env["ir.qweb"]._template_cache_signature()
 
         compile_batch = self.env.cr.cache.setdefault("_compile_batch_", {}).setdefault(
             cache_key, {}
@@ -2022,7 +2032,6 @@ class IrUiView(models.Model):
 
         root_info = {
             "view_type": root.tag,
-            "view_editable": editable and self._editable_node(root, name_manager),
             "mobile": options.get("mobile"),
             "model_groups": model_groups,
             "view_groups": view_groups,
@@ -2062,31 +2071,27 @@ class IrUiView(models.Model):
                 )
             return node_info
 
-        # Unpack via assignment (not the for-target) so the per-node rebind of
-        # the ``node``/``node_info`` names mirrors the original stack.pop() loop.
-        for walked in self._iter_arch_nodes(root, make_node_info):
-            node, node_info = walked
-
+        for elem, elem_info in self._iter_arch_nodes(root, make_node_info):
             # tag-specific postprocessing
-            postprocessor = getattr(self, f"_postprocess_tag_{node.tag}", None)
+            postprocessor = getattr(self, f"_postprocess_tag_{elem.tag}", None)
             if postprocessor is not None:
-                had_parent = node.getparent() is not None
-                postprocessor(node, name_manager, node_info)
-                if had_parent and node.getparent() is None:
+                had_parent = elem.getparent() is not None
+                postprocessor(elem, name_manager, elem_info)
+                if had_parent and elem.getparent() is None:
                     # the node has been removed: _iter_arch_nodes skips its
                     # subtree, and we skip the rest of its processing here
                     continue
 
-            node_groups = node.get("groups")
-            if node_groups or root_info["model_groups"] != node_info["model_groups"]:
-                groups = node_info["model_groups"] & node_info["view_groups"]
-                node.set("__groups_key__", groups.key)
+            elem_groups = elem.get("groups")
+            if elem_groups or root_info["model_groups"] != elem_info["model_groups"]:
+                groups = elem_info["model_groups"] & elem_info["view_groups"]
+                elem.set("__groups_key__", groups.key)
 
-            self._postprocess_attributes(node, name_manager, node_info)
+            self._postprocess_attributes(elem, name_manager, elem_info)
 
-            if node_groups and preserve_groups:
+            if elem_groups and preserve_groups:
                 # reset the groups attributes to display in log
-                node.attrib["groups"] = node_groups
+                elem.attrib["groups"] = elem_groups
 
         missing_fields = self._add_missing_fields(root, name_manager)
 
@@ -2313,9 +2318,7 @@ class IrUiView(models.Model):
                 # if no widget or the widget requires it.
                 # So the web client doesn't have to call `get_views` for x2many fields not embedding their view
                 # in the main form view.
-                for arch in self._get_x2many_missing_view_archs(
-                    field, node, node_info
-                ):
+                for arch in self._get_x2many_missing_view_archs(field, node, node_info):
                     node.append(arch)
 
             if field.relational:
@@ -2562,16 +2565,14 @@ class IrUiView(models.Model):
                 )
             return node_info
 
-        for walked in self._iter_arch_nodes(node, make_node_info):
-            node, node_info = walked
-
+        for elem, elem_info in self._iter_arch_nodes(node, make_node_info):
             # tag-specific validation
-            validator = getattr(self, f"_validate_tag_{node.tag}", None)
+            validator = getattr(self, f"_validate_tag_{elem.tag}", None)
             if validator is not None:
-                validator(node, name_manager, node_info)
+                validator(elem, name_manager, elem_info)
 
-            if node_info["validate"]:
-                self._validate_attributes(node, name_manager, node_info)
+            if elem_info["validate"]:
+                self._validate_attributes(elem, name_manager, elem_info)
 
         name_manager.check(self)
 
@@ -2726,7 +2727,7 @@ class IrUiView(models.Model):
                     node,
                     {field._description_definition_record},
                     node_info,
-                    use=f"definition record of {field.name}",
+                    use=("fieldname", field.name),
                 )
 
             for child in node:
@@ -2810,10 +2811,8 @@ class IrUiView(models.Model):
                     _("Invalid special '%(value)s' in button", value=special),
                     node,
                 )
-        elif type_:
-            if (type_ not in {"action", "object"}) or not name:
-                return
-            elif type_ == "object":
+        elif type_ == "object":
+            if name:
                 func = getattr(name_manager.model, name, None)
                 if not func:
                     msg = _(
@@ -2837,10 +2836,21 @@ class IrUiView(models.Model):
                 except TypeError:
                     msg = "%s on %s has parameters and cannot be called from a button"
                     self._log_view_warning(msg % (name, name_manager.model._name), node)
-            elif type_ == "action":
+                name_manager.has_action(name)
+        elif type_ == "action":
+            if name:
                 name_manager.must_exist_action(name, node)
-
-            name_manager.has_action(name)
+                name_manager.has_action(name)
+        elif type_ and not (
+            self._is_qweb_based_view(node_info["view_type"])
+            and type_ in ("open", "archive", "unarchive", "delete", "set_cover")
+        ):
+            # Unknown button types used to be silently accepted (and skipped the
+            # icon accessibility check below). Only a warning — not an error —
+            # because custom client renderers may legitimately handle extra
+            # types (e.g. kanban handles open/archive/unarchive/delete/
+            # set_cover, matched above for qweb-based views).
+            self._log_view_warning(f"Unknown button type {type_!r}", node)
 
         if node.get("icon"):
             description = f"A button with icon attribute ({node.get('icon')})"
@@ -3019,7 +3029,7 @@ class IrUiView(models.Model):
                     node,
                     name_manager,
                     py_expression,
-                    f"modifier {attr!r}",
+                    attr,
                     node_info,
                 )
 
@@ -3039,7 +3049,7 @@ class IrUiView(models.Model):
                     self._raise_view_error(message)
                 if vnames:
                     name_manager.must_have_fields(
-                        node, vnames, node_info, f"context ({expr})"
+                        node, vnames, node_info, ("context", expr)
                     )
                 for key, val_ast in get_dict_asts(expr).items():
                     if key == "group_by":  # only in context
@@ -3079,9 +3089,7 @@ class IrUiView(models.Model):
             elif attr.startswith("decoration-"):
                 vnames = get_expression_field_names(expr)
                 if vnames:
-                    name_manager.must_have_fields(
-                        node, vnames, node_info, f"{attr}={expr!r}"
-                    )
+                    name_manager.must_have_fields(node, vnames, node_info, (attr, expr))
 
             elif attr == "data-bs-toggle" and expr == "tab":
                 if node.get("role") != "tab":
@@ -3154,7 +3162,7 @@ class IrUiView(models.Model):
         node: _Element,
         name_manager: NameManager,
         py_expression: str,
-        use: str,
+        attr: str,
         node_info: dict[str, Any],
     ) -> None:
         try:
@@ -3165,14 +3173,12 @@ class IrUiView(models.Model):
         except (SyntaxError, ValueError, AttributeError) as e:
             msg = _(
                 "Invalid %(use)s: “%(expr)s”\n%(error)s",
-                use=use,
+                use=f"modifier {attr!r}",
                 expr=py_expression,
                 error=e,
             )
             self._raise_view_error(msg, node, from_exception=e)
-        name_manager.must_have_fields(
-            node, fnames, node_info, f"{use} ({py_expression})"
-        )
+        name_manager.must_have_fields(node, fnames, node_info, (attr, py_expression))
 
     def _validate_domain_identifiers(
         self,
@@ -3195,7 +3201,7 @@ class IrUiView(models.Model):
             self._raise_view_error(msg, node, from_exception=e)
 
         self._check_field_paths(node, fnames, target_model, f"{use} ({domain})")
-        name_manager.must_have_fields(node, vnames, node_info, f"{use} ({domain})")
+        name_manager.must_have_fields(node, vnames, node_info, ("domain", domain))
 
     def _check_field_paths(
         self, node: _Element, field_paths: set[str], model_name: str, use: str
