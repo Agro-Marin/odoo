@@ -13,15 +13,17 @@ class FormatVatLabelMixin(models.AbstractModel):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """Key the view cache on the company.
+        """Key the view cache on the company country's ``vat_label``.
 
         The ``_get_view`` override relabels the ``vat`` field/label from the
-        company country's ``vat_label``, so the processed arch must not be
-        shared across companies with different vat labels. Mirrors
+        company country's ``vat_label``, so that VALUE is the cache key — not
+        the company identity. Keying on the value dedupes the cache across
+        companies sharing a vat label and keeps it fresh when the company's
+        country or the country's label changes. Mirrors
         ``format.address.mixin._get_view_cache_key``.
         """
         key = super()._get_view_cache_key(view_id, view_type, **options)
-        return key + (self.env.company,)
+        return key + (self.env.company.country_id.vat_label,)
 
     @api.model
     def _get_view(

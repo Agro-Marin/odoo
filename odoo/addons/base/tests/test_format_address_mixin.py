@@ -143,6 +143,93 @@ class TestPartnerFormatAddress(FormatAddressCase):
         arch = self.env[model].get_view(view.id)["arch"]
         self.assertNotIn('"city"', arch)
 
+    def test_address_view_fresh_after_company_country_change(self):
+        """Changing the COMPANY's country serves a fresh address layout: the
+        cache key follows the country's layout values, so no path needs to
+        invalidate the view cache explicitly."""
+        address_view = self.View.create(
+            {
+                "name": "addr",
+                "model": "res.partner",
+                "arch": '<form><div class="o_address_format"><field name="city"/></div></form>',
+                "priority": 900,
+            }
+        )
+        country_plain = self.env["res.country"].create(
+            {"name": "Plain Land", "code": "P1"}
+        )
+        country_custom = self.env["res.country"].create(
+            {"name": "Custom Land", "code": "P2", "address_view_id": address_view.id}
+        )
+        view = self.View.create(
+            {
+                "name": "view",
+                "model": "res.partner",
+                "arch": '<form><div class="o_address_format"><field name="street"/></div></form>',
+            }
+        )
+
+        self.env.company.country_id = country_plain
+        arch = self.env["res.partner"].get_view(view.id)["arch"]
+        self.assertIn('"street"', arch)
+        self.assertNotIn('"city"', arch)
+
+        # Same company, new country: the swapped-in layout must be served
+        # immediately (previously the stale plain arch survived in cache).
+        self.env.company.country_id = country_custom
+        arch = self.env["res.partner"].get_view(view.id)["arch"]
+        self.assertNotIn('"street"', arch)
+        self.assertIn('"city"', arch)
+
+        # And back again.
+        self.env.company.country_id = country_plain
+        arch = self.env["res.partner"].get_view(view.id)["arch"]
+        self.assertIn('"street"', arch)
+        self.assertNotIn('"city"', arch)
+
+    def test_address_view_fresh_after_country_address_format_change(self):
+        """Changing a country's address_format re-runs the reorder branch on
+        the next get_view: the format value is part of the view cache key
+        (res.country.write no longer needs any templates-cache invalidation)."""
+        country = self.env["res.country"].create(
+            {
+                "name": "Fresh Format Land",
+                "code": "F1",
+                "address_format": "%(street)s\n%(zip)s %(city)s %(state_code)s\n",
+            }
+        )
+        self.env.company.country_id = country
+        form_arch = (
+            "<form>"
+            '<div class="o_address_format">'
+            '<field name="city"/><field name="zip"/><field name="state_id"/>'
+            "</div>"
+            "</form>"
+        )
+        view = self.View.create(
+            {"name": "view", "model": "res.partner", "arch": form_arch}
+        )
+
+        arch = self.env["res.partner"].get_view(view.id)["arch"]
+        order = [
+            node.get("name")
+            for node in etree.fromstring(arch).xpath(
+                "//div[hasclass('o_address_format')]//field[@name]"
+            )
+        ]
+        self.assertEqual(order, ["zip", "city", "state_id"])
+
+        # Flip the format: city now leads. The next get_view must reflect it.
+        country.address_format = "%(street)s\n%(city)s %(zip)s %(state_code)s\n"
+        arch = self.env["res.partner"].get_view(view.id)["arch"]
+        order = [
+            node.get("name")
+            for node in etree.fromstring(arch).xpath(
+                "//div[hasclass('o_address_format')]//field[@name]"
+            )
+        ]
+        self.assertEqual(order, ["city", "zip", "state_id"])
+
     def test_display_name_address_formatting(self):
         france = self.env.ref("base.fr")
 
@@ -167,22 +254,35 @@ class TestPartnerFormatAddress(FormatAddressCase):
 
 
 class TestFormatVatLabel(ViewCase):
-    def test_vat_label_cache_key_is_company_keyed(self):
-        """format.vat.label.mixin extends _get_view_cache_key with the company,
-        so the company-dependent vat relabel cannot be served stale across
-        companies (isolated: the mixin's own override, not the address mixin)."""
+    def test_vat_label_cache_key_is_vat_label_keyed(self):
+        """format.vat.label.mixin extends _get_view_cache_key with the company
+        country's vat_label VALUE: companies with different labels get distinct
+        keys, while same-label companies share one cache entry (isolated: the
+        mixin's own override, not the address mixin)."""
         mixin = self.env["format.vat.label.mixin"]
         base_key = self.env["ir.ui.view"]._get_view_cache_key("form")
         vat_key = mixin._get_view_cache_key("form")
 
-        # The override appends exactly the current company.
-        self.assertEqual(vat_key, base_key + (self.env.company,))
+        # The override appends exactly the company country's vat_label.
+        self.assertEqual(vat_key, base_key + (self.env.company.country_id.vat_label,))
 
-        # Two companies yield distinct keys -> no cross-company cache sharing.
-        company_b = self.env["res.company"].create({"name": "VAT Co B"})
+        # Different vat labels yield distinct keys -> no stale relabel served.
+        country_b = self.env["res.country"].create(
+            {"name": "VAT Key Land", "code": "X7", "vat_label": "KEYVAT"}
+        )
+        company_b = self.env["res.company"].create(
+            {"name": "VAT Co B", "country_id": country_b.id}
+        )
         key_a = mixin._get_view_cache_key("form")
         key_b = mixin.with_company(company_b)._get_view_cache_key("form")
         self.assertNotEqual(key_a, key_b)
+
+        # Same vat label -> same key: N same-country companies share one arch.
+        company_c = self.env["res.company"].create(
+            {"name": "VAT Co C", "country_id": country_b.id}
+        )
+        key_c = mixin.with_company(company_c)._get_view_cache_key("form")
+        self.assertEqual(key_b, key_c)
 
     def test_vat_label_relabels_field_per_company_country(self):
         """The vat field/label string follows the rendering company's country
@@ -217,3 +317,36 @@ class TestFormatVatLabel(ViewCase):
         )
         self.assertIn('string="RFC"', arch_a)
         self.assertIn('string="TIN"', arch_b)
+
+    def test_vat_label_fresh_after_country_or_label_change(self):
+        """The vat relabel follows vat_label changes and company country
+        changes without any explicit view-cache invalidation: the label value
+        itself is part of the cache key."""
+        country = self.env["res.country"].create(
+            {"name": "VAT Fresh Land", "code": "X8", "vat_label": "OLDVAT"}
+        )
+        view = self.View.create(
+            {
+                "name": "vat view",
+                "model": "res.company",
+                "arch": '<form><field name="vat"/></form>',
+            }
+        )
+        Company = self.env["res.company"]
+
+        self.env.company.country_id = country
+        arch = Company.get_view(view.id)["arch"]
+        self.assertIn('string="OLDVAT"', arch)
+
+        # Changing the label on the country is picked up on the next get_view.
+        country.vat_label = "NEWVAT"
+        arch = Company.get_view(view.id)["arch"]
+        self.assertIn('string="NEWVAT"', arch)
+
+        # Changing the company's country is picked up as well.
+        country_2 = self.env["res.country"].create(
+            {"name": "VAT Fresh Land 2", "code": "X9", "vat_label": "OTHERVAT"}
+        )
+        self.env.company.country_id = country_2
+        arch = Company.get_view(view.id)["arch"]
+        self.assertIn('string="OTHERVAT"', arch)
