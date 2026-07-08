@@ -5,12 +5,23 @@ Audit Tranche 4, finding IAR-T2: the OdooURLFetcher path-traversal guard
 untested. These tests lock the current behaviour of both helpers.
 """
 
+import io
+from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
+
+import requests
+from weasyprint.urls import URLFetcher
+
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
-from odoo.addons.base.models.ir_actions_report import _is_blocked_fetch_ip
+from odoo.addons.base.models.ir_actions_report import (
+    PDF_OPTIONS_DATA_KEY,
+    OdooURLFetcher,
+    _is_blocked_fetch_ip,
+)
 
 
 @tagged("post_install", "-at_install")
@@ -274,3 +285,338 @@ class TestReportAuditFixes(TransactionCase):
         """report_name is searched on every string-ref resolution: keep it
         btree-indexed."""
         self.assertTrue(self.env["ir.actions.report"]._fields["report_name"].index)
+
+
+@tagged("post_install", "-at_install")
+class TestReportAttachmentNameCache(TransactionCase):
+    """_prepare_pdf_report_attachment_vals_list must consume the
+    "attachment_name" cache written by _render_qweb_pdf_prepare_streams and
+    only fall back to safe_eval for entries that lack it (overridden
+    prepare_streams)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner = cls.env["res.partner"].create({"name": "Audit Attach"})
+        cls.report = cls.env["ir.actions.report"].create(
+            {
+                "name": "audit attach report",
+                "model": "res.partner",
+                "report_type": "qweb-pdf",
+                "report_name": "base.audit_attach_report_dummy",
+                "attachment": "'fallback-%s.pdf' % object.id",
+            }
+        )
+
+    def _stream_entry(self, **extra):
+        return {"stream": io.BytesIO(b"%PDF-audit"), "attachment": None, **extra}
+
+    def test_cached_attachment_name_skips_safe_eval(self):
+        # Poison the expression: any safe_eval would raise, so getting a vals
+        # list back proves the cached name was used instead.
+        self.report.attachment = "1/0"
+        streams = {self.partner.id: self._stream_entry(attachment_name="cached.pdf")}
+        vals_list = self.env[
+            "ir.actions.report"
+        ]._prepare_pdf_report_attachment_vals_list(self.report, streams)
+        self.assertEqual(len(vals_list), 1)
+        self.assertEqual(vals_list[0]["name"], "cached.pdf")
+        self.assertEqual(vals_list[0]["res_id"], self.partner.id)
+
+    def test_evaluated_empty_cache_skips_attachment(self):
+        # "" is the evaluated-and-empty sentinel: no attachment, no re-eval.
+        self.report.attachment = "1/0"
+        streams = {self.partner.id: self._stream_entry(attachment_name="")}
+        vals_list = self.env[
+            "ir.actions.report"
+        ]._prepare_pdf_report_attachment_vals_list(self.report, streams)
+        self.assertEqual(vals_list, [])
+
+    def test_missing_cache_falls_back_to_safe_eval(self):
+        # Entries built by an overridden prepare_streams lack the key: the
+        # documented None sentinel must trigger the safe_eval fallback.
+        for entry in (self._stream_entry(), self._stream_entry(attachment_name=None)):
+            with self.subTest(entry=entry):
+                vals_list = self.env[
+                    "ir.actions.report"
+                ]._prepare_pdf_report_attachment_vals_list(
+                    self.report, {self.partner.id: entry}
+                )
+                self.assertEqual(len(vals_list), 1)
+                self.assertEqual(
+                    vals_list[0]["name"], f"fallback-{self.partner.id}.pdf"
+                )
+
+
+@tagged("post_install", "-at_install")
+class TestPdfOptionsChannel(TransactionCase):
+    """Native PDF options travel ONLY under data[PDF_OPTIONS_DATA_KEY]: the
+    namespaced key is popped before the QWeb context, and legacy top-level
+    keys are plain template data, never interpreted as options."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner = cls.env["res.partner"].create({"name": "Audit PdfOpts"})
+        cls.report = cls.env["ir.actions.report"].create(
+            {
+                "name": "audit pdfopts report",
+                "model": "res.partner",
+                "report_type": "qweb-pdf",
+                "report_name": "base.audit_pdfopts_report_dummy",
+            }
+        )
+
+    def _prepare_streams(self, data):
+        captured = {}
+        registry_cls = type(self.env["ir.actions.report"])
+        partner_id = self.partner.id
+
+        def fake_render_qweb_html(model, report_ref, docids, data=None):
+            captured["qweb_data"] = data
+            return (b"<html/>", "html")
+
+        def fake_prepare_weasyprint_html(model, html, report_model=False):
+            return (["<html/>"], [partner_id], {})
+
+        def fake_render_html_to_pdf(
+            model,
+            bodies,
+            report_ref=False,
+            landscape=False,
+            specific_paperformat_args=None,
+            _split=False,
+            **kwargs,
+        ):
+            captured["pdf_kwargs"] = kwargs
+            return [b"%PDF-audit"] * len(bodies) if _split else b"%PDF-audit"
+
+        with (
+            patch.object(registry_cls, "_render_qweb_html", fake_render_qweb_html),
+            patch.object(
+                registry_cls,
+                "_prepare_weasyprint_html",
+                fake_prepare_weasyprint_html,
+            ),
+            patch.object(registry_cls, "_render_html_to_pdf", fake_render_html_to_pdf),
+        ):
+            self.env["ir.actions.report"]._render_qweb_pdf_prepare_streams(
+                self.report, data, res_ids=[self.partner.id]
+            )
+        return captured
+
+    def test_namespaced_key_feeds_options_and_is_popped(self):
+        captured = self._prepare_streams(
+            {PDF_OPTIONS_DATA_KEY: {"pdf_variant": "pdf/a-3b"}}
+        )
+        self.assertEqual(captured["pdf_kwargs"], {"pdf_variant": "pdf/a-3b"})
+        self.assertNotIn(
+            PDF_OPTIONS_DATA_KEY,
+            captured["qweb_data"],
+            "the reserved key must never reach the QWeb rendering context",
+        )
+
+    def test_top_level_keys_are_not_options(self):
+        captured = self._prepare_streams({"pdf_variant": "pdf/a-3b"})
+        self.assertEqual(
+            captured["pdf_kwargs"],
+            {},
+            "legacy top-level data keys must not be interpreted as PDF options",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestReportRenderEntryPoints(TransactionCase):
+    """Entry-point argument normalization (single _normalize_render_args) and
+    the report_action docids contract."""
+
+    def test_render_qweb_html_accepts_int_docids(self):
+        module = self.env["ir.module.module"].search([("name", "=", "base")])
+        content, report_type = self.env["ir.actions.report"]._render_qweb_html(
+            "base.report_irmodulereference", module.id
+        )
+        self.assertEqual(report_type, "html")
+        self.assertTrue(content)
+
+    def test_render_qweb_html_does_not_mutate_caller_data(self):
+        module = self.env["ir.module.module"].search([("name", "=", "base")])
+        data = {}
+        self.env["ir.actions.report"]._render_qweb_html(
+            "base.report_irmodulereference", [module.id], data=data
+        )
+        self.assertEqual(data, {}, "the caller's data dict must not be mutated")
+
+    def test_report_action_accepts_any_id_iterable(self):
+        report = self.env.ref("base.ir_module_reference_print")
+        action = report.report_action((7, 9), config=False)
+        self.assertEqual(action["context"]["active_ids"], [7, 9])
+
+    def test_report_action_rejects_non_iterable_docids(self):
+        report = self.env.ref("base.ir_module_reference_print")
+        with self.assertRaises(TypeError):
+            report.report_action(3.5, config=False)
+
+
+@tagged("post_install", "-at_install")
+class TestValidActionReportsDomainGuard(TransactionCase):
+    """get_valid_action_reports is a public RPC feeding the action menu: one
+    malformed stored domain must not 500 the menu for the whole model."""
+
+    def test_malformed_domain_is_logged_and_treated_valid(self):
+        Report = self.env["ir.actions.report"]
+        common = {
+            "model": "res.partner",
+            "report_type": "qweb-pdf",
+        }
+        good = Report.create(
+            {
+                "name": "audit good domain",
+                "report_name": "base.audit_good_domain_dummy",
+                "domain": "[('name', '=', 'Audit Domain Guard')]",
+                **common,
+            }
+        )
+        bad = Report.create(
+            {
+                "name": "audit bad domain",
+                "report_name": "base.audit_bad_domain_dummy",
+                "domain": "[('name' =",
+                **common,
+            }
+        )
+        partner = self.env["res.partner"].create({"name": "Audit Domain Guard"})
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_actions_report", level="WARNING"
+        ) as capture:
+            valid_ids = (good + bad).get_valid_action_reports(
+                "res.partner", [partner.id]
+            )
+        self.assertIn(good.id, valid_ids)
+        self.assertIn(bad.id, valid_ids, "a malformed domain degrades to always-valid")
+        self.assertTrue(any("malformed domain" in line for line in capture.output))
+
+
+@tagged("post_install", "-at_install")
+class TestWeasyPrintFailureObservability(TransactionCase):
+    """WeasyPrint failure paths keep the traceback in the server log while the
+    user still gets a clean UserError."""
+
+    def test_layout_failure_logs_traceback(self):
+        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
+        with (
+            patch(
+                "odoo.addons.base.models.ir_actions_report.weasyprint.HTML",
+                side_effect=ValueError("audit-layout-boom"),
+            ),
+            self.assertLogs(
+                "odoo.addons.base.models.ir_actions_report", level="ERROR"
+            ) as capture,
+            self.assertRaises(UserError),
+        ):
+            engine._render_body_document("<html/>", fetcher=None, body_css=[])
+        self.assertTrue(
+            any(record.exc_info for record in capture.records),
+            "the log record must carry the traceback (exc_info=True)",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestHtmlToImageTestMode(TransactionCase):
+    """_render_html_to_image honors force_report_rendering, mirroring the PDF
+    path's test-mode contract."""
+
+    def test_short_circuits_in_test_mode(self):
+        registry_cls = type(self.env["ir.actions.report"])
+        with patch.object(
+            registry_cls,
+            "_build_url_fetcher",
+            side_effect=AssertionError("must not render in test mode"),
+        ) as fetcher_mock:
+            result = self.env["ir.actions.report"]._render_html_to_image(
+                ["<div>audit</div>"], 10, 10
+            )
+        self.assertEqual(result, [None])
+        self.assertFalse(fetcher_mock.called)
+
+    def test_force_report_rendering_bypasses_short_circuit(self):
+        registry_cls = type(self.env["ir.actions.report"])
+        fetcher_cm = MagicMock()
+        fetcher_cm.__enter__ = MagicMock(return_value=MagicMock())
+        fetcher_cm.__exit__ = MagicMock(return_value=False)
+        with (
+            patch.object(
+                registry_cls, "_build_url_fetcher", return_value=fetcher_cm
+            ) as fetcher_mock,
+            patch(
+                "odoo.addons.base.models.ir_actions_report.weasyprint.HTML",
+                side_effect=ValueError("audit-image-boom"),
+            ),
+            self.assertLogs(
+                "odoo.addons.base.models.ir_actions_report", level="WARNING"
+            ),
+        ):
+            result = (
+                self.env["ir.actions.report"]
+                .with_context(force_report_rendering=True)
+                ._render_html_to_image(["<div>audit</div>"], 10, 10)
+            )
+        # The per-body failure degrades to None, but the pipeline ran: the
+        # fetcher was built instead of the test-mode early return.
+        self.assertEqual(result, [None])
+        self.assertTrue(fetcher_mock.called)
+
+
+@tagged("post_install", "-at_install")
+class TestFetcherHttpFallback(TransactionCase):
+    """OdooURLFetcher._fetch_via_http retries the stock WeasyPrint fetcher
+    with the absolute URL (a relative path is unresolvable there) and the
+    local barcode fast path forwards every option the HTTP route accepts."""
+
+    def setUp(self):
+        super().setUp()
+        self.fetcher = self.env["ir.actions.report"]._build_url_fetcher()
+        self.addCleanup(self.fetcher.cleanup)
+
+    @mute_logger("odoo.addons.base.models.ir_actions_report")
+    def test_http_fallback_retries_with_full_url(self):
+        seen = {}
+
+        def failing_get(url, cookies):
+            raise requests.exceptions.ConnectionError("audit: primary down")
+
+        def fake_super_fetch(fetcher_self, url, headers=None):
+            seen["url"] = url
+            raise ValueError("audit: stop here")
+
+        with (
+            patch.object(OdooURLFetcher, "_do_get", staticmethod(failing_get)),
+            patch.object(URLFetcher, "fetch", fake_super_fetch),
+            self.assertRaises(ValueError),
+        ):
+            self.fetcher._fetch_via_http("/web/image/1", "/web/image/1")
+        parsed = urlparse(seen["url"])
+        self.assertTrue(
+            parsed.scheme and parsed.netloc,
+            f"fallback must receive an absolute URL, got {seen['url']!r}",
+        )
+        self.assertTrue(seen["url"].endswith("/web/image/1"))
+
+    def test_resolve_barcode_forwards_barborder(self):
+        captured = {}
+        registry_cls = type(self.env["ir.actions.report"])
+
+        def fake_barcode(model, barcode_type, value, **kwargs):
+            captured["type"] = barcode_type
+            captured.update(kwargs)
+            return b"\x89PNG-audit"
+
+        with patch.object(registry_cls, "barcode", fake_barcode):
+            response = self.fetcher._resolve_barcode(
+                "/report/barcode/QR/audit?barBorder=0",
+                "/report/barcode/QR/audit",
+                "barBorder=0&quiet=1",
+            )
+        self.assertIsNotNone(response)
+        self.assertEqual(captured["type"], "QR")
+        self.assertEqual(captured.get("barBorder"), "0")
+        self.assertEqual(captured.get("quiet"), "1")
