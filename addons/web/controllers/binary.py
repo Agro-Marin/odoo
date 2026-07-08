@@ -235,7 +235,7 @@ class Binary(http.Controller):
         clear.
         """
         # Same row identity the renderers create and _gc_esm_assets sweeps
-        # (see ir_attachment._esm_asset_domain): public, view-owned,
+        # (see ir_attachment._esm_generated_asset_domain): public, view-owned,
         # superuser-created. Newest row first — content-addressed
         # duplicates from concurrent workers are interchangeable.
         attachment = (

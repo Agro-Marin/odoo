@@ -35,12 +35,19 @@ class IrAttachment(models.Model):
         return res
 
     @api.model
-    def _esm_asset_domain(self) -> Domain:
-        """Return the domain identifying server-generated web-asset rows.
+    def _generated_asset_domain(self) -> Domain:
+        """Return the domain identifying ALL server-generated web-asset rows.
 
         The identity shared by the asset GC and bundle regeneration: a public,
         ir.ui.view-owned (``res_id=0``) attachment created by the superuser
         whose ``url`` lives under ``/web/assets/``.
+
+        This matches EVERY server-generated asset attachment — classic
+        ``.min.js``/``.min.css`` bundles included — not only the ESM
+        pipeline's artifacts (the method's historical name,
+        ``_esm_asset_domain``, invited over-deletion by callers assuming
+        an ESM-only match). Callers that must touch only ESM artifacts
+        use :meth:`_esm_generated_asset_domain` instead.
 
         :rtype: Domain
         """
@@ -51,6 +58,28 @@ class IrAttachment(models.Model):
                 ("res_id", "=", 0),
                 ("create_uid", "=", api.SUPERUSER_ID),
                 ("url", "=like", "/web/assets/%"),
+            ]
+        )
+
+    @api.model
+    def _esm_generated_asset_domain(self) -> Domain:
+        """Return the domain matching ESM-pipeline artifacts only.
+
+        Narrows :meth:`_generated_asset_domain` to the rows created by
+        ``IrQweb._save_esm_attachment`` / ``_save_esm_sidecar`` /
+        ``BridgeShimManager._persist_bridge_shims``. The name suffixes also
+        catch the legacy ``/web/assets/<ver>/<bundle>.esm.js`` layout while
+        excluding the classic ``.min.js`` bundles, which have their own
+        rotation.
+
+        :rtype: Domain
+        """
+        return self._generated_asset_domain() & Domain.OR(
+            [
+                [("url", "=like", "/web/assets/esm/bridges/%")],
+                [("name", "=like", "%.esm.js")],
+                [("name", "=like", "%.esm.js.map")],
+                [("name", "=like", "%.meta.json")],
             ]
         )
 
@@ -85,20 +114,9 @@ class IrAttachment(models.Model):
         cutoff = fields.Datetime.now() - timedelta(days=grace_days)
 
         # Asset rows as created by _save_esm_attachment / _save_esm_sidecar /
-        # _persist_bridge_shims. The name suffixes also catch the legacy
-        # ``/web/assets/<ver>/<bundle>.esm.js`` layout while excluding the
-        # classic ``.min.js`` bundles, which have their own rotation.
+        # _persist_bridge_shims (see _esm_generated_asset_domain).
         candidates = self.sudo().search(
-            self._esm_asset_domain()
-            & Domain("write_date", "<", cutoff)
-            & Domain.OR(
-                [
-                    [("url", "=like", "/web/assets/esm/bridges/%")],
-                    [("name", "=like", "%.esm.js")],
-                    [("name", "=like", "%.esm.js.map")],
-                    [("name", "=like", "%.meta.json")],
-                ]
-            )
+            self._esm_generated_asset_domain() & Domain("write_date", "<", cutoff)
         )
         if not candidates:
             return
@@ -130,7 +148,7 @@ class IrAttachment(models.Model):
             # same-named row that poses as "newest", marking the real
             # bundle stale.
             for att in self.sudo().search(
-                self._esm_asset_domain()
+                self._generated_asset_domain()
                 & Domain("name", "in", list(set(artifacts.mapped("name")))),
                 order="write_date desc, id desc",
             ):
@@ -160,5 +178,8 @@ class IrAttachment(models.Model):
         # non-system users via _check_access, but fail fast and clearly.
         if not self.env.is_admin():
             raise AccessError(_("Only administrators can execute this action."))
-        self.search(self._esm_asset_domain()).unlink()
+        # Deliberately the BROAD domain: regeneration drops every generated
+        # bundle artifact (classic .min.js/.min.css included) so the next
+        # render rebuilds them all from source.
+        self.search(self._generated_asset_domain()).unlink()
         self.env.registry.clear_cache("assets")

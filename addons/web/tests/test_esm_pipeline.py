@@ -1538,3 +1538,62 @@ class TestQwebAssetHelpers(TransactionCase):
         self.assertEqual(last, "//# sourceMappingURL=b.esm.js.map")
         self.assertEqual(out.count("sourceMappingURL"), 1)
         self.assertIn("TPL;", out)
+
+
+class TestGeneratedAssetDomains(TransactionCase):
+    """``_generated_asset_domain`` matches ALL server-generated
+    ``/web/assets/`` rows (classic ``.min.js`` included) while
+    ``_esm_generated_asset_domain`` narrows to ESM-pipeline artifacts.
+    The old single name (``_esm_asset_domain``) claimed ESM-only while
+    matching everything — an invitation for over-deletion by future
+    callers."""
+
+    def _make(self, name, url):
+        return (
+            self.env["ir.attachment"]
+            .sudo()
+            .create(
+                {
+                    "name": name,
+                    "url": url,
+                    "type": "binary",
+                    "res_model": "ir.ui.view",
+                    "res_id": 0,
+                    "public": True,
+                    "raw": b"g4-domain-test",
+                }
+            )
+        )
+
+    def test_esm_domain_narrows_generated_domain(self):
+        Attachment = self.env["ir.attachment"]
+        esm = self._make(
+            "g4.bundle.esm.js", "/web/assets/esm/deadbeef/g4.bundle.esm.js"
+        )
+        sourcemap = self._make(
+            "g4.bundle.esm.js.map", "/web/assets/esm/deadbeef/g4.bundle.esm.js.map"
+        )
+        meta = self._make(
+            "g4.bundle.meta.json", "/web/assets/esm/deadbeef/g4.bundle.meta.json"
+        )
+        bridge = self._make("g4-shim.js", "/web/assets/esm/bridges/cafebabe.js")
+        classic = self._make(
+            "web.assets_g4.min.js", "/web/assets/1/web.assets_g4.min.js"
+        )
+        everything = esm | sourcemap | meta | bridge | classic
+
+        generated = Attachment.sudo().search(Attachment._generated_asset_domain())
+        self.assertEqual(
+            everything & generated,
+            everything,
+            "the broad domain must match every generated row, classic included",
+        )
+
+        esm_only = Attachment.sudo().search(Attachment._esm_generated_asset_domain())
+        self.assertEqual(everything & esm_only, esm | sourcemap | meta | bridge)
+        self.assertNotIn(
+            classic,
+            esm_only,
+            "classic .min.js bundles have their own rotation and must never "
+            "match the ESM-narrowed domain",
+        )
