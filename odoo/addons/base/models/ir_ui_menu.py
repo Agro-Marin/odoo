@@ -225,6 +225,9 @@ class IrUiMenu(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        if not vals_list:
+            # nothing to create: don't wipe the registry-wide caches
+            return self.browse()
         self.env.registry.clear_cache()
         for values in vals_list:
             if "web_icon" in values:
@@ -234,7 +237,10 @@ class IrUiMenu(models.Model):
         return super().create(vals_list)
 
     def write(self, vals: dict[str, Any]) -> bool:
-        self.env.registry.clear_cache()
+        if self and vals:
+            # only a write that can actually change something invalidates the
+            # registry-wide caches (menu visibility, loaded menus)
+            self.env.registry.clear_cache()
         if "web_icon" in vals:
             vals["web_icon_data"] = self._compute_web_icon_data(vals.get("web_icon"))
         return super().write(vals)
@@ -260,6 +266,9 @@ class IrUiMenu(models.Model):
         return False
 
     def unlink(self) -> bool:
+        if not self:
+            # nothing to unlink: don't wipe the registry-wide caches
+            return True
         # Detach children and promote them to top-level, because it would be unwise to
         # cascade-delete submenus blindly. We also can't use ondelete=set null because
         # that is not supported when _parent_store is used (would silently corrupt it).
@@ -272,17 +281,20 @@ class IrUiMenu(models.Model):
         self.env.registry.clear_cache()
         return super().unlink()
 
-    def copy(self, default: ValuesType | None = None) -> Self:
-        new_menus = super().copy(default=default)
-        for new_menu in new_menus:
-            if match := NUMBER_PARENS.search(new_menu.name):
-                next_num = int(match.group(1)) + 1
-                new_menu.name = NUMBER_PARENS.sub(
-                    f"({next_num})", new_menu.name, count=1
-                )
-            else:
-                new_menu.name = new_menu.name + " (1)"
-        return new_menus
+    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
+        # Suffix the copies' names with a "(N)" counter here, so the names are
+        # right at insert time. Renaming after the copy (the previous
+        # implementation) fired one write() per copied menu, each wiping the
+        # whole registry cache and invalidating it across workers.
+        vals_list = super().copy_data(default=default)
+        for vals in vals_list:
+            if name := vals.get("name"):
+                if match := NUMBER_PARENS.search(name):
+                    next_num = int(match.group(1)) + 1
+                    vals["name"] = NUMBER_PARENS.sub(f"({next_num})", name, count=1)
+                else:
+                    vals["name"] = name + " (1)"
+        return vals_list
 
     @api.model
     def get_user_roots(self) -> Self:
