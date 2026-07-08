@@ -219,9 +219,6 @@ class CssPipeline:
             source = "\n".join(asset.get_source() for asset in assets)
             compiled = self.compile_css(assets[0].compile, source)
 
-        if bundle.autoprefix:
-            compiled = self._autoprefix_css(compiled)
-
         # RTL: merge plain CSS into compiled output, then transform the whole
         if bundle.rtl:
             plain_css_assets = [
@@ -284,6 +281,19 @@ class CssPipeline:
                     "compiled output is out of sync with the asset list"
                 )
             asset._content = content
+
+        # Autoprefix EVERY stylesheet's rendered content — the Sass-compiled
+        # fragments assigned above AND the plain .css assets (whose fetch this
+        # ``content`` read triggers). The artifact URL (``.autoprefixed``) and
+        # ``unique_descriptor`` claim the whole bundle is prefixed; the old
+        # pass ran on the compiled Sass output only, so plain CSS in an
+        # autoprefixed bundle was never prefixed. Applied per asset (not on the
+        # joined output) so the debug path — ``sourcemap_bundle`` rebuilds from
+        # each asset's ``content`` — is prefixed too. String-aware, so string
+        # literals and headers are safe (see ``_rewrite_css_outside_strings``).
+        if bundle.autoprefix:
+            for asset in bundle.stylesheets:
+                asset._content = self._autoprefix_css(asset.content)
 
         bundle_css = "\n".join(asset.minify() for asset in self._rendered_assets)
         # Harvest each asset's own fetch/rewrite errors. The minify pass above

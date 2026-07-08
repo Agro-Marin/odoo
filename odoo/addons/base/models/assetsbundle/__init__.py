@@ -57,9 +57,6 @@ from .js_pipeline import JsPipeline
 from .store import AssetAttachmentStore
 from .xml_pipeline import XmlTemplatePipeline
 
-# ESM bundle classification is validated when ``esm_registry()`` first builds
-# (lazily). Cross-check the import-map external-libs registry against esbuild's
-# alias list here (both declaration sites live outside ir_qweb).
-from odoo.libs.constants import ODOO_EXTERNAL_LIBS
-
-AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
+# The ``ODOO_EXTERNAL_LIBS`` / esbuild cross-check that used to run here at
+# import time now runs lazily on first bundle construction — see
+# ``bundle._check_external_libs_once``.
