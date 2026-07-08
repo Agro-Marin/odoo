@@ -16,7 +16,10 @@ const macroSchema = {
         element: {
             type: Object,
             shape: {
-                action: { type: [Function, String], optional: true },
+                // `action` is always CALLED (`action(trigger)`); a string would
+                // pass a `[Function, String]` schema then throw at runtime. Only
+                // accept a function so a bad step fails fast at construction.
+                action: { type: Function, optional: true },
                 timeout: { type: Number, optional: true },
                 trigger: { type: [Function, String], optional: true },
             },
@@ -130,10 +133,21 @@ export async function waitUntil(predicate, { signal } = {}) {
 }
 
 /**
- * @typedef {{ action?: Function | string, timeout?: number, trigger?: Function | string }} MacroStep
+ * @typedef {{ action?: Function, timeout?: number, trigger?: Function | string }} MacroStep
  */
 
 export class Macro {
+    /**
+     * Sentinel a step `action` can return to intentionally halt the macro
+     * without firing `onComplete` or `onError` (e.g. when the current step
+     * navigates away and the remaining steps must not run). Prefer returning
+     * this over an ad-hoc truthy value — other truthy returns still stop the
+     * macro but log a deprecation warning.
+     *
+     * @type {symbol}
+     */
+    static STOP = Symbol("Macro.STOP");
+
     currentIndex = 0;
     isComplete = false;
     /** @type {string | undefined} */
@@ -208,10 +222,21 @@ export class Macro {
             // The race may settle with the timer's rejection: keep the losing
             // step promise's abort rejection from being reported as unhandled.
             stepPromise.catch(() => {});
-            // If falsy action result, it means the action worked properly.
-            // So we can proceed to the next step.
+            // A falsy action result means the action worked properly, so we
+            // proceed to the next step. `Macro.STOP` (or any legacy truthy
+            // value) halts the macro without onComplete/onError — used when a
+            // step navigates away and the rest must not run.
             const actionResult = await Promise.race([stepPromise, launchTimer()]);
             if (actionResult) {
+                if (actionResult !== Macro.STOP) {
+                    // Backward-compat: web_tour and other callers still return an
+                    // ad-hoc truthy value (e.g. "StopTheMacro!") to halt. Keep
+                    // stopping so tours don't break, but nudge toward Macro.STOP.
+                    console.warn(
+                        "Macro: a step action returned a truthy value to halt the macro. " +
+                            "Return `Macro.STOP` instead; other truthy return values are deprecated.",
+                    );
+                }
                 this.stop();
                 return;
             }

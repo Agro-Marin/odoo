@@ -225,7 +225,7 @@ export class EmojiPicker extends Component {
             };
             this.state.categoryId = this.recentEmojis.length
                 ? this.recentCategory.sortId
-                : this.categories[0].sortId;
+                : (this.categories[0]?.sortId ?? null);
         });
         onWillRender(() => {
             this._recentEmojis = this.computeRecentEmojis();
@@ -394,7 +394,9 @@ export class EmojiPicker extends Component {
     computeRecentEmojis() {
         const recent = Object.entries(this.frequentEmojiService.all)
             .sort(([, usage_1], [, usage_2]) => usage_2 - usage_1)
-            .map(([codepoints]) => this.emojiByCodepoints[codepoints]);
+            .map(([codepoints]) => this.emojiByCodepoints[codepoints])
+            // Persisted codepoints may no longer exist after an emoji data update.
+            .filter(Boolean);
         if (this.searchTerm && recent.length) {
             return fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings);
         }

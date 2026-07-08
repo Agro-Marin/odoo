@@ -232,10 +232,16 @@ export class Colibri {
      *
      * @param {HTMLElement} el
      * @param {any} value
-     * @param {any} initialValue
+     * @param {any} [initialValue]
+     * @param {boolean} [restoring] true when restoring initial content during
+     *  destroy(): interactions in the replaced content are still stopped, but
+     *  the restored content is not scanned for interactions to start. During
+     *  a global stopInteractions(), starting them would resurrect
+     *  interactions mid-stop; after a targeted stop, the caller decides what
+     *  to start next (e.g. website edit mode re-activates its own set).
      * @returns {void}
      */
-    applyTOut(el, value, initialValue) {
+    applyTOut(el, value, initialValue, restoring = false) {
         if (value === INITIAL_VALUE) {
             value = initialValue;
         }
@@ -246,13 +252,17 @@ export class Colibri {
             }
             // Markup wraps a string; .toString() returns the underlying HTML.
             el.innerHTML = value.toString();
-            if (el === this.interaction.el) {
-                nodes = el.children;
+            if (!restoring) {
+                if (el === this.interaction.el) {
+                    nodes = el.children;
+                }
+                for (const node of nodes) {
+                    this.core.env.services["public.interactions"].startInteractions(
+                        node,
+                    );
+                }
+                this.refreshNodes();
             }
-            for (const node of nodes) {
-                this.core.env.services["public.interactions"].startInteractions(node);
-            }
-            this.refreshNodes();
         } else {
             el.textContent = value;
         }
@@ -427,10 +437,45 @@ export class Colibri {
             );
         }
         this.isUpdating = true;
-        if (this.hasStarted) {
-            this.refreshNodes();
-        }
         const errors = [];
+        try {
+            this.applyContent(errors);
+        } finally {
+            this.isUpdating = false;
+        }
+        if (errors.length) {
+            const name = this.interaction.constructor.name;
+            const toError = ({ error, description }) =>
+                new Error(
+                    `An error occured while updating ${description} (in interaction '${name}')`,
+                    { cause: error },
+                );
+            if (errors.length === 1) {
+                throw toError(errors[0]);
+            }
+            throw new AggregateError(
+                errors.map(toError),
+                `Some errors occured while updating content (in interaction '${name}')`,
+            );
+        }
+    }
+
+    /**
+     * Applies dynamic attributes and t-out definitions to the DOM, collecting
+     * errors instead of aborting so that a single failing definition does not
+     * prevent the rest of the content from being updated.
+     *
+     * @param {Array<{ error: Error, description: string }>} errors
+     * @returns {void}
+     */
+    applyContent(errors) {
+        if (this.hasStarted) {
+            try {
+                this.refreshNodes();
+            } catch (error) {
+                errors.push({ error, description: "dynamic nodes" });
+            }
+        }
         const interaction = this.interaction;
         for (const dynamicAttr of this.dynamicAttrs) {
             const { sel, attr, definition } = dynamicAttr;
@@ -477,8 +522,11 @@ export class Colibri {
                         value,
                         dynamicAttr.initialValues.get(node),
                     );
-                } catch (e) {
-                    errors.push({ error: e, attribute: attr });
+                } catch (error) {
+                    errors.push({
+                        error,
+                        description: `dynamic attribute '${attr}'`,
+                    });
                 }
             }
         }
@@ -491,26 +539,25 @@ export class Colibri {
                 tOut.initialValue = initialValue;
             }
             for (const node of nodes) {
-                if (!initialValue || !initialValue.has(node)) {
-                    const value = node.children.length
-                        ? markup(node.innerHTML)
-                        : node.textContent;
-                    initialValue.set(node, value);
+                try {
+                    if (!initialValue || !initialValue.has(node)) {
+                        const value = node.children.length
+                            ? markup(node.innerHTML)
+                            : node.textContent;
+                        initialValue.set(node, value);
+                    }
+                    this.applyTOut(
+                        node,
+                        definition.call(interaction, node),
+                        tOut.initialValue.get(node),
+                    );
+                } catch (error) {
+                    errors.push({
+                        error,
+                        description: `'t-out' content (selector '${sel}')`,
+                    });
                 }
-                this.applyTOut(
-                    node,
-                    definition.call(interaction, node),
-                    tOut.initialValue.get(node),
-                );
             }
-        }
-        this.isUpdating = false;
-        if (errors.length) {
-            const { attribute, error } = errors[0];
-            throw Error(
-                `An error occured while updating dynamic attribute '${attribute}' (in interaction '${this.interaction.constructor.name}')`,
-                { cause: error },
-            );
         }
     }
 
@@ -522,39 +569,64 @@ export class Colibri {
      * @returns {void}
      */
     destroy() {
-        // restore t-att to their initial values
-        for (const dynAttrs of this.dynamicAttrs) {
-            const { sel, attr, initialValues } = dynAttrs;
-            if (!initialValues) {
-                continue;
-            }
-            for (const node of this.dynamicNodes.get(sel) || []) {
-                if (initialValues.has(node)) {
-                    const initialValue = initialValues.get(node);
-                    this.applyAttr(node, attr, initialValue);
+        const errors = [];
+        try {
+            // restore t-att to their initial values
+            for (const dynAttrs of this.dynamicAttrs) {
+                const { sel, attr, initialValues } = dynAttrs;
+                if (!initialValues) {
+                    continue;
+                }
+                for (const node of this.dynamicNodes.get(sel) || []) {
+                    if (initialValues.has(node)) {
+                        try {
+                            this.applyAttr(node, attr, initialValues.get(node));
+                        } catch (error) {
+                            errors.push(error);
+                        }
+                    }
                 }
             }
-        }
 
-        for (const tOut of this.tOuts) {
-            const { sel, initialValue } = tOut;
-            if (!initialValue) {
-                continue;
-            }
-            for (const node of this.dynamicNodes.get(sel) || []) {
-                if (initialValue.has(node)) {
-                    const value = initialValue.get(node);
-                    this.applyTOut(node, value);
+            // restore t-out to their initial values (`restoring`: do not
+            // start interactions found in the restored content)
+            for (const tOut of this.tOuts) {
+                const { sel, initialValue } = tOut;
+                if (!initialValue) {
+                    continue;
+                }
+                for (const node of this.dynamicNodes.get(sel) || []) {
+                    if (initialValue.has(node)) {
+                        try {
+                            this.applyTOut(node, initialValue.get(node), null, true);
+                        } catch (error) {
+                            errors.push(error);
+                        }
+                    }
                 }
             }
+        } finally {
+            // even if the restore phase crashed, listeners and cleanups must
+            // be removed: the service drops this Colibri no matter what.
+            this.listeners.clear();
+            this.dynamicNodes.clear();
+            try {
+                this.destroyInteraction();
+            } finally {
+                this.core = null;
+                this.isDestroyed = true;
+                this.isReady = false;
+            }
         }
-
-        this.listeners.clear();
-        this.dynamicNodes.clear();
-        this.destroyInteraction();
-        this.core = null;
-        this.isDestroyed = true;
-        this.isReady = false;
+        if (errors.length) {
+            if (errors.length === 1) {
+                throw errors[0];
+            }
+            throw new AggregateError(
+                errors,
+                `Some errors occured while restoring content (in interaction '${this.interaction.constructor.name}')`,
+            );
+        }
     }
 
     /**

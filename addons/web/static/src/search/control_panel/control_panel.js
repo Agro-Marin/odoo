@@ -27,18 +27,27 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
 const STICKY_CLASS = "o_mobile_sticky";
 
 /**
- * Default embedded infos used when the current action has no embedded
- * actions: template guards (and inheriting templates) can keep reading
+ * Build the default embedded infos used when the current action has no
+ * embedded actions: template guards (and inheriting templates) can keep reading
  * `state.embeddedInfos.*` without any embedded machinery being set up.
+ *
+ * A factory (rather than a shared constant): the `embeddedActions` /
+ * `visibleEmbeddedActions` arrays must be fresh per control panel — a shared
+ * constant's nested arrays are aliased by every `{ ...CONST }` shallow copy, so
+ * a single stray push would leak into every other control-panel instance.
+ *
+ * @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}}
  */
-const NO_EMBEDDED_INFOS = {
-    showEmbedded: false,
-    embeddedActions: [],
-    visibleEmbeddedActions: [],
-    newActionIsShared: false,
-    newActionName: "",
-    currentEmbeddedAction: undefined,
-};
+function makeNoEmbeddedInfos() {
+    return {
+        showEmbedded: false,
+        embeddedActions: [],
+        visibleEmbeddedActions: [],
+        newActionIsShared: false,
+        newActionName: "",
+        currentEmbeddedAction: undefined,
+    };
+}
 
 /**
  * Main control panel component that renders breadcrumbs, search bar, view
@@ -131,7 +140,7 @@ export class ControlPanel extends Component {
         this.state = useState({
             embeddedInfos: this.embeddedActions
                 ? this.embeddedActions.embeddedInfos
-                : { ...NO_EMBEDDED_INFOS },
+                : makeNoEmbeddedInfos(),
         });
 
         this.onScrollThrottledBound = this.onScrollThrottled.bind(this);

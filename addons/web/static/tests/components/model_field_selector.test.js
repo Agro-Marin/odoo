@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, getFixture, test } from "@odoo/hoot";
-import { queryAllTexts } from "@odoo/hoot-dom";
+import { press, queryOne, queryAllTexts } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -964,4 +964,69 @@ test("showDebugInput = false", async () => {
 
     await openModelFieldSelectorPopover();
     expect(".o_model_field_selector_debug").toHaveCount(0);
+});
+
+test("debug input keydown does not navigate the search page", async () => {
+    await mountWithCleanup(ModelFieldSelector, {
+        props: {
+            readonly: false,
+            path: "product_id.name",
+            resModel: "partner",
+            isDebugMode: true,
+            update: () => {},
+        },
+    });
+    await openModelFieldSelectorPopover();
+    // We followed product_id, so the popover shows the product page.
+    expect(getTitle()).toBe("Product");
+    const focusedBefore = getFocusedFieldName();
+
+    const focusDebugAtStart = () => {
+        const debugInput = /** @type {HTMLInputElement} */ (
+            queryOne(".o_model_field_selector_debug")
+        );
+        debugInput.focus();
+        debugInput.setSelectionRange(0, 0);
+    };
+
+    // ArrowUp at caret 0 in the debug input must NOT move the list's virtual
+    // focus (its keydowns previously bubbled to the root handler and were read
+    // as search-input navigation).
+    focusDebugAtStart();
+    await press("ArrowUp");
+    await animationFrame();
+    expect(getFocusedFieldName()).toBe(focusedBefore);
+
+    // ArrowLeft at caret 0 in the debug input must NOT go to the previous page.
+    focusDebugAtStart();
+    await press("ArrowLeft");
+    await animationFrame();
+    expect(getTitle()).toBe("Product");
+    expect(".o_model_field_selector_popover").toHaveCount(1);
+});
+
+test("Enter on a relation button does not double-fire field selection", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update.bind="update"/>`;
+        static props = ["*"];
+        update(path) {
+            expect.step(`update: ${path}`);
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+    expect(".o_model_field_selector_popover").toHaveCount(1);
+    // Virtual focus is on the first field ("Bar").
+    expect(getFocusedFieldName()).toBe("Bar");
+
+    // Move DOM focus onto the relation button (the product_id chevron) and
+    // press Enter. The virtually-focused "Bar" must NOT be selected on top of
+    // the button's own activation.
+    queryOne(".o_model_field_selector_popover_item_relation").focus();
+    await press("Enter");
+
+    expect(".o_model_field_selector_popover").toHaveCount(1);
+    expect.verifySteps([]);
 });

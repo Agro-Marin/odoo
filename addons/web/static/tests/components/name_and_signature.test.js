@@ -2,8 +2,13 @@
 
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import { contains, mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 import { NameAndSignature } from "@web/components/signature/name_and_signature";
+
+// Tiny valid 1x1 transparent PNG.
+const TINY_PNG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+BCQAHBQICJmhD1AAAAABJRU5ErkJggg==";
 
 const getNameAndSignatureButtonNames = () =>
     queryAllTexts(".card-header .col-auto").filter((text) => text.length);
@@ -127,4 +132,35 @@ test("test name_and_signature widget with non-breaking spaces and initials mode"
     };
     const res = await mountWithCleanup(NameAndSignature, { props });
     expect(res.getCleanedName()).toBe("N.B.S.");
+});
+
+test("printImage serializes concurrent calls with KeepLast (only the last draws)", async () => {
+    const res = await mountWithCleanup(NameAndSignature, {
+        props: {
+            signature: { name: "Test Owner" },
+            mode: "draw", // avoid the auto-mode drawing that runs on mount
+        },
+    });
+
+    let firstResolved = false;
+    let secondResolved = false;
+
+    // Fire two draws back-to-back without awaiting the first.
+    const p1 = res.printImage(TINY_PNG).then(() => {
+        firstResolved = true;
+    });
+    const p2 = res.printImage(TINY_PNG).then(() => {
+        secondResolved = true;
+    });
+
+    await p2;
+    await animationFrame();
+
+    // The superseded first call is abandoned (its KeepLast-wrapped promise never
+    // settles), so it never reaches the draw step — this is what prevents rapid
+    // successive calls from producing superimposed "ghost" renders. Only the
+    // most recent call completes.
+    expect(secondResolved).toBe(true);
+    expect(firstResolved).toBe(false);
+    void p1;
 });

@@ -194,6 +194,21 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
             record._values = markRaw({ ...record._values, ...record._changes });
+            // Mirror the reload:false branch: clear each x2many list's staged
+            // CREATE/LINK/UPDATE commands now that the beacon persisted them.
+            // Without this, if the page survives (e.g. bfcache Back after the
+            // tab-close beacon), the stale commands remain on the lists and the
+            // next save re-serializes them, creating duplicate child rows. Must
+            // run before ``_clearChanges()`` empties ``_changes``.
+            for (const fieldName of Object.keys(record.activeFields)) {
+                const field = record.fields[fieldName];
+                if (
+                    ["one2many", "many2many"].includes(field.type) &&
+                    !field.relatedPropertyField
+                ) {
+                    record._changes[fieldName]?._clearCommands();
+                }
+            }
             record._clearChanges();
         } else {
             record.model._closeUrgentSaveNotification =

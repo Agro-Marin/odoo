@@ -476,3 +476,26 @@ test("float field can be updated by another field/widget", async () => {
     expect(".o_field_widget[name=float_field] input:eq(0)").toHaveValue("41.00");
     expect(".o_field_widget[name=float_field] input:eq(1)").toHaveValue("41.00");
 });
+
+test("type number renders 0 as a raw number, not a locale-formatted string", async () => {
+    defineParams({
+        lang_parameters: {
+            thousands_sep: ".",
+            decimal_point: ",",
+            grouping: [3, 0],
+        },
+    });
+    // Record 4 has float_field === 0. A comma-decimal locale would format it
+    // as "0,00", which a `<input type="number">` rejects (the browser blanks
+    // the field). The number path must emit the raw "0" instead.
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 4,
+        arch: `<form><field name="float_field" options="{'type': 'number'}"/></form>`,
+    });
+    expect(".o_field_widget input").toHaveAttribute("type", "number");
+    expect(".o_field_widget input").toHaveValue(0, {
+        message: "a 0 float must render as the raw number 0, not '0,00'",
+    });
+});

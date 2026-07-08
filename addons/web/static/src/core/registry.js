@@ -218,6 +218,21 @@ export class Registry extends EventBus {
                 }
                 return this;
             }
+            // Same value re-registered. The early return above keeps the
+            // ORIGINAL sequence, so a caller that passed a *different*
+            // sequence expecting to reorder the entry has its request
+            // silently dropped. Surface that in dev so the lost ordering
+            // change is not a mystery.
+            if (
+                odoo.debug &&
+                sequence !== undefined &&
+                sequence !== this.content[key][0]
+            ) {
+                console.warn(
+                    `[registry] Duplicate add for key "${key}" in "${this.name || "(root)"}" registry with the same value but a different sequence ` +
+                        `(kept ${this.content[key][0]}, ignored ${sequence}). Use { force: true } to change the sequence.`,
+                );
+            }
             return this;
         }
         let previousSequence;
@@ -242,7 +257,7 @@ export class Registry extends EventBus {
     get(key, defaultValue) {
         if (arguments.length < 2 && !(key in this.content)) {
             throw new KeyNotFoundError(
-                `Cannot find key "${key}" in the "${this.name}" registry`,
+                `Cannot find key "${key}" in the "${this.name || "(root)"}" registry`,
             );
         }
         const info = this.content[key];

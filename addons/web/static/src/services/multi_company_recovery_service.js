@@ -86,11 +86,16 @@ export const multiCompanyRecoveryService = {
                 if (!_isAccessError(error) || !suggestedCompany) {
                     return false;
                 }
-                /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
-                if (!activeCompanyIds.includes(suggestedCompany.id)) {
-                    activeCompanyIds.push(suggestedCompany.id);
+                if (activeCompanyIds.includes(suggestedCompany.id)) {
+                    // Already active.  Activating + reloading again would just
+                    // re-raise the same AccessError, spinning an infinite reload
+                    // loop; this is not our recovery path.  (Mirrors the
+                    // save-error guard below.)
+                    return false;
                 }
+                /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
+                activeCompanyIds.push(suggestedCompany.id);
                 user.activateCompanies(activeCompanyIds);
                 return true;
             },
@@ -119,6 +124,7 @@ export const multiCompanyRecoveryService = {
                     // reason; not our recovery path.
                     return false;
                 }
+                model.config.context.allowed_company_ids ??= [];
                 model.config.context.allowed_company_ids.push(suggestedCompany.id);
                 activeCompanyIds.push(suggestedCompany.id);
                 user.activateCompanies(activeCompanyIds, { reload: false });

@@ -6,6 +6,7 @@
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import {
     connector,
+    Expression,
     formatValue,
     isTree,
 } from "@web/core/tree/condition_tree";
@@ -354,7 +355,13 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                 }),
                 isSupported: () => true,
                 defaultValue: () => 1,
-                shouldResetValue: (value) => parseValue(formatType, value) === value,
+                // Keep committed numbers, dynamic values (an ``Expression``
+                // such as ``uid``) and parsable leftover strings when the
+                // operator changes; only unusable values are reset.
+                shouldResetValue: (value) =>
+                    typeof value !== "number" &&
+                    !(value instanceof Expression) &&
+                    !(typeof value === "string" && isParsable(formatType, value)),
             };
         }
         case "date":
@@ -395,7 +402,10 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                     }
                     return start;
                 },
-                shouldResetValue: () => true,
+                // A user-picked date must survive an operator change; only
+                // values that are not parsable date strings are reset.
+                shouldResetValue: (value) =>
+                    !(typeof value === "string" && isParsable(type, value)),
                 stringify: (value) => {
                     if (value === false) {
                         return _t("False");

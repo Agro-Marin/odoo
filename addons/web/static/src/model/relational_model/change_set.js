@@ -76,37 +76,6 @@ export class ChangeSet {
     }
 
     /**
-     * Single-field assignment — used by ``_applyChanges`` to land each
-     * incoming edit into the bag.
-     *
-     * @param {string} key
-     * @param {any} value
-     */
-    setField(key, value) {
-        this._changes[key] = value;
-    }
-
-    /**
-     * Drop a single pending edit — used by the ``_update`` many2one
-     * same-value guard that detects a "selected the same partner again"
-     * non-change and removes the no-op edit so the dirty signal stays
-     * accurate.
-     *
-     * @param {string} key
-     */
-    delete(key) {
-        delete this._changes[key];
-    }
-
-    /**
-     * @param {string} key
-     * @returns {boolean}
-     */
-    has(key) {
-        return key in this._changes;
-    }
-
-    /**
      * The underlying markRaw bag. Returned by reference so existing
      * consumers that iterate keys, spread into ``data``, or call
      * ``_getChanges(this._changes, opts)`` keep working unchanged.

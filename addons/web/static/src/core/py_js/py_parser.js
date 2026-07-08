@@ -257,7 +257,14 @@ function parseInfix(left, current, cur) {
     switch (current.type) {
         case TokenType.Symbol:
             if (infixOperators.has(/** @type {string} */ (current.value))) {
-                let right = _parse(cur, bindingPower(current));
+                // ``**`` is right-associative (``2**3**2`` == 2**(3**2) == 512).
+                // Parsing its right operand with a binding power one below its
+                // own lets a following ``**`` bind into the right subtree.
+                const rightBp =
+                    current.value === "**"
+                        ? bindingPower(current) - 1
+                        : bindingPower(current);
+                let right = _parse(cur, rightBp);
                 if (current.value === "and" || current.value === "or") {
                     return {
                         type: ASTType.BooleanOperator,

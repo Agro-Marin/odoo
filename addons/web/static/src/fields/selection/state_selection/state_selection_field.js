@@ -117,7 +117,12 @@ export const stateSelectionField = {
     supportedTypes: ["selection"],
     extractProps({ options, viewType }, dynamicInfo) {
         return {
-            showLabel: "hide_label" in options ? !options.hide_label : false,
+            // The explicit `hide_label` option always wins; otherwise the label
+            // is hidden by default in kanban (compact colored dot) and shown in
+            // other views. Previously the default was `false` everywhere, which
+            // made `defaultProps.showLabel` dead and inverted the option's sense.
+            showLabel:
+                "hide_label" in options ? !options.hide_label : viewType !== "kanban",
             withCommand: viewType === "form",
             readonly: dynamicInfo.readonly,
             autosave: "autosave" in options ? !!options.autosave : true,

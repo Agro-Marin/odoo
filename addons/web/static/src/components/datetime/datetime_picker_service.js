@@ -6,6 +6,7 @@
 import {
     markRaw,
     onPatched,
+    onWillDestroy,
     onWillRender,
     reactive,
     useEffect,
@@ -104,6 +105,13 @@ export const datetimePickerService = {
                  * value has changed, and set other internal variables accordingly.
                  */
                 async function apply() {
+                    if (destroyed) {
+                        // The owner component has been destroyed. A popover
+                        // torn down during that teardown (e.g. by its
+                        // target-removal observer, or our own close()) must not
+                        // apply against the now-gone component/record.
+                        return;
+                    }
                     const { value } = pickerProps;
                     const stringValue = JSON.stringify(value);
                     if (
@@ -560,6 +568,14 @@ export const datetimePickerService = {
                     /** @type {any} */ (DateTimePickerPopover),
                     {
                         async onClose() {
+                            if (destroyed) {
+                                // The owner was destroyed (its onWillDestroy ran
+                                // first and set the flag). Skip the whole close
+                                // handler: neither the input sync (onChange) nor
+                                // apply (onApply) must run against a gone owner —
+                                // same guard usePopover applies via `status()`.
+                                return;
+                            }
                             updateValueFromInputs();
                             setFocusClass(null);
                             restoreTargetMargin?.();
@@ -572,6 +588,7 @@ export const datetimePickerService = {
 
                 /** @type {boolean[]} */
                 let inputsChanged = [];
+                let destroyed = false;
                 let lastAppliedStringValue = "";
                 /** @type {(() => void) | null} */
                 let restoreTargetMargin = null;
@@ -582,6 +599,15 @@ export const datetimePickerService = {
                 let targetRef = null;
 
                 if (params.useOwlHooks) {
+                    // Registered here (during `create()`, hence before any
+                    // onWillDestroy the caller/hook adds afterwards) so the
+                    // guard is already set when a popover is torn down as part
+                    // of the same destroy phase. OWL runs willDestroy callbacks
+                    // in registration order.
+                    onWillDestroy(() => {
+                        destroyed = true;
+                    });
+
                     if (typeof params.target === "string") {
                         targetRef = useRef(params.target);
                     }

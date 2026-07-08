@@ -13570,6 +13570,129 @@ test(`cached web_read - record stays dirty when revalidation lands after an edit
     expect.verifySteps([`web_save:${JSON.stringify({ foo: "This is yop" })}`]);
 });
 
+test(`cached web_read - invalid input survives revalidation`, async () => {
+    // Regression: the keepChanges reload path used to derive ``dirty`` from
+    // ``_changes`` alone and to wipe ``_invalidFields``. A record whose only
+    // modification was invalid input (Invariant 2: dirty=true, ``_changes``
+    // empty) flipped back to pristine when the revalidation web_read landed:
+    // the invalid flag and the "unsaved changes" indicator vanished while the
+    // DOM input still held the rejected text, and every isDirty() gate would
+    // silently drop it.
+    let def = null;
+    onRpc("web_read", async () => def);
+
+    Partner._views = {
+        form: `<form><field name="foo"/><field name="int_field"/></form>`,
+    };
+
+    defineActions([
+        {
+            id: 1,
+            name: "Partner",
+            res_model: "partner",
+            res_id: 1,
+            views: [[false, "form"]],
+            cache: true,
+        },
+        {
+            id: 2,
+            name: "Partner",
+            res_model: "partner",
+            res_id: 2,
+            views: [[false, "form"]],
+        },
+    ]);
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+    await getService("action").doAction(2);
+
+    def = new Deferred();
+    getService("action").doAction(1);
+    await animationFrame();
+    expect(`.o_field_widget[name=int_field] input`).toHaveValue("10");
+
+    // Type invalid input while the revalidation web_read is pending
+    await contains(`.o_field_widget[name=int_field] input`).edit("abc");
+    expect(`.o_field_widget[name=int_field]`).toHaveClass("o_field_invalid");
+
+    def.resolve([
+        { id: 1, foo: "new yop", int_field: 12, display_name: "new first record" },
+    ]);
+    await animationFrame();
+
+    // The invalid flag, the rejected text and the dirty indicator must survive
+    expect(`.o_field_widget[name=int_field]`).toHaveClass("o_field_invalid");
+    expect(`.o_field_widget[name=int_field] input`).toHaveValue("abc");
+    expect(`.o_form_status_indicator_buttons`).not.toHaveClass("invisible");
+    expect(`.o_form_status_indicator_buttons .o_form_button_save`).toHaveAttribute(
+        "disabled",
+    );
+});
+
+test(`cached web_read - savepoint survives revalidation`, async () => {
+    // Regression: the keepChanges reload path used to wipe ``_savePoint``
+    // while preserving ``_changes``. A savepoint snapshots the pending-edit
+    // layer when a sub-flow opens (``extendRecord``, e.g. an x2many form
+    // dialog); if a cache revalidation landed while the sub-flow was open,
+    // the later Discard fell into the no-savepoint branch and cleared ALL
+    // pending changes — including the pre-sub-flow edits the savepoint was
+    // supposed to protect. The savepoint is installed with the production
+    // API (``_addSavePoint``, see record_savepoint.js) because
+    // ``extendRecord`` only targets x2many children, which the monorecord
+    // revalidation callback never reaches directly.
+    let def = null;
+    onRpc("web_read", async () => def);
+
+    Partner._views = {
+        form: `<form><field name="foo"/></form>`,
+    };
+
+    defineActions([
+        {
+            id: 1,
+            name: "Partner",
+            res_model: "partner",
+            res_id: 1,
+            views: [[false, "form"]],
+            cache: true,
+        },
+        {
+            id: 2,
+            name: "Partner",
+            res_model: "partner",
+            res_id: 2,
+            views: [[false, "form"]],
+        },
+    ]);
+
+    const webClient = await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+    await getService("action").doAction(2);
+
+    def = new Deferred();
+    getService("action").doAction(1);
+    await animationFrame();
+    expect(`.o_field_char input`).toHaveValue("yop");
+
+    // Edit, then snapshot the pending-edit layer (as extendRecord would)
+    await contains(`.o_field_widget[name=foo] input`).edit("pre dialog");
+    const form = findComponent(webClient, (c) => c instanceof FormController);
+    form.model.root._addSavePoint();
+
+    // Sub-flow edit, then let the revalidation land while the savepoint is set
+    await contains(`.o_field_widget[name=foo] input`).edit("in dialog");
+    def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
+    await animationFrame();
+    expect(`.o_field_char input`).toHaveValue("in dialog");
+
+    // Discard must restore the savepoint (the pre-sub-flow edit), not clear
+    // all pending changes down to the revalidated server values
+    await contains(`.o_form_button_cancel`).click();
+    expect(`.o_field_char input`).toHaveValue("pre dialog");
+    expect(`.o_form_status_indicator_buttons`).not.toHaveClass("invisible");
+});
+
 test(`cached onchange - don't loose changes`, async () => {
     let def = null;
     onRpc("onchange", async () => {

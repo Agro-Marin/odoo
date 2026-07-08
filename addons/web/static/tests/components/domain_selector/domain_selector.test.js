@@ -332,7 +332,7 @@ test("building a domain with an expression in value", async () => {
     await makeDomainSelector({
         domain: `[("int", "=", id)]`,
         update(domain) {
-            expect(domain).toBe(`[("int", "<", 1)]`);
+            expect(domain).toBe(`[("int", "<", id)]`);
         },
     });
 
@@ -344,7 +344,41 @@ test("building a domain with an expression in value", async () => {
 
     expect(getCurrentPath()).toBe("Int");
     expect(getCurrentOperator()).toBe(label("<"));
-    expect(getCurrentValue()).toBe("1");
+    expect(getCurrentValue()).toBe("id");
+});
+
+test("integer value preserved when changing operator", async () => {
+    await makeDomainSelector({
+        domain: `[("int", "=", 42)]`,
+        update(domain) {
+            expect.step(domain);
+        },
+    });
+    expect(getCurrentPath()).toBe("Int");
+    expect(getCurrentValue()).toBe("42");
+
+    await selectOperator("<");
+
+    expect(getCurrentOperator()).toBe(label("<"));
+    expect(getCurrentValue()).toBe("42");
+    expect.verifySteps([`[("int", "<", 42)]`]);
+});
+
+test("expression value (uid) preserved when changing operator", async () => {
+    await makeDomainSelector({
+        domain: `[("int", "=", uid)]`,
+        update(domain) {
+            expect.step(domain);
+        },
+    });
+    expect(getCurrentPath()).toBe("Int");
+    expect(getCurrentValue()).toBe("uid");
+
+    await selectOperator("<");
+
+    expect(getCurrentOperator()).toBe(label("<"));
+    expect(getCurrentValue()).toBe("uid");
+    expect.verifySteps([`[("int", "<", uid)]`]);
 });
 
 test("building a domain with a m2o without following the relation", async () => {
@@ -2053,6 +2087,24 @@ test("date/datetime edition: switch is_set to other operators", async () => {
     expect(getCurrentValue()).toBe("04/20/2023 23:59:59");
     expect(getCurrentOperator()).toBe(label(">", "datetime"));
     expect.verifySteps(['[("datetime", ">", "2023-04-20 23:59:59")]']);
+});
+
+test("date value preserved when changing operator", async () => {
+    mockDate("2023-04-20 17:00:00", 0);
+    await makeDomainSelector({
+        domain: `[("date", "=", "2023-05-26")]`,
+        update(domain) {
+            expect.step(domain);
+        },
+    });
+    expect(getCurrentOperator()).toBe(label("="));
+    expect(getCurrentValue()).toBe("05/26/2023");
+
+    await selectOperator("<");
+
+    expect(getCurrentOperator()).toBe(label("<", "date"));
+    expect(getCurrentValue()).toBe("05/26/2023");
+    expect.verifySteps([`[("date", "<", "2023-05-26")]`]);
 });
 
 test("render false and true leaves", async () => {

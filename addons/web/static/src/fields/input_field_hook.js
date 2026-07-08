@@ -192,15 +192,21 @@ export function useInputField(params) {
             if (hasValueChanged(val)) {
                 lastSetValue = inputRef.el.value;
                 pendingUpdate = true;
-                await component.props.record.update(
-                    { [fieldName]: val },
-                    { save: shouldSave() },
-                );
-                pendingUpdate = false;
-                component.props.record.model.bus.trigger(
-                    ModelEvent.FIELD_IS_DIRTY,
-                    false,
-                );
+                // A rejected `update` (e.g. a failing onchange RPC) must not
+                // leave `pendingUpdate` stuck at true and `FIELD_IS_DIRTY`
+                // uncleared, so both are reset in `finally`.
+                try {
+                    await component.props.record.update(
+                        { [fieldName]: val },
+                        { save: shouldSave() },
+                    );
+                } finally {
+                    pendingUpdate = false;
+                    component.props.record.model.bus.trigger(
+                        ModelEvent.FIELD_IS_DIRTY,
+                        false,
+                    );
+                }
             } else {
                 inputRef.el.value = params.getValue();
             }

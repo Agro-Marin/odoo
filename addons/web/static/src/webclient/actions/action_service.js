@@ -212,18 +212,26 @@ export class ActionManager {
 
     /**
      * Removes the current dialog from the action service's state.
-     * It returns the dialog's onClose callback to be able to propagate it to the next dialog.
+     *
+     * Lifecycle invariant: the manager's dialog slot is cleared and the
+     * dialog is removed from the dialog service *before* the user-provided
+     * ``onClose`` callback runs. The callback may itself dispatch actions
+     * (e.g. an inline follow-up whose ``_dispatchInline`` calls
+     * ``dialog.closeAll()``, re-entering this method through the dialog
+     * service's ``onRemove``); those re-entrant calls must find
+     * ``this.dialog`` already null so ``onClose`` fires exactly once.
      *
      * @return {Promise<void>}
      */
     async _removeDialog(closeParams) {
         if (this.dialog) {
             const { onClose, remove } = this.dialog;
-            await onClose?.(closeParams);
             this.dialog = null;
-            // Remove the dialog from the dialog_service.
-            // The code is well enough designed to avoid falling in a function call loop.
+            // Remove the dialog from the dialog_service. Re-entry (the
+            // service's onRemove calls back into this method) is a no-op
+            // because this.dialog is already null.
             remove();
+            await onClose?.(closeParams);
         }
     }
 
@@ -524,6 +532,11 @@ export class ActionManager {
             action.context.header ?? actionDialogProps.header;
         actionDialogProps.footer =
             action.context.footer ?? actionDialogProps.footer;
+        // Propagate the committed dialog's onClose to the dialog replacing
+        // it: the callback transfers to the entry built below, and deleting
+        // it here guarantees the old dialog's removal (performed by
+        // ControllerComponent.onMounted once the new dialog is mounted)
+        // fires no user callback.
         const onClose = this.dialog?.onClose;
         delete this.dialog?.onClose;
         const removeDialogFn = removeDialogRef.current = this.env.services.dialog.add(
@@ -532,6 +545,9 @@ export class ActionManager {
             { onClose: (closeParams) => this._removeDialog(closeParams) },
         );
         if (this.nextDialog) {
+            // Discard a dialog that was dispatched but never mounted (its
+            // ControllerComponent has not committed it to ``this.dialog``
+            // yet) — the committed dialog, if any, is removed on mount.
             this.nextDialog.remove();
         }
         this.nextDialog = {
@@ -833,8 +849,15 @@ export class ActionManager {
                 );
             }
             const { actionRequest, options } = actionParams;
-            this.controllerStack = this.controllerStack.slice(0, index);
-            return this.doAction(actionRequest, options);
+            // Don't pre-truncate the live stack: if doAction rejects (e.g. a
+            // MissingActionError for a deleted action reached via breadcrumb),
+            // the currently-displayed controller must remain committed. Hand
+            // the truncated stack to _updateUI via the existing `newStack`
+            // plumbing, which only commits it once the action has loaded.
+            return this.doAction(actionRequest, {
+                ...options,
+                newStack: this.controllerStack.slice(0, index),
+            });
         }
         if (controller.action.type === "ir.actions.act_window") {
             if (controller.isMounted) {

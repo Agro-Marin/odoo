@@ -41,10 +41,24 @@ export const nameService = {
     start(env, { orm }) {
         /** @type {Record<string, Record<string, import("@web/core/utils/concurrency").Deferred>>} */
         let cache = Object.create(null);
-        /** @type {Record<string, number[]>} */
+        /**
+         * Pending fetches per model. Each entry carries its own Deferred so
+         * that the flush closure can settle callers without going through
+         * `cache`: `clearCache` may swap the cache while a batch is in
+         * flight, and callers joining the batch after the swap hold
+         * Deferreds from the NEW cache while the flush closure captured the
+         * OLD one — resolving through the mapping would then miss them
+         * (leaving them pending forever) and TypeError on the missing keys.
+         * @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>}
+         */
         const batches = Object.create(null);
 
-        /** Invalidate the entire display name cache (called on action manager updates). */
+        /**
+         * Invalidate the entire display name cache (called on action manager
+         * updates). In-flight batches are left untouched: their entries own
+         * their Deferreds, so pre-clear callers still settle, while the
+         * swapped cache guarantees post-clear callers re-fetch.
+         */
         function clearCache() {
             cache = Object.create(null);
         }
@@ -86,28 +100,45 @@ export const nameService = {
          * @param {number[]} resIds valid ids
          * @returns {Promise<DisplayNames>}
          */
+        /**
+         * Evict a non-durable entry (missing record or failed fetch) so a
+         * later lookup re-fetches. Only evict if the current cache still
+         * holds this very Deferred: after a `clearCache` the slot may be
+         * absent or already repopulated by a newer epoch's fetch.
+         * @param {string} resModel
+         * @param {number} resId
+         * @param {import("@web/core/utils/concurrency").Deferred} deferred
+         */
+        function evict(resModel, resId, deferred) {
+            if (cache[resModel]?.[resId] === deferred) {
+                delete cache[resModel][resId];
+            }
+        }
+
         async function loadDisplayNames(resModel, resIds) {
             const mapping = getMapping(resModel);
             const proms = [];
-            const resIdsToFetch = [];
+            /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
+            const entriesToFetch = [];
             for (const resId of unique(resIds)) {
                 if (!isId(resId)) {
                     throw new Error(`Invalid ID: ${resId}`);
                 }
                 if (!(resId in mapping)) {
                     mapping[resId] = new Deferred();
-                    resIdsToFetch.push(resId);
+                    entriesToFetch.push({ resId, deferred: mapping[resId] });
                 }
                 proms.push(mapping[resId]);
             }
-            if (resIdsToFetch.length) {
+            if (entriesToFetch.length) {
                 if (batches[resModel]) {
-                    batches[resModel].push(...resIdsToFetch);
+                    batches[resModel].push(...entriesToFetch);
                 } else {
-                    batches[resModel] = resIdsToFetch;
+                    batches[resModel] = entriesToFetch;
                     await Promise.resolve();
-                    const idsInBatch = unique(batches[resModel]);
+                    const batch = batches[resModel];
                     delete batches[resModel];
+                    const idsInBatch = unique(batch.map((entry) => entry.resId));
 
                     const specification = { display_name: {} };
                     orm.silent
@@ -119,9 +150,9 @@ export const nameService = {
                             const displayNames = Object.fromEntries(
                                 records.map((rec) => [rec.id, rec.display_name]),
                             );
-                            for (const resId of idsInBatch) {
+                            for (const { resId, deferred } of batch) {
                                 if (resId in displayNames) {
-                                    mapping[resId].resolve(displayNames[resId]);
+                                    deferred.resolve(displayNames[resId]);
                                 } else {
                                     // Missing/inaccessible is NOT a durable
                                     // result: resolve the pending callers but
@@ -133,17 +164,15 @@ export const nameService = {
                                     // with reload:false); a cached sentinel would
                                     // otherwise blank the name for the rest of the
                                     // session.
-                                    mapping[resId].resolve(ERROR_INACCESSIBLE_OR_MISSING);
-                                    delete mapping[resId];
+                                    deferred.resolve(ERROR_INACCESSIBLE_OR_MISSING);
+                                    evict(resModel, resId, deferred);
                                 }
                             }
                         })
                         .catch((/** @type {unknown} */ error) => {
-                            for (const resId of idsInBatch) {
-                                if (resId in mapping) {
-                                    mapping[resId].reject(error);
-                                    delete mapping[resId];
-                                }
+                            for (const { resId, deferred } of batch) {
+                                deferred.reject(error);
+                                evict(resModel, resId, deferred);
                             }
                         });
                 }

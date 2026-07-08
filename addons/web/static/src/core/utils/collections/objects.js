@@ -23,7 +23,10 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
     const obj1Keys = Reflect.ownKeys(o1);
     return (
         obj1Keys.length === Reflect.ownKeys(o2).length &&
-        obj1Keys.every((key) => comparisonFn(o1[key], o2[key]))
+        // ``Object.hasOwn`` guards against different key SETS with the same key
+        // COUNT: without it, ``{ a: undefined }`` and ``{ b: undefined }`` compared
+        // equal (``o2[key]`` is ``undefined`` for a missing key).
+        obj1Keys.every((key) => Object.hasOwn(o2, key) && comparisonFn(o1[key], o2[key]))
     );
 }
 
@@ -48,7 +51,7 @@ export function deepEqual(obj1, obj2) {
 /**
  * @param {any} a
  * @param {any} b
- * @param {WeakMap<object, object>} seen pairs already being compared (cycle guard)
+ * @param {WeakMap<object, WeakSet<object>>} seen pairs already being compared (cycle guard)
  * @returns {boolean}
  */
 function _deepEqual(a, b, seen) {
@@ -61,10 +64,20 @@ function _deepEqual(a, b, seen) {
     if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
         return false; // primitive mismatch (=== already ruled out equality)
     }
-    if (seen.get(a) === b) {
-        return true; // this exact pair is already under comparison up the stack
+    // Cycle guard, keyed on the PAIR: one node of a cycle may have to be
+    // compared against several counterpart nodes (e.g. a 1-cycle vs a
+    // 2-cycle), so a single-slot ``WeakMap<a, b>`` would flip-flop and never
+    // fire. A pair already under comparison up the stack is assumed equal
+    // (coinductive equality): any actual difference is found elsewhere.
+    let counterparts = seen.get(a);
+    if (counterparts?.has(b)) {
+        return true;
     }
-    seen.set(a, b);
+    if (!counterparts) {
+        counterparts = new WeakSet();
+        seen.set(a, counterparts);
+    }
+    counterparts.add(b);
 
     if (a instanceof Date || b instanceof Date) {
         return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();

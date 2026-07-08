@@ -8,6 +8,7 @@ import {
     makeMockEnv,
     models,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { rpcBus } from "@web/core/network/rpc";
 import { currencies } from "@web/services/currency";
@@ -61,4 +62,26 @@ test("do not reload webclient when updating a res.currency, but there is an erro
         error: {},
     });
     expect.verifySteps([]);
+});
+
+test("a failed background currency reload does not raise an unhandled rejection", async () => {
+    // The reload triggered by a res.currency mutation is fire-and-forget. If
+    // `get_all_currencies` rejects, the failure must be swallowed (logged via
+    // console.warn) rather than bubbling up as an unhandled rejection that Hoot
+    // would fail the test on (and that the user would see as an error dialog).
+    patchWithCleanup(console, {
+        warn: () => expect.step("warn"),
+    });
+    onRpc("get_all_currencies", () => {
+        throw new Error("get_all_currencies failed");
+    });
+    await makeMockEnv();
+    rpcBus.trigger("RPC:RESPONSE", {
+        data: { params: { model: "res.currency", method: "write" } },
+        settings: {},
+        result: {},
+    });
+    await animationFrame();
+    // The rejection was routed to console.warn, not left unhandled.
+    expect.verifySteps(["warn"]);
 });

@@ -29,6 +29,13 @@ export const overlayService = {
     start() {
         let nextId = 0;
         const overlays = reactive(/** @type {Record<number, any>} */ ({}));
+        // Ids whose removal is in flight. A closer may be invoked more than once
+        // before its async ``onRemove`` settles (e.g. action_service calls the
+        // dialog's ``remove()`` while a re-entrant ``onRemove`` also fires, or
+        // OverlayContainer.handleError removes a crashing overlay). Tracking the
+        // in-flight ids makes ``remove`` idempotent internally so ``onRemove``
+        // runs exactly once and consumers don't each need their own guard.
+        const removing = new Set();
 
         mainComponents.add("OverlayContainer", {
             Component: /** @type {any} */ (OverlayContainer),
@@ -40,12 +47,15 @@ export const overlayService = {
             onRemove = /** @type {(params?: any) => void} */ (() => {}),
             /** @type {any} */ removeParams,
         ) => {
-            if (id in overlays) {
-                try {
-                    await onRemove(removeParams);
-                } finally {
-                    delete overlays[id];
-                }
+            if (!(id in overlays) || removing.has(id)) {
+                return;
+            }
+            removing.add(id);
+            try {
+                await onRemove(removeParams);
+            } finally {
+                removing.delete(id);
+                delete overlays[id];
             }
         };
 

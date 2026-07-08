@@ -8,12 +8,12 @@ import {
     sections,
     symmetricalDifference,
 } from "@web/core/utils/collections/arrays";
-import { KeepLast, Race } from "@web/core/utils/concurrency";
+import { KeepLast, Mutex, Race } from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import { computeReportMeasures, processMeasure } from "@web/views/view_measurements";
 
-import { formatPivotForExport } from "./pivot_export.js";
+import { computeExportedTableWidth, formatPivotForExport } from "./pivot_export.js";
 import {
     findGroup,
     getLeafCounts,
@@ -354,6 +354,10 @@ export class PivotModel extends Model {
         // concurrency management
         this.keepLast = new KeepLast();
         this.race = new Race();
+        // Serializes group expansions: they share this.keepLast (via
+        // _subdivideGroup), so back-to-back expands must not overlap or the
+        // second's read_group would cancel the first's (dropping its notify).
+        this.expandMutex = new Mutex();
         /** @type {(...args: any[]) => any} */
         const _loadData = this._loadData.bind(this);
         /** @type {any} */
@@ -393,6 +397,7 @@ export class PivotModel extends Model {
         this.metaData = this._buildMetaData(metaData);
 
         this.reload = false; // used to discriminate between the first load and subsequent reloads
+        this.lastPivotMeasuresKey = undefined; // last consumed context.pivot_measures (JSON), for change detection
         this.nextActiveMeasures = null; // allows to toggle several measures consecutively
     }
 
@@ -529,9 +534,16 @@ export class PivotModel extends Model {
             return; // we are currently reloaded the table
         }
 
-        const config = { metaData: this.metaData, data: this.data };
-        await this._expandGroup(/** @type {any} */ (groupId), type, config);
-        this.notify();
+        // Run expansions one at a time. Each expansion goes through the shared
+        // this.keepLast (in _subdivideGroup); without serialization a second
+        // expand fired before the first resolves would supersede the first's
+        // read_group, so its _prepareData/notify would never run and that click
+        // would be silently lost.
+        await this.expandMutex.exec(async () => {
+            const config = { metaData: this.metaData, data: this.data };
+            await this._expandGroup(/** @type {any} */ (groupId), type, config);
+            this.notify();
+        });
     }
     /**
      * Export model data in a form suitable for an easy encoding of the pivot
@@ -608,13 +620,21 @@ export class PivotModel extends Model {
         };
     }
     /**
-     * Returns the total number of columns of the pivot table.
+     * Returns the total number of columns of the pivot table, as exported to
+     * XLSX: the row-title column, one column per leaf column group and per
+     * active measure, and the "Total" column group (one column per active
+     * measure) when there is more than one leaf.
      *
      * @returns {number}
      */
     getTableWidth() {
         const leafCounts = getLeafCounts(this.data.colGroupTree);
-        return leafCounts[JSON.stringify(this.data.colGroupTree.root.values)] + 2;
+        const leafCount =
+            leafCounts[JSON.stringify(this.data.colGroupTree.root.values)];
+        return computeExportedTableWidth(
+            leafCount,
+            this.metaData.activeMeasures.length,
+        );
     }
     /**
      * @returns {boolean} true iff there's no data in the table
@@ -628,7 +648,19 @@ export class PivotModel extends Model {
      */
     async load(searchParams) {
         this.searchParams = searchParams;
-        const processedMeasures = processMeasure(searchParams.context.pivot_measures);
+        // pivot_measures from the favorite/action context seeds the active
+        // measures when the favorite is (de)activated — i.e. when its value
+        // changes — but must NOT keep re-overriding a measure toggled through
+        // the UI on every later reload while the same favorite stays active.
+        // We therefore consume it only when the context value actually changes
+        // (compared by value: the search model may rebuild the array each load).
+        const rawPivotMeasures = searchParams.context.pivot_measures;
+        const pivotMeasuresKey = JSON.stringify(rawPivotMeasures ?? null);
+        let processedMeasures = null;
+        if (pivotMeasuresKey !== this.lastPivotMeasuresKey) {
+            this.lastPivotMeasuresKey = pivotMeasuresKey;
+            processedMeasures = processMeasure(rawPivotMeasures);
+        }
         const activeMeasures = processedMeasures || this.metaData.activeMeasures;
         const metaData = this._buildMetaData({ activeMeasures });
         if (!this.reload) {

@@ -10,7 +10,11 @@ import {
 } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
 import { defineStyle, mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { ColorPicker, DEFAULT_COLORS } from "@web/components/color_picker/color_picker";
+import {
+    ColorPicker,
+    DEFAULT_COLORS,
+    useColorPicker,
+} from "@web/components/color_picker/color_picker";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
 import { registry } from "@web/core/registry";
 
@@ -330,6 +334,64 @@ test("can register an extra tab", async () => {
     expect("button.extra-tab").toHaveClass("active");
     expect(".o_font_color_selector>p:last-child").toHaveText("Color picker extra tab");
     registry.category("color_picker_tabs").remove("web.extra");
+});
+
+test("useColorPicker commits the previewed custom color on close without a caller onClose", async () => {
+    /** @type {Record<string, any>} */
+    const pickerOptions = {};
+    class Host extends Component {
+        static template = xml`<button class="test-color-btn" t-ref="colorButton">color</button>`;
+        static props = ["*"];
+        setup() {
+            this.colorState = useState({
+                selectedColor: "#FF0000",
+                defaultTab: "custom",
+            });
+            // No `onClose` in the options: the previewed custom color must
+            // still be committed when the popover closes.
+            this.picker = useColorPicker(
+                "colorButton",
+                {
+                    state: this.colorState,
+                    getUsedCustomColors: () => [],
+                    applyColor: () => expect.step("applyColor"),
+                    applyColorPreview: () => {},
+                    applyColorResetPreview: () => {},
+                    colorPrefix: "",
+                },
+                pickerOptions,
+            );
+        }
+    }
+    const comp = await mountWithCleanup(Host);
+    await click(".test-color-btn");
+    await animationFrame();
+    expect(".o_font_color_selector").toHaveCount(1);
+    expect(".o_color_pick_area").toHaveCount(1);
+
+    // Preview a color by dragging on the picking area.
+    const colorPickerArea = queryOne(".o_color_pick_area");
+    const colorPickerRect = colorPickerArea.getBoundingClientRect();
+    const clientX = colorPickerRect.left + colorPickerRect.width / 2;
+    const clientY = colorPickerRect.top + colorPickerRect.height / 2;
+    manuallyDispatchProgrammaticEvent(colorPickerArea, "pointerdown", {
+        clientX,
+        clientY,
+    });
+    manuallyDispatchProgrammaticEvent(colorPickerArea, "pointerup", {
+        clientX,
+        clientY,
+    });
+    await animationFrame();
+    // The dragged color is only previewed at this point, not committed.
+    expect.verifySteps([]);
+
+    /** @type {any} */ (comp).picker.close();
+    await animationFrame();
+    // Closing the popover commits the previewed color.
+    expect.verifySteps(["applyColor"]);
+    // The hook must not mutate the caller's options object.
+    expect("onClose" in pickerOptions).toBe(false);
 });
 
 test("should mark default color as selected when it is selected", async () => {

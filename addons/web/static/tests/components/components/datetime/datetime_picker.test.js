@@ -1304,3 +1304,51 @@ test("AGROMARINVERIFY grid is reused on hover, rebuilt on focus change", async (
     await animationFrame();
     expect(picker.items).not.toBe(itemsBefore); // grid rebuilt on focus change
 });
+
+test("dynamic date<->datetime switch recomputes min/max with the NEW type", async () => {
+    class Parent extends Component {
+        static components = { DateTimePicker };
+        static props = {};
+        static template = xml`
+            <DateTimePicker
+                type="state.type"
+                value="value"
+                maxDate="maxDate"
+                onSelect.bind="onSelect"
+            />
+        `;
+
+        setup() {
+            this.state = useState({ type: "date" });
+            this.value = DateTime.fromISO("2023-04-25T09:00:00.000");
+            // Latest allowed instant is 09:30 on the 25th. Under "datetime" this
+            // must forbid selecting 13:00; under "date" it is expanded to the
+            // end of the day.
+            this.maxDate = DateTime.fromISO("2023-04-25T09:30:00.000");
+        }
+
+        onSelect(value) {
+            expect.step(formatForStep(value));
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    // "date" type: no time picker.
+    expect(".o_time_picker").toHaveCount(0);
+
+    parent.state.type = "datetime";
+    await animationFrame();
+    expect(".o_time_picker").toHaveCount(1);
+
+    // 13:00 is past the 09:30 maxDate and must be rejected now that the type is
+    // "datetime". Regression: the stale "date" type kept an end-of-day maxDate,
+    // which wrongly accepted 13:00 for one update.
+    await editTime("13:00");
+    await animationFrame();
+    expect.verifySteps([]);
+
+    // 09:15 is within [.., 09:30] and is accepted.
+    await editTime("09:15");
+    await animationFrame();
+    expect.verifySteps(["2023-04-25T09:15:00"]);
+});

@@ -214,6 +214,17 @@ describe("exprToBoolean", () => {
         expect(exprToBoolean("anything")).toBe(true);
     });
 
+    test("only the exact strings 'false'/'0' are falsy", () => {
+        // Regression: an unanchored alternation (/^false|0$/) treated any
+        // string ending in "0" (or starting with "false") as falsy.
+        expect(exprToBoolean("10")).toBe(true);
+        expect(exprToBoolean("100")).toBe(true);
+        expect(exprToBoolean("20")).toBe(true);
+        expect(exprToBoolean("false positive")).toBe(true);
+        expect(exprToBoolean("0")).toBe(false);
+        expect(exprToBoolean("false")).toBe(false);
+    });
+
     test("empty string with trueIfEmpty=false returns false", () => {
         expect(exprToBoolean("")).toBe(false);
     });

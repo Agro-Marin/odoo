@@ -274,6 +274,14 @@ export class TemplateRegistry {
         }
         this.templates[name] = templateString;
         this.info[name] = { blockId: this.blockId, url };
+        // A prior ``getTemplate(name)`` probe before this registration would
+        // have cached a ``null`` result (``_getTemplate`` returns null for an
+        // unknown name, and ``getTemplate`` memoises it behind a ``has()``
+        // guard).  That null is otherwise permanent: without this eviction a
+        // lazy bundle that registers ``name`` after something probed for it
+        // would serve ``null`` forever.  Drop the negative cache entry so the
+        // freshly-registered template is (re)built on next access.
+        this.processedTemplates.delete(name);
 
         return () => {
             delete this.templates[name];
@@ -331,6 +339,14 @@ export class TemplateRegistry {
             if (Number.isInteger(index) && index > -1) {
                 this.templateExtensions[inheritFrom][blockId].splice(index, 1);
             }
+            // Splicing the raw descriptor is not enough: the *parsed* copy of
+            // this block lives in ``parsedTemplateExtensions[inheritFrom][blockId]``
+            // and the compiled result in ``processedTemplates[inheritFrom]``.
+            // Left untouched, a later ``getTemplate(inheritFrom)`` re-applies
+            // the just-removed extension from that stale parse cache.  Mirror
+            // the primary-template unregister invalidation and drop both.
+            delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
+            this.processedTemplates.delete(inheritFrom);
             this.registered.delete(key);
         };
     }

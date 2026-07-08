@@ -21,7 +21,7 @@ const FAKE_PROPS = {
 };
 
 async function start(props = {}) {
-    await mountWithCleanup(CalendarYearRenderer, {
+    return await mountWithCleanup(CalendarYearRenderer, {
         props: { ...FAKE_PROPS, ...props },
     });
 }
@@ -149,6 +149,20 @@ test(`display correct column header for days, independent of the timezone`, asyn
 test("remove row when no day of current month", async () => {
     await start();
     expect(".fc-day-other, .fc-day-disabled").toHaveCount(76);
+});
+
+test("per-month anchor is offset-less so it doesn't drift in a fixed-offset zone", async () => {
+    // In a fixed-offset ("marker") zone, an offset-bearing anchor ISO would be
+    // re-derived by FullCalendar and land on the previous day, mis-anchoring the
+    // mini month (the year view previously used ``date.toISO()``). The anchor
+    // must be emitted as bare wall-clock time, exactly like CalendarCommonRenderer.
+    mockTimeZone(2);
+    const renderer = await start();
+    // FAKE_MODEL.date is 2021-07-16T08:00:00.
+    expect(renderer.getDateWithMonth("July")).toBe("2021-07-16T08:00:00");
+    expect(renderer.getDateWithMonth("January")).toBe("2021-01-16T08:00:00");
+    // No trailing offset or Z suffix on the base initialDate either.
+    expect(renderer.options.initialDate).toBe("2021-07-16T08:00:00");
 });
 
 test("resize callback is being called", async () => {

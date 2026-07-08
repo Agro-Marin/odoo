@@ -45,10 +45,20 @@ export class CalendarCommonPopover extends Component {
             window,
             "pointerdown",
             (e) => {
-                // Prevent the default behavior so the pointer down event only triggers the click-away callback (closing the popover).
-                // If the clicked element is the popover target, allow the default click and drag-&-drop events,
-                // which will also close the popover.
-                if (!e.target.closest(`.fc-event[data-event-id="${this.props.record.id}"]`)) {
+                // Scope the preventDefault to the FullCalendar grid — the
+                // interaction this guard was added for. A pointerdown on the
+                // calendar should merely trigger the click-away callback
+                // (closing the popover) without also starting a grid selection
+                // or creating a record; a pointerdown on the source event keeps
+                // its default so drag-&-drop still works. Crucially, clicks on
+                // unrelated UI (e.g. a side-panel autocomplete input) must keep
+                // their default so the first click still focuses them — the
+                // former blanket preventDefault suppressed that.
+                const onCalendar = e.target.closest(".o_calendar_widget, .fc-popover");
+                const onSourceEvent = e.target.closest(
+                    `.fc-event[data-event-id="${this.props.record.id}"]`
+                );
+                if (onCalendar && !onSourceEvent) {
                     e.preventDefault();
                 }
             },

@@ -12,6 +12,7 @@ import {
 import { Component, reactive, xml } from "@odoo/owl";
 import {
     contains,
+    getMockEnv,
     getService,
     makeMockEnv,
     mountWithCleanup,
@@ -76,6 +77,30 @@ test("commands evilness 👹", async () => {
     expect(function () {
         getService("command").add("command", null);
     }).toThrow(/A Command must have a name and an action function/);
+});
+
+test("'command' provider does not mutate the registered command's category", async () => {
+    const command = getService("command");
+    const ui = getService("ui");
+    command.add("Do a thing", () => {}, {
+        global: true,
+        category: "invalid-category",
+    });
+    // getCommands() returns the live registration objects.
+    const registeredBefore = command
+        .getCommands(ui.activeElement)
+        .find((c) => c.name === "Do a thing");
+    expect(registeredBefore.category).toBe("invalid-category");
+
+    // Running the "command" provider normalizes the unknown category to
+    // "default" in its OUTPUT, but must not rewrite the registration.
+    const provider = commandProviderRegistry.get("command");
+    provider.provide(getMockEnv(), { activeElement: ui.activeElement });
+
+    const registeredAfter = command
+        .getCommands(ui.activeElement)
+        .find((c) => c.name === "Do a thing");
+    expect(registeredAfter.category).toBe("invalid-category");
 });
 
 test("same-name commands with distinct identifiers are disambiguated at read time", async () => {

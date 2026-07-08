@@ -64,7 +64,7 @@ export class BinaryField extends Component {
             model: this.props.record.resModel,
             id: this.props.record.resId,
             field: this.props.name,
-            filename_field: this.fileName,
+            filename_field: this.props.fileNameField,
             filename: this.fileName || "",
             download: true,
             data: isBinarySize(this.props.record.data[this.props.name])

@@ -278,7 +278,9 @@ formatInteger.extractOptions = ({ attrs, options }) => ({
  *
  * @param {any} value
  * @param {Object} [options] additional options
- * @param {boolean} [options.escape=false] if true, escapes the formatted value
+ * @param {boolean} [options.escape=false] if true, URL-encodes the formatted
+ *   value via `encodeURIComponent` (this is percent-encoding for use in a URL,
+ *   NOT HTML escaping). Shared generic formatter option (see list aggregates).
  * @returns {string}
  */
 export function formatMany2one(value, options) {

@@ -56,10 +56,14 @@ export class FloatField extends NumericInputFieldBase {
      *     QWeb ``t-out``) already coerce ``false`` to an empty string.
      */
     get formattedValue() {
-        if (
-            !this.props.formatNumber ||
-            (this.props.inputType === "number" && !this.props.readonly && this.value)
-        ) {
+        if (this.props.inputType === "number" && !this.props.readonly) {
+            // A `<input type="number">` cannot hold a locale-formatted string
+            // (e.g. "0,00" in a comma-decimal locale makes the browser blank
+            // the field), so emit the raw number. `false` (unset) becomes ""
+            // while `0` is preserved rather than falling through to formatFloat.
+            return this.value === false ? "" : this.value;
+        }
+        if (!this.props.formatNumber) {
             return this.value;
         }
         const options = {

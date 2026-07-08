@@ -864,6 +864,126 @@ test("settings views ask for confirmation when leaving if dirty", async () => {
     expect(".modal-title").toHaveText("Unsaved changes");
 });
 
+test("settings views skip the confirmation dialog when leaving with forceLeave", async () => {
+    defineActions([
+        {
+            id: 1,
+            name: "Settings view",
+            res_model: "res.config.settings",
+            views: [[false, "form"]],
+        },
+        {
+            id: 4,
+            name: "Other action",
+            res_model: "task",
+            views: [[false, "form"]],
+        },
+    ]);
+    ResConfigSettings._views.form = /* xml */ `
+        <form string="Settings" js_class="base_settings">
+            <app string="CRM" name="crm">
+                <block>
+                    <setting label="Foo" help="this is foo">
+                        <field name="foo"/>
+                    </setting>
+                </block>
+            </app>
+        </form>
+    `;
+    Task._views.form = /* xml */ `
+        <form>
+            <field name="display_name"/>
+        </form>
+    `;
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+
+    await click(".o_field_boolean input");
+    await animationFrame();
+
+    // forceLeave must bypass the unsaved-changes dialog: the base
+    // FormController.beforeLeave early-returns on forceLeave, and the settings
+    // override now honours the same option instead of dropping it.
+    await getService("action").doAction(4, { forceLeave: true });
+    await animationFrame();
+
+    expect(".modal").toHaveCount(0, {
+        message: "forceLeave should not open the unsaved-changes dialog",
+    });
+    expect(".o_field_widget[name='display_name']").toHaveCount(1, {
+        message: "navigation to the target action should proceed",
+    });
+});
+
+test("settings views settle beforeLeave even when the Discard save fails", async () => {
+    // Repro of the pending-forever hang: choosing Discard while the follow-up
+    // create fails server-side must still settle _confirmSave (via the
+    // try/finally resolve) so beforeLeave resolves and navigation isn't
+    // blocked forever.
+    expect.errors(1);
+    defineActions([
+        {
+            id: 1,
+            name: "Settings view",
+            res_model: "res.config.settings",
+            views: [[false, "form"]],
+        },
+        {
+            id: 4,
+            name: "Other action",
+            res_model: "task",
+            views: [[false, "form"]],
+        },
+    ]);
+    ResConfigSettings._views.form = /* xml */ `
+        <form string="Settings" js_class="base_settings">
+            <app string="CRM" name="crm">
+                <block>
+                    <setting label="Foo" help="this is foo">
+                        <field name="foo"/>
+                    </setting>
+                </block>
+            </app>
+        </form>
+    `;
+    Task._views.form = /* xml */ `
+        <form>
+            <field name="display_name"/>
+        </form>
+    `;
+    onRpc("web_save", () => {
+        throw makeServerError();
+    });
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+
+    await click(".o_field_boolean input");
+    await animationFrame();
+
+    // Start leaving: the dirty settings form opens the confirmation dialog.
+    let settled = false;
+    const leaving = getService("action")
+        .doAction(4)
+        .then(
+            () => (settled = true),
+            () => (settled = true),
+        );
+    await animationFrame();
+    expect(".modal").toHaveCount(1);
+
+    // Discard -> discard-then-save, whose save throws server-side. Before the
+    // fix, resolve() was unreachable and this promise hung forever.
+    await clickModalButton({ text: "Discard" });
+    await animationFrame();
+    await animationFrame();
+    await leaving;
+
+    expect(settled).toBe(true);
+    expect.verifyErrors(["RPC_ERROR"]);
+});
+
 test("Auto save: don't save on closing tab/browser", async () => {
     mockSendBeacon(() => expect.step("sendBeacon"));
     await mountView({

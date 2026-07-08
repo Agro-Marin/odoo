@@ -44,11 +44,14 @@ export class FileUploader extends Component {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
         const files = [...inputEl.files].filter((file) => this.validFileType(file));
         if (!files.length) {
+            // Reset so re-selecting the same file still fires a "change" event.
+            inputEl.value = "";
             return;
         }
         for (const file of files) {
             if (this.props.checkSize && !checkFileSize(file.size, this.notification)) {
-                return;
+                // Skip this file but keep processing the rest of a multi-upload.
+                continue;
             }
             this.state.isUploading = true;
             const data = await getDataURLFromFile(file);
@@ -96,22 +99,28 @@ export class FileUploader extends Component {
      * @returns Whether the upload file's type is in the whitelist (`allowedMIMETypes`).
      */
     validFileType(file) {
-        if (
-            this.props.allowedMIMETypes &&
-            !this.props.allowedMIMETypes.includes(file.type)
-        ) {
-            this.notification.add(
-                _t(
-                    `Oops! '%(fileName)s' didn’t upload since its format isn’t allowed.`,
+        if (this.props.allowedMIMETypes) {
+            const allowed = this.props.allowedMIMETypes
+                .split(",")
+                .map((type) => type.trim())
+                .filter(Boolean);
+            // Exact match against the parsed whitelist. An empty `file.type`
+            // (browser could not detect the MIME type) is rejected rather than
+            // slipping through a substring match.
+            if (!file.type || !allowed.includes(file.type)) {
+                this.notification.add(
+                    _t(
+                        `Oops! '%(fileName)s' didn’t upload since its format isn’t allowed.`,
+                        {
+                            fileName: file.name,
+                        },
+                    ),
                     {
-                        fileName: file.name,
+                        type: "danger",
                     },
-                ),
-                {
-                    type: "danger",
-                },
-            );
-            return false;
+                );
+                return false;
+            }
         }
         return true;
     }

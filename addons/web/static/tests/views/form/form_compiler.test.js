@@ -3,16 +3,28 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { createElement } from "@web/core/utils/dom/xml";
-import { FormCompiler } from "@web/views/form/form_compiler";
+import { appendToExpr, FormCompiler } from "@web/views/form/form_compiler";
 
 describe.current.tags("headless");
 
-function compileTemplate(arch) {
+function compileTemplate(arch, params = {}) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(arch, "text/xml");
     const compiler = new FormCompiler({ form: xml.documentElement });
-    return compiler.compile("form");
+    return compiler.compile("form", params);
 }
+
+/** Compile a bare ``div[name='button_box']`` arch directly (the button box is
+ *  stripped from the sheet/nosheet form output, so exercise its compiler in
+ *  isolation). */
+function compileButtonBox(arch, params = {}) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(arch, "text/xml");
+    const compiler = new FormCompiler({ form: xml.documentElement });
+    return compiler.compileButtonBox(xml.documentElement, params);
+}
+
+const DYNAMIC_IS_VISIBLE = `!__comp__.evaluateBooleanExpr("bar == 'x'",__comp__.props.record.evalContextWithVirtualIds)`;
 
 test("properly compile simple div", () => {
     const arch = /*xml*/ `<form><div>lol</div></form>`;
@@ -456,4 +468,82 @@ test("form with t-translation directive", () => {
     </t>`;
     expect(compileTemplate(arch)).toHaveOuterHTML(expected);
     expect.verifySteps([]); // should no log any warning
+});
+
+// ---------------------------------------------------------------------------
+// makeIsVisibleExpr wiring — the three literal forms across the three
+// slot-based compilers (button box, group, notebook) all route through the
+// shared helper. compileInvisibleNodes keeps the always-hidden ("false") nodes
+// in the output so the third literal form is observable.
+// ---------------------------------------------------------------------------
+
+test("button box routes each stat button through makeIsVisibleExpr", () => {
+    const arch = /*xml*/ `
+        <div name="button_box">
+            <button name="a" type="object" invisible="bar == 'x'"/>
+            <button name="b" type="object" invisible="0"/>
+            <button name="c" type="object" invisible="1"/>
+        </div>`;
+    const buttonBox = compileButtonBox(arch, { compileInvisibleNodes: true });
+    const visibles = [...buttonBox.children].map((slot) =>
+        slot.getAttribute("isVisible"),
+    );
+    expect(visibles).toEqual([DYNAMIC_IS_VISIBLE, "true", "false"]);
+});
+
+test("group routes each item slot through makeIsVisibleExpr", () => {
+    const arch = /*xml*/ `
+        <form>
+            <group>
+                <field field_id="a" name="a" invisible="bar == 'x'"/>
+                <field field_id="b" name="b" invisible="0"/>
+                <field field_id="c" name="c" invisible="1"/>
+            </group>
+        </form>`;
+    const compiled = compileTemplate(arch, { compileInvisibleNodes: true });
+    const group = compiled.getElementsByTagName("InnerGroup")[0];
+    const visibles = [...group.children].map((slot) =>
+        slot.getAttribute("isVisible"),
+    );
+    expect(visibles).toEqual([DYNAMIC_IS_VISIBLE, "true", "false"]);
+});
+
+test("notebook routes each page slot through makeIsVisibleExpr", () => {
+    const arch = /*xml*/ `
+        <form>
+            <notebook>
+                <page name="p1" string="P1" invisible="bar == 'x'">
+                    <field field_id="a" name="a"/>
+                </page>
+                <page name="p2" string="P2" invisible="0">
+                    <field field_id="b" name="b"/>
+                </page>
+                <page name="p3" string="P3" invisible="1">
+                    <field field_id="c" name="c"/>
+                </page>
+            </notebook>
+        </form>`;
+    const compiled = compileTemplate(arch, { compileInvisibleNodes: true });
+    const notebook = compiled.getElementsByTagName("Notebook")[0];
+    const visibles = [...notebook.children].map((slot) =>
+        slot.getAttribute("isVisible"),
+    );
+    expect(visibles).toEqual([DYNAMIC_IS_VISIBLE, "true", "false"]);
+});
+
+// ---------------------------------------------------------------------------
+// appendToExpr — preserve literal text around an existing interpolation
+// ---------------------------------------------------------------------------
+
+test("appendToExpr wraps a bare string when there is no existing expression", () => {
+    expect(appendToExpr("", "x")).toBe("{{x }}");
+    expect(appendToExpr(undefined, "x")).toBe("{{x }}");
+    expect(appendToExpr(null, "x")).toBe("{{x }}");
+});
+
+test("appendToExpr preserves literal text surrounding an interpolation", () => {
+    // Regression: the former regex re-extraction returned only the {{...}}
+    // span, silently dropping the static "foo " before it.
+    expect(appendToExpr("foo {{bar}}", "baz")).toBe("foo {{bar}} {{baz }}");
+    expect(appendToExpr("a {{b}} c", "d")).toBe("a {{b}} c {{d }}");
 });

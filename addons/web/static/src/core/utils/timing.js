@@ -245,7 +245,13 @@ export function throttleForAnimation(func) {
         {
             cancel() {
                 browser.cancelAnimationFrame(handle);
-                lastCall = null;
+                if (lastCall) {
+                    // Settle the dropped trailing call with `undefined` (same
+                    // contract as debounce().cancel()) so a caller awaiting it
+                    // (e.g. around unmount) does not hang forever.
+                    lastCall.resolve(undefined);
+                    lastCall = null;
+                }
                 handle = null;
             },
         },

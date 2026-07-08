@@ -360,10 +360,16 @@ class ProgressBarState {
             }
         }
 
-        // If the selected bar is empty, remove the selection
-        for (const group of this.model.root.groups) {
-            if (this.activeBars[group.serverValue] && group.list.count === 0) {
-                this.selectBar(group.id, { value: null });
+        // If the selected bar is empty, remove the selection. Use a distinct loop
+        // variable so it does not shadow the `group` parameter above.
+        for (const emptyGroup of this.model.root.groups) {
+            if (this.activeBars[emptyGroup.serverValue] && emptyGroup.list.count === 0) {
+                // Fire-and-forget: selectBar awaits applyFilter RPCs, so a rejection
+                // would surface as an unhandled rejection -- catch it like the two
+                // refreshes above.
+                this.selectBar(emptyGroup.id, { value: null }).catch((error) =>
+                    console.error(error),
+                );
             }
         }
     }
@@ -652,6 +658,14 @@ class ProgressBarState {
      */
     async loadProgressBar({ context, domain, groupBy, resModel }) {
         if (groupBy.length) {
+            // Participate in the _pbEpoch protocol (like _updateProgressBar and
+            // _reconcileMove): bump on entry and re-check after the RPC. This makes
+            // an in-flight _updateProgressBar from a previous domain fail the epoch
+            // check when its result comes back after this (re)load, so the
+            // group-datapoint-id string comparison in _updateProgressBar is
+            // defense-in-depth rather than the only fence -- and a stale
+            // loadProgressBar cannot clobber a fresher one either.
+            const epoch = ++this._pbEpoch;
             const { colors, fieldName: field, help } = this.progressAttributes;
             const res = await this.model.orm.call(resModel, "read_progress_bar", [], {
                 domain,
@@ -659,6 +673,9 @@ class ProgressBarState {
                 progress_bar: { colors, field, help },
                 context,
             });
+            if (epoch !== this._pbEpoch) {
+                return; // a more recent progress bar refresh superseded this load
+            }
             this._pbCounts = res;
         }
     }

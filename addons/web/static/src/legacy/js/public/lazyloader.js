@@ -191,29 +191,74 @@ if (document.readyState === "complete") {
     });
 }
 
+// Maximum time to wait for a single lazy script to settle ("load" or
+// "error") before unblocking the page anyway. A request that hangs (stalled
+// connection, unresponsive server) fires neither event: without this
+// watchdog, the allScriptsLoaded promise would never resolve, so
+// @see stopWaitingLazy would never run and every button/form blocked by
+// @see waitLazy would stay unusable forever. 60s is far beyond any sane
+// bundle load time (a legitimately slow load is thus never cut short in
+// practice) and matches the module loader's one-reload-per-minute self-heal
+// guard window.
+const SCRIPT_LOAD_TIMEOUT_DELAY = 60000;
+/** @type {number | undefined} */
+let scriptLoadWatchdogTimer;
+
 /**
  * Sequentially loads all scripts with a `data-src` attribute, then resolves
  * the allScriptsLoaded promise.
  *
+ * A script that fails to load (network error, or a stale content-addressed
+ * /web/assets/ URL answering 404 after the attachment GC swept it) logs an
+ * error and lets the chain proceed: a page with degraded lazy JS stays
+ * interactive, whereas stopping the chain would leave it permanently blocked
+ * by @see waitLazy. No observability beacon is sent from here: the module
+ * loader shim's capture-phase "error" listener already reports failing
+ * /web/assets/ scripts (beacon + one-shot reload self-heal).
+ *
  * @param {NodeListOf<HTMLScriptElement> | HTMLScriptElement[]} [scripts]
  * @param {number} [index]
+ * @param {() => void} [onAllScriptsDone] chain-completion callback; resolves
+ *        the allScriptsLoaded promise by default (parameter exists for
+ *        testability, production code never passes it)
  * @returns {void}
  */
-function _loadScripts(scripts, index) {
+function _loadScripts(scripts, index, onAllScriptsDone) {
     if (scripts === undefined) {
         scripts = document.querySelectorAll("script[data-src]");
     }
     if (index === undefined) {
         index = 0;
     }
+    if (onAllScriptsDone === undefined) {
+        onAllScriptsDone = allScriptsLoadedResolve;
+    }
+    clearTimeout(scriptLoadWatchdogTimer);
     if (index >= scripts.length) {
-        allScriptsLoadedResolve();
+        onAllScriptsDone();
         return;
     }
     const script = scripts[index];
+    const loadNext = () => _loadScripts(scripts, index + 1, onAllScriptsDone);
+    // Hard timeout fallback: a script that never settles must not keep the
+    // page blocked. The chain listeners stay in place: if the script settles
+    // after all, loading simply resumes in the background (resolving an
+    // already-resolved promise is a no-op).
+    scriptLoadWatchdogTimer = setTimeout(() => {
+        console.error(
+            `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
+                ` unblocking the page anyway: ${script.src}`,
+        );
+        onAllScriptsDone();
+    }, SCRIPT_LOAD_TIMEOUT_DELAY);
+    script.addEventListener("load", loadNext, { once: true });
     script.addEventListener(
-        "load",
-        _loadScripts.bind(this, scripts, index + 1),
+        "error",
+        () => {
+            console.error(`Failed to load lazy script: ${script.src}`);
+            loadNext();
+        },
+        { once: true },
     );
     script.setAttribute("defer", "defer"); // See LAZY_LOAD_DEFER
     script.src = script.dataset.src;

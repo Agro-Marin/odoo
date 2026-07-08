@@ -16,6 +16,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { cookie } from "@web/core/browser/cookie";
+import { router } from "@web/core/browser/router";
 import { user } from "@web/services/user";
 import { SwitchCompanyMenu } from "@web/webclient/switch_company_menu/switch_company_menu";
 
@@ -683,6 +684,103 @@ test("de-select only changes visible companies", async () => {
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=false])",
     ).toHaveCount(1);
+});
+
+test("closing the dropdown without confirming discards the pending selection", async () => {
+    await createSwitchCompanyMenu();
+
+    patchWithCleanup(router, {
+        pushState: () => expect.step("pushState"),
+    });
+
+    /**
+     *   [x] **Hermit**
+     *   [x] Herman's      -> toggle (draft, never confirmed)
+     *   [ ] Heroes TM
+     *   [ ]    Hercules
+     *   [ ]    Hulk
+     */
+    await openCompanyMenu();
+    await toggleCompany(1);
+    expect(".o_switch_company_menu_buttons button").toHaveCount(2);
+
+    // Close the dropdown without confirming (user believes the change
+    // is discarded).
+    await contains(".dropdown-toggle").click();
+    expect(".dropdown-menu").toHaveCount(0);
+
+    // A later Ctrl+Enter (e.g. while typing anywhere in the app) must not
+    // apply the forgotten draft selection.
+    await keyDown(["control", "enter"]);
+    await animationFrame();
+    await runAllTimers();
+
+    expect.verifySteps([]);
+    expect(cookie.get("cids")).toBe("3");
+    expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
+});
+
+test("reopening the dropdown after closing shows the active companies", async () => {
+    await createSwitchCompanyMenu();
+
+    await openCompanyMenu();
+    await toggleCompany(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+
+    // Close without confirming, then reopen.
+    await contains(".dropdown-toggle").click();
+    expect(".dropdown-menu").toHaveCount(0);
+    await openCompanyMenu();
+
+    // The stale draft is gone: only the actual active company is checked
+    // and there is nothing to confirm.
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect(
+        queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
+    ).toEqual(["true", "false", "false", "false", "false"]);
+    expect(".o_switch_company_menu_buttons").toHaveCount(0);
+});
+
+test("select all does not select disallowed ancestor companies", async () => {
+    cookie.set("cids", "1-3");
+    serverState.companies = [
+        { id: 1, name: "Parent", sequence: 1, parent_id: false, child_ids: [2] },
+        { id: 2, name: "Child A", sequence: 2, parent_id: 1, child_ids: [3] },
+        { id: 3, name: "Child B", sequence: 3, parent_id: 2, child_ids: [] },
+    ];
+
+    patchWithCleanup(user.allowedCompanies, [
+        serverState.companies[0],
+        serverState.companies[2],
+    ]);
+
+    await createSwitchCompanyMenu();
+
+    /**
+     *   [x] Parent
+     *   [ ]    Child A     (disallowed, only shown for the tree structure)
+     *   [x]        Child B
+     */
+    expect(user.activeCompanies.map((c) => c.id)).toEqual([1, 3]);
+    await openCompanyMenu();
+
+    // Show the select/deselect all checkbox.
+    await edit(" ");
+    await animationFrame();
+
+    // Both allowed companies are active: deselect all, then select all.
+    await contains("[role=menuitemcheckbox][title='Deselect all']").click();
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(0);
+
+    await contains("[role=menuitemcheckbox][title='Select all']").click();
+    // The disallowed ancestor is not selected...
+    expect(
+        queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
+    ).toEqual(["true", "false", "true"]);
+    // ...and nothing activatable changed, so there is nothing to confirm.
+    expect(".o_switch_company_menu_buttons").toHaveCount(0);
 });
 
 test("disallowed companies in between allowed companies are not enabled", async () => {

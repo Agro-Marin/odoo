@@ -21,6 +21,7 @@ import { download } from "@web/core/network/download";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { ReportAction } from "@web/webclient/actions/reports/report_action";
+import { downloadReport } from "@web/webclient/actions/reports/utils";
 import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
@@ -188,6 +189,23 @@ test("send context in case of html report", async () => {
         "/web/action/load",
         "/report/html/some_report",
     ]);
+});
+
+test("downloadReport resolves with nothing (no wkhtmltopdf-fallback plumbing)", async () => {
+    // After the WeasyPrint migration there is no success/message contract: the
+    // download either resolves (void) or throws. The dead `if (message)` /
+    // `if (!success)` branches in report_executor rely on this collapsed shape.
+    patchWithCleanup(download, {
+        _download: (options) => {
+            expect.step(options.url);
+            return Promise.resolve();
+        },
+    });
+    const action = { report_name: "some_report", report_type: "qweb-pdf" };
+    // The leading arg is the retained-for-POS, internally-ignored `rpc` slot.
+    const result = await downloadReport(rpc, action, "pdf", {});
+    expect(result).toBe(undefined);
+    expect.verifySteps(["/report/download"]);
 });
 
 test("UI unblocks after downloading the report even if it threw an error", async () => {

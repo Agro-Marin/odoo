@@ -141,7 +141,11 @@ export class DynamicGroupList extends DynamicList {
 
         sourceGroup._removeRecords([record.id]);
         targetGroup._addRecord(record, refIndex + 1);
-        // step 2: update record value
+        // step 2: update record value. The save is serialized on the model
+        // mutex by ``record.update`` itself (its own ``mutex.exec``), so two
+        // rapid drags queue their writes while the optimistic splices above
+        // stay synchronous — do NOT wrap the whole move in ``mutex.exec`` or
+        // the second drag's splice would be delayed behind the first save.
         let value = targetGroup.value;
         if (targetGroup.groupByField.type === "many2one") {
             value = value
@@ -152,6 +156,14 @@ export class DynamicGroupList extends DynamicList {
         const revert = () => {
             targetGroup._removeRecords([record.id]);
             sourceGroup._addRecord(record, oldIndex);
+            // Move the datapoint back AND roll back the (unsaved) groupby-field
+            // change. Without the discard, the record kept the target column's
+            // value with dirty=true, so the reverted card rendered in its
+            // original column carrying the WRONG value. ``_discard`` restores
+            // the field and clears the dirty flag (called directly, mirroring
+            // record_save's onError discard — the ``record.update`` mutex has
+            // already been released here).
+            record._discard();
         };
         try {
             const changes = { [targetGroup.groupByField.name]: value };

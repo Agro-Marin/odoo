@@ -42,6 +42,23 @@ const SHORT_SCALE_TO_HEADER_FORMAT = {
     day: { day: "numeric", month: "numeric", year: "numeric" },
     month: { weekday: "short" },
 };
+/**
+ * Format a Luxon DateTime as a bare, offset-less ISO string suitable for
+ * FullCalendar's ``initialDate`` option.
+ *
+ * FC v7 parses an offset-bearing ISO into an absolute moment then re-derives
+ * the day in its declared ``timeZone`` — which, in a fixed-offset/marker zone
+ * (or in tests), can cross a UTC boundary and land on the previous day when the
+ * source is local midnight. Emitting wall-clock time with no offset tells FC to
+ * interpret the value in its configured zone, which is what callers mean.
+ *
+ * @param {import("@web/core/l10n/luxon").DateTime} dt
+ * @returns {string}
+ */
+export function formatFcInitialDate(dt) {
+    return dt.toFormat("yyyy-MM-dd'T'HH:mm:ss");
+}
+
 const HOUR_FORMATS = {
     12: {
         hour: "numeric",
@@ -226,14 +243,9 @@ export class CalendarCommonRenderer extends Component {
             // fc is blocked by safePrevent in onPointerDown (draggable_hook_builder.js)
             dateClick: this.props.model.hasMultiCreate ? () => {} : this.onDateClick,
             dayCellDidMount: this.onDayCellDidMount,
-            // Pass the date as a bare local-style ISO (no offset).  FC v7
-            // parses an offset-bearing ISO into an absolute moment then
-            // re-derives the day in its declared ``timeZone`` — which in
-            // tests means crossing a UTC boundary and landing on the
-            // previous day when ``model.date`` is local midnight.  Stripping
-            // the offset tells FC "interpret this as wall-clock time in
-            // your configured zone", which is what callers actually mean.
-            initialDate: this.props.model.date.toFormat("yyyy-MM-dd'T'HH:mm:ss"),
+            // Pass the date as a bare local-style ISO (no offset); see
+            // formatFcInitialDate for why the offset must be stripped.
+            initialDate: formatFcInitialDate(this.props.model.date),
             initialView: SCALE_TO_FC_VIEW[this.props.model.scale],
             direction: localization.direction,
             droppable: true,
@@ -524,7 +536,15 @@ export class CalendarCommonRenderer extends Component {
             if (record.duration <= 0.25) {
                 classesToAdd.push("o_event_oneliner");
             }
-            if (DateTime.now() >= record.end) {
+            // All-day records normalize ``end`` to ``end.startOf("day")``, so a
+            // single-day all-day event's ``end`` is midnight of that same day —
+            // comparing against it would grey the event out for its whole last
+            // day. Treat an all-day event as past only once its final day is
+            // fully over (i.e. at the start of the following day).
+            const pastThreshold = record.isAllDay
+                ? record.end.plus({ days: 1 })
+                : record.end;
+            if (DateTime.now() >= pastThreshold) {
                 classesToAdd.push("o_past_event");
             }
 
@@ -622,7 +642,23 @@ export class CalendarCommonRenderer extends Component {
         // Compare the whole calendar day, not just the day-of-month: getDate()
         // returns 1–31, so a timed selection spanning the same day number in a
         // different month (e.g. Mar 3 → Apr 3) was wrongly treated as same-day.
-        return event.allDay || event.start.toDateString() === event.end.toDateString();
+        if (event.allDay) {
+            return true;
+        }
+        // A timed selection ending exactly at midnight (e.g. 23:00→24:00) has
+        // its end roll over to 00:00 of the next day; without this the last
+        // slot of a day could never be drag-selected. Treat an end at exactly
+        // 00:00 as belonging to the previous day.
+        let end = event.end;
+        if (
+            end.getHours() === 0 &&
+            end.getMinutes() === 0 &&
+            end.getSeconds() === 0 &&
+            end.getMilliseconds() === 0
+        ) {
+            end = new Date(end.getTime() - 1);
+        }
+        return event.start.toDateString() === end.toDateString();
     }
     onEventDrop(info) {
         this.fc.api.unselect();

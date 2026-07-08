@@ -125,8 +125,10 @@ export function touching(elements, targetRect) {
 // Following selector is based on this spec: https://html.spec.whatwg.org/multipage/interaction.html#dom-tabindex
 const FOCUSABLE_SELECTORS = [
     "[tabindex]",
-    "a",
-    "area",
+    // Only anchors/areas with an `href` are focusable / in the tab order; a
+    // bare `<a>`/`<area>` has tabIndex -1 and `.focus()` is a no-op on it.
+    "a[href]",
+    "area[href]",
     "button",
     "frame",
     "iframe",
@@ -159,9 +161,16 @@ export function isFocusable(el) {
  * @param {HTMLElement} [container=document.body]
  */
 export function getTabableElements(container = document.body) {
-    const elements = [
+    const elements = /** @type {HTMLElement[]} */ ([
         ...container.querySelectorAll(TABABLE_SELECTORS.join(",")),
-    ].filter((el) => isVisible(el) && !el.closest("[inert]"));
+    ]).filter(
+        // `el.tabIndex < 0` catches elements that are non-tabable at the
+        // property level even when the `:not([tabindex="-1"])` attribute guard
+        // did not (e.g. an anchor whose href was removed): they would otherwise
+        // survive in a negative-key group and become a `.focus()`-noop dead
+        // spot for keyboard navigation.
+        (el) => el.tabIndex >= 0 && isVisible(el) && !el.closest("[inert]"),
+    );
     // Object.groupBy is typed Partial<Record<…>>, but it only creates a key
     // when ≥1 element falls in it, so the values are never undefined.
     const byTabIndex = /** @type {Record<number, HTMLElement[]>} */ (

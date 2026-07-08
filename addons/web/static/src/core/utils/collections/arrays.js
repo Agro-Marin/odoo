@@ -86,7 +86,12 @@ export function ensureArray(value) {
  * @returns {T[]}
  */
 export function intersection(iter1, iter2) {
-    return [...new Set(iter1).intersection(new Set(iter2))];
+    // Preserve first-argument order. Set.prototype.intersection iterates the
+    // SMALLER set, so it would order the result by whichever input is shorter
+    // (intersection([1, 2, 3, 4], [3, 1]) -> [3, 1]); many callers rely on the
+    // result following iter1's order.
+    const s2 = new Set(iter2);
+    return [...new Set(iter1)].filter((x) => s2.has(x));
 }
 
 /**
@@ -186,7 +191,10 @@ export function cartesian(...args) {
     if (!args.length) {
         return [undefined];
     } else if (args.length === 1) {
-        return args[0];
+        // Return a copy, not the caller's array by reference — every other
+        // arity produces a fresh array, so callers must be able to mutate the
+        // result without corrupting their input.
+        return [...args[0]];
     } else {
         return _cartesian(...args);
     }

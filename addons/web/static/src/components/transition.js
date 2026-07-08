@@ -59,6 +59,12 @@ export function useTransition({
                 return state.shouldMount;
             },
             set shouldMount(val) {
+                // No transition to animate, but keep the onLeave contract
+                // symmetric with the animated path: fire it (synchronously)
+                // whenever the element goes from mounted to unmounted.
+                if (state.shouldMount && !val) {
+                    onLeave();
+                }
                 state.shouldMount = val;
             },
             get className() {
@@ -111,10 +117,17 @@ export function useTransition({
                 state.shouldMount = true;
             } else {
                 state.stage = "leave";
-                timer = browser.setTimeout(() => {
-                    state.shouldMount = false;
-                    onLeave();
-                }, leaveDuration);
+                // Only schedule the unmount (and the onLeave callback) when the
+                // element is actually mounted. Otherwise the very first init
+                // assignment (`shouldMount = initialVisibility` with
+                // initialVisibility === false) would spuriously fire onLeave
+                // for an element that was never shown.
+                if (state.shouldMount) {
+                    timer = browser.setTimeout(() => {
+                        state.shouldMount = false;
+                        onLeave();
+                    }, leaveDuration);
+                }
             }
         },
         get className() {

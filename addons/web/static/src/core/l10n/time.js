@@ -75,8 +75,16 @@ export class Time {
     roundMinutes(rounding) {
         const rounded = Math.round(this.minute / rounding) * rounding;
         if (rounded >= 60) {
-            this.hour = (this.hour + 1) % 24;
-            this.minute = 0;
+            if (this.hour >= 23) {
+                // Rounding up would spill past midnight. Incrementing the hour
+                // here would wrap to 00:00 of the SAME day, sending a datetime
+                // consumer back ~24h. Round DOWN to the last valid slot of the
+                // day instead (e.g. 23:58 -> 23:55 with rounding 5).
+                this.minute = Math.floor(59 / rounding) * rounding;
+            } else {
+                this.hour = this.hour + 1;
+                this.minute = 0;
+            }
         } else {
             this.minute = rounded;
         }

@@ -300,6 +300,16 @@ export const hotkeyService = {
             // Gather the hotkeys to overlay registered through the useHotkey hook.
             const hotkeysFromHookToHighlight = [];
             for (const [, registration] of registrations) {
+                // Only highlight hotkeys that ``dispatch`` would actually route
+                // to this active element (same filter): a hotkey registered
+                // behind a now-open dialog won't dispatch, so showing its badge
+                // would be misleading.
+                if (
+                    !registration.global &&
+                    registration.activeElement !== activeElement
+                ) {
+                    continue;
+                }
                 const overlayElement = registration.withOverlay?.();
                 if (overlayElement) {
                     hotkeysFromHookToHighlight.push({

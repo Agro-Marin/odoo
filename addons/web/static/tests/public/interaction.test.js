@@ -620,6 +620,85 @@ describe("handling crashes", () => {
         // The only expect is in t-att-a so that if it isn't called, the test crashes.
     });
 
+    test("recover from a throwing t-out definition", async () => {
+        let boom = false;
+        let interaction = null;
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-on-click": () => this.count++,
+                    "t-att-data-count": () => this.count,
+                },
+                span: {
+                    "t-out": () => {
+                        if (boom) {
+                            throw new Error("boom");
+                        }
+                        return `colibri ${this.count}`;
+                    },
+                },
+            };
+            setup() {
+                this.count = 1;
+                interaction = this;
+            }
+        }
+        await startInteraction(Test, TemplateTest);
+        expect(".test").toHaveAttribute("data-count", "1");
+        expect("span").toHaveText("colibri 1");
+
+        boom = true;
+        interaction.count = 5;
+        expect(() => interaction.updateContent()).toThrow(
+            "An error occured while updating 't-out' content (selector 'span') (in interaction 'Test')",
+        );
+        // Other dynamic content was still updated despite the throwing t-out.
+        expect(".test").toHaveAttribute("data-count", "5");
+
+        // The interaction is not bricked: event handlers (and the implicit
+        // updateContent wrapped around them) still work.
+        boom = false;
+        await click(".test");
+        expect(".test").toHaveAttribute("data-count", "6");
+        expect("span").toHaveText("colibri 6");
+    });
+
+    test("a throwing restore step on destroy still removes listeners", async () => {
+        let boom = false;
+        patchWithCleanup(Colibri.prototype, {
+            applyAttr(...args) {
+                if (boom) {
+                    throw new Error("boom");
+                }
+                super.applyAttr(...args);
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-att-animal": () => "colibri",
+                    "t-on-click.noUpdate": () => expect.step("click"),
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        await click(".test");
+        expect.verifySteps(["click"]);
+
+        boom = true;
+        expect(() => core.stopInteractions()).toThrow(
+            "Could not destroy some interactions",
+        );
+        boom = false;
+        expect(core.interactions).toHaveLength(0);
+        // Despite the crash while restoring t-att values, the click listener
+        // was removed.
+        await click(".test");
+        expect.verifySteps([]);
+    });
+
     test("dom is updated after event is dispatched", async () => {
         class Test extends Interaction {
             static selector = ".test";

@@ -3,6 +3,7 @@
 
 /** @module @web/core/utils/format/binary - Binary size detection, base64 length calculation, and human-readable byte formatting */
 
+import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 
 /**
@@ -27,11 +28,16 @@ export function toBase64Length(maxBytes) {
  * @returns {string}
  */
 export function humanSize(size) {
-    const units = _t("Bytes|Kb|Mb|Gb|Tb|Pb|Eb|Zb|Yb").split("|");
+    // These are BYTE units, so the binary-multiple abbreviations are "KB",
+    // "MB", ... (uppercase B = bytes); "Kb"/"Mb" mean *bits* and were wrong.
+    const units = _t("Bytes|KB|MB|GB|TB|PB|EB|ZB|YB").split("|");
     let i = 0;
     while (size >= 1024 && i < units.length - 1) {
         size /= 1024;
         ++i;
     }
-    return `${size.toFixed(2)} ${units[i].trim()}`;
+    // Respect the user's locale decimal separator (e.g. "2,52 MB" in fr_FR)
+    // instead of always emitting a "." like Number.toFixed does.
+    const formatted = size.toFixed(2).replace(".", localization.decimalPoint);
+    return `${formatted} ${units[i].trim()}`;
 }

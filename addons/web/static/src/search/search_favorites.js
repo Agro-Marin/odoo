@@ -6,6 +6,7 @@
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 
 import { makeContext } from "@web/core/context";
+import { Domain } from "@web/core/domain";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { user } from "@web/services/user";
 
@@ -42,6 +43,21 @@ export function irFilterToFavorite(irFilter) {
     } catch {
         isInvalid = true;
         sort = [];
+    }
+    // Validate the stored domain up front: facet building does
+    // Domain.or([...favorite.domain]) which throws on an unparseable domain,
+    // and that throw can happen inside a notifications-blocked window and poison
+    // the whole search model. Marking the favorite invalid keeps it inert
+    // (toggleSearchItem bails on isInvalid items) instead.
+    // An empty/falsy stored domain is a valid match-all filter (ir.filters keeps
+    // `domain: ""` for context-only favorites) and must NOT be validated —
+    // `new Domain("")` throws, which would wrongly disable such favorites.
+    if (irFilter.domain) {
+        try {
+            new Domain(irFilter.domain);
+        } catch {
+            isInvalid = true;
+        }
     }
     const orderBy = sort.map((order) => {
         let fieldName;

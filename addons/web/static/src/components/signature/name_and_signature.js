@@ -7,6 +7,7 @@ import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { rpc } from "@web/core/network/rpc";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
@@ -39,6 +40,9 @@ export class NameAndSignature extends Component {
         this.defaultName = this.props.signature.name || "";
         this.currentFont = 0;
         this.drawTimeout = null;
+        // Serializes concurrent printImage() calls (rapid auto-mode keystrokes
+        // / font switches): only the most recent image is ever drawn.
+        this.printImageKeepLast = new KeepLast();
 
         this.state = useState({
             signMode:
@@ -269,24 +273,37 @@ export class NameAndSignature extends Component {
         this.clear();
         const c = this.signaturePad.canvas;
         const img = new Image();
-        img.onload = () => {
-            const ctx = c.getContext("2d");
-            const ratio =
-                img.width / img.height > c.width / c.height
-                    ? c.width / img.width
-                    : c.height / img.height;
-            ctx.drawImage(
-                img,
-                c.width / 2 - (img.width * ratio) / 2,
-                c.height / 2 - (img.height * ratio) / 2,
-                img.width * ratio,
-                img.height * ratio,
-            );
+        img.src = imgSrc;
+        try {
+            // ``img.decode()`` makes the draw awaitable (unlike the old
+            // fire-and-forget ``img.onload``). ``KeepLast`` leaves the promise
+            // of any superseded call pending forever, so only the most recent
+            // call ever reaches the draw below — this is what prevents rapid
+            // successive calls from producing superimposed "ghost" renders.
+            await this.printImageKeepLast.add(img.decode());
+        } catch {
+            // The (latest) source failed to decode: leave the cleared pad empty.
             this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
             this.props.onSignatureChange(this.state.signMode);
-        };
-        img.src = imgSrc;
+            return;
+        }
+        const ctx = c.getContext("2d");
+        const ratio =
+            img.width / img.height > c.width / c.height
+                ? c.width / img.width
+                : c.height / img.height;
+        ctx.drawImage(
+            img,
+            c.width / 2 - (img.width * ratio) / 2,
+            c.height / 2 - (img.height * ratio) / 2,
+            img.width * ratio,
+            img.height * ratio,
+        );
+        // signature_pad exposes no public setter for its emptiness flag; mark
+        // the pad non-empty so ``isEmpty()`` reflects the manually drawn image.
         this.signaturePad._isEmpty = false;
+        this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
+        this.props.onSignatureChange(this.state.signMode);
     }
 
     /**

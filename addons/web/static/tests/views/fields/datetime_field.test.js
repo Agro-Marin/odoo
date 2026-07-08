@@ -1,6 +1,6 @@
 // @ts-check
 
-import { after, expect, test } from "@odoo/hoot";
+import { after, expect, mockDate, test } from "@odoo/hoot";
 import {
     click,
     edit,
@@ -669,6 +669,48 @@ test("placeholder_field shows as placeholder (datetime)", async () => {
             message: "placeholder_field should be the placeholder",
         },
     );
+});
+
+test("warn_future does not warn on an earlier time today (datetime)", async () => {
+    mockTimeZone(0);
+    // "Now" is noon; the record's datetime is 10:00 the same day: earlier today,
+    // so a DATETIME field must NOT be flagged as being in the future.
+    mockDate("2017-02-08 12:00:00", 0);
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <field name="datetime" widget="datetime" options="{'warn_future': true}"/>
+            </form>`,
+    });
+
+    expect("div[name='datetime'] .text-danger").toHaveCount(0, {
+        message: "an earlier time today must not be flagged as future",
+    });
+});
+
+test("warn_future warns on a later time today (datetime)", async () => {
+    mockTimeZone(0);
+    // "Now" is 08:00; the record's datetime is 10:00 the same day: later today,
+    // so a DATETIME field must be flagged as being in the future.
+    mockDate("2017-02-08 08:00:00", 0);
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <field name="datetime" widget="datetime" options="{'warn_future': true}"/>
+            </form>`,
+    });
+
+    expect("div[name='datetime'] .text-danger").toHaveCount(1, {
+        message: "a later time today must be flagged as future",
+    });
 });
 
 test("list datetime: column widths (show_time=false)", async () => {

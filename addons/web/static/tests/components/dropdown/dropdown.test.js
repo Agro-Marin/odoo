@@ -28,6 +28,7 @@ import {
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { Popover } from "@web/ui/popover/popover";
@@ -461,6 +462,59 @@ test("refocus toggler on close with keynav", async () => {
     await press("Escape");
     await animationFrame();
     expect(DROPDOWN_TOGGLE).toBeFocused();
+});
+
+test.tags("desktop");
+test("opening a dropdown over another restores focus to its own toggler", async () => {
+    // Manual states let us open B *without* an outside pointerdown, so A is
+    // closed only by the nesting bus during B's open cascade — the exact
+    // ordering that used to make B capture A's restored focus target. (A real
+    // click on B's toggler focuses it first and masks the race.)
+    let parent;
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static props = [];
+        static template = xml`
+            <Dropdown state="stateA">
+                <button class="toggler-a">A</button>
+                <t t-set-slot="content">
+                    <DropdownItem class="'item-a'">Item A</DropdownItem>
+                </t>
+            </Dropdown>
+            <Dropdown state="stateB">
+                <button class="toggler-b">B</button>
+                <t t-set-slot="content">
+                    <DropdownItem class="'item-b'">Item B</DropdownItem>
+                </t>
+            </Dropdown>
+        `;
+        setup() {
+            this.stateA = useDropdownState();
+            this.stateB = useDropdownState();
+            parent = this;
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    // Open A, keeping DOM focus on A's toggler.
+    queryOne(".toggler-a").focus();
+    parent.stateA.open();
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+    expect(".toggler-a").toBeFocused();
+
+    // Open B while A is open and focus is still on A's toggler. A closes via
+    // the nesting bus and restores focus to its own toggler mid-cascade; B must
+    // still anchor its restore-focus on its own toggler, not on A's target.
+    parent.stateB.open();
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+
+    // Closing B (Escape) returns focus to B's toggler, not to A's old target.
+    await press("Escape");
+    await animationFrame();
+    expect(".toggler-b").toBeFocused();
+    expect(DROPDOWN_MENU).toHaveCount(0);
 });
 
 test.tags("desktop");

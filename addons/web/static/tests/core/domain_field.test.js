@@ -1326,3 +1326,48 @@ test("allow_expressions = false (default)", async function () {
     expect(".o_field_domain").toHaveClass("o_field_invalid");
     expect.verifySteps(["The domain should not involve non-literals"]);
 });
+
+test("domain field: out-of-order counts, only the latest is shown (KeepLast)", async function () {
+    // Two rapid domain changes fire two un-awaited search_count RPCs. If the
+    // stale one resolves last, it must not overwrite the count of the latest.
+    Partner._fields.name = fields.Char({
+        onChange: (obj) => {
+            obj.foo = `[("id", "=", 1)]`;
+        },
+    });
+    Partner._records[0].foo = "[]";
+
+    const defs = [];
+    onRpc("/web/domain/validate", () => true);
+    onRpc("search_count", () => {
+        const def = new Deferred();
+        defs.push(def);
+        return def;
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="name" />
+                <field name="foo" widget="domain" options="{'model': 'partner'}" />
+            </form>`,
+    });
+
+    // Initial load queues a first (empty domain) count, still pending.
+    expect(defs).toHaveLength(1);
+
+    // Trigger the onchange: foo changes, queuing a second count, also pending.
+    await contains(".o_field_widget[name='name'] input").edit("new value");
+    await animationFrame();
+    expect(defs).toHaveLength(2);
+
+    // Resolve the latest first, then the stale one.
+    defs[1].resolve(1); // latest edit -> 1 record
+    defs[0].resolve(3); // stale initial load -> 3 records (must be discarded)
+    await animationFrame();
+
+    expect(".o_domain_show_selection_button").toHaveText("1 record(s)");
+});

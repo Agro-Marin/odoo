@@ -4,6 +4,32 @@
 /** @module @web/core/utils/collections/cache - Generic key-path cache with lazy value computation */
 
 /**
+ * Reject a path segment that cannot serve as a distinct string cache key.
+ *
+ * Only meaningful when no `getKey` is provided: objects and functions all
+ * coerce to a shared string ("[object Object]", function source) and would
+ * silently collide, and `null` / `undefined` collide with the literal strings
+ * "null" / "undefined". A `symbol` is a legitimate distinct key and is allowed.
+ *
+ * @param {any} segment
+ */
+function assertPrimitiveSegment(segment) {
+    const type = typeof segment;
+    if (
+        segment === null ||
+        segment === undefined ||
+        type === "object" ||
+        type === "function"
+    ) {
+        throw new TypeError(
+            `Cache: invalid path segment ${String(segment)} (${segment === null ? "null" : type}). ` +
+                "Without a getKey function, path segments must be primitive (string, number, " +
+                "boolean, bigint, or symbol). Pass a getKey (e.g. JSON.stringify) to key on objects.",
+        );
+    }
+}
+
+/**
  * A generic cache that stores values indexed by a key derived from the lookup
  * path. When a value is not found, it is computed via the `getValue` callback
  * and stored for future reads.
@@ -34,6 +60,14 @@ export class Cache {
         if (this.getKey) {
             key = this.getKey(...path);
         } else {
+            // Without `getKey`, each path segment becomes an object property
+            // key via string coercion. Non-primitive segments all collapse to
+            // the same string ("[object Object]", or a function's source), so
+            // distinct objects would silently share one cache slot. Fail fast
+            // instead — such callers must supply a `getKey` (e.g. JSON.stringify).
+            for (const segment of path) {
+                assertPrimitiveSegment(segment);
+            }
             for (let i = 0; i < path.length - 1; i++) {
                 cache = cache[path[i]] = cache[path[i]] || Object.create(null);
             }
@@ -66,7 +100,21 @@ export class Cache {
     read(...path) {
         const { cache, key } = this._getCacheAndKey(...path);
         if (!(key in cache)) {
-            cache[key] = this.getValue(...path);
+            const value = this.getValue(...path);
+            cache[key] = value;
+            if (value && typeof value.then === "function") {
+                // A cached promise that later rejects would otherwise poison
+                // this slot forever: every subsequent read returns the same
+                // rejected promise and the value is never recomputed. Evict on
+                // rejection so the next read retries. The identity guard leaves
+                // a successful re-read (or invalidate/clear) that already
+                // replaced this slot untouched.
+                Promise.resolve(value).catch(() => {
+                    if (cache[key] === value) {
+                        delete cache[key];
+                    }
+                });
+            }
         }
         return cache[key];
     }

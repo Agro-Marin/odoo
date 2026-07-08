@@ -89,10 +89,18 @@ export const pwaService = {
          * @returns {string} "accepted", "dismissed", or ""
          */
         function _getInstallationState(scope = state.startUrl) {
-            const installationState = browser.localStorage.getItem(
-                "pwaService.installationState",
-            );
-            return installationState ? JSON.parse(installationState)[scope] : "";
+            let parsed = null;
+            try {
+                parsed = JSON.parse(
+                    browser.localStorage.getItem("pwaService.installationState"),
+                );
+            } catch {
+                // A corrupted localStorage value must not throw here: this runs
+                // at service start, so an unguarded parse error would take pwa
+                // (and its dependents) down on every boot. Treat it as no state.
+                parsed = null;
+            }
+            return parsed ? parsed[scope] : "";
         }
 
         /**

@@ -77,3 +77,14 @@ test("PWA installation process", async () => {
         "onDone call with installation accepted",
     ]);
 });
+
+test("PWA service boots despite a corrupted installationState in localStorage", async () => {
+    await makeMockEnv();
+    // A corrupted persisted value must not throw when parsed at service start,
+    // otherwise pwa (and every service depending on it) fails on every boot.
+    browser.localStorage.setItem("pwaService.installationState", "{ not json");
+    const pwaService = await getService("pwa");
+    // Service booted (start() ran to completion) despite the corrupted value.
+    expect(typeof pwaService.getManifest).toBe("function");
+    expect(pwaService.isAvailable).toBe(false);
+});

@@ -1243,3 +1243,54 @@ test("Ignore specified elements", async () => {
     await dragAndDrop(".item:first-child .ignored", ".item:nth-child(2)");
     expect.verifySteps([]);
 });
+
+test("works in a non-webclient container and honors inertSelectors", async () => {
+    // Regression: this core util used to hardcode `.o_navbar` /
+    // `.o_action_manager` (webclient chrome). In a non-webclient embedding
+    // those selectors match nothing, so nothing outside the container was made
+    // inert. Callers can now pass their own `inertSelectors`.
+    class NestedSortable extends Component {
+        static props = ["*"];
+        static template = xml`
+            <div>
+                <div class="custom-inert-zone">outside zone</div>
+                <div t-ref="root">
+                    <ul class="sortable_list">
+                        <li t-foreach="[1, 2, 3]" t-as="i" t-key="i" class="item" t-att-id="i">
+                            <span t-out="i"/>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        `;
+
+        setup() {
+            useNestedSortable({
+                ref: useRef("root"),
+                elements: ".sortable_list > li",
+                touchDelay: 0,
+                inertSelectors: [".custom-inert-zone"],
+                onDrop() {
+                    expect.step("drop");
+                },
+            });
+        }
+    }
+
+    await mountWithCleanup(NestedSortable);
+    // No webclient chrome exists in this embedding.
+    expect(".o_navbar").toHaveCount(0);
+    expect(".o_action_manager").toHaveCount(0);
+
+    const { drop, moveUnder } = await sortableDrag(
+        ".sortable_list > .item:first-child",
+    );
+    await moveUnder(".sortable_list > .item:nth-child(2)");
+    // The caller-provided inert zone is made non-interactive during the drag...
+    expect(queryOne(".custom-inert-zone").style.pointerEvents).toBe("none");
+
+    await drop();
+    // ...and restored afterwards (cleanup).
+    expect(queryOne(".custom-inert-zone").style.pointerEvents).toBe("");
+    expect.verifySteps(["drop"]);
+});

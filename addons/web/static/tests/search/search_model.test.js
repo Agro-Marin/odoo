@@ -1108,3 +1108,32 @@ test("allow filtering based on extra keys in getSearchItems", async () => {
     expect(items).toHaveLength(1);
     expect(items[0].name).toBe("filter_1");
 });
+
+test("exportState returns a snapshot decoupled from the live model", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <filter name="filter_1" string="Filter 1" domain="[['foo', '=', 'a']]"/>
+            </search>
+        `,
+        context: {
+            search_default_filter_1: true,
+        },
+    });
+
+    const state = model.exportState();
+
+    // The exported query/searchItems must be independent copies, not aliases of
+    // the still-mutating live model state (previously safe only because the
+    // caller JSON-stringified the result immediately).
+    expect(state.query).not.toBe(model.query);
+    const queryLength = state.query.length;
+    expect(queryLength).toBeGreaterThan(0);
+    model.query.push({ searchItemId: -1 });
+    expect(state.query).toHaveLength(queryLength);
+
+    const someId = Object.keys(model.searchItems)[0];
+    expect(someId).not.toBe(undefined);
+    model.searchItems[someId].__probe = "MUTATED";
+    expect(state.searchItems[someId].__probe).toBe(undefined);
+});

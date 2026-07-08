@@ -615,10 +615,15 @@ export class SampleServer {
         const groupByField = this.data[params.model].fields[groupBy];
         const groupedByM2O = groupByField.type === "many2one";
         if (groupedByM2O) {
-            this.data[groupByField.relation].records = groups.map((g) => ({
-                id: g[groupBy][0],
-                display_name: g[groupBy][1],
-            }));
+            // A group whose value is falsy (records with no related record for
+            // the m2o) has ``g[groupBy] === false`` — skip it, indexing ``[0]``
+            // on ``false`` would throw. The falsy bucket is handled below.
+            this.data[groupByField.relation].records = groups
+                .filter((g) => g[groupBy])
+                .map((g) => ({
+                    id: g[groupBy][0],
+                    display_name: g[groupBy][1],
+                }));
         }
         for (const r of this.data[params.model].records) {
             const group = getSampleFromId(r.id, groups);
@@ -687,9 +692,13 @@ export class SampleServer {
                         serializeGroupDateValue(g[fullGroupBy], groupByField)
                     );
                 } else if (groupByField.type === "many2one") {
+                    // Guard ``g[fullGroupBy]`` before indexing ``[0]``: a falsy
+                    // (no related record) group has ``g[fullGroupBy] === false``,
+                    // and a truthy record compared against it must be a non-match
+                    // rather than a ``false[0]`` TypeError.
                     return (
                         (!r[groupBy] && !g[fullGroupBy]) ||
-                        r[groupBy] === g[fullGroupBy][0]
+                        (g[fullGroupBy] && r[groupBy] === g[fullGroupBy][0])
                     );
                 }
                 return r[groupBy] === g[fullGroupBy];

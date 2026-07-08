@@ -63,6 +63,15 @@ export class SignatureWidget extends Component {
         const record = this.props.record;
         const { model, resModel, resId } = record;
         const signatureField = this.props.signatureField;
+        if (!resId) {
+            // Unsaved record: there is no server row to write to yet (resId is
+            // false). Writing to id ``false`` throws server-side and the
+            // captured signature is lost. Persist it through the record instead
+            // so the value lands with the record's own save.
+            await record.update({ [signatureField]: file });
+            await record.save();
+            return;
+        }
         // Use the raw ORM service — the protected wrapper from useService()
         // rejects or hangs when the widget is destroyed. On mobile the widget
         // lives inside a dropdown that closes on re-render, but the write

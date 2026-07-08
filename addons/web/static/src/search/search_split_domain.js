@@ -12,6 +12,7 @@
 
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { makeContext } from "@web/core/context";
+import { withNotificationsBlocked } from "@web/search/search_query_mutations";
 /** SearchModel widened so this delegate module can read instance state
  * set across SearchModel's many methods. */
 /** @typedef {any} SearchModel */
@@ -78,13 +79,12 @@ export async function splitAndAddDomain(searchModel, domain, groupId) {
 
     const preFilters = await Promise.all(promises);
 
-    searchModel.blockNotification = true;
-
     // The block below is synchronous but can throw (createNewFilters /
-    // createNewGroupBy / query splicing). A try/finally guarantees
-    // blockNotification is reset, so a throw cannot wedge the search model
-    // into a permanently-silent state (no further _notify would ever fire).
-    try {
+    // createNewGroupBy / query splicing). withNotificationsBlocked guarantees
+    // blockNotification is *restored* (not hardcoded to false) afterwards, so a
+    // throw cannot wedge the search model into a permanently-silent state and
+    // nesting inside another blocked window stays correct.
+    withNotificationsBlocked(searchModel, () => {
         let queryItemIndex;
         if (group) {
             const firstActiveItem = group.activeItems[0];
@@ -143,9 +143,7 @@ export async function splitAndAddDomain(searchModel, domain, groupId) {
                 ...searchModel.query.slice(queryItemIndex, queryLength),
             ];
         }
-    } finally {
-        searchModel.blockNotification = false;
-    }
+    });
 
     searchModel._notify();
 }

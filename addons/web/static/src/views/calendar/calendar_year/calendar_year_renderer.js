@@ -12,6 +12,7 @@ import {
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info, Interval, Settings } from "@web/core/l10n/luxon";
+import { formatFcInitialDate } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { makeWeekColumn } from "@web/views/calendar/calendar_common/calendar_common_week_column";
 import { convertRecordToEvent, getColor } from "@web/views/calendar/calendar_utils";
 import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
@@ -101,7 +102,10 @@ export class CalendarYearRenderer extends Component {
             dayHeaderFormat: { weekday: "narrow" },
             dateClick: this.onDateClick,
             dayCellDidMount: this.onDayCellDidMount,
-            initialDate: this.props.model.date.toISO(),
+            // Strip the offset (see formatFcInitialDate): an offset-bearing ISO
+            // makes FC re-derive the day in its zone and land on the previous
+            // day in fixed-offset/marker zones, mis-anchoring the mini months.
+            initialDate: formatFcInitialDate(this.props.model.date),
             initialView: "dayGridMonth",
             direction: localization.direction,
             droppable: true,
@@ -195,9 +199,13 @@ export class CalendarYearRenderer extends Component {
         };
     }
     getDateWithMonth(month) {
-        return this.props.model.date
-            .set({ month: this.months.indexOf(month) + 1 })
-            .toISO();
+        // Strip the offset (see formatFcInitialDate): this value is the actual
+        // per-month anchor that getOptionsForMonth feeds to FC as initialDate,
+        // and an offset-bearing ISO lands on the previous day in fixed-offset
+        // /marker zones, shifting the whole mini month.
+        return formatFcInitialDate(
+            this.props.model.date.set({ month: this.months.indexOf(month) + 1 }),
+        );
     }
     getOptionsForMonth(month) {
         return {

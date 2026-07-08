@@ -199,3 +199,62 @@ test("close popover when owner component is unmounted", async () => {
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(0);
 });
+
+test("popover closed on owner unmount does not apply against the destroyed owner", async () => {
+    // Uses the DEFAULT popover (makePopover, no createPopover override) which,
+    // unlike usePopover, has no built-in destroyed-owner guard.
+    class Child extends Component {
+        static components = { DateTimeInput };
+        static props = [];
+        static template = xml`
+            <div>
+                <input type="text" class="datetime_hook_input" t-ref="start-date"/>
+            </div>
+        `;
+
+        setup() {
+            useDateTimePicker({
+                onApply: (value) =>
+                    expect.step(`apply:${value ? value.toISODate() : value}`),
+                pickerProps: {
+                    value: DateTime.fromSQL("2023-06-06"),
+                    type: "date",
+                },
+            });
+        }
+    }
+
+    const { resolve: hidePopover, promise } = Promise.withResolvers();
+
+    class DateTimeToggler extends Component {
+        static components = { Child };
+        static props = [];
+        static template = xml`<Child t-if="!state.hidden"/>`;
+
+        setup() {
+            this.state = useState({ hidden: false });
+            promise.then(() => {
+                this.state.hidden = true;
+            });
+        }
+    }
+
+    await mountWithCleanup(DateTimeToggler);
+
+    await click("input.datetime_hook_input");
+    await animationFrame();
+    expect(".o_datetime_picker").toHaveCount(1);
+
+    // Pending, uncommitted change in the input (popover still open).
+    await edit("07/07/2023", { confirm: false });
+    await animationFrame();
+    expect.verifySteps([]);
+
+    // Unmount the owner while the popover is open. The popover is torn down, but
+    // its onClose must NOT apply the pending value against the destroyed owner.
+    hidePopover();
+    await animationFrame();
+    await animationFrame();
+    expect(".o_datetime_picker").toHaveCount(0);
+    expect.verifySteps([]);
+});

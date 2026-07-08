@@ -423,6 +423,12 @@ export class FormController extends Component {
      * returned false (the coordinator pre-checks recovery itself, so
      * this method does not).
      *
+     * Contract: ``error`` always carries a server payload (``error.data``,
+     * i.e. an ``RPCError``) — ``FormErrorDialog`` requires ``props.data``.
+     * The coordinator's dialog-mode ``onError`` rethrows payload-less
+     * errors (``ConnectionLostError``, timeouts) before this hook, so
+     * they never reach the dialog (see ``_buildOnError``).
+     *
      * Historical context: this used to be ``onSaveError(error, opts,
      * showErrorDialog)`` — a tri-mode method that did recovery +
      * dialog-or-rethrow based on a positional boolean.  The semantics

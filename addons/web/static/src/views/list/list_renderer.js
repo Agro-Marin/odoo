@@ -952,7 +952,6 @@ export class ListRenderer extends Component {
             : this.onCellKeydownReadOnlyMode(hotkey, closestCell, group, record); // record is supposed to be not null here
 
         if (handled) {
-            this.lastCreatingAction = false;
             for (const tbody of /** @type {HTMLElement} */ (
                 this.tableRef.el
             ).getElementsByTagName("tbody")) {

@@ -538,6 +538,9 @@ test("O2M with parented m2o and domain on parent.m2o", async () => {
     expect(".o_data_row").toHaveCount(1);
 
     await contains(".o_field_many2one input").click();
+    // The create-and-edit dialog created a record, invalidating the memoized
+    // empty search: opening the dropdown searches the server again
+    expect.verifySteps(["web_name_search"]);
 });
 
 test.tags("desktop");

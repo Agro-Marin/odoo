@@ -3,9 +3,14 @@
 
 /** @module @web/views/view_components/multi_currency_popover - Popover showing a monetary value converted into each active company currency */
 
-import { Component, onWillStart, useExternalListener, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillStart,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { toLocaleDateString } from "@web/core/l10n/dates";
-import { useService } from "@web/core/utils/hooks";
 import { formatMonetary } from "@web/fields/formatters";
 import { getCurrency, getCurrencyRates } from "@web/services/currency";
 import { user } from "@web/services/user";
@@ -21,14 +26,22 @@ export class MultiCurrencyPopover extends Component {
     };
 
     setup() {
-        this.orm = useService("orm");
+        this.rootRef = useRef("root");
         this.defaultCurrency = user.activeCompany?.currency_id;
         this.state = useState({ rates: null });
         onWillStart(async () => {
             this.state.rates = await getCurrencyRates();
         });
         useExternalListener(window, "mouseover", (ev) => {
-            if (ev.target !== this.props.target) {
+            // Close only when the pointer leaves BOTH the anchor and the
+            // popover itself. An identity check (ev.target !== target) closed
+            // the popover the instant the pointer entered the popover body or
+            // any child of the anchor.
+            const popoverEl = this.rootRef.el;
+            if (
+                !this.props.target.contains(ev.target) &&
+                !popoverEl?.contains(ev.target)
+            ) {
                 this.props.close();
             }
         });
@@ -37,13 +50,14 @@ export class MultiCurrencyPopover extends Component {
     /** @returns {Array<Object>} non-default currencies with their rates and converted values */
     get currencies() {
         return this.props.currencyIds.reduce((currencies, currencyId) => {
-            if (currencyId && currencyId !== this.defaultCurrency) {
+            const rateInfo = this.state.rates[currencyId];
+            if (currencyId && currencyId !== this.defaultCurrency && rateInfo) {
                 currencies.push({
                     ...getCurrency(currencyId),
                     id: currencyId,
-                    rate: this.state.rates[currencyId].rate,
-                    date: toLocaleDateString(this.state.rates[currencyId].date),
-                    value: this.props.value / this.state.rates[currencyId].rate,
+                    rate: rateInfo.rate,
+                    date: toLocaleDateString(rateInfo.date),
+                    value: this.props.value / rateInfo.rate,
                 });
             }
             return currencies;

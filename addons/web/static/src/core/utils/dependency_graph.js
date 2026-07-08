@@ -175,6 +175,13 @@ export function createWaveResolver({ isLoaded }) {
     const pending = new Map();
     /** Reverse graph: dep name → entries waiting on it. @type {Map<string, Set<string>>} */
     const dependents = new Map();
+    /**
+     * Forward graph: entry name → the unmet deps whose reverse edge it owns.
+     * Kept so ``untrack`` can remove ``name`` from every ``dependents`` set in
+     * O(deps) instead of scanning the whole reverse graph.
+     * @type {Map<string, string[]>}
+     */
+    const waitingOn = new Map();
     /** FIFO of entries whose deps are all met. @type {string[]} */
     const ready = [];
 
@@ -188,6 +195,8 @@ export function createWaveResolver({ isLoaded }) {
                 return;
             }
             let unmet = 0;
+            /** Unmet deps whose reverse edge this entry now owns. @type {string[]} */
+            const owned = [];
             for (const dep of deps) {
                 if (!isLoaded(dep)) {
                     let waiters = dependents.get(dep);
@@ -200,10 +209,12 @@ export function createWaveResolver({ isLoaded }) {
                     // two.  Otherwise the entry deadlocks forever.
                     if (!waiters.has(name)) {
                         waiters.add(name);
+                        owned.push(dep);
                         unmet++;
                     }
                 }
             }
+            waitingOn.set(name, owned);
             pending.set(name, unmet);
             if (unmet === 0) {
                 ready.push(name);
@@ -234,6 +245,24 @@ export function createWaveResolver({ isLoaded }) {
         },
         untrack(name) {
             pending.delete(name);
+            // Also drop this entry's outgoing reverse edges. Leaving ``name`` in
+            // a ``dependents`` set would let a later re-track skip incrementing
+            // ``unmet`` for that dep (the stale-but-present waiter is deduped
+            // away), so the re-tracked entry would be declared ready while it
+            // still has an unmet dependency.
+            const owned = waitingOn.get(name);
+            if (owned) {
+                for (const dep of owned) {
+                    const waiters = dependents.get(dep);
+                    if (waiters) {
+                        waiters.delete(name);
+                        if (waiters.size === 0) {
+                            dependents.delete(dep);
+                        }
+                    }
+                }
+                waitingOn.delete(name);
+            }
         },
         pendingOf(name) {
             return pending.get(name);

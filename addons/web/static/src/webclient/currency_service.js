@@ -48,7 +48,12 @@ export const currencyService = {
             const { data, error } = ev.detail;
             const { model, method } = data.params;
             if (!error && model === "res.currency" && UPDATE_METHODS.includes(method)) {
-                reloadCurrencies();
+                // Fire-and-forget background refresh: a failed
+                // ``get_all_currencies`` must not become an unhandled
+                // rejection (→ user-facing error dialog) for what is only a
+                // best-effort cache update. Mirror the menu-revalidation
+                // pattern and just log it.
+                reloadCurrencies().catch(console.warn);
             }
         });
         return { reloadCurrencies };

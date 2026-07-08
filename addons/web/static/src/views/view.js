@@ -216,7 +216,6 @@ const ACTIONS = [
 
 /** @extends {Component<ViewProps, import("@web/env").OdooEnv>} */
 export class View extends Component {
-    static _download = async function () {};
     static template = "web.View";
     static components = { WithSearch };
     static searchMenuTypes = ["filter", "groupBy", "favorite"];

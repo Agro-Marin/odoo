@@ -95,21 +95,22 @@ export function useKanbanKeyboardNavigation(options) {
     );
 
     const arrowsOptions = { area, allowRepeat: true };
-    if (searchModel) {
-        // ArrowUp at the top row hands focus to the search bar so
-        // keyboard-only users can move from the kanban grid back to
-        // search without reaching for the mouse. ``focus-search`` is
-        // observed by the search bar in webclient/control_panel.
-        useHotkey(
-            "ArrowUp",
-            ({ area: el }) => {
-                if (!onArrowNav(el, "up")) {
-                    searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
-                }
-            },
-            arrowsOptions,
-        );
-    }
+    // ArrowUp card navigation must always be available, even when the
+    // kanban mounts without a search context (x2many kanban in a form,
+    // dialogs). Only the ``focus-search`` fallback — handing focus to
+    // the search bar when ArrowUp leaves the top row — depends on the
+    // searchModel; guard just that so card nav never disappears.
+    useHotkey(
+        "ArrowUp",
+        ({ area: el }) => {
+            if (!onArrowNav(el, "up")) {
+                // ``focus-search`` is observed by the search bar in
+                // webclient/control_panel; skip when there's no search.
+                searchModel?.trigger(SearchModelEvent.FOCUS_SEARCH);
+            }
+        },
+        arrowsOptions,
+    );
     useHotkey("ArrowDown", ({ area: el }) => onArrowNav(el, "down"), arrowsOptions);
     useHotkey("ArrowLeft", ({ area: el }) => onArrowNav(el, "left"), arrowsOptions);
     useHotkey("ArrowRight", ({ area: el }) => onArrowNav(el, "right"), arrowsOptions);

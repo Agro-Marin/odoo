@@ -785,3 +785,97 @@ describe("in operator — Object.hasOwn", () => {
         expect(evaluateExpr("4 in s", { s: new Set([1, 2, 3]) })).toBe(false);
     });
 });
+
+describe("Python semantics fixes", () => {
+    test("negative indexing on lists (Python lst[-1])", () => {
+        expect(evaluateExpr("[1, 2, 3][-1]")).toBe(3);
+        expect(evaluateExpr("[1, 2, 3][-2]")).toBe(2);
+        expect(evaluateExpr("[1, 2, 3][-3]")).toBe(1);
+        // positive indexing unaffected
+        expect(evaluateExpr("[1, 2, 3][0]")).toBe(1);
+        expect(evaluateExpr("[1, 2, 3][2]")).toBe(3);
+    });
+
+    test("negative indexing on strings (Python s[-1])", () => {
+        expect(evaluateExpr("'abc'[-1]")).toBe("c");
+        expect(evaluateExpr("'abc'[-2]")).toBe("b");
+        expect(evaluateExpr("'abc'[0]")).toBe("a");
+    });
+
+    test("str * int and list * int repetition", () => {
+        expect(evaluateExpr("'ab' * 2")).toBe("abab");
+        expect(evaluateExpr("2 * 'ab'")).toBe("abab");
+        expect(evaluateExpr("'ab' * 0")).toBe("");
+        expect(evaluateExpr("[1] * 3")).toEqual([1, 1, 1]);
+        expect(evaluateExpr("3 * [1, 2]")).toEqual([1, 2, 1, 2, 1, 2]);
+        // numeric multiplication unaffected
+        expect(evaluateExpr("3 * 4")).toBe(12);
+    });
+
+    test("'%' string formatting", () => {
+        expect(evaluateExpr("'%s' % 5")).toBe("5");
+        expect(evaluateExpr("'%s and %s' % (1, 2)")).toBe("1 and 2");
+        expect(evaluateExpr("'%d apples' % 3")).toBe("3 apples");
+        expect(evaluateExpr("'%s' % 'x'")).toBe("x");
+        expect(evaluateExpr("'%(name)s' % {'name': 'foo'}")).toBe("foo");
+        // numeric modulo unaffected
+        expect(evaluateExpr("7 % 3")).toBe(1);
+    });
+
+    test("mismatched '+' raises (Python TypeError)", () => {
+        expect(() => evaluateExpr("'a' + 1")).toThrow();
+        expect(() => evaluateExpr("1 + 'a'")).toThrow();
+        // valid additions still work
+        expect(evaluateExpr("'a' + 'b'")).toBe("ab");
+        expect(evaluateExpr("1 + 2")).toBe(3);
+        expect(evaluateExpr("True + 1")).toBe(2);
+        expect(evaluateExpr("[1] + [2]")).toEqual([1, 2]);
+    });
+
+    test("dict deep equality (Python {'a': 1} == {'a': 1})", () => {
+        expect(evaluateExpr("{'a': 1} == {'a': 1}")).toBe(true);
+        expect(evaluateExpr("{'a': 1} == {'a': 2}")).toBe(false);
+        expect(evaluateExpr("{'a': 1, 'b': 2} == {'b': 2, 'a': 1}")).toBe(true);
+        expect(evaluateExpr("{'a': 1} == {'a': 1, 'b': 2}")).toBe(false);
+    });
+
+    test("set deep equality", () => {
+        expect(evaluateExpr("set([1, 2, 3]) == set([3, 2, 1])")).toBe(true);
+        expect(evaluateExpr("set([1, 2]) == set([1, 2, 3])")).toBe(false);
+    });
+
+    test("dict with an 'isEqual' data key does not throw", () => {
+        // a context dict whose key happens to be "isEqual" is data, not a method
+        expect(evaluateExpr("d == d", { d: { isEqual: 5, a: 1 } })).toBe(true);
+    });
+
+    test("'in' uses deep equality (Python [1, 2] in [[1, 2]])", () => {
+        expect(evaluateExpr("[1, 2] in [[1, 2]]")).toBe(true);
+        expect(evaluateExpr("[1, 3] in [[1, 2]]")).toBe(false);
+        expect(evaluateExpr("{'a': 1} in [{'a': 1}]")).toBe(true);
+    });
+
+    test("str() of containers, dates and floats", () => {
+        expect(evaluateExpr("str([1, 2])")).toBe("[1, 2]");
+        expect(evaluateExpr("str([1, 'a'])")).toBe("[1, 'a']");
+        expect(evaluateExpr("str({'a': 1})")).toBe("{'a': 1}");
+        expect(evaluateExpr("str('a')")).toBe("a");
+        expect(evaluateExpr("str(3.5)")).toBe("3.5");
+        expect(evaluateExpr("str(datetime.date(2020, 1, 31))")).toBe("2020-01-31");
+        expect(evaluateExpr("str(datetime.datetime(2020, 1, 31, 5, 6, 7))")).toBe(
+            "2020-01-31 05:06:07",
+        );
+        expect(evaluateExpr("str(datetime.timedelta(days=1))")).toBe("1 day, 0:00:00");
+    });
+
+    test("strftime handles '%%' literal percent", () => {
+        expect(evaluateExpr("time.strftime('100%%')")).toBe("100%");
+    });
+
+    test("'**' is right-associative (Python 2**3**2 == 512)", () => {
+        expect(evaluateExpr("2 ** 3 ** 2")).toBe(512);
+        expect(evaluateExpr("2 ** 2 ** 3")).toBe(256);
+        expect(evaluateExpr("(2 ** 3) ** 2")).toBe(64);
+        expect(evaluateExpr("2 ** 3")).toBe(8);
+    });
+});

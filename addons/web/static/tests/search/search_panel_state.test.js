@@ -383,6 +383,36 @@ describe("createCategoryTree", () => {
         expect(cat.errorMsg).toBe("Access denied");
         expect(cat.values.size).toBe(0);
     });
+
+    test("drops values removed server-side on a subsequent fetch", () => {
+        const cat = makeCategory(1, { hierarchize: false });
+        // Seed the synthetic "All" root as the arch parser does.
+        cat.values.set(false, { id: false, childrenIds: [], parentId: false });
+        const sections = new Map([[1, cat]]);
+        const model = makeSearchModel(sections);
+
+        // First fetch returns two values.
+        createCategoryTree(model, 1, {
+            parent_field: "parent_id",
+            values: [
+                { id: 10, parent_id: false },
+                { id: 20, parent_id: false },
+            ],
+        });
+        expect(cat.values.has(10)).toBe(true);
+        expect(cat.values.has(20)).toBe(true);
+
+        // A narrower domain reload no longer returns value 20.
+        createCategoryTree(model, 1, {
+            parent_field: "parent_id",
+            values: [{ id: 10, parent_id: false }],
+        });
+
+        expect(cat.values.has(20)).toBe(false); // removed server-side → gone
+        expect(cat.values.has(10)).toBe(true);
+        expect(cat.values.has(false)).toBe(true); // "All" root preserved
+        expect(cat.rootIds).toEqual([false, 10]);
+    });
 });
 
 // ---------------------------------------------------------------------------

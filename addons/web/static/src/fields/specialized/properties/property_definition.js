@@ -10,6 +10,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
 import { Domain } from "@web/core/domain";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { uuid } from "@web/core/utils/format/strings";
@@ -61,6 +62,11 @@ export class PropertyDefinition extends Component {
 
     setup() {
         this.orm = useService("orm");
+
+        // Serialize the matching-records-count RPCs so that two rapid edits
+        // (model/domain change) cannot resolve out of order and leave a stale
+        // count showing.
+        this.keepLastCount = new KeepLast();
 
         this.propertyDefinitionRef = useRef("propertyDefinition");
         this.addDialog = useOwnedDialogs();
@@ -475,13 +481,20 @@ export class PropertyDefinition extends Component {
                 this.state.propertyDefinition.domain || "[]",
             ).toList();
 
-            const result = await this.orm.call(
-                this.state.propertyDefinition.comodel,
-                "search_count",
-                [domainList],
-            );
-
-            this.state.matchingRecordsCount = result;
+            try {
+                this.state.matchingRecordsCount = await this.keepLastCount.add(
+                    this.orm.call(
+                        this.state.propertyDefinition.comodel,
+                        "search_count",
+                        [domainList],
+                    ),
+                );
+            } catch {
+                // e.g. an AccessError on the comodel while the user is still
+                // typing the domain: don't surface it as an error dialog, just
+                // hide the count.
+                this.state.matchingRecordsCount = undefined;
+            }
         } else {
             this.state.matchingRecordsCount = undefined;
         }

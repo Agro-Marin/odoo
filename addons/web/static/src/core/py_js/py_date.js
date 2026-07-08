@@ -5,6 +5,8 @@
 
 import {
     assert,
+    daysInMonth,
+    divmod,
     fmt2,
     fmt4,
     isLeap,
@@ -33,7 +35,11 @@ export class NotSupportedError extends Error {}
  * @returns {string}
  */
 function strftime(format, converters) {
-    return format.replace(/%([A-Za-z])/g, (m, c) => {
+    return format.replace(/%(%|[A-Za-z])/g, (m, c) => {
+        if (c === "%") {
+            // ``%%`` is a literal percent sign.
+            return "%";
+        }
         if (c in converters) {
             return converters[c]();
         }
@@ -135,13 +141,37 @@ export class PyDate {
         return this.strftime("%Y-%m-%d");
     }
 
+    /**
+     * String representation used by ``str()`` / JS coercion. Subclasses
+     * (PyDateTime, PyTime) override ``toJSON`` so this stays correct for them.
+     * @returns {string}
+     */
+    toString() {
+        return this.toJSON();
+    }
+
     /** @returns {number} */
     toordinal() {
         return ymd2ord(this.year, this.month, this.day);
     }
+
+    /**
+     * Ordering protocol: JS relational operators (``<``, ``>``, ...) coerce
+     * objects through ToPrimitive, which calls ``valueOf``. Returning the
+     * ordinal day number makes two dates compare chronologically (equality
+     * stays on the ``isEqual`` hook and is unaffected).
+     *
+     * @returns {number}
+     */
+    valueOf() {
+        return this.toordinal();
+    }
 }
 
 // ─── PyDateTime ──────────────────────────────────────────────────────────────
+
+/** Proleptic Gregorian ordinal of 1970-01-01, i.e. ``ymd2ord(1970, 1, 1)``. */
+const UNIX_EPOCH_ORDINAL = 719163;
 
 export class PyDateTime {
     /** @returns {PyDateTime} */
@@ -316,6 +346,14 @@ export class PyDateTime {
         return this.strftime("%Y-%m-%d %H:%M:%S");
     }
 
+    /**
+     * String representation used by ``str()`` / JS coercion.
+     * @returns {string}
+     */
+    toString() {
+        return this.toJSON();
+    }
+
     /** @returns {PyDateTime} */
     to_utc() {
         const d = new Date(
@@ -330,6 +368,20 @@ export class PyDateTime {
             minutes: d.getTimezoneOffset(),
         });
         return this.add(timedelta);
+    }
+
+    /**
+     * Ordering protocol (see {@link PyDate#valueOf}): microseconds since the
+     * Unix epoch, exact as an IEEE-754 double for years ~1685–2255.
+     *
+     * @returns {number}
+     */
+    valueOf() {
+        return (
+            (this.toordinal() - UNIX_EPOCH_ORDINAL) * 86400e6 +
+            (this.hour * 3600 + this.minute * 60 + this.second) * 1e6 +
+            this.microsecond
+        );
     }
 }
 
@@ -381,6 +433,18 @@ export class PyTime extends PyDate {
 
     toJSON() {
         return this.strftime("%H:%M:%S");
+    }
+
+    /**
+     * Ordering protocol (see {@link PyDate#valueOf}): seconds since midnight.
+     * Overrides the inherited PyDate ordinal (which would compare the stamped
+     * "today" date and tie all times) so times order by time of day. Equality
+     * is untouched — it still goes through the inherited ``isEqual``.
+     *
+     * @returns {number}
+     */
+    valueOf() {
+        return this.hour * 3600 + this.minute * 60 + this.second;
     }
 }
 
@@ -466,11 +530,24 @@ export class PyRelativeDelta {
             throw new NotSupportedError();
         }
 
-        // First pass: determine target year and whether to apply leap days
+        // First pass: resolve the target year and month from the year/month
+        // arithmetic, then clamp the day to the length of the target month.
+        // dateutil semantics: a day past the end of the target month lands on
+        // its last day, e.g. 2020-01-31 + relativedelta(months=1) is
+        // 2020-02-29 — it must not roll over into 2020-03-02.
+        let year = (delta.year ?? date.year) + delta.years;
+        let month = (delta.month ?? date.month) + delta.months;
+        if (month < 1 || month > 12) {
+            divmod(month - 1, 12, (carry, m) => {
+                year += carry;
+                month = m + 1;
+            });
+        }
+        const day = Math.min(delta.day ?? date.day, daysInMonth(year, month));
         const s = tmxxx(
-            (delta.year ?? date.year) + delta.years,
-            (delta.month ?? date.month) + delta.months,
-            delta.day ?? date.day,
+            year,
+            month,
+            day,
             delta.hour ?? /** @type {any} */ (date).hour ?? 0,
             delta.minute ?? /** @type {any} */ (date).minute ?? 0,
             delta.second ?? /** @type {any} */ (date).second ?? 0,

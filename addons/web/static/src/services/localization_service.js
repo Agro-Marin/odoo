@@ -35,6 +35,22 @@ const NUMBERING_SYSTEMS = [
 ];
 
 /**
+ * Last-resort `lang_parameters` (en-US-like) applied when the very first
+ * translation fetch fails with nothing cached: without them `localization`
+ * stays empty and every date/number formatter on the page throws or renders
+ * garbage. Terms simply remain untranslated (English source strings).
+ */
+const FALLBACK_LANG_PARAMETERS = {
+    date_format: "%m/%d/%Y",
+    time_format: "%H:%M:%S",
+    decimal_point: ".",
+    direction: "ltr",
+    grouping: "[3,0]",
+    thousands_sep: ",",
+    week_start: 7,
+};
+
+/**
  * Service that fetches translations from the server and configures the Luxon
  * locale, numbering system, and Odoo localization settings (date/time formats,
  * decimal point, thousands separator, etc.).
@@ -198,10 +214,14 @@ export const localizationService = {
             `lang=${lang}`,
         );
 
-        const translationProm = fetchTranslations(storedTranslations?.hash).catch((e) =>
-            console.warn("Background translation fetch failed:", e),
-        );
+        const translationProm = fetchTranslations(storedTranslations?.hash);
         if (storedTranslations) {
+            // Warm boot: the fetch is only a background refresh — a failure
+            // means at worst slightly stale translations, so a warning is
+            // enough.
+            translationProm.catch((e) =>
+                console.warn("Background translation fetch failed:", e),
+            );
             // Refresh the localStorage mirror: the IndexedDB cache provably
             // holds translations for this registry_hash/lang, so the next
             // boot can skip the parse-time preload.
@@ -209,7 +229,30 @@ export const localizationService = {
             updateTranslations(storedTranslations);
         } else {
             l10nLog("cache", "no cache, awaiting fetch");
-            await translationProm;
+            try {
+                await translationProm;
+            } catch (e) {
+                // Cold boot: this fetch was the ONLY source of
+                // lang_parameters. Swallowing the failure would resolve
+                // `translationIsReady` with an empty `localization` and
+                // every formatter page-wide would break with no diagnosable
+                // error. Apply safe defaults so the page stays usable, and
+                // make the failure loud. (No visible notification here: the
+                // localization service starts before the notification
+                // service — nearly every service depends on localization,
+                // which takes no service dependencies — so it is not
+                // reachable at this point of the boot.)
+                console.error(
+                    "Translation fetch failed on cold boot; falling back to default localization parameters:",
+                    e,
+                );
+                updateTranslations({
+                    hash: "",
+                    modules: {},
+                    lang_parameters: FALLBACK_LANG_PARAMETERS,
+                    multi_lang: false,
+                });
+            }
         }
 
         translatedTerms[translationLoaded] = true;

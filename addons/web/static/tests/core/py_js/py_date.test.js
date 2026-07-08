@@ -278,6 +278,59 @@ describe("relativedelta relative : period is plural", () => {
         expect(evaluateExpr(expr6)).toBe("2000-11-03");
     });
 
+    test("month/year arithmetic clamps to the end of the target month", () => {
+        // dateutil parity: when the source day exceeds the target month's
+        // length, the day is clamped to that month's last day — it must not
+        // overflow into the following month.
+        const expr1 =
+            "(datetime.date(2020,1,31) + relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr1)).toBe("2020-02-29");
+
+        const expr2 =
+            "(datetime.date(2026,3,31) - relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr2)).toBe("2026-02-28");
+
+        const expr3 =
+            "(datetime.date(2020,2,29) + relativedelta(years=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr3)).toBe("2021-02-28");
+
+        const expr4 =
+            "(datetime.date(2021,1,31) + relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr4)).toBe("2021-02-28");
+
+        const expr5 =
+            "(datetime.date(2021,3,31) + relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr5)).toBe("2021-04-30");
+
+        const expr6 =
+            "(datetime.datetime(2020,1,31,5,6,7) + relativedelta(months=1)).strftime('%Y-%m-%d %H:%M:%S')";
+        expect(evaluateExpr(expr6)).toBe("2020-02-29 05:06:07");
+    });
+
+    test("day 29-31 round trip through a shorter month", () => {
+        // Forward then back: days beyond the clamp are lost (dateutil parity).
+        const expr1 =
+            "(datetime.date(2020,1,29) + relativedelta(months=1) - relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr1)).toBe("2020-01-29");
+
+        const expr2 =
+            "(datetime.date(2020,1,30) + relativedelta(months=1) - relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr2)).toBe("2020-01-29");
+
+        const expr3 =
+            "(datetime.date(2020,1,31) + relativedelta(months=1) - relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr3)).toBe("2020-01-29");
+
+        // Back then forward.
+        const expr4 =
+            "(datetime.date(2020,3,31) - relativedelta(months=1) + relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr4)).toBe("2020-03-29");
+
+        const expr5 =
+            "(datetime.date(2021,3,30) - relativedelta(months=1) + relativedelta(months=1)).strftime('%Y-%m-%d')";
+        expect(evaluateExpr(expr5)).toBe("2021-03-28");
+    });
+
     test("subtracting date and relative delta", () => {
         const expr1 =
             "(datetime.date(day=3,month=4,year=2001) - relativedelta(days=-1)).strftime('%Y-%m-%d')";
@@ -411,6 +464,98 @@ describe("relative delta yearday nlyearday", () => {
         const expr2 =
             "(datetime.date(day=3,month=4,year=2001) + relativedelta(nlyearday=60)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr2)).toBe("2001-03-01");
+    });
+});
+
+describe("ordering comparisons", () => {
+    test("date relational comparisons", () => {
+        expect(evaluateExpr("datetime.date(2020,1,1) < datetime.date(2021,1,1)")).toBe(
+            true,
+        );
+        expect(evaluateExpr("datetime.date(2020,1,1) > datetime.date(2021,1,1)")).toBe(
+            false,
+        );
+        expect(evaluateExpr("datetime.date(2020,1,1) <= datetime.date(2021,1,1)")).toBe(
+            true,
+        );
+        expect(evaluateExpr("datetime.date(2020,1,1) >= datetime.date(2021,1,1)")).toBe(
+            false,
+        );
+        expect(evaluateExpr("datetime.date(2021,1,1) <= datetime.date(2021,1,1)")).toBe(
+            true,
+        );
+        expect(evaluateExpr("datetime.date(2021,1,1) >= datetime.date(2021,1,1)")).toBe(
+            true,
+        );
+        expect(evaluateExpr("datetime.date(2021,1,1) < datetime.date(2021,1,1)")).toBe(
+            false,
+        );
+
+        const ctx = {
+            d1: PyDate.create(2020, 6, 15),
+            d2: PyDate.create(2020, 6, 16),
+        };
+        expect(evaluateExpr("d1 < d2", ctx)).toBe(true);
+        expect(evaluateExpr("d2 > d1", ctx)).toBe(true);
+    });
+
+    test("datetime relational comparisons", () => {
+        expect(
+            evaluateExpr(
+                "datetime.datetime(2021,1,1,0,0,1) > datetime.datetime(2021,1,1,0,0,0)",
+            ),
+        ).toBe(true);
+        expect(
+            evaluateExpr(
+                "datetime.datetime(2021,1,1,0,0,0,1) > datetime.datetime(2021,1,1)",
+            ),
+        ).toBe(true);
+        expect(
+            evaluateExpr(
+                "datetime.datetime(2021,1,1) < datetime.datetime(2020,12,31,23,59,59)",
+            ),
+        ).toBe(false);
+    });
+
+    test("max/min over dates", () => {
+        expect(
+            evaluateExpr(
+                "max(datetime.date(2020,1,1), datetime.date(2021,1,1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2021-01-01");
+        expect(
+            evaluateExpr(
+                "max(datetime.date(2021,1,1), datetime.date(2020,1,1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2021-01-01");
+        expect(
+            evaluateExpr(
+                "min(datetime.date(2020,1,1), datetime.date(2021,1,1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2020-01-01");
+        expect(
+            evaluateExpr(
+                "min(datetime.date(2021,1,1), datetime.date(2020,1,1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2020-01-01");
+    });
+
+    test("timedelta ordering", () => {
+        expect(
+            evaluateExpr("datetime.timedelta(days=1) < datetime.timedelta(days=2)"),
+        ).toBe(true);
+        expect(
+            evaluateExpr("datetime.timedelta(days=2) < datetime.timedelta(days=1)"),
+        ).toBe(false);
+        expect(
+            evaluateExpr("datetime.timedelta(hours=-1) < datetime.timedelta(0)"),
+        ).toBe(true);
+        expect(
+            evaluateExpr("datetime.timedelta(days=1) <= datetime.timedelta(hours=24)"),
+        ).toBe(true);
+        expect(
+            evaluateExpr("max(datetime.timedelta(days=1), datetime.timedelta(days=2)).days"),
+        ).toBe(2);
     });
 });
 

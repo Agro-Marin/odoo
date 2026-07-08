@@ -139,7 +139,7 @@ export const listSortingMixin = {
                     dataRowId,
                     dataGroupId,
                     refId,
-                    previous.dataset.groupId,
+                    previous?.dataset.groupId,
                 );
             } else {
                 this.resequencePromise = this.props.list.resequence(dataRowId, refId, {

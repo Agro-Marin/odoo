@@ -3,6 +3,15 @@
 
 /** @module @web/core/utils/dom/scrolling - Scroll detection, scrollIntoView, and scrollbar compensation utilities */
 
+import { browser } from "@web/core/browser/browser";
+
+/**
+ * Maximum time (ms) to wait for a scroll to settle before resolving anyway.
+ * Guards against environments that never fire "scrollend" (older Safari,
+ * embedded webviews) and against the scrollable being detached mid-scroll.
+ */
+const SCROLL_SETTLE_TIMEOUT = 1000;
+
 function isScrollableX(/** @type {Element} */ el) {
     if (el.scrollWidth > el.clientWidth && el.clientWidth > 0) {
         return couldBeScrollableX(el);
@@ -98,7 +107,10 @@ export function scrollTo(element, options = {}) {
     const scrollPromises = [];
 
     /**
-     * Wait for scrollend, but resolve immediately if no actual scrolling occurs.
+     * Wait for the scroll to settle, but resolve immediately if no actual
+     * scrolling occurs. Never hangs: it feature-detects "scrollend" and always
+     * races the wait against a max-duration timer (which also cleans up the
+     * once-listener if the scrollable is detached mid-scroll).
      * @param {number} targetTop
      */
     function awaitScroll(targetTop) {
@@ -113,9 +125,51 @@ export function scrollTo(element, options = {}) {
             return Promise.resolve();
         }
         return new Promise((resolve) => {
-            scrollable.addEventListener("scrollend", () => resolve(undefined), {
-                once: true,
-            });
+            let settled = false;
+            /** @type {any} */
+            let timer;
+            /** @type {any} */
+            let rafId;
+            const finish = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                browser.clearTimeout(timer);
+                if (rafId !== undefined) {
+                    browser.cancelAnimationFrame(rafId);
+                }
+                scrollable.removeEventListener("scrollend", finish);
+                resolve(undefined);
+            };
+            // Always race with a max-duration timer so the promise can never
+            // hang if "scrollend" never fires or the element is removed.
+            timer = browser.setTimeout(finish, SCROLL_SETTLE_TIMEOUT);
+            if ("onscrollend" in scrollable) {
+                scrollable.addEventListener("scrollend", finish, { once: true });
+            } else {
+                // No "scrollend" support (older Safari, embedded webviews):
+                // settle once scrollTop stops changing across frames.
+                let lastTop = scrollable.scrollTop;
+                let stableFrames = 0;
+                const check = () => {
+                    if (settled) {
+                        return;
+                    }
+                    const top = scrollable.scrollTop;
+                    if (top === lastTop) {
+                        if (++stableFrames >= 2) {
+                            finish();
+                            return;
+                        }
+                    } else {
+                        stableFrames = 0;
+                        lastTop = top;
+                    }
+                    rafId = browser.requestAnimationFrame(check);
+                };
+                rafId = browser.requestAnimationFrame(check);
+            }
         });
     }
 

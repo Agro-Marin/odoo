@@ -44,9 +44,16 @@ export class FieldSelectorField extends Component {
     }
 
     get resModel() {
-        return (
-            this.props.record.data[this.props.resModel] || this.props.record.resModel
-        );
+        const { record } = this.props;
+        // ``resModel`` prop may be either a field name (holding the target model)
+        // or a literal model name. Only dereference it through ``data`` when it is
+        // actually a field on the record; otherwise treat it as a literal. In both
+        // cases, fall back to the current record's model when the result is empty.
+        let resModel = this.props.resModel;
+        if (record.fieldNames.includes(resModel)) {
+            resModel = record.data[resModel];
+        }
+        return resModel || record.resModel;
     }
 
     get selectorProps() {

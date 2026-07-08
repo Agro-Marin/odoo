@@ -10,6 +10,7 @@ import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/dom
 import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
 import { Domain, InvalidDomainError } from "@web/core/domain";
 import { ModelEvent } from "@web/core/events";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -45,6 +46,11 @@ export class DomainField extends Component {
         this.treeProcessor = useService("tree_processor");
         this.getDefaultLeafDomain = useGetDefaultLeafDomain();
         this.addDialog = useOwnedDialogs();
+
+        // Serialize the record-count RPCs so that two rapid edits (checkProps is
+        // fired un-awaited from the record observer) cannot resolve out of order
+        // and leave a stale count showing.
+        this.keepLastCount = new KeepLast();
 
         this.state = useState({
             isValid: null,
@@ -226,13 +232,11 @@ export class DomainField extends Component {
             limit = props.countLimit + 1;
         }
         try {
-            recordCount = await this.orm.silent.searchCount(
-                resModel,
-                /** @type {any} */ (domain),
-                {
+            recordCount = await this.keepLastCount.add(
+                this.orm.silent.searchCount(resModel, /** @type {any} */ (domain), {
                     context,
                     limit,
-                },
+                }),
             );
         } catch (error) {
             if (

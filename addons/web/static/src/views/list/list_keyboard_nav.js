@@ -149,12 +149,25 @@ export function useListKeyboardNavigation(tableRef, options) {
          * Uses index-based navigation via ListGridState when data-row-index attributes are
          * present; falls back to DOM-walking for rows without index attributes (legacy path).
          *
+         * The result discriminates the three possible outcomes so that callers
+         * can tell "no target at all" apart from "target exists but is not
+         * rendered yet":
+         *
+         * - `{ el }` — the target cell is rendered: focus this element.
+         * - `{ pending: true }` — the target row exists but is virtualized out
+         *   of the DOM. Virtualization has been asked to scroll it into view
+         *   and focus is scheduled for the next patch (see
+         *   `resolvePendingVirtFocus`). Callers must treat the event as
+         *   handled and must NOT fall back to boundary behaviors (focusing
+         *   the search bar, default browser scroll).
+         * - `null` — grid boundary: no target row/cell in that direction.
+         *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
          * @param {"up" | "down" | "left" | "right"} direction
-         * @returns {HTMLElement | null}
+         * @returns {{ el: HTMLElement } | { pending: true } | null}
          */
-        findFocusFutureCell(cell, cellIsInGroupRow, direction) {
+        findFocusMove(cell, cellIsInGroupRow, direction) {
             // Index-based path: use ListGridState when data attributes are present
             const gridState = getGridState?.();
             const row = cell.parentElement;
@@ -175,7 +188,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                     }
                     const element = focusAtPosition(tableRef, next);
                     if (element) {
-                        return element;
+                        return { el: element };
                     }
                     // Row is virtualized out of DOM — scroll it into view
                     // and schedule focus for the next patch.
@@ -183,7 +196,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                     if (virt?.isActive) {
                         virt.ensureRowVisible(next.rowIndex);
                         pendingVirtFocus = next;
-                        return null;
+                        return { pending: true };
                     }
                 }
                 // At grid boundary: fall through to legacy path so it can
@@ -278,10 +291,30 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 }
             }
-            return (
+            const el =
                 futureCell &&
-                getElementToFocus(/** @type {HTMLTableCellElement} */ (futureCell))
-            );
+                getElementToFocus(/** @type {HTMLTableCellElement} */ (futureCell));
+            return el ? { el } : null;
+        },
+
+        /**
+         * Element-or-null facade over `findFocusMove`.
+         *
+         * Kept because `ListRenderer.findFocusFutureCell` delegates here and
+         * downstream renderers override that method expecting an element (or
+         * null) — see e.g. the documents and account_accountant list
+         * renderers. This facade cannot distinguish a grid boundary from a
+         * pending virtualized focus; internal arrow handlers use
+         * `findFocusMove` instead.
+         *
+         * @param {HTMLTableCellElement} cell
+         * @param {boolean} cellIsInGroupRow
+         * @param {"up" | "down" | "left" | "right"} direction
+         * @returns {HTMLElement | null}
+         */
+        findFocusFutureCell(cell, cellIsInGroupRow, direction) {
+            const move = self.findFocusMove(cell, cellIsInGroupRow, direction);
+            return move && "el" in move ? move.el : null;
         },
 
         /**
@@ -392,16 +425,31 @@ export function useListKeyboardNavigation(tableRef, options) {
                 record?.selected && props.list.model.multiEdit;
             let toFocus;
             switch (hotkey) {
-                case "arrowup":
-                    toFocus = self.findFocusFutureCell(cell, cellIsInGroupRow, "up");
+                case "arrowup": {
+                    const move = self.findFocusMove(cell, cellIsInGroupRow, "up");
+                    if (move && "pending" in move) {
+                        // The target row is virtualized out: focus lands on it
+                        // after the next patch. Consume the event so the
+                        // search bar does not transiently steal focus.
+                        return true;
+                    }
+                    toFocus = move && move.el;
                     if (!toFocus && getEnv().searchModel) {
                         getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
                         return true;
                     }
                     break;
-                case "arrowdown":
-                    toFocus = self.findFocusFutureCell(cell, cellIsInGroupRow, "down");
+                }
+                case "arrowdown": {
+                    const move = self.findFocusMove(cell, cellIsInGroupRow, "down");
+                    if (move && "pending" in move) {
+                        // Focus is scheduled for the next patch — consume the
+                        // event to prevent the default browser scroll.
+                        return true;
+                    }
+                    toFocus = move && move.el;
                     break;
+                }
                 case "arrowleft":
                     if (cellIsInGroupRow && !group.isFolded) {
                         onToggleGroup(group);
@@ -456,21 +504,29 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 case "shift+arrowdown": {
                     if (expandCheckboxes(record, "down")) {
-                        toFocus = self.findFocusFutureCell(
+                        const move = self.findFocusMove(
                             cell,
                             cellIsInGroupRow,
                             "down",
                         );
+                        if (move && "pending" in move) {
+                            return true;
+                        }
+                        toFocus = move && move.el;
                     }
                     break;
                 }
                 case "shift+arrowup": {
                     if (expandCheckboxes(record, "up")) {
-                        toFocus = self.findFocusFutureCell(
+                        const move = self.findFocusMove(
                             cell,
                             cellIsInGroupRow,
                             "up",
                         );
+                        if (move && "pending" in move) {
+                            return true;
+                        }
+                        toFocus = move && move.el;
                     }
                     break;
                 }

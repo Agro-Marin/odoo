@@ -110,16 +110,23 @@ export const dialogService = {
                             return;
                         }
                         isBeingClosed = true;
-                        await options.onClose?.(closeParams);
-                        const idx = stack.findIndex((d) => d.id === id);
-                        if (idx !== -1) {
-                            stack.splice(idx, 1);
-                        }
-                        deactivate();
-                        if (stack.length) {
-                            stack.at(-1).isActive = true;
-                        } else {
-                            document.body.classList.remove("modal-open");
+                        // The user-provided onClose may throw; the stack /
+                        // stacking-state / body-class bookkeeping must still run
+                        // so a failed callback can't leave a dialog stuck in the
+                        // stack with scroll locked (``modal-open`` on <body>).
+                        try {
+                            await options.onClose?.(closeParams);
+                        } finally {
+                            const idx = stack.findIndex((d) => d.id === id);
+                            if (idx !== -1) {
+                                stack.splice(idx, 1);
+                            }
+                            deactivate();
+                            if (stack.length) {
+                                stack.at(-1).isActive = true;
+                            } else {
+                                document.body.classList.remove("modal-open");
+                            }
                         }
                     },
                     rootId: options.context?.root?.el?.getRootNode()?.host?.id,

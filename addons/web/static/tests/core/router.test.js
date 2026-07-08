@@ -1737,6 +1737,64 @@ describe("pushState", () => {
         expect(router.current).toEqual({ a: 2, z: 1, k1: 2 });
         expect(browser.location.href).toBe("https://www.hoot.test/odoo?k1=2&z=1&a=2");
     });
+
+    test("push then replace in same timeout keeps the push (new history entry)", async () => {
+        redirect("/odoo");
+        createRouter({
+            onPushState: () => expect.step("push"),
+            onReplaceState: () => expect.step("replace"),
+        });
+
+        router.pushState({ k1: 2 });
+        router.replaceState({ k2: 3 });
+        await tick();
+        // The batched history op must keep the intended "push": the later
+        // replaceState must not silently downgrade it to a replace.
+        expect.verifySteps(["push"]);
+        expect(router.current).toEqual({ k1: 2, k2: 3 });
+    });
+
+    test("replace then push in same timeout upgrades to a new history entry", async () => {
+        redirect("/odoo");
+        createRouter({
+            onPushState: () => expect.step("push"),
+            onReplaceState: () => expect.step("replace"),
+        });
+
+        router.replaceState({ k1: 2 });
+        router.pushState({ k2: 3 });
+        await tick();
+        expect.verifySteps(["push"]);
+        expect(router.current).toEqual({ k1: 2, k2: 3 });
+    });
+
+    test("replaceState alone does not create a history entry", async () => {
+        redirect("/odoo");
+        createRouter({
+            onPushState: () => expect.step("push"),
+            onReplaceState: () => expect.step("replace"),
+        });
+
+        router.replaceState({ k1: 2 });
+        await tick();
+        expect.verifySteps(["replace"]);
+        expect(router.current).toEqual({ k1: 2 });
+    });
+
+    test("cancelPushes drops the aggregated state so it can't resurface", async () => {
+        redirect("/odoo");
+        createRouter();
+
+        router.pushState({ k1: 2 });
+        router.cancelPushes();
+        await tick();
+        expect(router.current).toEqual({});
+
+        router.pushState({ k2: 3 });
+        await tick();
+        // k1 from the cancelled push must not resurface merged into this push.
+        expect(router.current).toEqual({ k2: 3 });
+    });
 });
 
 describe("History", () => {

@@ -27,6 +27,11 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
  * to verify if a drop location is allowed. return True by default
  * @property {boolean} [useElementSize] The placeholder use the dragged element size instead
  * of the small 8px lines. Default:false
+ * @property {string[] | (() => string[])} [inertSelectors] selectors of the elements that
+ * must be made inert (pointer-events: none) during a drag sequence, so the drag cursor is
+ * shown across the whole screen while those zones stay non-interactive. Defaults to the
+ * webclient chrome (`.o_navbar`, `.o_action_manager`); non-webclient embeddings should pass
+ * their own zones (or `[]`) rather than relying on these layout-specific selectors.
  *
  * HANDLERS (also optional)
  *
@@ -64,6 +69,7 @@ export const useNestedSortable = /** @type {any} */ (
                 maxLevels: [Number],
                 isAllowed: [Function],
                 useElementSize: [Boolean],
+                inertSelectors: [Object, Function],
             },
             defaultParams: {
                 connectGroups: false,
@@ -78,6 +84,7 @@ export const useNestedSortable = /** @type {any} */ (
                 maxLevels: 0,
                 isAllowed: (/** @type {Record<string, any>} */ ctx) => true,
                 useElementSize: false,
+                inertSelectors: [".o_navbar", ".o_action_manager"],
             },
 
             // Set the parameters.
@@ -103,6 +110,10 @@ export const useNestedSortable = /** @type {any} */ (
                 ctx.maxLevels = params.maxLevels || 0;
                 ctx.isAllowed = params.isAllowed ?? (() => true);
                 ctx.useElementSize = params.useElementSize;
+                // Zones made inert during the drag. Kept as a param so this
+                // core util does not hardcode a dependency on the webclient
+                // layout (see the `inertSelectors` typedef).
+                ctx.inertSelectors = params.inertSelectors ?? [];
             },
 
             // Set the current group and create the placeholder row that will take the
@@ -163,12 +174,15 @@ export const useNestedSortable = /** @type {any} */ (
                 // it on the view elements instead as in our case we want to show the
                 // ctx.cursor style on the whole screen, not only in the ref el.
                 addStyle(document.body, { "pointer-events": "auto" });
-                addStyle(document.querySelector(".o_navbar"), {
-                    "pointer-events": "none",
-                });
-                addStyle(document.querySelector(".o_action_manager"), {
-                    "pointer-events": "none",
-                });
+                // Make the caller-provided inert zones non-interactive. These
+                // default to the webclient chrome but are configurable so core
+                // does not depend on a specific layout; unmatched selectors are
+                // simply skipped (addStyle is a no-op on null).
+                for (const selector of ctx.inertSelectors) {
+                    addStyle(document.querySelector(selector), {
+                        "pointer-events": "none",
+                    });
+                }
                 addStyle(ctx.current.container, { "pointer-events": "auto" });
 
                 // Calls "onDragStart" handler

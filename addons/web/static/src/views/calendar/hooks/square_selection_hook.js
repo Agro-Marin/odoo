@@ -233,17 +233,22 @@ export function useSquareSelection(params = {}) {
         const pseudoCtx = { current, ref, cellIsSelectable };
         const { selectedCells } = getSelectedCellsInBlock(pseudoCtx);
         const selectedCell = selectedCells[0];
-        if (prevSelectedCell && shiftPressed) {
+        // Read the modifier state straight off the click event rather than the
+        // window-tracked ``ctrlPressed`` / ``shiftPressed`` booleans: a key
+        // released while the window is blurred never delivers its ``keyup``,
+        // which would otherwise leave the boolean stuck ``true`` and make a
+        // plain click toggle instead of replace.
+        if (prevSelectedCell && ev.shiftKey) {
             allSelectedCells = getSelectedCellsBetween2Cells(
                 pseudoCtx,
                 prevSelectedCell,
                 selectedCell,
             );
         } else {
-            const action = ctrlPressed ? "toggle" : "replace";
+            const action = ev.ctrlKey ? "toggle" : "replace";
             allSelectedCells = getAllCells(selectedCells, action);
         }
-        if (!prevSelectedCell || !shiftPressed) {
+        if (!prevSelectedCell || !ev.shiftKey) {
             prevSelectedCell = selectedCell;
         }
         highlight({ selectedCells: allSelectedCells });
@@ -263,6 +268,9 @@ export function useSquareSelection(params = {}) {
         () => [ref.el, component.props.model.hasMultiCreate],
     );
 
+    // Only the drag path (onDragStart) still reads these window-tracked
+    // booleans — a drag callback has no originating click event to inspect.
+    // Clicks now read modifiers directly from the event (see onClick above).
     let ctrlPressed = false;
     let shiftPressed = false;
     function onWindowKeyDown(ev) {
@@ -281,6 +289,14 @@ export function useSquareSelection(params = {}) {
         }
     }
 
+    function onWindowBlur() {
+        // Losing focus swallows the pending ``keyup``, so drop the tracked
+        // state to avoid a modifier sticking ``true`` until the next keypress.
+        ctrlPressed = false;
+        shiftPressed = false;
+    }
+
     useExternalListener(window, "keydown", onWindowKeyDown);
     useExternalListener(window, "keyup", onWindowKeyUp);
+    useExternalListener(window, "blur", onWindowBlur);
 }

@@ -145,7 +145,11 @@ export class PivotRenderer extends Component {
         // Shallow-copy per cell: some formatters self-mutate their options
         /** @type {Record<string, any>} */
         const formatOptions = { ...baseOptions };
-        if (formatType === "monetary") {
+        // currencyIds is only populated for true monetary fields that declare a
+        // currency_field (see pivot_measurements.js getCurrencyIds). A plain
+        // measure forced to the "monetary" format via widget="monetary" has no
+        // currencyIds, so guard the dereference to avoid crashing every cell.
+        if (formatType === "monetary" && cell.currencyIds) {
             if (cell.currencyIds.length > 1) {
                 formatOptions.currencyId = user.activeCompany?.currency_id;
                 return /** @type {any} */ ({

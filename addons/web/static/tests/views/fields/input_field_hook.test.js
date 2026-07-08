@@ -15,12 +15,17 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
+import { Component, xml } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useBus } from "@web/core/utils/hooks";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 import {
     clickSave,
     contains,
     defineModels,
     fieldInput,
     fields,
+    makeServerError,
     models,
     mountView,
     onRpc,
@@ -228,5 +233,60 @@ describe("AGROMARINVERIFY blur/Tab equality contract", () => {
         // hasValueChanged() predicate — no spurious write.
         expect.verifySteps([]);
         expect(".o_field_widget[name=int_field] input").toHaveValue("10");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Update rejection — the FIELD_IS_DIRTY(false) reset must not be skipped
+// ---------------------------------------------------------------------------
+
+describe("rejected update clears dirty-typing signal", () => {
+    test("a rejected onchange still emits FIELD_IS_DIRTY(false) (try/finally guard)", async () => {
+        expect.errors(1);
+
+        // Sibling spy widget that records every FIELD_IS_DIRTY payload emitted
+        // on the model bus (the form status indicator can't isolate the signal
+        // because `record.update` marks the root dirty before the onchange even
+        // runs, so it stays "dirty" on rejection regardless of this event).
+        const dirtyEvents = [];
+        class DirtySpy extends Component {
+            static template = xml`<span class="o_dirty_spy"/>`;
+            static props = { ...standardFieldProps };
+            setup() {
+                useBus(this.props.record.model.bus, "FIELD_IS_DIRTY", (ev) =>
+                    dirtyEvents.push(ev.detail),
+                );
+            }
+        }
+        registry.category("fields").add("dirty_spy", { component: DirtySpy });
+
+        // A failing onchange makes `record.update` reject inside commitChanges.
+        Partner._onChanges = {
+            name: () => {
+                throw makeServerError({ type: "ValidationError", message: "boom" });
+            },
+        };
+
+        await mountView({
+            type: "form",
+            resModel: "res.partner",
+            resId: 1,
+            arch: `<form><field name="name"/><field name="foo" widget="dirty_spy"/></form>`,
+        });
+
+        // Commit an edit whose onchange RPC rejects. `onInput` emits
+        // FIELD_IS_DIRTY(true); the FIELD_IS_DIRTY(false) reset lives in
+        // commitChanges' `finally`, so it must fire even on the rejection path.
+        // Without the try/finally the last emitted value stayed `true`.
+        await fieldInput("name").edit("boom");
+        await animationFrame();
+
+        expect.verifyErrors([/RPC_ERROR/]);
+        expect(dirtyEvents.length > 0).toBe(true, {
+            message: "editing must have emitted FIELD_IS_DIRTY events",
+        });
+        expect(dirtyEvents.at(-1)).toBe(false, {
+            message: "the last FIELD_IS_DIRTY emitted after a rejected update must be false",
+        });
     });
 });

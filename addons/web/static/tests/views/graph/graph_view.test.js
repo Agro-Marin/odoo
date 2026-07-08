@@ -427,6 +427,37 @@ test("line chart rendering (one groupBy)", async () => {
     checkTooltip(view, { lines: [{ label: "true", value: "3" }] }, 1);
 });
 
+test("line chart keeps a record whose label matches the falsy label", async () => {
+    // A real color literally named "None" must not be confused with the falsy
+    // ("None") group that line/scatter charts drop: the drop must key off the
+    // raw value (color_id === false), not the display label.
+    Color._records.push({ id: 3, name: "None" });
+    Foo._records = [
+        { id: 1, revenue: 10, color_id: 1 }, // black
+        { id: 2, revenue: 20, color_id: 3 }, // color literally named "None"
+        { id: 3, revenue: 30 }, // no color => falsy group, must be dropped
+    ];
+
+    const view = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: /* xml */ `
+            <graph type="line">
+                <field name="revenue" type="measure" />
+                <field name="color_id" />
+            </graph>
+        `,
+    });
+
+    expect(getGraphModelMetaData(view).mode).toBe("line");
+    // only the falsy group is dropped; the real "None" color is kept
+    checkLabels(view, ["black", "None"]);
+    checkDatasets(view, ["data", "label"], {
+        data: [10, 20],
+        label: "Revenue",
+    });
+});
+
 test("line chart rendering (two groupBy)", async () => {
     const view = await mountView({
         type: "graph",
@@ -1493,6 +1524,41 @@ test("correctly uses graph_ keys from the context (at reload)", async () => {
     checkLegend(view, "Foo");
     expect(getYAxisLabel(view)).toBe("Foo");
     checkModeIs(view, "line");
+});
+
+test("a measure changed in-session survives a reload with a favorite context", async () => {
+    const view = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: /* xml */ `
+            <graph>
+                <field name="product_id" />
+            </graph>
+        `,
+        searchViewArch: /* xml */ `
+            <search>
+                <filter name="ctx" string="Ctx" domain="[]" context="{ 'graph_measure': 'foo' }" />
+                <filter name="group_by_color" string="Color" context="{ 'group_by': 'color_id' }" />
+            </search>
+        `,
+        context: { search_default_ctx: 1 },
+    });
+
+    // the active favorite/filter context seeds the measure to "foo"
+    expect(getGraphModelMetaData(view).measure).toBe("foo");
+    expect(getYAxisLabel(view)).toBe("Foo");
+
+    // the user switches the measure through the Measures menu
+    await toggleMenu("Measures");
+    await toggleMenuItem("Revenue");
+    expect(getGraphModelMetaData(view).measure).toBe("revenue");
+
+    // toggling a groupBy filter reloads while "Ctx" is still active: graph_measure
+    // is unchanged, so it must NOT snap the measure back to "foo"
+    await toggleSearchBarMenu();
+    await toggleMenuItem("Color");
+    expect(getGraphModelMetaData(view).measure).toBe("revenue");
+    expect(getYAxisLabel(view)).toBe("Revenue");
 });
 
 test("correctly use group_by key from the context", async () => {

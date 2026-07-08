@@ -415,15 +415,19 @@ export function useColorPicker(refName, props, options = {}) {
         onCloseCallback = cb;
     };
     props.setOnCloseCallback = setOnCloseCallback;
-    if (options.onClose) {
-        const onClose = options.onClose;
-        options.onClose = () => {
+    // Always run the close callback (e.g. the custom tab commits or reverts the
+    // previewed color on close), even when the caller gave no `onClose`. Copy the
+    // options instead of mutating the caller's object.
+    const userOnClose = options.onClose;
+    const popoverOptions = {
+        ...options,
+        onClose: () => {
             onCloseCallback();
-            onClose();
-        };
-    }
+            userOnClose?.();
+        },
+    };
 
-    const colorPicker = usePopover(ColorPicker, options);
+    const colorPicker = usePopover(ColorPicker, popoverOptions);
     const root = useRef(refName);
 
     function onClick() {
@@ -431,7 +435,7 @@ export function useColorPicker(refName, props, options = {}) {
             colorPicker.close();
         } else {
             colorPicker.open(root.el, props);
-            options.onOpen?.();
+            popoverOptions.onOpen?.();
         }
     }
 

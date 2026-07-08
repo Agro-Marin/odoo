@@ -1,6 +1,8 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { Deferred } from "@odoo/hoot-mock";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 import {
     buildCallButtonArgs,
@@ -99,6 +101,35 @@ test("block-ui: overlay is released on the embedded-action early return", async 
     } finally {
         user.updateUserSettings("embedded_actions_config_ids", {});
     }
+});
+
+test("block-ui: overlay is released when the awaited task is superseded", async () => {
+    // Regression: a programmatic doAction firing while the button RPC is still
+    // in flight bumps the shared KeepLast, so KeepLast *silently discards* the
+    // button's wrapper — it never resolves nor rejects. Awaiting it directly
+    // would hang forever and skip the `finally`, stranding the block-ui overlay.
+    const keepLast = new KeepLast();
+    const loadDef = new Deferred();
+    const am = makeFakeAm({
+        keepLast,
+        _loadAction: () => loadDef,
+    });
+    const prom = executeActionButton(am, {
+        name: 1,
+        type: "action",
+        "block-ui": "1",
+    });
+    await Promise.resolve();
+    expect(am.__ui.blocked).toBe(1);
+    expect(am.__ui.count).toBe(1); // overlay up while the RPC is pending
+
+    // A newer task on the shared KeepLast supersedes the button task.
+    keepLast.add(Promise.resolve());
+    // The button's RPC still settles server-side afterwards.
+    loadDef.resolve({ type: "ir.actions.act_window" });
+
+    await prom; // must not hang despite the discarded wrapper
+    expect(am.__ui.count).toBe(0); // the `finally` ran → overlay released
 });
 
 test("block-ui: overlay is released on a missing-type error", async () => {

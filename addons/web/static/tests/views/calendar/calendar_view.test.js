@@ -25,6 +25,7 @@ import {
     defineModels,
     defineParams,
     fields,
+    findComponent,
     getMockEnv,
     getService,
     makeServerError,
@@ -1625,6 +1626,26 @@ test(`European week start`, async () => {
     expect.verifySteps(["event.search_read"]);
     expect(`.fc-col-header-cell .o_cw_day_name:eq(0)`).toHaveText("Mon");
     expect(`.fc-col-header-cell .o_cw_day_name:eq(-1)`).toHaveText("Sun");
+});
+
+test.tags("desktop");
+test(`Monday week start: clicking the displayed week's Sunday drills into day scale`, async () => {
+    // mockDate is 2016-12-12 (a Monday); with a Monday week start the displayed
+    // week is Dec 12 (Mon) → Dec 18 (Sun). Clicking that Sunday in the mini date
+    // picker must drill into the day scale, not re-navigate to the week scale.
+    defineParams({ lang_parameters: { week_start: 1 } });
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
+    });
+    expect(`.fc-timeGridWeek-view`).toHaveCount(1);
+
+    await pickDate("2016-12-18");
+
+    expect(`.fc-timeGridDay-view`).toHaveCount(1);
+    expect(`.fc-timeGridWeek-view`).toHaveCount(0);
+    expect(`.o_calendar_container .o_calendar_header h5`).toHaveText("18 December 2016");
 });
 
 test.tags("desktop");
@@ -3998,6 +4019,53 @@ test(`quickcreate avoid double event creation`, async () => {
     expect.verifySteps(["create"]);
 });
 
+test(`filter toggle during an in-flight reload releases the awaiting caller`, async () => {
+    // Regression: createRecord/updateRecord/multiCreateRecords (and the
+    // quick-create flow) all ``await this.load()``. Toggling a filter cancels
+    // that in-flight reload; before the fix the cancellation left the reload
+    // promise pending forever (KeepLast never settles a superseded wrapper),
+    // so the awaiting caller — and, e.g., the quick-create dialog — hung.
+    let searchReadDeferred = null;
+    onRpc("event", "search_read", async () => {
+        if (searchReadDeferred) {
+            await searchReadDeferred;
+        }
+    });
+    const view = await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" mode="month" attendee="attendee_ids" color="partner_id">
+                <field name="attendee_ids" write_model="filter.partner" write_field="partner_id"/>
+                <field name="partner_id" filters="1" invisible="1"/>
+            </calendar>`,
+    });
+    const model = findComponent(view, (c) => c instanceof CalendarController).model;
+    const section = model.filterSections[0];
+
+    // A caller awaits a reload (as createRecord does after orm.create)...
+    searchReadDeferred = new Deferred();
+    const pendingReload = model.load();
+    pendingReload.then(() => expect.step("reload settled"));
+    await animationFrame();
+
+    // ...meanwhile the user toggles a filter, cancelling that reload.
+    // Use the user-type filters so no server write is needed; the load-epoch
+    // bump that supersedes the in-flight reload happens regardless.
+    model.updateFilters(
+        section.fieldName,
+        section.filters.filter((f) => f.type === "user"),
+        false,
+    );
+
+    // Release the now-superseded reload: it must resolve, not hang.
+    searchReadDeferred.resolve();
+    await pendingReload;
+    expect.verifySteps(["reload settled"]);
+
+    await runAllTimers();
+});
+
 test(`calendar is configured to have no groupBy menu`, async () => {
     await mountView({
         resModel: "event",
@@ -4288,6 +4356,113 @@ test(`drag and drop on month mode with date_start and date_delay`, async () => {
     });
     await contains(`.o-calendar-quick-create--create-btn`).click();
     await moveEventToDate(8, "2016-11-27");
+    expect.verifySteps(["write"]);
+});
+
+test.tags("desktop");
+test(`drag and drop rejected by the server resyncs the event`, async () => {
+    expect.errors(1);
+
+    onRpc("event", "write", () => {
+        expect.step("write");
+        throw makeServerError({ message: "Cannot reschedule" });
+    });
+    onRpc("event", "search_read", () => {
+        expect.step("search_read");
+    });
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" mode="month">
+                <field name="name"/>
+            </calendar>
+        `,
+    });
+    expect.verifySteps(["search_read"]);
+    expect(`[data-date="2016-12-18"] .o_event[data-event-id="6"]`).toHaveCount(1);
+
+    await moveEventToDate(6, "2016-11-27");
+    await animationFrame();
+
+    // The rejected write must trigger a reload: the event snaps back to its
+    // original slot instead of silently staying at the dropped slot while the
+    // database still holds the old dates.
+    expect.verifySteps(["write", "search_read"]);
+    expect(`[data-date="2016-11-27"] .o_event[data-event-id="6"]`).toHaveCount(0);
+    expect(`[data-date="2016-12-18"] .o_event[data-event-id="6"]`).toHaveCount(1);
+    expect.verifyErrors(["Cannot reschedule"]);
+});
+
+test.tags("desktop");
+test(`resize rejected by the server resyncs the event`, async () => {
+    expect.errors(1);
+
+    onRpc("event", "write", () => {
+        expect.step("write");
+        throw makeServerError({ message: "Cannot reschedule" });
+    });
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" all_day="is_all_day" mode="week"/>`,
+    });
+
+    await resizeEventToTime(2, "2016-12-12 20:00:00");
+    await animationFrame();
+    expect.verifySteps(["write"]);
+
+    // After the rejected write the view is reloaded: the event keeps its
+    // server dates instead of showing the resized range.
+    await clickEvent(2);
+    expect(`.o_cw_popover .list-group-item:eq(1)`).toHaveText(
+        "11:55 - 15:55 (4 hours)",
+    );
+    expect.verifyErrors(["Cannot reschedule"]);
+});
+
+test(`updateRecord does not write the create_name_field mapped name`, async () => {
+    class CustomEvent extends models.Model {
+        _name = "custom.event";
+
+        x_name = fields.Char();
+        x_start_date = fields.Date();
+
+        has_access() {
+            return true;
+        }
+
+        _records = [{ id: 1, x_name: "some event", x_start_date: "2016-12-06" }];
+    }
+    defineModels([CustomEvent]);
+
+    let model;
+    patchWithCleanup(CalendarController.prototype, {
+        setup() {
+            super.setup();
+            model = this.model;
+        },
+    });
+
+    onRpc("custom.event", "write", ({ args }) => {
+        expect.step("write");
+        // The record name is immutable from calendar updates: the mapped
+        // create_name_field key must be stripped, not only the literal
+        // "name" key.
+        expect(args[1]).toEqual({ x_start_date: "2016-12-06" });
+    });
+
+    await mountView({
+        resModel: "custom.event",
+        type: "calendar",
+        arch: `<calendar date_start="x_start_date" create_name_field="x_name" mode="month"/>`,
+    });
+
+    // Simulate an update carrying a title, as model subclasses may do: the
+    // title maps onto x_name in buildRawRecord and must not reach the write.
+    await model.updateRecord({ ...model.records[1], title: "changed title" });
     expect.verifySteps(["write"]);
 });
 

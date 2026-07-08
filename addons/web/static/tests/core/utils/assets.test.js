@@ -7,6 +7,7 @@ import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     assetCacheByDocument,
     assets,
+    AssetsLoadingError,
     globalBundleCache,
     loadBundle,
     loadCSS,
@@ -75,6 +76,32 @@ test("loadCSS: load invalid CSS lib", async () => {
         /The loading of \/some\/invalid\/file.css failed/,
         { message: "Trying to load an invalid file rejects the promise" },
     );
+});
+
+test("loadCSS: concurrent loads of the same url share one link + retry chain", async () => {
+    // Fail every attempt so the chain exhausts its retries; a short delay keeps
+    // the test fast while still exercising the backoff window that used to let
+    // a concurrent caller start an independent parallel load+retry chain.
+    patchWithCleanup(assets, {
+        retries: { count: 3, delay: 1, extraDelay: 1 },
+    });
+    let appended = 0;
+    mockHeadAppendChild((node) => {
+        appended++;
+        // Simulate a failed request on each injected <link>.
+        manuallyDispatchProgrammaticEvent(node, "error");
+    });
+
+    const first = loadCSS("/dedupe/file.css");
+    // The first attempt has already errored and scheduled its retry (the buggy
+    // version deleted the cache entry at this point, so this second call would
+    // miss the cache and fork a second chain).
+    const second = loadCSS("/dedupe/file.css");
+    expect(second).toBe(first);
+
+    await expect(first).rejects.toThrow(/The loading of \/dedupe\/file.css failed/);
+    // A single chain = initial attempt + 3 retries = 4 links, not 8.
+    expect(appended).toBe(4);
 });
 
 test("loadBundle: load js and css files", async () => {
@@ -256,6 +283,46 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
 
     iframeFirst.remove();
     iframeSecond.remove();
+});
+
+test("getBundle: non-ok JSON response rejects and is not cached", async () => {
+    let failRequests = true;
+    mockFetch((route) => {
+        expect.step(`fetch bundle: ${route.pathname}`);
+        if (failRequests) {
+            // Gateway/proxy error document: non-2xx status with a JSON body.
+            return new Response(JSON.stringify({ error: "Bad Gateway" }), {
+                status: 502,
+                headers: { "Content-Type": "application/json" },
+            });
+        }
+        return bundles[route.pathname];
+    });
+
+    await expect(assets.getBundle("test.bundle")).rejects.toThrow(AssetsLoadingError);
+
+    // The failed promise must have been evicted from the cache: the next call
+    // re-fetches (and succeeds) instead of returning a poisoned empty bundle.
+    failRequests = false;
+    const bundle = await assets.getBundle("test.bundle");
+    expect(bundle.cssLibs).toEqual(["file1.css", "file2.css"]);
+    expect(bundle.jsLibs).toEqual(["file1.js", "file2.js"]);
+    expect.verifySteps([
+        "fetch bundle: /web/bundle/test.bundle",
+        "fetch bundle: /web/bundle/test.bundle",
+    ]);
+});
+
+test("getBundle: successful response is cached (single fetch for two calls)", async () => {
+    mockFetch((route) => {
+        expect.step(`fetch bundle: ${route.pathname}`);
+        return bundles[route.pathname];
+    });
+
+    const first = await assets.getBundle("test.bundle");
+    const second = await assets.getBundle("test.bundle");
+    expect(second).toBe(first);
+    expect.verifySteps(["fetch bundle: /web/bundle/test.bundle"]);
 });
 
 // ---------------------------------------------------------------------------

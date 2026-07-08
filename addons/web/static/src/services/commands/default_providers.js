@@ -61,12 +61,14 @@ commandProviderRegistry.add("command", {
     provide: (env, options = {}) => {
         const commands = env.services.command
             .getCommands(options.activeElement)
-            .map((/** @type {Record<string, any>} */ cmd) => {
-                cmd.category = commandCategoryRegistry.contains(cmd.category)
+            .map((/** @type {Record<string, any>} */ cmd) => ({
+                // Copy: mutating cmd.category in place would permanently rewrite
+                // the registered command object's category.
+                ...cmd,
+                category: commandCategoryRegistry.contains(cmd.category)
                     ? cmd.category
-                    : "default";
-                return cmd;
-            })
+                    : "default",
+            }))
             .filter(
                 (/** @type {Record<string, any>} */ command) =>
                     command.isAvailable === undefined || command.isAvailable(),

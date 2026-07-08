@@ -435,3 +435,37 @@ describe("applyCommands — command log integrity", () => {
         expect(deletedIds).toEqual([2, 3, 4]);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Record loading (page fill / LINK without data)
+// ---------------------------------------------------------------------------
+
+describe("applyCommands — record loading", () => {
+    test("server returning fewer records than requested does not misassign values", async () => {
+        // Simulate a concurrent deletion: 3 ids are requested but the server
+        // only returns values for 1 and 3 (record 2 was deleted server-side).
+        const list = makeList({
+            model: {
+                _patchConfig: () => {},
+                _loadRecords: ({ resIds }) => {
+                    expect(resIds).toEqual([1, 2, 3]);
+                    return Promise.resolve([
+                        { id: 1, name: "One" },
+                        { id: 3, name: "Three" },
+                    ]);
+                },
+            },
+        });
+
+        // LINK without data (command[2]) pushes the records to recordsToLoad
+        await applyCommands(list, [[LINK, 1], [LINK, 2], [LINK, 3]]);
+
+        // Surviving records got their own values
+        expect(list._cache[1].data).toEqual({ id: 1, name: "One" });
+        expect(list._cache[3].data).toEqual({ id: 3, name: "Three" });
+        // The missing record must NOT receive another record's values
+        // (index-based fallback would merge { id: 3, name: "Three" } into it)
+        expect(list._cache[2].data.id).toBe(2);
+        expect(list._cache[2].data.name).toBe(undefined);
+    });
+});

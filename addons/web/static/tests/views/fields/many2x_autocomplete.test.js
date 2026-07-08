@@ -186,6 +186,104 @@ describe("quick create", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Empty-search memoization — skips redundant RPCs but must be invalidated
+// whenever a record can come into existence (quick create, dialog create)
+// ---------------------------------------------------------------------------
+
+describe("empty-search memoization", () => {
+    const INPUT_SELECTOR = ".o_field_widget[name=product_id] input";
+    // Record suggestions, excluding create/search-more action options
+    const RECORD_ITEM_SELECTOR =
+        ".o_field_widget[name=product_id] " +
+        ".o-autocomplete--dropdown-item:not(.o_m2o_dropdown_option)";
+
+    test("narrowing an empty search does not re-trigger web_name_search", async () => {
+        onRpc("product", "web_name_search", ({ kwargs }) => {
+            expect.step(`web_name_search: ${kwargs.name}`);
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("zz", { confirm: false });
+        await runAllTimers();
+        await contains(INPUT_SELECTOR).edit("zzz", { confirm: false });
+        await runAllTimers();
+
+        // "zzz" starts with the memoized empty search "zz": no second RPC
+        expect.verifySteps(["web_name_search: zz"]);
+    });
+
+    test("quick-creating a record invalidates the memoized empty search", async () => {
+        onRpc("product", "web_name_search", ({ kwargs }) => {
+            expect.step(`web_name_search: ${kwargs.name}`);
+        });
+        onRpc("product", "name_create", () => {
+            expect.step("name_create");
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("Foo", { confirm: false });
+        await runAllTimers();
+        expect(RECORD_ITEM_SELECTOR).toHaveCount(0, {
+            message: "no product matches 'Foo' yet",
+        });
+        expect.verifySteps(["web_name_search: Foo"]);
+
+        await clickFieldDropdownItem("product_id", 'Create "Foo"');
+        expect.verifySteps(["name_create"]);
+
+        // Retyping the same text must hit the server again and list the
+        // newly created record (a stale memo would claim no records exist
+        // while offering to create a duplicate)
+        await contains(INPUT_SELECTOR).edit("Foo", { confirm: false });
+        await runAllTimers();
+        expect.verifySteps(["web_name_search: Foo"]);
+        expect(`${RECORD_ITEM_SELECTOR}:contains(Foo)`).toHaveCount(1);
+    });
+
+    test("creating a record via the dialog invalidates the memoized empty search", async () => {
+        onRpc("product", "web_name_search", ({ kwargs }) => {
+            expect.step(`web_name_search: ${kwargs.name}`);
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("Bar", { confirm: false });
+        await runAllTimers();
+        expect.verifySteps(["web_name_search: Bar"]);
+
+        // The creation dialog's name field is prefilled through default_name
+        await clickFieldDropdownItem("product_id", "Create and edit...");
+        expect(".modal").toHaveCount(1);
+        await contains(".modal .o_form_button_save").click();
+        expect(".modal").toHaveCount(0);
+
+        // Retyping the same text must hit the server again and list the
+        // record created through the dialog
+        await contains(INPUT_SELECTOR).edit("Bar", { confirm: false });
+        await runAllTimers();
+        expect.verifySteps(["web_name_search: Bar"]);
+        expect(`${RECORD_ITEM_SELECTOR}:contains(Bar)`).toHaveCount(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Search more — opens SelectCreateDialog
 // ---------------------------------------------------------------------------
 

@@ -37,11 +37,20 @@ export const cookie = {
     },
     /**
      * @param {string} key - Cookie name.
-     * @param {string | undefined} value - Cookie value (omit to set name-only).
+     * @param {string | undefined} value - Cookie value. Passing `undefined`
+     *  deletes the cookie (see below).
      * @param {number} [ttl] - Time-to-live in seconds (defaults to 1 year).
      */
     set(key, value, ttl = COOKIE_TTL) {
-        const parts = [value !== undefined ? `${key}=${value}` : key, "path=/", `max-age=${Math.floor(ttl)}`];
+        if (value === undefined) {
+            // A name-only assignment (`document.cookie = "key; path=/…"`) is
+            // parsed by browsers as an *empty-named* cookie whose value is
+            // "key" — never a cookie named `key`. That trap is never what a
+            // caller wants, so treat a missing value as a deletion instead.
+            this.delete(key);
+            return;
+        }
+        const parts = [`${key}=${value}`, "path=/", `max-age=${Math.floor(ttl)}`];
         this._cookieMonster = parts.join("; ");
     },
     /** @param {string} key - Cookie name to remove. */

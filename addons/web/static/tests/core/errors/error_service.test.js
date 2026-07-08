@@ -17,6 +17,7 @@ import {
     RPCErrorDialog,
     standardErrorDialogProps,
 } from "@web/components/errors/error_dialogs";
+import { defaultHandler } from "@web/components/errors/error_handlers";
 import { browser } from "@web/core/browser/browser";
 import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -204,6 +205,68 @@ test("handle CONNECTION_LOST_ERROR", async () => {
         "close",
         "create (Connection restored. You are back online.)",
     ]);
+    expect.verifyErrors([
+        `ConnectionLostError: Connection to "/fake_url" couldn't be established or was interrupted`,
+    ]);
+});
+
+test("defaultHandler tolerates an error event target without a location", async () => {
+    // `error.event.target` may be an object with no `location` (only Window-ish
+    // targets have one). The optional chain must stop before `.host` instead of
+    // throwing INSIDE the error handler.
+    const env = {
+        services: {
+            dialog: {
+                add(_DialogComponent, props) {
+                    expect.step("dialog");
+                    expect(props.serverHost).toBe(undefined);
+                },
+            },
+        },
+    };
+    const error = new Error("boom");
+    /** @type {any} */ (error).event = { target: {} };
+
+    // Must not throw while building the dialog props.
+    defaultHandler(/** @type {any} */ (env), /** @type {any} */ (error));
+    expect.verifySteps(["dialog"]);
+});
+
+test("CONNECTION_LOST_ERROR reconnection backoff is capped at 60s", async () => {
+    expect.errors(1);
+    let online = false;
+    let versionInfoCalls = 0;
+    mockService("notification", {
+        add() {
+            return () => {};
+        },
+    });
+    onRpc("/web/webclient/version_info", async () => {
+        versionInfoCalls++;
+        return online ? true : Promise.reject();
+    });
+    // random() === 0 makes the backoff sequence deterministic.
+    patchWithCleanup(Math, {
+        random: () => 0,
+    });
+
+    await makeMockEnv();
+    Promise.reject(new ConnectionLostError("/fake_url"));
+    await animationFrame();
+
+    // Keep failing across a long virtual window (awaiting each step so the
+    // rejected RPC reschedules the next retry). With the 60s cap the retry
+    // fires roughly once a minute (dozens of attempts); an *uncapped*
+    // exponential backoff would slow down and fire only ~17 times.
+    for (let i = 0; i < 80; i++) {
+        await advanceTime(60_000);
+    }
+    expect(versionInfoCalls > 30).toBe(true);
+
+    // Let it reconnect so the retry loop and its module state are cleaned up.
+    online = true;
+    await advanceTime(60_000);
+
     expect.verifyErrors([
         `ConnectionLostError: Connection to "/fake_url" couldn't be established or was interrupted`,
     ]);

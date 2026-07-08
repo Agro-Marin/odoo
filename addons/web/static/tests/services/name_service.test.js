@@ -6,6 +6,7 @@ import {
     fields,
     getService,
     makeMockEnv,
+    makeServerError,
     models,
     onRpc,
 } from "@web/../tests/web_test_helpers";
@@ -166,4 +167,54 @@ test("batch + inaccessible/missing", async () => {
     expect(displayNames1).toEqual({ 1: "Julien", 4: ERROR_INACCESSIBLE_OR_MISSING });
     expect(displayNames2).toEqual({ 2: "Pierre", 5: ERROR_INACCESSIBLE_OR_MISSING });
     expect.verifySteps(["dev:web_search_read:1,4,2,5"]);
+});
+
+test("clearCache during an in-flight batch: all callers still settle", async () => {
+    await makeMockEnv();
+    onRpc(({ model, method, kwargs }) => {
+        expect.step(`${model}:${method}:${kwargs.domain[0][2]}`);
+    });
+
+    const nameService = getService("name");
+    // Caller A opens the batch (pre-clear Deferreds)...
+    const loadPromise1 = nameService.loadDisplayNames("dev", [1, 4]);
+    // ...the cache is invalidated while the batch is still in flight...
+    nameService.clearCache();
+    // ...and caller B joins the same batch with post-clear Deferreds. Before
+    // the fix, the flush resolved through caller A's stale cache mapping:
+    // caller B's ids were missing from it (TypeError inside the .then, whose
+    // .catch then rejected A) and caller B's own Deferreds never settled.
+    const loadPromise2 = nameService.loadDisplayNames("dev", [2, 5]);
+
+    const [displayNames1, displayNames2] = await Promise.all([
+        loadPromise1,
+        loadPromise2,
+    ]);
+    expect(displayNames1).toEqual({ 1: "Julien", 4: ERROR_INACCESSIBLE_OR_MISSING });
+    expect(displayNames2).toEqual({ 2: "Pierre", 5: ERROR_INACCESSIBLE_OR_MISSING });
+    expect.verifySteps(["dev:web_search_read:1,4,2,5"]);
+
+    // The clear stays effective: pre-clear ids are re-fetched afterwards.
+    const displayNames3 = await nameService.loadDisplayNames("dev", [1]);
+    expect(displayNames3).toEqual({ 1: "Julien" });
+    expect.verifySteps(["dev:web_search_read:1"]);
+});
+
+test("clearCache during an in-flight batch: RPC failure rejects all callers", async () => {
+    await makeMockEnv();
+    onRpc("web_search_read", () => {
+        expect.step("web_search_read");
+        throw makeServerError({ message: "boom" });
+    });
+
+    const nameService = getService("name");
+    const loadPromise1 = nameService.loadDisplayNames("dev", [1]);
+    nameService.clearCache();
+    const loadPromise2 = nameService.loadDisplayNames("dev", [2]);
+
+    // Both the pre-clear and post-clear callers get a defined rejection —
+    // neither hangs on a Deferred nobody settles.
+    await expect(loadPromise1).rejects.toThrow("boom");
+    await expect(loadPromise2).rejects.toThrow("boom");
+    expect.verifySteps(["web_search_read"]);
 });

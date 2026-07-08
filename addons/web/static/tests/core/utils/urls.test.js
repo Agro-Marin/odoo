@@ -3,7 +3,14 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { compareUrls, getDataURLFromFile, getOrigin, redirect, url } from "@web/core/utils/urls";
+import {
+    compareUrls,
+    getDataURLFromFile,
+    getOrigin,
+    imageUrl,
+    redirect,
+    url,
+} from "@web/core/utils/urls";
 
 describe.current.tags("headless");
 
@@ -90,6 +97,31 @@ test("redirect", () => {
 
     expect(() => testRedirect("https://www.odoo.com")).toThrow(/Can't redirect/);
     expect(() => testRedirect("javascript:alert('boom');")).toThrow(/Can't redirect/);
+});
+
+describe("imageUrl", () => {
+    test("builds a basic image route", () => {
+        expect(imageUrl("res.partner", 1, "image_128")).toBe(
+            "http://testhost/web/image/res.partner/1/image_128",
+        );
+    });
+
+    test("passes a string unique through as a cache-busting token", () => {
+        expect(imageUrl("res.partner", 1, "image", { unique: "abc" })).toBe(
+            "http://testhost/web/image/res.partner/1/image?unique=abc",
+        );
+    });
+
+    test("does not throw on a non-string unique", () => {
+        // A truthy non-string non-DateTime unique (e.g. a numeric timestamp)
+        // must not reach DateTime.fromSQL, which throws on non-strings.
+        expect(() =>
+            imageUrl("res.partner", 1, "image", { unique: 12345 }),
+        ).not.toThrow();
+        expect(imageUrl("res.partner", 1, "image", { unique: 12345 })).toBe(
+            "http://testhost/web/image/res.partner/1/image?unique=12345",
+        );
+    });
 });
 
 describe("compareUrls", () => {

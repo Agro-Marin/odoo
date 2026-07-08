@@ -5,6 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
+import { getStartOfLocalWeek } from "@web/core/l10n/date_utils";
 import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
 
 /** Side panel with a date picker and filter sections for the calendar view. */
@@ -33,18 +34,14 @@ export class CalendarSidePanel extends Component {
                             (scales.indexOf(this.props.model.scale) + 1) % scales.length
                         ];
                 } else {
-                    // Check if dates are on the same week
-                    // As a.hasSame(b, "week") does not depend on locale and week always starts on Monday,
-                    // we are comparing derivated dates instead to take this into account.
-                    const currentDate =
-                        this.props.model.date.weekday === 7
-                            ? this.props.model.date.plus({ day: 1 })
-                            : this.props.model.date;
-                    const pickedDate =
-                        date.weekday === 7 ? date.plus({ day: 1 }) : date;
-
-                    // a.hasSame(b, "week") does not depend on locale and week alway starts on Monday
-                    if (currentDate.hasSame(pickedDate, "week")) {
+                    // Check if dates are on the same week. Luxon's
+                    // hasSame(b, "week") always treats the week as starting on
+                    // Monday, so bucket both dates by the locale's own week
+                    // start instead: two dates share a week iff their local
+                    // week starts fall on the same day.
+                    const currentWeekStart = getStartOfLocalWeek(this.props.model.date);
+                    const pickedWeekStart = getStartOfLocalWeek(date);
+                    if (currentWeekStart.hasSame(pickedWeekStart, "day")) {
                         scale = "day";
                     }
                 }

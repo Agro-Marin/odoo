@@ -1061,6 +1061,46 @@ test("useHotkey can display an overlay over a DOM element ", async () => {
     expect.verifySteps(["hotkey alt+a has been triggered"]);
 });
 
+test("hotkey overlay badges respect the active element", async () => {
+    // A "behind" component registers a withOverlay hotkey, then a "front"
+    // component (its own UI active element, mimicking an open dialog) is mounted
+    // on top. The behind hotkey can no longer dispatch, so its overlay badge
+    // must not be shown while front is the active element.
+    class Behind extends Component {
+        static template = xml`<div><button class="behind-target">behind</button></div>`;
+        static props = ["*"];
+        setup() {
+            useHotkey("alt+a", () => expect.step("alt+a"), {
+                withOverlay: () => queryOne(".behind-target"),
+            });
+        }
+    }
+    class Front extends Component {
+        static template = xml`<div t-ref="active"><button class="front-target">front</button></div>`;
+        static props = ["*"];
+        setup() {
+            useActiveElement("active");
+            useHotkey("alt+b", () => expect.step("alt+b"), {
+                withOverlay: () => queryOne(".front-target"),
+            });
+        }
+    }
+
+    await mountWithCleanup(Behind);
+    await keyDown("alt");
+    expect(getOverlays()).toEqual(["A"], {
+        message: "behind is the active element: its badge shows",
+    });
+    await keyUp("alt");
+
+    await mountWithCleanup(Front);
+    await keyDown("alt");
+    expect(getOverlays()).toEqual(["B"], {
+        message: "front is now the active element: only its badge shows, not behind's",
+    });
+    await keyUp("alt");
+});
+
 test("Support '<' and '>' in hotkeys", async () => {
     class MyComponent extends Component {
         static template = xml``;

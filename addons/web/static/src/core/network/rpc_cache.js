@@ -334,7 +334,54 @@ export class RPCCache {
         this.ramCache = new RamCache();
         /** @type {Record<string, { callbacks: Function[], invalidated: boolean }>} */
         this.pendingRequests = {};
+        // Monotonic invalidation generations guarding the async disk-write
+        // chain (see ``read``).  ``invalidate``/``invalidateByModel`` can no
+        // longer flag a request once ``onFulfilled`` removed it from
+        // ``pendingRequests``, yet the encrypt→IDB-write chain is still in
+        // flight at that point: the IDB clear is queued on the mutex FIRST
+        // and the write would land AFTER it, durably persisting
+        // pre-invalidation data (served as truth on the next reload for
+        // ``update: "once"`` consumers such as get_views).  The write chain
+        // snapshots the table's generation when the result arrives and skips
+        // the persist when an invalidation bumped it in between.  Per-table
+        // (plus a global counter for the full-cache nuke, where the affected
+        // table set is unknown) so an invalidation of one table never
+        // discards a concurrent, still-valid write of an unrelated table.
+        /** @type {Record<string, number>} */
+        this.diskGenerations = Object.create(null);
+        this.globalDiskGeneration = 0;
         this.checkSize(); // we want to control the disk space used by Odoo
+    }
+
+    /**
+     * Current invalidation generation for ``table``.  Monotonically
+     * increasing: the sum of the global counter (bumped by full-cache
+     * invalidation) and the per-table counter (bumped by table- or
+     * model-scoped invalidation), so a snapshot compares unequal iff either
+     * counter moved since it was taken.
+     *
+     * @param {string} table
+     * @returns {number}
+     */
+    diskGenerationOf(table) {
+        return this.globalDiskGeneration + (this.diskGenerations[table] || 0);
+    }
+
+    /**
+     * Bump the invalidation generation(s) so in-flight disk writes for the
+     * affected tables are dropped instead of persisting stale data.
+     *
+     * @param {string | string[] | null | undefined} tables same contract as
+     *   ``invalidate``: nullish means "everything".
+     */
+    bumpDiskGeneration(tables) {
+        if (tables == null) {
+            this.globalDiskGeneration++;
+            return;
+        }
+        for (const table of typeof tables === "string" ? [tables] : tables) {
+            this.diskGenerations[table] = (this.diskGenerations[table] || 0) + 1;
+        }
     }
 
     async checkSize() {
@@ -406,47 +453,76 @@ export class RPCCache {
                 let hasCacheValue = false;
                 const onFulfilled = (/** @type {any} */ result) => {
                     resolve(result);
+                    const hasChanged =
+                        hasCacheValue && payloadChanged(fromCacheValue, result);
+                    // Cache bookkeeping runs BEFORE subscriber callbacks so a
+                    // throwing callback can never leave the key wedged (a dead
+                    // entry in ``pendingRequests`` that every future read
+                    // would join, killing all `update: "always"` refreshes).
+                    if (!request.invalidated) {
+                        // (When invalidated mid-flight, `invalidate`/
+                        // `invalidateByModel` already removed the entry and
+                        // the caches: don't persist stale data.)
+                        delete this.pendingRequests[requestKey];
+                        // update the ram and optionally the disk caches with the latest data
+                        this.ramCache.write(table, key, Promise.resolve(result), model);
+                        if (type === "disk") {
+                            // Snapshot the invalidation generation NOW: the
+                            // request is no longer in ``pendingRequests``, so
+                            // an invalidation arriving during the async
+                            // encrypt below can't flag it — the generation
+                            // compare is what keeps its stale payload out of
+                            // IndexedDB (the clear is queued on the mutex
+                            // first; an unguarded write would land after it).
+                            const generation = this.diskGenerationOf(table);
+                            this.crypto
+                                .encrypt(result)
+                                .then((encryptedResult) => {
+                                    if (
+                                        request.invalidated
+                                        || generation !== this.diskGenerationOf(table)
+                                    ) {
+                                        // Invalidated between RPC resolution and
+                                        // encryption end: skip the persist.  RAM
+                                        // was already cleared synchronously.
+                                        return;
+                                    }
+                                    // Store model plaintext alongside the
+                                    // ciphertext so ``invalidateByModel`` can
+                                    // filter on it without decrypting every
+                                    // entry.  Model names are not secret
+                                    // (they appear in the URL) so plaintext
+                                    // here is fine.
+                                    const stored = model
+                                        ? { ...encryptedResult, model }
+                                        : encryptedResult;
+                                    this.indexedDB
+                                        .write(table, key, stored)
+                                        .catch((e) => {
+                                            if (e instanceof IDBQuotaExceededError) {
+                                                this.indexedDB.deleteDatabase();
+                                            } else {
+                                                throw e;
+                                            }
+                                        });
+                                })
+                                .catch(() => {
+                                    // Encryption can fail if SubtleCrypto is unavailable
+                                    // (e.g. insecure context). Silently skip disk caching.
+                                });
+                        }
+                    }
                     // Always notify pending callbacks — subscribers explicitly
                     // requested server data via `update: "always"`. The RPC result
                     // is fresh regardless of whether the cache was invalidated.
-                    const hasChanged =
-                        hasCacheValue && payloadChanged(fromCacheValue, result);
-                    request.callbacks.forEach((cb) => cb(shape(result), hasChanged));
-                    if (request.invalidated) {
-                        // Cache was invalidated mid-flight: don't persist stale
-                        // data, but callbacks above already delivered the result.
-                        return result;
-                    }
-                    delete this.pendingRequests[requestKey];
-                    // update the ram and optionally the disk caches with the latest data
-                    this.ramCache.write(table, key, Promise.resolve(result), model);
-                    if (type === "disk") {
-                        this.crypto
-                            .encrypt(result)
-                            .then((encryptedResult) => {
-                                // Store model plaintext alongside the
-                                // ciphertext so ``invalidateByModel`` can
-                                // filter on it without decrypting every
-                                // entry.  Model names are not secret
-                                // (they appear in the URL) so plaintext
-                                // here is fine.
-                                const stored = model
-                                    ? { ...encryptedResult, model }
-                                    : encryptedResult;
-                                this.indexedDB
-                                    .write(table, key, stored)
-                                    .catch((e) => {
-                                        if (e instanceof IDBQuotaExceededError) {
-                                            this.indexedDB.deleteDatabase();
-                                        } else {
-                                            throw e;
-                                        }
-                                    });
-                            })
-                            .catch(() => {
-                                // Encryption can fail if SubtleCrypto is unavailable
-                                // (e.g. insecure context). Silently skip disk caching.
-                            });
+                    // Each callback is guarded: one throwing subscriber must not
+                    // starve the others nor escape as an unhandled rejection.
+                    for (const cb of request.callbacks) {
+                        try {
+                            cb(shape(result), hasChanged);
+                        } catch (error) {
+                            console.error("RPC cache: update callback failed", error);
+                        }
                     }
                     return result;
                 };
@@ -529,6 +605,10 @@ export class RPCCache {
      * @param {string | string[] | null} [tables]
      */
     invalidate(tables) {
+        // Drop in-flight disk writes that resolved before this invalidation
+        // but have not persisted yet (their pendingRequests entry is already
+        // gone, so the `invalidated` flag below can't reach them).
+        this.bumpDiskGeneration(tables);
         this.indexedDB.invalidate(tables);
         this.ramCache.invalidate(tables);
         // flag the pending requests as invalidated s.t. we don't write their results in caches
@@ -573,6 +653,12 @@ export class RPCCache {
      * @param {string} model - Odoo model name, e.g. "res.partner"
      */
     invalidateByModel(tables, model) {
+        // Conservative: bumps the whole table's generation even though the
+        // signal is model-scoped, so a concurrent disk write for another
+        // model in the same table may be skipped too.  The cost is a cache
+        // miss on next reload — never stale data — and it avoids threading
+        // the model through the generation bookkeeping.
+        this.bumpDiskGeneration(tables);
         this.ramCache.invalidateByModel(tables, model);
         this.indexedDB.invalidateByModel(tables, model);
         // Cancel in-flight requests whose key includes this model.

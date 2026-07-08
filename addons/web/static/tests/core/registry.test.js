@@ -59,6 +59,16 @@ test("throws if key is missing", () => {
     expect(() => registry.get("missing")).toThrow();
 });
 
+test("missing-key error names an unnamed (root) registry with a fallback label", () => {
+    // An anonymous registry has ``name === undefined``; the message must read
+    // "(root)" instead of the literal string "undefined".
+    const registry = new Registry();
+    expect(() => registry.get("missing")).toThrow(/in the "\(root\)" registry/);
+
+    const named = new Registry("myreg");
+    expect(() => named.get("missing")).toThrow(/in the "myreg" registry/);
+});
+
 test("contains method", () => {
     const registry = new Registry();
 
@@ -302,6 +312,12 @@ test("function predicate validates existing entries on addValidation", async () 
 // branch the warning lives in. Out-of-tree verification of the branch:
 // ``/tmp/registry_warn_test.mjs`` (inlines the production class and
 // exercises the branch under Node).
+//
+// The same limitation applies to the sibling warning for a duplicate add
+// with the SAME value but a DIFFERENT sequence (registry.js: the branch that
+// warns "…same value but a different sequence (kept X, ignored Y)"). It also
+// lives inside the ``!force`` branch and is therefore only reachable — and
+// verifiable — out-of-tree under Node with the unpatched class.
 
 test("non-debug: refuses (quarantines) an invalid entry without throwing", async () => {
     // 2026-06 onward: in production a schema-invalid registration is

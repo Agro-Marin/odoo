@@ -3,8 +3,8 @@
 /* global ace */
 
 import { expect, getFixture, test } from "@odoo/hoot";
-import { queryOne } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { queryOne, unload } from "@odoo/hoot-dom";
+import { animationFrame, Deferred, mockSendBeacon } from "@odoo/hoot-mock";
 import {
     clickSave,
     contains,
@@ -174,6 +174,40 @@ test("AceEditorField only trigger onchanges when blurred", async () => {
 
     await clickSave();
     expect.verifySteps([`web_save: [[1],{"foo":"a"}]`]);
+});
+
+test("AceEditorField commits its pending edit into the tab-close beacon", async () => {
+    // Regression: the WILL_SAVE_URGENTLY handler must push its commit promise
+    // into ev.detail.proms so the urgent-save coordinator awaits the re-commit
+    // before sendBeacon serialises _changes; otherwise a pending, un-blurred Ace
+    // edit is silently dropped from the beacon on tab close.
+    const sendBeaconDeferred = new Deferred();
+    mockSendBeacon((_, blob) => {
+        expect.step("sendBeacon");
+        blob.text().then((r) => {
+            const { params } = JSON.parse(r);
+            if (params.method === "web_save" && params.model === "res.partner") {
+                expect(params.args).toEqual([[1], { foo: "urgent" }]);
+                expect.step("foo committed");
+            }
+            sendBeaconDeferred.resolve();
+        });
+        return true;
+    });
+
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="foo" widget="code"/></form>`,
+    });
+
+    // Edit without blurring: the change stays pending in the component and has
+    // not yet reached the record's _changes.
+    await editAce("urgent");
+    await unload();
+    await sendBeaconDeferred;
+    expect.verifySteps(["sendBeacon", "foo committed"]);
 });
 
 test("Save and Discard buttons are displayed when necessary", async () => {

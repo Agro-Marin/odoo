@@ -10,7 +10,6 @@
  * (via ReportAction client component) and PDF/text downloads.
  */
 
-import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
@@ -87,30 +86,19 @@ export async function executeReportAction(action, options, am) {
         action.report_type === "qweb-text"
     ) {
         const type = action.report_type === "qweb-pdf" ? "pdf" : "text";
-        let success, message;
         am.env.services.ui.block();
         try {
             const downloadContext = { ...user.context };
             if (action.context) {
                 Object.assign(downloadContext, action.context);
             }
-            ({ success, message } = await downloadReport(
-                rpc,
-                action,
-                type,
-                downloadContext,
-            ));
+            // WeasyPrint always produces the file or throws; there is no
+            // wkhtmltopdf fallback to fall back onto, so downloadReport resolves
+            // with nothing on success and rejects (surfaced by the error
+            // service) on failure.
+            await downloadReport(rpc, action, type, downloadContext);
         } finally {
             am.env.services.ui.unblock();
-        }
-        if (message) {
-            am.env.services.notification.add(message, {
-                sticky: true,
-                title: _t("Report"),
-            });
-        }
-        if (!success) {
-            return executeReportClientAction(action, options, am);
         }
         const { onClose } = options;
         if (action.close_on_report_download) {

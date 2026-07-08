@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { animationFrame, press } from "@odoo/hoot-dom";
+import { animationFrame, click, press } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
 import {
     contains,
@@ -170,6 +170,45 @@ test("Closing barcode scanner before camera loads should not throw an error", as
 
     await animationFrame();
     expect(".o_error_dialog").toHaveCount(0);
+});
+
+test("Closing the barcode dialog manually resolves the scan promise with null", async () => {
+    const env = await makeMockEnv();
+    await mountWithCleanup(WebClient, { env });
+
+    patchWithCleanup(browser.navigator, {
+        mediaDevices: {
+            async getUserMedia() {
+                const canvas = document.createElement("canvas");
+                return canvas.captureStream();
+            },
+        },
+    });
+
+    // Cancel through ESC.
+    const escScan = scanBarcode(env);
+
+    await animationFrame();
+    expect(".o-barcode-modal").toHaveCount(1);
+
+    await press("escape");
+
+    await animationFrame();
+    expect(".o-barcode-modal").toHaveCount(0);
+    expect(await escScan).toBe(null);
+
+    // Cancel through the dialog's close button.
+    const closeButtonScan = scanBarcode(env);
+
+    await animationFrame();
+    expect(".o-barcode-modal").toHaveCount(1);
+
+    // Fullscreen dialogs render a back-arrow close button in the header.
+    await click(".o-barcode-modal .modal-header button[aria-label='Close']");
+
+    await animationFrame();
+    expect(".o-barcode-modal").toHaveCount(0);
+    expect(await closeButtonScan).toBe(null);
 });
 
 test("Closing barcode scanner while video is loading should not cause errors", async () => {

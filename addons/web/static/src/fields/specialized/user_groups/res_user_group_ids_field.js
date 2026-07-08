@@ -8,6 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { parseXML } from "@web/core/utils/dom/xml";
+import { escape } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { Record } from "@web/model/record";
@@ -232,7 +233,7 @@ class ResUserGroupIdsField extends Component {
      */
     getExtraGroupsArch() {
         return `
-            <group string="${this.extraCategory.name}" class="o_extra_rights_group">
+            <group string="${escape(this.extraCategory.name)}" class="o_extra_rights_group">
                 <group>
                     ${this.extraCategory.privileges
                         .filter((cat, index) => index % 2 === 0)
@@ -264,7 +265,7 @@ class ResUserGroupIdsField extends Component {
      */
     getPrivilegeArch(privilege) {
         const fieldName = this.getFieldName(privilege);
-        return `<field name="${fieldName}" widget="res_user_group_ids_privilege"/>`;
+        return `<field name="${escape(fieldName)}" widget="res_user_group_ids_privilege"/>`;
     }
 
     /**
@@ -274,7 +275,7 @@ class ResUserGroupIdsField extends Component {
      */
     getCategoryArch(category) {
         return `
-            <group string="${category.name}">
+            <group string="${escape(category.name)}">
                 ${category.privileges.map((privilege) => this.getPrivilegeArch(privilege)).join("")}
             </group>`;
     }

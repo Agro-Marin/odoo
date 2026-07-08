@@ -14,7 +14,11 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { useViewCompiler, resetViewCompilerCache } from "@web/views/view_compiler";
+import {
+    makeIsVisibleExpr,
+    useViewCompiler,
+    resetViewCompilerCache,
+} from "@web/views/view_compiler";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,6 +62,38 @@ function makeTemplates(specs) {
     }
     return templates;
 }
+
+// ---------------------------------------------------------------------------
+// makeIsVisibleExpr — shared invisible->isVisible helper
+// ---------------------------------------------------------------------------
+
+describe("makeIsVisibleExpr", () => {
+    test("falsy / 'False' / '0' modifiers map to the always-visible literal", () => {
+        // These are the three literal forms that mean "always visible".
+        expect(makeIsVisibleExpr(undefined)).toBe("true");
+        expect(makeIsVisibleExpr(null)).toBe("true");
+        expect(makeIsVisibleExpr("")).toBe("true");
+        expect(makeIsVisibleExpr("False")).toBe("true");
+        expect(makeIsVisibleExpr("0")).toBe("true");
+    });
+
+    test("'True' / '1' modifiers map to the never-visible literal", () => {
+        expect(makeIsVisibleExpr("True")).toBe("false");
+        expect(makeIsVisibleExpr("1")).toBe("false");
+    });
+
+    test("a dynamic modifier compiles to a negated evaluateBooleanExpr call", () => {
+        expect(makeIsVisibleExpr("display_name == 'take'")).toBe(
+            `!__comp__.evaluateBooleanExpr("display_name == 'take'",__comp__.props.record.evalContextWithVirtualIds)`,
+        );
+    });
+
+    test("a custom recordExpr is threaded into the dynamic expression", () => {
+        expect(makeIsVisibleExpr("a == 1", "__comp__.someRecord")).toBe(
+            `!__comp__.evaluateBooleanExpr("a == 1",__comp__.someRecord.evalContextWithVirtualIds)`,
+        );
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Cache coherence — deterministic template names (the core fix)

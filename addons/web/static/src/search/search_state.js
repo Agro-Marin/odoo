@@ -100,8 +100,13 @@ export function execute(op, source, target) {
     target.nextGroupNumber = nextGroupNumber;
     target.nextId = nextId;
 
-    target.query = query;
-    target.searchItems = searchItems;
+    // Deep-copy so the exported/imported state is a true snapshot: aliasing the
+    // live `query` array and `searchItems` objects here only happened to be safe
+    // because the sole caller (SearchModel.exportState) stringified the result
+    // immediately. Any consumer that reads the snapshot lazily (or mutates the
+    // model afterwards) would otherwise observe the live, still-mutating state.
+    target.query = structuredClone(query);
+    target.searchItems = structuredClone(searchItems);
     // primitive ("Asc" | "Desc" | false) — drives the groupBy facet sort icon
     // and the injected {name:"__count"} orderBy; must survive export/import so a
     // "sort by count" choice persists across breadcrumb restore / back-forward.

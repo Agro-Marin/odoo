@@ -309,6 +309,73 @@ test("simple rendering", async () => {
     expect(".o_group_info_button").toHaveCount(0); // not displayed in non debug mode
 });
 
+test("names with XML special characters do not break the arch", async () => {
+    // Category, privilege and group names are user-editable server data that end
+    // up in a dynamically generated arch: they must be XML-escaped, otherwise a
+    // name like `R&D "special" <dept>` crashes parseXML (and is an attribute
+    // injection vector).
+    const hierarchy = ResUsers._records[0].view_group_hierarchy;
+    hierarchy.categories[1].name = `R&D "special" <dept>`;
+    hierarchy.privileges[222].name = `Proj & "co" <priv>`;
+    hierarchy.groups[11].name = `User & "co" <grp>`;
+
+    await mountView({
+        type: "form",
+        arch: `
+            <form>
+                <sheet>
+                    <field name="group_ids" widget="res_user_group_ids"/>
+                </sheet>
+            </form>`,
+        resModel: "res.users",
+        resId: 1,
+    });
+
+    // the form rendered (no XML parse error) and names display literally
+    expect(".o_field_widget[name=group_ids] .o_group .o_inner_group").toHaveCount(2);
+    expect(
+        ".o_field_widget[name=group_ids] .o_inner_group:eq(1) .o_horizontal_separator",
+    ).toHaveText(`R&D "SPECIAL" <DEPT>`);
+    expect(
+        queryAllTexts(
+            ".o_field_widget[name=group_ids] .o_inner_group:eq(1) .o_form_label",
+        ),
+    ).toEqual([`Proj & "co" <priv>?`, "Helpdesk"]);
+    expect(
+        queryFirst(
+            ".o_field_widget[name=group_ids] .o_inner_group:eq(1) .o_wrap_input input",
+        ),
+    ).toHaveValue(`User & "co" <grp>`);
+    // no element was injected through the group name attribute
+    expect("dept").toHaveCount(0);
+});
+
+test("extra rights groups with XML special characters do not break the arch (debug)", async () => {
+    serverState.debug = "1";
+    ResUsers._records[0].view_group_hierarchy.groups[93].name = `Geo & "raw" <ext>`;
+
+    await mountView({
+        type: "form",
+        arch: `
+            <form>
+                <sheet>
+                    <field name="group_ids" widget="res_user_group_ids"/>
+                </sheet>
+            </form>`,
+        resModel: "res.users",
+        resId: 1,
+    });
+
+    // the debug-only "Extra Rights" arch rendered and the group label is literal
+    expect(".o_field_widget[name=group_ids] .o_group").toHaveCount(2);
+    expect(".o_group:eq(1) .o_inner_group input[type=checkbox]").toHaveCount(4);
+    // "Geo…" sorts first (localeCompare) so it is the first label of column 1
+    // (the trailing "?" is the label's help marker)
+    expect(".o_group:eq(1) .o_inner_group:eq(0) .o_form_label:eq(0)").toHaveText(
+        `Geo & "raw" <ext>?`,
+    );
+});
+
 test("simple rendering in readonly", async () => {
     await mountView({
         type: "form",

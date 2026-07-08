@@ -185,7 +185,6 @@ export class Many2ManyTagsField extends Component {
             resId: record.resId,
             text: record.data.display_name,
             colorIndex: record.data[this.props.colorField],
-            canEdit: this.props.canEditTags,
             onDelete: !this.props.readonly
                 ? () => this.deleteTag(record.id)
                 : undefined,
@@ -325,6 +324,9 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
     /** @override */
     getTagProps(record) {
         const props = /** @type {any} */ (super.getTagProps(record));
+        // `canEditTags` is declared only on this subclass, so the editability
+        // flag is added here rather than in the base `getTagProps`.
+        props.canEdit = this.props.canEditTags;
         props.onClick = (ev) => this.onTagClick(ev, record);
         return props;
     }

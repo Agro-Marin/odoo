@@ -583,6 +583,13 @@ export class AutoComplete extends Component {
         }
     }
     onOptionMouseLeave() {
+        // Mirror onOptionMouseEnter's gate: only clear an activation that the
+        // mouse set. Otherwise a stray mouseleave (e.g. right after keyboard
+        // navigation moved the active option) would wipe the keyboard-activated
+        // option and leave Enter with nothing to select.
+        if (!this.mouseSelectionActive) {
+            return;
+        }
         this.state.activeSourceOption = null;
     }
     onOptionClick(option) {

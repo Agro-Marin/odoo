@@ -91,6 +91,7 @@ import { currencies } from "@web/services/currency";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
 import { ListController } from "@web/views/list/list_controller";
+import { listSortingMixin } from "@web/views/list/list_sorting";
 import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
@@ -4883,6 +4884,33 @@ test(`monetary aggregates in grouped list`, async () => {
     expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50 on Jun 13, 2025");
 });
 
+test.tags("desktop");
+test(`multi currency popover stays open when hovering itself`, async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list>
+                <field name="foo"/>
+                <field name="amount" sum="Sum"/>
+                <field name="qux" widget="monetary" sum="Sum"/>
+                <field name="currency_id"/>
+            </list>
+        `,
+        groupBy: ["currency_id"],
+    });
+    await contains(`.o_group_header:first`).click();
+    await contains(`.o_group_header:last`).click();
+    await toggleMultiCurrencyPopover(".o_list_footer .o_list_number span:first sup");
+    expect(".o_multi_currency_popover").toHaveCount(1);
+    // Moving the pointer onto the popover body must NOT close it: the closer
+    // only fires for targets outside both the anchor and the popover itself.
+    await contains(".o_multi_currency_popover .popover-body").hover();
+    expect(".o_multi_currency_popover").toHaveCount(1, {
+        message: "popover stays open while the pointer is over the popover",
+    });
+});
+
 test(`monetary aggregates in grouped list (!= currencies in same group)`, async () => {
     await mountView({
         resModel: "foo",
@@ -5168,6 +5196,27 @@ test(`aggregates monetary (different currencies)`, async () => {
     await toggleMultiCurrencyPopover("tfoot span sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
     expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50 on Jun 13, 2025");
+});
+
+test(`aggregates monetary (different currencies, record without value)`, async () => {
+    // The first record has no amount: it must be skipped without shifting the
+    // currency conversion onto the other records' values.
+    Foo._records[0].amount = false;
+    Foo._records[2].currency_id = 2;
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list>
+                <field name="amount" widget="monetary" sum="Sum"/>
+                <field name="currency_id"/>
+            </list>
+        `,
+    });
+    // Records: no amount (EUR), $ 500.00, 300.00 €, $ 0.00.
+    // The EUR amount converts at rate 0.5: 500 + 300 * 0.5 + 0 = 650.
+    expect(`tfoot`).toHaveText("$ 650.00?");
 });
 
 test(`aggregates monetary (currency field not in view)`, async () => {
@@ -11190,6 +11239,34 @@ test(`editable list with handle widget with slow network`, async () => {
     expect(`tbody tr:eq(3) td:eq(2) input`).toHaveValue("301", {
         message: "fourth record should have amount 301",
     });
+});
+
+test(`sortDrop does not crash when a grouped row is dropped as the tbody's first child`, async () => {
+    // When a row is dropped at the very top of a group, the sortable
+    // placeholder becomes the tbody's first child, so ``previous`` is null.
+    // The grouped ``moveRecord`` branch must not dereference ``previous``.
+    const moveRecordCalls = [];
+    const mockRenderer = {
+        props: {
+            list: {
+                moveRecord(...args) {
+                    moveRecordCalls.push(args);
+                    return Promise.resolve();
+                },
+                leaveEditMode: () => Promise.resolve(),
+            },
+        },
+    };
+    const element = document.createElement("tr");
+    element.classList.add("o_row_draggable");
+    await listSortingMixin.sortDrop.call(mockRenderer, "row-1", "group-1", {
+        element,
+        previous: null,
+    });
+    // refId is null and the groupId of ``previous`` resolves to undefined
+    // through optional chaining rather than throwing.
+    expect(moveRecordCalls).toEqual([["row-1", "group-1", null, undefined]]);
+    expect(element).toHaveClass("o_row_draggable");
 });
 
 test(`multiple clicks on Add do not create invalid rows`, async () => {
@@ -19792,6 +19869,94 @@ test(`cache web_search_read (onUpdate called after another load)`, async () => {
     ]);
 });
 
+test(`cache web_search_read (revalidation while a row is edited)`, async () => {
+    // Regression: the revalidation callback used to call root._setData
+    // unconditionally when the payload differed, rebuilding every record
+    // datapoint: a row in edition in an editable list silently lost its
+    // edition state and its pending changes. The update must be skipped
+    // in that case.
+    let searchReadDef;
+    onRpc("web_search_read", () => {
+        expect.step("web_search_read");
+        return searchReadDef;
+    });
+    onRpc("web_save", ({ args }) => {
+        expect.step(`web_save ${JSON.stringify(args[1])}`);
+    });
+
+    Foo._views = {
+        "list,false": `<list editable="bottom"><field name="foo"/></list>`,
+        "form,false": `<form><field name="foo"/></form>`,
+        "search,false": `<search/>`,
+    };
+
+    defineActions([
+        {
+            id: 1,
+            name: "Partners Action",
+            res_model: "foo",
+            views: [[false, "list"]],
+            search_view_id: [false, "search"],
+        },
+        {
+            id: 2,
+            name: "Another action",
+            res_model: "foo",
+            res_id: 1,
+            views: [[false, "form"]],
+            search_view_id: [false, "search"],
+        },
+    ]);
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+    expect(`.o_data_row`).toHaveCount(4);
+    expect(queryAllTexts(`.o_list_char`)).toEqual(["yop", "blip", "gnap", "blip"]);
+    expect.verifySteps(["web_search_read"]);
+
+    // execute another action to remove the list from the DOM
+    await getService("action").doAction(2);
+    expect(`.o_form_view`).toHaveCount(1);
+
+    // execute again action 1, but web_search_read is delayed
+    searchReadDef = new Deferred();
+    await getService("action").doAction(1);
+    // cached values
+    expect(`.o_data_row`).toHaveCount(4);
+    expect.verifySteps(["web_search_read"]);
+
+    // edit a row while the revalidation rpc is pending (don't confirm with
+    // Enter: in an editable list it would validate the row and move the
+    // edition to the next one)
+    await contains(`.o_data_row .o_data_cell`).click();
+    expect(`.o_data_row:eq(0)`).toHaveClass("o_selected_row");
+    await contains(`.o_selected_row [name=foo] input`).edit("yop edited", {
+        confirm: false,
+    });
+
+    // record 5 (plop) has been created in the meantime => the rpc returns
+    // different values, but the row in edition must survive (the update is
+    // skipped)
+    searchReadDef.resolve({
+        length: 5,
+        records: [
+            { id: 1, foo: "yop" },
+            { id: 2, foo: "blip" },
+            { id: 3, foo: "gnap" },
+            { id: 4, foo: "blip" },
+            { id: 5, foo: "plop" },
+        ],
+    });
+    await animationFrame();
+    expect(`.o_data_row`).toHaveCount(4);
+    expect(`.o_data_row:eq(0)`).toHaveClass("o_selected_row");
+    expect(`.o_selected_row [name=foo] input`).toHaveValue("yop edited");
+
+    // and saving must send the pending changes
+    await contains(`.o_list_button_save`).click();
+    expect.verifySteps([`web_save ${JSON.stringify({ foo: "yop edited" })}`]);
+});
+
 test(`cache web_read_group (no change)`, async () => {
     let def;
     onRpc("web_read_group", () => def);
@@ -19927,6 +20092,91 @@ test(`cache web_read_group (change)`, async () => {
         "17 (1)",
         "44 (1)",
     ]);
+});
+
+test(`cache web_read_group (revalidation while a row is edited)`, async () => {
+    // Grouped variant of the "revalidation while a row is edited" test
+    // above: the grouped branch of the revalidation callback rebuilds all
+    // group datapoints (and forgets currentGroups), which used to destroy
+    // the edition state of a row edited inside a group.
+    let def;
+    onRpc("web_read_group", () => {
+        expect.step("web_read_group");
+        return def;
+    });
+    onRpc("web_save", ({ args }) => {
+        expect.step(`web_save ${JSON.stringify(args[1])}`);
+    });
+
+    Foo._views = {
+        "list,false": `
+            <list editable="bottom" expand="1" default_group_by="bar">
+                <field name="foo"/>
+            </list>`,
+        "form,false": `<form><field name="foo"/></form>`,
+        "search,false": `<search/>`,
+    };
+
+    defineActions([
+        {
+            id: 1,
+            name: "Partners Action",
+            res_model: "foo",
+            views: [[false, "list"]],
+            search_view_id: [false, "search"],
+        },
+        {
+            id: 2,
+            name: "Another action",
+            res_model: "foo",
+            res_id: 1,
+            views: [[false, "form"]],
+            search_view_id: [false, "search"],
+        },
+    ]);
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+    expect(queryAllTexts(`.o_group_header`)).toEqual(["No (1)", "Yes (3)"]);
+    expect(`.o_data_row`).toHaveCount(4);
+    expect.verifySteps(["web_read_group"]);
+
+    // simulate the creation of a record by someone else
+    MockServer.env.foo.create([{ foo: "plop", bar: false }]);
+
+    // execute another action to remove the list from the DOM
+    await getService("action").doAction(2);
+    expect(`.o_form_view`).toHaveCount(1);
+
+    // execute again action 1, but web_read_group is delayed
+    def = new Deferred();
+    await getService("action").doAction(1);
+    // cached values
+    expect(queryAllTexts(`.o_group_header`)).toEqual(["No (1)", "Yes (3)"]);
+    expect(`.o_data_row`).toHaveCount(4);
+    expect.verifySteps(["web_read_group"]);
+
+    // edit a row while the revalidation rpc is pending (don't confirm with
+    // Enter: in an editable list it would validate the row and move the
+    // edition to the next one)
+    await contains(`.o_data_row .o_data_cell`).click();
+    expect(`.o_data_row:eq(0)`).toHaveClass("o_selected_row");
+    await contains(`.o_selected_row [name=foo] input`).edit("edited in group", {
+        confirm: false,
+    });
+
+    // simulate the return of web_read_group (a record has been created in
+    // the meantime, so the payload differs) => the row in edition and its
+    // pending changes must survive (the update is skipped)
+    def.resolve();
+    await animationFrame();
+    expect(queryAllTexts(`.o_group_header`)).toEqual(["No (1)", "Yes (3)"]);
+    expect(`.o_data_row:eq(0)`).toHaveClass("o_selected_row");
+    expect(`.o_selected_row [name=foo] input`).toHaveValue("edited in group");
+
+    // and saving must send the pending changes
+    await contains(`.o_list_button_save`).click();
+    expect.verifySteps([`web_save ${JSON.stringify({ foo: "edited in group" })}`]);
 });
 
 test(`cache web_read_group (with sample data, no change)`, async () => {

@@ -441,6 +441,42 @@ test("updateTotal props: can use next even if single page", async () => {
 });
 
 test.tags("desktop");
+test("updateTotal props: a rejected count re-enables the pager", async () => {
+    // A rejected count RPC used to leave the pager permanently disabled because
+    // updateTotal() lacked the try/finally that update() has.
+    expect.errors(1);
+    const def = new Deferred();
+    await mountWithCleanup(PagerController, {
+        props: {
+            offset: 0,
+            limit: 5,
+            total: 10,
+            onUpdate() {},
+            async updateTotal() {
+                await def;
+                throw new Error("count failed");
+            },
+        },
+    });
+
+    expect(".o_pager_limit").toHaveText("10+");
+
+    // Trigger the count fetch: the pager disables itself while pending.
+    await click(".o_pager_limit_fetch");
+    await animationFrame();
+    expect(".o_pager button.o_pager_next").toHaveAttribute("disabled");
+
+    // The count RPC rejects...
+    def.resolve();
+    await animationFrame();
+    await animationFrame();
+
+    // ...but navigation must be usable again, not stuck disabled.
+    expect(".o_pager button.o_pager_next").not.toHaveAttribute("disabled");
+    expect.verifyErrors(["count failed"]);
+});
+
+test.tags("desktop");
 test("updateTotal props: click previous", async () => {
     const pager = await mountWithCleanup(PagerController, {
         props: {

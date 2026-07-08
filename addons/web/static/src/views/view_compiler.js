@@ -190,6 +190,34 @@ export function makeSeparator(title) {
     return separator;
 }
 
+/**
+ * Build the ``isVisible`` OWL expression for a node from its raw ``invisible``
+ * modifier. This is the single source of truth shared by ``applyInvisible``
+ * (below) and the slot-based compilers in the form compiler (button box,
+ * group, notebook):
+ *
+ *  - falsy / ``"False"`` / ``"0"``  → ``"true"``  (always visible)
+ *  - ``"True"`` / ``"1"``           → ``"false"`` (never visible)
+ *  - anything else (a domain-style expression) → a negated
+ *    ``evaluateBooleanExpr`` call evaluated against ``recordExpr``.
+ *
+ * @param {string | null | undefined} invisible
+ * @param {string} [recordExpr] the record expression to evaluate against;
+ *   defaults to the form record (``__comp__.props.record``).
+ * @returns {string}
+ */
+export function makeIsVisibleExpr(invisible, recordExpr = "__comp__.props.record") {
+    if (!invisible || invisible === "False" || invisible === "0") {
+        return "true";
+    }
+    if (invisible === "True" || invisible === "1") {
+        return "false";
+    }
+    return `!__comp__.evaluateBooleanExpr(${JSON.stringify(
+        invisible,
+    )},${recordExpr}.evalContextWithVirtualIds)`;
+}
+
 export class ViewCompiler {
     constructor(templates) {
         /** @type {number} */
@@ -227,16 +255,14 @@ export class ViewCompiler {
      * @returns {Element | undefined}
      */
     applyInvisible(invisible, compiled, params) {
-        if (!invisible || invisible === "False") {
+        const recordExpr = params.recordExpr || "__comp__.props.record";
+        let isVisibleExpr = makeIsVisibleExpr(invisible, recordExpr);
+        if (isVisibleExpr === "true") {
             return compiled;
         }
-        if (invisible === "True" || invisible === "1") {
+        if (isVisibleExpr === "false") {
             return;
         }
-        const recordExpr = params.recordExpr || "__comp__.props.record";
-        let isVisibleExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
-            invisible,
-        )},${recordExpr}.evalContextWithVirtualIds)`;
         if (compiled.hasAttribute("t-if")) {
             const formerTif = compiled.getAttribute("t-if");
             isVisibleExpr = `( ${formerTif} ) and ${isVisibleExpr}`;

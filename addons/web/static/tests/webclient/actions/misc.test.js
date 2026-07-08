@@ -13,6 +13,7 @@ import {
     getDropdownMenu,
     getService,
     makeMockEnv,
+    makeServerError,
     models,
     mountWithCleanup,
     onRpc,
@@ -274,6 +275,45 @@ test("getCurrentAction (virtual controller)", async () => {
             cache: true,
         },
     ]);
+});
+
+test("restore to a deleted virtual action keeps the current controller and surfaces the error", async () => {
+    // Build a stack with a *virtual* breadcrumb controller (action 1, kanban)
+    // and a mounted current controller (action 3, list) by loading the URL,
+    // exactly like the "getCurrentAction (virtual controller)" case above.
+    redirect("/odoo/action-1/action-3");
+    await mountWithCleanup(WebClient);
+    await animationFrame();
+    expect(".o_list_view").toHaveCount(1);
+
+    const actionService = getService("action");
+    const virtualController = actionService.controllerStack.find((c) => c.virtual);
+    expect(virtualController).not.toBe(undefined);
+    expect(virtualController.action.id).toBe(1);
+    const currentBefore = actionService.currentController;
+    const lengthBefore = actionService.controllerStack.length;
+
+    // Delete action 1 server-side: loading it now raises a MissingActionError,
+    // so restoring its virtual breadcrumb rejects during doAction's load.
+    onRpc("/web/action/load", async (request) => {
+        const { params } = await request.json();
+        if (params.action_id === 1) {
+            throw makeServerError({
+                errorName: "odoo.addons.web.controllers.action.MissingActionError",
+                message: "Action does not exist",
+            });
+        }
+    });
+
+    // restore() must surface the error (reject) rather than swallow it...
+    await expect(actionService.restore(virtualController.jsId)).rejects.toThrow();
+
+    // ...and the stack must stay consistent: the currently-displayed controller
+    // is still committed. Pre-fix, restore truncated the stack *before* calling
+    // doAction, so a rejected load left no current controller at all.
+    expect(actionService.controllerStack).toHaveLength(lengthBefore);
+    expect(actionService.currentController).toBe(currentBefore);
+    expect(".o_list_view").toHaveCount(1);
 });
 
 test("action in handler registry", async () => {

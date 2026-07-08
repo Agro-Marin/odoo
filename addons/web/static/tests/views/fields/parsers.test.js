@@ -83,9 +83,14 @@ test("parseInteger", () => {
     expect(() => parseInteger("1.234,567")).toThrow();
     // fallback to en localization
     expect(parseInteger("1,000,000")).toBe(1000000);
+    // Regression: "2,5" is a valid-but-non-integer locale parse (2.5). The
+    // en-locale fallback must NOT re-interpret the comma as a thousands
+    // separator (which silently yielded 25); it must be rejected instead.
+    expect(() => parseInteger("2,5")).toThrow();
 
     patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: false });
     expect(parseInteger("1000000")).toBe(1000000);
+    expect(() => parseInteger("2,5")).toThrow();
 });
 
 test("parsePercentage", () => {

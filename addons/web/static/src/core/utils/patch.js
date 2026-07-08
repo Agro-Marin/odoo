@@ -15,6 +15,24 @@
 const patchDescriptions = new WeakMap();
 
 /**
+ * Extension objects that are currently consumed by a live patch.
+ *
+ * ``patch()`` mutates its ``extension`` argument in place: it copies the
+ * patched descriptors onto the target and re-parents ``extension`` onto the
+ * previous skeleton (via ``Object.setPrototypeOf``) so the ``super`` keyword
+ * resolves through the patch chain. That mutation makes each extension object
+ * **single-use** — reusing one either corrupts the ``super`` chain of the first
+ * target (when shared across two targets) or throws an opaque
+ * ``TypeError: Cyclic __proto__ value`` (when applied twice to the same target).
+ * This set lets ``patch()`` detect reuse up front and fail with a clear message.
+ * Entries are cleared by the unpatch closure, which legitimately re-applies the
+ * surviving extensions against a fresh description.
+ *
+ * @type {WeakSet<object>}
+ */
+const usedExtensions = new WeakSet();
+
+/**
  * Create or get the patch description for the given `objToPatch`.
  * @param {object} objToPatch
  * @returns {PatchDescription}
@@ -72,6 +90,12 @@ function findAncestorPropertyDescriptor(objToPatch, key) {
  * If the intent is to patch a class, don't forget to patch the prototype, unless
  * you want to patch static properties/methods.
  *
+ * The `extension` object is **single-use**: `patch()` mutates it in place
+ * (re-parenting it via `Object.setPrototypeOf` to wire up the `super` chain), so
+ * the same extension object must not be passed to `patch()` more than once — not
+ * to a second target, and not twice to the same target. Reuse throws a clear
+ * error. Pass a fresh object literal / class for each `patch()` call.
+ *
  * @template {object} T
  * @template {Partial<T>} U
  * @param {T} objToPatch The object to patch
@@ -85,8 +109,19 @@ export function patch(objToPatch, extension) {
         );
     }
 
+    if (usedExtensions.has(extension)) {
+        // The extension has already been consumed by a live patch. Reusing it
+        // would corrupt the first patch's `super` chain (shared target) or throw
+        // an opaque "Cyclic __proto__ value" (same target). Fail clearly instead.
+        throw new Error(
+            "patch(): extension object already used in a patch. Each patch() call " +
+                "needs its own fresh extension object (it is mutated to build the `super` chain).",
+        );
+    }
+
     const description = getPatchDescription(objToPatch);
     description.extensions.add(extension);
+    usedExtensions.add(extension);
 
     const properties = Object.getOwnPropertyDescriptors(extension);
     for (const [key, newProperty] of Object.entries(properties)) {
@@ -141,7 +176,11 @@ export function patch(objToPatch, extension) {
 
         // Re-apply the patches without the current one.
         description.extensions.delete(extension);
+        usedExtensions.delete(extension);
         for (const extension of description.extensions) {
+            // Release each surviving extension so patch() can legitimately
+            // re-consume it against the fresh description built above.
+            usedExtensions.delete(extension);
             patch(objToPatch, extension);
         }
     };

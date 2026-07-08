@@ -67,6 +67,35 @@ test("onRemove callback", async () => {
     expect.verifySteps(["onRemove"]);
 });
 
+test("double remove runs onRemove once (idempotent)", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    class MyComp extends Component {
+        static template = xml``;
+        static props = ["*"];
+    }
+
+    let resolveRemove;
+    const onRemove = () => {
+        expect.step("onRemove");
+        return new Promise((resolve) => {
+            resolveRemove = resolve;
+        });
+    };
+    const remove = getService("overlay").add(MyComp, {}, { onRemove });
+
+    // Two calls before the first async onRemove settles must not run it twice.
+    remove();
+    remove();
+    expect.verifySteps(["onRemove"]);
+
+    resolveRemove();
+    await animationFrame();
+
+    // Once removed, further calls are no-ops (id no longer registered).
+    remove();
+    expect.verifySteps([]);
+});
+
 test("multiple overlays", async () => {
     await mountWithCleanup(MainComponentsContainer);
     class MyComp extends Component {
