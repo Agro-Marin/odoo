@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import contextlib
+from unittest.mock import patch
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import Form, tagged, new_test_user
@@ -130,6 +131,29 @@ class TestAccountMove(AccountTestInvoicingCommon):
                 self.test_move.state, "posted"
             )  # can be posted after its date
         self.assertEqual(nb_invoices, self.env["account.move"].search_count(domain=[]))
+
+    def test_autopost_failure_keeps_entry_scheduled(self):
+        # A failing auto-post must NOT silently disable the entry: recurring /
+        # asset entries would then stop posting unnoticed. Whatever the error,
+        # the move stays draft with its auto_post schedule intact and is retried.
+        self.test_move.auto_post = "at_date"
+        self.test_move.date = fields.Date.today()
+        cron = self.env.ref("account.ir_cron_auto_post_draft_entry")
+        move_cls = type(self.test_move)
+
+        for error in (UserError("boom"), ValueError("unexpected")):
+            with (
+                freeze_time(self.test_move.date + relativedelta(days=1)),
+                self.enter_registry_test_mode(),
+                patch.object(move_cls, "_post", side_effect=error),
+            ):
+                cron.method_direct_trigger()
+            self.assertEqual(self.test_move.state, "draft")
+            self.assertEqual(
+                self.test_move.auto_post,
+                "at_date",
+                "auto_post must not be disabled by a failed cron post",
+            )
 
     def test_posting_future_invoice_fails(self):
         # Create auto-posted, recurring entry, attempt manually posting it
