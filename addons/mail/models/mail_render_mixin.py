@@ -13,13 +13,12 @@ from odoo.exceptions import AccessError, UserError
 from odoo.libs.web import urls
 from odoo.tools.mail import html_normalize, is_html_empty, prepend_html_content
 from odoo.tools.rendering_tools import (
+    QWebError,
     convert_inline_template_to_qweb,
     parse_inline_template,
     render_inline_template,
     template_env_globals,
 )
-
-from odoo.addons.base.models.ir_qweb import QWebError
 
 _logger = logging.getLogger(__name__)
 

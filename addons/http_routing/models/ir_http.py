@@ -13,11 +13,11 @@ import odoo
 from odoo import api, models, exceptions, tools, http
 from odoo.addons.base.models import ir_http
 from odoo.addons.base.models.ir_http import RequestUID
-from odoo.addons.base.models.ir_qweb import keep_query
 from odoo.addons.base.models.res_lang import LangData
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.http import request, Response
+from odoo.tools.urls import keep_query
 
 _logger = logging.getLogger(__name__)
 

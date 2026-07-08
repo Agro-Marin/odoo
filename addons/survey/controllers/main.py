@@ -14,8 +14,7 @@ from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
 from odoo.tools import format_date, format_datetime, is_html_empty
-
-from odoo.addons.base.models.ir_qweb import keep_query
+from odoo.tools.urls import keep_query
 
 
 class Survey(http.Controller):

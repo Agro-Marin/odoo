@@ -2,7 +2,7 @@
 
 from odoo import http
 from odoo.http import request
-from odoo.addons.base.models.ir_qweb import keep_query
+from odoo.tools.urls import keep_query
 
 
 class WebsiteSlidesLegacy(http.Controller):

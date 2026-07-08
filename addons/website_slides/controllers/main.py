@@ -11,7 +11,6 @@ import werkzeug
 from urllib.parse import urlencode
 
 from odoo import fields, http, tools, _
-from odoo.addons.base.models.ir_qweb import keep_query
 from odoo.addons.website.controllers.main import QueryURL
 from odoo.addons.website.models.ir_http import sitemap_qs2dom
 from odoo.addons.website_profile.controllers.main import WebsiteProfile
@@ -20,6 +19,7 @@ from odoo.fields import Domain
 from odoo.http import request, Response
 from odoo.tools import consteq, email_normalize_all
 from odoo.tools.translate import LazyTranslate
+from odoo.tools.urls import keep_query
 
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
