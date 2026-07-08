@@ -15,9 +15,11 @@ from odoo.tools.translate import FIELD_TRANSLATE, _
 
 from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
+    compute_modules,
     field_xmlid,
     make_compute,
     mark_modified,
+    reload_schema,
     select_en,
     upsert_en,
 )
@@ -26,6 +28,22 @@ _logger = logging.getLogger(__name__)
 
 # retrieve field types defined by the framework only (not extensions)
 FIELD_TYPES = [(key, key) for key in sorted(fields.Field._by_type__)]
+
+
+def _check_translate_value(vals: dict[str, Any]) -> None:
+    """Reject the pre-Odoo-19 boolean form of ``translate``.
+
+    ``ir.model.fields.translate`` is a Selection since Odoo 19.  The upstream
+    deprecation shim silently converted booleans, guessing "standard" whenever
+    ``ttype`` was absent from the values -- wrong for html fields -- so this
+    fork raises instead of converting.
+    """
+    if vals.get("translate") and not isinstance(vals["translate"], str):
+        raise ValueError(
+            "ir.model.fields.translate is a selection since Odoo 19; pass "
+            "'standard', 'html_translate' or 'xml_translate' instead of "
+            f"{vals['translate']!r}"
+        )
 
 
 class IrModelFields(models.Model):
@@ -242,14 +260,7 @@ class IrModelFields(models.Model):
 
     @api.depends()
     def _compute_modules(self) -> None:
-        installed_modules = self.env["ir.module.module"].search(
-            [("state", "=", "installed")]
-        )
-        installed_names = set(installed_modules.mapped("name"))
-        xml_ids = models.Model._get_external_ids(self)
-        for field in self:
-            module_names = {xml_id.split(".")[0] for xml_id in xml_ids[field.id]}
-            field.modules = ", ".join(sorted(installed_names & module_names))
+        compute_modules(self)
 
     @api.constrains("domain")
     def _check_domain(self) -> None:
@@ -295,7 +306,7 @@ class IrModelFields(models.Model):
         for index, name in enumerate(names):
             field = self._get(model_name, name)
             if not field:
-                raise UserError(
+                raise ValidationError(
                     _(
                         'Unknown field name "%(field_name)s" in related field "%(related_field)s"',
                         field_name=name,
@@ -304,7 +315,7 @@ class IrModelFields(models.Model):
                 )
             model_name = field.relation
             if index < last and not field.relation:
-                raise UserError(
+                raise ValidationError(
                     _(
                         'Non-relational field name "%(field_name)s" in related field "%(related_field)s"',
                         field_name=name,
@@ -340,7 +351,7 @@ class IrModelFields(models.Model):
         if self.related:
             try:
                 field = self._related_field()
-            except UserError as e:
+            except ValidationError as e:
                 return {"warning": {"title": _("Warning"), "message": e}}
             self.ttype = field.ttype
             self.relation = field.relation
@@ -379,7 +390,7 @@ class IrModelFields(models.Model):
                 continue
             for seq in record.depends.split(","):
                 if not seq.strip():
-                    raise UserError(
+                    raise ValidationError(
                         _("Empty dependency in \u201c%s\u201d", record.depends)
                     )
                 model = self.env[record.model]
@@ -387,10 +398,12 @@ class IrModelFields(models.Model):
                 last = len(names) - 1
                 for index, name in enumerate(names):
                     if name == "id":
-                        raise UserError(_("Compute method cannot depend on field 'id'"))
+                        raise ValidationError(
+                            _("Compute method cannot depend on field 'id'")
+                        )
                     field = model._fields.get(name)
                     if field is None:
-                        raise UserError(
+                        raise ValidationError(
                             _(
                                 "Unknown field \u201c%(field)s\u201d in dependency \u201c%(dependency)s\u201d",
                                 field=name,
@@ -398,7 +411,7 @@ class IrModelFields(models.Model):
                             )
                         )
                     if index < last and not field.relational:
-                        raise UserError(
+                        raise ValidationError(
                             _(
                                 "Non-relational field \u201c%(field)s\u201d in dependency \u201c%(dependency)s\u201d",
                                 field=name,
@@ -713,18 +726,11 @@ class IrModelFields(models.Model):
         res = super().unlink()
 
         # The field we just deleted might be inherited, and the registry is
-        # inconsistent in this case; therefore we reload the registry.
+        # inconsistent in this case; therefore we reload the registry and
+        # update the database schema of the models and their descendants
+        # (model names were captured before the rows were deleted).
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
-            # setup models; this re-initializes models in registry
-            self.env.flush_all()
-            self.pool._setup_models__(self.env.cr, model_names)
-            # update database schema of model and its descendant models
-            affected_models = self.pool.descendants(model_names, "_inherits")
-            self.pool.init_models(
-                self.env.cr,
-                affected_models,
-                dict(self.env.context, update_custom_fields=True),
-            )
+            reload_schema(self.env, model_names, model_names)
 
         return res
 
@@ -732,13 +738,7 @@ class IrModelFields(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         IrModel = self.env["ir.model"]
         for vals in vals_list:
-            if vals.get("translate") and not isinstance(vals["translate"], str):
-                _logger.warning(
-                    "Deprecated since Odoo 19, ir.model.fields.translate becomes Selection, the value should be a string"
-                )
-                vals["translate"] = (
-                    "html_translate" if vals.get("ttype") == "html" else "standard"
-                )
+            _check_translate_value(vals)
             if "model_id" in vals:
                 vals["model"] = IrModel.browse(vals["model_id"]).model
 
@@ -777,16 +777,9 @@ class IrModelFields(models.Model):
         model_names = OrderedSet(res.mapped("model"))
 
         if any(model in self.pool for model in model_names):
-            # setup models; this re-initializes model in registry
-            self.env.flush_all()
-            self.pool._setup_models__(self.env.cr, model_names)
-            # update database schema of models and their descendants
-            affected_models = self.pool.descendants(model_names, "_inherits")
-            self.pool.init_models(
-                self.env.cr,
-                affected_models,
-                dict(self.env.context, update_custom_fields=True),
-            )
+            # re-initialize the models in the registry and update the database
+            # schema of the models and their descendants
+            reload_schema(self.env, model_names, model_names)
 
         return res
 
@@ -799,10 +792,13 @@ class IrModelFields(models.Model):
         # if set, *one* column can be renamed here
         column_rename = None
 
+        # records whose field is being renamed
+        renamed = self.browse()
+
         # names of the models to patch
         patched_models = set()
         translate_only = all(self._fields[field_name].translate for field_name in vals)
-        if vals and self and not translate_only:
+        if not translate_only:
             for item in self:
                 if item.state != "manual":
                     raise UserError(
@@ -828,7 +824,7 @@ class IrModelFields(models.Model):
 
                 if vals.get("name", item.name) != item.name:
                     # We need to rename the field
-                    item._prepare_update()
+                    renamed |= item
                     if item.ttype in ("one2many", "many2many", "binary"):
                         # those field names are not explicit in the database!
                         pass
@@ -852,29 +848,26 @@ class IrModelFields(models.Model):
         for column_name in ("model_id", "model", "state"):
             vals.pop(column_name, None)
 
-        if vals.get("translate") and not isinstance(vals["translate"], str):
-            _logger.warning(
-                "Deprecated since Odoo 19, ir.model.fields.translate becomes Selection, the value should be a string"
-            )
-            vals["translate"] = (
-                "html_translate" if vals.get("ttype") == "html" else "standard"
-            )
+        _check_translate_value(vals)
 
-        if column_rename and all(rec.state == "manual" for rec in self):
-            # renaming a studio field, remove inherits fields
-            # we need to set the uninstall flag to allow removing them
-            (self._prepare_update() - self).with_context(
+        if renamed:
+            # Single _prepare_update pass over the renamed fields: it checks
+            # the renames are allowed (views, dependencies) and returns the
+            # extra manual fields tied to them (e.g. inherited copies), which
+            # must be dropped along with the rename; the uninstall flag allows
+            # unlinking them.
+            (renamed._prepare_update() - self).with_context(
                 **{MODULE_UNINSTALL_FLAG: True}
             ).unlink()
 
         res = super().write(vals)
 
-        self.env.flush_all()
-
         if column_rename:
             # rename column in database, and its corresponding index if present
             table, oldname, newname, index, stored = column_rename
             if stored:
+                # flush pending updates first, so they land in the old column
+                self.env.flush_all()
                 self.env.cr.execute(
                     SQL(
                         "ALTER TABLE %s RENAME COLUMN %s TO %s",
@@ -884,19 +877,25 @@ class IrModelFields(models.Model):
                     )
                 )
                 if index:
+                    # use make_index_name (the registry's naming convention,
+                    # '{table}__{column}_index' with 63-char truncation); the
+                    # previous hand-rolled '{table}_{column}_index' guess named
+                    # an index that never exists on this fork, crashing every
+                    # rename of an indexed field. IF EXISTS keeps the rename
+                    # tolerant when the index was skipped (e.g. translated
+                    # fields); check_indexes recreates it under the new name.
                     self.env.cr.execute(
                         SQL(
-                            "ALTER INDEX %s RENAME TO %s",
-                            SQL.identifier(f"{table}_{oldname}_index"),
-                            SQL.identifier(f"{table}_{newname}_index"),
+                            "ALTER INDEX IF EXISTS %s RENAME TO %s",
+                            SQL.identifier(sql.make_index_name(table, oldname)),
+                            SQL.identifier(sql.make_index_name(table, newname)),
                         )
                     )
 
         if column_rename or patched_models:
-            # setup models, this will reload all manual fields in registry
-            self.env.flush_all()
-            model_names = OrderedSet(self.mapped("model"))
-            self.pool._setup_models__(self.env.cr, model_names)
+            # setup models (this reloads all manual fields in the registry) and
+            # update the database schema of the models to patch
+            reload_schema(self.env, OrderedSet(self.mapped("model")), patched_models)
         elif translate_only:
             # A label/help-only translation edit leaves the valid field set and
             # registry structure intact; the sole stale artefact is the
@@ -905,15 +904,6 @@ class IrModelFields(models.Model):
             # that cache is far cheaper than a full _setup_models__ rebuild
             # (mirrors SEL-C6 in ir_model_fields_selection.py).
             self.env.registry.clear_cache("stable")
-
-        if patched_models:
-            # update the database schema of the models to patch
-            affected_models = self.pool.descendants(patched_models, "_inherits")
-            self.pool.init_models(
-                self.env.cr,
-                affected_models,
-                dict(self.env.context, update_custom_fields=True),
-            )
 
         return res
 
@@ -926,6 +916,7 @@ class IrModelFields(models.Model):
             model_names = list({f.model for f in self if f.model})
             if model_names:
                 add_value = IrModel._get_id.__cache__.add_value
+                model_ids = []
                 for model_name, model_id in self.env.execute_query(
                     SQL(
                         "SELECT model, id FROM ir_model WHERE model = ANY(%s)",
@@ -933,6 +924,10 @@ class IrModelFields(models.Model):
                     )
                 ):
                     add_value(IrModel, model_name, cache_value=model_id)
+                    model_ids.append(model_id)
+                # one fetch for all model display strings: the _get(model).name
+                # reads below would otherwise SELECT once per distinct model
+                IrModel.sudo().browse(model_ids).fetch(["name"])
         for field in self:
             if self.env.context.get("hide_model"):
                 field.display_name = field.field_description
@@ -1070,10 +1065,13 @@ class IrModelFields(models.Model):
             FROM ir_model_fields
             WHERE state = 'manual'
         """)
-        result = defaultdict(dict)
+        result: dict[str, dict[str, Any]] = defaultdict(dict)
         for row in cr.dictfetchall():
             result[row["model"]][row["name"]] = row
-        return result
+        # ormcache returns the same object to every caller: freeze it so a
+        # mutation cannot corrupt the shared cached value (matches
+        # _get_fields_cached)
+        return frozendict(result)
 
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
         """Return the given model's manual field data."""
