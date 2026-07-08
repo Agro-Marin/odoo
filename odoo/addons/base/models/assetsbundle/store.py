@@ -40,10 +40,10 @@ class AssetAttachmentStore:
     # Persistable bundle artifacts and their served mimetype; doubles as
     # the ``save_attachment`` extension whitelist (one source of truth —
     # the guard and the lookup used to encode this twice and drift).
-    # ``xml`` / ``min.xml`` round out the artifact set and back the
-    # ``save_attachment`` guard; the current production ESM-template path
-    # persists through ``ir_qweb._save_esm_attachment`` instead, so they are
-    # only reached via direct ``save_attachment`` calls (and their tests).
+    # No ``xml`` / ``min.xml`` entries: template bundles do not persist
+    # through this store — the production ESM-template path saves via
+    # ``ir_qweb._save_esm_attachment`` instead, and legacy templates ship
+    # inside the concatenated ``(min.)js`` artifact.
     _ATTACHMENT_MIMETYPES = MappingProxyType(
         {
             "js": "application/javascript",
@@ -52,8 +52,6 @@ class AssetAttachmentStore:
             "css": "text/css",
             "min.css": "text/css",
             "css.map": "application/json",
-            "xml": "text/xml",
-            "min.xml": "text/xml",
         }
     )
 
