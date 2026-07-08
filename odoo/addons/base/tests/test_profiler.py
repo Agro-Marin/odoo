@@ -1105,3 +1105,45 @@ class TestProfilingStateMachine(TransactionCase):
             IrProfile._parse_params({"memory_limit": "42"})["memory_limit"], 42
         )
         self.assertEqual(IrProfile._parse_params({})["memory_limit"], 0)
+
+    def test_parse_params_malformed_values_degrade_to_defaults(self):
+        """Malformed boolean query params (?constant_time=x) and an unknown
+        aggregation mode must not raise ValueError (an HTTP 500 before any
+        access check on /web/speedscope); they degrade to their defaults."""
+        IrProfile = self.env["ir.profile"]
+        params = IrProfile._parse_params(
+            {
+                "constant_time": "x",
+                "aggregate_sql": "junk",
+                "use_execution_context": "??",
+                "combined_profile": "x",
+                "sql_no_gap_profile": "x",
+                "sql_density_profile": "x",
+                "frames_profile": "x",
+                "profile_aggregation_mode": "evil",
+                "memory_limit": "NaN",
+            }
+        )
+        self.assertFalse(params["constant_time"])
+        self.assertFalse(params["aggregate_sql"])
+        self.assertTrue(params["use_context"], "use_execution_context defaults True")
+        self.assertFalse(params["combined_profile"])
+        self.assertFalse(params["sql_no_gap_profile"])
+        self.assertFalse(params["sql_density_profile"])
+        self.assertFalse(params["frames_profile"])
+        self.assertEqual(params["profile_aggregation_mode"], "tabs")
+        self.assertEqual(params["memory_limit"], 0)
+
+    def test_parse_params_valid_values_pass_through(self):
+        """Well-formed values keep parsing as before the hardening."""
+        IrProfile = self.env["ir.profile"]
+        params = IrProfile._parse_params(
+            {
+                "constant_time": "1",
+                "use_execution_context": "0",
+                "profile_aggregation_mode": "temporal",
+            }
+        )
+        self.assertTrue(params["constant_time"])
+        self.assertFalse(params["use_context"])
+        self.assertEqual(params["profile_aggregation_mode"], "temporal")
