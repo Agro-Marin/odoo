@@ -607,6 +607,147 @@ class TestIrModelFields(TransactionCase):
             "Renamed Label",
         )
 
+    def test_field_rename_preserves_column_index_and_data(self):
+        """IMF-R1: renaming a stored, indexed manual field renames the column
+        and its index in place (no drop/recreate) and keeps the stored data."""
+        Model, field = self._make_manual_field("rename", index=True)
+        table = Model._table
+        record = Model.create({"x_rename": "kept"})
+        record.flush_recordset()
+
+        field.write({"name": "x_renamed"})
+
+        # the column was renamed, not dropped and recreated
+        self.env.cr.execute(
+            "SELECT column_name FROM information_schema.columns"
+            " WHERE table_name = %s AND column_name IN ('x_rename', 'x_renamed')",
+            (table,),
+        )
+        self.assertEqual(
+            [row[0] for row in self.env.cr.fetchall()],
+            ["x_renamed"],
+            "only the renamed column must remain",
+        )
+        # the index followed the rename (fork naming: '{table}__{column}_index')
+        self.env.cr.execute(
+            "SELECT indexname FROM pg_indexes WHERE tablename = %s", (table,)
+        )
+        indexes = {row[0] for row in self.env.cr.fetchall()}
+        self.assertIn(f"{table}__x_renamed_index", indexes)
+        self.assertNotIn(f"{table}__x_rename_index", indexes)
+        # the data survived the rename
+        record = self.env[Model._name].browse(record.id)
+        self.assertEqual(record.x_renamed, "kept")
+
+    def test_field_rename_single_prepare_update_pass(self):
+        """IMF-R2: a rename runs the expensive _prepare_update (view LIKE-scan
+        + full registry rebuild) exactly once, not once per item plus once for
+        the whole recordset."""
+        _Model, field = self._make_manual_field("renonce")
+        cls = type(self.env["ir.model.fields"])
+        original = cls._prepare_update
+        calls = []
+
+        def counting(records):
+            calls.append(records)
+            return original(records)
+
+        with patch.object(cls, "_prepare_update", counting):
+            field.write({"name": "x_renonce2"})
+        self.assertEqual(len(calls), 1)
+
+    def test_boolean_translate_rejected(self):
+        """IMF-C4: the pre-19 boolean form of ``translate`` raises instead of
+        being silently converted (the old shim guessed 'standard' for html
+        fields on write)."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_transl", "name": "IMF translate test"}
+        )
+        with self.assertRaises(ValueError):
+            self.env["ir.model.fields"].create(
+                {
+                    "name": "x_transl",
+                    "field_description": "Translated",
+                    "model_id": model.id,
+                    "ttype": "char",
+                    "translate": True,
+                }
+            )
+        _Model, field = self._make_manual_field("translw")
+        with self.assertRaises(ValueError):
+            field.write({"translate": True})
+
+    def test_check_depends_raises_validation_error(self):
+        """IMF-C5: @api.constrains handlers raise ValidationError (not
+        UserError) per the guidelines -- unknown dependency case."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_deps", "name": "IMF depends test"}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["ir.model.fields"].create(
+                {
+                    "name": "x_dep",
+                    "field_description": "Dep",
+                    "model_id": model.id,
+                    "ttype": "char",
+                    "store": False,
+                    "compute": "pass",
+                    "depends": "no_such_field",
+                }
+            )
+
+    def test_check_related_raises_validation_error(self):
+        """IMF-C5: _related_field errors surface as ValidationError through the
+        _check_related constraint."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_rel", "name": "IMF related test"}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["ir.model.fields"].create(
+                {
+                    "name": "x_rel",
+                    "field_description": "Rel",
+                    "model_id": model.id,
+                    "ttype": "char",
+                    "related": "no_such_field",
+                }
+            )
+
+    def test_all_manual_field_data_immutable(self):
+        """IMF-C6: the ormcached _all_manual_field_data mapping is frozen, so a
+        caller cannot corrupt the shared cached value."""
+        self._make_manual_field("frozen")
+        data = self.env["ir.model.fields"]._all_manual_field_data()
+        self.assertIn("x_imf_frozen", data)
+        with self.assertRaises((TypeError, NotImplementedError)):
+            data["x_bogus"] = {}
+
+    def test_compute_modules_shared_helper(self):
+        """The shared compute_modules helper resolves the defining modules for
+        both ir.model and ir.model.fields."""
+        model = self.env["ir.model"]._get("res.partner")
+        self.assertIn("base", model.modules.split(", "))
+        field = self.env["ir.model.fields"]._get("res.partner", "name")
+        self.assertIn("base", field.modules.split(", "))
+
+    def test_display_name_batch_fetches_model_names(self):
+        """IMF-P3: computing display_name pre-fetches every referenced model's
+        name in one batch; the per-model _get(model).name read then needs no
+        further query."""
+        fields_ = self.env["ir.model.fields"].search(
+            [("model", "=", "res.partner"), ("name", "in", ["name", "email"])]
+        )
+        self.env.invalidate_all()
+        names = fields_.mapped("display_name")
+        model_name = self.env["ir.model"]._get("res.partner").name
+        for field, display_name in zip(fields_, names, strict=True):
+            self.assertEqual(display_name, f"{field.field_description} ({model_name})")
+        # the batch fetch left the model name in cache: no query needed
+        self.env.invalidate_all()
+        fields_.mapped("display_name")
+        with self.assertQueryCount(0):
+            self.env["ir.model"]._get("res.partner").name  # noqa: B018
+
     def test_check_relation_table_invalid_name(self):
         """IMF-C2: an invalid relation_table raises a translated, relation-table
         specific ValidationError (not the raw 'table name' message)."""
@@ -944,6 +1085,22 @@ class TestIrModelFieldsSelection(TransactionCase):
         records.invalidate_recordset(["x_pbatch"])
         self.assertEqual(records.mapped("x_pbatch"), [False, False, False])
 
+    def test_update_selection_returns_none(self):
+        """SEL-C8 (finding 15): _update_selection's return value was unused by
+        all callers and inaccurate; it now returns None while still applying
+        the insert/update/remove diff."""
+        Model, field = self._make_selection_field("updret")
+        result = self.env["ir.model.fields.selection"]._update_selection(
+            Model._name,
+            field.name,
+            [("draft", "Brouillon"), ("new", "New")],  # update + insert + remove
+        )
+        self.assertIsNone(result)
+        self.assertEqual(
+            self.env["ir.model.fields.selection"]._get_selection_data(field.id),
+            [("draft", "Brouillon"), ("new", "New")],
+        )
+
     def test_ondelete_set_null_company_dependent(self):
         """SEL-P3: the jsonb (company-dependent) resolve branch finds and clears
         the per-company holders of the deleted value."""
@@ -1152,6 +1309,29 @@ class TestIrModelData(TransactionCase):
             "each xid must flip relative to its own previous value",
         )
 
+    def test_empty_write_and_unlink_skip_cache_clear(self):
+        """IMD-P3 (finding 12): a write/unlink on an empty ir.model.data
+        recordset is a no-op and must not clear any registry cache."""
+        empty = self.env["ir.model.data"].browse()
+        with patch.object(
+            self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
+        ) as mock_clear:
+            self.assertTrue(empty.write({"noupdate": True, "name": "zzz"}))
+            self.assertTrue(empty.unlink())
+        mock_clear.assert_not_called()
+
+    def test_update_xmlids_literal_percent(self):
+        """IMD-S2 (finding 13): the SQL-composed xmlid upsert handles values
+        containing a literal '%' (previously a str.format template with
+        classic placeholders)."""
+        record = self.env["res.partner.category"].create({"name": "Percent"})
+        xmlid = "test_convert.category_100%_percent"
+        self.env["ir.model.data"]._update_xmlids([{"xml_id": xmlid, "record": record}])
+        self.assertEqual(
+            self.env["ir.model.data"]._xmlid_lookup(xmlid),
+            (record._name, record.id),
+        )
+
     def test_lookup_xmlids_resolves(self):
         """IMD-S1 guard: ``_lookup_xmlids`` (rewritten onto the SQL wrapper)
         still resolves an existing xmlid with the joined record id, and an
@@ -1166,3 +1346,50 @@ class TestIrModelData(TransactionCase):
             (module, name, model, res_id, r_id),
             ("base", "group_user", "res.groups", group.id, group.id),
         )
+
+
+class TestIrModelConstraintReflection(TransactionCase):
+    """IMC-P1 (finding 14): batched _reflect_constraints keeps the reflected
+    rows in sync -- idempotent on unchanged rows, repairing drifted ones."""
+
+    MODEL = "ir.model.data"
+
+    def _constraint_rows(self, names):
+        return {
+            name: (id_, type_, definition, write_date)
+            for name, id_, type_, definition, write_date in self.env.execute_query(
+                SQL(
+                    "SELECT name, id, type, definition, write_date"
+                    " FROM ir_model_constraint WHERE name = ANY(%s)",
+                    names,
+                )
+            )
+        }
+
+    def test_reflect_constraints_idempotent_and_repairs(self):
+        Constraint = self.env["ir.model.constraint"]
+        names = list(self.env[self.MODEL]._table_objects)
+        self.assertTrue(names, "test model must declare table objects")
+
+        # settle: reflect once, then a second run must not touch any row
+        Constraint._reflect_constraints([self.MODEL])
+        before = self._constraint_rows(names)
+        self.assertEqual(set(before), set(names), "every table object reflected")
+        Constraint._reflect_constraints([self.MODEL])
+        self.assertEqual(
+            self._constraint_rows(names),
+            before,
+            "an unchanged constraint must not be rewritten (write_date stable)",
+        )
+
+        # a drifted definition is repaired by the batched upsert
+        drifted = names[0]
+        self.env.cr.execute(
+            "UPDATE ir_model_constraint SET definition = 'bogus' WHERE name = %s",
+            (drifted,),
+        )
+        Constraint._reflect_constraints([self.MODEL])
+        after = self._constraint_rows(names)
+        self.assertNotEqual(after[drifted][2], "bogus", "drifted row repaired")
+        # ids preserved: repaired in place, not deleted and recreated
+        self.assertEqual(after[drifted][0], before[drifted][0])
