@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import textwrap
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from lxml import etree
@@ -109,6 +110,12 @@ class XmlTemplatePipeline:
             content.append(f"throw new Error({json.dumps(str(e))});")
 
         def get_template(element: etree._Element) -> str:
+            # Serialize a COPY: the elements come from ``template_elements``,
+            # a cached parse tree shared by both delivery paths (legacy IIFE
+            # and ESM) and any other ``xml()`` consumer — stamping xml:space
+            # on the original would leak this serializer's concern into every
+            # later read of the cached tree.
+            element = deepcopy(element)
             element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
             string = etree.tostring(element, encoding="unicode")
             string = (

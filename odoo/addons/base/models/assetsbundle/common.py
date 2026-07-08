@@ -119,7 +119,18 @@ def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
     :raises CompileError: launch failure, timeout, or non-zero exit
     """
     try:
-        proc = Popen(argv, stdin=PIPE, stdout=PIPE, stderr=PIPE, encoding="utf-8")
+        # ``errors="replace"``: a tool emitting non-UTF-8 bytes (locale-encoded
+        # stderr, binary junk on a crash) degrades to replacement characters
+        # instead of raising a UnicodeDecodeError that bypasses every caller's
+        # CompileError policy.
+        proc = Popen(
+            argv,
+            stdin=PIPE,
+            stdout=PIPE,
+            stderr=PIPE,
+            encoding="utf-8",
+            errors="replace",
+        )
     except OSError:
         raise CompileError(f"Could not execute command {argv[0]!r}") from None
     try:
@@ -132,7 +143,9 @@ def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
         cmd_output = out + err
         if not cmd_output:
             cmd_output = f"Process exited with return code {proc.returncode}\n"
-        raise CompileError(cmd_output)
+        # Name the tool: the launch-failure and timeout branches already do,
+        # and the raw tool output alone can be ambiguous in ``css_errors``.
+        raise CompileError(f"{argv[0]!r}: {cmd_output}")
     return out
 
 

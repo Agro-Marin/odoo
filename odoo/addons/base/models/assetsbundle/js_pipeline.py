@@ -76,14 +76,19 @@ class JsPipeline:
     def minified_bundle(self, template_bundle: str) -> str:
         """Concatenated, minified JS for the production (``min.js``) bundle.
 
-        ``template_bundle`` is the legacy template IIFE appended verbatim (empty
-        for ESM bundles, which deliver templates separately).
+        ``template_bundle`` is the legacy template IIFE (empty for ESM bundles,
+        which deliver templates separately).
         """
         content_bundle = ";\n".join(
             self._module_syntax_error_stub(asset) or asset.minify()
             for asset in self._bundle.javascripts
         )
-        return content_bundle + template_bundle
+        if template_bundle:
+            # The ";" defuses ASI, exactly like the ";\n" join above: a last
+            # file ending in an unterminated expression would otherwise CALL
+            # the template IIFE as its argument.
+            content_bundle += ";" + template_bundle
+        return content_bundle
 
     def sourcemap_bundle(
         self, generator: SourceMapGenerator, sourcemap_url: str, template_bundle: str
@@ -120,7 +125,8 @@ class JsPipeline:
 
         content_bundle = ";\n".join(content_bundle_list)
         if template_bundle:
-            content_bundle += template_bundle
+            # ";" defuses ASI — see ``minified_bundle``.
+            content_bundle += ";" + template_bundle
 
         content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_url
         return content_bundle

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from odoo.api import Environment
 from odoo.libs.asset_log import log_event
 from odoo.libs.constants import (
+    ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
 )
@@ -48,6 +49,21 @@ from .css_pipeline import CssPipeline
 from .js_pipeline import JsPipeline
 from .store import AssetAttachmentStore
 from .xml_pipeline import XmlTemplatePipeline
+
+
+@functools.cache
+def _check_external_libs_once() -> None:
+    """One-shot cross-check of ``ODOO_EXTERNAL_LIBS`` vs esbuild's alias tables.
+
+    Delegates to :meth:`AssetsBundle._validate_external_libs`; triggered from
+    the first :class:`AssetsBundle` construction (alongside the lazy
+    ``esm_registry()`` build) — post-config, when the filesystem probes see
+    the real ``addons_path`` — instead of at package import time, where a
+    malformed table entry became an import-time crash. A failure is not
+    cached (``functools.cache`` does not memoize exceptions), so every later
+    construction stays loudly broken until the tables are fixed.
+    """
+    AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
 
 
 class AssetsBundle:
@@ -187,10 +203,16 @@ class AssetsBundle:
         """
         try:
             file_path(rel)
+        except ValueError:
+            # Malformed table entry (empty, absolute or traversing path):
+            # flag it like a missing file so it lands in the caller's
+            # aggregated startup ValueError — naming the entry — instead of
+            # escaping the probe as a bare, contextless ValueError.
+            return False
         except FileNotFoundError:
             try:
                 file_path(rel.split("/", 1)[0])
-            except FileNotFoundError:
+            except FileNotFoundError, ValueError:
                 return True
             return False
         return True
@@ -221,6 +243,7 @@ class AssetsBundle:
         self.env = env
         self.javascripts = []
         self.native_modules = []
+        _check_external_libs_once()
         self._is_esm_bundle = name in esm_registry().bundles
         self.templates = []
         self.stylesheets = []
