@@ -370,6 +370,13 @@ class IrRule(models.Model):
 # 'global' is a Python keyword. Therefore, we add it to the class by assignment.
 # Note that the attribute '_module' is normally added by the class' metaclass.
 #
+# Audit 2026-07-07: renaming the field (e.g. to `is_global`) was assessed and
+# deliberately NOT done: ~76 call sites reference the name across this repo
+# (base views/security XML, res_groups domain, community addons' security XML),
+# the enterprise repo (26 XML sites) and the agromarin repo (15 XML sites) —
+# the last two live outside this repository, so a rename here would break
+# their module loading. Keep the shim until a cross-repo rename is scheduled.
+#
 global_ = fields.Boolean(
     compute="_compute_global",
     store=True,
