@@ -11,7 +11,7 @@ so the ACL model stands on its own.
 import logging
 from typing import Any, Self
 
-from psycopg.types.json import Json
+from psycopg.types.json import Json, Jsonb
 
 from odoo import fields, models
 from odoo.api import ValuesType
@@ -228,29 +228,120 @@ class IrModelConstraint(models.Model):
         return None
 
     def _reflect_constraints(self, model_names: list[str]) -> None:
-        """Reflect the table objects of the given models."""
-        for model_name in model_names:
-            self._reflect_model(self.env[model_name])
+        """Reflect the ``_table_objects`` of the given models.
 
-    def _reflect_model(self, model: Any) -> None:
-        """Reflect the _table_objects of the given model."""
-        data_list = []
-        for conname, cons in model._table_objects.items():
-            module = cons._module
-            if not conname or not module:
-                _logger.warning("Missing module or constraint name for %s", cons)
-                continue
-            definition = cons.get_definition(model.pool)
-            message = cons.message
-            if not isinstance(message, str) or not message:
-                message = None
-            typ = "i" if isinstance(cons, models.Index) else "u"
-            record = self._reflect_constraint(
-                model, conname, typ, definition, module, message
+        Batched like ``_reflect_fields``: one SELECT for every
+        ``(name, module)`` pair of the model set, one MERGE for the
+        created/changed rows and one batched xml-id update, instead of one or
+        two round-trips per constraint.  A MERGE is used (rather than
+        ``INSERT ... ON CONFLICT``) so the upsert does not depend on the
+        ``(name, module)`` unique constraint being present in the database.
+        """
+        # expected rows, keyed by (name, module_name)
+        expected: dict[tuple[str, str], dict[str, Any]] = {}
+        for model_name in model_names:
+            model = self.env[model_name]
+            for conname, cons in model._table_objects.items():
+                module = cons._module
+                if not conname or not module:
+                    _logger.warning("Missing module or constraint name for %s", cons)
+                    continue
+                message = cons.message
+                if not isinstance(message, str) or not message:
+                    message = None
+                expected[(conname, module)] = {
+                    "model": model_name,
+                    "type": "i" if isinstance(cons, models.Index) else "u",
+                    "definition": cons.get_definition(model.pool),
+                    "message": message,
+                }
+        if not expected:
+            return
+
+        # one SELECT for all (name, module) pairs
+        existing = {
+            (name, module): row
+            for name, module, *row in self.env.execute_query(
+                SQL(
+                    """SELECT c.name, m.name, c.type, c.definition,
+                              c.message->>'en_US'
+                       FROM ir_model_constraint c
+                       JOIN ir_module_module m ON c.module = m.id
+                       WHERE c.name = ANY(%s)""",
+                    list({name for name, _module in expected}),
+                )
             )
-            xml_id = f"{module}.constraint_{conname}"
-            if record:
-                data_list.append({"xml_id": xml_id, "record": record})
+        }
+        changed = {
+            key: vals
+            for key, vals in expected.items()
+            if existing.get(key) != [vals["type"], vals["definition"], vals["message"]]
+        }
+
+        # one upsert for the created/changed rows
+        cons_ids: dict[tuple[str, str], int] = {}
+        if changed:
+            module_ids = dict(
+                self.env.execute_query(
+                    SQL(
+                        "SELECT name, id FROM ir_module_module WHERE name = ANY(%s)",
+                        list({module for _name, module in changed}),
+                    )
+                )
+            )
+            get_model_id = self.env["ir.model"]._get_id
+            values = SQL(", ").join(
+                SQL(
+                    "(%s, %s, %s, %s, %s, %s)",
+                    name,
+                    module_ids[module],
+                    get_model_id(vals["model"]),
+                    vals["type"],
+                    vals["definition"],
+                    Jsonb({"en_US": vals["message"]}),
+                )
+                for (name, module), vals in changed.items()
+            )
+            result = self.env.execute_query(
+                SQL(
+                    """
+                    MERGE INTO ir_model_constraint t
+                    USING (VALUES %(values)s)
+                        AS s(name, module, model, type, definition, message)
+                    ON t.name = s.name AND t.module = s.module
+                    WHEN MATCHED THEN
+                        UPDATE SET write_date = now() AT TIME ZONE 'UTC',
+                                   write_uid = %(uid)s,
+                                   type = s.type,
+                                   definition = s.definition,
+                                   message = s.message
+                    WHEN NOT MATCHED THEN
+                        INSERT (name, module, model, type, definition, message,
+                                create_date, write_date, create_uid, write_uid)
+                        VALUES (s.name, s.module, s.model, s.type, s.definition,
+                                s.message,
+                                now() AT TIME ZONE 'UTC',
+                                now() AT TIME ZONE 'UTC',
+                                %(uid)s, %(uid)s)
+                    RETURNING NEW.id, NEW.name, NEW.module
+                    """,
+                    values=values,
+                    uid=self.env.uid,
+                )
+            )
+            module_names = {mid: mname for mname, mid in module_ids.items()}
+            cons_ids = {
+                (name, module_names[module_id]): cons_id
+                for cons_id, name, module_id in result
+            }
+
+        # batched xml-id update; unchanged rows only get marked as loaded
+        data_list = []
+        for name, module in expected:
+            xml_id = f"{module}.constraint_{name}"
+            cons_id = cons_ids.get((name, module))
+            if cons_id:
+                data_list.append({"xml_id": xml_id, "record": self.browse(cons_id)})
             else:
                 self.env["ir.model.data"]._load_xmlid(xml_id)
         if data_list:
