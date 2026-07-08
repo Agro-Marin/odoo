@@ -982,11 +982,14 @@ class IrActionsServer(models.Model):
         res_id, _res_name = self.env[self.crud_model_id.model].name_create(self.value)
         self._link_to_active_record(res_id)
 
-    def _get_eval_context(self, action: Self | None = None) -> dict[str, Any]:
+    def _get_eval_context(self, action: Self) -> dict[str, Any]:
         """Prepare the context used when evaluating python code, like the
         python formulas or code server actions.
 
-        :param action: the current server action
+        :param action: the current server action. Required in this override
+            (the base ``ir.actions.actions`` signature keeps it optional):
+            the context is derived from ``action.model_id``, so calling
+            without an action could only crash on ``None.model_id``.
         :type action: browse record
         :returns: dict -- evaluation context given to safe_eval"""
 
@@ -1205,14 +1208,16 @@ class IrActionsServer(models.Model):
 
     @api.model
     @tools.ormcache("self.env.lang")
-    def _selection_target_model(self) -> list[tuple[str, str]]:
-        """Return all models as selection list. Cached because the model list
-        only changes on module install/update (which clears the registry cache).
+    def _selection_target_model(self) -> tuple[tuple[str, str], ...]:
+        """Return all models as a selection sequence. Cached because the model
+        list only changes on module install/update (which clears the registry
+        cache). Immutable tuple: the cached value is shared across callers, so
+        a mutable list would let one caller corrupt the cache for everyone.
         """
-        return [
+        return tuple(
             (model.model, model.name)
             for model in self.env["ir.model"].sudo().search([])
-        ]
+        )
 
     @api.onchange("crud_model_id")
     def _set_crud_model_id(self) -> None:
@@ -1258,7 +1263,7 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         try:
             return converter(self.value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             raise UserError(
                 _(
                     "The value %(value)r configured on action '%(action)s' is not a "
