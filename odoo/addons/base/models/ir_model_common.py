@@ -10,7 +10,7 @@ from ``ir_model`` while ``ir_model`` re-imported the siblings' classes).
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from itertools import batched
 from typing import TYPE_CHECKING, Any
 
@@ -87,6 +87,48 @@ def mark_modified(records: models.BaseModel, fnames: list[str]) -> None:
         records.modified(fnames)
 
 
+def compute_modules(records: models.BaseModel) -> None:
+    """Shared compute for the ``modules`` field of ``ir.model`` and
+    ``ir.model.fields``: the sorted, comma-separated list of installed modules
+    that define (or extend) each record, derived from its XML ids.
+    """
+    installed = records.env["ir.module.module"].search_fetch(
+        [("state", "=", "installed")], ["name"]
+    )
+    installed_names = set(installed.mapped("name"))
+    xml_ids = records._get_external_ids()
+    for record in records:
+        module_names = {xml_id.split(".")[0] for xml_id in xml_ids[record.id]}
+        record.modules = ", ".join(sorted(installed_names & module_names))
+
+
+def reload_schema(
+    env: api.Environment,
+    setup_models: Collection[str],
+    init_models: Collection[str] = (),
+) -> None:
+    """Reload the registry (and optionally the database schema) after a change
+    to the reflected model/field definitions: flush pending updates, run an
+    incremental ``Registry._setup_models__`` for ``setup_models``, then
+    ``Registry.init_models`` for ``init_models`` and their ``_inherits``
+    descendants.
+
+    :param setup_models: model names passed to ``_setup_models__``.  An *empty*
+        collection still runs the incremental setup (which reloads the custom
+        models); this is what ``ir.model.create`` relies on.
+    :param init_models: model names whose database schema must be updated;
+        empty means "registry reload only".
+    """
+    env.flush_all()  # _setup_models__ must read up-to-date rows from the db
+    registry = env.registry
+    registry._setup_models__(env.cr, setup_models)
+    if init_models:
+        affected_models = registry.descendants(init_models, "_inherits")
+        registry.init_models(
+            env.cr, affected_models, dict(env.context, update_custom_fields=True)
+        )
+
+
 def _model_slug(model_name: str) -> str:
     """Return the XML-id-safe form of a dotted model name (``a.b`` -> ``a_b``)."""
     return model_name.replace(".", "_")
@@ -99,7 +141,9 @@ def model_xmlid(module: str, model_name: str) -> str:
 
 def inherit_xmlid(module: str, model_name: str, parent_name: str) -> str:
     """Return the XML id of the given ``ir.model.inherit`` record."""
-    return f"{module}.model_inherit__{_model_slug(model_name)}__{_model_slug(parent_name)}"
+    return (
+        f"{module}.model_inherit__{_model_slug(model_name)}__{_model_slug(parent_name)}"
+    )
 
 
 def field_xmlid(module: str, model_name: str, field_name: str) -> str:
@@ -222,8 +266,7 @@ def _build_upsert_query(
 
     casts = [_pg_cast(fname) for fname in fnames]
     s_cols = [
-        SQL("s.%s%s", col_id, cast)
-        for col_id, cast in zip(col_ids, casts, strict=True)
+        SQL("s.%s%s", col_id, cast) for col_id, cast in zip(col_ids, casts, strict=True)
     ]
     on_pred = SQL(" AND ").join(
         SQL("t.%s = s.%s", SQL.identifier(c), SQL.identifier(c)) for c in conflict
@@ -233,7 +276,13 @@ def _build_upsert_query(
             # ``translate is True`` (user translations) keep other languages by
             # merging jsonb; callable-translate and plain columns overwrite, as
             # translated values are reloaded right after reflection.
-            SQL("%s = COALESCE(t.%s, '{}'::jsonb) || s.%s%s", col_id, col_id, col_id, cast)
+            SQL(
+                "%s = COALESCE(t.%s, '{}'::jsonb) || s.%s%s",
+                col_id,
+                col_id,
+                col_id,
+                cast,
+            )
             if fields[fname].translate is True
             else SQL("%s = s.%s%s", col_id, col_id, cast)
         )
@@ -321,9 +370,7 @@ def upsert_en(
         # matching the target column for the || operator.
         return Jsonb({"en_US": val}) if val is not None else val
 
-    wrappers = [
-        (jsonify if fields[fname].translate else identity) for fname in fnames
-    ]
+    wrappers = [(jsonify if fields[fname].translate else identity) for fname in fnames]
     values = [
         tuple(func(val) for func, val in zip(wrappers, row, strict=True))
         for row in rows
