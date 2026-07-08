@@ -186,13 +186,12 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
     def test_alter_message_x_forge_to_overrides_and_scrubs_headers(self):
         """X-Forge-To replaces the To header entirely and all control headers
-        (Bcc, X-Forge-To, X-Msg-To-Add, X-Msg-To-Consolidate) are removed."""
+        (Bcc, X-Forge-To, X-Msg-To-Add) are removed."""
         message = self._make_message()
         message["To"] = "original@example.com"
         message["Bcc"] = "hidden@example.com"
         message["X-Forge-To"] = "forged@example.com"
         message["X-Msg-To-Add"] = "ignored@example.com"
-        message["X-Msg-To-Consolidate"] = "consolidate@example.com"
         self.IrMailServer._alter_message__(
             message, "sender@example.com", ["forged@example.com"]
         )
@@ -202,7 +201,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertIsNone(message["Bcc"])
         self.assertIsNone(message["X-Forge-To"])
         self.assertIsNone(message["X-Msg-To-Add"])
-        self.assertIsNone(message["X-Msg-To-Consolidate"])
         # From was rewritten to the provided smtp_from since it differed.
         self.assertEqual(message["From"], "sender@example.com")
 

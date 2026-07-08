@@ -1294,7 +1294,6 @@ class IrMail_Server(models.Model):
         del message["Bcc"]  # see odoo/odoo@2445f9e3c22db810d61996afde883e4ca608f15b
         del message["X-Forge-To"]
         del message["X-Msg-To-Add"]
-        del message["X-Msg-To-Consolidate"]
 
     @api.model
     def _prepare_smtp_to_list(
