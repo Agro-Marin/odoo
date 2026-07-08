@@ -2893,6 +2893,44 @@ class TestQWebBasic(TransactionCase):
                 values={},
             )
 
+    def test_render_template_from_file_compile_cached(self):
+        """File templates go through the ormcached compile path: rendering the
+        same ``module/templates/x.xml`` twice must not re-read, re-parse and
+        re-codegen the file (they used to bypass the templates cache entirely,
+        hitting the full pipeline per render, e.g. in report loops)."""
+        qweb = self.env["ir.qweb"]
+        path = "base/tests/file_template/templates/file_template.xml"
+        first = qweb._compile(path)
+        second = qweb._compile(path)
+        self.assertIs(
+            first[0],
+            second[0],
+            "file template compilation must be served from the ormcache",
+        )
+        # and the cached functions still render correctly on reuse
+        values = {
+            "document_name": "Test Document",
+            "partner": {"name": "Jerry", "forename": "Khan"},
+        }
+        self.assertEqual(qweb._render(path, values), qweb._render(path, values))
+
+    def test_render_template_from_file_unknown_module(self):
+        """An unknown module in a file template path must raise a clear
+        template error, not an AttributeError on the missing manifest; and
+        the 'not under templates' error must be formatted (no literal %s)."""
+        qweb = self.env["ir.qweb"]
+        with self.assertRaises(ValueError) as cm:
+            qweb._generate_code_file_cached("unknown_module_xyz/templates/foo.xml")
+        self.assertIn("unknown_module_xyz", str(cm.exception))
+        self.assertIn("not a known Odoo module", str(cm.exception))
+
+        with self.assertRaises(ValueError) as cm:
+            qweb._generate_code_file_cached(
+                "base/tests/file_template/unreadable_file_template.xml"
+            )
+        self.assertIn("unreadable_file_template.xml", str(cm.exception))
+        self.assertNotIn("%s", str(cm.exception))
+
     def test_void_element(self):
         view = self.env["ir.ui.view"].create(
             {

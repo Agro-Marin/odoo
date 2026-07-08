@@ -1245,30 +1245,21 @@ class IrQweb(models.AbstractModel):
     def _compile(
         self, template: int | str | etree._Element
     ) -> tuple[dict[str, Any], str, frozendict]:
-        ref = None
         if isinstance(template, str) and template.endswith(".xml"):
-            module_path = Manifest.for_addon(Path(template).parts[0]).path
-            if (
-                "templates"
-                not in Path(file_path(template)).relative_to(module_path).parts
-            ):
-                msg = "The templates file %s must be under a subfolder 'templates' of a module"
-                raise ValueError(
-                    msg,
-                    template,
-                )
-            with file_open(template, "rb", filter_ext=(".xml",)) as file:
-                raw = file.read()
-                template = etree.fromstring(memoryview(raw))
-        elif not isinstance(template, etree._Element):
-            ref = self._get_template_info(template)["id"]
-
-        if ref:
-            template_functions, def_name, options = self._generate_code_cached(ref)
-        else:
+            template_functions, def_name, options = self._generate_code_file_cached(
+                template
+            )
+        elif isinstance(template, etree._Element) or not (
+            ref := self._get_template_info(template)["id"]
+        ):
+            # etree elements, and identifiers that resolve to no view (falsy
+            # ref): compile uncached — the latter so the generated
+            # ``not_found_template`` reports the requested identifier.
             template_functions, def_name, options = self._generate_code_uncached(
                 template
             )
+        else:
+            template_functions, def_name, options = self._generate_code_cached(ref)
 
         render_template = template_functions[def_name]
         if (
@@ -1312,6 +1303,44 @@ class IrQweb(models.AbstractModel):
     )
     def _generate_code_cached(self, ref: int) -> tuple[dict[str, Any], str, frozendict]:
         return self._generate_code_uncached(ref)
+
+    @tools.conditional(
+        "xml" not in tools.config["dev_mode"],
+        tools.ormcache(
+            "path",
+            "self._template_cache_signature()",
+            cache="templates",
+        ),
+    )
+    def _generate_code_file_cached(
+        self, path: str
+    ) -> tuple[dict[str, Any], str, frozendict]:
+        """Load, parse and compile a ``module/templates/*.xml`` file template.
+
+        Cached like ``_generate_code_cached`` (and likewise disabled in
+        ``xml`` dev mode): file templates are rendered in loops (e.g. one
+        render per record in a report batch), and without this cache every
+        render re-read the file, re-parsed it and re-ran the whole
+        codegen + ``unsafe_eval`` pipeline.
+        """
+        module = Path(path).parts[0]
+        # display_warning=False: the ValueError below is the error report.
+        manifest = Manifest.for_addon(module, display_warning=False)
+        if manifest is None:
+            msg = (
+                f"Cannot load template file {path!r}: "
+                f"{module!r} is not a known Odoo module"
+            )
+            raise ValueError(msg)
+        if "templates" not in Path(file_path(path)).relative_to(manifest.path).parts:
+            msg = (
+                f"The templates file {path!r} must be under a subfolder "
+                "'templates' of a module"
+            )
+            raise ValueError(msg)
+        with file_open(path, "rb", filter_ext=(".xml",)) as file:
+            element = etree.fromstring(memoryview(file.read()))
+        return self._generate_code_uncached(element)
 
     def _generate_code_uncached(
         self, template: int | str | etree._Element
