@@ -13,7 +13,6 @@
         </record>
         <record id="paperformat_qrcodes" model="report.paperformat">
             <field name="name">QR Codes Page</field>
-            <field name="default" eval="True"/>
             <field name="header_line" eval="False"/>
         </record>
     </data>

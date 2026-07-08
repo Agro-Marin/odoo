@@ -3,7 +3,6 @@
     <data>
         <record id="paperformat_ewaybill" model="report.paperformat">
             <field name="name">A4 - ewaybill</field>
-            <field name="default" eval="True"/>
             <field name="format">A4</field>
             <field name="page_height">0</field>
             <field name="page_width">0</field>

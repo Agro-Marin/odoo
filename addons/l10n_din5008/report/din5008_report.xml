@@ -5,7 +5,6 @@
         <!-- New report paperformat for din5008 format -->
         <record id="paperformat_euro_din_a" model="report.paperformat">
             <field name="name">European A4 for DIN5008 Type A</field>
-            <field name="default" eval="False" />
             <field name="format">A4</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">27</field>
@@ -19,7 +18,6 @@
 
         <record id="paperformat_euro_din" model="report.paperformat">
             <field name="name">European A4 for DIN5008 Type B</field>
-            <field name="default" eval="False" />
             <field name="format">A4</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">45</field>

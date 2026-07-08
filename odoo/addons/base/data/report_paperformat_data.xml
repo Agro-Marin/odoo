@@ -3,7 +3,6 @@
 
     <record id="paperformat_euro" model="report.paperformat">
         <field name="name">A4</field>
-        <field name="default" eval="True" />
         <field name="format">A4</field>
         <field name="page_height">0</field>
         <field name="page_width">0</field>
@@ -20,7 +19,6 @@
 
     <record id="paperformat_us" model="report.paperformat">
         <field name="name">US Letter</field>
-        <field name="default" eval="True" />
         <field name="format">Letter</field>
         <field name="page_height">0</field>
         <field name="page_width">0</field>
@@ -37,7 +35,6 @@
 
     <record id="paperformat_batch_deposit" model="report.paperformat">
         <field name="name">US Batch Deposit</field>
-        <field name="default" eval="False" />
         <field name="format">Letter</field>
         <field name="page_height">0</field>
         <field name="page_width">0</field>

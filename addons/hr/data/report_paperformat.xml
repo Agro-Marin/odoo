@@ -2,7 +2,6 @@
 <odoo>
     <record id="paperformat_hr_employee_badge" model="report.paperformat">
         <field name="name">Badge(s)</field>
-        <field name="default" eval="True"/>
         <field name="disable_shrinking" eval="True"/>
         <field name="dpi">96</field>
         <field name="format">A4</field>
