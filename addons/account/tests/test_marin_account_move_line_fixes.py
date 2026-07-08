@@ -1,6 +1,11 @@
+from datetime import date
+
+from freezegun import freeze_time
+
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
-from odoo.tests import tagged
+from odoo.tests import Form, tagged
+from odoo.tools import SQL
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -164,6 +169,109 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             product_line.deductible_amount = 100.01
         with self.assertRaises(ValidationError):
             product_line.deductible_amount = -0.01
+
+    def test_payment_date_timezone_consistency(self):
+        """`payment_date` must use the user-timezone "today" (context_today)
+        consistently across the Python compute, the `_search_payment_date` filter,
+        and the `_field_to_sql` used for sorting/grouping. Previously the compute and
+        search used server-tz `date.today()` while the SQL used context_today, so at a
+        day boundary the displayed cell, the sort position and the filter disagreed
+        for the same row.
+        """
+        AML = self.env["account.move.line"]
+        recv = self.company_data["default_account_receivable"]
+        misc = self.company_data["default_account_revenue"]
+        journal = self.company_data["default_journal_misc"]
+        d_disc = date(2026, 7, 7)
+        d_mat = date(2026, 7, 10)
+        move = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "journal_id": journal.id,
+                "date": date(2026, 7, 1),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "account_id": recv.id,
+                            "balance": 100.0,
+                            "date_maturity": d_mat,
+                        }
+                    ),
+                    Command.create({"account_id": misc.id, "balance": -100.0}),
+                ],
+            }
+        )
+        line = move.line_ids.filtered(lambda l: l.account_id == recv)
+        line.discount_date = d_disc
+        self.env.flush_all()
+
+        # Frozen at 2026-07-08 03:00 UTC; a user in UTC-11 is still on 2026-07-07,
+        # so date.today() (07-08) and context_today (07-07) deliberately disagree.
+        with freeze_time("2026-07-08 03:00:00"):
+            line_tz = line.with_context(tz="Pacific/Midway")
+            aml_tz = AML.with_context(tz="Pacific/Midway")
+
+            line_tz.invalidate_recordset(["payment_date"])
+            py_val = line_tz.payment_date
+
+            sql = aml_tz._field_to_sql("account_move_line", "payment_date")
+            self.env.cr.execute(
+                SQL("SELECT %s FROM account_move_line WHERE id = %s", sql, line.id)
+            )
+            sql_val = self.env.cr.fetchone()[0]
+
+            # Both must resolve against the user's 2026-07-07: discount_date is still
+            # valid, so payment_date is the discount_date, not the maturity date.
+            self.assertEqual(
+                py_val, d_disc, "compute must use user-tz today (discount_date valid)"
+            )
+            self.assertEqual(sql_val, d_disc, "SQL must use the same user-tz today")
+            self.assertEqual(py_val, sql_val, "compute and SQL sort value must agree")
+
+            # The filter must agree with the computed value too.
+            found = aml_tz.search([("id", "=", line.id), ("payment_date", "=", d_disc)])
+            self.assertIn(
+                line, found, "search filter must agree with the computed payment_date"
+            )
+
+    def test_name_retranslates_on_partner_language_change(self):
+        """The line label embeds the product description in the partner's language.
+        When the invoice partner (and thus language) changes, an auto-derived name
+        must re-translate; without `move_id.partner_id` in `_compute_name`'s
+        dependencies it went stale (kept the previous language).
+        """
+        self.env["res.lang"]._activate_lang("fr_FR")
+        partner_en = self.env["res.partner"].create(
+            {"name": "EN partner", "lang": "en_US"}
+        )
+        partner_fr = self.env["res.partner"].create(
+            {"name": "FR partner", "lang": "fr_FR"}
+        )
+        product = self.env["product.product"].create(
+            {"name": "Gadget", "type": "consu"}
+        )
+        product.description_sale = "English description"
+        product.with_context(lang="fr_FR").description_sale = "Description francaise"
+
+        move_form = Form(
+            self.env["account.move"].with_context(default_move_type="out_invoice")
+        )
+        move_form.partner_id = partner_en
+        with move_form.invoice_line_ids.new() as line:
+            line.product_id = product
+        invoice = move_form.save()
+        product_line = invoice.line_ids.filtered(lambda l: l.display_type == "product")
+        self.assertIn("English description", product_line.name)
+
+        with Form(invoice) as invoice_form:
+            invoice_form.partner_id = partner_fr
+
+        self.assertIn(
+            "Description francaise",
+            product_line.name,
+            "line label must re-translate when the partner language changes",
+        )
+        self.assertNotIn("English description", product_line.name)
 
     def test_line_compute_depends_completeness(self):
         """Registry-level guard: these computes read fields that were missing from
