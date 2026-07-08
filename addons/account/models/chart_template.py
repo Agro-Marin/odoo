@@ -11,7 +11,7 @@ import logging
 import re
 
 from odoo import Command, api, models
-from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import AccessError, RedirectWarning, UserError
 from odoo.fields import Domain
 from odoo.modules import get_resource_from_path

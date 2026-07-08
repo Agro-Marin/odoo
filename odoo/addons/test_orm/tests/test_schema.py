@@ -2,7 +2,7 @@ from odoo.fields import Domain
 from odoo.tests import common
 from odoo.tools.translate import FIELD_TRANSLATE
 
-from odoo.addons.base.models.ir_model import (
+from odoo.addons.base.models.ir_model_common import (
     field_xmlid,
     model_xmlid,
     selection_xmlid,
