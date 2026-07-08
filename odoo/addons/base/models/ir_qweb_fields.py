@@ -441,10 +441,12 @@ class IrQwebFieldSelection(models.AbstractModel):
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
         if "selection" not in options:
+            # Only the selection pairs are needed; ``get_description`` built
+            # (and translated) the field's entire description per rendered cell.
             options = dict(
                 options,
                 selection=dict(
-                    record._fields[field_name].get_description(self.env)["selection"]
+                    record._fields[field_name]._description_selection(self.env)
                 ),
             )
         return super().record_to_html(record, field_name, options)
