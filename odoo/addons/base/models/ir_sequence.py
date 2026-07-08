@@ -122,10 +122,9 @@ def _predict_nextval(self: Any, seq_name: str) -> int:
         seq_name,
         seqtable,
     )
-    rows = self.env.execute_query(query)
-    if not rows:
-        return 1  # sequence object missing; fall back to safe default
-    [(last_value, increment_by, is_called)] = rows
+    # A missing sequence relation raises psycopg.errors.UndefinedTable from
+    # the FROM clause — there is no empty-result fallback to handle here.
+    [(last_value, increment_by, is_called)] = self.env.execute_query(query)
     if is_called:
         return last_value + increment_by
     # sequence has just been RESTARTed to return last_value next time
