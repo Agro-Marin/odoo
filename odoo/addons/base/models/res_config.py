@@ -9,6 +9,17 @@ from odoo.exceptions import AccessError, RedirectWarning, UserError
 
 _logger = logging.getLogger(__name__)
 
+# ``env.cr.cache`` key under which ``execute()`` stashes the classification
+# computed by ``_get_classified_fields()`` for ``set_values()`` to reuse::
+#
+#     {model_name: classified}
+#
+# ``execute()`` cannot pass it as an argument: ``set_values()`` is overridden
+# across the codebase as ``def set_values(self)`` and the call dispatches
+# through those overrides.  ``cr.cache`` is transaction-local and ``execute()``
+# pops the entry in a ``finally`` block, so it cannot leak across saves.
+SETTINGS_CLASSIFIED_CACHE_KEY = "res_config_settings_classified_fields"
+
 
 class ResConfig(models.TransientModel):
     """Base classes for new-style configuration items
@@ -122,10 +133,9 @@ class ResConfigSettings(models.TransientModel):
 
     *   For a boolean field like 'module_XXX', ``execute`` triggers the immediate
         installation of the module named 'XXX' if the field has value ``True``.
-
-    *   For a selection field like 'module_XXX' composed of 2 string values ('0' and '1'),
-        ``execute`` triggers the immediate installation of the module named 'XXX'
-        if the field has the value ``'1'``.
+        ``module_`` fields must be boolean; selection is not supported (the
+        historical selection support was documented but broken — truthiness on
+        ``'0'``, boolean values from ``default_get`` — and never used).
 
     *   For a field with no specific prefix BUT an attribute 'config_parameter',
         ``execute`` will save its value in an ir.config.parameter (global setting for the
@@ -222,10 +232,12 @@ class ResConfigSettings(models.TransientModel):
                 field_groups = Groups.concat(*(ref(it) for it in field_group_xmlids))
                 groups.append((name, field_groups, ref(field.implied_group)))
             elif name.startswith("module_"):
-                if field.type not in ("boolean", "selection"):
-                    raise TypeError(
-                        f"Field {field} must have type 'boolean' or 'selection'"
-                    )
+                # module_ fields must be boolean: the selection variant was
+                # documented and type-accepted but broken everywhere it was
+                # read (truthiness on '0' in execute(), bool values from
+                # default_get()), and no such field exists — reject it.
+                if field.type != "boolean":
+                    raise TypeError(f"Field {field} must have type 'boolean'")
                 module_recs.append(IrModule._get(name.removeprefix("module_")))
             elif hasattr(field, "config_parameter") and field.config_parameter:
                 if field.type not in (
@@ -340,9 +352,15 @@ class ResConfigSettings(models.TransientModel):
 
         return res
 
-    def set_values(self) -> None:
+    def set_values(self, classified: dict[str, Any] | None = None) -> None:
         """
         Set values for the fields other than `default`, `group` and `module`
+
+        :param classified: optional precomputed result of
+            :meth:`_get_classified_fields`.  When None — e.g. overrides
+            calling ``super().set_values()`` without the argument — the
+            classification stashed by :meth:`execute` is reused, or computed
+            lazily for standalone calls.
         """
         # RCFG-L1: intrinsic admin gate. set_values performs sudo'd, ACL-bypassing
         # writes (ir.default, res.groups.implied_ids, ir.config_parameter); unlike
@@ -354,10 +372,15 @@ class ResConfigSettings(models.TransientModel):
             )
 
         self = self.with_context(active_test=False)
-        classified = self._get_classified_fields()
-        # only field names are needed here; fields_get() would build the full
-        # field descriptions for every settings field, which is expensive
-        current_settings = self.default_get(list(self._fields))
+        if classified is None:
+            stash = self.env.cr.cache.get(SETTINGS_CLASSIFIED_CACHE_KEY)
+            classified = (stash or {}).get(self._name) or self._get_classified_fields()
+        # diff basis restricted to the names actually compared below (the
+        # default_ and group_ fields): default_get then classifies only those
+        # names instead of every settings field
+        compared_names = [name for name, _model, _field in classified["default"]]
+        compared_names += [name for name, _groups, _implied in classified["group"]]
+        current_settings = self.default_get(compared_names)
 
         # default values fields
         IrDefault = self.env["ir.default"].sudo()
@@ -439,9 +462,16 @@ class ResConfigSettings(models.TransientModel):
             raise AccessError(_("Only administrators can change the settings"))
 
         self = self.with_context(active_test=False)
+        # classify once per save: set_values() (below) and its restricted
+        # default_get() reuse this classification instead of re-deriving it
         classified = self._get_classified_fields()
 
-        self.set_values()
+        stash = self.env.cr.cache.setdefault(SETTINGS_CLASSIFIED_CACHE_KEY, {})
+        stash[self._name] = classified
+        try:
+            self.set_values()
+        finally:
+            stash.pop(self._name, None)
 
         # module fields: install/uninstall the selected modules
         to_install = classified["module"].filtered(
