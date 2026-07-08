@@ -2,7 +2,7 @@ import base64
 import binascii
 import logging
 import math
-from datetime import time
+from datetime import date, datetime, time
 from io import BytesIO
 from typing import Any
 
@@ -943,6 +943,10 @@ class IrQwebFieldRelative(models.AbstractModel):
 
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
+        elif isinstance(value, date) and not isinstance(value, datetime):
+            # A ``date`` value (date field) cannot be subtracted from the
+            # datetime reference below; compare from its midnight.
+            value = datetime.combine(value, time.min)
 
         # ``record_to_html`` injects ``now`` for the t-field path; on the bare
         # value (t-out widget) path it may be absent, so default to the current
@@ -961,7 +965,11 @@ class IrQwebFieldRelative(models.AbstractModel):
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
         if "now" not in options:
-            options = dict(options, now=record._fields[field_name].now())
+            field = record._fields[field_name]
+            # ``fields.Date`` has no ``now()``: the reference is always a
+            # datetime, whatever the field type.
+            now = field.now() if field.type == "datetime" else fields.Datetime.now()
+            options = dict(options, now=now)
         return super().record_to_html(record, field_name, options)
 
 

@@ -1,5 +1,7 @@
+from datetime import date
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.tests import common
 
 from odoo.addons.base.tests.common import DISABLED_MAIL_CONTEXT
@@ -118,9 +120,7 @@ class TestQwebFieldDuration(common.TransactionCase):
     def test_duration_digital_round_clamped_to_hour(self):
         # round='day' (86400s) exceeds an hour; digital output clamps it to 3600.
         self.assertEqual(
-            self.value_to_html(
-                1.5, {"unit": "hour", "round": "day", "digital": True}
-            ),
+            self.value_to_html(1.5, {"unit": "hour", "round": "day", "digital": True}),
             "02",
         )
 
@@ -142,19 +142,34 @@ class TestQwebFieldRelative(common.TransactionCase):
 
     def test_relative_without_now_defaults_to_current_time(self):
         # The bare-value (t-out widget) path supplies no ``now``; must not crash.
-        from odoo import fields
-
         result = self.value_to_html(fields.Datetime.from_string("2000-01-01 00:00:00"))
         self.assertIn("ago", result)
 
     def test_relative_with_explicit_now(self):
-        from odoo import fields
-
         result = self.value_to_html(
             fields.Datetime.from_string("2020-01-01 00:00:00"),
             {"now": "2020-01-02 00:00:00"},
         )
         self.assertEqual(result, "1 day ago")
+
+    def test_relative_on_date_value(self):
+        # A bare ``date`` (date field value) must be comparable with the
+        # datetime reference instead of raising TypeError.
+        result = self.value_to_html(date(2000, 1, 1))
+        self.assertIn("ago", result)
+
+    def test_relative_record_to_html_date_field(self):
+        # Regression: ``record_to_html`` called ``field.now()`` which does not
+        # exist on ``fields.Date`` (AttributeError on any date field).
+        rate = self.env["res.currency.rate"].create(
+            {
+                "currency_id": self.env.ref("base.EUR").id,
+                "name": "2020-01-01",
+                "rate": 1.5,
+            }
+        )
+        result = self.env["ir.qweb.field.relative"].record_to_html(rate, "name", {})
+        self.assertIn("ago", result)
 
 
 class TestQwebFieldRecordContext(common.TransactionCase):
