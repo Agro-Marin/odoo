@@ -450,11 +450,19 @@ class IrSequence(models.Model):
                 limit=1,
             )
 
-    def _next(self, sequence_date: Any = None) -> str:
-        """Return the next interpolated value for this sequence."""
+    def _get_current_sequence(self, sequence_date: Any = None) -> Any:
+        """Return the concrete record that holds this sequence's counter.
+
+        For a plain sequence that is ``self``; for a date-ranged one it is the
+        ``ir.sequence.date_range`` sub-sequence covering ``sequence_date`` (or
+        the contextual / current date), created on the fly if none exists yet.
+        This is the single source of truth for resolving the active counter
+        record — used both by :meth:`_next` and by callers that need to read
+        ``number_next_actual`` (e.g. serial-number generation in stock).
+        """
+        self.ensure_one()
         if not self.use_date_range:
-            return self._next_do()
-        # date mode
+            return self
         dt = sequence_date or self.env.context.get(
             "ir_sequence_date", fields.Datetime.now()
         )
@@ -466,8 +474,17 @@ class IrSequence(models.Model):
             ],
             limit=1,
         )
-        if not seq_date:
-            seq_date = self._create_date_range_seq(dt)
+        return seq_date or self._create_date_range_seq(dt)
+
+    def _next(self, sequence_date: Any = None) -> str:
+        """Return the next interpolated value for this sequence."""
+        if not self.use_date_range:
+            return self._next_do()
+        # date mode
+        dt = sequence_date or self.env.context.get(
+            "ir_sequence_date", fields.Datetime.now()
+        )
+        seq_date = self._get_current_sequence(dt)
         # pass the full datetime (tz stripped) as ir_sequence_date so time-based
         # placeholders (%(h24)s, %(min)s, ...) in the prefix/suffix interpolate
         # against the sequence's own date, not datetime.now()

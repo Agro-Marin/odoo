@@ -523,6 +523,21 @@ class IrActionsAct_Window(models.Model):
             if any(" " in mode for mode in modes):
                 raise ValidationError(_("No spaces allowed in view_mode: “%s”", modes))
 
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        for vals in vals_list:
+            # Default the action name to the target model's description.
+            # IRA-L4: guard membership so an invalid res_model surfaces as the
+            # friendly ValidationError from _check_model instead of a raw
+            # KeyError here.
+            if not vals.get("name") and vals.get("res_model") in self.env:
+                vals["name"] = self.env[vals["res_model"]]._description
+        # super() (ir.actions.actions.create) clears the registry cache when a
+        # created action is bound (binding_model_id set); the previous
+        # pre-super clear here was redundant (and ran before the records even
+        # existed).
+        return super().create(vals_list)
+
     def _compute_embedded_actions(self) -> None:
         embedded_actions = (
             self.env["ir.embedded.actions"]
@@ -558,21 +573,6 @@ class IrActionsAct_Window(models.Model):
                 views.append((act.view_id.id, act.view_id.type))
             views.extend((False, mode) for mode in missing_modes)
             act.views = views
-
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        for vals in vals_list:
-            # Default the action name to the target model's description.
-            # IRA-L4: guard membership so an invalid res_model surfaces as the
-            # friendly ValidationError from _check_model instead of a raw
-            # KeyError here.
-            if not vals.get("name") and vals.get("res_model") in self.env:
-                vals["name"] = self.env[vals["res_model"]]._description
-        # super() (ir.actions.actions.create) clears the registry cache when a
-        # created action is bound (binding_model_id set); the previous
-        # pre-super clear here was redundant (and ran before the records even
-        # existed).
-        return super().create(vals_list)
 
     def read(
         self,
@@ -723,6 +723,87 @@ class IrActionsAct_Url(models.Model):
         }
 
 
+class IrActionsClient(models.Model):
+    _name = "ir.actions.client"
+    _description = "Client Action"
+    _inherit = ["ir.actions.actions"]
+    _table = "ir_act_client"
+    _order = "name, id"
+    _allow_sudo_commands = False
+
+    type = fields.Char(default="ir.actions.client")
+    tag = fields.Char(
+        string="Client action tag",
+        required=True,
+        help="An arbitrary string, interpreted by the client"
+        " according to its own needs and wishes. There "
+        "is no central tag repository across clients.",
+    )
+    target = fields.Selection(
+        [
+            ("current", "Current Window"),
+            ("new", "New Window"),
+            ("fullscreen", "Full Screen"),
+            ("main", "Main action of Current Window"),
+        ],
+        default="current",
+        string="Target Window",
+    )
+    res_model = fields.Char(
+        string="Destination Model",
+        help="Optional model, mostly used for needactions.",
+    )
+    context = fields.Char(
+        string="Context Value",
+        default="{}",
+        required=True,
+        help="Context dictionary as Python expression, empty by default (Default: {})",
+    )
+    params = fields.Binary(
+        compute="_compute_params",
+        inverse="_inverse_params",
+        string="Supplementary arguments",
+        help="Arguments sent to the client along with the view tag",
+    )
+    params_store = fields.Binary(
+        string="Params storage", readonly=True, attachment=False
+    )
+
+    @api.depends("params_store")
+    def _compute_params(self) -> None:
+        self_bin = self.with_context(bin_size=False, bin_size_params_store=False)
+        for record, record_bin in zip(self, self_bin, strict=True):
+            stored = record_bin.params_store
+            if not stored:
+                record.params = stored
+                continue
+            # IRA-L5: params_store is normally written by _inverse_params as a
+            # repr()'d dict, but a corrupt value (bad data import, manual DB
+            # edit) must not make the client action un-loadable — degrade to
+            # False rather than crash, consistent with read()/action_launch().
+            # Not _safe_eval_dict: a non-dict payload is legitimate here (see
+            # _inverse_params) and the default is an explicit False, not {};
+            # eval context: only `uid` — params are plain client arguments.
+            try:
+                record.params = safe_eval(stored, {"uid": self.env.uid})
+            except Exception:
+                record.params = False
+
+    def _inverse_params(self) -> None:
+        for record in self:
+            params = record.params
+            record.params_store = repr(params) if isinstance(params, dict) else params
+
+    def _get_readable_fields(self) -> set[str]:
+        return super()._get_readable_fields() | {
+            "context",
+            "params",
+            "res_model",
+            "tag",
+            "target",
+        }
+
+
 class IrActionsTodo(models.Model):
     _name = "ir.actions.todo"
     _description = "Configuration Wizards"
@@ -811,84 +892,3 @@ class IrActionsTodo(models.Model):
     def action_open(self) -> bool:
         """Sets configuration wizard in TODO state"""
         return self.write({"state": "open"})
-
-
-class IrActionsClient(models.Model):
-    _name = "ir.actions.client"
-    _description = "Client Action"
-    _inherit = ["ir.actions.actions"]
-    _table = "ir_act_client"
-    _order = "name, id"
-    _allow_sudo_commands = False
-
-    type = fields.Char(default="ir.actions.client")
-    tag = fields.Char(
-        string="Client action tag",
-        required=True,
-        help="An arbitrary string, interpreted by the client"
-        " according to its own needs and wishes. There "
-        "is no central tag repository across clients.",
-    )
-    target = fields.Selection(
-        [
-            ("current", "Current Window"),
-            ("new", "New Window"),
-            ("fullscreen", "Full Screen"),
-            ("main", "Main action of Current Window"),
-        ],
-        default="current",
-        string="Target Window",
-    )
-    res_model = fields.Char(
-        string="Destination Model",
-        help="Optional model, mostly used for needactions.",
-    )
-    context = fields.Char(
-        string="Context Value",
-        default="{}",
-        required=True,
-        help="Context dictionary as Python expression, empty by default (Default: {})",
-    )
-    params = fields.Binary(
-        compute="_compute_params",
-        inverse="_inverse_params",
-        string="Supplementary arguments",
-        help="Arguments sent to the client along with the view tag",
-    )
-    params_store = fields.Binary(
-        string="Params storage", readonly=True, attachment=False
-    )
-
-    @api.depends("params_store")
-    def _compute_params(self) -> None:
-        self_bin = self.with_context(bin_size=False, bin_size_params_store=False)
-        for record, record_bin in zip(self, self_bin, strict=True):
-            stored = record_bin.params_store
-            if not stored:
-                record.params = stored
-                continue
-            # IRA-L5: params_store is normally written by _inverse_params as a
-            # repr()'d dict, but a corrupt value (bad data import, manual DB
-            # edit) must not make the client action un-loadable — degrade to
-            # False rather than crash, consistent with read()/action_launch().
-            # Not _safe_eval_dict: a non-dict payload is legitimate here (see
-            # _inverse_params) and the default is an explicit False, not {};
-            # eval context: only `uid` — params are plain client arguments.
-            try:
-                record.params = safe_eval(stored, {"uid": self.env.uid})
-            except Exception:
-                record.params = False
-
-    def _inverse_params(self) -> None:
-        for record in self:
-            params = record.params
-            record.params_store = repr(params) if isinstance(params, dict) else params
-
-    def _get_readable_fields(self) -> set[str]:
-        return super()._get_readable_fields() | {
-            "context",
-            "params",
-            "res_model",
-            "tag",
-            "target",
-        }

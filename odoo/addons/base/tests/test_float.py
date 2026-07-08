@@ -274,6 +274,55 @@ class TestFloatPrecision(TransactionCase):
         # try_roundtrip(-2.6748955, -2.674896, '2000-01-02')
         # try_roundtrip(-10000.999999, -10000.999999, '2000-01-04')
 
+    def test_rounding_large_magnitude(self):
+        """Large clean values must not gain spurious digits from the tie epsilon.
+
+        The IEEE-754 tie-rescue epsilon is magnitude-relative; once the
+        normalized value is large its ULP approaches/exceeds ~1, so an uncapped
+        epsilon (> 0.5) would spuriously flip a clean value to the next step
+        (e.g. float_round(1e13, precision_rounding=0.01) -> 10000000000000.01).
+        The HALF-* methods cap the epsilon below the .5 tie boundary to prevent
+        this while still rescuing genuine representation-error ties.
+        """
+        # 0.145 is stored as 0.144999...; the rescue must still recognise it as a
+        # tie, after which each method applies its own tie rule.
+        rescued_145 = {"HALF-UP": "0.15", "HALF-DOWN": "0.14", "HALF-EVEN": "0.14"}
+        for method in ("HALF-UP", "HALF-DOWN", "HALF-EVEN"):
+            # clean values at large magnitude keep their exact value (no spurious step)
+            for value in (5.6e12, 1e13, 1.23456789e14, 1e15):
+                self.assertEqual(
+                    float_round(value, precision_rounding=0.01, rounding_method=method),
+                    value,
+                    "spurious digit at 2-digit precision for %s (%s)" % (value, method),
+                )
+                self.assertEqual(
+                    float_round(value, precision_digits=0, rounding_method=method),
+                    value,
+                    "spurious unit at 0-digit precision for %s (%s)" % (value, method),
+                )
+            # negatives are symmetric
+            self.assertEqual(
+                float_round(-1e13, precision_rounding=0.01, rounding_method=method),
+                -1e13,
+                "spurious digit for negative large value (%s)" % method,
+            )
+            # representation-error ties are still rescued at usable magnitudes
+            self.assertEqual(
+                float_repr(
+                    float_round(0.145, precision_digits=2, rounding_method=method),
+                    precision_digits=2,
+                ),
+                rescued_145[method],
+                "representation-error tie no longer rescued (%s)" % method,
+            )
+        self.assertEqual(float_round(1.005, precision_digits=2), 1.01)
+        self.assertEqual(float_round(2.675, precision_digits=2), 2.68)
+        # genuine large-magnitude ties must still round to the next step
+        self.assertEqual(
+            float_round(1e13 + 0.5, precision_rounding=1.0, rounding_method="HALF-UP"),
+            1e13 + 1,
+        )
+
     def test_float_split_05(self):
         """Test split method with 2 digits."""
         currency = self.env.ref("base.EUR")

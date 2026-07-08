@@ -138,6 +138,45 @@ class BridgeShimManager:
             # Idempotent rerun — every shim is already persisted.
             return url_by_spec
 
+        # The dedicated read-write cursor below (``_persist_bridges_via_rw_
+        # cursor``) exists for ONE reason: to let bridge rows survive a
+        # rollback of the *HTTP request* transaction that is rendering.
+        # Outside a request — registry preload / asset pregeneration
+        # (``lifecycle._run_post_install_tests`` → ``_pregenerate_assets_
+        # bundles``), cron, CLI, or a non-HTTP test — there is no request to
+        # roll back and the CURRENT cursor is the durable one.  Opening a
+        # second *real* cursor there self-deadlocks: this same thread already
+        # holds ir_attachment row/predicate locks on the current cursor (the
+        # pregeneration transaction created bundle rows and did the URL
+        # lookup above), so the second cursor's INSERT waits on a lock only
+        # this now-suspended thread can release — a one-thread, two-cursor
+        # cycle Postgres cannot break.  Persist on the current cursor instead;
+        # it commits (preload/cron) or rolls back harmlessly (content-addressed
+        # + idempotent) with the test, and the assets ormcache stays coherent
+        # because there is no independent transaction to diverge from.
+        #
+        # NOTE: unlike ``_persist_esm_attachment_rows`` this guard does NOT
+        # also branch on ``_module.current_test``.  Under an HttpCase the
+        # loader-bridge rows must be visible to the browser's SEPARATE asset
+        # fetches (served on other TestCursors): the ``registry.cursor()``
+        # path publishes them, whereas persisting on the render's own cursor
+        # left the dynamic-child bridges unfetchable and broke tours. The
+        # request is truthy in an HttpCase, so it correctly takes the rw path.
+        from odoo.http import request  # lazy: avoid load-order cycle
+
+        if not request:
+            self.env["ir.attachment"].sudo().create(to_create)
+            log_event(
+                _bridge_log,
+                logging.INFO,
+                "bridges_persisted",
+                bundle=self.bundle_name,
+                new=len(to_create),
+                reused=len(content_by_url) - len(to_create),
+                total=len(url_by_spec),
+            )
+            return url_by_spec
+
         # Persist bridge attachments through a dedicated read-write cursor
         # that commits independently of the request transaction — ALWAYS,
         # not only when the request cursor happens to be read-only.  Two
