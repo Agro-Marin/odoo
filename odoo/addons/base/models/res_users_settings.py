@@ -97,11 +97,73 @@ class ResUsersSettings(models.Model):
             field = self._fields.get(setting)
             if not field or (field.compute and not field.inverse):
                 continue
-            current_value = self[setting]
-            # For relational fields, compare IDs rather than recordset vs int
-            if isinstance(current_value, models.BaseModel):
-                current_value = current_value.id
-            if new_value != current_value:
+            if self._is_setting_changed(setting, new_value):
                 changed_settings[setting] = new_value
         self.write(changed_settings)
         return self._res_users_settings_format([*changed_settings.keys(), "id"])
+
+    def _is_setting_changed(self, fname: str, new_value: Any) -> bool:
+        """Return whether writing ``new_value`` to ``fname`` would change it.
+
+        Implements the "only write actual changes" contract of
+        :meth:`set_res_users_settings` per field type:
+
+        * many2one: compare the incoming id against the current record's id
+          (both normalized so ``None``/``False``/empty compare equal);
+        * one2many/many2many: the incoming value is a list of x2many commands
+          (or ids); compare the id-set that would result from applying them
+          against the current id-set. Commands whose outcome cannot be
+          determined statically (create/update) always count as changed;
+        * other fields: plain value comparison.
+        """
+        self.ensure_one()
+        current_value = self[fname]
+        match self._fields[fname].type:
+            case "many2one":
+                return (new_value or False) != (current_value.id or False)
+            case "one2many" | "many2many":
+                current_ids = set(current_value.ids)
+                target_ids = self._x2many_command_target_ids(current_ids, new_value)
+                return target_ids is None or target_ids != current_ids
+            case _:
+                return new_value != current_value
+
+    @api.model
+    def _x2many_command_target_ids(
+        self, current_ids: set[int], value: Any
+    ) -> set[int] | None:
+        """Return the id-set an x2many holding ``current_ids`` would contain
+        after writing ``value`` (a list of x2many commands and/or bare ids).
+
+        Return ``None`` when the outcome cannot be determined without applying
+        the commands (create/update payloads, malformed commands, or a value
+        that is not a command list) — callers must then treat the value as
+        changed and let ``write()`` validate it.
+        """
+        if not isinstance(value, (list, tuple)):
+            return None
+        target_ids = set(current_ids)
+        for command in value:
+            match command:
+                case int() if not isinstance(command, bool):
+                    # bare id: linked to the relation (ORM shorthand)
+                    target_ids.add(command)
+                case [fields.Command.CREATE, *_] | [fields.Command.UPDATE, *_]:
+                    # creates new records / mutates a related record: the
+                    # resulting relation cannot be compared statically
+                    return None
+                case [fields.Command.DELETE, int() as res_id, *_] | [
+                    fields.Command.UNLINK,
+                    int() as res_id,
+                    *_,
+                ]:
+                    target_ids.discard(res_id)
+                case [fields.Command.LINK, int() as res_id, *_]:
+                    target_ids.add(res_id)
+                case [fields.Command.CLEAR, *_]:
+                    target_ids = set()
+                case [fields.Command.SET, _, [*res_ids]]:
+                    target_ids = set(res_ids)
+                case _:
+                    return None
+        return target_ids

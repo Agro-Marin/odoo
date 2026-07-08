@@ -1,4 +1,5 @@
 from odoo.exceptions import AccessError
+from odoo.fields import Command
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 
@@ -59,4 +60,130 @@ class TestResUsersSettingsOwnership(TransactionCase):
             self.settings_a.user_id,
             self.user_a,
             "user_id must not be rewritable via set_res_users_settings (RUSET-L2)",
+        )
+
+
+class TestResUsersSettingsChangeDetection(TransactionCase):
+    """Per-field-type change detection of set_res_users_settings (RUSET-P1).
+
+    The old detection did ``current_value = current_value.id`` for every
+    relational value: it raised "Expected singleton" for multi-record x2many
+    values and always reported "changed" when comparing a command payload to a
+    scalar id. Change detection now branches on the field type: many2one
+    compares ids, x2many compares the id-set resulting from the incoming
+    commands (statically normalized by `_x2many_command_target_ids`).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user_a = new_test_user(cls.env, login="rusetcd_a", groups="base.group_user")
+        cls.user_b = new_test_user(cls.env, login="rusetcd_b", groups="base.group_user")
+        cls.settings_a = cls.env["res.users.settings"]._find_or_create_for_user(
+            cls.user_a
+        )
+
+    def test_x2many_command_target_ids_static_commands(self):
+        normalize = self.env["res.users.settings"]._x2many_command_target_ids
+        current = {1, 2}
+        self.assertEqual(normalize(current, [Command.set([2, 1])]), {1, 2})
+        self.assertEqual(normalize(current, [Command.set([3])]), {3})
+        self.assertEqual(normalize(current, [Command.set([])]), set())
+        self.assertEqual(normalize(current, [Command.link(2)]), {1, 2})
+        self.assertEqual(normalize(current, [Command.link(3)]), {1, 2, 3})
+        self.assertEqual(normalize(current, [Command.unlink(2)]), {1})
+        self.assertEqual(normalize(current, [Command.delete(2)]), {1})
+        self.assertEqual(normalize(current, [Command.clear()]), set())
+        self.assertEqual(normalize(current, [Command.clear(), Command.link(5)]), {5})
+        self.assertEqual(normalize(current, [3, 4]), {1, 2, 3, 4})
+        self.assertEqual(normalize(current, []), {1, 2})
+        # The input id-set must never be mutated in place.
+        self.assertEqual(current, {1, 2})
+
+    def test_x2many_command_target_ids_dynamic_or_malformed(self):
+        normalize = self.env["res.users.settings"]._x2many_command_target_ids
+        current = {1, 2}
+        # create/update payloads cannot be resolved statically
+        self.assertIsNone(normalize(current, [Command.create({"name": "x"})]))
+        self.assertIsNone(normalize(current, [Command.update(1, {"name": "x"})]))
+        # non-command values / malformed commands must fall back to "changed"
+        self.assertIsNone(normalize(current, "nope"))
+        self.assertIsNone(normalize(current, 5))
+        self.assertIsNone(normalize(current, {1, 2}))
+        self.assertIsNone(normalize(current, [("bogus",)]))
+        self.assertIsNone(normalize(current, [(9, 1, 2)]))
+        self.assertIsNone(normalize(current, [True]))
+
+    def test_is_setting_changed_many2one_compares_ids(self):
+        settings = self.settings_a
+        self.assertFalse(settings._is_setting_changed("user_id", self.user_a.id))
+        self.assertTrue(settings._is_setting_changed("user_id", self.user_b.id))
+        self.assertTrue(settings._is_setting_changed("user_id", False))
+        # empty m2o: False and None both mean "no record" -> not a change
+        empty = self.env["res.users.settings"].new({})
+        self.assertFalse(empty._is_setting_changed("user_id", False))
+        self.assertFalse(empty._is_setting_changed("user_id", None))
+
+    def test_is_setting_changed_scalar(self):
+        settings = self.settings_a
+        self.assertFalse(
+            settings._is_setting_changed("display_name", settings.display_name)
+        )
+        self.assertTrue(settings._is_setting_changed("display_name", "something else"))
+
+
+@tagged("post_install", "-at_install")
+class TestResUsersSettingsWriteOnlyChanges(TransactionCase):
+    """Integration check of the "only write actual changes" contract on real
+    fields contributed by installed modules (base itself only declares the
+    protected ``user_id``): re-submitting the current value of a writable
+    x2many (resp. many2one) field must not report it as changed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = new_test_user(cls.env, login="rusetwoc", groups="base.group_user")
+        cls.settings = cls.env["res.users.settings"]._find_or_create_for_user(cls.user)
+
+    def _find_writable_field(self, types):
+        Settings = self.env["res.users.settings"]
+        return next(
+            (
+                name
+                for name, field in Settings._fields.items()
+                if name not in Settings._PROTECTED_SETTINGS_FIELDS
+                and field.type in types
+                and field.store
+                and not (field.compute and not field.inverse)
+            ),
+            None,
+        )
+
+    def test_unchanged_x2many_is_not_written(self):
+        fname = self._find_writable_field(("many2many", "one2many"))
+        if not fname:
+            self.skipTest("no writable x2many field on res.users.settings")
+        settings = self.settings.with_user(self.user)
+        current_ids = settings[fname].ids
+        # old code compared the command payload to a scalar id (raising
+        # "Expected singleton" on multi-record values): a same-ids SET
+        # command must be detected as "no change"
+        res = settings.set_res_users_settings({fname: [Command.set(current_ids)]})
+        self.assertEqual(
+            set(res.keys()),
+            {"id"},
+            f"re-submitting the current value of {fname} must not be a change",
+        )
+
+    def test_unchanged_many2one_is_not_written(self):
+        fname = self._find_writable_field(("many2one",))
+        if not fname:
+            self.skipTest("no writable many2one field on res.users.settings")
+        settings = self.settings.with_user(self.user)
+        res = settings.set_res_users_settings({fname: settings[fname].id})
+        self.assertEqual(
+            set(res.keys()),
+            {"id"},
+            f"re-submitting the current value of {fname} must not be a change",
         )
