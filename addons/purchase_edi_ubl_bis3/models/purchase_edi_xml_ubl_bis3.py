@@ -90,7 +90,7 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         purchase_order = vals['purchase_order']
         AccountTax = self.env['account.tax']
 
-        base_lines = [line._prepare_base_line_for_taxes_computation() for line in purchase_order.order_line.filtered(lambda line: not line.display_type)]
+        base_lines = [line._prepare_base_line_for_taxes_computation() for line in purchase_order.line_ids.filtered(lambda line: not line.display_type)]
         AccountTax._add_tax_details_in_base_lines(base_lines, purchase_order.company_id)
         AccountTax._round_base_lines_tax_details(base_lines, purchase_order.company_id)
 
@@ -113,7 +113,7 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
             'cbc:ID': {'_text': purchase_order.name},
             'cbc:IssueDate': {'_text': purchase_order.create_date.date()},
             'cbc:OrderTypeCode': {'_text': '105'},
-            'cbc:Note': {'_text': html2plaintext(purchase_order.note)} if purchase_order.note else None,
+            'cbc:Note': {'_text': html2plaintext(purchase_order.notes)} if purchase_order.notes else None,
             'cbc:DocumentCurrencyCode': {'_text': vals['currency_name']},
             'cac:QuotationDocumentReference': {
                 'cbc:ID': {'_text': purchase_order.partner_ref}
@@ -370,7 +370,7 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         lines_vals += allowance_charges_line_vals
 
         # Update order with lines excluding discounts
-        order_vals['order_line'] = [Command.create(line_vals) for line_vals in lines_vals]
+        order_vals['line_ids'] = [Command.create(line_vals) for line_vals in lines_vals]
         logs += partner_logs + delivery_logs + line_logs + allowance_charges_logs
 
         return order_vals, logs

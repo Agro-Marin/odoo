@@ -79,6 +79,9 @@
       </cac:Contact>
     </cac:DeliveryParty>
   </cac:Delivery>
+  <cac:PaymentTerms>
+    <cbc:Note>Immediate Payment</cbc:Note>
+  </cac:PaymentTerms>
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="USD">69.00</cbc:TaxAmount>
     <cac:TaxSubtotal>

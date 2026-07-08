@@ -27,13 +27,13 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
             'partner_id': cls.partner_open_wood.id,
             'date_order': fields.Date.today(),
             'name': 'test_purchase_order',
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': cls.product.id,
                 'name': cls.product.name,
                 'product_qty': 1.0,
             })],
         })
-        cls.purchase_order.button_confirm()
+        cls.purchase_order.action_confirm()
 
     def _create_bill_from_xml(self, xml_file_path):
         file_path = f"{self.test_module}/tests/test_files/{xml_file_path}"
@@ -59,7 +59,7 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         self.assertEqual(bill.invoice_origin, self.purchase_order.name)
         # Checks if all lines referencing a PO reference the PO we created in setup.
         # The 'or [False]' makes sure that there's at least one line referencing a PO.
-        self.assertTrue(all([line.purchase_order_id == self.purchase_order for line in bill.line_ids if line.purchase_order_id] or [False]))
+        self.assertTrue(all([line.purchase_line_ids.order_id == self.purchase_order for line in bill.line_ids if line.purchase_line_ids.order_id] or [False]))
 
     def test_import_purchase_order_reference_from_lines_description(self):
         """
@@ -70,7 +70,7 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         self.assertEqual(bill.invoice_origin, self.purchase_order.name)
         # Checks if all lines referencing a PO reference the PO we created in setup.
         # The 'or [False]' makes sure that there's at least one line referencing a PO.
-        self.assertTrue(all([line.purchase_order_id == self.purchase_order for line in bill.line_ids if line.purchase_order_id] or [False]))
+        self.assertTrue(all([line.purchase_line_ids.order_id == self.purchase_order for line in bill.line_ids if line.purchase_line_ids.order_id] or [False]))
 
     def test_multiple_purchase_order_references(self):
         """
@@ -89,7 +89,7 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         })
         bill._link_bill_origin_to_purchase_orders()
         self.assertEqual(bill.invoice_origin, 'test_purchase_order')
-        self.assertTrue(all(line.purchase_order_id == self.purchase_order for line in bill.line_ids if line.purchase_order_id))
+        self.assertTrue(all(line.purchase_line_ids.order_id == self.purchase_order for line in bill.line_ids if line.purchase_line_ids.order_id))
 
         # Test without ref
         bill_2 = self.env['account.move'].create({
@@ -103,4 +103,4 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         })
         bill_2._link_bill_origin_to_purchase_orders()
         self.assertFalse(bill_2.invoice_origin)
-        self.assertTrue(all(not line.purchase_order_id for line in bill_2.line_ids))
+        self.assertTrue(all(not line.purchase_line_ids.order_id for line in bill_2.line_ids))

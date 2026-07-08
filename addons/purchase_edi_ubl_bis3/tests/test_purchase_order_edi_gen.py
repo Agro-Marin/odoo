@@ -17,7 +17,7 @@ class TestPurchaseOrderEDIGen(AccountTestInvoicingCommon):
             'name': 'My PO',
             'partner_id': self.partner_a.id,
             'partner_ref': 'SO/1234',
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'product_id': self.product_a.id,
                     'name': 'Product A description',
@@ -34,7 +34,7 @@ class TestPurchaseOrderEDIGen(AccountTestInvoicingCommon):
             ],
         })
 
-        po.button_confirm()
+        po.action_confirm()
 
         file_content = self.env['purchase.edi.xml.ubl_bis3']._export_order(po)
         generated_xml = etree.fromstring(file_content)
