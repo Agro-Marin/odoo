@@ -8,7 +8,9 @@ import { useProductAndLabelAutoresize } from "./product_and_label_autoresize.js"
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import { useInputField } from "@web/fields/input_field_hook";
 
-export const ProductNameAndDescriptionListRendererMixin = {
+// Factory: patch() mutates its extension to build the `super` chain, so each
+// list renderer it is applied to needs its own fresh object.
+export const ProductNameAndDescriptionListRendererMixin = () => ({
     getCellTitle(column, record) {
         // When using this list renderer, we don't want the product_id cell to have a tooltip with its label.
         if (this.productColumns.includes(column.name)) {
@@ -36,7 +38,7 @@ export const ProductNameAndDescriptionListRendererMixin = {
 
         return activeColumns;
     }
-};
+});
 
 export class ProductNameAndDescriptionField extends Component {
     static components = { Many2One };
