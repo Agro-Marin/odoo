@@ -269,8 +269,11 @@ ignore = [
 # alternation branch); a raw `\x20` would instead match a space and change matching.
 "odoo/libs/filesystem/mimetypes.py" = ["RUF039"]
 
-# __init__.py: Re-exports are the whole point; import ORDER is model load order in Odoo
-"**/__init__.py" = ["F401", "F403", "I001"]
+# __init__.py: Re-exports are the whole point; import ORDER is model load order in Odoo.
+# E402 (import-not-at-top): module __init__.py deliberately defines post-init hooks and
+# helper functions before the `from . import ...` re-exports to avoid dependency cycles
+# (the documented `# pylint: disable=wrong-import-position` pattern, e.g. account/portal).
+"**/__init__.py" = ["F401", "F403", "I001", "E402"]
 
 # Tests: More permissive
 "**/tests/**" = [

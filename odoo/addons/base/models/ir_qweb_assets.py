@@ -2261,13 +2261,19 @@ class IrQweb(models.AbstractModel):
         ``/web/bundle`` lazy-load route) persist without relying on the
         http layer's whole-request read-write retry.
 
-        Test mode writes on the request cursor instead (the
-        pre-refactor behavior): rollback-safety is meaningless inside a
-        test transaction, and while an HttpCase's registry cursor is a
-        TestCursor sharing the test transaction, a plain
-        TransactionCase's ``registry.cursor()`` opens a REAL cursor
-        whose out-of-band commit is invisible to the test's snapshot
-        and leaks rows past the test rollback.
+        Test mode — and any render with no active HTTP request (registry
+        preload / asset pregeneration, cron, CLI) — writes on the current
+        cursor instead (the pre-refactor behavior): rollback-safety is
+        meaningless when there is no request transaction to protect, and a
+        second REAL ``registry.cursor()`` there would deadlock against the
+        ir_attachment locks this same thread already holds on the current
+        cursor (a one-thread, two-cursor cycle — see
+        ``BridgeShimManager._persist_bridge_shims``).  For tests this also
+        matters because, while an HttpCase's registry cursor is a
+        TestCursor sharing the test transaction, a plain TransactionCase's
+        ``registry.cursor()`` opens a REAL cursor whose out-of-band commit
+        is invisible to the test's snapshot and leaks rows past the test
+        rollback.
 
         The attachments are content-addressed and idempotent, so the
         out-of-band commit is safe; a concurrent worker doing the same
@@ -2285,7 +2291,7 @@ class IrQweb(models.AbstractModel):
             rows; see the reuse branches of the two savers).  Best-effort:
             a failed touch only shortens GC protection, never the render.
         """
-        if _module.current_test:
+        if _module.current_test or not request:
             if vals_list:
                 if self.env.cr.readonly:
                     # Raise WITHOUT executing the doomed INSERT: a failed

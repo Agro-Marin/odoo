@@ -121,18 +121,31 @@ def float_round(
     # `2**(epsilon_magnitude - 52)` would be the minimal size, but we increase it to be
     # more tolerant of inaccuracies accumulated after multiple floating point operations
     epsilon = 2 ** (epsilon_magnitude - 50)
+    # For the "nearest" (HALF-*) methods, `epsilon` is nudged toward the .5 tie
+    # boundary only to rescue a value pushed just under a genuine tie by IEEE-754
+    # representation error. Being magnitude-relative (~4 ulp of normalized_value),
+    # it grows past .5 once normalized_value is large (its ulp approaches and
+    # exceeds 1), and then spuriously flips a clean value to the next integer:
+    # e.g. float_round(1e13, precision_rounding=0.01) gave 10000000000000.01. Cap it
+    # below the boundary (keeping ~2 ulp of clearance, `0.5 - epsilon / 2`, which
+    # stays >= a few ulp where the ulp is fine and reaches 0 once normalized_value
+    # has no representable fractional part) so the nudge can only ever rescue values
+    # already within representation error of a tie, never cross a boundary. The
+    # truncating UP/DOWN methods keep the un-capped `epsilon`: there it measures
+    # proximity-to-integer and must track the ulp to leave exact integers intact.
+    half_epsilon = max(0.0, min(epsilon, 0.5 - epsilon / 2))
 
     # if/elif — match/case replaced for broader C-extension compatibility
     if rounding_method == "HALF-UP":  # 0.5 rounds away from 0
-        result = round(normalized_value + math.copysign(epsilon, normalized_value))
+        result = round(normalized_value + math.copysign(half_epsilon, normalized_value))
     elif rounding_method == "HALF-EVEN":  # 0.5 rounds towards closest even number
         integral = math.floor(normalized_value)
         remainder = abs(normalized_value - integral)
-        is_half = abs(0.5 - remainder) < epsilon
+        is_half = abs(0.5 - remainder) < half_epsilon
         # if is_half & integral is odd, add odd bit to make it even
         result = integral + (integral & 1) if is_half else round(normalized_value)
     elif rounding_method == "HALF-DOWN":  # 0.5 rounds towards 0
-        result = round(normalized_value - math.copysign(epsilon, normalized_value))
+        result = round(normalized_value - math.copysign(half_epsilon, normalized_value))
     elif rounding_method == "UP":  # round to number furthest from zero
         result = float(
             math.trunc(normalized_value + math.copysign(1 - epsilon, normalized_value))

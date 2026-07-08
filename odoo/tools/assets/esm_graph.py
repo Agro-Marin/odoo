@@ -249,6 +249,16 @@ _IMPORT_ANY_RE = re.compile(
     r"import(?:"
     r"\s*(?P<named>\{[^}]+\})\s*"
     r"|\s*(?P<star>\*\s*as\s+\w+)\s+"
+    # Mixed default+named / default+namespace: ``import D, { y } from …`` and
+    # ``import D, * as ns from …``.  Only valid in that order (default first).
+    # Discovery-only: this branch has no dedicated ``kind`` so the consumer
+    # treats it as a named import, and the shim emits the default block
+    # unconditionally plus every named export of the source, so BOTH the
+    # default and the named bindings resolve.  Without it a dynamic child
+    # that mixed-imports a parent specifier would never bridge it and fail at
+    # runtime with "Failed to resolve module specifier" when the es-module-
+    # lexer worker is unavailable (the worker already handles this shape).
+    r"|\s+(?P<mixed>\w+\s*,\s*(?:\{[^}]+\}|\*\s*as\s+\w+))\s*"
     r"|\s+(?P<default>\w+)\s+"
     r")from\s*"
     r"""["'](?P<spec>@[^"']+)["']"""
