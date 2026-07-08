@@ -709,3 +709,29 @@ class TestIrExportsLineAcl(TransactionCaseWithUserDemo):
         self.assertEqual(line.name, "renamed")
         line.unlink()
         self.assertFalse(line.exists())
+
+
+class TestIrModelAccessUnknownModel(TransactionCaseWithUserDemo):
+    """check() on a non-existent model (IMA-C5).
+
+    A typo'd/unknown model name is a programming error: with
+    raise_exception=True check() raises a clear ValueError naming the model
+    instead of the generic AccessError. The lenient path is preserved for
+    raise_exception=False callers (ir.ui.menu / ir.actions probe models that
+    may not be loaded) and for the superuser fast-path.
+    """
+
+    def test_unknown_model_raises_clear_error(self):
+        Access = self.env["ir.model.access"].with_user(self.user_demo)
+        with self.assertRaises(ValueError) as capture:
+            Access.check("no.such.model")
+        self.assertIn("no.such.model", str(capture.exception))
+
+    @mute_logger("odoo.addons.base.models.ir_model_access")
+    def test_unknown_model_lenient_path_returns_false(self):
+        Access = self.env["ir.model.access"].with_user(self.user_demo)
+        self.assertFalse(Access.check("no.such.model", raise_exception=False))
+
+    def test_unknown_model_superuser_short_circuit(self):
+        # env.su returns True before any model lookup, as before
+        self.assertTrue(self.env["ir.model.access"].sudo().check("no.such.model"))
