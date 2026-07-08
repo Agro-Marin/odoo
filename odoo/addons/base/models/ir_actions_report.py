@@ -44,11 +44,7 @@ from odoo.tools import config, is_html_empty
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter, PdfReadError
 from odoo.tools.safe_eval import safe_eval, time
 
-from odoo.addons.base.models.report_paperformat import PAPER_SIZES
-
-# O(1) lookup for paperformat mm dimensions, keyed by format name. Replaces a
-# per-render linear scan of PAPER_SIZES in _paperformat_to_css.
-_PAPER_SIZE_BY_KEY = {p["key"]: p for p in PAPER_SIZES}
+from odoo.addons.base.models.report_paperformat import PAPER_SIZE_BY_KEY
 
 # Hostnames that always resolve to this Odoo instance. Reports referencing the
 # server by a loopback IP (not just "localhost") must use the in-process
@@ -1470,7 +1466,7 @@ class IrActionsReport(models.Model):
             if fmt in self._WEASYPRINT_PAGE_SIZES:
                 size_css = f"{fmt} {orientation}"
             else:
-                ps = _PAPER_SIZE_BY_KEY.get(paperformat_id.format)
+                ps = PAPER_SIZE_BY_KEY.get(paperformat_id.format)
                 if ps:
                     size_css = f"{ps['width']}mm {ps['height']}mm"
                     if orientation == "landscape":
