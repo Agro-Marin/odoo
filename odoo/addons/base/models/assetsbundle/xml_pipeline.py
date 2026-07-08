@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 import textwrap
 from copy import deepcopy
@@ -89,8 +87,9 @@ class XmlTemplatePipeline:
                             "extensions": {},
                         }
                         blocks.append(block)
-                    block["extensions"].setdefault(inherit_from, [])
-                    block["extensions"][inherit_from].append((template_tree, asset.url))
+                    block["extensions"].setdefault(inherit_from, []).append(
+                        (template_tree, asset.url)
+                    )
                 elif template_name:
                     if block is None or block["type"] != "templates":
                         block = {"type": "templates", "templates": []}

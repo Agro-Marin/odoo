@@ -492,7 +492,9 @@ class TestBacktickMinification(TransactionCase):
         fallback would not be exercised.
         """
         src = "window.testRaw = `outer ${`in  ner`} end`;\nvar    spaced = 1;\n"
-        with patch("odoo.addons.base.models.assetsbundle.assets.minify_js", return_value=None):
+        with patch(
+            "odoo.addons.base.models.assetsbundle.assets.minify_js", return_value=None
+        ):
             bundle = AssetsBundle(
                 f"{self.BUNDLE}_fallback",
                 [_file("/test_assetsbundle/static/src/fallback.js", src)],
@@ -639,9 +641,7 @@ class TestCssVersionStability(TransactionCase):
                 "test_assetsbundle.cssorder", files, env=self.env, js=False
             )
             bundle_b.preprocess_css()
-            self.assertEqual(
-                len(bundle_b.stylesheets), 1, "source list not mutated"
-            )
+            self.assertEqual(len(bundle_b.stylesheets), 1, "source list not mutated")
             self.assertEqual(
                 bundle_b.get_version("css"),
                 version_first,
@@ -661,7 +661,9 @@ class TestBridgeHashWidth(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ):
-            urls = bundle._bridges._persist_bridge_shims({"@web/test_hash": "export default 1;"})
+            urls = bundle._bridges._persist_bridge_shims(
+                {"@web/test_hash": "export default 1;"}
+            )
         basename = urls["@web/test_hash"].rsplit("/", 1)[-1]
         self.assertRegex(basename, r"^[0-9a-f]{32}\.js$")
 
@@ -682,7 +684,9 @@ class TestBridgeReadonlyEscalation(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ) as escalate:
-            urls = bundle._bridges._persist_bridge_shims({"@web/ro_test": "export default 1;"})
+            urls = bundle._bridges._persist_bridge_shims(
+                {"@web/ro_test": "export default 1;"}
+            )
         escalate.assert_called_once()
         (to_create,) = escalate.call_args.args
         self.assertEqual(len(to_create), 1)
@@ -694,7 +698,9 @@ class TestBridgeReadonlyEscalation(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=False
         ) as escalate:
-            urls = bundle._bridges._persist_bridge_shims({"@web/ro_test2": "export default 2;"})
+            urls = bundle._bridges._persist_bridge_shims(
+                {"@web/ro_test2": "export default 2;"}
+            )
         escalate.assert_called_once()
         self.assertTrue(urls["@web/ro_test2"].startswith("data:text/javascript"))
 
@@ -792,7 +798,9 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ) as escalate:
-            urls = bundle._bridges._persist_bridge_shims({"@web/decoupled": "export const decoupled = 1;"})
+            urls = bundle._bridges._persist_bridge_shims(
+                {"@web/decoupled": "export const decoupled = 1;"}
+            )
         escalate.assert_called_once()
         url = urls["@web/decoupled"]
         self.assertTrue(
@@ -808,7 +816,9 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=False
         ):
-            urls = bundle._bridges._persist_bridge_shims({"@web/degraded": "export const degraded = 2;"})
+            urls = bundle._bridges._persist_bridge_shims(
+                {"@web/degraded": "export const degraded = 2;"}
+            )
         self.assertTrue(
             urls["@web/degraded"].startswith("data:text/javascript"),
             "data: URIs are reserved for a genuinely unwritable primary",
@@ -834,7 +844,7 @@ class TestXmlBundleUrlEscaping(TransactionCase):
         bundle = AssetsBundle(
             "test_assetsbundle.urlesc", files, env=self.env, css=False, js=True
         )
-        js = bundle._xmltemplates.generate_xml_bundle()
+        js = bundle._xml.generate_xml_bundle()
         # The template body stays a backtick literal and is escaped...
         self.assertIn(r"\${body}", js)
         # ...and the URL is now a JSON-quoted string argument: its backtick
@@ -1590,7 +1600,9 @@ class TestRtlTransformOutput(TransactionCase):
             rtl=True,
         )
         out = bundle.css().raw.decode()
-        self.assertFalse(bundle.css_errors, f"unexpected css_errors: {bundle.css_errors}")
+        self.assertFalse(
+            bundle.css_errors, f"unexpected css_errors: {bundle.css_errors}"
+        )
         self.assertIn("padding-right", out, "padding-left must flip to padding-right")
         self.assertNotIn("padding-left", out)
         self.assertIn("margin-left", out, "margin-right must flip to margin-left")
@@ -1653,9 +1665,7 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
             with reg.cursor() as cr:
                 cr.execute("SET lock_timeout = '3000ms'")
                 env = api.Environment(cr, SUPERUSER_ID, {})
-                store = AssetsBundle(
-                    "test_assetsbundle.skiplock", [], env=env
-                )._store
+                store = AssetsBundle("test_assetsbundle.skiplock", [], env=env)._store
                 attachments = env["ir.attachment"].browse(ids)
                 with patch.object(IrAttachment, "_file_delete") as file_delete:
                     store._unlink_attachments(attachments)
@@ -1669,9 +1679,7 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
                 "only the row SKIP LOCKED actually deleted may be filestore-marked",
             )
             with reg.cursor() as cr:
-                cr.execute(
-                    "SELECT id FROM ir_attachment WHERE id = ANY(%s)", (ids,)
-                )
+                cr.execute("SELECT id FROM ir_attachment WHERE id = ANY(%s)", (ids,))
                 survivors = {r[0] for r in cr.fetchall()}
             self.assertEqual(
                 survivors, {locked_id}, "the locked row must survive SKIP LOCKED"
