@@ -2,8 +2,8 @@ import ast
 import re
 from collections import defaultdict
 
-from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError, UserError
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 
 FIGURE_TYPE_SELECTION_VALUES = [
@@ -31,12 +31,48 @@ ACCOUNT_CODES_ENGINE_TERM_REGEX = re.compile(
 number_regex = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 report_line_code_regex = r"[+-]?[\s(]*[^().\s*/+\-]+\.[^().\s*/+\-]+"
 operator_regex = r"[\s*/+\-]"
-hard_formulas = ["sum_children"]
+HARD_FORMULAS = ["sum_children"]
 AGGREGATION_ENGINE_FORMULA_REGEX = re.compile(
-    f"{'|'.join(hard_formulas)}|"
+    f"{'|'.join(HARD_FORMULAS)}|"
     rf"[\s(]*(?:{number_regex}|{report_line_code_regex})[\s)]*"
     rf"(?:{operator_regex}[\s(]*(?:{number_regex}|{report_line_code_regex})[\s)]*)*"
 )
+
+# Engines whose computed values can be audited (drilled down to their journal items).
+AUDITABLE_ENGINES = frozenset(
+    {"tax_tags", "domain", "account_codes", "external", "aggregation"}
+)
+
+# Dependencies shared by every report-option-filter field (see _report_option_filter_field).
+_REPORT_OPTION_FILTER_DEPENDS = ["root_report_id", "section_main_report_ids"]
+
+
+def _report_option_filter_field(
+    field_type, field_name, string, default=False, **kwargs
+):
+    """Declare a report-option-filter field.
+
+    Every such field behaves identically: it is stored, user-overridable, precomputed,
+    and its value is inherited from the root report (for a variant) or the parent
+    composite report (for a section), falling back to ``default`` otherwise. The actual
+    logic lives in :meth:`AccountReport._compute_report_option_filter`; this factory only
+    removes the boilerplate that would otherwise be duplicated on each of these fields.
+
+    :param field_type: the ``fields.*`` class to instantiate (e.g. ``fields.Boolean``).
+    :param field_name: the field's own name; used by the compute to know what to inherit.
+    :param default: fallback value when nothing is inherited.
+    """
+    return field_type(
+        string=string,
+        compute=lambda records: records._compute_report_option_filter(
+            field_name, default
+        ),
+        precompute=True,
+        readonly=False,
+        store=True,
+        depends=list(_REPORT_OPTION_FILTER_DEPENDS),
+        **kwargs,
+    )
 
 
 class AccountReport(models.Model):
@@ -92,13 +128,8 @@ class AccountReport(models.Model):
         ]._select_chart_template(),
     )
     country_id = fields.Many2one(string="Country", comodel_name="res.country")
-    only_tax_exigible = fields.Boolean(
-        string="Only Tax Exigible Lines",
-        compute=lambda x: x._compute_report_option_filter("only_tax_exigible"),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    only_tax_exigible = _report_option_filter_field(
+        fields.Boolean, "only_tax_exigible", "Only Tax Exigible Lines"
     )
     availability_condition = fields.Selection(
         string="Availability",
@@ -120,17 +151,15 @@ class AccountReport(models.Model):
         string="Integer Rounding",
         selection=[("HALF-UP", "Nearest"), ("UP", "Up"), ("DOWN", "Down")],
     )
-    allow_foreign_vat = fields.Boolean(
-        string="Allow Foreign VAT",
-        compute=lambda x: x._compute_report_option_filter("allow_foreign_vat"),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    allow_foreign_vat = _report_option_filter_field(
+        fields.Boolean, "allow_foreign_vat", "Allow Foreign VAT"
     )
 
-    default_opening_date_filter = fields.Selection(
-        string="Default Opening",
+    default_opening_date_filter = _report_option_filter_field(
+        fields.Selection,
+        "default_opening_date_filter",
+        "Default Opening",
+        default="previous_month",
         selection=[
             ("this_year", "This Year"),
             ("this_quarter", "This Quarter"),
@@ -142,186 +171,102 @@ class AccountReport(models.Model):
             ("this_return_period", "This Return Period"),
             ("previous_return_period", "Last Return Period"),
         ],
-        compute=lambda x: x._compute_report_option_filter(
-            "default_opening_date_filter", "previous_month"
-        ),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
 
-    currency_translation = fields.Selection(
-        string="Currency Translation",
+    currency_translation = _report_option_filter_field(
+        fields.Selection,
+        "currency_translation",
+        "Currency Translation",
+        default="cta",
         selection=[
             ("current", "Use the most recent rate at the date of the report"),
             ("cta", "Use CTA"),
         ],
-        compute=lambda x: x._compute_report_option_filter(
-            "currency_translation", "cta"
-        ),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
 
     #  FILTERS =======================================================================================================================================
     # Those fields control the display of menus on the report
 
-    filter_multi_company = fields.Selection(
-        string="Multi-Company",
+    filter_multi_company = _report_option_filter_field(
+        fields.Selection,
+        "filter_multi_company",
+        "Multi-Company",
+        default="selector",
         selection=[
             ("selector", "Use Company Selector"),
             ("tax_units", "Use Tax Units"),
         ],
-        compute=lambda x: x._compute_report_option_filter(
-            "filter_multi_company", "selector"
-        ),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
-    filter_date_range = fields.Boolean(
-        string="Date Range",
-        compute=lambda x: x._compute_report_option_filter("filter_date_range", True),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_date_range = _report_option_filter_field(
+        fields.Boolean, "filter_date_range", "Date Range", default=True
     )
-    filter_show_draft = fields.Boolean(
-        string="Draft Entries",
-        compute=lambda x: x._compute_report_option_filter("filter_show_draft", True),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_show_draft = _report_option_filter_field(
+        fields.Boolean, "filter_show_draft", "Draft Entries", default=True
     )
-    filter_unreconciled = fields.Boolean(
-        string="Unreconciled Entries",
-        compute=lambda x: x._compute_report_option_filter("filter_unreconciled", False),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_unreconciled = _report_option_filter_field(
+        fields.Boolean, "filter_unreconciled", "Unreconciled Entries", default=False
     )
-    filter_unfold_all = fields.Boolean(
-        string="Unfold All",
-        compute=lambda x: x._compute_report_option_filter("filter_unfold_all"),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_unfold_all = _report_option_filter_field(
+        fields.Boolean, "filter_unfold_all", "Unfold All"
     )
-    filter_hide_0_lines = fields.Selection(
-        string="Hide lines at 0",
+    filter_hide_0_lines = _report_option_filter_field(
+        fields.Selection,
+        "filter_hide_0_lines",
+        "Hide lines at 0",
+        default="optional",
         selection=[
             ("by_default", "Enabled by Default"),
             ("optional", "Optional"),
             ("never", "Never"),
         ],
-        compute=lambda x: x._compute_report_option_filter(
-            "filter_hide_0_lines", "optional"
-        ),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
-    filter_period_comparison = fields.Boolean(
-        string="Period Comparison",
-        compute=lambda x: x._compute_report_option_filter(
-            "filter_period_comparison", True
-        ),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_period_comparison = _report_option_filter_field(
+        fields.Boolean, "filter_period_comparison", "Period Comparison", default=True
     )
-    filter_growth_comparison = fields.Boolean(
-        string="Growth Comparison",
-        compute=lambda x: x._compute_report_option_filter(
-            "filter_growth_comparison", True
-        ),
-        precompute=True,
-        readonly=False,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_growth_comparison = _report_option_filter_field(
+        fields.Boolean, "filter_growth_comparison", "Growth Comparison", default=True
     )
-    filter_journals = fields.Boolean(
-        string="Journals",
-        compute=lambda x: x._compute_report_option_filter("filter_journals"),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_journals = _report_option_filter_field(
+        fields.Boolean, "filter_journals", "Journals"
     )
-    filter_analytic = fields.Boolean(
-        string="Analytic Filter",
-        compute=lambda x: x._compute_report_option_filter("filter_analytic"),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_analytic = _report_option_filter_field(
+        fields.Boolean, "filter_analytic", "Analytic Filter"
     )
-    filter_hierarchy = fields.Selection(
-        string="Account Groups",
+    filter_hierarchy = _report_option_filter_field(
+        fields.Selection,
+        "filter_hierarchy",
+        "Account Groups",
+        default="optional",
         selection=[
             ("by_default", "Enabled by Default"),
             ("optional", "Optional"),
             ("never", "Never"),
         ],
-        compute=lambda x: x._compute_report_option_filter(
-            "filter_hierarchy", "optional"
-        ),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
-    filter_account_type = fields.Selection(
-        string="Account Types",
+    filter_account_type = _report_option_filter_field(
+        fields.Selection,
+        "filter_account_type",
+        "Account Types",
+        default="disabled",
         selection=[
             ("both", "Payable and receivable"),
             ("payable", "Payable"),
             ("receivable", "Receivable"),
             ("disabled", "Disabled"),
         ],
-        compute=lambda x: x._compute_report_option_filter(
-            "filter_account_type", "disabled"
-        ),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
-    filter_partner = fields.Boolean(
-        string="Partners",
-        compute=lambda x: x._compute_report_option_filter("filter_partner"),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_partner = _report_option_filter_field(
+        fields.Boolean, "filter_partner", "Partners"
     )
-    filter_aml_ir_filters = fields.Boolean(
-        string="Favorite Filters",
+    filter_aml_ir_filters = _report_option_filter_field(
+        fields.Boolean,
+        "filter_aml_ir_filters",
+        "Favorite Filters",
         help="If activated, user-defined filters on journal items can be selected on this report",
-        compute=lambda x: x._compute_report_option_filter("filter_aml_ir_filters"),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
     )
 
-    filter_budgets = fields.Boolean(
-        string="Budgets",
-        compute=lambda x: x._compute_report_option_filter("filter_budgets"),
-        readonly=False,
-        precompute=True,
-        store=True,
-        depends=["root_report_id", "section_main_report_ids"],
+    filter_budgets = _report_option_filter_field(
+        fields.Boolean, "filter_budgets", "Budgets"
     )
 
     def _compute_report_option_filter(self, field_name, default_value=False):
@@ -329,15 +274,11 @@ class AccountReport(models.Model):
         # using it as their root (would create confusion). The root report filters are only used as some kind of default values.
         # When a report is a section, it can also get its default filter values from its parent composite report. This only happens when we're sure
         # the report is not used as a section of multiple reports, nor as a standalone report.
+        accessible_report_ids = self._get_accessible_report_ids()
         for report in self.sorted(lambda x: not x.section_report_ids):
-            # Reports are sorted in order to first treat the composite reports, in case they need to compute their filters a the same time
+            # Reports are sorted in order to first treat the composite reports, in case they need to compute their filters at the same time
             # as their sections
-            is_accessible = self.env["ir.actions.client"].search_count(
-                [
-                    ("context", "ilike", f"'report_id': {report.id}"),
-                    ("tag", "=", "account_report"),
-                ]
-            )
+            is_accessible = report.id in accessible_report_ids
             is_variant = bool(report.root_report_id)
             if (is_accessible or is_variant) and report.section_main_report_ids:
                 continue  # prevent updating the filters of a report when being added as a section of a report
@@ -347,6 +288,48 @@ class AccountReport(models.Model):
                 report[field_name] = report.section_main_report_ids[field_name]
             else:
                 report[field_name] = default_value
+
+    def _get_accessible_report_ids(self):
+        """Return the ids of the reports in ``self`` reachable through an ``account_report``
+        client action (i.e. exposed to users as standalone reports).
+
+        A client action references its report through a ``{'report_id': <id>}`` entry in
+        its serialized context. We match that entry with an explicit right delimiter
+        (``,`` or ``}``) so that, for instance, report ``5`` is not reported as accessible
+        because of an action targeting report ``50``: a bare ``ilike`` substring match
+        would wrongly collide on the shared ``5`` prefix.
+
+        Records not yet persisted (``NewId``) cannot be targeted by any stored action, so
+        they are never accessible and are excluded before searching -- which also means
+        no query is emitted while these fields are precomputed on ``create``.
+        """
+        needles_by_report_id = {
+            report.id: (
+                f"'report_id': {report.id},",
+                f"'report_id': {report.id}}}",
+            )
+            for report in self
+            if isinstance(report.id, int)
+        }
+        if not needles_by_report_id:
+            return set()
+
+        search_domain = Domain("tag", "=", "account_report") & Domain.OR(
+            [
+                Domain("context", "ilike", needle)
+                for needles in needles_by_report_id.values()
+                for needle in needles
+            ]
+        )
+        contexts = self.env["ir.actions.client"].search(search_domain).mapped("context")
+        return {
+            report_id
+            for report_id, (comma_needle, brace_needle) in needles_by_report_id.items()
+            if any(
+                comma_needle in (context or "") or brace_needle in (context or "")
+                for context in contexts
+            )
+        }
 
     @api.depends("root_report_id", "country_id")
     def _compute_default_availability_condition(self):
@@ -450,7 +433,7 @@ class AccountReport(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=report._get_copied_name())
-            for report, vals in zip(self, vals_list)
+            for report, vals in zip(self, vals_list, strict=True)
         ]
 
     def copy(self, default=None):
@@ -460,7 +443,7 @@ class AccountReport(models.Model):
         :return: The copied account.report record.
         """
         new_reports = super().copy(default=default)
-        for old_report, new_report in zip(self, new_reports):
+        for old_report, new_report in zip(self, new_reports, strict=True):
             code_mapping = {}
             for line in old_report.line_ids.filtered(lambda x: not x.parent_id):
                 line._copy_hierarchy(new_report, code_mapping=code_mapping)
@@ -468,27 +451,32 @@ class AccountReport(models.Model):
             # Replace line codes by their copy in aggregation formulas
             for expression in new_report.line_ids.expression_ids:
                 if expression.engine == "aggregation":
-                    copied_formula = f" {expression.formula} "  # Add spaces so that the lookahead/lookbehind of the regex can work (we can't do a | in those)
-                    for old_code, new_code in code_mapping.items():
-                        copied_formula = re.sub(
-                            f"(?<=\\W){old_code}(?=\\W)", new_code, copied_formula
-                        )
-                    expression.formula = (
-                        copied_formula.strip()
-                    )  # Remove the spaces introduced for lookahead/lookbehind
-                    # Repeat the same logic for the subformula, if it is set.
+                    expression.formula = self._replace_codes_in_formula(
+                        expression.formula, code_mapping
+                    )
                     if expression.subformula:
-                        copied_subformula = f" {expression.subformula} "
-                        for old_code, new_code in code_mapping.items():
-                            copied_subformula = re.sub(
-                                f"(?<=\\W){old_code}(?=\\W)",
-                                new_code,
-                                copied_subformula,
-                            )
-                        expression.subformula = copied_subformula.strip()
+                        expression.subformula = self._replace_codes_in_formula(
+                            expression.subformula, code_mapping
+                        )
 
             old_report.column_ids.copy({"report_id": new_report.id})
         return new_reports
+
+    @staticmethod
+    def _replace_codes_in_formula(formula, code_mapping):
+        """Return ``formula`` with each ``old_code`` replaced by its ``new_code``.
+
+        The formula is temporarily padded with spaces so that the word-boundary
+        lookbehind/lookahead also match codes sitting at the very start or end of the
+        formula (we can't rely on ``\\b`` because line codes may contain dots). Codes are
+        escaped so a code is matched literally rather than as a regular expression.
+        """
+        padded_formula = f" {formula} "
+        for old_code, new_code in code_mapping.items():
+            padded_formula = re.sub(
+                rf"(?<=\W){re.escape(old_code)}(?=\W)", new_code, padded_formula
+            )
+        return padded_formula.strip()
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_no_variant(self):
@@ -707,7 +695,7 @@ class AccountReportLine(models.Model):
             {
                 "report_id": copied_report.id,
                 "parent_id": parent and parent.id,
-                "code": self._get_copied_code(),
+                "code": self._get_copied_code(copied_report),
             }
         )
 
@@ -728,16 +716,24 @@ class AccountReportLine(models.Model):
             copy_defaults = {"report_line_id": copied_line.id}
             expression.copy(copy_defaults)
 
-    def _get_copied_code(self):
-        """Look for an unique copied code.
+    def _get_copied_code(self, target_report):
+        """Return a code for the copy of this line, unique within ``target_report``.
 
-        :return: an unique code for the copied account.report.line
+        Line codes only need to be unique per report (see the ``_code_uniq`` constraint),
+        so the uniqueness search is scoped to the report the copy will belong to rather
+        than the whole database. A global search would needlessly accumulate ``_COPY``
+        suffixes because of identical codes living in unrelated reports.
+
+        :param target_report: the report the copied line will belong to.
+        :return: a unique code for the copied account.report.line
         """
         self.ensure_one()
         if not self.code:
             return False
         code = self.code + "_COPY"
-        while self.search_count([("code", "=", code)]) > 0:
+        while self.search_count(
+            [("code", "=", code), ("report_id", "=", target_report.id)]
+        ):
             code += "_COPY"
         return code
 
@@ -917,26 +913,43 @@ class AccountReportExpression(models.Model):
     @api.constrains("carryover_target", "label")
     def _check_carryover_target(self):
         for expression in self:
-            if expression.carryover_target and not expression.label.startswith(
-                "_carryover_"
-            ):
+            if not expression.carryover_target:
+                continue
+            if not expression.label.startswith("_carryover_"):
                 raise UserError(
                     _(
                         "You cannot use the field carryover_target in an expression that does not have the label starting with _carryover_"
                     )
                 )
-            elif expression.carryover_target and not expression.carryover_target.split(
-                "."
-            )[1].startswith("_applied_carryover_"):
+            _line_code, target_label = expression._parse_carryover_target()
+            if not target_label.startswith("_applied_carryover_"):
                 raise UserError(
                     _(
                         "When targeting an expression for carryover, the label of that expression must start with _applied_carryover_"
                     )
                 )
 
+    def _parse_carryover_target(self):
+        """Split ``carryover_target`` into its ``(line_code, expression_label)`` parts.
+
+        :raise UserError: if the target is not of the form ``line_code.expression_label``.
+        """
+        self.ensure_one()
+        parts = self.carryover_target.split(".")
+        if len(parts) != 2 or not all(parts):
+            raise UserError(
+                _(
+                    "The carryover target of expression '%(label)s' must have the form "
+                    "'line_code.expression_label', but is '%(target)s'.",
+                    label=self.label,
+                    target=self.carryover_target,
+                )
+            )
+        return parts[0], parts[1]
+
     @api.constrains("formula")
     def _check_formula(self):
-        def raise_formula_error(expression):
+        def raise_formula_error(expression, cause=None):
             raise ValidationError(
                 self.env._(
                     "Invalid formula for expression '%(label)s' of line '%(line)s': %(formula)s",
@@ -944,15 +957,15 @@ class AccountReportExpression(models.Model):
                     line=expression.report_line_name,
                     formula=expression.formula,
                 )
-            )
+            ) from cause
 
         expressions_by_engine = self.grouped("engine")
         for expression in expressions_by_engine.get("domain", []):
             try:
                 domain = ast.literal_eval(expression.formula)
                 self.env["account.move.line"]._search(domain)
-            except:
-                raise_formula_error(expression)
+            except Exception as error:
+                raise_formula_error(expression, error)
 
         for expression in expressions_by_engine.get("account_codes", []):
             for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
@@ -993,7 +1006,7 @@ class AccountReportExpression(models.Model):
                 )
 
     def _get_auditable_engines(self):
-        return {"tax_tags", "domain", "account_codes", "external", "aggregation"}
+        return AUDITABLE_ENGINES
 
     def _strip_formula(self, vals):
         if "formula" in vals and isinstance(vals["formula"], str):
@@ -1004,9 +1017,7 @@ class AccountReportExpression(models.Model):
             tag_name, country.id
         )
         if not existing_tag:
-            tag_vals = self._get_tags_create_vals(
-                tag_name, country.id, existing_tag=existing_tag
-            )
+            tag_vals = self._get_tags_create_vals(tag_name, country.id)
             self.env["account.account.tag"].create(tag_vals)
 
     @api.model_create_multi
@@ -1027,7 +1038,6 @@ class AccountReportExpression(models.Model):
         return result
 
     def write(self, vals):
-
         self._strip_formula(vals)
 
         tax_tags_expressions = self.filtered(lambda x: x.engine == "tax_tags")
@@ -1056,7 +1066,7 @@ class AccountReportExpression(models.Model):
         ):
             return super().write(vals)
 
-        former_formulas_by_country = defaultdict(lambda: [])
+        former_formulas_by_country = defaultdict(list)
         for expr in tax_tags_expressions:
             former_formulas_by_country[expr.report_line_id.report_id.country_id].append(
                 expr.formula
@@ -1160,7 +1170,7 @@ class AccountReportExpression(models.Model):
             for candidate_expr in to_expand:
                 if candidate_expr.formula == "sum_children":
                     sub_expressions |= candidate_expr.report_line_id.children_ids.expression_ids.filtered(
-                        lambda e: e.label == candidate_expr.label
+                        lambda e, label=candidate_expr.label: e.label == label
                     )
                 else:
                     labels_by_code = candidate_expr._get_aggregation_terms_details()
@@ -1169,59 +1179,10 @@ class AccountReportExpression(models.Model):
                         candidate_expr.subformula
                         and candidate_expr.subformula.startswith("cross_report")
                     ):
-                        subformula_match = CROSS_REPORT_REGEX.match(
-                            candidate_expr.subformula
-                        )
-                        if not subformula_match:
-                            raise UserError(
-                                _(
-                                    "In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
-                                    "The format of the cross report expression is invalid. \n"
-                                    "Expected: cross_report(<report_id>|<xml_id>)"
-                                    "Example:  cross_report(my_module.my_report) or cross_report(123)",
-                                    report_name=candidate_expr.report_line_id.report_id.display_name,
-                                    line_name=candidate_expr.report_line_name,
-                                    label=candidate_expr.label,
-                                )
-                            )
-                        cross_report_value = subformula_match.groups()[0]
-                        try:
-                            report_id = int(cross_report_value)
-                        except ValueError:
-                            report_id = (
-                                report.id
-                                if (
-                                    report := self.env.ref(
-                                        cross_report_value, raise_if_not_found=False
-                                    )
-                                )
-                                else None
-                            )
-
-                        if not report_id:
-                            raise UserError(
-                                _(
-                                    "In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
-                                    "Failed to parse the cross report id or xml_id.\n",
-                                    report_name=candidate_expr.report_line_id.report_id.display_name,
-                                    line_name=candidate_expr.report_line_name,
-                                    label=candidate_expr.label,
-                                )
-                            )
-                        elif report_id == candidate_expr.report_line_id.report_id.id:
-                            raise UserError(_("You cannot use cross report on itself"))
-
-                        cross_report_domain = [
-                            ("report_line_id.report_id", "=", report_id)
-                        ]
+                        report_id = candidate_expr._get_cross_report_id()
                     else:
-                        cross_report_domain = [
-                            (
-                                "report_line_id.report_id",
-                                "=",
-                                candidate_expr.report_line_id.report_id.id,
-                            )
-                        ]
+                        report_id = candidate_expr.report_line_id.report_id.id
+                    cross_report_domain = [("report_line_id.report_id", "=", report_id)]
 
                     for line_code, expr_labels in labels_by_code.items():
                         dependency_domain = [
@@ -1236,11 +1197,54 @@ class AccountReportExpression(models.Model):
                 )
 
             to_expand = sub_expressions.filtered(
-                lambda x: x.engine == "aggregation" and x not in result
+                lambda x, seen=result: x.engine == "aggregation" and x not in seen
             )
             result |= sub_expressions
 
         return result
+
+    def _get_cross_report_id(self):
+        """Resolve the report targeted by a ``cross_report(<report_id>|<xml_id>)`` subformula.
+
+        :raise UserError: if the subformula is malformed, the target cannot be resolved,
+            or it points back to this expression's own report.
+        """
+        self.ensure_one()
+        error_context = {
+            "report_name": self.report_line_id.report_id.display_name,
+            "line_name": self.report_line_name,
+            "label": self.label,
+        }
+        subformula_match = CROSS_REPORT_REGEX.match(self.subformula or "")
+        if not subformula_match:
+            raise UserError(
+                _(
+                    "In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
+                    "The format of the cross report expression is invalid. \n"
+                    "Expected: cross_report(<report_id>|<xml_id>)"
+                    "Example:  cross_report(my_module.my_report) or cross_report(123)",
+                    **error_context,
+                )
+            )
+
+        cross_report_value = subformula_match.group(1)
+        try:
+            report_id = int(cross_report_value)
+        except ValueError:
+            target_report = self.env.ref(cross_report_value, raise_if_not_found=False)
+            report_id = target_report.id if target_report else None
+
+        if not report_id:
+            raise UserError(
+                _(
+                    "In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
+                    "Failed to parse the cross report id or xml_id.\n",
+                    **error_context,
+                )
+            )
+        if report_id == self.report_line_id.report_id.id:
+            raise UserError(_("You cannot use cross report on itself"))
+        return report_id
 
     def _get_aggregation_terms_details(self):
         """Computes the details of each aggregation expression in self, and returns them in the form of a single dict aggregating all the results.
@@ -1259,7 +1263,7 @@ class AccountReportExpression(models.Model):
                 )
 
             expression_terms = re.split(
-                "[-+/*]", re.sub(r"[\s()]", "", expression.formula)
+                r"[-+/*]", re.sub(r"[\s()]", "", expression.formula)
             )
             for term in expression_terms:
                 if term and not re.match(
@@ -1302,22 +1306,20 @@ class AccountReportExpression(models.Model):
         )
 
     @api.model
-    def _get_tags_create_vals(self, tag_name, country_id, existing_tag=None):
-        tag_vals = {
-            "name": tag_name.lstrip("-"),
-            "applicability": "taxes",
-            "country_id": country_id,
-        }
-        res = []
-        if not existing_tag:
-            res.append(tag_vals)
-        return res
+    def _get_tags_create_vals(self, tag_name, country_id):
+        return [
+            {
+                "name": tag_name.lstrip("-"),
+                "applicability": "taxes",
+                "country_id": country_id,
+            }
+        ]
 
     def _get_carryover_target_expression(self, options):
         self.ensure_one()
 
         if self.carryover_target:
-            line_code, expr_label = self.carryover_target.split(".")
+            line_code, expr_label = self._parse_carryover_target()
             return self.env["account.report.expression"].search(
                 [
                     ("report_line_id.code", "=", line_code),
@@ -1326,7 +1328,7 @@ class AccountReportExpression(models.Model):
                 ]
             )
 
-        main_expr_label = re.sub("^_carryover_", "", self.label)
+        main_expr_label = re.sub(r"^_carryover_", "", self.label)
         target_label = "_applied_carryover_%s" % main_expr_label
         auto_chosen_target = self.report_line_id.expression_ids.filtered(
             lambda x: x.label == target_label

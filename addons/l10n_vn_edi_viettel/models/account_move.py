@@ -520,7 +520,7 @@ class AccountMove(models.Model):
             self._check_fiscal_lock_dates()
             self.line_ids._check_tax_lock_date()
 
-            self.button_cancel()
+            self.action_cancel()
 
             self.message_post(
                 body=_('The invoice has been canceled for reason: %(reason)s', reason=reason),
@@ -534,13 +534,13 @@ class AccountMove(models.Model):
         if self._can_commit():
             self.env.cr.commit()
 
-    def button_draft(self):
+    def action_draft(self):
         # EXTEND account
         # When going from canceled => draft, we ensure to clear the edi fields so that the invoice can be resent if required.
         cancelled_sinvoices = self.filtered(
             lambda i: i.country_code == 'VN' and i.l10n_vn_edi_invoice_state == 'canceled' and i.state == 'cancel'
         )
-        res = super().button_draft()
+        res = super().action_draft()
         cancelled_sinvoices.write({
             'l10n_vn_edi_invoice_transaction_id': False,
             'l10n_vn_edi_invoice_number': False,

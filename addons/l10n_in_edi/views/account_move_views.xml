@@ -30,7 +30,7 @@
                     </div>
                 </div>
             </xpath>
-            <xpath expr="//button[@name='button_draft']" position="after">
+            <xpath expr="//button[@name='action_draft']" position="after">
                 <button name="action_export_l10n_in_edi_content_json"
                         type="object"
                         class="btn-secondary"

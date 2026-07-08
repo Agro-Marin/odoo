@@ -1,13 +1,14 @@
 import logging
 import re
-
 from collections import defaultdict
+
 from psycopg import errors as pgerrors
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, unique
+
 from odoo.addons.account.models.account_move import BYPASS_LOCK_CHECK
 from odoo.addons.base_vat.models.res_partner import _ref_vat
 
@@ -135,16 +136,25 @@ class AccountFiscalPosition(models.Model):
             ):
                 fiscal_position.foreign_vat_header_mode = False
             else:
-                template_code = self.env[
-                    "account.chart.template"
-                ]._guess_chart_template(fiscal_position.country_id)
-                template = self.env[
-                    "account.chart.template"
-                ]._get_chart_template_mapping()[template_code]
+                template = self._get_foreign_tax_chart_template(
+                    fiscal_position.country_id
+                )
                 # 'no_template' kept for compatibility in stable. To remove in master
                 fiscal_position.foreign_vat_header_mode = (
                     "templates_found" if template["installed"] else "no_template"
                 )
+
+    def _get_foreign_tax_chart_template(self, country):
+        """Return the chart-template mapping entry guessed for ``country``.
+
+        Single source of truth for the ``_guess_chart_template`` +
+        ``_get_chart_template_mapping`` lookup shared by
+        ``_compute_foreign_vat_header_mode`` (banner) and
+        ``action_create_foreign_taxes`` (install/instantiate).
+        """
+        chart_template = self.env["account.chart.template"]
+        template_code = chart_template._guess_chart_template(country)
+        return chart_template._get_chart_template_mapping()[template_code]
 
     @api.depends("tax_ids")
     def _compute_tax_map(self):
@@ -179,45 +189,52 @@ class AccountFiscalPosition(models.Model):
     @api.constrains("country_id", "country_group_id", "state_ids", "foreign_vat")
     def _validate_foreign_vat_country(self):
         for record in self:
-            if record.foreign_vat:
-                if not record.country_id:
-                    raise ValidationError(
-                        _(
-                            "The country of the foreign VAT number could not be detected. Please assign a country to the fiscal position."
-                        )
-                    )
-                if record.country_id == record.company_id.account_fiscal_country_id:
-                    if not record.state_ids:
-                        if record.company_id.account_fiscal_country_id.state_ids:
-                            raise ValidationError(
-                                _(
-                                    "You cannot create a fiscal position with a foreign VAT within your fiscal country without assigning it a state."
-                                )
-                            )
-                if record.country_group_id and record.country_id:
-                    if record.country_id not in record.country_group_id.country_ids:
-                        raise ValidationError(
-                            _(
-                                "You cannot create a fiscal position with a country outside of the selected country group."
-                            )
-                        )
+            if not record.foreign_vat:
+                continue
 
-                similar_fpos_count = self.env["account.fiscal.position"].search_count(
-                    [
-                        *self.env["account.fiscal.position"]._check_company_domain(
-                            record.company_id
-                        ),
-                        ("foreign_vat", "not in", (False, record.foreign_vat)),
-                        ("id", "!=", record.id),
-                        ("country_id", "=", record.country_id.id),
-                    ]
-                )
-                if similar_fpos_count:
-                    raise ValidationError(
-                        _(
-                            "A fiscal position with a foreign VAT already exists in this country."
-                        )
+            if not record.country_id:
+                raise ValidationError(
+                    _(
+                        "The country of the foreign VAT number could not be detected. Please assign a country to the fiscal position."
                     )
+                )
+
+            # From here on ``record.country_id`` is guaranteed to be set.
+            fiscal_country = record.company_id.account_fiscal_country_id
+            if (
+                record.country_id == fiscal_country
+                and not record.state_ids
+                and fiscal_country.state_ids
+            ):
+                raise ValidationError(
+                    _(
+                        "You cannot create a fiscal position with a foreign VAT within your fiscal country without assigning it a state."
+                    )
+                )
+
+            if (
+                record.country_group_id
+                and record.country_id not in record.country_group_id.country_ids
+            ):
+                raise ValidationError(
+                    _(
+                        "You cannot create a fiscal position with a country outside of the selected country group."
+                    )
+                )
+
+            if record.search_count(
+                [
+                    *record._check_company_domain(record.company_id),
+                    ("foreign_vat", "not in", (False, record.foreign_vat)),
+                    ("id", "!=", record.id),
+                    ("country_id", "=", record.country_id.id),
+                ]
+            ):
+                raise ValidationError(
+                    _(
+                        "A fiscal position with a foreign VAT already exists in this country."
+                    )
+                )
 
     @api.onchange("country_id", "foreign_vat")
     def _onchange_foreign_vat(self):
@@ -239,8 +256,14 @@ class AccountFiscalPosition(models.Model):
                 )
 
     def map_tax(self, taxes):
+        # An empty fiscal position means "no mapping" -- return the taxes as-is
+        # (this branch is relied upon by callers like ``product._get_tax_ids``).
+        # A non-empty position must be a single record: ``tax_map`` is a
+        # per-record compute, so anything past here on a multi-record ``self``
+        # would raise a cryptic singleton error deep in the comprehension below.
         if not self:
             return taxes
+        self.ensure_one()
         if not self.tax_ids:
             return taxes.filtered(lambda tax: not tax.fiscal_position_ids)
         return self.env["account.tax"].browse(
@@ -252,6 +275,11 @@ class AccountFiscalPosition(models.Model):
         )
 
     def map_account(self, account):
+        # Symmetric with ``map_tax``: empty position => no mapping; otherwise a
+        # singleton (``account_map`` is a per-record compute).
+        if not self:
+            return account
+        self.ensure_one()
         return self.env["account.account"].browse(
             (self.account_map or {}).get(account.id, account.id)
         )
@@ -293,29 +321,46 @@ class AccountFiscalPosition(models.Model):
     def write(self, vals):
         zip_from = vals.get("zip_from")
         zip_to = vals.get("zip_to")
-        if zip_from or zip_to:
-            for rec in self:
-                vals["zip_from"], vals["zip_to"] = self._convert_zip_values(
-                    zip_from or rec.zip_from, zip_to or rec.zip_to
-                )
-        return super(AccountFiscalPosition, self).write(vals)
+        if not (zip_from or zip_to):
+            return super().write(vals)
 
-    def _get_first_matching_fpos(self, partner):
+        if zip_from and zip_to:
+            # Both bounds are provided, so the normalized values are identical
+            # for every record and can be written in a single query.
+            padded_from, padded_to = self._convert_zip_values(zip_from, zip_to)
+            return super().write({**vals, "zip_from": padded_from, "zip_to": padded_to})
+
+        # Only one bound is provided: the zero-padding length depends on each
+        # record's existing counterpart, so normalize per record. Writing a
+        # shared ``vals`` here would leak one record's zip range onto the others.
+        for rec in self:
+            padded_from, padded_to = self._convert_zip_values(
+                zip_from or rec.zip_from, zip_to or rec.zip_to
+            )
+            super(AccountFiscalPosition, rec).write(
+                {**vals, "zip_from": padded_from, "zip_to": padded_to}
+            )
+        return True
+
+    def _get_first_matching_fpos(self, partner, company=None):
         sorted_fpos = self.sorted(
             key=lambda f: (-len(f.company_id.sudo().parent_ids), f.sequence)
         )  # company specific first, then sequence
+        # Build the validation functions once; they do not depend on ``fpos``.
+        validation_functions = self._get_fpos_validation_functions(partner, company)
         for fpos in sorted_fpos:
-            if all(fn(fpos) for fn in self._get_fpos_validation_functions(partner)):
+            if all(fn(fpos) for fn in validation_functions):
                 return fpos
         return self.env["account.fiscal.position"]
 
-    def _get_fpos_validation_functions(self, partner):
+    def _get_fpos_validation_functions(self, partner, company=None):
         """Returns a list of functions to validate fiscal positions against a partner."""
+        company = company or self.env.company
         return [
             # vat required
             lambda fpos: (
                 not fpos.vat_required
-                or partner._get_vat_required_valid(company=self.env.company)
+                or partner._get_vat_required_valid(company=company)
             ),
             # zip code
             lambda fpos: (
@@ -341,15 +386,18 @@ class AccountFiscalPosition(models.Model):
         ]
 
     @api.model
-    def _get_fiscal_position(self, partner, delivery=None):
+    def _get_fiscal_position(self, partner, delivery=None, company=None):
         """
+        :param company: company to resolve the fiscal position for; defaults to
+            ``self.env.company``. Explicit is safer than the implicit env company
+            for cross-company callers (who would otherwise rely on ``with_company``).
         :return: fiscal position found (recordset)
         :rtype: :class:`account.fiscal.position`
         """
         if not partner:
             return self.env["account.fiscal.position"]
 
-        company = self.env.company
+        company = company or self.env.company
         intra_eu = vat_exclusion = False
         if company.vat and partner.vat:
             eu_country_codes = set(
@@ -379,10 +427,10 @@ class AccountFiscalPosition(models.Model):
             return self.env["account.fiscal.position"]
 
         all_auto_apply_fpos = self.search(
-            self._check_company_domain(self.env.company) + [("auto_apply", "=", True)]
+            self._check_company_domain(company) + [("auto_apply", "=", True)]
         )
 
-        return all_auto_apply_fpos._get_first_matching_fpos(delivery)
+        return all_auto_apply_fpos._get_first_matching_fpos(delivery, company)
 
     def action_open_related_taxes(self):
         list_view = self.env.ref(
@@ -405,12 +453,7 @@ class AccountFiscalPosition(models.Model):
 
     def action_create_foreign_taxes(self):
         self.ensure_one()
-        template_code = self.env["account.chart.template"]._guess_chart_template(
-            self.country_id
-        )
-        template = self.env["account.chart.template"]._get_chart_template_mapping()[
-            template_code
-        ]
+        template = self._get_foreign_tax_chart_template(self.country_id)
         if not template["installed"]:
             localization_module = self.env["ir.module.module"].search(
                 [("name", "=", template["module"])]
@@ -482,7 +525,7 @@ class ResPartner(models.Model):
             country_codes = allowed_companies.mapped("account_fiscal_country_id.code")
             if record.country_code:
                 country_codes.append(record.country_code)
-            record.fiscal_country_codes = ",".join(set(country_codes))
+            record.fiscal_country_codes = ",".join(sorted(set(country_codes)))
 
     @api.depends("company_id")
     @api.depends_context("allowed_company_ids")
@@ -507,10 +550,14 @@ class ResPartner(models.Model):
         return "%s, %s" % (order_by_field, res) if res else order_by_field
 
     @api.depends_context("company")
-    def _credit_debit_get(self):
+    def _compute_credit_debit(self):
+        # ``credit`` is the total receivable, ``debit`` the total payable.
+        # Default every partner to False, then fill in only the sides that have
+        # unreconciled residuals; a partner with both simply gets both set.
+        # NB: the searchable counterpart lives in ``_asset_difference_search``;
+        # the two WHERE clauses must stay consistent (see the note there).
+        self.debit = self.credit = False
         if not self.ids:
-            self.debit = False
-            self.credit = False
             return
         query = self.env["account.move.line"]._search(
             [
@@ -545,22 +592,12 @@ class ResPartner(models.Model):
             list(self.ids),
             query.where_clause or SQL("TRUE"),
         )
-        treated = self.browse()
         for pid, account_type, val in self.env.execute_query(sql):
             partner = self.browse(pid)
             if account_type == "asset_receivable":
                 partner.credit = val
-                if partner not in treated:
-                    partner.debit = False
-                    treated |= partner
             elif account_type == "liability_payable":
                 partner.debit = -val
-                if partner not in treated:
-                    partner.credit = False
-                    treated |= partner
-        remaining = self - treated
-        remaining.debit = False
-        remaining.credit = False
 
     @api.depends_context("company")
     def _compute_credit_to_invoice(self):
@@ -568,33 +605,64 @@ class ResPartner(models.Model):
         self.credit_to_invoice = False
 
     def _asset_difference_search(self, account_type, operator, operand):
-        if operator not in ("<", "=", ">", ">=", "<="):
-            return []
-        if not isinstance(operand, (float, int)):
-            return []
-        sign = 1
-        if account_type == "liability_payable":
-            sign = -1
-        res = self.env.cr.execute(
-            f"""
-            SELECT aml.partner_id
-              FROM res_partner partner
-         LEFT JOIN account_move_line aml ON aml.partner_id = partner.id
-              JOIN account_move move ON move.id = aml.move_id
-              JOIN res_company line_company ON line_company.id = aml.company_id
-        RIGHT JOIN account_account acc ON aml.account_id = acc.id
-             WHERE acc.account_type = %s
-               AND acc.active
-               AND SPLIT_PART(line_company.parent_path, '/', 1)::int = %s
-               AND move.state = 'posted'
-          GROUP BY aml.partner_id
-            HAVING %s * COALESCE(SUM(aml.amount_residual), 0) {operator} %s""",
-            (account_type, self.env.company.root_id.id, sign, operand),
+        # Only a numeric comparison against a real amount can be pushed into the
+        # HAVING clause below. Anything else (``!=``, ``in``, an "is set" filter
+        # whose operand is a bool, ...) previously returned an empty domain --
+        # i.e. it silently matched *every* partner, turning the filter into a
+        # lie. Fail loudly instead so the caller knows the filter is unsupported.
+        if (
+            operator not in ("<", "=", ">", ">=", "<=")
+            or isinstance(operand, bool)
+            or not isinstance(operand, (float, int))
+        ):
+            raise UserError(
+                _(
+                    "Total Receivable/Payable can only be filtered with a numeric "
+                    "comparison (<, <=, =, >, >=) against an amount."
+                )
+            )
+        sign = -1 if account_type == "liability_payable" else 1
+        # This must stay numerically consistent with the ``credit``/``debit``
+        # value computed in ``_compute_credit_debit``: filtering here on a column
+        # the compute ignores (e.g. ``acc.active``) makes the searchable filter
+        # disagree with the displayed amount -- a partner whose only residual sits
+        # on an archived receivable account would show a non-zero Total Receivable
+        # yet be excluded from a ``credit > 0`` filter. Keep the WHERE clause a
+        # mirror of the compute's (posted, same company scope, receivable/payable),
+        # without an ``active`` restriction.
+        #
+        # ``aml.partner_id IS NOT NULL`` replaces an older ``res_partner`` anchor
+        # + ``RIGHT JOIN account_account`` that only served to drop partnerless
+        # lines (the RIGHT JOIN's NULL rows were already killed by the posted
+        # filter). Dropping them here keeps the whole query line-driven -- no
+        # full ``res_partner`` scan -- and avoids leaking a NULL group into the
+        # ``= 0``/``>= 0`` result set.
+        rows = self.env.execute_query(
+            SQL(
+                """
+                SELECT aml.partner_id
+                  FROM account_move_line aml
+                  JOIN account_move move ON move.id = aml.move_id
+                  JOIN account_account acc ON acc.id = aml.account_id
+                  JOIN res_company line_company ON line_company.id = aml.company_id
+                 WHERE acc.account_type = %(account_type)s
+                   AND aml.partner_id IS NOT NULL
+                   AND SPLIT_PART(line_company.parent_path, '/', 1)::int = %(root_id)s
+                   AND move.state = 'posted'
+              GROUP BY aml.partner_id
+                HAVING %(sign)s * COALESCE(SUM(aml.amount_residual), 0)
+                       %(operator)s %(operand)s
+                """,
+                account_type=account_type,
+                root_id=self.env.company.root_id.id,
+                sign=sign,
+                operator=SQL(operator),
+                operand=operand,
+            )
         )
-        res = self.env.cr.fetchall()
-        if not res:
-            return [("id", "=", "0")]
-        return [("id", "in", [r[0] for r in res])]
+        if not rows:
+            return [("id", "in", [])]
+        return [("id", "in", [row[0] for row in rows])]
 
     @api.model
     def _credit_search(self, operator, operand):
@@ -607,33 +675,21 @@ class ResPartner(models.Model):
     def _invoice_total(self):
         self.total_invoiced = 0
         if not self.ids:
-            return True
+            return
 
-        all_partners_and_children = {}
-        all_partner_ids = []
-        for partner in self.filtered("id"):
-            # price_total is in the company currency
-            all_partners_and_children[partner] = (
-                self.with_context(active_test=False)
-                .search([("id", "child_of", partner.id)])
-                .ids
-            )
-            all_partner_ids += all_partners_and_children[partner]
-
-        domain = [
-            ("partner_id", "in", all_partner_ids),
-            ("state", "not in", ["draft", "cancel"]),
-            ("move_type", "in", ("out_invoice", "out_refund")),
-        ]
-        price_totals = self.env["account.invoice.report"]._read_group(
-            domain, ["partner_id"], ["price_subtotal:sum"]
+        # ``price_subtotal`` is in company currency. The invoiced total is
+        # attributed to every ancestor present in ``self`` (a child's invoices
+        # count towards its parent) -- see ``_aggregate_by_partner_hierarchy``.
+        totals = self._aggregate_by_partner_hierarchy(
+            "account.invoice.report",
+            [
+                ("state", "not in", ["draft", "cancel"]),
+                ("move_type", "in", ("out_invoice", "out_refund")),
+            ],
+            "price_subtotal:sum",
         )
-        for partner, child_ids in all_partners_and_children.items():
-            partner.total_invoiced = sum(
-                price_subtotal_sum
-                for partner, price_subtotal_sum in price_totals
-                if partner.id in child_ids
-            )
+        for partner in self:
+            partner.total_invoiced = totals[partner.id]
 
     @api.depends("credit")
     def _compute_days_sales_outstanding(self):
@@ -649,26 +705,37 @@ class ResPartner(models.Model):
                         "in",
                         self.env["account.move"].get_sale_types(include_receipts=True),
                     ),
-                    ("company_id", "=", self.env.company.id),
+                    # Same company scope as ``credit`` (the numerator), which
+                    # ``_compute_credit_debit`` computes over the whole root
+                    # company tree -- keep both sides consistent.
+                    ("company_id", "child_of", self.env.company.root_id.id),
                     ("commercial_partner_id", "in", self.commercial_partner_id.ids),
                 ],
                 groupby=["commercial_partner_id"],
                 aggregates=["invoice_date:min", "amount_total_signed:sum"],
             )
         }
+        today = fields.Date.context_today(self)
         for partner in self:
+            # The revenue is grouped by commercial partner, so look it up by the
+            # partner's commercial partner (a child contact shares its parent's
+            # figure) rather than by the raw record, which would miss the key.
             oldest_invoice_date, total_invoiced_tax_included = commercial_partners.get(
-                partner, (fields.Date.context_today(self), 0)
+                partner.commercial_partner_id, (today, 0)
             )
-            days_since_oldest_invoice = (
-                fields.Date.context_today(self) - oldest_invoice_date
-            ).days
+            days_since_oldest_invoice = (today - oldest_invoice_date).days
+            # DSO is a non-negative KPI. Guard both degenerate inputs: a
+            # non-positive revenue denominator (a partner dominated by refunds)
+            # and a negative receivable numerator (a customer in credit balance,
+            # e.g. a paid invoice plus an unpaid refund) would otherwise yield a
+            # meaningless negative or inflated figure.
             partner.days_sales_outstanding = (
-                (
+                max(
+                    0.0,
                     (partner.credit / total_invoiced_tax_included)
-                    * days_since_oldest_invoice
+                    * days_since_oldest_invoice,
                 )
-                if total_invoiced_tax_included
+                if total_invoiced_tax_included > 0
                 else 0
             )
 
@@ -678,12 +745,22 @@ class ResPartner(models.Model):
                 "account.move"
             ]._get_available_invoice_template_pdf_report_ids()
 
-    def _get_company_currency(self):
+    @api.depends_context("company")
+    @api.depends("company_id")
+    def _compute_currency_id(self):
+        # Resolve each distinct company's currency once. ``company.sudo()``
+        # crosses into a sudo environment whose cache does not share the caller's
+        # prefetch, so reading ``.currency_id`` per partner re-queried once per
+        # record; cache it by company id instead.
+        default_company = self.env.company
+        currency_by_company = {}
         for partner in self:
-            if partner.company_id:
-                partner.currency_id = partner.sudo().company_id.currency_id
-            else:
-                partner.currency_id = self.env.company.currency_id
+            company = partner.company_id or default_company
+            currency = currency_by_company.get(company.id)
+            if currency is None:
+                currency = company.sudo().currency_id
+                currency_by_company[company.id] = currency
+            partner.currency_id = currency
 
     def _default_display_invoice_template_pdf_report_id(self):
         """Show PDF template selection if there are more than 1 template available for invoices."""
@@ -691,7 +768,7 @@ class ResPartner(models.Model):
 
     name = fields.Char(tracking=True)
     credit = fields.Monetary(
-        compute="_credit_debit_get",
+        compute="_compute_credit_debit",
         search=_credit_search,
         string="Total Receivable",
         help="Total amount this customer owes you.",
@@ -726,7 +803,7 @@ class ResPartner(models.Model):
         compute="_compute_days_sales_outstanding",
     )
     debit = fields.Monetary(
-        compute="_credit_debit_get",
+        compute="_compute_credit_debit",
         search=_debit_search,
         string="Total Payable",
         help="Total amount you have to pay to this vendor.",
@@ -739,7 +816,7 @@ class ResPartner(models.Model):
     )
     currency_id = fields.Many2one(
         "res.currency",
-        compute="_get_company_currency",
+        compute="_compute_currency_id",
         readonly=True,
         string="Currency",
     )  # currency of amount currency
@@ -886,29 +963,57 @@ class ResPartner(models.Model):
         for partner in self:
             partner.bank_account_count = mapped_data.get(partner.id, 0)
 
-    def _compute_supplier_invoice_count(self):
+    def _aggregate_by_partner_hierarchy(self, comodel, domain, aggregate):
+        """Aggregate ``aggregate`` from ``comodel`` (grouped by ``partner_id``)
+        and attribute each descendant partner's value to every ancestor present
+        in ``self``.
+
+        ``total_invoiced`` and the move-count fields all need the same shape:
+        expand ``self`` to its whole ``child_of`` subtree in one query, read-group
+        the target model once, then roll every descendant's aggregate up the
+        ``parent_id`` chain onto the ancestors that belong to ``self``.
+
+        :return: a ``{partner_id: aggregated_value}`` mapping, zero-filled for
+            every id in ``self``.
+        """
         # retrieve all children partners and prefetch 'parent_id' on them
         all_partners = self.with_context(active_test=False).search_fetch(
             [("id", "child_of", self.ids)],
             ["parent_id"],
         )
-        supplier_invoice_groups = self.env["account.move"]._read_group(
-            domain=[
-                ("partner_id", "in", all_partners.ids),
+        groups = self.env[comodel]._read_group(
+            domain=[("partner_id", "in", all_partners.ids), *domain],
+            groupby=["partner_id"],
+            aggregates=[aggregate],
+        )
+        self_ids = set(self._ids)
+        result = dict.fromkeys(self_ids, 0)
+        for partner, value in groups:
+            while partner:
+                if partner.id in self_ids:
+                    result[partner.id] += value
+                partner = partner.parent_id
+        return result
+
+    def _compute_move_count_by_partner(self, field, move_domain):
+        """Set an integer ``field`` to the number of ``account.move`` matching
+        ``move_domain``, attributing each descendant partner's moves to every
+        ancestor present in ``self``.
+        """
+        counts = self._aggregate_by_partner_hierarchy(
+            "account.move", move_domain, "__count"
+        )
+        for partner in self:
+            partner[field] = counts[partner.id]
+
+    def _compute_supplier_invoice_count(self):
+        self._compute_move_count_by_partner(
+            "supplier_invoice_count",
+            [
                 *self.env["account.move"]._check_company_domain(self.env.company),
                 ("move_type", "in", ("in_invoice", "in_refund")),
             ],
-            groupby=["partner_id"],
-            aggregates=["__count"],
         )
-        self_ids = set(self._ids)
-
-        self.supplier_invoice_count = 0
-        for partner, count in supplier_invoice_groups:
-            while partner:
-                if partner.id in self_ids:
-                    partner.supplier_invoice_count += count
-                partner = partner.parent_id
 
     @api.depends_context("company")
     @api.depends("country_code")
@@ -985,7 +1090,7 @@ class ResPartner(models.Model):
 
     @api.model
     def _commercial_fields(self):
-        return super(ResPartner, self)._commercial_fields() + [
+        return super()._commercial_fields() + [
             "property_account_payable_id",
             "property_account_receivable_id",
             "property_account_position_id",
@@ -1055,8 +1160,8 @@ class ResPartner(models.Model):
 
         if parent_write:
             partner2move_lines = (
-                self.sudo()
-                .env["account.move.line"]
+                self.env["account.move.line"]
+                .sudo()
                 .search([("partner_id", "in", parent_write.ids)])
                 .grouped("partner_id")
             )
@@ -1088,7 +1193,7 @@ class ResPartner(models.Model):
 
                 # Update the commercial partner on account.move that were *entirely* dedicated to that partner (exclude moves shared between partners, e.g misc entries or batch bank payments)
                 move_lines.move_id.filtered(
-                    lambda m: m.partner_id == partner
+                    lambda m, partner=partner: m.partner_id == partner
                 ).with_context(
                     bypass_lock_check=BYPASS_LOCK_CHECK
                 ).commercial_partner_id = partner.commercial_partner_id
@@ -1120,8 +1225,8 @@ class ResPartner(models.Model):
         - state: all states (draft and posted)
         """
         moves = (
-            self.sudo()
-            .env["account.move"]
+            self.env["account.move"]
+            .sudo()
             .search_count(
                 [
                     ("partner_id", "in", self.ids),
@@ -1144,7 +1249,7 @@ class ResPartner(models.Model):
         )
         already_registered = bool(data)
         for record in self.sudo():
-            # In case we alrady have a value, we will increase the rank in
+            # In case we already have a value, we will increase the rank in
             # postcommit to avoid serialization errors.  However, if the record
             # has a rank of 0, we increase it directly so that filtering on
             # partner_type is correctly set to customer or supplier.
@@ -1210,7 +1315,7 @@ class ResPartner(models.Model):
                False if it could not be validated against the provided or guessed country.
         """
         assert validation in (False, "error", "setnull")
-        return vat, country and country.code or ""
+        return vat, (country and country.code) or ""
 
     def _get_vat_required_valid(self, company=None):
         """Hook for determining VAT validity with more complex VAT requirements. (like VIES)"""
@@ -1239,11 +1344,12 @@ class ResPartner(models.Model):
     def _import_retrieve_customer_from_vat(self, customer_values):
         vat = customer_values.get("vat")
         if not vat:
-            return
+            return None
 
         # Sometimes, the vat is specified with some whitespaces or dots.
         normalized_vat = vat.replace(" ", "").replace(".", "")
-        country_prefix = re.match("^[a-zA-Z]{2}|^", vat).group()
+        prefix_match = re.match(r"[a-zA-Z]{2}", vat)
+        country_prefix = prefix_match.group() if prefix_match else ""
 
         criteria = [{"domain": [("vat", "in", (normalized_vat, vat))]}]
         extra_vat_values = self._get_country_specific_vat_variants(
@@ -1279,7 +1385,9 @@ class ResPartner(models.Model):
                 static_domain = values["static_domain"]
                 vat_prefix_regex = values["vat_prefix_regex"]
 
-                query = self._search(static_domain + [("active", "=", True)], limit=2)
+                query = self._search(
+                    Domain.AND([static_domain, [("active", "=", True)]]), limit=2
+                )
                 query.add_where(
                     SQL(
                         "%s ~ %s",
@@ -1290,11 +1398,13 @@ class ResPartner(models.Model):
                 partner_row = list(query)
                 if partner_row and len(partner_row) == 1:
                     return self.browse(partner_row[0])
+                return self.browse()
 
             if country_prefix:
                 vat_prefix_regex = f"({country_prefix})?"
             else:
-                vat_prefix_regex = "([A-z]{2})?"
+                # ``[A-z]`` is not ``[A-Za-z]``: it also spans ``[ \ ] ^ _ ``` .
+                vat_prefix_regex = "([A-Za-z]{2})?"
 
             criteria.append(
                 {
@@ -1316,7 +1426,7 @@ class ResPartner(models.Model):
     def _import_retrieve_customer_from_bank_account_number(self, customer_values):
         account_numbers = customer_values.get("account_numbers")
         if not account_numbers:
-            return
+            return None
 
         return {
             "criteria": [
@@ -1340,7 +1450,7 @@ class ResPartner(models.Model):
     def _import_retrieve_customer_from_phone(self, customer_values):
         phone = customer_values.get("phone")
         if not phone:
-            return
+            return None
 
         return {
             "criteria": [
@@ -1354,7 +1464,7 @@ class ResPartner(models.Model):
     def _import_retrieve_customer_from_email(self, customer_values):
         email = customer_values.get("email")
         if not email:
-            return
+            return None
 
         return {
             "criteria": [
@@ -1368,7 +1478,7 @@ class ResPartner(models.Model):
     def _import_retrieve_customer_from_name(self, customer_values):
         name = customer_values.get("name")
         if not name:
-            return
+            return None
 
         return {
             "criteria": [
@@ -1408,8 +1518,7 @@ class ResPartner(models.Model):
                         if partner := cache[cache_key]:
                             customer_values["customer"] = partner
                             break
-                        else:
-                            continue
+                        continue
 
                     if domain:
                         full_domain = Domain.AND([static_domain, domain])
@@ -1434,21 +1543,6 @@ class ResPartner(models.Model):
 
                 if partner:
                     break
-
-    @api.model
-    def _retrieve_partner_with_vat(self, vat, extra_domain):
-        # DEPRECATED: TO BE REMOVED IN MASTER
-        return self._retrieve_partner(vat=vat)
-
-    @api.model
-    def _retrieve_partner_with_phone_email(self, phone, email, extra_domain):
-        # DEPRECATED: TO BE REMOVED IN MASTER
-        return self._retrieve_partner(phone=phone, email=email)
-
-    @api.model
-    def _retrieve_partner_with_name(self, name, extra_domain):
-        # DEPRECATED: TO BE REMOVED IN MASTER
-        return self._retrieve_partner(name=name)
 
     def _retrieve_partner(
         self, name=None, phone=None, email=None, vat=None, domain=None, company=None
@@ -1521,7 +1615,7 @@ class ResPartner(models.Model):
         for partner in self:
             placeholder = _("not applicable")
             if partner.country_id:
-                expected_vat = _ref_vat.get(partner.country_id.code.lower())
+                expected_vat = _ref_vat.get((partner.country_id.code or "").lower())
                 if expected_vat:
                     placeholder = _("%s, or not applicable", expected_vat)
 
@@ -1539,28 +1633,10 @@ class ResPartner(models.Model):
             )
 
     def _compute_account_move_count(self):
-        # retrieve all children partners and prefetch 'parent_id' on them
-        all_partners = self.with_context(active_test=False).search_fetch(
-            [("id", "child_of", self.ids)],
-            ["parent_id"],
+        self._compute_move_count_by_partner(
+            "account_move_count",
+            [("move_type", "in", ("out_invoice", "out_refund"))],
         )
-        domain = [
-            ("partner_id", "in", all_partners.ids),
-            ("move_type", "in", ("out_invoice", "out_refund")),
-        ]
-        account_move_groups = self.env["account.move"]._read_group(
-            domain=domain,
-            groupby=["partner_id"],
-            aggregates=["__count"],
-        )
-        self_ids = set(self._ids)
-
-        self.account_move_count = 0
-        for partner, count in account_move_groups:
-            while partner:
-                if partner.id in self_ids:
-                    partner.account_move_count += count
-                partner = partner.parent_id
 
     def action_view_business_doc(self):
         return self._get_records_action()
@@ -1572,12 +1648,16 @@ class ResPartner(models.Model):
         Usually called as an uninstall hook of modules that add these formats.
         It avoids the form view to become unusable after module uninstallation.
         """
+        # ``company_dependent`` JSON columns key values by ``str(company.id)``
+        # (see odoo/orm/fields/_field_sql.py). ``::char`` casts to ``character(1)``,
+        # which truncates every company id to its first digit, so ids >= 10 read
+        # and delete the wrong key. Cast to ``::text`` to match the stored key.
         self.env.cr.execute(
             """
             UPDATE res_partner
-            SET invoice_edi_format_store = invoice_edi_format_store - res_company.id::char
+            SET invoice_edi_format_store = invoice_edi_format_store - res_company.id::text
             FROM res_company
-            WHERE res_partner.invoice_edi_format_store ->> res_company.id::char = ANY(%s)
+            WHERE res_partner.invoice_edi_format_store ->> res_company.id::text = ANY(%s)
             """,
             (list(formats),),
         )

@@ -1,4 +1,5 @@
 from . import test_account_move_reconcile
+from . import test_marin_account_move_line_fixes
 from . import test_account_move_payments_widget
 from . import test_account_move_out_invoice
 from . import test_account_move_out_refund
@@ -66,4 +67,8 @@ from . import test_account_move_attachment
 from . import test_account_bill_deductibility
 from . import test_dict_to_xml
 from . import test_duplicate_res_partner_bank
+from . import test_res_partner_bank_trust
 from . import test_account_move_import_template
+from . import test_res_company
+from . import test_res_currency
+from . import test_account_move_marin_depends

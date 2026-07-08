@@ -701,7 +701,7 @@ class AccountMove(models.Model):
                             'errors': get_errors_from_processing_result(processing_result),
                         }
                     })
-                    to_cancel.button_cancel()
+                    to_cancel.action_cancel()
                 elif annulment_status == 'VERIFICATION_REJECTED':
                     self.write({
                         'l10n_hu_edi_state': 'confirmed_warning',

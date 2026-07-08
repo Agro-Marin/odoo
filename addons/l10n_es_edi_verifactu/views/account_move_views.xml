@@ -79,7 +79,7 @@
                         <field class="d-inline-block" name="l10n_es_edi_verifactu_warning"/>
                     </div>
                 </xpath>
-                <xpath expr="//button[@name='button_cancel']" position="after">
+                <xpath expr="//button[@name='action_cancel']" position="after">
                     <button name="l10n_es_edi_verifactu_button_cancel"
                             string="Request Veri*Factu Cancellation"
                             type="object"

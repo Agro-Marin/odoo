@@ -78,10 +78,28 @@ class AnalyticMixin(models.AbstractModel):
         pass
 
     def _search_analytic_distribution(self, operator, value):
-        # Don't use this override when account_report_analytic_groupby is truly in the context
-        # Indeed, when account_report_analytic_groupby is in the context it means that `analytic_distribution`
-        # doesn't have the same format and the table is a temporary one, see _prepare_lines_for_analytic_groupby
-        if self.env.context.get('account_report_analytic_groupby') or (operator in ('in', 'not in') and False in value):
+        # When account_report_analytic_groupby is in the context, `analytic_distribution`
+        # is not the real column: the query runs against the shadowed table built by
+        # _create_aml_shadowing_query_for_analytic_groupby, where the column holds a
+        # single analytic account id as a jsonb scalar (to_jsonb(int)). The generic
+        # Json-field search binds the compared ids as psycopg `json`, and PostgreSQL
+        # has no `jsonb = json` operator (this fork runs psycopg3), so the comparison
+        # must be spelled out against jsonb values explicitly.
+        if self.env.context.get('account_report_analytic_groupby'):
+            if operator not in ('in', 'not in'):
+                raise UserError(_('Operation not supported'))
+            # to_jsonb(<int account id>) renders as the jsonb number '5'; casting the
+            # searched ids through text to jsonb ('5'::jsonb) yields the same value.
+            jsonb_ids = [str(int(v)) for v in value if v is not False]
+            sql_template = "%s = ANY(%s::jsonb[])" if operator == 'in' else "NOT (%s = ANY(%s::jsonb[]))"
+            return Domain.custom(to_sql=lambda model, alias, query: SQL(
+                sql_template,
+                model._field_to_sql(alias, 'analytic_distribution', query),
+                jsonb_ids,
+            ))
+        # Don't use this override for the "is set / not set" checks either: a value
+        # containing False means membership on the real jsonb column.
+        if operator in ('in', 'not in') and False in value:
             return Domain('analytic_distribution', operator, value)
 
         def search_value(value: str, exact: bool):

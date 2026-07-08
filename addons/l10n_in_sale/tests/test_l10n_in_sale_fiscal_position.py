@@ -17,7 +17,7 @@ class TestSaleFiscal(L10nInTestInvoicingCommon):
         test_order = self.env['sale.order'].sudo().create({
             'partner_id': partner,
             'company_id': self.env.company.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 10,
@@ -69,7 +69,7 @@ class TestSaleFiscal(L10nInTestInvoicingCommon):
             sale_order = self.env['sale.order'].sudo().with_company(self.env.company).create({
                 'date_order': fields.Date.from_string('2019-01-01'),
                 'partner_id': self.partner_a.id,  # Intra-State Partner
-                'order_line': [Command.create({
+                'line_ids': [Command.create({
                     'product_id': self.product_a.id,
                     'product_uom_qty': 10,
                     'name': 'product test 1',

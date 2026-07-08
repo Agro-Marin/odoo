@@ -165,7 +165,11 @@ class AccountTax(models.Model):
                 or tax.company_id.domestic_fiscal_position_id in tax.fiscal_position_ids
             )
 
-    @api.depends("fiscal_position_ids")
+    @api.depends(
+        "fiscal_position_ids",
+        "original_tax_ids",
+        "company_id.domestic_fiscal_position_id",
+    )
     def _compute_display_alternative_taxes_field(self):
         for tax in self:
             tax.display_alternative_taxes_field = (
@@ -316,24 +320,13 @@ class AccountTax(models.Model):
                 Domain("amount_type", "=", tax_values["amount_type"])
                 & Domain("type_tax_use", "=", tax_values["type_tax_use"])
                 & Domain("amount", "=", tax_values["amount"])
-                & Domain(
-                    [
-                        *(
-                            [
-                                (
-                                    "country_id",
-                                    "=",
-                                    tax_values["invoice_predictive"][
-                                        "invoice"
-                                    ].tax_country_id.id,
-                                )
-                            ]
-                            if "invoice_predictive" in tax_values
-                            else []
-                        )
-                    ]
-                )
             )
+            if "invoice_predictive" in tax_values:
+                tax_domain &= Domain(
+                    "country_id",
+                    "=",
+                    tax_values["invoice_predictive"]["invoice"].tax_country_id.id,
+                )
             orders = ["sequence", "id"]
             if name := tax_values.get("name"):
                 tax_domain &= Domain("name", "=", name)
@@ -421,20 +414,42 @@ class AccountTax(models.Model):
                         if repartition_line.document_type == "invoice"
                         else (refund_sequence := refund_sequence + 1)
                     )
+                    # Keys and values are stored as language-neutral tokens
+                    # (not translated strings): this string is persisted and later
+                    # diffed against a previous snapshot in
+                    # `_message_log_repartition_lines`, which may run under a
+                    # different user language. Translation happens only at render
+                    # time. Storing translated text here made the diff crash with a
+                    # KeyError whenever the language changed between two edits.
                     repartition_line_info[
                         (repartition_line.document_type, sequence)
                     ] = {
-                        _("Factor Percent"): repartition_line.factor_percent,
-                        _("Account"): repartition_line.account_id.display_name
-                        or _("None"),
-                        _("Tax Grids"): repartition_line.tag_ids.mapped("name")
-                        or _("None"),
-                        _("Use in tax closing"): _("True")
-                        if repartition_line.use_in_tax_closing
-                        else _("False"),
+                        "factor_percent": repartition_line.factor_percent,
+                        "account": repartition_line.account_id.display_name or None,
+                        "tax_grids": repartition_line.tag_ids.mapped("name") or None,
+                        "use_in_tax_closing": bool(repartition_line.use_in_tax_closing),
                     }
                 repartition_lines_str = str(repartition_line_info)
             tax.repartition_lines_str = repartition_lines_str
+
+    def _repartition_line_field_label(self, key):
+        """Translate a stored (language-neutral) repartition-line key into a
+        human label, resolved at render time in the current user language."""
+        return {
+            "factor_percent": _("Factor Percent"),
+            "account": _("Account"),
+            "tax_grids": _("Tax Grids"),
+            "use_in_tax_closing": _("Use in tax closing"),
+        }.get(key, key)
+
+    def _repartition_line_field_value(self, value):
+        """Render a stored (language-neutral) repartition-line value for display,
+        translating boolean/empty sentinels in the current user language."""
+        if value is None:
+            return _("None")
+        if isinstance(value, bool):
+            return _("True") if value else _("False")
+        return value
 
     def _message_log_repartition_lines(self, old_values_str, new_values_str):
         self.ensure_one()
@@ -457,7 +472,14 @@ class AccountTax(models.Model):
         ]
 
         for (document_type, sequence), old_value, new_value in modified_lines:
-            diff_keys = [key for key in old_value if old_value[key] != new_value[key]]
+            # Intersect keys: a snapshot stored by an older version (or format)
+            # may not carry exactly the same keys, and blindly indexing the other
+            # dict would raise a KeyError while merely saving the tax.
+            diff_keys = [
+                key
+                for key in old_value.keys() & new_value.keys()
+                if old_value[key] != new_value[key]
+            ]
             if diff_keys:
                 body = Markup(
                     "<b>{type}</b> {rep} {seq}:<ul class='mb-0 ps-4'>{changes}</ul>"
@@ -475,9 +497,13 @@ class AccountTax(models.Model):
                                 <span class='o-mail-Message-trackingField ms-1 fst-italic text-muted'>({diff})</span>
                             </li>
                         """).format(
-                                old=old_value[diff_key],
-                                new=new_value[diff_key],
-                                diff=diff_key,
+                                old=self._repartition_line_field_value(
+                                    old_value[diff_key]
+                                ),
+                                new=self._repartition_line_field_value(
+                                    new_value[diff_key]
+                                ),
+                                diff=self._repartition_line_field_label(diff_key),
                             )
                             for diff_key in diff_keys
                         ]
@@ -500,13 +526,15 @@ class AccountTax(models.Model):
                             <span class='o-mail-Message-trackingNew me-1 fw-bold text-info'>{value}</span>
                             <span class='o-mail-Message-trackingField ms-1 fst-italic text-muted'>({diff})</span>
                         </li>
-                    """).format(value=value[key], diff=key)
+                    """).format(
+                            value=self._repartition_line_field_value(value[key]),
+                            diff=self._repartition_line_field_label(key),
+                        )
                         for key in value
                     ]
                 ),
             )
             super()._message_log(body=body)
-        return
 
     def _message_log(self, **kwargs):
         # OVERRIDE _message_log
@@ -524,7 +552,8 @@ class AccountTax(models.Model):
                 ._get("account.tax", "repartition_lines_str")
                 .id
             )
-            for tracked_value_id in kwargs["tracking_value_ids"]:
+            # Iterate over a copy: we mutate `tracking_value_ids` in the loop.
+            for tracked_value_id in list(kwargs["tracking_value_ids"]):
                 if tracked_value_id[2]["field_id"] == repartition_line_str_field_id:
                     kwargs["tracking_value_ids"].remove(tracked_value_id)
                     self._message_log_repartition_lines(
@@ -770,8 +799,6 @@ class AccountTax(models.Model):
         base_line["tax_tag_ids"] = self.env["account.account.tag"]
         product_tags = self.env["account.account.tag"]
         if product:
-            countries = {tax_data["tax"].country_id for tax_data in taxes_data}
-            countries.add(False)
             product_tags = product.sudo().account_tag_ids
             base_line["tax_tag_ids"] |= product_tags
 
@@ -1359,69 +1386,6 @@ class AccountTax(models.Model):
         return new_base_lines
 
     @api.model
-    def _compute_subset_base_lines_total(self, base_lines, company):
-        """Compute the total of the lines passed as parameter.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        DEPRECATED: TO BE REMOVED IN MASTER
-
-        :param base_lines:  A list of base lines generated using the '_prepare_base_line_for_taxes_computation' method.
-        :param company:     The company owning the base lines.
-        :return: The total.
-        """
-        base_amount_currency = 0.0
-        tax_amount_currency = 0.0
-        base_amount = 0.0
-        tax_amount = 0.0
-        tax_amounts_mapping = defaultdict(
-            lambda: {
-                "tax_amount_currency": 0.0,
-                "tax_amount": 0.0,
-            }
-        )
-        raw_total_included_currency = 0.0
-        raw_total_included = 0.0
-        for base_line in base_lines:
-            tax_details = base_line["tax_details"]
-            base_amount_currency += (
-                tax_details["total_excluded_currency"]
-                + tax_details["delta_total_excluded_currency"]
-            )
-            base_amount += (
-                tax_details["total_excluded"] + tax_details["delta_total_excluded"]
-            )
-            raw_total_included_currency += tax_details["raw_total_excluded_currency"]
-            raw_total_included += tax_details["raw_total_excluded"]
-            for tax_data in tax_details["taxes_data"]:
-                tax = tax_data["tax"]
-                if not tax._can_be_discounted():
-                    continue
-
-                tax_id_str = str(tax.id)
-                tax_amount_currency += tax_data["tax_amount_currency"]
-                tax_amount += tax_data["tax_amount"]
-                tax_amounts_mapping[tax_id_str]["tax_amount_currency"] += tax_data[
-                    "tax_amount_currency"
-                ]
-                tax_amounts_mapping[tax_id_str]["tax_amount"] += tax_data["tax_amount"]
-                raw_total_included_currency += tax_data["raw_tax_amount_currency"]
-                raw_total_included += tax_data["raw_tax_amount"]
-        return {
-            "base_amount_currency": base_amount_currency,
-            "tax_amount_currency": tax_amount_currency,
-            "base_amount": base_amount,
-            "tax_amount": tax_amount,
-            "tax_amounts_mapping": tax_amounts_mapping,
-            "raw_total_included_currency": raw_total_included_currency,
-            "raw_total_included": raw_total_included,
-            "rate": raw_total_included_currency / raw_total_included
-            if raw_total_included
-            else 0.0,
-        }
-
-    @api.model
     def _reduce_base_lines_with_grouping_function(
         self,
         base_lines,
@@ -1531,126 +1495,6 @@ class AccountTax(models.Model):
             base_line["analytic_distribution"] = analytic_distribution
 
         return list(base_line_map.values())
-
-    @api.model
-    def _apply_base_lines_manual_amounts_to_reach(
-        self,
-        base_lines,
-        company,
-        target_base_amount_currency,
-        target_base_amount,
-        target_tax_amounts_mapping,
-    ):
-        """Fix the tax amounts of the base lines passed as parameter by storing them in 'manual_tax_amounts' and make some
-        adjustement to ensure the total of those lines will be exactly 'target_amount_currency'/'target_amount'.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        DEPRECATED: TO BE REMOVED IN MASTER
-
-        :param base_lines:                  A list of base lines generated using the '_prepare_base_line_for_taxes_computation' method.
-        :param company:                     The company owning the base lines.
-        :param target_base_amount_currency: The expected base amount for the base lines expressed in foreign currency.
-        :param target_base_amount:          The expected base amount for the base lines expressed in company currency.
-        :param target_tax_amounts_mapping:   A mapping tax_id => dictionary containing:
-            * tax_amount_currency:              The expected tax amount for the base lines expressed in foreign currency.
-            * tax_amount:                       The expected tax amount for the base lines expressed in company currency.
-        """
-        currency = base_lines[0]["currency_id"]
-
-        # Smooth distribution of the delta base amount accross the base line, starting at the biggest one.
-        sorted_base_lines = sorted(
-            [base_line for base_line in base_lines],
-            key=lambda base_line: (
-                bool(base_line["special_type"]),
-                -base_line["tax_details"]["total_excluded_currency"],
-            ),
-        )
-        base_lines_totals = self._compute_subset_base_lines_total(base_lines, company)
-        for delta_suffix, delta_target_base_amount, delta_currency in (
-            ("_currency", target_base_amount_currency, currency),
-            ("", target_base_amount, company.currency_id),
-        ):
-            target_factors = [
-                {
-                    "factor": abs(
-                        (
-                            base_line["tax_details"]["total_excluded_currency"]
-                            + base_line["tax_details"]["delta_total_excluded_currency"]
-                        )
-                        / base_lines_totals["base_amount_currency"]
-                    ),
-                    "base_line": base_line,
-                }
-                for base_line in sorted_base_lines
-            ]
-            amounts_to_distribute = self._distribute_delta_amount_smoothly(
-                precision_digits=delta_currency.decimal_places,
-                delta_amount=delta_target_base_amount
-                - base_lines_totals[f"base_amount{delta_suffix}"],
-                target_factors=target_factors,
-            )
-            for target_factor, amount_to_distribute in zip(
-                target_factors, amounts_to_distribute
-            ):
-                base_line = target_factor["base_line"]
-                tax_details = base_line["tax_details"]
-                taxes_data = tax_details["taxes_data"]
-                if delta_suffix == "_currency":
-                    base_line["price_unit"] += amount_to_distribute / abs(
-                        base_line["quantity"] or 1.0
-                    )
-                if not taxes_data:
-                    continue
-
-                first_batch = taxes_data[0]["batch"]
-                for tax_data in taxes_data:
-                    tax = tax_data["tax"]
-                    if tax in first_batch:
-                        tax_data[f"base_amount{delta_suffix}"] += amount_to_distribute
-                    else:
-                        break
-
-        for tax_id_str, tax_amounts in target_tax_amounts_mapping.items():
-            for delta_suffix, delta_target_tax_amount, delta_currency in (
-                ("_currency", tax_amounts["tax_amount_currency"], currency),
-                ("", tax_amounts["tax_amount"], company.currency_id),
-            ):
-                current_tax_amounts = base_lines_totals["tax_amounts_mapping"][
-                    tax_id_str
-                ]
-                if not current_tax_amounts["tax_amount_currency"]:
-                    continue
-
-                target_factors = [
-                    {
-                        "factor": abs(
-                            tax_data["tax_amount_currency"]
-                            / current_tax_amounts["tax_amount_currency"]
-                        ),
-                        "tax_data": tax_data,
-                    }
-                    for base_line in sorted_base_lines
-                    for tax_data in base_line["tax_details"]["taxes_data"]
-                    if str(tax_data["tax"].id) == tax_id_str
-                ]
-                amounts_to_distribute = self._distribute_delta_amount_smoothly(
-                    precision_digits=delta_currency.decimal_places,
-                    delta_amount=delta_target_tax_amount
-                    - current_tax_amounts[f"tax_amount{delta_suffix}"],
-                    target_factors=target_factors,
-                )
-                for target_factor, amount_to_distribute in zip(
-                    target_factors, amounts_to_distribute
-                ):
-                    tax_data = target_factor["tax_data"]
-                    tax_data[f"tax_amount{delta_suffix}"] += amount_to_distribute
-
-        self._fix_base_lines_tax_details_on_manual_tax_amounts(
-            base_lines=base_lines,
-            company=company,
-        )
 
     @api.model
     def _reduce_base_lines_to_target_amount(
@@ -2077,10 +1921,18 @@ class AccountTax(models.Model):
                 exclude_function and exclude_function(base_line, tax_data)
             )
 
-        return self._dispatch_taxes_into_new_base_lines(
+        new_base_lines = self._dispatch_taxes_into_new_base_lines(
             base_lines,
             company,
             dispatch_exclude_function,
+        )
+        # Taxes that cannot be part of a down payment (e.g. fixed taxes) are
+        # dispatched out above; fold their amounts back into the base so the
+        # down payment total stays consistent with the order total. Dropping
+        # this call silently loses the excluded taxes' value from the base.
+        return new_base_lines + self._turn_removed_taxes_into_new_base_lines(
+            new_base_lines,
+            company,
         )
 
     @api.model
@@ -2420,7 +2272,10 @@ class AccountTax(models.Model):
                     discount_data["base_lines"], splitted_base_lines
                 ):
                     base_line["discount_base_lines"].append(new_base_line)
-        return [x for x in new_base_lines if x not in dispatched_neg_base_lines]
+        # Filter by identity: `new_base_lines` are dicts, so `x not in list`
+        # would fall back to O(n²) value-equality comparisons.
+        dispatched_ids = {id(x) for x in dispatched_neg_base_lines}
+        return [x for x in new_base_lines if id(x) not in dispatched_ids]
 
     @api.model
     def _squash_global_discount_lines(self, base_lines, company):
@@ -2562,7 +2417,10 @@ class AccountTax(models.Model):
                         "return_of_merchandise_base_lines"
                     ].append(new_base_line)
 
-        return [x for x in new_base_lines if x not in dispatched_neg_base_lines]
+        # Filter by identity: `new_base_lines` are dicts, so `x not in list`
+        # would fall back to O(n²) value-equality comparisons.
+        dispatched_ids = {id(x) for x in dispatched_neg_base_lines}
+        return [x for x in new_base_lines if id(x) not in dispatched_ids]
 
     @api.model
     def _squash_return_of_merchandise_lines(self, base_lines, company):

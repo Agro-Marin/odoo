@@ -164,7 +164,7 @@ class AccountMove(models.Model):
             'special': '3',
         }.get(self.company_id.l10n_jo_edi_taxpayer_type, '1')
 
-    def button_draft(self):
+    def action_draft(self):
         # EXTENDS 'account'
         self.write(
             {
@@ -173,7 +173,7 @@ class AccountMove(models.Model):
                 "l10n_jo_edi_qr": False,
             }
         )
-        return super().button_draft()
+        return super().action_draft()
 
     def _get_fields_to_detach(self):
         # EXTENDS account

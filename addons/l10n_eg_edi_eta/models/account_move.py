@@ -71,9 +71,9 @@ class AccountMove(models.Model):
         fields_list.append('l10n_eg_eta_json_doc_file')
         return fields_list
 
-    def button_draft(self):
+    def action_draft(self):
         self.l10n_eg_is_signed = False
-        return super().button_draft()
+        return super().action_draft()
 
     def action_post_sign_invoices(self):
         # only sign invoices that are confirmed and not yet sent to the ETA.

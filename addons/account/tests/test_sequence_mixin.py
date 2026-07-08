@@ -984,6 +984,83 @@ class TestSequenceMixin(TestSequenceMixinCommon):
             self.create_move(date="2021-01-01", post=True)
         mock.assert_called_once()
 
+    def test_init_recreates_dropped_secondary_index(self):
+        """``init()`` must ensure every sequence index independently.
+
+        Dropping only the secondary index and re-running ``init()`` must bring it
+        back, even though the primary index still exists.
+        """
+        move = self.env["account.move"]
+        idx2 = move._table + "_sequence_index2"
+
+        def index_present():
+            self.env.cr.execute(
+                "SELECT 1 FROM pg_indexes WHERE indexname = %s", (idx2,)
+            )
+            return bool(self.env.cr.fetchone())
+
+        self.env.cr.execute(f'DROP INDEX IF EXISTS "{idx2}"')
+        self.assertFalse(index_present(), "precondition: secondary index dropped")
+        move.init()
+        self.assertTrue(
+            index_present(), "init() must recreate the dropped secondary index"
+        )
+
+    def test_new_sequence_requires_date(self):
+        """Allocating a new sequence without a date fails with a clear message.
+
+        The date drives the period boundaries and month of a fresh sequence.
+        Without it the date maths used to raise an opaque
+        ``'NoneType' object has no attribute 'year'``; callers such as importers
+        that invoke ``_set_next_sequence`` on a dateless move must instead get a
+        ``ValidationError`` naming the missing field.
+        """
+        move = self.create_move(date="2099-12-01")
+        move.name = False
+        move.date = False
+        with self.assertRaisesRegex(
+            ValidationError, "required to start a new sequence"
+        ):
+            move._get_next_sequence_format()
+
+    def test_sequence_format_param_roundtrip(self):
+        """Lock the documented contract of ``_get_sequence_format_param``.
+
+        For any parseable sequence, ``format.format(**values) == previous`` must
+        hold, and the reset periodicity must be deduced as expected. This pins the
+        regex machinery (deduction + format-string synthesis) across every reset
+        type so refactors there cannot silently change numbering.
+        """
+        move = self.env["account.move"]
+        cases = {
+            "MISC/2042/00123": "year",
+            "MISC/2042-2043/00123": "year_range",
+            "MISC/2019/04/0001": "month",
+            "MISC/2042-2043/04/000123": "year_range_month",
+            "MISC/00123": "never",
+            "2019/00001": "year",
+            "INV/2019/0001": "year",
+            "PAY/19-20/0007": "year_range",
+            "0000000001": "never",
+            "MISC/15-16/01/0001": "year_range_month",
+            "BILL/15-16/0001": "year_range",
+            "ABC123": "never",
+            "XYZ/2021-2022/12/9999": "year_range_month",
+        }
+        for name, expected_reset in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(
+                    move._deduce_sequence_number_reset(name),
+                    expected_reset,
+                    f"wrong reset deduced for {name!r}",
+                )
+                fmt, values = move._get_sequence_format_param(name)
+                self.assertEqual(
+                    fmt.format(**values),
+                    name,
+                    f"round-trip failed for {name!r}",
+                )
+
 
 @tagged("post_install", "-at_install")
 class TestSequenceGaps(TestSequenceMixinCommon):

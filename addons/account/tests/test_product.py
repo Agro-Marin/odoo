@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from unittest.mock import patch
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import Form, tagged
@@ -121,4 +121,156 @@ class TestProduct(AccountTestInvoicingCommon):
             product.taxes_id,
             tax_new,
             "The branch company default tax shouldn't be set if we set a different tax on the product from the parent company.",
+        )
+
+    def test_get_list_price_price_included_tax_subcent(self):
+        """A public price with sub-cent precision under a price-included tax must
+        round to that price, not collapse to the tax-excluded base.
+
+        Regression: the branch used a raw ``price == total_included`` float
+        comparison, so ``1234.567`` (total_included rounds to ``1234.57``) took
+        the wrong branch and returned the excluded base (~``1064``).
+        """
+        tax_incl = self.env["account.tax"].create(
+            {
+                "name": "16% included",
+                "amount": 16.0,
+                "amount_type": "percent",
+                "type_tax_use": "sale",
+                "price_include_override": "tax_included",
+            }
+        )
+        product = self.env["product.template"].create(
+            {"name": "Sub-cent priced", "taxes_id": tax_incl.ids}
+        )
+        currency = product.currency_id
+        for price, expected in [(1234.567, 1234.57), (100.005, 100.01), (100.0, 100.0)]:
+            self.assertEqual(
+                currency.compare_amounts(product._get_list_price(price), expected),
+                0,
+                f"_get_list_price({price}) with a price-included tax should round"
+                " to the input price",
+            )
+
+    def test_get_list_price_price_excluded_tax(self):
+        """With a price-excluded tax, the stored list price is the tax-excluded
+        base derived from the tax-inclusive public price."""
+        tax_excl = self.env["account.tax"].create(
+            {
+                "name": "21% excluded",
+                "amount": 21.0,
+                "amount_type": "percent",
+                "type_tax_use": "sale",
+                "price_include_override": "tax_excluded",
+            }
+        )
+        product = self.env["product.template"].create(
+            {"name": "Excl priced", "taxes_id": tax_excl.ids}
+        )
+        # 121.0 tax-inclusive public price -> 100.0 tax-excluded base at 21%.
+        self.assertEqual(
+            product.currency_id.compare_amounts(product._get_list_price(121.0), 100.0),
+            0,
+        )
+
+    def test_retrieve_product_by_identifiers(self):
+        """``_retrieve_product`` matches by barcode, default_code and exact name,
+        and returns an empty recordset when nothing matches."""
+        Product = self.env["product.product"]
+        product = Product.create(
+            {
+                "name": "ZZ Retrieval Probe",
+                "default_code": "RET-PROBE-001",
+                "barcode": "0000000012345",
+            }
+        )
+        self.assertEqual(Product._retrieve_product(barcode="0000000012345"), product)
+        self.assertEqual(
+            Product._retrieve_product(default_code="RET-PROBE-001"), product
+        )
+        self.assertEqual(Product._retrieve_product(name="ZZ Retrieval Probe"), product)
+        self.assertFalse(Product._retrieve_product(barcode="NO-SUCH-BARCODE"))
+
+    def test_retrieve_product_search_plan_priority_collision(self):
+        """Two plan entries sharing a priority must not crash the sort.
+
+        The plan holds ``(priority, bound_method)`` tuples and bound methods are
+        not orderable, so sorting on the whole tuple would raise once priorities
+        tie. ``_retrieve_product`` must sort on the priority alone.
+        """
+        Product = self.env["product.product"]
+        product = Product.create({"name": "ZZ Collision Probe"})
+        original_plan = Product._get_retrieval_product_search_plan
+
+        def colliding_plan(self):
+            # Reuse the barcode entry's priority (5) to force a tie.
+            return original_plan() + [
+                (5, self._import_retrieve_product_from_default_code)
+            ]
+
+        with patch.object(
+            type(Product), "_get_retrieval_product_search_plan", colliding_plan
+        ):
+            # Must not raise; still resolves by exact name.
+            self.assertEqual(
+                Product._retrieve_product(name="ZZ Collision Probe"), product
+            )
+
+    def test_retrieve_product_extra_domain(self):
+        """``extra_domain`` narrows the search rather than being silently
+        ignored: a domain that excludes the only match yields nothing, and one
+        that keeps it still returns it."""
+        Product = self.env["product.product"]
+        product = Product.create(
+            {"name": "ZZ Extra Domain Probe", "default_code": "RET-EXTRA-1"}
+        )
+        self.assertFalse(
+            Product._retrieve_product(
+                default_code="RET-EXTRA-1", extra_domain=[("id", "=", -1)]
+            ),
+            "extra_domain excluding the match must suppress it",
+        )
+        self.assertEqual(
+            Product._retrieve_product(
+                default_code="RET-EXTRA-1", extra_domain=[("id", "=", product.id)]
+            ),
+            product,
+        )
+
+    def test_retrieve_product_by_name_returns_best_match(self):
+        """Fuzzy name retrieval returns the closest candidate, not merely the
+        first one over the threshold that happens to sort earlier."""
+        Product = self.env["product.product"]
+        # Both contain "ZZ Widget" (so both pass the ``ilike`` prefilter) and
+        # neither equals the query exactly (so the exact-name criterion does not
+        # short-circuit). "ZZ Widget X" sorts first but is the weaker match.
+        Product.create({"name": "ZZ Widget X"})  # ratio ~0.90, sorts first
+        best = Product.create({"name": "ZZ Widgets"})  # ratio ~0.95
+        self.env["ir.config_parameter"].sudo().set_param(
+            "account.product_name_similarity_threshold", "0.5"
+        )
+        self.assertEqual(Product._retrieve_product(name="ZZ Widget"), best)
+
+    def test_get_product_accounts_requires_single_record(self):
+        """Account resolution is per-product; a multi-record call must raise
+        rather than silently return one company's defaults for the whole set."""
+        products = self.product_a + self.product_b
+        with self.assertRaises(ValueError):
+            products._get_product_accounts()
+
+    def test_import_product_classification_domain_inert_without_codes(self):
+        """The classification hook contributes nothing when no code is supplied,
+        so plain retrieval is unaffected."""
+        Product = self.env["product.product"]
+        self.assertEqual(
+            Product._get_import_product_classification_domain({"name": "x"}),
+            ([], []),
+        )
+        self.assertTrue(
+            all(
+                value is None
+                for value in Product._get_import_product_cache_discriminators(
+                    {"name": "x"}
+                ).values()
+            )
         )

@@ -1,17 +1,35 @@
+import re
 from ast import literal_eval
 from urllib.parse import urlencode
 
-from odoo import api, Command, fields, models, _
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.addons.base.models.res_bank import sanitize_account_number
-from odoo.tools import email_normalize, email_normalize_all, groupby
 from odoo.libs.web import urls
+from odoo.tools import email_normalize, email_normalize_all, groupby
 from odoo.tools.misc import hash_sign
-from collections import defaultdict
-import logging
-import re
 
-_logger = logging.getLogger(__name__)
+# Default code prefix handed out per journal type (see ``_get_next_journal_default_code``).
+JOURNAL_CODE_PREFIXES = {
+    "sale": "INV",
+    "purchase": "BILL",
+    "cash": "CSH",
+    "bank": "BNK",
+    "credit": "CCD",
+    "general": "MISC",
+}
+# account_type (or SQL LIKE pattern) expected for a journal type's default account.
+DEFAULT_ACCOUNT_TYPE_BY_JOURNAL = {
+    "bank": "asset_cash",
+    "cash": "asset_cash",
+    "sale": "income%",
+    "purchase": "expense%",
+    "credit": "liability_credit_card",
+}
+# move_type stamped on the alias defaults so mail-created moves land in the right journal.
+ALIAS_MOVE_TYPE_BY_JOURNAL = {
+    "purchase": "in_invoice",
+    "sale": "out_invoice",
+}
 
 
 class AccountJournalGroup(models.Model):
@@ -55,8 +73,16 @@ class AccountJournal(models.Model):
     _rec_names_search = ["name", "code"]
 
     def _default_display_invoice_template_pdf_report_id(self):
-        """Show PDF template selection if there are more than 1 template available for invoices."""
-        return len(self.available_invoice_template_pdf_report_ids) > 1
+        """Show PDF template selection if there is more than 1 template available for invoices.
+
+        Defaults run on an empty recordset, so the ``available_invoice_template_pdf_report_ids``
+        compute (a ``for journal in self`` loop) would leave the field empty and the check would
+        always be False. Read the underlying report list directly instead.
+        """
+        reports = self.env[
+            "account.move"
+        ]._get_available_invoice_template_pdf_report_ids()
+        return len(reports) > 1
 
     def _default_inbound_payment_methods(self):
         return self.env.ref("account.account_payment_method_manual_in")
@@ -64,11 +90,8 @@ class AccountJournal(models.Model):
     def _default_outbound_payment_methods(self):
         return self.env.ref("account.account_payment_method_manual_out")
 
-    def __get_bank_statements_available_sources(self):
-        return [("undefined", _("Undefined Yet"))]
-
     def _get_bank_statements_available_sources(self):
-        return self.__get_bank_statements_available_sources()
+        return [("undefined", _("Undefined Yet"))]
 
     def _default_invoice_reference_model(self):
         """Get the invoice reference model according to the company's country."""
@@ -377,19 +400,30 @@ class AccountJournal(models.Model):
         (self - journals_with_invalid_statements).has_invalid_statements = False
 
     def _compute_display_alias_fields(self):
-        self.display_alias_fields = self.env["mail.alias.domain"].search_count(
-            [], limit=1
+        self.display_alias_fields = bool(
+            self.env["mail.alias.domain"].search_count([], limit=1)
         )
 
     @api.depends("type", "company_id")
     def _compute_code(self):
-        cache = defaultdict(list)
+        # Fetch each company's existing codes once and reuse the set across the whole
+        # recordset (chart-template install / import create many journals at once),
+        # instead of querying per record. New codes are added back so siblings in the
+        # same batch never collide.
+        used_by_company = {}  # company id -> codes already taken (DB + this batch)
         for record in self:
-            if not record.code and record.type:
-                record.code = self._get_next_journal_default_code(
-                    record.type, record.company_id, cache.get(record.company_id)
+            if record.code or not record.type:
+                continue
+            company = record.company_id
+            used = used_by_company.get(company.id)
+            if used is None:
+                used = used_by_company[company.id] = self._get_company_journal_codes(
+                    company
                 )
-                cache[record.company_id].append(record.code)
+            record.code = self._get_next_journal_default_code(
+                record.type, company, used_codes=used
+            )
+            used.add(record.code)
 
     def _get_journals_payment_method_information(self):
         method_information = self.env[
@@ -570,59 +604,37 @@ class AccountJournal(models.Model):
 
     @api.depends("type")
     def _compute_default_account_type(self):
-        default_account_id_types = {
-            "bank": "asset_cash",
-            "cash": "asset_cash",
-            "sale": "income%",
-            "purchase": "expense%",
-            "credit": "liability_credit_card",
-        }
-
         for journal in self:
-            journal.default_account_type = default_account_id_types.get(
+            journal.default_account_type = DEFAULT_ACCOUNT_TYPE_BY_JOURNAL.get(
                 journal.type, "%"
             )
 
     @api.depends("type", "currency_id")
     def _compute_inbound_payment_method_line_ids(self):
-        for journal in self:
-            pay_method_line_ids_commands = [Command.clear()]
-            if journal.type in ("bank", "cash", "credit"):
-                existing_method_lines = journal.inbound_payment_method_line_ids
-                default_methods = journal._default_inbound_payment_methods()
-                for pay_method in default_methods:
-                    payment_account = existing_method_lines.filtered(
-                        lambda m: m.payment_method_id == pay_method
-                    )[:1].payment_account_id
-                    pay_method_line_ids_commands += [
-                        Command.create(
-                            {
-                                "name": pay_method.name,
-                                "payment_method_id": pay_method.id,
-                                "payment_account_id": (
-                                    payment_account.id
-                                    if not payment_account.currency_id
-                                    or payment_account.currency_id
-                                    == journal.currency_id
-                                    else False
-                                ),
-                            }
-                        )
-                    ]
-            journal.inbound_payment_method_line_ids = pay_method_line_ids_commands
+        self._compute_payment_method_line_ids("inbound")
 
     @api.depends("type", "currency_id")
     def _compute_outbound_payment_method_line_ids(self):
+        self._compute_payment_method_line_ids("outbound")
+
+    def _compute_payment_method_line_ids(self, payment_type):
+        """Recompute the default (in|out)bound payment method lines for liquidity
+        journals, reusing the payment account already set for a given method."""
+        field_name = f"{payment_type}_payment_method_line_ids"
         for journal in self:
-            pay_method_line_ids_commands = [Command.clear()]
+            commands = [Command.clear()]
             if journal.type in ("bank", "cash", "credit"):
-                existing_method_lines = journal.outbound_payment_method_line_ids
-                default_methods = journal._default_outbound_payment_methods()
+                existing_method_lines = journal[field_name]
+                default_methods = getattr(
+                    journal, f"_default_{payment_type}_payment_methods"
+                )()
                 for pay_method in default_methods:
                     payment_account = existing_method_lines.filtered(
-                        lambda m: m.payment_method_id == pay_method
+                        lambda m, pay_method=pay_method: (
+                            m.payment_method_id == pay_method
+                        )
                     )[:1].payment_account_id
-                    pay_method_line_ids_commands += [
+                    commands.append(
                         Command.create(
                             {
                                 "name": pay_method.name,
@@ -636,8 +648,8 @@ class AccountJournal(models.Model):
                                 ),
                             }
                         )
-                    ]
-            journal.outbound_payment_method_line_ids = pay_method_line_ids_commands
+                    )
+            journal[field_name] = commands
 
     @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
     def _compute_selected_payment_method_codes(self):
@@ -659,14 +671,12 @@ class AccountJournal(models.Model):
         for journal in self:
             if journal.type not in ("bank", "cash", "credit"):
                 journal.suspense_account_id = False
-            elif journal.suspense_account_id:
-                journal.suspense_account_id = journal.suspense_account_id
-            elif journal.company_id.account_journal_suspense_account_id:
+            elif not journal.suspense_account_id:
+                # Only fall back to the company default when unset; never
+                # overwrite a suspense account the user already chose.
                 journal.suspense_account_id = (
-                    journal.company_id.account_journal_suspense_account_id
+                    journal.company_id.account_journal_suspense_account_id or False
                 )
-            else:
-                journal.suspense_account_id = False
 
     @api.depends("company_id")
     @api.depends_context("move_date", "has_tax")
@@ -819,15 +829,11 @@ class AccountJournal(models.Model):
         for journal in self:
             company = journal.company_id
 
-            # Exclude the 'unique' / 'electronic' values that are already set on the journal.
-            protected_provider_ids = set()
-            protected_payment_method_ids = set()
+            # Ensure you don't have the same payment_method/name combination twice on
+            # the same journal.
             for payment_type in ("inbound", "outbound"):
-                lines = journal[f"{payment_type}_payment_method_line_ids"]
-
-                # Ensure you don't have the same payment_method/name combination twice on the same journal.
                 counter = {}
-                for line in lines:
+                for line in journal[f"{payment_type}_payment_method_line_ids"]:
                     if method_information_mapping.get(
                         line.payment_method_id.id, {}
                     ).get("mode") not in ("electronic", "unique"):
@@ -845,18 +851,6 @@ class AccountJournal(models.Model):
                                 name=line.name,
                             )
                         )
-
-                for line in lines:
-                    if line.payment_method_id.id in method_information_mapping:
-                        protected_payment_method_ids.add(line.payment_method_id.id)
-                        if (
-                            manage_providers
-                            and method_information_mapping[line.payment_method_id.id][
-                                "mode"
-                            ]
-                            == "electronic"
-                        ):
-                            protected_provider_ids.add(line.payment_provider_id.id)
 
             for pay_method in pay_methods:
                 values = method_information_mapping[pay_method.id]
@@ -908,11 +902,6 @@ class AccountJournal(models.Model):
                     )
                 )
 
-    @api.constrains("type", "incoming_einvoice_notification_email")
-    def _check_incoming_einvoice_notification_email(self):
-        # to remove in master
-        pass
-
     @api.onchange("incoming_einvoice_notification_email")
     def _onchange_incoming_einvoice_notification_email(self):
         for journal in self:
@@ -937,57 +926,45 @@ class AccountJournal(models.Model):
             ]._get_available_invoice_template_pdf_report_ids()
 
     def unlink(self):
-        bank_accounts = self.env["res.partner.bank"].browse()
-        for bank_account in self.mapped("bank_account_id"):
-            accounts = self.search([("bank_account_id", "=", bank_account.id)])
-            if accounts <= self:
-                bank_accounts += bank_account
+        # A bank account can be deleted together with the journals only if every
+        # journal still referencing it is part of this deletion. Resolve that in a
+        # single grouped query instead of one search per bank account.
+        used_bank_accounts = self.bank_account_id
+        bank_accounts = self.env["res.partner.bank"]
+        if used_bank_accounts:
+            self_ids = set(self.ids)
+            for bank_account, journal_ids in self.env["account.journal"]._read_group(
+                domain=[("bank_account_id", "in", used_bank_accounts.ids)],
+                groupby=["bank_account_id"],
+                aggregates=["id:array_agg"],
+            ):
+                if set(journal_ids) <= self_ids:
+                    bank_accounts += bank_account
         self.env["account.payment.method.line"].search(
             [("journal_id", "in", self.ids)]
         ).unlink()
-        ret = super(AccountJournal, self).unlink()
+        ret = super().unlink()
         bank_accounts.unlink()
         return ret
 
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default)
-        code_by_company_id = {
-            company_id: set(
-                self.env["account.journal"]
-                .with_context(active_test=False)
-                ._read_group(
-                    domain=self.env["account.journal"]._check_company_domain(
-                        company_id
-                    ),
-                    aggregates=["code:array_agg"],
-                )[0][0]
-            )
-            for company_id, _ in groupby(vals_list, lambda v: v["company_id"])
-        }
-        for journal, vals in zip(self, vals_list):
-            # Find a unique code for the copied journal
-            all_journal_codes = code_by_company_id[vals["company_id"]]
-
-            copy_code = vals["code"]
-            code_prefix = re.sub(r"\d+", "", copy_code).strip()
-            counter = 1
-            while counter <= len(all_journal_codes) and copy_code in all_journal_codes:
-                counter_str = str(counter)
-                copy_prefix = code_prefix[
-                    : journal._fields["code"].size - len(counter_str)
-                ]
-                copy_code = "%s%s" % (copy_prefix, counter_str)
-                counter += 1
-
-            if counter > len(all_journal_codes):
-                # Should never happen, but put there just in case.
-                raise UserError(
-                    _(
-                        "Could not compute any code for the copy automatically. Please create it manually."
-                    )
+        # Fetch each company's codes once, then add every code we hand out back to the
+        # set so that copying several journals that share a prefix in one call can
+        # neither collide with an existing code nor with a sibling copy.
+        used_by_company = {}  # company id -> codes already taken (DB + this batch)
+        for journal, vals in zip(self, vals_list, strict=True):
+            company = self.env["res.company"].browse(vals["company_id"])
+            used = used_by_company.get(company.id)
+            if used is None:
+                used = used_by_company[company.id] = self._get_company_journal_codes(
+                    company
                 )
-
+            copy_code = self._get_next_available_code(
+                vals["code"], company, used_codes=used
+            )
+            used.add(copy_code)
             vals.update(code=copy_code, name=_("%s (copy)", journal.name or ""))
         return vals_list
 
@@ -1056,7 +1033,7 @@ class AccountJournal(models.Model):
                             field_string,
                         )
                     )
-        result = super(AccountJournal, self).write(vals)
+        result = super().write(vals)
 
         # Ensure alias coherency when changing type
         if "type" in vals and not self.env.context.get(
@@ -1077,18 +1054,13 @@ class AccountJournal(models.Model):
             ):
                 journal.default_account_id.currency_id = journal.currency_id
 
-        # Create the bank_account_id if necessary
-        if "bank_acc_number" in vals:
-            for journal in self.filtered(
-                lambda r: r.type == "bank" and not r.bank_account_id
-            ):
-                journal.set_bank_account(
-                    vals.get("bank_acc_number"), vals.get("bank_id")
-                )
+        # Create the bank_account_id if necessary and (re)trust it for payments.
         if "bank_acc_number" in vals or "bank_account_id" in vals:
-            for bank in self.filtered(lambda r: r.type == "bank").bank_account_id:
-                if bank._user_can_trust():
-                    bank.allow_out_payment = True
+            acc_number = (
+                vals.get("bank_acc_number") if "bank_acc_number" in vals else None
+            )
+            for journal in self:
+                journal._ensure_bank_account(acc_number, vals.get("bank_id"))
         return result
 
     def _alias_get_creation_values(self):
@@ -1102,10 +1074,7 @@ class AccountJournal(models.Model):
                 self.alias_defaults or "{}"
             )
             defaults["company_id"] = self.company_id.id
-            defaults["move_type"] = {
-                "purchase": "in_invoice",
-                "sale": "out_invoice",
-            }.get(self.type, "entry")
+            defaults["move_type"] = ALIAS_MOVE_TYPE_BY_JOURNAL.get(self.type, "entry")
             defaults["journal_id"] = self.id
         return values
 
@@ -1165,60 +1134,91 @@ class AccountJournal(models.Model):
         return self.env["mail.alias"]._sanitize_alias_name(alias_name)
 
     @api.model
-    def _get_next_journal_default_code(
-        self, journal_type, company, cache=None, protected_codes=False
-    ):
-        prefix_map = {
-            "sale": "INV",
-            "purchase": "BILL",
-            "cash": "CSH",
-            "bank": "BNK",
-            "credit": "CCD",
-            "general": "MISC",
-        }
-        journal_code_base = prefix_map.get(journal_type)
-        existing_codes = set(
+    def _get_company_journal_codes(self, company):
+        """Return the set of every journal code already used in ``company``
+        (archived included), in a single grouped query."""
+        groups = (
             self.env["account.journal"]
             .with_context(active_test=False)
-            .search(
-                [
-                    *self.env["account.journal"]._check_company_domain(company),
-                    ("code", "=like", journal_code_base + "%"),
-                ]
+            ._read_group(
+                domain=self.env["account.journal"]._check_company_domain(company),
+                aggregates=["code:array_agg"],
             )
-            .mapped("code")
-            + (cache or [])
+        )
+        return set(groups[0][0]) if groups and groups[0][0] else set()
+
+    @api.model
+    def _get_next_available_code(
+        self, prefix, company, codes_to_avoid=(), used_codes=None
+    ):
+        """Return the first free ``<prefix><n>`` journal code (n starting at 1)
+        for ``company``.
+
+        The ``code`` field is size-limited, so ``prefix`` is shortened as ``n``
+        grows to guarantee the result never exceeds that size (e.g. ``BILL`` becomes
+        ``BIL10`` at 10 rather than overflowing to ``BILL10`` — which the ORM would
+        silently truncate back to ``BILL1`` and collide). Both the codes already
+        used in ``company`` and any extra ``codes_to_avoid`` (e.g. codes reserved by
+        sibling records in the same batch) are skipped.
+
+        ``used_codes`` lets a caller pass the company's existing codes once for a
+        whole batch (see :meth:`_compute_code` / :meth:`copy_data`), avoiding the
+        per-record query; when omitted they are fetched here.
+        """
+        size = self._fields["code"].size
+        if used_codes is None:
+            used_codes = self._get_company_journal_codes(company)
+        used = used_codes | set(codes_to_avoid)
+        # Digits belong to the numeric suffix; keep only the alphabetic stem.
+        prefix = re.sub(r"\d+", "", prefix or "").strip() or "J"
+        for num in range(1, 10**size):
+            suffix = str(num)
+            candidate = f"{prefix[: size - len(suffix)]}{suffix}"
+            if candidate not in used:
+                return candidate
+        raise UserError(
+            _(
+                "Could not generate a unique journal code from prefix %(prefix)s: "
+                "the whole numeric range is already in use.",
+                prefix=prefix,
+            )
         )
 
-        for num in range(1, 100):
-            # journal_code has a maximal size of 5, hence we can enforce the boundary num < 100
-            journal_code = journal_code_base + str(num)
-            if journal_code not in existing_codes and (
-                protected_codes
-                and journal_code not in protected_codes
-                or not protected_codes
-            ):
-                return journal_code
+    @api.model
+    def _get_next_journal_default_code(
+        self, journal_type, company, codes_to_avoid=None, used_codes=None
+    ):
+        """Return the first free ``<PREFIX><n>`` code for a journal of the given
+        type in ``company`` (see :meth:`_get_next_available_code`)."""
+        journal_code_base = JOURNAL_CODE_PREFIXES.get(journal_type)
+        if not journal_code_base:
+            raise UserError(
+                _(
+                    "Unknown journal type %r, cannot generate a default code.",
+                    journal_type,
+                )
+            )
+        return self._get_next_available_code(
+            journal_code_base, company, codes_to_avoid or (), used_codes=used_codes
+        )
+
+    @api.model
+    def _prepare_account_vals(self, company, code, vals, account_type):
+        return {
+            "name": vals.get("name"),
+            "code": code,
+            "account_type": account_type,
+            "currency_id": vals.get("currency_id"),
+            "company_ids": [Command.link(company.id)],
+        }
 
     @api.model
     def _prepare_liquidity_account_vals(self, company, code, vals):
-        return {
-            "name": vals.get("name"),
-            "code": code,
-            "account_type": "asset_cash",
-            "currency_id": vals.get("currency_id"),
-            "company_ids": [Command.link(company.id)],
-        }
+        return self._prepare_account_vals(company, code, vals, "asset_cash")
 
     @api.model
     def _prepare_credit_account_vals(self, company, code, vals):
-        return {
-            "name": vals.get("name"),
-            "code": code,
-            "account_type": "liability_credit_card",
-            "currency_id": vals.get("currency_id"),
-            "company_ids": [Command.link(company.id)],
-        }
+        return self._prepare_account_vals(company, code, vals, "liability_credit_card")
 
     @api.model
     def _create_default_account(self, company, journal_type, vals):
@@ -1352,21 +1352,15 @@ class AccountJournal(models.Model):
                 vals["default_account_id"] = default_account_id
 
         if is_import and not vals.get("code"):
-            code = vals["name"][:5]
-            vals["code"] = (
-                code
-                if not protected_codes or code not in protected_codes
-                else self._get_next_journal_default_code(
+            # `name` may still be unset here (e.g. a 'general' row with no name
+            # column): derive from it when present, otherwise fall back to a
+            # generated code instead of crashing.
+            code = (vals.get("name") or "")[:5].strip()
+            if not code or (protected_codes and code in protected_codes):
+                code = self._get_next_journal_default_code(
                     journal_type, company, protected_codes
                 )
-            )
-            if not vals["code"]:
-                raise UserError(
-                    _(
-                        "Cannot generate an unused journal code. Please change the name for journal %s.",
-                        vals["name"],
-                    )
-                )
+            vals["code"] = code
 
         # === Fill missing alias name for sale / purchase, to force alias creation ===
         if journal_type in {"sale", "purchase"}:
@@ -1381,33 +1375,47 @@ class AccountJournal(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # When importing, keep a running list of the codes already taken in this
+        # batch so rows that would derive the same code from their name (or need a
+        # generated one) don't collide. `_fill_missing_values` may add `code` to
+        # `vals`; later rows must see it, hence we extend the list as we go.
+        is_import = "import_file" in self.env.context
+        protected_codes = (
+            [vals["code"] for vals in vals_list if "code" in vals]
+            if is_import
+            else False
+        )
         for vals in vals_list:
-            # have to keep track of new journal codes when importing
-            codes = (
-                [vals["code"] for vals in vals_list if "code" in vals]
-                if "import_file" in self.env.context
-                else False
-            )
-            self._fill_missing_values(vals, protected_codes=codes)
+            self._fill_missing_values(vals, protected_codes=protected_codes)
+            if is_import and vals.get("code"):
+                protected_codes.append(vals["code"])
 
         journals = super(
             AccountJournal, self.with_context(mail_create_nolog=True)
         ).create(vals_list)
 
-        for journal, vals in zip(journals, vals_list):
-            # Create the bank_account_id if necessary
-            if journal.type == "bank":
-                if not journal.bank_account_id and vals.get("bank_acc_number"):
-                    journal.set_bank_account(
-                        vals.get("bank_acc_number"), vals.get("bank_id")
-                    )
-                if (
-                    journal.bank_account_id
-                    and journal.bank_account_id._user_can_trust()
-                ):
-                    journal.bank_account_id.allow_out_payment = True
+        for journal, vals in zip(journals, vals_list, strict=True):
+            # Create the bank_account_id if necessary and trust it for payments.
+            journal._ensure_bank_account(
+                vals.get("bank_acc_number"), vals.get("bank_id")
+            )
 
         return journals
+
+    def _ensure_bank_account(self, acc_number=None, bank_id=None):
+        """For a bank journal, create its bank account from ``acc_number`` when none
+        is set yet, then allow outgoing payments on it if it can be trusted.
+
+        Shared post-write step for :meth:`create` and :meth:`write`; a no-op for
+        non-bank journals.
+        """
+        self.ensure_one()
+        if self.type != "bank":
+            return
+        if acc_number and not self.bank_account_id:
+            self.set_bank_account(acc_number, bank_id)
+        if self.bank_account_id and self.bank_account_id._user_can_trust():
+            self.bank_account_id.allow_out_payment = True
 
     def set_bank_account(self, acc_number, bank_id=None):
         """Create a res.partner.bank (if not exists) and set it as value of the field bank_account_id"""
@@ -1426,7 +1434,7 @@ class AccountJournal(models.Model):
             },
         )
 
-    @api.depends("currency_id")
+    @api.depends("currency_id", "company_id.currency_id")
     def _compute_display_name(self):
         for journal in self:
             name = journal.name
@@ -1453,7 +1461,7 @@ class AccountJournal(models.Model):
         if not self:
             self = self.env["account.journal"].browse(
                 self.env.context.get("default_journal_id")
-            )  # noqa: PLW0642
+            )
         move_type = self.env.context.get("default_move_type", "entry")
         if not self:
             if move_type in self.env["account.move"].get_sale_types(
@@ -1469,7 +1477,7 @@ class AccountJournal(models.Model):
                     _("The journal in which to upload the invoice is not specified. ")
                 )
             self = self.env["account.journal"].search(
-                [  # noqa: PLW0642
+                [
                     *self.env["account.journal"]._check_company_domain(
                         self.env.company
                     ),
@@ -1578,20 +1586,14 @@ class AccountJournal(models.Model):
         :return: A recordset with all the account.account used by this journal for inbound transactions.
         """
         self.ensure_one()
-        account_ids = set()
-        for line in self.inbound_payment_method_line_ids:
-            account_ids.add(line.payment_account_id.id)
-        return self.env["account.account"].browse(account_ids)
+        return self.inbound_payment_method_line_ids.payment_account_id
 
     def _get_journal_outbound_outstanding_payment_accounts(self):
         """
         :return: A recordset with all the account.account used by this journal for outbound transactions.
         """
         self.ensure_one()
-        account_ids = set()
-        for line in self.outbound_payment_method_line_ids:
-            account_ids.add(line.payment_account_id.id)
-        return self.env["account.account"].browse(account_ids)
+        return self.outbound_payment_method_line_ids.payment_account_id
 
     def _get_available_payment_method_lines(self, payment_type):
         """
@@ -1671,11 +1673,6 @@ class AccountJournal(models.Model):
             return
 
         mail_template.with_context(einvoices=moves).send_mail(self.id, force_send=True)
-
-    def button_unsubscribe_from_invoice_notifications(self):
-        # deprecated, to remove in master
-        self.ensure_one()
-        self.incoming_einvoice_notification_email = False
 
     def _notify_invoice_subscribers(self, invoice, mail_params=None):
         self.ensure_one()

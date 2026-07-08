@@ -2530,10 +2530,16 @@ export const accountTaxHelpers = {
                 (exclude_function && exclude_function(base_line, tax_data))
             );
         }
-        return this.dispatch_taxes_into_new_base_lines(
+        const new_base_lines = this.dispatch_taxes_into_new_base_lines(
             base_lines,
             company,
             dispatch_exclude_function.bind(this)
+        );
+        // Fold taxes that cannot be part of a down payment (e.g. fixed taxes)
+        // back into the base so the down payment total stays consistent with
+        // the order total. Mirror of the Python method — keep both in sync.
+        return new_base_lines.concat(
+            this.turn_removed_taxes_into_new_base_lines(new_base_lines, company)
         );
     },
 

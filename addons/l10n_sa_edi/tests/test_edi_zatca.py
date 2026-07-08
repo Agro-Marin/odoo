@@ -221,7 +221,7 @@ class TestEdiZatca(TestSaEdiCommon):
             sale_order = self.env['sale.order'].sudo().create({
                 'partner_id': self.partner_sa.id,
                 'pricelist_id': saudi_pricelist.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': self.product_a.id,
                         'price_unit': 1000,

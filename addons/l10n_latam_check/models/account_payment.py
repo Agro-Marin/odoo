@@ -197,7 +197,7 @@ class AccountPayment(models.Model):
             if self.move_id == check.outstanding_line_id.move_id:
                 check.outstanding_line_id = False
                 continue
-            check.outstanding_line_id.move_id.button_draft()
+            check.outstanding_line_id.move_id.action_draft()
             check.outstanding_line_id.move_id.unlink()
 
     @api.depends(

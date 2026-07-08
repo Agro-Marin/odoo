@@ -5078,6 +5078,133 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(len(tax_cash_basis_moves), 1)
         self.assertEqual(tax_cash_basis_moves.state, "posted")
 
+    def test_reconcile_cash_basis_mixed_posted_draft_transfer_account(self):
+        """Reconcile ONE posted payment against two cash-basis origin moves in a
+        single plan: one posted, one draft. This produces cash basis moves with
+        mixed both_move_posted, and (with the tax on a reconcilable transfer
+        account) two 'to_reconcile_after' entries pointing at different origin
+        moves.
+
+        Regression guard: the cash basis moves must be created without any
+        post/draft reordering, otherwise the recorded move index desynchronizes
+        and each origin's transfer tax line gets reconciled against the *other*
+        origin's cash basis move.
+        """
+        self.env.company.tax_exigibility = True
+        tax = self.cash_basis_tax_a_third_amount
+        tax_rep_line = tax.invoice_repartition_line_ids.filtered(
+            lambda line: line.repartition_type == "tax"
+        )
+
+        def _origin_move(base, tax_amount):
+            return (
+                self.env["account.move"]
+                .with_context(skip_invoice_sync=True)
+                .create(
+                    {
+                        "move_type": "entry",
+                        "date": "2016-01-01",
+                        "line_ids": [
+                            Command.create(
+                                {
+                                    "debit": 0.0,
+                                    "credit": base,
+                                    "account_id": self.company_data[
+                                        "default_account_revenue"
+                                    ].id,
+                                    "tax_ids": [Command.set(tax.ids)],
+                                }
+                            ),
+                            Command.create(
+                                {
+                                    "debit": 0.0,
+                                    "credit": tax_amount,
+                                    "account_id": self.cash_basis_transfer_account.id,
+                                    "tax_repartition_line_id": tax_rep_line.id,
+                                }
+                            ),
+                            Command.create(
+                                {
+                                    "debit": base + tax_amount,
+                                    "credit": 0.0,
+                                    "account_id": self.extra_receivable_account_1.id,
+                                }
+                            ),
+                        ],
+                    }
+                )
+            )
+
+        # Reconciliation pairs lines ordered by (date, currency, amount): the
+        # smaller receivable is matched first. Make the draft origin the smaller
+        # one so its (draft) cash basis move is processed/appended before the
+        # posted one -- the order that used to desynchronize the recorded index.
+        origin_draft = _origin_move(100.0, 33.33)  # receivable 133.33
+        origin_posted = _origin_move(200.0, 66.66)  # receivable 266.66
+        origin_posted.action_post()
+
+        payment = (
+            self.env["account.move"]
+            .with_context(skip_invoice_sync=True)
+            .create(
+                {
+                    "move_type": "entry",
+                    "date": "2016-01-01",
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "debit": 0.0,
+                                "credit": 399.99,
+                                "account_id": self.extra_receivable_account_1.id,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "debit": 399.99,
+                                "credit": 0.0,
+                                "account_id": self.company_data[
+                                    "default_account_revenue"
+                                ].id,
+                            }
+                        ),
+                    ],
+                }
+            )
+        )
+        payment.action_post()
+
+        receivable_lines = (origin_posted + origin_draft + payment).line_ids.filtered(
+            lambda line: line.account_id == self.extra_receivable_account_1
+        )
+        receivable_lines.reconcile()
+
+        # Each cash basis move's transfer-account counterpart must reconcile with
+        # the transfer tax line of ITS OWN origin move, never the other one.
+        for origin in origin_posted + origin_draft:
+            origin_tax_line = origin.line_ids.filtered(
+                lambda line: line.account_id == self.cash_basis_transfer_account
+            )
+            partials = (
+                origin_tax_line.matched_debit_ids | origin_tax_line.matched_credit_ids
+            )
+            counterparts = (
+                partials.debit_move_id | partials.credit_move_id
+            ) - origin_tax_line
+            caba_counterparts = counterparts.filtered(
+                lambda line: line.move_id.tax_cash_basis_origin_move_id
+            )
+            self.assertTrue(
+                caba_counterparts,
+                "the origin transfer tax line should reconcile with a cash basis move",
+            )
+            for counterpart in caba_counterparts:
+                self.assertEqual(
+                    counterpart.move_id.tax_cash_basis_origin_move_id,
+                    origin,
+                    "cash basis transfer line reconciled across origins "
+                    "(move_index desynchronized by post/draft reordering)",
+                )
+
     def test_reconcile_draft_cash_basis_use_case(self):
         """Test that no user error is raised when trying to generate cash basis entries from reconciling draft moves,
         instead the cash basis entry is created normally but stays in draft until all the moves are posted.

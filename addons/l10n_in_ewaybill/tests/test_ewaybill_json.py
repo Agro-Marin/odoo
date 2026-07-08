@@ -111,7 +111,7 @@ class TestEwaybillJson(L10nInTestInvoicingCommon):
         self.assertDictEqual(json_value, expected, "Indian EDI send json value is not matched")
 
         # =================================== Different UOM Test ===========================================
-        self.invoice.button_draft()
+        self.invoice.action_draft()
         self.invoice.invoice_line_ids.product_uom_id = self.env.ref('uom.product_uom_dozen')
         self.invoice.action_post()
         json_value = ewaybill_invoice._ewaybill_generate_direct_json()

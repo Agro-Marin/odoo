@@ -137,23 +137,7 @@ class AccountAccount(models.Model):
             WHERE journal.currency_id IS NOT NULL
             AND journal.currency_id != company.currency_id
             AND account.currency_id != journal.currency_id
-            AND apm.payment_type = 'inbound'
-            AND account.id = ANY(%(accounts)s)
-
-            UNION ALL
-
-            SELECT
-                account.id,
-                journal.id
-            FROM account_journal journal
-            JOIN res_company company ON company.id = journal.company_id
-            JOIN account_payment_method_line apml ON apml.journal_id = journal.id
-            JOIN account_payment_method apm on apm.id = apml.payment_method_id
-            JOIN account_account account ON account.id = apml.payment_account_id
-            WHERE journal.currency_id IS NOT NULL
-            AND journal.currency_id != company.currency_id
-            AND account.currency_id != journal.currency_id
-            AND apm.payment_type = 'outbound'
+            AND apm.payment_type IN ('inbound', 'outbound')
             AND account.id = ANY(%(accounts)s)
         """,
             {"accounts": list(self.ids)},
@@ -317,27 +301,43 @@ class AccountAccount(models.Model):
         for account in accounts_with_code:
             account.group_id = group_by_code[account.code]
 
-    def _get_used_account_ids(self):
+    def _get_used_account_ids(self, account_ids=None):
+        """Return ids of accounts that carry at least one journal item.
+
+        When *account_ids* is given the scan is restricted to those accounts
+        (the compute path, which only cares about ``self``); otherwise every
+        account is considered (the search path, which is global by nature).
+        """
         rows = self.env.execute_query(
-            SQL("""
-            SELECT id FROM account_account account
-            WHERE EXISTS (
-                SELECT 1 FROM account_move_line aml
-                WHERE aml.account_id = account.id LIMIT 1
+            SQL(
+                """
+                SELECT account.id
+                  FROM account_account account
+                 WHERE EXISTS (
+                           SELECT 1 FROM account_move_line aml
+                            WHERE aml.account_id = account.id
+                       )
+                       %s
+                """,
+                SQL("AND account.id = ANY(%s)", list(account_ids))
+                if account_ids is not None
+                else SQL(),
             )
-        """)
         )
         return [r[0] for r in rows]
 
     def _search_used(self, operator, value):
+        # ``used`` is a boolean; the ORM normalises every realistic domain to
+        # ``in [True]`` / ``not in [True]``, so the operator alone carries the
+        # meaning and ``value`` needs no further inspection.
         if operator not in ("in", "not in"):
             return NotImplemented
         return [("id", operator, self._get_used_account_ids())]
 
     def _compute_used(self):
-        ids = set(self._get_used_account_ids())
+        used = set(self._get_used_account_ids(self.ids))
         for record in self:
-            record.used = record.id in ids
+            record.used = record.id in used
 
     @api.depends_context("company")
     def _compute_current_balance(self):
@@ -358,15 +358,23 @@ class AccountAccount(models.Model):
 
     @api.depends_context("company")
     def _compute_related_taxes_amount(self):
-        for record in self:
-            record.related_taxes_amount = self.env["account.tax"].search_count(
-                [
+        # One grouped query for the whole recordset instead of a search_count
+        # per record. A tax is counted once even if several of its repartition
+        # lines target the same account, matching the previous semantics.
+        counts = dict(
+            self.env["account.tax.repartition.line"]._read_group(
+                domain=[
+                    ("account_id", "in", self.ids),
                     *self.env["account.tax"]._check_company_domain(
                         self.env.company,
                     ),
-                    ("repartition_line_ids.account_id", "in", record.ids),
                 ],
+                groupby=["account_id"],
+                aggregates=["tax_id:count_distinct"],
             )
+        )
+        for record in self:
+            record.related_taxes_amount = counts.get(record, 0)
 
     @api.depends_context("company")
     def _compute_opening_debit_credit(self):
@@ -591,7 +599,7 @@ class AccountAccount(models.Model):
         company_id,
         partner_id,
         move_type,
-        filter_never_user_accounts=False,
+        filter_never_used_accounts=False,
         limit=None,
     ):
         """Return account IDs ordered by usage frequency for a partner."""
@@ -621,7 +629,11 @@ class AccountAccount(models.Model):
             domain,
             bypass_access=True,
         )
-        if not filter_never_user_accounts:
+        if not filter_never_used_accounts:
+            # Promote the account join to a RIGHT JOIN so accounts that were
+            # never used still show up (with a zero count). This reaches into
+            # the Query's private join map; keep in sync with the ORM's join
+            # key format ("<table>__<field>").
             _kind, rhs_table, condition = query._joins["account_move_line__account_id"]
             query._joins["account_move_line__account_id"] = (
                 SQL("RIGHT JOIN"),
@@ -673,7 +685,7 @@ class AccountAccount(models.Model):
                 company_id,
                 partner_id,
                 move_type,
-                filter_never_user_accounts=True,
+                filter_never_used_accounts=True,
                 limit=1,
             )
             cache[key] = most_frequent_account[0] if most_frequent_account else False
@@ -761,10 +773,21 @@ class AccountAccount(models.Model):
         )
 
         if not name and suggested_accounts:
+            # Honour the caller-supplied domain and access rules even without a
+            # search term, while preserving the by-frequency ordering of the
+            # survivors.
+            display_by_id = {
+                record.id: record.display_name
+                for record in self.search_fetch(
+                    Domain.AND([[("id", "in", suggested_accounts)], domain or []]),
+                    ["display_name"],
+                )
+            }
             return [
-                (record.id, record.display_name)
-                for record in self.sudo().browse(suggested_accounts)
-            ]
+                (account_id, display_by_id[account_id])
+                for account_id in suggested_accounts
+                if account_id in display_by_id
+            ][:limit]
 
         digit_in_search_term = any(c.isdigit() for c in name)
         search_domain = Domain("display_name", "ilike", name) if name else []
@@ -966,6 +989,9 @@ class AccountAccount(models.Model):
         if self.env.context.get("account_unmerge_confirm"):
             return
 
+        action = self.env["ir.actions.actions"]._for_xml_id(
+            "account.action_unmerge_accounts",
+        )
         msg = _("Are you sure? This will perform the following operations:\n")
         for account in self:
             msg += _(
@@ -978,9 +1004,6 @@ class AccountAccount(models.Model):
                 f"    - {company.name}: {account.with_company(company).display_name}\n"
                 for company in account.company_ids
             )
-            action = self.env["ir.actions.actions"]._for_xml_id(
-                "account.action_unmerge_accounts",
-            )
         raise RedirectWarning(
             msg,
             action,
@@ -992,59 +1015,113 @@ class AccountAccount(models.Model):
         )
 
     def _action_unmerge(self):
-        """Unmerge self into one account per company."""
+        """Unmerge ``self`` into one account per company.
 
-        def _get_query_company_id(model):
-            if model == "res.company":
-                company_id_field = "id"
-            elif "company_id" in self.env[model]:
-                company_id_field = "company_id"
-            else:
-                return None
-            with contextlib.suppress(ValueError):
-                query = Query(
-                    self.env,
-                    self.env[model]._table,
-                    self.env[model]._table_sql,
-                )
-                return query.select(
-                    SQL(
-                        "%s AS id",
-                        self.env[model]._field_to_sql(query.table, "id"),
-                    ),
-                    SQL(
-                        "%s AS company_id",
-                        self.env[model]._field_to_sql(
-                            query.table,
-                            company_id_field,
-                            query,
-                        ),
-                    ),
-                )
+        Orchestrates the split: create the per-company copies, repoint every
+        stored reference to them in the database, then reassign the original
+        account to its base company. Each step is delegated to a helper below.
+        """
+        self.ensure_one()
 
         # Step 1: Check access rights.
         self._check_action_unmerge_possible()
 
-        # Step 2: Create new accounts.
+        # Step 2: Create one new account per non-base company.
         base_company = (
             self.env.company
             if self.env.company in self.company_ids
             else self.company_ids[0]
         )
+        new_account_by_company = self._unmerge_create_accounts(base_company)
+        new_accounts = self.env["account.account"].union(
+            *new_account_by_company.values(),
+        )
+
+        # Step 3: Repoint foreign keys in the DB from self to the new accounts.
+        self.env.invalidate_all()
+        # {company_id (as text): new_account_id}, matching the on-disk jsonb keys.
+        new_account_id_by_company_id = {
+            str(company.id): new_account.id
+            for company, new_account in new_account_by_company.items()
+        }
+        (self | new_accounts).invalidate_recordset()
+
+        self._unmerge_remap_many2x_fields(new_account_id_by_company_id)
+        self._unmerge_remap_reference_fields(new_account_id_by_company_id)
+        self._unmerge_remap_many2one_reference_fields(new_account_id_by_company_id)
+        self._unmerge_migrate_company_dependent_fields(
+            new_accounts, new_account_id_by_company_id
+        )
+        self._unmerge_split_xmlids(base_company, new_account_id_by_company_id)
+
+        self.env.registry.clear_cache()
+        self.env.invalidate_all()
+
+        # Step 4: Reassign the original account to the base company only.
+        self._unmerge_reassign_company_fields(base_company)
+
+        # Step 5: Log in chatter.
+        self._unmerge_log_split(new_accounts, base_company)
+
+        return new_accounts
+
+    def _unmerge_company_id_subquery(self, model):
+        """Build a ``(id, company_id)`` subquery for *model*, or None.
+
+        Returns None when the model has no usable company column (so the
+        caller skips it). Reaches into the ORM's SQL builder; the two selected
+        columns are aliased ``id`` and ``company_id`` for use in the remap
+        UPDATEs below.
+        """
+        if model == "res.company":
+            company_id_field = "id"
+        elif "company_id" in self.env[model]:
+            company_id_field = "company_id"
+        else:
+            return None
+        with contextlib.suppress(ValueError):
+            query = Query(
+                self.env,
+                self.env[model]._table,
+                self.env[model]._table_sql,
+            )
+            return query.select(
+                SQL(
+                    "%s AS id",
+                    self.env[model]._field_to_sql(query.table, "id"),
+                ),
+                SQL(
+                    "%s AS company_id",
+                    self.env[model]._field_to_sql(
+                        query.table,
+                        company_id_field,
+                        query,
+                    ),
+                ),
+            )
+
+    def _unmerge_create_accounts(self, base_company):
+        """Step 2: copy ``self`` once per non-base company.
+
+        Each copy keeps only the check_company relational values that belong to
+        its company. Returns ``{company: new_account}``.
+        """
         companies_to_update = self.company_ids - base_company
         check_company_fields = {
             fname
             for fname, field in self._fields.items()
             if field.relational and field.check_company
         }
-        new_account_by_company = {
+        return {
             company: self.copy(
                 default={
                     "name": self.name,
                     "company_ids": [Command.set(company.ids)],
                     **{
                         fname: self[fname].filtered(
-                            lambda record: record.company_id == company,
+                            lambda record, company=company: (
+                                record.company_id == company
+                            ),
                         )
                         for fname in check_company_fields
                     },
@@ -1052,23 +1129,11 @@ class AccountAccount(models.Model):
             )
             for company in companies_to_update
         }
-        new_accounts = self.env["account.account"].union(
-            *new_account_by_company.values(),
-        )
 
-        # Step 3: Update foreign keys in DB.
-        self.env.invalidate_all()
-
-        new_account_id_by_company_id = {
-            str(company.id): new_account.id
-            for company, new_account in new_account_by_company.items()
-        }
-        new_account_id_by_company_id_json = json.dumps(
-            new_account_id_by_company_id,
-        )
-        (self | new_accounts).invalidate_recordset()
-
-        # 3.1: Update fields on other models
+    def _unmerge_remap_many2x_fields(self, new_account_id_by_company_id):
+        """Step 3.1: repoint stored many2one/many2many FKs and m2o
+        company-dependent fields that point at ``self``."""
+        new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         many2x_fields = self.env["ir.model.fields"].search(
             [
                 ("ttype", "in", ("many2one", "many2many")),
@@ -1081,7 +1146,7 @@ class AccountAccount(models.Model):
             model = field_to_update.model
             if not self.env[model]._auto:
                 continue
-            if not (query_company_id := _get_query_company_id(model)):
+            if not (query_company_id := self._unmerge_company_id_subquery(model)):
                 continue
             if field_to_update.ttype == "many2one":
                 table = self.env[model]._table
@@ -1143,7 +1208,9 @@ class AccountAccount(models.Model):
                 )
             )
 
-        # 3.2: Update Reference fields
+    def _unmerge_remap_reference_fields(self, new_account_id_by_company_id):
+        """Step 3.2: repoint stored Reference fields (``account.account,<id>``)."""
+        new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         reference_fields = self.env["ir.model.fields"].search(
             [
                 ("ttype", "=", "reference"),
@@ -1154,7 +1221,7 @@ class AccountAccount(models.Model):
             model = field_to_update.model
             if not self.env[model]._auto:
                 continue
-            if not (query_company_id := _get_query_company_id(model)):
+            if not (query_company_id := self._unmerge_company_id_subquery(model)):
                 continue
             self.env.cr.execute(
                 SQL(
@@ -1180,7 +1247,9 @@ class AccountAccount(models.Model):
                 )
             )
 
-        # 3.3: Update Many2OneReference fields
+    def _unmerge_remap_many2one_reference_fields(self, new_account_id_by_company_id):
+        """Step 3.3: repoint stored Many2oneReference fields to ``account.account``."""
+        new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         many2one_reference_fields = self.env["ir.model.fields"].search(
             [
                 ("ttype", "=", "many2one_reference"),
@@ -1201,7 +1270,7 @@ class AccountAccount(models.Model):
                 or not self.env[model]._fields[model_field].store
             ):
                 continue
-            if not (query_company_id := _get_query_company_id(model)):
+            if not (query_company_id := self._unmerge_company_id_subquery(model)):
                 continue
             self.env.cr.execute(
                 SQL(
@@ -1229,7 +1298,12 @@ class AccountAccount(models.Model):
                 )
             )
 
-        # 3.4: Update company_dependent fields
+    def _unmerge_migrate_company_dependent_fields(
+        self, new_accounts, new_account_id_by_company_id
+    ):
+        """Step 3.4: move each company's slice of company_dependent jsonb values
+        onto the new account, then strip those slices from the original."""
+        new_account_id_by_company_id_json = json.dumps(new_account_id_by_company_id)
         self.env.cr.execute(
             SQL(
                 """
@@ -1284,7 +1358,8 @@ class AccountAccount(models.Model):
             )
         )
 
-        # 3.5: Split account xmlids
+    def _unmerge_split_xmlids(self, base_company, new_account_id_by_company_id):
+        """Step 3.5: hand each company-prefixed xmlid to its unmerged account."""
         self.env["ir.model.data"].invalidate_model()
         account_id_by_company_id_json = json.dumps(
             {
@@ -1311,10 +1386,9 @@ class AccountAccount(models.Model):
             )
         )
 
-        self.env.registry.clear_cache()
-        self.env.invalidate_all()
-
-        # Step 4: Update company_ids and check_company fields
+    def _unmerge_reassign_company_fields(self, base_company):
+        """Step 4: pin the original account to ``base_company`` and keep only the
+        check_company relational values that belong to it."""
         write_vals = {"company_ids": [Command.set(base_company.ids)]}
         check_company_fields = {
             field
@@ -1331,10 +1405,10 @@ class AccountAccount(models.Model):
                 if field.type == "many2one"
                 else [Command.set(filtered_corecord.ids)]
             )
-
         self.write(write_vals)
 
-        # Step 5: Log in chatter
+    def _unmerge_log_split(self, new_accounts, base_company):
+        """Step 5: note the split in each new account's chatter."""
         msg_body = _(
             "This account was split off from %(account_name)s (%(company_name)s).",
             account_name=self._get_html_link(title=self.display_name),
@@ -1343,8 +1417,6 @@ class AccountAccount(models.Model):
         new_accounts._message_log_batch(
             bodies={a.id: msg_body for a in new_accounts},
         )
-
-        return new_accounts
 
 
 class AccountGroup(models.Model):
@@ -1460,6 +1532,8 @@ class AccountGroup(models.Model):
             )
 
     def _sanitize_vals(self, vals):
+        # Return a sanitized copy; never mutate the caller's dict in place.
+        vals = dict(vals)
         if (
             vals.get("code_prefix_start")
             and "code_prefix_end" in vals
@@ -1494,13 +1568,13 @@ class AccountGroup(models.Model):
         return res
 
     def unlink(self):
-        for record in self:
-            children_ids = self.env["account.group"].search(
-                [
-                    ("parent_id", "=", record.id),
-                ]
-            )
-            children_ids.write({"parent_id": record.parent_id.id})
+        # Reparent every child onto its grandparent with a single search and
+        # one write per distinct parent, instead of a search+write per record.
+        children = self.env["account.group"].search(
+            [("parent_id", "in", self.ids)],
+        )
+        for parent, group_children in children.grouped("parent_id").items():
+            group_children.parent_id = parent.parent_id.id
         return super().unlink()
 
     def _adapt_parent_account_group(self, company=None):

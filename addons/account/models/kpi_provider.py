@@ -7,6 +7,14 @@ class KpiProvider(models.AbstractModel):
 
     @api.model
     def get_account_kpi_summary(self):
+        # get_kpi_summary() reads the tables with raw SQL, which does not see
+        # pending ORM writes. Flush the fields it inspects so the counts reflect
+        # the current transaction (e.g. a move just (un)checked or a statement
+        # line just reconciled) instead of stale rows.
+        self.env["account.move"].flush_model(
+            ["state", "checked", "journal_id", "statement_line_id"]
+        )
+        self.env["account.bank.statement.line"].flush_model(["is_reconciled"])
         return get_kpi_summary(self.env.cr, self.env.uid)
 
     @api.model

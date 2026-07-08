@@ -1185,7 +1185,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             [
                 {
                     "partner_id": cls.partner_a.id,
-                    "order_line": [
+                    "line_ids": [
                         Command.create({"product_id": cls.product_a.id}),
                         Command.create({"product_id": cls.product_b.id}),
                     ],
@@ -1212,7 +1212,7 @@ class AccountTestInvoicingCommon(ProductCommon):
     ):
         assert price_unit is not None or product_id is not None
         return cls._create_sale_order(
-            order_line=[
+            line_ids=[
                 cls._prepare_order_line(
                     name=name,
                     price_unit=price_unit,

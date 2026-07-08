@@ -207,7 +207,7 @@ class TestSwissQR(AccountTestInvoicingCommon):
         order = self.env['sale.order'].create({
             'name': "S00001",
             'partner_id': self.env['res.partner'].search([("name", '=', 'Partner')])[0].id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {'product_id': self.product_a.id, 'price_unit': 100}),
             ],
         })

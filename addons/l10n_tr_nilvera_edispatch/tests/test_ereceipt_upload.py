@@ -51,7 +51,7 @@ class TestTRNilveraEreceiptUpload(TestStockCommon):
                 'partner_id': self.receipt_partner.id,
                 'picking_type_id': warehouse_id.in_type_id.id,
                 'location_dest_id': warehouse_id.lot_stock_id.id,
-                'scheduled_date': fields.Datetime.from_string('2025-07-29 11:30:00'),
+                'date_planned': fields.Datetime.from_string('2025-07-29 11:30:00'),
                 'origin': 'EIT2025000000009',
             }],
         )

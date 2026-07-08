@@ -31,7 +31,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
             'date_order': declaration.start_date,
             'pricelist_id': self.pricelist.id,
             'l10n_it_edi_doi_id': declaration.id,
-            'order_line': order_line_vals,
+            'line_ids': order_line_vals,
         }
 
     def create_sale_order(self, declaration, order_line_vals):
@@ -102,7 +102,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
         ])
 
         with Form(order) as order_form:
-            with order_form.order_line.edit(0) as line_form:
+            with order_form.line_ids.edit(0) as line_form:
                 line_form.price_unit = 2000
                 line_form.save()
                 self.assertEqual(
@@ -110,7 +110,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                     "Pay attention, the threshold of your Declaration of Intent test 2019-threshold 1000 of 1,000.00\xa0€ is exceeded by 3,000.00\xa0€, this document included.\n"
                     "Invoiced: 0.00\xa0€; Not Yet Invoiced: 4,000.00\xa0€"
                 )
-            with order_form.order_line.edit(0) as line_form:
+            with order_form.line_ids.edit(0) as line_form:
                 line_form.product_uom_qty = 1
                 line_form.price_unit = 2000
                 line_form.save()
@@ -128,7 +128,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                 "Pay attention, the threshold of your Declaration of Intent test 2019-threshold 1000 of 1,000.00\xa0€ is exceeded by 1,000.00\xa0€, this document included.\n"
                 "Invoiced: 0.00\xa0€; Not Yet Invoiced: 2,000.00\xa0€"
             )
-            with order_form.order_line.edit(0) as line_form:
+            with order_form.line_ids.edit(0) as line_form:
                 line_form.price_unit = 3000
                 line_form.save()
                 self.assertEqual(
@@ -136,7 +136,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                     "Pay attention, the threshold of your Declaration of Intent test 2019-threshold 1000 of 1,000.00\xa0€ is exceeded by 2,000.00\xa0€, this document included.\n"
                     "Invoiced: 0.00\xa0€; Not Yet Invoiced: 3,000.00\xa0€"
                 )
-            with order_form.order_line.edit(0) as line_form:
+            with order_form.line_ids.edit(0) as line_form:
                 line_form.product_uom_qty = 2
                 line_form.price_unit = 3000
                 line_form.save()
@@ -243,7 +243,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
         }])
 
         # Update the declaration part of `order` to exceed the threshold
-        order.order_line[0].price_unit = 2000  # > declaration.threshold
+        order.line_ids[0].price_unit = 2000  # > declaration.threshold
         # Now we show the warning
         self.assertEqual(
             order.l10n_it_edi_doi_warning,

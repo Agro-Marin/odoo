@@ -389,7 +389,7 @@ class TestAccountPayment(AccountPaymentCommon):
             state='pending',
             invoice_ids=[invoice.id],
         )
-        invoice.button_cancel()
+        invoice.action_cancel()
         tx._set_done()
         # _post_process() shouldn't raise an error even though the invoice is cancelled
         tx._post_process()

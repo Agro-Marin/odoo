@@ -398,7 +398,7 @@ class TestTdsTcsAlert(L10nInTestInvoicingCommon):
             accounts=[self.rent_account, self.internet_account, self.purchase_account],
         )
         self.tds_wizard_entry(move=move_1, lines=[(self.tax_194ib, 100000), (self.tax_194j, 100000), (self.tax_194c, 100000)])
-        move_1.button_draft()
+        move_1.action_draft()
         move_1.action_post()
         self.assertEqual(move_1.l10n_in_warning, False)
 
@@ -558,7 +558,7 @@ class TestTdsTcsAlert(L10nInTestInvoicingCommon):
             company=self.branch_a,
             accounts=[self.purchase_account],
         )
-        move.button_cancel()
+        move.action_cancel()
         self.assertEqual(move.l10n_in_warning, False)
 
         move_1 = self.create_invoice(

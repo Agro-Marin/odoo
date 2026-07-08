@@ -2,7 +2,6 @@
     "name": "Invoicing",
     "version": "1.4",
     "summary": "Invoices & Payments",
-    "sequence": 10,
     "description": """
 Invoicing & Payments
 ====================
@@ -10,9 +9,9 @@ The specific and easy-to-use Invoicing system in Odoo allows you to keep track o
 
 You could use this simplified accounting in case you work with an (external) account to keep your books, and you still want to keep track of payments. This module also offers you an easy method of registering payments, without having to encode complete abstracts of account.
     """,
-    "category": "Accounting/Accounting",
-    "website": "https://www.odoo.com/app/invoicing",
     "depends": ["base_account", "base_tax", "onboarding", "analytic", "digest"],
+    "category": "Accounting/Accounting",
+    "sequence": 10,
     "data": [
         "security/account_security.xml",
         "security/ir.model.access.csv",
@@ -87,12 +86,6 @@ You could use this simplified accounting in case you work with an (external) acc
         "data/ir_config_parameter_data.xml",
         "views/account_menus.xml",
     ],
-    "demo": [
-        "demo/account_demo.xml",
-    ],
-    "installable": True,
-    "application": True,
-    "post_init_hook": "_account_post_init",
     "assets": {
         "web._assets_primary_variables": [
             "account/static/src/scss/variables.scss",
@@ -135,6 +128,13 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/css/report_invoice.css",
         ],
     },
+    "demo": [
+        "demo/account_demo.xml",
+    ],
+    "installable": True,
+    "application": True,
+    "post_init_hook": "_account_post_init",
+    "website": "https://www.odoo.com/app/invoicing",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "kpi_providers": [

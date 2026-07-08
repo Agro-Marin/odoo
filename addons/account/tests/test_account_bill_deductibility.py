@@ -932,3 +932,58 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
             ],
             {},
         )
+
+    def test_bill_partial_deductibility_foreign_currency(self):
+        """Regression test for the non-deductible base line in a foreign currency.
+
+        The generated non-deductible lines must carry the company-currency amount
+        in ``balance`` and the document-currency amount in ``amount_currency``.
+        A swap between the two is invisible when the invoice currency equals the
+        company currency (rate == 1), so it is only caught with a foreign currency.
+        """
+        foreign = self.env["res.currency"].create(
+            {"name": "FDX", "symbol": "F", "rounding": 0.01}
+        )
+        # 1 company-currency unit == 2 FDX at the invoice date.
+        self.env["res.currency.rate"].create(
+            {
+                "name": "2017-01-01",
+                "rate": 2.0,
+                "currency_id": foreign.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2017-01-01",
+                "currency_id": foreign.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "Partial item",
+                            "price_unit": 200.0,  # 200 FDX == 100 company
+                            "quantity": 1,
+                            "deductible_amount": 75.00,  # 25% non-deductible
+                            "tax_ids": [Command.set(self.tax_purchase_a.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        self.assertEqual(bill.invoice_currency_rate, 2.0)
+
+        # 25% of a 200-FDX / 100-company base == 50 FDX / 25 company.
+        non_deductible = bill.line_ids.filtered(
+            lambda line: line.display_type == "non_deductible_product"
+        )
+        non_deductible_total = bill.line_ids.filtered(
+            lambda line: line.display_type == "non_deductible_product_total"
+        )
+        self.assertRecordValues(
+            non_deductible, [{"balance": -25.0, "amount_currency": -50.0}]
+        )
+        self.assertRecordValues(
+            non_deductible_total, [{"balance": 25.0, "amount_currency": 50.0}]
+        )

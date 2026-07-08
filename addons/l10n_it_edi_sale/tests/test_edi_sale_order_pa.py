@@ -29,7 +29,7 @@ class TestItEdiSaleOrderPa(TestItEdi):
             'partner_id': self.italian_partner_b.id,
             'pricelist_id': self.pricelist.id,
             **kwargs,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_a.id,
                     'price_unit': 100.0,

@@ -26,4 +26,4 @@ class L10nTwEDIInvoiceCancel(models.TransientModel):
 
         self.invoice_id.l10n_tw_edi_invalidate_reason = self.reason
         self.invoice_id._l10n_tw_edi_run_invoice_invalid()
-        self.invoice_id.button_cancel()
+        self.invoice_id.action_cancel()

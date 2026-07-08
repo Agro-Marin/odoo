@@ -106,13 +106,13 @@ class AccountMove(models.Model):
             if move.l10n_rs_edi_is_eligible and not move.l10n_rs_edi_uuid:
                 move.l10n_rs_edi_uuid = uuid.uuid4()
 
-    def button_draft(self):
+    def action_draft(self):
         # EXTENDS 'account'
         self.write({
             "l10n_rs_edi_error": False,
             "l10n_rs_edi_state": False,
         })
-        return super().button_draft()
+        return super().action_draft()
 
     def _l10n_rs_edi_send(self, send_to_cir):
         self.ensure_one()

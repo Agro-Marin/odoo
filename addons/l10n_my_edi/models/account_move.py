@@ -218,7 +218,7 @@ class AccountMove(models.Model):
             try:
                 move._check_fiscal_lock_dates()
                 move.line_ids._check_tax_lock_date()
-                move.button_cancel()
+                move.action_cancel()
             except UserError as e:
                 move.with_context(no_new_invoice=True).message_post(
                     body=self.env._(

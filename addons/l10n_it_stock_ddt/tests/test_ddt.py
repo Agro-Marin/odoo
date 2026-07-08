@@ -22,6 +22,7 @@ class TestDDT(TestSaleCommon):
         cls.env['res.partner.bank'].create({
             'acc_number': 'IT60X0542811101000000123456',
             'partner_id': cls.company_data['company'].partner_id.id,
+            'allow_out_payment': True,
         })
         cls.partner_a.write({
             'street': 'Piazza Guglielmo Marconi 5',
@@ -46,7 +47,7 @@ class TestDDT(TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [(0, 0, {'name': p.name,
+            'line_ids': [(0, 0, {'name': p.name,
                                    'product_id': p.id,
                                    'product_uom_qty': 5,
                                    'price_unit': p.list_price,
@@ -99,7 +100,7 @@ class TestDDT(TestSaleCommon):
         """
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                                    'product_id': self.product_a.id,
                                    'product_uom_qty': 3,
                                    'price_unit': self.product_a.list_price,

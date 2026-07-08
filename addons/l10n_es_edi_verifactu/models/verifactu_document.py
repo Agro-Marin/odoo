@@ -1207,7 +1207,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
             invoice = document.move_id
             if invoice.l10n_es_edi_verifactu_state == 'cancelled' and invoice.state != 'cancel':
                 try:
-                    invoice.button_cancel()
+                    invoice.action_cancel()
                 except UserError as error:
                     _logger.error("Error while canceling journal entry %(name)s (id %(record_id)s) after Veri*Factu cancellation:\n%(error)s",
                                   record_id=invoice.id, name=invoice.name, error=error)

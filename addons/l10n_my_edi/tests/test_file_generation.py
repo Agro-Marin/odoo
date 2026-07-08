@@ -337,7 +337,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
 
         sale_order = self.env['sale.order'].sudo().create({
             'partner_id': self.partner_a.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.product_a.id,
                 'product_uom_qty': 1,
                 'price_unit': 100,
@@ -782,7 +782,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
         so = self.env["sale.order"].sudo().create(
             {
                 "partner_id": self.partner_b.id,
-                "order_line": [Command.create({"product_id": self.product_a.id})],
+                "line_ids": [Command.create({"product_id": self.product_a.id})],
             }
         )
         so.action_confirm()

@@ -139,7 +139,7 @@ class TestItEdiImport(TestItEdi):
             {
                 'partner_id': self.italian_partner_a.id,
                 'partner_ref': 'PO-001',
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_qty': 10.0,
                         'product_id': product.id,
@@ -148,7 +148,7 @@ class TestItEdiImport(TestItEdi):
                     }),
                 ],
             })
-        purchase.button_confirm()
+        purchase.action_confirm()
 
         self._assert_import_invoice('IT01234567890_FPR04.xml', [{
             'move_type': 'in_refund',

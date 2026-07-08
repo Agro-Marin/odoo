@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from freezegun import freeze_time
+
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
-from freezegun import freeze_time
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -48,6 +48,64 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
         self.env.invalidate_all()
         self.assertEqual(partner.days_sales_outstanding, 50)
+
+    def test_credit_search_matches_credit_on_archived_account(self):
+        """The ``credit`` search must agree with the computed Total Receivable.
+
+        Odoo allows archiving a receivable account that still carries an open
+        residual. ``_compute_credit_debit`` ignores ``account.active``, so the
+        form keeps showing the debt; the search behind ``credit`` must not filter
+        it out either (regression: it used to ``AND acc.active``).
+        """
+        partner = self.env["res.partner"].create({"name": "ArchivedAcctDebtor"})
+        move = self.init_invoice(
+            "out_invoice", partner, invoice_date="2023-01-01", amounts=[1000], post=True
+        )
+        self.env.invalidate_all()
+        self.assertGreater(partner.credit, 0)
+        self.assertIn(partner, self.env["res.partner"].search([("credit", ">", 0)]))
+
+        receivable_account = move.line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        ).account_id
+        receivable_account.active = False
+        self.env.invalidate_all()
+
+        self.assertGreater(
+            partner.credit, 0, "an archived account does not erase the debt"
+        )
+        self.assertIn(
+            partner,
+            self.env["res.partner"].search([("credit", ">", 0)]),
+            "the credit filter must agree with the displayed Total Receivable",
+        )
+
+    def test_move_counts_roll_up_to_parent(self):
+        """A child contact's moves count towards its parent -- exercises the
+        shared ``_aggregate_by_partner_hierarchy`` helper (also behind
+        ``total_invoiced`` and ``supplier_invoice_count``)."""
+        parent = self.env["res.partner"].create({"name": "RollupParent"})
+        child = self.env["res.partner"].create(
+            {"name": "RollupChild", "parent_id": parent.id}
+        )
+        self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "invoice_date": "2023-01-01",
+                "partner_id": child.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "l", "price_unit": 700.0})
+                ],
+            }
+        ).action_post()
+        self.env.invalidate_all()
+
+        self.assertEqual(child.account_move_count, 1)
+        self.assertEqual(
+            parent.account_move_count,
+            1,
+            "the child's moves roll up to the parent",
+        )
 
     def test_account_move_count(self):
         self.env["account.move"].create(
@@ -215,3 +273,79 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             self.cr.savepoint(),
         ):
             account.write({"allow_out_payment": True})
+
+    @freeze_time("2023-06-30")
+    def test_days_sales_outstanding_never_negative(self):
+        """A customer in credit balance (a paid invoice plus an unpaid refund)
+        used to produce a negative DSO; it must be clamped to a non-negative KPI.
+        """
+        partner = self.env["res.partner"].create({"name": "NegDSO"})
+        inv = self.init_invoice(
+            "out_invoice", partner, invoice_date="2023-01-01", amounts=[5000], post=True
+        )
+        self.env["account.payment.register"].with_context(
+            active_model="account.move", active_ids=inv.ids
+        ).create({"amount": inv.amount_total})._create_payments()
+        self.init_invoice(
+            "out_refund", partner, invoice_date="2023-02-01", amounts=[100], post=True
+        )
+        self.env.invalidate_all()
+        self.assertLess(partner.credit, 0, "sanity: customer is in credit balance")
+        self.assertGreaterEqual(
+            partner.days_sales_outstanding,
+            0.0,
+            "DSO must stay non-negative even for a credit-balance customer",
+        )
+
+    def test_credit_search_ignores_partnerless_lines(self):
+        """A posted receivable line with no partner must not leak into the
+        ``credit``/``debit`` searchable filters as a NULL partner group.
+        """
+        partner = self.env["res.partner"].create({"name": "RealDebtor"})
+        self.init_invoice(
+            "out_invoice", partner, invoice_date="2023-01-01", amounts=[1000], post=True
+        )
+        recv = self.company_data["default_account_receivable"]
+        rev = self.company_data["default_account_revenue"]
+        misc = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "date": "2023-03-01",
+                "line_ids": [
+                    Command.create({"account_id": recv.id, "debit": 300, "credit": 0}),
+                    Command.create({"account_id": rev.id, "debit": 0, "credit": 300}),
+                ],
+            }
+        )
+        misc.action_post()
+        self.assertFalse(
+            misc.line_ids.filtered(lambda l: l.account_id == recv).partner_id,
+            "sanity: the receivable line really has no partner",
+        )
+        self.env.invalidate_all()
+
+        Partner = self.env["res.partner"]
+        for op, operand in ((">=", 0), ("=", 0), (">", 0)):
+            ids = Partner._credit_search(op, operand)[0][2]
+            self.assertNotIn(
+                None, ids, f"NULL partner leaked into credit {op} {operand}"
+            )
+        self.assertIn(partner, Partner.search([("credit", ">", 0)]))
+
+    def test_map_tax_account_singleton_contract(self):
+        """``map_tax``/``map_account``: an empty position is a no-op; a
+        multi-record position raises a clear singleton error rather than failing
+        deep inside the mapping comprehension.
+        """
+        FP = self.env["account.fiscal.position"]
+        tax = self.tax_sale_a
+        acc = self.company_data["default_account_receivable"]
+
+        self.assertEqual(FP.map_tax(tax), tax, "empty position leaves taxes unchanged")
+        self.assertEqual(FP.map_account(acc), acc, "empty position leaves account as-is")
+
+        both = FP.create({"name": "FP a"}) + FP.create({"name": "FP b"})
+        with self.assertRaises(ValueError):
+            both.map_tax(tax)
+        with self.assertRaises(ValueError):
+            both.map_account(acc)

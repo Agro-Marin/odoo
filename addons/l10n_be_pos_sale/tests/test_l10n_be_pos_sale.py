@@ -46,7 +46,7 @@ class TestPoSSaleL10NBe(TestPointOfSaleHttpCommon):
         sale_orders = self.env['sale.order'].sudo().create([
             {
                 'partner_id': self.partner_a.id,
-                'order_line': [Command.create({
+                'line_ids': [Command.create({
                     'product_id': self.product_a.id,
                     'product_uom_qty': 10,
                     'price_unit': 10,
@@ -55,7 +55,7 @@ class TestPoSSaleL10NBe(TestPointOfSaleHttpCommon):
             },
             {
                 'partner_id': self.partner_a.id,
-                'order_line': [Command.create({
+                'line_ids': [Command.create({
                     'product_id': self.product_a.id,
                     'product_uom_qty': 20,
                     'price_unit': 20,
@@ -113,7 +113,7 @@ class TestPoSSaleL10NBeNormalCompany(TestPointOfSaleHttpCommon):
 
         self.env['sale.order'].sudo().create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product_a.id,
                 'product_uom_qty': 10,
                 'price_unit': 10,

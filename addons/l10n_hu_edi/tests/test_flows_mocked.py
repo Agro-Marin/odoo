@@ -176,7 +176,7 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
                 self.assertRecordValues(credit_note, [{'l10n_hu_edi_state': 'cancelled', 'state': 'cancel', 'l10n_hu_invoice_chain_index': 0}])
                 self.assertRecordValues(new_invoice, [{'l10n_hu_edi_state': 'cancelled', 'state': 'cancel', 'l10n_hu_invoice_chain_index': 0}])
 
-            (invoice | credit_note | new_invoice).button_draft()
+            (invoice | credit_note | new_invoice).action_draft()
             invoice.action_post()
             credit_note.action_post()
             new_invoice.action_post()
@@ -216,7 +216,7 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
                 'partner_id': self.partner_company.id,
                 'partner_invoice_id': self.partner_company.id,
                 'pricelist_id': pricelist.id,
-                'order_line': [Command.create({
+                'line_ids': [Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 1,
                     'price_unit': 600,
@@ -291,7 +291,7 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
         self.register_payment(inv, 900)
         self.create_reversal(inv, is_modify=True)
         mod2 = inv.reversal_move_ids
-        mod2.button_draft()
+        mod2.action_draft()
         mod2.invoice_line_ids[0].write({
             'price_unit': 900,
         })
