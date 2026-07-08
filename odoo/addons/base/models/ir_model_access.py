@@ -174,7 +174,19 @@ class IrModelAccess(models.Model):
             )
 
         if model not in self.env:
+            # A typo'd/unknown model is a programming error, not an access
+            # denial: raise a clear error instead of the generic AccessError
+            # the "not in allowed models" fallthrough used to produce. The
+            # lenient path is preserved for raise_exception=False callers,
+            # which legitimately probe models that may not be loaded (e.g.
+            # ir.ui.menu/ir.actions visibility checks on stale actions).
+            if raise_exception:
+                raise ValueError(
+                    f"Unknown model {model!r}: it does not exist in the registry"
+                    " (check for a typo or a missing/uninstalled module)."
+                )
             _logger.warning("Missing model %s", model)
+            return False
 
         has_access = model in self._get_allowed_models(mode)
         if not has_access and raise_exception:
