@@ -1,7 +1,7 @@
 import io
 from unittest.mock import patch
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, new_test_user
 from odoo.tools import mute_logger
 
@@ -115,3 +115,164 @@ class IrModuleCase(TransactionCase):
             "to upgrade",
             "reverse-dependency sweep should mark dependents to upgrade",
         )
+
+    def test_sync_auto_install_required_batched(self):
+        # IRMOD-L5: update_list() applies auto_install_required in one batched
+        # statement; the batch must reproduce the per-module semantics:
+        # required <=> the dependency name is in the module's requirement list.
+        Module = self.env["ir.module.module"]
+        Dependency = self.env["ir.module.module.dependency"]
+        mod_x = Module.create({"name": "irmod_sync_x", "state": "uninstalled"})
+        mod_y = Module.create({"name": "irmod_sync_y", "state": "uninstalled"})
+        dep_xa, dep_xb, dep_ya = Dependency.create(
+            [
+                {"module_id": mod_x.id, "name": "irmod_sync_dep_a"},
+                {"module_id": mod_x.id, "name": "irmod_sync_dep_b"},
+                {"module_id": mod_y.id, "name": "irmod_sync_dep_a"},
+            ]
+        )
+        Module._sync_auto_install_required(
+            {mod_x.id: ["irmod_sync_dep_a"], mod_y.id: ()}
+        )
+        self.assertTrue(dep_xa.auto_install_required)
+        self.assertFalse(dep_xb.auto_install_required)
+        self.assertFalse(dep_ya.auto_install_required)
+        # IS DISTINCT FROM guard: re-running with the same requirements
+        # touches no row (no MVCC churn)
+        Module._sync_auto_install_required(
+            {mod_x.id: ["irmod_sync_dep_a"], mod_y.id: ()}
+        )
+        self.assertEqual(self.env.cr.rowcount, 0)
+        # flipping the requirement flips the flags
+        Module._sync_auto_install_required({mod_x.id: ["irmod_sync_dep_b"]})
+        self.assertFalse(dep_xa.auto_install_required)
+        self.assertTrue(dep_xb.auto_install_required)
+
+    @mute_logger("odoo.addons.base.models.ir_module", "odoo.modules.module")
+    def test_button_install_exclusive_category_closure(self):
+        # IRMOD-M4b: the category-exclusion check accepts modules of an
+        # exclusive category when they all belong to the transitive
+        # dependencies of one of them (closure via the recursive-CTE API),
+        # and rejects an unrelated module of the same category.
+        Module = self.env["ir.module.module"]
+        category = self.env["ir.module.category"].create(
+            {"name": "irmod excl cat", "exclusive": True}
+        )
+        Module.create(
+            {"name": "irmod_excl_a", "state": "installed", "category_id": category.id}
+        )
+        mod_b = Module.create(
+            {"name": "irmod_excl_b", "state": "installed", "category_id": category.id}
+        )
+        self.env["ir.module.module.dependency"].create(
+            {"module_id": mod_b.id, "name": "irmod_excl_a"}
+        )
+        # b transitively depends on a: valid installation
+        mod_b.button_install()
+        # an unrelated module in the same exclusive category is rejected
+        Module.create(
+            {"name": "irmod_excl_c", "state": "installed", "category_id": category.id}
+        )
+        with self.assertRaises(UserError):
+            mod_b.button_install()
+
+    def test_has_iap_transitive_dependents(self):
+        # IRMOD-L6: has_iap is true for any transitive dependent of 'iap'.
+        Module = self.env["ir.module.module"]
+        if not Module._get_id("iap"):
+            self.skipTest("iap module not present in the addons path")
+        direct = Module.create({"name": "irmod_iap_dep", "state": "uninstalled"})
+        indirect = Module.create({"name": "irmod_iap_dep2", "state": "uninstalled"})
+        self.env["ir.module.module.dependency"].create(
+            [
+                {"module_id": direct.id, "name": "iap"},
+                {"module_id": indirect.id, "name": "irmod_iap_dep"},
+            ]
+        )
+        unrelated = Module.create({"name": "irmod_no_iap", "state": "uninstalled"})
+        self.assertTrue(direct.has_iap)
+        self.assertTrue(indirect.has_iap)
+        self.assertFalse(unrelated.has_iap)
+
+
+class TestModuleDependencyClosure(TransactionCase):
+    """IRMOD-T7: direct coverage of the recursive-CTE dependency-closure API
+    (_dependency_closure / upstream_dependencies / downstream_dependencies)
+    on a synthetic module graph::
+
+        tclos_a < --tclos_b < --tclos_c < --tclos_d
+        (installed)(installed)(uninstalled)(installed)
+
+    where ``x <-- y`` reads "y depends on x".  Callers rely on subtle
+    semantics: state pruning blocks the paths *through* excluded modules,
+    ``known_deps`` doubles as blocked-set and result-union, seeds are
+    traversed regardless of their own state but excluded from the result,
+    and ``exclude_states=('',)`` matches no state (full closure).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Module = cls.env["ir.module.module"]
+        cls.mod_a = Module.create({"name": "tclos_a", "state": "installed"})
+        cls.mod_b = Module.create({"name": "tclos_b", "state": "installed"})
+        cls.mod_c = Module.create({"name": "tclos_c", "state": "uninstalled"})
+        cls.mod_d = Module.create({"name": "tclos_d", "state": "installed"})
+        cls.env["ir.module.module.dependency"].create(
+            [
+                {"module_id": cls.mod_b.id, "name": "tclos_a"},
+                {"module_id": cls.mod_c.id, "name": "tclos_b"},
+                {"module_id": cls.mod_d.id, "name": "tclos_c"},
+            ]
+        )
+
+    def test_downstream_full_closure(self):
+        got = self.mod_a.downstream_dependencies(exclude_states=())
+        self.assertEqual(set(got.ids), {self.mod_b.id, self.mod_c.id, self.mod_d.id})
+        # the seed itself is never part of the result
+        self.assertNotIn(self.mod_a.id, got.ids)
+
+    def test_downstream_state_pruning_blocks_paths(self):
+        # default excludes prune 'uninstalled' c; d is only reachable through
+        # c, so pruning blocks the path even though d itself is installed
+        got = self.mod_a.downstream_dependencies()
+        self.assertEqual(set(got.ids), {self.mod_b.id})
+
+    def test_upstream_full_closure(self):
+        got = self.mod_d.upstream_dependencies(exclude_states=())
+        self.assertEqual(set(got.ids), {self.mod_a.id, self.mod_b.id, self.mod_c.id})
+        self.assertNotIn(self.mod_d.id, got.ids)
+
+    def test_upstream_default_excludes_installed(self):
+        # the default upstream excludes ('installed', ...) target the
+        # to-install use case: only the uninstalled dependency c is returned;
+        # b (installed) is pruned and thereby blocks the path to a
+        got = self.mod_d.upstream_dependencies()
+        self.assertEqual(set(got.ids), {self.mod_c.id})
+
+    def test_empty_string_exclude_matches_no_state(self):
+        # exclude_states=('',) keeps the state filter active but matches no
+        # actual state: behaves like the full closure
+        got = self.mod_d.upstream_dependencies(exclude_states=("",))
+        self.assertEqual(set(got.ids), {self.mod_a.id, self.mod_b.id, self.mod_c.id})
+
+    def test_known_deps_blocks_traversal_and_unions_result(self):
+        # known_deps doubles as blocked-set and result-union: blocking b
+        # stops the traversal through it (c, d unreachable) while b itself
+        # remains in the returned set
+        got = self.mod_a.downstream_dependencies(
+            known_deps=self.mod_b, exclude_states=()
+        )
+        self.assertEqual(set(got.ids), {self.mod_b.id})
+
+    def test_seed_traversed_regardless_of_state(self):
+        # a seed in an excluded state is still traversed (only intermediate
+        # nodes are pruned): downstream of a 'to remove' seed still finds b
+        self.mod_a.state = "to remove"
+        got = self.mod_a.downstream_dependencies()
+        self.assertEqual(set(got.ids), {self.mod_b.id})
+
+    def test_empty_recordset_closure(self):
+        empty = self.env["ir.module.module"]
+        self.assertFalse(empty.downstream_dependencies(exclude_states=()))
+        self.assertFalse(empty.upstream_dependencies(exclude_states=()))
