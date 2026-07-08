@@ -191,6 +191,7 @@ class ResCompany(models.Model):
     color = fields.Integer(
         compute="_compute_color",
         inverse="_inverse_color",
+        recursive=True,
     )
     layout_background = fields.Selection(
         [
