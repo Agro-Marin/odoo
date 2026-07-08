@@ -64,6 +64,7 @@ from . import test_monkeypatches
 from . import test_orm
 from . import test_ormcache
 from . import test_properties_base_definition
+from . import test_tag_tag
 from . import test_overrides
 from . import test_query
 from . import test_qweb_field
