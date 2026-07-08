@@ -56,7 +56,7 @@ class TestFleetVehicleLogServices(AccountTestInvoicingCommon):
         self.assertEqual(self.car_1.log_services[0].account_move_line_id.move_id, self.bill)
         self.assertEqual(self.car_1.log_services[0].amount, self.service_line.price_subtotal)
 
-        self.bill.button_draft()
+        self.bill.action_draft()
         self.service_line.price_unit = 110
         self.bill.action_post()
 
@@ -79,7 +79,7 @@ class TestFleetVehicleLogServices(AccountTestInvoicingCommon):
         self.assertEqual(self.car_2.log_services[0].account_move_line_id.move_id, self.bill)
         self.assertEqual(self.car_2.log_services[0].amount, service_line_2.price_subtotal)
 
-        self.bill.button_draft()
+        self.bill.action_draft()
         self.service_line.unlink()
 
         self.assertFalse(self.car_1.log_services)
@@ -112,7 +112,7 @@ class TestFleetVehicleLogServices(AccountTestInvoicingCommon):
         self.assertEqual(self.car_1.log_services[0].account_move_line_id.move_id, self.bill)
         self.assertEqual(self.car_1.log_services[0].amount, self.service_line.price_subtotal)
 
-        self.bill.button_draft()
+        self.bill.action_draft()
         self.service_line.vehicle_id = self.car_2
         self.bill.action_post()
 
@@ -121,7 +121,7 @@ class TestFleetVehicleLogServices(AccountTestInvoicingCommon):
         self.assertEqual(self.car_2.log_services[0].amount, self.service_line.price_subtotal)
 
         # remove the vehicle should also delete the service
-        self.bill.button_draft()
+        self.bill.action_draft()
         self.service_line.vehicle_id = False
         self.bill.action_post()
 
@@ -129,7 +129,7 @@ class TestFleetVehicleLogServices(AccountTestInvoicingCommon):
         self.assertFalse(self.service_line.vehicle_log_service_ids)
 
         # putting car 2 back should create a new service
-        self.bill.button_draft()
+        self.bill.action_draft()
         self.service_line.vehicle_id = self.car_2
         self.bill.action_post()
 

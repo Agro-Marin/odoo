@@ -189,10 +189,23 @@ class AccountAccount(models.Model):
                 self._field_to_sql(alias, "account_type", query),
             )
         if field_expr == "code":
-            return (
-                self.with_company(self.env.company.root_id)
-                .sudo()
-                ._field_to_sql(alias, "code_store", query)
+            # `code` is the current (root) company's value of the company-dependent
+            # `code_store`. The generic company-dependent read binds the company id
+            # and the fallback as parameters; when that expression is reused in both
+            # the GROUP BY and the ORDER BY of a hand-built report query (e.g. the
+            # general ledger / trial balance CSV export, which group by the code
+            # rather than by the account PK), PostgreSQL sees the two copies as
+            # distinct parameter nodes, fails to unify them, and rejects the ORDER BY
+            # term ("code_store must appear in the GROUP BY clause"). Spell the read
+            # out with the root company id inlined as a literal so every copy is
+            # byte-identical and unifies. code_store carries no company-dependent
+            # default, so the fallback is simply NULL.
+            return SQL(
+                "(COALESCE(%(code_store)s->%(root_company_id)s, to_jsonb(NULL::varchar))->>0)::varchar",
+                code_store=SQL.identifier(
+                    alias, "code_store", to_flush=self._fields["code_store"]
+                ),
+                root_company_id=SQL(f"'{int(self.env.company.root_id.id)}'"),
             )
         if field_expr == "placeholder_code":
             if "account_first_company" not in query._joins:
@@ -232,7 +245,16 @@ class AccountAccount(models.Model):
                     )
                 """,
                 code_store=SQL.identifier(alias, "code_store"),
-                active_company_root_id=str(self.env.company.root_id.id),
+                # Inline the active company's root id as a SQL *literal*, never a
+                # bound parameter. This expression is reused verbatim in the GROUP BY,
+                # ORDER BY and SELECT of reporting queries (e.g. the general ledger).
+                # PostgreSQL only accepts an ORDER BY/SELECT term as "grouped" when it
+                # is parse-tree-identical to a GROUP BY term, and it treats two bind
+                # parameters as distinct nodes even when they carry the same value. A
+                # parameter here breaks that match, leaving the account_first_company.*
+                # join columns ungrouped -> GroupingError. A constant id is safe to
+                # inline and keeps every copy of the expression identical.
+                active_company_root_id=SQL(f"'{int(self.env.company.root_id.id)}'"),
                 account_first_company_name=SQL.identifier(
                     "account_first_company",
                     "company_name",

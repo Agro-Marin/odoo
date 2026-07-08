@@ -187,7 +187,7 @@ class L10nMyEDITestNewSubmission(TestAccountMoveSendCommon):
 
             # Invalid invoices are cancelled automatically.
             self.assertEqual(self.basic_invoice.state, 'cancel')
-            self.basic_invoice.button_draft()
+            self.basic_invoice.action_draft()
 
             self.assertRecordValues(
                 self.basic_invoice.l10n_my_edi_document_ids[0],

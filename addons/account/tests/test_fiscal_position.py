@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.tests import common
-from odoo.exceptions import ValidationError
 from odoo import Command
+from odoo.exceptions import ValidationError
+from odoo.tests import common
 
 
 class TestFiscalPosition(common.TransactionCase):
@@ -14,7 +13,7 @@ class TestFiscalPosition(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestFiscalPosition, cls).setUpClass()
+        super().setUpClass()
         cls.fp = cls.env["account.fiscal.position"]
 
         # reset any existing FP
@@ -28,32 +27,37 @@ class TestFiscalPosition(common.TransactionCase):
         cls.nl = cls.env.ref("base.nl")
         cls.us = cls.env.ref("base.us")
         cls.state_fr = cls.env["res.country.state"].create(
-            dict(name="State", code="ST", country_id=fr.id)
+            {"name": "State", "code": "ST", "country_id": fr.id}
         )
         cls.jc = cls.res_partner.create(
-            dict(name="JCVD", vat="BE0477472701", country_id=be.id)
+            {"name": "JCVD", "vat": "BE0477472701", "country_id": be.id}
         )
-        cls.ben = cls.res_partner.create(dict(name="BP", country_id=be.id))
+        cls.ben = cls.res_partner.create({"name": "BP", "country_id": be.id})
         cls.george = cls.res_partner.create(
-            dict(name="George", vat="BE0477472701", country_id=fr.id)
+            {"name": "George", "vat": "BE0477472701", "country_id": fr.id}
         )
         cls.alberto = cls.res_partner.create(
-            dict(name="Alberto", vat="ZUÑ920208KL4", country_id=mx.id)
+            {"name": "Alberto", "vat": "ZUÑ920208KL4", "country_id": mx.id}
         )
         cls.be_nat = cls.fp.create(
-            dict(name="BE-NAT", auto_apply=True, country_id=be.id, sequence=10)
+            {"name": "BE-NAT", "auto_apply": True, "country_id": be.id, "sequence": 10}
         )
         cls.fr_b2b = cls.fp.create(
-            dict(
-                name="EU-VAT-FR-B2B",
-                auto_apply=True,
-                country_id=fr.id,
-                vat_required=True,
-                sequence=40,
-            )
+            {
+                "name": "EU-VAT-FR-B2B",
+                "auto_apply": True,
+                "country_id": fr.id,
+                "vat_required": True,
+                "sequence": 40,
+            }
         )
         cls.fr_b2c = cls.fp.create(
-            dict(name="EU-VAT-FR-B2C", auto_apply=True, country_id=fr.id, sequence=50)
+            {
+                "name": "EU-VAT-FR-B2C",
+                "auto_apply": True,
+                "country_id": fr.id,
+                "sequence": 50,
+            }
         )
 
     def test_10_fp_country(self):
@@ -71,7 +75,7 @@ class TestFiscalPosition(common.TransactionCase):
         )
 
         # Zip range
-        fr_b2b_zip100 = self.fr_b2b.copy(dict(zip_from=0, zip_to=5000, sequence=1))
+        fr_b2b_zip100 = self.fr_b2b.copy({"zip_from": 0, "zip_to": 5000, "sequence": 1})
         self.george.zip = 6000
         assert_fp(
             self.george, self.fr_b2b, "FR-B2B with wrong zip range should not match"
@@ -82,7 +86,7 @@ class TestFiscalPosition(common.TransactionCase):
 
         # States
         fr_b2b_state = self.fr_b2b.copy(
-            dict(state_ids=[(4, self.state_fr.id)], sequence=1)
+            {"state_ids": [(4, self.state_fr.id)], "sequence": 1}
         )
         assert_fp(self.george, self.fr_b2b, "FR-B2B with states should not match")
         self.george.state_id = self.state_fr
@@ -402,6 +406,40 @@ class TestFiscalPosition(common.TransactionCase):
                     "zip_from": "123",
                     "zip_to": "456",
                 }
+            ],
+        )
+
+    def test_zip_range_multi_record_write(self):
+        """Writing a single zip bound to several fiscal positions at once must
+        pad each record against its *own* counterpart, without leaking one
+        record's zip range onto the others (regression: a shared ``vals`` dict
+        used to overwrite every record with the last one's padded values).
+        """
+        fp_short, fp_long = self.fp.create(
+            [
+                {"name": "ZIP short", "zip_from": "1", "zip_to": "999"},
+                {"name": "ZIP long", "zip_from": "1", "zip_to": "999999"},
+            ]
+        )
+        # Sanity: create() already padded zip_from to each record's own width.
+        self.assertRecordValues(
+            fp_short | fp_long,
+            [
+                {"zip_from": "001", "zip_to": "999"},
+                {"zip_from": "000001", "zip_to": "999999"},
+            ],
+        )
+
+        # Write a single zip_from to BOTH records in one call.
+        (fp_short | fp_long).write({"zip_from": "5"})
+
+        self.assertRecordValues(
+            fp_short | fp_long,
+            [
+                # padded to its own zip_to width (3), zip_to untouched
+                {"zip_from": "005", "zip_to": "999"},
+                # padded to its own zip_to width (6), zip_to untouched
+                {"zip_from": "000005", "zip_to": "999999"},
             ],
         )
 

@@ -100,7 +100,7 @@ class AccountMove(models.Model):
                     invoice=self.name, username=self.env.user.name
                 )
             )
-            self.button_cancel()
+            self.action_cancel()
             self.write({
                 'l10n_in_edi_status': 'cancelled',
                 'l10n_in_edi_error': False,
@@ -111,14 +111,14 @@ class AccountMove(models.Model):
     def action_l10n_in_edi_force_cancel(self):
         self.with_context(l10n_in_edi_force_cancel=True).button_request_cancel()
 
-    def button_draft(self):
+    def action_draft(self):
         for move in self:
             if move.l10n_in_edi_status == 'to_send':
                 # Avoid resetting sent and cancelled invoices
                 move.l10n_in_edi_status = False
             if move.l10n_in_edi_error:
                 move.l10n_in_edi_error = False
-        return super().button_draft()
+        return super().action_draft()
 
     # Business Methods
     def _post(self, soft=True):
@@ -399,7 +399,7 @@ class AccountMove(models.Model):
                 remark=self.l10n_in_edi_cancel_remarks
             ), attachment_ids=[request_attachment.id, attachment.id] if attachment else [request_attachment.id])
             self.l10n_in_edi_status = 'cancelled'
-            self.button_cancel()
+            self.action_cancel()
         if self._can_commit():
             self.env.cr.commit()
         return True

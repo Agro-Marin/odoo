@@ -1,14 +1,14 @@
-from datetime import date
-
-from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
-from odoo.tools.misc import format_date
-from odoo.tools import frozendict, date_utils, index_exists, SQL
-
 import logging
 import re
 from collections import defaultdict
+from datetime import date
+
 from psycopg import errors as pgerrors
+
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.tools import SQL, date_utils, frozendict
+from odoo.tools.misc import format_date
 
 _logger = logging.getLogger(__name__)
 
@@ -51,23 +51,26 @@ class SequenceMixin(models.AbstractModel):
     sequence_number = fields.Integer(compute="_compute_split_sequence", store=True)
 
     def init(self):
-        # Add an index to optimise the query searching for the highest sequence number
+        # Add indexes to optimise the query searching for the highest sequence
+        # number. `IF NOT EXISTS` makes each index self-healing and independent:
+        # if one is dropped, or was introduced in a later version than the other,
+        # it is (re)created on its own instead of being skipped because a sibling
+        # index happens to already exist.
         if not self._abstract and self._sequence_index:
             index_name = self._table + "_sequence_index"
-            if not index_exists(self.env.cr, index_name):
-                self.env.cr.execute(
-                    SQL(
-                        """
-                    CREATE INDEX %(index_name)s ON %(table)s (%(sequence_index)s, sequence_prefix desc, sequence_number desc, %(field)s);
-                    CREATE INDEX %(index2_name)s ON %(table)s (%(sequence_index)s, id desc, sequence_prefix);
-                    """,
-                        sequence_index=SQL.identifier(self._sequence_index),
-                        index_name=SQL.identifier(index_name),
-                        index2_name=SQL.identifier(index_name + "2"),
-                        table=SQL.identifier(self._table),
-                        field=SQL.identifier(self._sequence_field),
-                    )
+            self.env.cr.execute(
+                SQL(
+                    """
+                CREATE INDEX IF NOT EXISTS %(index_name)s ON %(table)s (%(sequence_index)s, sequence_prefix desc, sequence_number desc, %(field)s);
+                CREATE INDEX IF NOT EXISTS %(index2_name)s ON %(table)s (%(sequence_index)s, id desc, sequence_prefix);
+                """,
+                    sequence_index=SQL.identifier(self._sequence_index),
+                    index_name=SQL.identifier(index_name),
+                    index2_name=SQL.identifier(index_name + "2"),
+                    table=SQL.identifier(self._table),
+                    field=SQL.identifier(self._sequence_field),
                 )
+            )
             unique_index = self.env.execute_query(
                 SQL(
                     """
@@ -149,10 +152,10 @@ class SequenceMixin(models.AbstractModel):
 
     def _sequence_matches_date(self):
         self.ensure_one()
-        date = fields.Date.to_date(self[self._sequence_date_field])
+        record_date = fields.Date.to_date(self[self._sequence_date_field])
         sequence = self[self._sequence_field]
 
-        if not sequence or not date:
+        if not sequence or not record_date:
             return True
 
         format_values = self._get_sequence_format_param(sequence)[1]
@@ -171,7 +174,9 @@ class SequenceMixin(models.AbstractModel):
                 format_values["year_end"], forced_year_end or date_end.year
             )
         )
-        month_match = not format_values["month"] or format_values["month"] == date.month
+        month_match = (
+            not format_values["month"] or format_values["month"] == record_date.month
+        )
         return year_match and month_match
 
     @api.constrains(lambda self: (self._sequence_field, self._sequence_date_field))
@@ -186,12 +191,12 @@ class SequenceMixin(models.AbstractModel):
         for record in self:
             if not record._must_check_constrains_date_sequence():
                 continue
-            date = fields.Date.to_date(record[record._sequence_date_field])
+            record_date = fields.Date.to_date(record[record._sequence_date_field])
             sequence = record[record._sequence_field]
             if (
                 sequence
-                and date
-                and date > constraint_date
+                and record_date
+                and record_date > constraint_date
                 and not record._sequence_matches_date()
             ):
                 raise ValidationError(
@@ -201,22 +206,28 @@ class SequenceMixin(models.AbstractModel):
                         date_field=record._fields[
                             record._sequence_date_field
                         ]._description_string(self.env),
-                        date=format_date(self.env, date),
+                        date=format_date(self.env, record_date),
                         sequence=sequence,
                     )
                 )
 
     @api.depends(lambda self: [self._sequence_field])
     def _compute_split_sequence(self):
+        # `_sequence_fixed_regex` can vary per record (e.g. account.move derives it
+        # from the journal's `sequence_override_regex`), so memoise the compiled
+        # pattern per distinct regex instead of rebuilding it on every record.
+        compiled = {}
         for record in self:
             sequence = record[record._sequence_field] or ""
-            # make the seq the only matching group
-            regex = self._make_regex_non_capturing(
-                record._sequence_fixed_regex.replace(r"?P<seq>", "")
-            )
-            matching = re.match(regex, sequence)
-            record.sequence_prefix = sequence[: matching.start(1)]
-            record.sequence_number = int(matching.group(1) or 0)
+            pattern = record._sequence_fixed_regex
+            matcher = compiled.get(pattern)
+            if matcher is None:
+                matcher = compiled[pattern] = re.compile(pattern)
+            # Read the `seq` group directly by name — no need to rewrite the regex
+            # to make `seq` the only capturing group.
+            matching = matcher.match(sequence)
+            record.sequence_prefix = sequence[: matching.start("seq")]
+            record.sequence_number = int(matching.group("seq") or 0)
 
     @api.model
     def _deduce_sequence_number_reset(self, name):
@@ -379,7 +390,8 @@ class SequenceMixin(models.AbstractModel):
             regex = self._sequence_monthly_regex
         elif sequence_number_reset == "year_range_month":
             regex = self._sequence_year_range_monthly_regex
-        format_values = re.match(regex, previous).groupdict()
+        match = re.match(regex, previous)
+        format_values = match.groupdict()
         format_values["seq_length"] = len(format_values["seq"])
         format_values["year_length"] = len(format_values.get("year") or "")
         format_values["year_end_length"] = len(format_values.get("year_end") or "")
@@ -394,9 +406,15 @@ class SequenceMixin(models.AbstractModel):
         for field in ("seq", "year", "month", "year_end"):
             format_values[field] = int(format_values.get(field) or 0)
 
-        placeholders = re.findall(
-            r"\b(prefix\d|seq|suffix\d?|year|year_end|month)\b", regex
-        )
+        # Derive the placeholder order from the compiled group positions rather
+        # than by re-parsing the regex source. `match.re.groupindex` is canonical,
+        # so the order no longer depends on how the named groups happen to be
+        # spelled (e.g. the `year` / `year_end` word-boundary overlap).
+        placeholders = [
+            name
+            for name, _ in sorted(match.re.groupindex.items(), key=lambda kv: kv[1])
+            if re.fullmatch(r"prefix\d|seq|suffix\d?|year|year_end|month", name)
+        ]
         format = "".join(
             "{seq:0{seq_length}d}"
             if s == "seq"
@@ -429,7 +447,10 @@ class SequenceMixin(models.AbstractModel):
         won't be taken, and sequence numbers may not be unique when returned.
         """
         cache = self._get_sequence_cache()
-        seq = format_values.pop("seq")
+        # Split out `seq` without mutating the caller's dict: `format_values` is
+        # rebound to a local copy that carries every value except the counter.
+        seq = format_values["seq"]
+        format_values = {k: v for k, v in format_values.items() if k != "seq"}
         # cache key unique to a sequence: its format string + its sequence index
         cache_key = (
             format_string.format(**format_values, seq=0),
@@ -502,20 +523,12 @@ class SequenceMixin(models.AbstractModel):
             sequence
         )
 
-        registry = self.env.registry
-        triggers = registry._field_triggers[self._fields[self._sequence_field]]
-        for inverse_field, triggered_fields in triggers.items():
-            for triggered_field in triggered_fields:
-                if not triggered_field.store or not triggered_field.compute:
-                    continue
-                for field in (
-                    registry.field_inverses[inverse_field[0]]
-                    if inverse_field
-                    else [None]
-                ):
-                    self.env.add_to_compute(
-                        triggered_field, self[field.name] if field else self
-                    )
+        # `_locked_increment` wrote the sequence field with a raw SQL UPDATE that
+        # bypassed the ORM, so tell the ORM the field changed. `modified` walks the
+        # full trigger graph and flags every dependent stored/related field for
+        # recomputation (e.g. `account.move.line.move_name`, `account.payment.name`)
+        # — the canonical replacement for hand-walking `registry._field_triggers`.
+        self.modified([self._sequence_field])
 
         self._compute_split_sequence()
 
@@ -539,6 +552,19 @@ class SequenceMixin(models.AbstractModel):
 
         format_string, format_values = self._get_sequence_format_param(last_sequence)
         if new:
+            # Starting a fresh sequence is driven entirely by the record's date
+            # (period boundaries + month). Without it the downstream date maths
+            # would raise an opaque ``'NoneType' has no attribute 'year'``; fail
+            # early with a message that names the missing field instead.
+            if not self[self._sequence_date_field]:
+                raise ValidationError(
+                    _(
+                        "A %(date_field)s is required to start a new sequence.",
+                        date_field=self._fields[
+                            self._sequence_date_field
+                        ]._description_string(self.env),
+                    )
+                )
             sequence_number_reset = self._deduce_sequence_number_reset(last_sequence)
             date_start, date_end, forced_year_start, forced_year_end = (
                 self._get_sequence_date_range(sequence_number_reset)
@@ -563,7 +589,7 @@ class SequenceMixin(models.AbstractModel):
             return True
         seq_format, seq_format_values = self._get_sequence_format_param(last_sequence)
         seq_format_values["seq"] += 1
-        return seq_format.format(**seq_format_values) == self.name
+        return seq_format.format(**seq_format_values) == self[self._sequence_field]
 
     def _is_end_of_seq_chain(self):
         """Tells whether or not these elements are the last ones of the sequence chain.

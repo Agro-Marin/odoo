@@ -62,4 +62,4 @@ class L10nHrMojEracunRejectInvoice(models.TransientModel):
                 '1',
                 self.rejection_description,
             )
-            self.move_id.button_cancel()
+            self.move_id.action_cancel()

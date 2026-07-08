@@ -475,7 +475,7 @@ class TestItEdiExport(TestItEdi):
 
         sale_order = self.env['sale.order'].with_company(self.company).sudo().create({
             'partner_id': self.italian_partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({'product_id': self.service_product.id, 'price_unit': 200.00}),
             ],
         })

@@ -175,12 +175,12 @@ class AccountMove(models.Model):
             if move.l10n_sa_chain_index and (move.company_id.l10n_sa_edi_is_production or not move._l10n_sa_is_in_chain()):
                 move.show_reset_to_draft_button = False
 
-    def button_draft(self):
+    def action_draft(self):
         # OVERRIDE
         for move in self:
             if move.country_code == "SA" and move.l10n_sa_chain_index and move.company_id.l10n_sa_edi_is_production:
                 raise UserError(_("The Invoice(s) are linked to a validated EDI document and cannot be modified according to ZATCA rules"))
-        return super().button_draft()
+        return super().action_draft()
 
     def _l10n_sa_reset_confirmation_datetime(self):
         """ OVERRIDE: we want rejected phase 2 invoices to keep the original confirmation datetime"""

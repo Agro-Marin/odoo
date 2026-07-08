@@ -38,7 +38,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             pass
 
         return patch(
-            "odoo.addons.account.models.account_move.AccountMove._hash_moves",
+            "odoo.addons.account.models.account_move_hash.AccountMove._hash_moves",
             new=_do_not_hash_moves,
         )
 

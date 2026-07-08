@@ -386,11 +386,11 @@ class AccountMove(models.Model):
             return {'type': 'ir.actions.client', 'tag': 'reload'}
         self._l10n_it_edi_update_send_state()
 
-    def button_draft(self):
+    def action_draft(self):
         # EXTENDS 'account'
         for move in self:
             move.l10n_it_edi_state = False
-        return super().button_draft()
+        return super().action_draft()
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):
         # EXTENDS 'account'

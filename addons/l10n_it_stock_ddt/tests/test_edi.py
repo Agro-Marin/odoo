@@ -99,7 +99,7 @@ class TestItEdiDDT(TestItEdi):
                 'partner_id': self.italian_partner_a.id,
                 'partner_invoice_id': self.italian_partner_a.id,
                 'partner_shipping_id': self.italian_partner_a.id,
-                'order_line': [
+                'line_ids': [
                     (0, 0, {
                         'name': product.name,
                         'product_id': product.id,

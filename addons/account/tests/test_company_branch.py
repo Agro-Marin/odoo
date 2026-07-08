@@ -347,6 +347,44 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                     with check():
                         move.action_draft()
 
+    def test_soft_lock_date_honors_archived_parent(self):
+        """A soft lock date set on a parent company must keep applying to an
+        active branch even when the parent itself is archived.
+
+        Regression: `_get_user_lock_date` used to traverse `parent_ids` with the
+        default `active_test=True`, silently dropping archived ancestors -- unlike
+        `_compute_user_hard_lock_date`, which forces `active_test=False`. An active
+        branch whose parent stayed archived could then post into the parent's
+        fiscally-locked period.
+        """
+        from datetime import date
+
+        # Standalone hierarchy so the parent (unlike the shared test company) is
+        # not any user's default company and can therefore be archived.
+        parent = self.env["res.company"].create({"name": "Archived Parent Co"})
+        branch = self.env["res.company"].create(
+            {"name": "Active Branch Co", "parent_id": parent.id}
+        )
+
+        # Parent's fiscal-year lock is stricter (later) than the branch's own.
+        with freeze_time("4000-01-01"):  # avoid the "lock in the future" guard
+            parent.fiscalyear_lock_date = date(3025, 12, 31)
+            branch.fiscalyear_lock_date = date(3022, 12, 31)
+
+        # Archive the parent (cascades to the branch) then reactivate only the
+        # branch: an active company with an archived ancestor.
+        parent.active = False
+        branch.active = True
+        self.assertTrue(branch.active)
+        self.assertFalse(parent.active)
+
+        branch.invalidate_recordset(["user_fiscalyear_lock_date"])
+        self.assertEqual(
+            branch._get_user_lock_date("fiscalyear_lock_date"),
+            date(3025, 12, 31),
+            "the archived parent's stricter fiscal-year lock must still apply",
+        )
+
     def test_change_record_company(self):
         account = self.env["account.account"].create(
             {

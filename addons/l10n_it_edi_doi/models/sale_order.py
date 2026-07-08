@@ -70,7 +70,7 @@ class SaleOrder(models.Model):
                 ._fetch_valid_declaration_of_intent(order.company_id, partner, order.currency_id, order.l10n_it_edi_doi_date)
             order.l10n_it_edi_doi_id = declaration
 
-    @api.depends('l10n_it_edi_doi_id', 'tax_totals', 'order_line', 'order_line.qty_invoiced_posted')
+    @api.depends('l10n_it_edi_doi_id', 'tax_totals', 'line_ids', 'line_ids.qty_invoiced_posted')
     def _compute_l10n_it_edi_doi_not_yet_invoiced(self):
         for order in self:
             declaration = order.l10n_it_edi_doi_id
@@ -162,7 +162,7 @@ class SaleOrder(models.Model):
             declaration_of_intent_tax = order.company_id.l10n_it_edi_doi_tax_id
             if not declaration_of_intent_tax:
                 continue
-            declaration_tax_lines = order.order_line.filtered(
+            declaration_tax_lines = order.line_ids.filtered(
                 lambda line: declaration_of_intent_tax in line.tax_ids
             )
             if declaration_tax_lines and not order.l10n_it_edi_doi_id:
@@ -174,9 +174,9 @@ class SaleOrder(models.Model):
         if errors:
             raise UserError('\n'.join(errors))
 
-    def action_quotation_send(self):
+    def action_send_quotation(self):
         self._l10n_it_edi_doi_check_configuration()
-        return super().action_quotation_send()
+        return super().action_send_quotation()
 
     def action_quotation_sent(self):
         self._l10n_it_edi_doi_check_configuration()
@@ -237,7 +237,7 @@ class SaleOrder(models.Model):
             if declaration != order.l10n_it_edi_doi_id:
                 continue
 
-            order_lines = order.order_line.filtered(
+            order_lines = order.line_ids.filtered(
                 # The declaration tax cannot be used with other taxes on a single line
                 # (checked in `action_confirm`)
                 lambda line: line.tax_ids.ids == tax.ids

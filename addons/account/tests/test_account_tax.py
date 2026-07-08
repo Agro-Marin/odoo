@@ -442,3 +442,60 @@ class TestAccountTax(AccountTestInvoicingCommon):
                 },
             ],
         )
+
+    def test_display_alternative_taxes_field_follows_dependencies(self):
+        """`display_alternative_taxes_field` reads `original_tax_ids` and
+        `company_id.domestic_fiscal_position_id`, not only `fiscal_position_ids`.
+        Its `@api.depends` must list them, otherwise the (non-stored) field stays
+        stale when `original_tax_ids` changes during form editing.
+        """
+        tax = self.env["account.tax"].create(
+            {"name": "alt-main", "amount": 21.0, "type_tax_use": "sale"}
+        )
+        domestic = self.env["account.tax"].create(
+            {"name": "alt-domestic", "amount": 10.0, "type_tax_use": "sale"}
+        )
+        # No fiscal positions and nothing replaced yet -> field is falsy.
+        self.assertFalse(tax.display_alternative_taxes_field)
+        # Change ONLY the previously-undeclared dependency.
+        tax.original_tax_ids = domestic
+        # A missing dependency would leak the cached ``False`` here.
+        self.assertTrue(tax.display_alternative_taxes_field)
+
+    def test_repartition_lines_logging_survives_language_change(self):
+        """Editing a used tax must never crash when the previously stored
+        repartition snapshot was produced under a different language.
+
+        Repartition snapshots used to be stored with *translated* dict keys, so
+        diffing a snapshot taken under one language against another taken under a
+        different language raised ``KeyError`` while merely saving the tax. Keys
+        and values are now language-neutral tokens translated only at render time.
+        """
+        self.set_up_and_use_tax()
+        tax = self.company_data["default_tax_sale"]
+
+        # (a) Old translated-format snapshot vs new neutral-format snapshot:
+        #     the migration path must not raise (it just can't produce a diff).
+        old_translated = (
+            "{('invoice', 1): {'Porcentaje de factor': 50.0, 'Cuenta': 'X', "
+            "'Cuadros de impuestos': None, 'Usar en cierre de impuestos': 'Verdadero'}}"
+        )
+        new_neutral = (
+            "{('invoice', 1): {'factor_percent': 100.0, 'account': 'X', "
+            "'tax_grids': None, 'use_in_tax_closing': True}}"
+        )
+        # The following call must not raise (it used to raise KeyError).
+        tax._message_log_repartition_lines(old_translated, new_neutral)
+
+        # (b) Two neutral-format snapshots produce a correctly-labelled diff.
+        tax.message_ids.unlink()
+        old_neutral = (
+            "{('invoice', 1): {'factor_percent': 50.0, 'account': 'X', "
+            "'tax_grids': None, 'use_in_tax_closing': False}}"
+        )
+        tax._message_log_repartition_lines(old_neutral, new_neutral)
+        joined = " ".join(tax.message_ids.mapped("preview"))
+        self.assertIn("Factor Percent", joined)
+        self.assertIn("50.0", joined)
+        self.assertIn("100.0", joined)
+        self.assertIn("Use in tax closing", joined)

@@ -1064,7 +1064,9 @@ class AccountChartTemplate(models.AbstractModel):
                     )
                 )
             )
-            sudoed_products_sale._force_default_sale_tax(company)
+            sudoed_products_sale._force_default_tax_field(
+                company, "account_sale_tax_id", "taxes_id"
+            )
         if company.account_purchase_tax_id:
             sudoed_products_purchase = (
                 self.env["product.template"]
@@ -1079,7 +1081,9 @@ class AccountChartTemplate(models.AbstractModel):
                     )
                 )
             )
-            sudoed_products_purchase._force_default_purchase_tax(company)
+            sudoed_products_purchase._force_default_tax_field(
+                company, "account_purchase_tax_id", "supplier_taxes_id"
+            )
 
         # Display caba fields if there are caba taxes
         if not company.parent_id and self.env["account.tax"].search_count(

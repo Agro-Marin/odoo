@@ -118,15 +118,15 @@ class AccountMove(models.Model):
             if move.l10n_es_tbai_chain_index:
                 move.show_reset_to_draft_button = False
 
-    def button_draft(self):
+    def action_draft(self):
         # EXTENDS account account.move
         for move in self:
             if move.l10n_es_tbai_chain_index and move.l10n_es_tbai_state != 'cancelled':
                 # NOTE this last condition (state is cancelled) is there because
-                # button_cancel calls button_draft.
+                # action_cancel calls action_draft.
                 # Draft button does not appear for user.
                 raise UserError(_("You cannot reset to draft an entry that has been posted to TicketBAI's chain"))
-        super().button_draft()
+        super().action_draft()
 
     @api.ondelete(at_uninstall=False)
     def _l10n_es_tbai_unlink_except_in_chain(self):
@@ -218,7 +218,7 @@ class AccountMove(models.Model):
                 raise UserError(error)
 
             if edi_document.state == 'accepted':
-                invoice.button_cancel()
+                invoice.action_cancel()
                 invoice._l10n_es_tbai_post_document_in_chatter(edi_document.response_message, cancel=True)
 
             if self.env['account.move.send']._can_commit():

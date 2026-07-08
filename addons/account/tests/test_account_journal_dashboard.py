@@ -2,11 +2,12 @@ from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command
+from odoo.tests import tagged
+from odoo.tools.misc import format_amount
+
 from odoo.addons.account.tests.test_account_journal_dashboard_common import (
     TestAccountJournalDashboardCommon,
 )
-from odoo.tests import tagged
-from odoo.tools.misc import format_amount
 
 
 @tagged("post_install", "-at_install")
@@ -228,7 +229,7 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         ]
 
         for (purchase_journal, bill_currency), expected_vals in zip(
-            setup_values, expected_vals_list
+            setup_values, expected_vals_list, strict=True
         ):
             with self.subTest(
                 purchase_journal_currency=purchase_journal.currency_id,
@@ -619,3 +620,74 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
         self.assertEqual(
             dashboard_data["to_check_balance"], journal.currency_id.format(150)
         )
+
+    @freeze_time("2023-06-15")
+    def test_misc_operations_shared_default_account_windows(self):
+        """Two bank journals sharing one default account but with different misc
+        windows (last-statement / lock date) must not read each other's lines.
+
+        Journal ``windowed`` has a statement dated 2023-05-01, so its misc window
+        is ``date > 2023-05-01``; journal ``open`` has no statement, so its window
+        is unbounded. A misc entry dated 2023-03-15 on the shared account belongs
+        only to ``open``. Before the fix, grouping the misc totals by account alone
+        merged both windows and leaked the line into ``windowed`` too.
+        """
+        windowed = self.company_data["default_journal_bank"]
+        shared_account = windowed.default_account_id
+        open_journal = windowed.copy({"name": "Shared-Account Bank", "code": "SHBNK"})
+        open_journal.default_account_id = shared_account
+        self.assertEqual(open_journal.default_account_id, shared_account)
+
+        # give `windowed` a last statement -> misc window becomes date > 2023-05-01
+        self.env["account.bank.statement"].create(
+            {
+                "name": "Seed statement",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "journal_id": windowed.id,
+                            "date": "2023-05-01",
+                            "payment_ref": "seed",
+                            "amount": 10.0,
+                        }
+                    )
+                ],
+            }
+        )
+        self.assertEqual(windowed.last_statement_id.date.isoformat(), "2023-05-01")
+        self.assertFalse(open_journal.last_statement_id)
+
+        # a misc line on the shared account, dated before `windowed`'s window
+        self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "journal_id": self.company_data["default_journal_misc"].id,
+                "date": "2023-03-15",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "account_id": shared_account.id,
+                            "debit": 100.0,
+                            "credit": 0.0,
+                            "name": "misc on shared account",
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "account_id": self.company_data[
+                                "default_account_expense"
+                            ].id,
+                            "debit": 0.0,
+                            "credit": 100.0,
+                            "name": "counterpart",
+                        }
+                    ),
+                ],
+            }
+        ).action_post()
+
+        data = (windowed | open_journal)._get_journal_dashboard_data_batched()
+        # `windowed` excludes the 2023-03-15 line (outside its window)...
+        self.assertEqual(data[windowed.id]["nb_misc_operations"], 0)
+        # ...while `open_journal` sees it, with no cross-contamination.
+        self.assertEqual(data[open_journal.id]["nb_misc_operations"], 1)

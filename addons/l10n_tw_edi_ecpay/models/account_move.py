@@ -200,12 +200,12 @@ class AccountMove(models.Model):
             }
         return super().button_request_cancel()
 
-    def button_draft(self):
+    def action_draft(self):
         # EXTENDS 'account'
         invoices_to_reset = self.filtered(
             lambda i: (i.state == "cancel" and i.l10n_tw_edi_state == "invalid")
         )
-        res = super().button_draft()
+        res = super().action_draft()
 
         invoices_to_reset.write({
             "l10n_tw_edi_related_number": False,

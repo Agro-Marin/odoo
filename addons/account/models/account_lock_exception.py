@@ -1,11 +1,11 @@
+from datetime import date
+
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools.misc import format_datetime
-from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.account.models.company import SOFT_LOCK_DATE_FIELDS
-
-from datetime import date
 
 
 class AccountLock_Exception(models.Model):
@@ -282,7 +282,7 @@ class AccountLock_Exception(models.Model):
                 if company[field]
             )
             & Domain("company_id", "=", company.id)
-            & Domain("state", "=", "active"),  # checks the datetime
+            & Domain("state", "=", "active")  # checks the datetime
         )
 
     def _get_audit_trail_during_exception_domain(self):

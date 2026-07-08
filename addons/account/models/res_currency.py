@@ -1,6 +1,41 @@
-from odoo import api, models, fields, _
+from dataclasses import dataclass
+
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import date_utils, SQL
+from odoo.tools import SQL, date_utils
+
+# Column layout of the currency table, declared once so every builder and the
+# CREATE TEMPORARY TABLE statement stay in lock-step. Changing the schema is a
+# single edit here instead of five parallel edits across the SQL fragments.
+CURRENCY_TABLE_COLUMNS = (
+    "company_id",
+    "period_key",
+    "date_from",
+    "date_next",
+    "rate_type",
+    "rate",
+)
+
+# Rate types materialised in the currency table. Simple single-period
+# conversions only need 'current'; CTA reports additionally need 'historical'
+# and 'average' rates for the equity/P&L translation rules.
+SIMPLE_RATE_TYPES = ("current",)
+CTA_RATE_TYPES = ("current", "historical", "average")
+
+
+@dataclass(frozen=True)
+class CurrencyTableScope:
+    """Immutable bundle of the parameters every per-period currency-table builder
+    shares: the root company that owns the ``res.currency.rate`` records, and the
+    (guaranteed non-empty) set of companies whose amounts must be converted.
+
+    Bundling them keeps each builder's signature small and makes it impossible for
+    one builder to be handed a different company set than another within the same
+    table build.
+    """
+
+    main_company_id: int
+    other_company_ids: tuple
 
 
 class ResCurrency(models.Model):
@@ -19,30 +54,45 @@ class ResCurrency(models.Model):
     @api.depends("rounding")
     def _compute_display_rounding_warning(self):
         for record in self:
-            record.display_rounding_warning = (
-                record._origin.id and record._origin.rounding != record.rounding
+            record.display_rounding_warning = bool(record._origin) and (
+                record._origin.rounding != record.rounding
             )
 
     def write(self, vals):
         if "rounding" in vals:
-            rounding_val = vals["rounding"]
+            # The risk being guarded against is *losing* decimal places on a
+            # currency already used in the ledger — not any change to the raw
+            # rounding factor. Those are not equivalent: decimal_places is
+            # ceil(log10(1/rounding)), so e.g. 0.01 -> 0.05 keeps 2 places and
+            # must stay allowed. Compare the derived place count, not the factor.
+            new_decimal_places = self._decimal_places_for_rounding(vals["rounding"])
             for record in self:
                 if (
-                    rounding_val > record.rounding or rounding_val == 0
-                ) and record._has_accounting_entries():
+                    new_decimal_places < record.decimal_places
+                    and record._has_accounting_entries()
+                ):
                     raise UserError(
                         _(
                             "You cannot reduce the number of decimal places of a currency which has already been used to make accounting entries."
                         )
                     )
 
-        return super(ResCurrency, self).write(vals)
+        return super().write(vals)
+
+    def _decimal_places_for_rounding(self, rounding):
+        """Return the number of decimal places a given ``rounding`` factor would
+        imply, without writing it. Delegates to ``_compute_decimal_places`` via an
+        in-memory record so the log10 formula lives in exactly one place (base).
+        """
+        return self.new({"rounding": rounding}).decimal_places
 
     def _has_accounting_entries(self):
         """Returns True iff this currency has been used to generate (hence, round)
         some move lines (either as their foreign currency, or as the main currency).
         """
         self.ensure_one()
+        # limit=1: this is an existence check, not a tally — stop at the first hit
+        # instead of counting every matching move line on the whole ledger.
         return bool(
             self.env["account.move.line"]
             .sudo()
@@ -51,7 +101,8 @@ class ResCurrency(models.Model):
                     "|",
                     ("currency_id", "=", self.id),
                     ("company_currency_id", "=", self.id),
-                ]
+                ],
+                limit=1,
             )
         )
 
@@ -73,6 +124,29 @@ class ResCurrency(models.Model):
         """
         return len(companies.currency_id) == 1
 
+    def _currency_table_rate_types(self, use_cta_rates):
+        """Rate types to materialise: the CTA set (current/historical/average) when
+        CTA translation is requested, otherwise just the current rate.
+        """
+        return CTA_RATE_TYPES if use_cta_rates else SIMPLE_RATE_TYPES
+
+    def _currency_table_unit_rows(self, companies, use_cta_rates) -> list[SQL]:
+        """VALUES rows setting every requested rate to 1 for the given companies.
+
+        Shared by the monocurrency shortcut and by the "domestic" builder (companies
+        sharing the main company's currency): in both cases no conversion is needed,
+        so the query shape is identical to the multi-currency case with rate = 1.
+        """
+        return [
+            SQL(
+                "(%(company_id)s, CAST(NULL AS VARCHAR), CAST(NULL AS DATE), CAST(NULL AS DATE), %(rate_type)s, 1)",
+                company_id=company.id,
+                rate_type=rate_type,
+            )
+            for company in companies
+            for rate_type in self._currency_table_rate_types(use_cta_rates)
+        ]
+
     def _get_monocurrency_currency_table_sql(self, companies, use_cta_rates=False):
         """Returns a simplified currency table, faster to generate, for cases were all the data to convert are expressed in the same currency,
         to be use in a JOIN. It actually just consists of a few VALUES ; no temporary table is created in this case.
@@ -80,20 +154,14 @@ class ResCurrency(models.Model):
         All the rates in this currency table are equal to 1 (since everything is in the same currency). This is useful so that the queries can
         be written exactly in the same way, joining the currency table returned by some function, for both mono and multi currency cases.
         """
-        unit_rates = [
-            SQL(
-                "(%(company_id)s, CAST(NULL AS VARCHAR), CAST(NULL AS DATE), CAST(NULL AS DATE), %(rate_type)s, 1)",
-                company_id=company.id,
-                rate_type=rate_type,
-            )
-            for company in companies
-            for rate_type in (
-                ("historical", "current", "average") if use_cta_rates else ("current",)
-            )
-        ]
         return SQL(
-            "(VALUES %s) AS account_currency_table(company_id, period_key, date_from, date_next, rate_type, rate)",
-            SQL(",").join(unit_rates),
+            "(VALUES %(rows)s) AS account_currency_table(%(columns)s)",
+            rows=SQL(", ").join(
+                self._currency_table_unit_rows(companies, use_cta_rates)
+            ),
+            columns=SQL(", ").join(
+                SQL.identifier(col) for col in CURRENCY_TABLE_COLUMNS
+            ),
         )
 
     def _create_currency_table(self, companies, date_periods, use_cta_rates=False):
@@ -131,48 +199,49 @@ class ResCurrency(models.Model):
 
         table_builders = []
         if domestic_currency_companies:
-            table_builders += [
+            table_builders.append(
                 self._get_table_builder_domestic_currency(
                     domestic_currency_companies, use_cta_rates
                 )
-            ]
-
-        last_date_to = None
-        for period_key, date_from, date_to in date_periods:
-            main_company_unit_factor = main_company.currency_id._get_rates(
-                main_company, date_to
-            )[main_company.currency_id.id]
-
-            table_builders.append(
-                self._get_table_builder_current(
-                    period_key,
-                    main_company,
-                    other_companies,
-                    date_to,
-                    main_company_unit_factor,
-                )
             )
 
-            if use_cta_rates:
-                table_builders += [
-                    self._get_table_builder_historical(
-                        main_company,
-                        other_companies,
-                        date_to,
-                        main_company_unit_factor,
-                        last_date_to,
-                    ),
-                    self._get_table_builder_average(
-                        period_key,
-                        main_company,
-                        other_companies,
-                        date_from,
-                        date_to,
-                        main_company_unit_factor,
-                    ),
-                ]
+        # The per-period builders only concern companies whose currency differs
+        # from the main one. When there are none, skipping them is not merely an
+        # optimisation: their `WHERE company_id IN %s` would render an empty
+        # `IN ()` and raise a SQL syntax error. Domestic companies already get a
+        # period-agnostic rate of 1 from the builder above.
+        if other_companies:
+            scope = CurrencyTableScope(
+                main_company_id=main_company.root_id.id,
+                other_company_ids=tuple(other_companies.ids),
+            )
+            last_date_to = None
+            for period_key, date_from, date_to in date_periods:
+                main_company_unit_factor = main_company.currency_id._get_rates(
+                    main_company, date_to
+                )[main_company.currency_id.id]
 
-            last_date_to = date_to
+                table_builders.append(
+                    self._get_table_builder_current(
+                        scope, period_key, date_to, main_company_unit_factor
+                    )
+                )
+
+                if use_cta_rates:
+                    table_builders += [
+                        self._get_table_builder_historical(
+                            scope, date_to, main_company_unit_factor, last_date_to
+                        ),
+                        self._get_table_builder_average(
+                            scope,
+                            period_key,
+                            date_from,
+                            date_to,
+                            main_company_unit_factor,
+                        ),
+                    ]
+
+                last_date_to = date_to
 
         currency_table_build_query = SQL(" UNION ALL ").join(
             SQL("(%s)", builder) for builder in table_builders
@@ -182,10 +251,13 @@ class ResCurrency(models.Model):
         cr.execute(
             SQL(
                 """CREATE TEMPORARY TABLE
-                account_currency_table (company_id, period_key, date_from, date_next, rate_type, rate)
+                account_currency_table (%(columns)s)
                 ON COMMIT DROP
-                AS (%s)""",
-                currency_table_build_query,
+                AS (%(query)s)""",
+                columns=SQL(", ").join(
+                    SQL.identifier(col) for col in CURRENCY_TABLE_COLUMNS
+                ),
+                query=currency_table_build_query,
             )
         )
         cr.execute(
@@ -199,42 +271,17 @@ class ResCurrency(models.Model):
         """Returns a query building one rate of each appropriate type equal to 1 for each of the provided companies. Those companies should be
         the ones sharing the same currency as self.env.company.
         """
-        rate_values = []
-        for company in companies:
-            rate_values.append(
-                SQL(
-                    "(%s, CAST(NULL AS VARCHAR), CAST(NULL AS DATE), CAST(NULL AS DATE), 'current', 1)",
-                    company.id,
-                )
-            )
-
-            if use_cta_rates:
-                rate_values += [
-                    SQL(
-                        "(%s, CAST(NULL AS VARCHAR), CAST(NULL AS DATE), CAST(NULL AS DATE), 'average', 1)",
-                        company.id,
-                    ),
-                    SQL(
-                        "(%s, CAST(NULL AS VARCHAR), CAST(NULL AS DATE), CAST(NULL AS DATE), 'historical', 1)",
-                        company.id,
-                    ),
-                ]
-
         return SQL(
-            """
-                SELECT *
-                FROM ( VALUES
-                    %(rate_values)s
-                ) values
-            """,
-            rate_values=SQL(", ").join(rate_values),
+            "SELECT * FROM (VALUES %(rows)s) AS domestic_rates",
+            rows=SQL(", ").join(
+                self._currency_table_unit_rows(companies, use_cta_rates)
+            ),
         )
 
     def _get_table_builder_current(
         self,
+        scope: CurrencyTableScope,
         period_key,
-        main_company,
-        other_companies,
         date_to,
         main_company_unit_factor,
     ) -> SQL:
@@ -256,17 +303,22 @@ class ResCurrency(models.Model):
                     other_company.id IN %(other_company_ids)s
                 ORDER BY other_company.id, rate.name DESC
             """,
+            # NB: when a company's currency has no rate on or before date_to the
+            # LEFT JOIN yields NULL and the rate defaults to 1 (parity). This
+            # intentionally differs from res.currency._get_rates, which falls back
+            # to the *earliest* known rate. Neither is objectively correct (there
+            # is simply no rate for that date); keep them aligned only via a
+            # deliberate, test-backed change — reports depend on this behaviour.
             period_key=period_key,
-            main_company_id=main_company.root_id.id,
-            other_company_ids=tuple(other_companies.ids),
+            main_company_id=scope.main_company_id,
+            other_company_ids=scope.other_company_ids,
             date_to=date_to,
             main_company_unit_factor=main_company_unit_factor,
         )
 
     def _get_table_builder_historical(
         self,
-        main_company,
-        other_companies,
+        scope: CurrencyTableScope,
         date_to,
         main_company_unit_factor,
         date_exclude,
@@ -289,8 +341,8 @@ class ResCurrency(models.Model):
                     AND rate.name <= %(date_to)s
                     %(exclusion_condition)s
             """,
-            main_company_id=main_company.root_id.id,
-            other_company_ids=tuple(other_companies.ids),
+            main_company_id=scope.main_company_id,
+            other_company_ids=scope.other_company_ids,
             main_company_unit_factor=main_company_unit_factor,
             date_to=date_to,
             exclusion_condition=SQL(
@@ -302,9 +354,8 @@ class ResCurrency(models.Model):
 
     def _get_table_builder_average(
         self,
+        scope: CurrencyTableScope,
         period_key,
-        main_company,
-        other_companies,
         date_from,
         date_to,
         main_company_unit_factor,
@@ -370,8 +421,8 @@ class ResCurrency(models.Model):
                 GROUP BY rate_with_days.other_company_id
             """,
             period_key=period_key,
-            main_company_id=main_company.root_id.id,
-            other_company_ids=tuple(other_companies.ids),
+            main_company_id=scope.main_company_id,
+            other_company_ids=scope.other_company_ids,
             date_from=date_from,
             date_to=date_to,
             main_company_unit_factor=main_company_unit_factor,

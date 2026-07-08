@@ -1,9 +1,8 @@
-from odoo import api, fields, models, _, Command
+import json
+
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import frozendict
-
-from datetime import date
-import json
 
 
 class AccountPartialReconcile(models.Model):
@@ -281,6 +280,11 @@ class AccountPartialReconcile(models.Model):
                         * payment_rate:     The applied rate of this partial.
         """
         tax_cash_basis_values_per_move = {}
+        # Memoize '_collect_tax_cash_basis_values' per origin move, kept separate
+        # from the accumulator so that moves with nothing to process (a falsy
+        # result) or whose partials net to zero are collected once, not once per
+        # partial referencing them.
+        collected_per_move = {}
 
         if not self:
             return {}
@@ -293,10 +297,9 @@ class AccountPartialReconcile(models.Model):
                 )
 
                 # Collect data about cash basis.
-                if move.id in tax_cash_basis_values_per_move:
-                    move_values = tax_cash_basis_values_per_move[move.id]
-                else:
-                    move_values = move._collect_tax_cash_basis_values()
+                if move.id not in collected_per_move:
+                    collected_per_move[move.id] = move._collect_tax_cash_basis_values()
+                move_values = collected_per_move[move.id]
 
                 # Nothing to process on the move.
                 if not move_values:
@@ -397,8 +400,9 @@ class AccountPartialReconcile(models.Model):
                 move_values.setdefault("partials", [])
                 move_values["partials"].append(partial_vals)
 
-        # Some moves may end up with no cash basis entries to create; drop them.
-        return {k: v for k, v in tax_cash_basis_values_per_move.items() if v}
+        # Every stored move has at least one partial to process (it is only added
+        # to the accumulator right before a partial is appended above).
+        return tax_cash_basis_values_per_move
 
     @api.model
     def _prepare_cash_basis_base_line_vals(self, base_line, balance, amount_currency):
@@ -427,7 +431,7 @@ class AccountPartialReconcile(models.Model):
 
         return {
             "name": base_line.move_id.name,
-            "debit": balance if balance > 0.0 else 0.0,
+            "debit": max(0.0, balance),
             "credit": -balance if balance < 0.0 else 0.0,
             "amount_currency": amount_currency,
             "currency_id": base_line.currency_id.id,
@@ -484,7 +488,7 @@ class AccountPartialReconcile(models.Model):
 
         return {
             "name": tax_line.name,
-            "debit": balance if balance > 0.0 else 0.0,
+            "debit": max(0.0, balance),
             "credit": -balance if balance < 0.0 else 0.0,
             "tax_base_amount": tax_line.tax_base_amount,
             "tax_repartition_line_id": tax_line.tax_repartition_line_id.id,
@@ -603,8 +607,13 @@ class AccountPartialReconcile(models.Model):
         tax_cash_basis_values_per_move = self._collect_tax_cash_basis_values()
         today = fields.Date.context_today(self)
 
-        moves_to_create_and_post = []
-        moves_to_create_in_draft = []
+        # A single list kept in creation order (parallel 'post_after_create'
+        # flags), so the index recorded in 'to_reconcile_after' stays valid after
+        # the create. Splitting into post/draft lists and concatenating them
+        # reordered the moves, desynchronizing those indices (see the mixed
+        # posted/draft regression test).
+        moves_to_create = []
+        post_after_create = []
         to_reconcile_after = []
         for move_values in tax_cash_basis_values_per_move.values():
             move = move_values["move"]
@@ -668,8 +677,7 @@ class AccountPartialReconcile(models.Model):
                     balance = (
                         partial_values["payment_rate"]
                         and amount_currency / partial_values["payment_rate"]
-                        or 0.0
-                    )
+                    ) or 0.0
 
                     # ==========================================================================
                     # Prepare the mirror cash basis journal item of the current line.
@@ -723,7 +731,7 @@ class AccountPartialReconcile(models.Model):
 
                         aggregated_vals.update(
                             {
-                                "debit": balance if balance > 0 else 0,
+                                "debit": max(0, balance),
                                 "credit": -balance if balance < 0 else 0,
                                 "amount_currency": aggregated_vals["amount_currency"]
                                 + cb_line_vals["amount_currency"],
@@ -779,9 +787,9 @@ class AccountPartialReconcile(models.Model):
                         counterpart_line_vals["sequence"] = sequence + 1
 
                         if tax_line.account_id.reconcile:
-                            move_index = len(moves_to_create_and_post) + len(
-                                moves_to_create_in_draft
-                            )
+                            # The move being built is appended below and will keep
+                            # this index in the created recordset.
+                            move_index = len(moves_to_create)
                             to_reconcile_after.append(
                                 (
                                     tax_line,
@@ -807,10 +815,8 @@ class AccountPartialReconcile(models.Model):
                         (0, 0, line_vals),
                     ]
 
-                if partial_values["both_move_posted"]:
-                    moves_to_create_and_post.append(move_vals)
-                else:
-                    moves_to_create_in_draft.append(move_vals)
+                moves_to_create.append(move_vals)
+                post_after_create.append(partial_values["both_move_posted"])
 
         moves = (
             self.env["account.move"]
@@ -819,9 +825,13 @@ class AccountPartialReconcile(models.Model):
                 skip_invoice_line_sync=True,
                 skip_account_move_synchronization=True,
             )
-            .create(moves_to_create_and_post + moves_to_create_in_draft)
+            .create(moves_to_create)
         )
-        moves[: len(moves_to_create_and_post)]._post(soft=False)
+        # Post the moves whose two reconciled entries are both already posted.
+        # Creation order is preserved, so 'to_reconcile_after' indices stay valid.
+        moves.browse(
+            move.id for move, post in zip(moves, post_after_create, strict=True) if post
+        )._post(soft=False)
 
         # Reconcile the tax lines being on a reconcile tax basis transfer account.
         reconciliation_plan = []
@@ -840,7 +850,7 @@ class AccountPartialReconcile(models.Model):
             if counterpart_line.reconciled:
                 continue
 
-            reconciliation_plan.append((counterpart_line + lines))
+            reconciliation_plan.append(counterpart_line + lines)
 
         # passing add_caba_vals in the context to make sure that any exchange diff that would be created for
         # this cash basis move would set the field draft_caba_move_vals accordingly on the partial

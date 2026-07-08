@@ -230,7 +230,7 @@ class L10nHuEdiTestCommon(AccountTestInvoicingCommon):
         sale_order = self.env['sale.order'].with_context(tracking_disable=True).create({
             'partner_id': self.partner_company.id,
             'pricelist_id': pricelist_huf.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_a.id,
                     'product_uom_qty': 1,
