@@ -250,8 +250,15 @@ class ResPartnerBank(models.Model):
         for bank in self:
             bank.acc_type = self.retrieve_acc_type(bank.acc_number)
 
-    @api.depends("partner_id.name")
+    @api.depends("partner_id")
     def _compute_account_holder_name(self) -> None:
+        # Depends on partner_id only, NOT partner_id.name: acc_holder_name is a
+        # user-editable default (readonly=False, store=True) that exists
+        # precisely to hold a name different from the partner's. A dependency
+        # on the partner name would recompute — and clobber — hand-customized
+        # holder names on every partner rename. Renames are propagated instead
+        # by a guarded sync in res.partner.write() that only updates accounts
+        # still matching the old partner name.
         for bank in self:
             bank.acc_holder_name = bank.partner_id.name
 

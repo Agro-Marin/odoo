@@ -56,6 +56,40 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         partner_bank.write({"sanitized_acc_number": "BE001251882303WRONG"})
         self.assertEqual(partner_bank.acc_number, partner_bank.sanitized_acc_number)
 
+    def test_acc_holder_name_follows_partner_rename_when_not_customized(self):
+        """A non-customized holder name (equal to the partner name) follows a
+        partner rename; renames are propagated by the guarded sync in
+        res.partner.write, not by a recompute."""
+        partner = self.env["res.partner"].create({"name": "Old Name"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
+        )
+        self.assertEqual(bank.acc_holder_name, "Old Name")
+        partner.write({"name": "New Name"})
+        self.assertEqual(bank.acc_holder_name, "New Name")
+
+    def test_acc_holder_name_customization_survives_partner_rename(self):
+        """A hand-customized holder name (the whole point of the field) must
+        NOT be clobbered when the partner is renamed."""
+        partner = self.env["res.partner"].create({"name": "Old Name"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
+        )
+        bank.acc_holder_name = "Custom Holder"
+        partner.write({"name": "New Name"})
+        self.assertEqual(bank.acc_holder_name, "Custom Holder")
+
+    def test_acc_holder_name_recomputed_on_partner_change(self):
+        """Reassigning the account to another partner resets the holder name
+        default to the new partner's name (depends on partner_id)."""
+        partner_a = self.env["res.partner"].create({"name": "Holder A"})
+        partner_b = self.env["res.partner"].create({"name": "Holder B"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": partner_a.id}
+        )
+        bank.partner_id = partner_b
+        self.assertEqual(bank.acc_holder_name, "Holder B")
+
     def test_unlink_archives_instead_of_deleting(self):
         """unlink() archives the account (active=False) rather than deleting it."""
         partner = self.env["res.partner"].create({"name": "Pepper Test"})
