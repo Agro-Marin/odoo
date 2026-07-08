@@ -709,10 +709,21 @@ class TestSaveAttachmentGuard(TransactionCase):
 
     def test_mimetypes_match_extension(self):
         bundle = AssetsBundle("test_assetsbundle.extguard2", [], env=self.env)
-        self.assertEqual(bundle.save_attachment("min.xml", "<t/>").mimetype, "text/xml")
+        self.assertEqual(bundle.save_attachment("min.css", "b{}").mimetype, "text/css")
         self.assertEqual(
             bundle.save_attachment("js.map", "{}").mimetype, "application/json"
         )
+
+    def test_xml_extensions_rejected(self):
+        """Template bundles never persist through the store: the production
+        ESM path saves via ``ir_qweb._save_esm_attachment`` and legacy
+        templates ship inside the concatenated ``(min.)js``, so the former
+        ``xml`` / ``min.xml`` whitelist entries were reachable only from
+        direct ``save_attachment`` calls in tests — now rejected."""
+        bundle = AssetsBundle("test_assetsbundle.extguard3", [], env=self.env)
+        for extension in ("xml", "min.xml"):
+            with self.assertRaisesRegex(ValueError, "Invalid asset extension"):
+                bundle.save_attachment(extension, "<t/>")
 
 
 class TestScssMinifySkipsRegex(TransactionCase):
