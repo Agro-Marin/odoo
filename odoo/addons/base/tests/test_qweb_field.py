@@ -227,6 +227,21 @@ class TestQwebFieldRecordContext(common.TransactionCase):
         rebind.assert_not_called()
 
 
+class TestQwebFieldSelectionRecord(common.TransactionCase):
+    def test_selection_record_to_html_label(self):
+        # The selection label is resolved from the field's selection pairs
+        # (via ``_description_selection``), not the raw stored value.
+        partner = self.env["res.partner"].create({"name": "Sel Probe"})
+        result = self.env["ir.qweb.field.selection"].record_to_html(
+            partner, "company_type", {}
+        )
+        # equivalence with the full-description path it replaced
+        field = partner._fields["company_type"]
+        expected = dict(field.get_description(self.env)["selection"])["person"]
+        self.assertEqual(result, expected)
+        self.assertNotEqual(result, "person", "label, not raw value, expected")
+
+
 class TestQwebFieldMonetaryType(common.TransactionCase):
     """QF-T6: monetary must reject non-numbers, including bool (an int subclass)."""
 
