@@ -68,7 +68,7 @@ class TestCarrierPropagation(TransactionCase):
             'name': 'Sale order',
             'partner_id': self.partner_propagation.id,
             'partner_invoice_id': self.partner_propagation.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {'name': self.super_product.name, 'product_id': self.super_product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
             ]
         })
@@ -102,7 +102,7 @@ class TestCarrierPropagation(TransactionCase):
                 'name': 'Sale order',
                 'partner_id': self.partner_propagation.id,
                 'partner_invoice_id': self.partner_propagation.id,
-                'order_line': [
+                'line_ids': [
                     (0, 0, {'name': product.name, 'product_id': product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
                 ]
             })
@@ -135,7 +135,7 @@ class TestCarrierPropagation(TransactionCase):
         delivery_route_rules[2].propagate_carrier = False
         so = self.SaleOrder.create({
             'partner_id': self.partner_propagation.id,
-            'order_line': [Command.create({'product_id': self.super_product.id})],
+            'line_ids': [Command.create({'product_id': self.super_product.id})],
         })
         so.action_confirm()
         pickings = so.picking_ids
@@ -190,7 +190,7 @@ class TestCarrierPropagation(TransactionCase):
 
         sale_order1 = self.SaleOrder.create({
             'partner_id': self.partner_propagation.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'Cable Management Box',
                 'product_id': self.super_product.id,
                 'product_uom_qty': 2,
@@ -212,7 +212,7 @@ class TestCarrierPropagation(TransactionCase):
         # check route without add in sale order line
         sale_order2 = self.SaleOrder.create({
             'partner_id': self.partner_propagation.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'Cable Management Box',
                 'product_id': self.super_product.id,
                 'product_uom_qty': 2,
@@ -252,7 +252,7 @@ class TestCarrierPropagation(TransactionCase):
         sale_orders = self.env['sale.order'].create([
             {
                 'partner_id': self.partner_propagation.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': self.super_product.id
                     }),
@@ -260,7 +260,7 @@ class TestCarrierPropagation(TransactionCase):
             },
             {
                 'partner_id': self.partner_propagation.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': super_product_2.id
                     }),

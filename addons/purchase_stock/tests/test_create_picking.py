@@ -939,11 +939,23 @@ class TestCreatePicking(ProductVariantsCommon):
             'price': 500.0,
             'discount': 10,
         })]
-        po = self.env['purchase.order'].create(self.po_vals)  # create a PO for 5 units
+        # No manual price on the line: this fork preserves manually set
+        # prices (shadow-price architecture), so the seller price/discount
+        # must flow in through the automatic price instead.
+        po = self.env['purchase.order'].create({
+            'partner_id': self.partner_id.id,
+            'line_ids': [(0, 0, {
+                'name': self.product_id_1.name,
+                'product_id': self.product_id_1.id,
+                'product_qty': 5.0,
+                'product_uom_id': self.product_id_1.uom_id.id,
+            })],
+        })
         po.action_confirm()
+        # Update the quantity to 10 to trigger the discount
         with Form(po) as po_form:
             with po_form.line_ids.edit(0) as po_line:
                 po_line.product_qty = 10.0
+        self.assertEqual(po.line_ids.discount, 10)
         po.picking_ids.button_validate()
-        # Update the quantity to 10 to trigger the discount
         self.assertEqual(self.product_id_1.standard_price, 450.0)

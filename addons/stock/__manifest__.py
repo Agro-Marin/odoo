@@ -2,17 +2,9 @@
     "name": "Inventory",
     "version": "1.1",
     "summary": "Manage your stock and logistics activities",
-    "website": "https://www.odoo.com/app/inventory",
     "depends": ["product", "barcodes_gs1_nomenclature", "digest"],
     "category": "Supply Chain/Inventory",
     "sequence": 25,
-    "demo": [
-        "data/stock_demo_pre.xml",
-        "data/stock_demo.xml",
-        "data/stock_demo2.xml",
-        "data/stock_orderpoint_demo.xml",
-        "data/stock_storage_category_demo.xml",
-    ],
     "data": [
         "security/stock_security.xml",
         "security/ir.model.access.csv",
@@ -84,11 +76,6 @@
         "views/uom_uom_views.xml",
         "views/stock_menus.xml",
     ],
-    "installable": True,
-    "application": True,
-    "pre_init_hook": "pre_init_hook",
-    "post_init_hook": "_assign_default_mail_template_picking_id",
-    "uninstall_hook": "uninstall_hook",
     "assets": {
         "web.report_assets_common": [
             "stock/static/src/scss/report_stock_reception.scss",
@@ -110,6 +97,18 @@
             "stock/static/tests/*.test.js",
         ],
     },
+    "demo": [
+        "data/stock_demo_pre.xml",
+        "data/stock_demo.xml",
+        "data/stock_demo2.xml",
+        "data/stock_orderpoint_demo.xml",
+        "data/stock_storage_category_demo.xml",
+    ],
+    "installable": True,
+    "application": True,
+    "pre_init_hook": "pre_init_hook",
+    "uninstall_hook": "uninstall_hook",
+    "website": "https://www.odoo.com/app/inventory",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
 }

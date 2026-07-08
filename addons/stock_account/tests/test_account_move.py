@@ -287,7 +287,7 @@ class TestAccountMove(TestStockValuationCommon):
             'tax_lock_date': lock_date,
         })
         # Receipts can be backdated
-        receipt.scheduled_date = prior_to_lock_date
+        receipt.date_planned = prior_to_lock_date
         receipt_done.date_done = prior_to_lock_date
 
         # Check that the fiscal year lock date imposes restrictions
@@ -297,11 +297,12 @@ class TestAccountMove(TestStockValuationCommon):
             'tax_lock_date': False,
             'fiscalyear_lock_date': lock_date,
         })
-        # Receipts can not be backdated prior to lock date
-        receipt.scheduled_date = post_to_lock_date
+        # A validated receipt cannot be backdated prior to lock date
+        receipt.date_planned = post_to_lock_date
         receipt_done.date_done = post_to_lock_date
-        with self.assertRaises(UserError):
-            receipt.scheduled_date = prior_to_lock_date
+        # Lock dates should not affect an un-validated receipt's scheduled date:
+        # it has produced no accounting entries yet, so there is nothing to lock.
+        receipt.date_planned = prior_to_lock_date
         with self.assertRaises(UserError):
             receipt_done.date_done = prior_to_lock_date
 
@@ -310,11 +311,11 @@ class TestAccountMove(TestStockValuationCommon):
             'fiscalyear_lock_date': False,
             'hard_lock_date': lock_date,
         })
-        # Receipts can not be backdated prior to lock date
-        receipt.scheduled_date = post_to_lock_date
+        # A validated receipt cannot be backdated prior to lock date
+        receipt.date_planned = post_to_lock_date
         receipt_done.date_done = post_to_lock_date
-        with self.assertRaises(UserError):
-            receipt.scheduled_date = prior_to_lock_date
+        # Same as above: the un-validated receipt's scheduled date stays free.
+        receipt.date_planned = prior_to_lock_date
         with self.assertRaises(UserError):
             receipt_done.date_done = prior_to_lock_date
 

@@ -21,7 +21,7 @@
         <field name="model_id" ref="product.model_product_template" />
         <field name="group_ids" eval="[(4,ref('stock.group_stock_user'))]" />
         <field name="state">code</field>
-        <field name="code">action = model.action_open_routes_diagram()</field>
+        <field name="code">action = model.action_view_routes_diagram()</field>
     </record>
 
     <record id="view_stock_product_template_tree" model="ir.ui.view">
@@ -75,7 +75,7 @@
                 <label for="qty_available" class="oe_inline" invisible="not is_storable or not product_variant_id"
                     groups="stock.group_stock_user" />
                 <div class="o_row" invisible="not is_storable or not product_variant_id" groups="stock.group_stock_user">
-                    <a type="object" name="action_open_quants"
+                    <a type="object" name="action_view_quants"
                         invisible="not show_qty_update_button" groups="stock.group_stock_manager">
                         <field name="qty_available" readonly="True" />
                     </a>
@@ -219,31 +219,31 @@
                 <t groups="stock.group_stock_user">
                     <button type="object"
                         name="action_view_orderpoints"
-                        invisible="not is_storable or nbr_reordering_rules != 1"
+                        invisible="not is_storable or count_reordering_rules != 1"
                         class="oe_stat_button" icon="fa-refresh">
                         <div class="d-flex flex-column">
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">Min:</span>
                                 <span class="o_stat_value">
-                                    <field name="reordering_min_qty" />
+                                    <field name="reordering_qty_min" />
                                 </span>
                             </div>
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">Max:</span>
                                 <span class="o_stat_value">
-                                    <field name="reordering_max_qty" />
+                                    <field name="reordering_qty_max" />
                                 </span>
                             </div>
                         </div>
                     </button>
                     <button type="object"
                         name="action_view_orderpoints"
-                        invisible="not is_storable or nbr_reordering_rules == 1"
+                        invisible="not is_storable or count_reordering_rules == 1"
                         class="oe_stat_button"
                         icon="fa-refresh">
-                        <field name="nbr_reordering_rules" widget="statinfo" />
+                        <field name="count_reordering_rules" widget="statinfo" />
                     </button>
                     <button type="object"
                         name="action_view_stock_move_lines"
@@ -255,21 +255,21 @@
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">In:</span>
                                 <span class="o_stat_value">
-                                    <field name="nbr_moves_in" />
+                                    <field name="count_moves_in" />
                                 </span>
                             </div>
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">Out:</span>
                                 <span class="o_stat_value">
-                                    <field name="nbr_moves_out" />
+                                    <field name="count_moves_out" />
                                 </span>
                             </div>
                         </div>
                     </button>
                     <button
                         type="object"
-                        name="action_open_product_lot"
+                        name="action_view_product_lot"
                         invisible="tracking == 'none'"
                         class="oe_stat_button" icon="fa-bars"
                         groups="stock.group_production_lot">
@@ -589,14 +589,14 @@
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">In:</span>
                                 <span class="o_stat_value">
-                                    <field name="nbr_moves_in" />
+                                    <field name="count_moves_in" />
                                 </span>
                             </div>
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">Out:</span>
                                 <span class="o_stat_value">
-                                    <field name="nbr_moves_out" />
+                                    <field name="count_moves_out" />
                                 </span>
                             </div>
                         </div>
@@ -604,21 +604,21 @@
                     <button
                         name="action_view_orderpoints"
                         type="object"
-                        invisible="type != 'consu' or nbr_reordering_rules != 1"
+                        invisible="type != 'consu' or count_reordering_rules != 1"
                         class="oe_stat_button" icon="fa-refresh">
                         <div class="d-flex flex-column">
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">Min:</span>
                                 <span class="o_stat_value">
-                                    <field name="reordering_min_qty" />
+                                    <field name="reordering_qty_min" />
                                 </span>
                             </div>
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
                                 <span class="o_stat_text">Max:</span>
                                 <span class="o_stat_value">
-                                    <field name="reordering_max_qty" />
+                                    <field name="reordering_qty_max" />
                                 </span>
                             </div>
                         </div>
@@ -626,13 +626,13 @@
                     <button
                         type="object"
                         name="action_view_orderpoints"
-                        invisible="not is_storable or nbr_reordering_rules == 1"
+                        invisible="not is_storable or count_reordering_rules == 1"
                         class="oe_stat_button" icon="fa-refresh">
-                        <field name="nbr_reordering_rules" widget="statinfo" />
+                        <field name="count_reordering_rules" widget="statinfo" />
                     </button>
                     <button
                         type="object"
-                        name="action_open_product_lot"
+                        name="action_view_product_lot"
                         invisible="tracking == 'none'"
                         class="oe_stat_button" icon="fa-bars"
                         groups="stock.group_production_lot">

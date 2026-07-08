@@ -328,13 +328,13 @@ class TestStockValuationLCAVCO(TestStockValuationLCCommon):
         po_form = Form(self.env['purchase.order'])
         po_form.company_id = company
         po_form.partner_id = self.partner_a
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 1
             po_line.price_unit = 10
             po_line.tax_ids.clear()
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_line_ids.quantity = 1
@@ -381,19 +381,19 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         rfq = Form(self.env['purchase.order'])
         rfq.partner_id = self.vendor1
 
-        with rfq.order_line.new() as po_line:
+        with rfq.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 10
             po_line.price_unit = 10
             po_line.tax_ids.clear()
 
         rfq = rfq.save()
-        rfq.button_confirm()
+        rfq.action_confirm()
 
         # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
-        self.assertEqual(rfq.order_line.qty_received, 10)
+        self.assertEqual(rfq.line_ids.qty_received, 10)
 
         input_aml = self._get_stock_input_move_lines()[-1]
         self.assertEqual(input_aml.debit, 0)
@@ -468,19 +468,19 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         rfq = Form(self.env['purchase.order'])
         rfq.partner_id = self.vendor1
 
-        with rfq.order_line.new() as po_line:
+        with rfq.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 10
             po_line.price_unit = 10
             po_line.tax_ids.clear()
 
         rfq = rfq.save()
-        rfq.button_confirm()
+        rfq.action_confirm()
 
         # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
-        self.assertEqual(rfq.order_line.qty_received, 10)
+        self.assertEqual(rfq.line_ids.qty_received, 10)
 
         input_aml = self._get_stock_input_move_lines()[-1]
         self.assertEqual(input_aml.debit, 0)
@@ -520,19 +520,19 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         rfq = Form(self.env['purchase.order'])
         rfq.partner_id = self.vendor1
 
-        with rfq.order_line.new() as po_line:
+        with rfq.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 10
             po_line.price_unit = 10
             po_line.tax_ids.clear()
 
         rfq = rfq.save()
-        rfq.button_confirm()
+        rfq.action_confirm()
 
         # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
-        self.assertEqual(rfq.order_line.qty_received, 10)
+        self.assertEqual(rfq.line_ids.qty_received, 10)
 
         input_aml = self._get_stock_input_move_lines()[-1]
         self.assertEqual(input_aml.debit, 0)
@@ -633,12 +633,12 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
 
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.vendor1
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 1
             po_line.price_unit = 10
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_line_ids.quantity = 1
@@ -707,12 +707,12 @@ class TestAccountInvoicingWithCOA(TestStockValuationLCCommon):
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.env['res.partner'].browse(self.supplier_id)
         po_form.currency_id = curr
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = product
             po_line.product_qty = qty
             po_line.price_unit = price
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_ids.quantity = qty

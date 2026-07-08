@@ -49,7 +49,7 @@ export class ForecastedButtons extends Component {
     }
 
     async _onClickUpdateQuantity() {
-        const action = await this.orm.call(this.resModel, "action_open_quants", [[this.productId]]);
+        const action = await this.orm.call(this.resModel, "action_view_quants", [[this.productId]]);
         if (action.res_model === "stock.quant") { // Quant view in inventory mode.
             action.views = [[false, "list"]];
         }

@@ -105,7 +105,7 @@ class ResConfigSettings(models.TransientModel):
         string="Stock Text Validation type",
         readonly=False,
     )
-    horizon_days = fields.Float(related="company_id.horizon_days", readonly=False)
+    horizon_days = fields.Integer(related="company_id.horizon_days", readonly=False)
 
     def _compute_replenish_on_order(self):
         route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)

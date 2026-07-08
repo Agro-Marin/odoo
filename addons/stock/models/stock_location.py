@@ -1,5 +1,5 @@
 import calendar
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from datetime import timedelta
 
 from odoo import _, api, fields, models
@@ -16,6 +16,10 @@ class StockLocation(models.Model):
     _order = "complete_name, id"
     _rec_names_search = ["complete_name", "barcode"]
     _check_company_auto = True
+
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
 
     name = fields.Char(string="Location Name", required=True)
     complete_name = fields.Char(
@@ -164,6 +168,10 @@ class StockLocation(models.Model):
         search="_search_is_empty",
     )
 
+    # ------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------
+
     _barcode_company_uniq = models.Constraint(
         "unique (barcode,company_id)",
         "The barcode for a location must be unique per company!",
@@ -176,152 +184,95 @@ class StockLocation(models.Model):
 
     @api.constrains("replenish_location", "location_id", "usage")
     def _check_replenish_location(self):
+        if not any(self.mapped("replenish_location")):
+            return
+        # Two replenish locations conflict only when one is an ancestor of the
+        # other: their child_of subtrees overlap, so orderpoints would
+        # double-count. Siblings (disjoint subtrees) are fine. Compare each
+        # location's own parent_path; fetch every replenish location once
+        # instead of a child_of/parent_of search per record.
+        replenish_locations = self.search([("replenish_location", "=", True)])
         for loc in self:
-            if loc.replenish_location:
-                # cannot have parent/child location set as replenish as well
-                replenish_wh_location = self.search(
-                    [
-                        ("id", "!=", loc.id),
-                        ("replenish_location", "=", True),
-                        "|",
-                        ("location_id", "child_of", loc.id),
-                        ("location_id", "parent_of", loc.id),
-                    ],
-                    limit=1,
-                )
-                if replenish_wh_location:
+            if not loc.replenish_location or not loc.parent_path:
+                continue
+            for other in replenish_locations:
+                if other.id == loc.id or not other.parent_path:
+                    continue
+                # other is an ancestor of loc, or loc is an ancestor of other
+                if loc.parent_path.startswith(
+                    other.parent_path
+                ) or other.parent_path.startswith(loc.parent_path):
                     raise ValidationError(
                         _(
                             "Another parent/sub replenish location %s exists, if you wish to change it, uncheck it first",
-                            replenish_wh_location.name,
+                            other.name,
                         ),
                     )
 
     @api.constrains("usage")
     def _check_scrap_location(self):
-        for record in self:
-            if record.usage == "inventory" and self.env[
-                "stock.picking.type"
-            ].search_count(
-                [
-                    ("code", "=", "mrp_operation"),
-                    ("default_location_dest_id", "=", record.id),
-                ],
-                limit=1,
-            ):
-                raise ValidationError(
-                    _(
-                        "You cannot set a location as a scrap location when it is assigned as a destination location for a manufacturing type operation."
-                    ),
-                )
+        inventory_locations = self.filtered(lambda l: l.usage == "inventory")
+        if not inventory_locations:
+            return
+        # The domain already constrains the destination to be one of these
+        # inventory locations, so a single match is a conflict.
+        if self.env["stock.picking.type"].search_count(
+            [
+                ("code", "=", "mrp_operation"),
+                ("default_location_dest_id", "in", inventory_locations.ids),
+            ],
+            limit=1,
+        ):
+            raise ValidationError(
+                _(
+                    "You cannot set a location as a scrap location when it is assigned as a destination location for a manufacturing type operation."
+                ),
+            )
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        self.invalidate_model(["warehouse_id"])
+        # New nodes compute their own warehouse_id via @api.depends. Only a
+        # subtree reparented through child_ids needs its descendants recomputed,
+        # since warehouse_id follows parent_path which @api.depends can't track.
+        if any("child_ids" in vals for vals in vals_list):
+            res._recompute_descendants_warehouse()
         return res
 
     def write(self, vals):
-        values = vals
-        if "company_id" in values:
-            for location in self:
-                if location.company_id.id != values["company_id"]:
-                    raise UserError(
-                        _(
-                            "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one."
-                        ),
-                    )
-        if "usage" in values and values["usage"] == "view":
-            if self.mapped("quant_ids"):
-                raise UserError(
-                    _(
-                        "This location's usage cannot be changed to view as it contains products."
-                    ),
-                )
-        if "usage" in values:
-            modified_locations = self.filtered(lambda l: l.usage != values["usage"])
-            reserved_quantities = self.env["stock.quant"].search_count(
-                [
-                    ("location_id", "in", modified_locations.ids),
-                    ("quantity", ">", 0),
-                ],
-                limit=1,
-            )
-            if reserved_quantities:
-                raise UserError(_("Internal locations having stock can't be converted"))
-        if "active" in values:
-            if not values["active"]:
-                for location in self:
-                    warehouses = self.env["stock.warehouse"].search(
-                        [
-                            ("active", "=", True),
-                            "|",
-                            ("lot_stock_id", "=", location.id),
-                            ("view_location_id", "=", location.id),
-                        ],
-                        limit=1,
-                    )
-                    if warehouses:
-                        raise UserError(
-                            _(
-                                "You cannot archive location %(location)s because it is used by warehouse %(warehouse)s",
-                                location=location.display_name,
-                                warehouse=warehouses.display_name,
-                            ),
-                        )
+        if "company_id" in vals:
+            self._check_company_not_changed(vals["company_id"])
+        if "usage" in vals:
+            self._check_usage_convertible(vals["usage"])
+        if "active" in vals:
+            self._propagate_active(vals["active"])
 
-            if not self.env.context.get("do_not_check_quant"):
-                children_location = (
-                    self.env["stock.location"]
-                    .with_context(active_test=False)
-                    .search([("id", "child_of", self.ids)])
-                )
-                internal_children_locations = children_location.filtered(
-                    lambda l: l.usage == "internal"
-                )
-                children_quants = self.env["stock.quant"].search(
-                    [
-                        "&",
-                        "|",
-                        ("quantity", "!=", 0),
-                        ("reserved_quantity", "!=", 0),
-                        ("location_id", "in", internal_children_locations.ids),
-                    ],
-                )
-                if children_quants and not values["active"]:
-                    raise UserError(
-                        _(
-                            "You can't disable locations %s because they still contain products.",
-                            ", ".join(
-                                children_quants.mapped("location_id.display_name")
-                            ),
-                        ),
-                    )
-                else:
-                    super(StockLocation, children_location - self).with_context(
-                        do_not_check_quant=True
-                    ).write(
-                        {
-                            "active": values["active"],
-                        },
-                    )
-
-        res = super().write(values)
-        self.invalidate_model(["warehouse_id"])
+        res = super().write(vals)
+        if "location_id" in vals:
+            # A subtree move changes warehouse_id for every descendant, but
+            # @api.depends only recomputes the directly-written records; the
+            # descendants follow parent_path, so recompute the moved subtree.
+            self._recompute_descendants_warehouse()
         return res
 
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
-            for location, vals in zip(self, vals_list):
+            for location, vals in zip(self, vals_list, strict=True):
                 vals["name"] = _("%s (copy)", location.name)
         return vals_list
 
     def unlink(self):
+        # active_test=False so archived descendants are unlinked too, instead
+        # of being orphaned (location_id set NULL). Matches the traversal in write().
         return super(
             StockLocation,
-            self.search([("id", "child_of", self.ids)]),
+            self.with_context(active_test=False).search([("id", "child_of", self.ids)]),
         ).unlink()
 
     @api.ondelete(at_uninstall=False)
@@ -354,24 +305,29 @@ class StockLocation(models.Model):
             )
             new_location = self.create(
                 {
-                    "name": name.split("/")[-1],
+                    "name": name_split[-1],
                     "location_id": parent_location.id if parent_location else False,
                 },
             )
             return new_location.id, new_location.display_name
         return super().name_create(name)
 
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
     @api.depends("name", "location_id.complete_name", "usage")
     @api.depends_context("formatted_display_name")
     def _compute_display_name(self):
         super()._compute_display_name()
         for location in self:
-            has_parent = location.location_id and location.usage != "view"
-            if location.env.context.get("formatted_display_name") and has_parent:
+            if not location._prefixed_by_parent():
+                continue
+            if location.env.context.get("formatted_display_name"):
                 location.display_name = (
                     f"--{location.location_id.complete_name}/--{location.name}"
                 )
-            elif has_parent:
+            else:
                 location.display_name = (
                     f"{location.location_id.complete_name}/{location.name}"
                 )
@@ -382,7 +338,7 @@ class StockLocation(models.Model):
         "outgoing_move_line_ids.state",
         "incoming_move_line_ids.state",
         "outgoing_move_line_ids.product_id.weight",
-        "outgoing_move_line_ids.product_id.weight",
+        "incoming_move_line_ids.product_id.weight",
         "quant_ids.quantity",
         "quant_ids.product_id.weight",
     )
@@ -395,87 +351,87 @@ class StockLocation(models.Model):
     @api.depends("name", "location_id.complete_name", "usage")
     def _compute_complete_name(self):
         for location in self:
-            if location.location_id and location.usage != "view":
-                location.complete_name = "%s/%s" % (
-                    location.location_id.complete_name,
-                    location.name,
+            if location._prefixed_by_parent():
+                location.complete_name = (
+                    f"{location.location_id.complete_name}/{location.name}"
                 )
             else:
                 location.complete_name = location.name
 
     def _compute_is_empty(self):
-        groups = self.env["stock.quant"]._read_group(
-            [
-                ("location_id.usage", "in", ("internal", "transit")),
-                ("location_id", "in", self.ids),
-            ],
-            ["location_id"],
-            ["quantity:sum"],
+        qty_by_location = dict(
+            self.env["stock.quant"]._read_group(
+                [
+                    ("location_id.usage", "in", ("internal", "transit")),
+                    ("location_id", "in", self.ids),
+                ],
+                ["location_id"],
+                ["quantity:sum"],
+            )
         )
-        groups = dict(groups)
         for location in self:
-            location.is_empty = groups.get(location, 0) <= 0
+            location.is_empty = qty_by_location.get(location, 0) <= 0
 
     @api.depends(
         "cyclic_inventory_frequency", "last_inventory_date", "usage", "company_id"
     )
     def _compute_next_inventory_date(self):
+        today = fields.Date.today()
         for location in self:
-            if (
+            if not (
                 location.company_id
-                and location.usage in ["internal", "transit"]
+                and location.usage in ("internal", "transit")
                 and location.cyclic_inventory_frequency > 0
             ):
-                try:
-                    if location.last_inventory_date:
-                        days_until_next_inventory = (
-                            location.cyclic_inventory_frequency
-                            - (fields.Date.today() - location.last_inventory_date).days
-                        )
-                        if days_until_next_inventory <= 0:
-                            location.next_inventory_date = (
-                                fields.Date.today() + timedelta(days=1)
-                            )
-                        else:
-                            location.next_inventory_date = (
-                                location.last_inventory_date
-                                + timedelta(days=location.cyclic_inventory_frequency)
-                            )
-                    else:
-                        location.next_inventory_date = fields.Date.today() + timedelta(
-                            days=location.cyclic_inventory_frequency
-                        )
-                except OverflowError:
-                    raise UserError(
-                        _(
-                            "The selected Inventory Frequency (Days) creates a date too far into the future."
-                        ),
-                    )
-            else:
                 location.next_inventory_date = False
+                continue
+            try:
+                # timedelta() stays inside the try: a very large frequency
+                # overflows here, and that must surface as the UserError below.
+                frequency = timedelta(days=location.cyclic_inventory_frequency)
+                if not location.last_inventory_date:
+                    location.next_inventory_date = today + frequency
+                elif location.last_inventory_date + frequency <= today:
+                    # The planned date has already passed; recount from tomorrow.
+                    location.next_inventory_date = today + timedelta(days=1)
+                else:
+                    location.next_inventory_date = (
+                        location.last_inventory_date + frequency
+                    )
+            except OverflowError:
+                raise UserError(
+                    _(
+                        "The selected Inventory Frequency (Days) creates a date too far into the future."
+                    ),
+                ) from None
 
     @api.depends("warehouse_view_ids", "location_id")
     def _compute_warehouse_id(self):
         warehouses = self.env["stock.warehouse"].search(
             [("view_location_id", "parent_of", self.ids)]
         )
+        # Deepest view location first, so a location nested in several
+        # warehouses resolves to the innermost one.
         warehouses = warehouses.sorted(
             lambda w: w.view_location_id.parent_path, reverse=True
         )
-        view_by_wh = OrderedDict((wh.view_location_id.id, wh.id) for wh in warehouses)
+        warehouse_id_by_view_location = {
+            wh.view_location_id.id: wh.id for wh in warehouses
+        }
         self.warehouse_id = False
         for loc in self:
             if not loc.parent_path:
                 continue
-            path = set(int(loc_id) for loc_id in loc.parent_path.split("/")[:-1])
-            for view_location_id in view_by_wh:
-                if view_location_id in path:
-                    loc.warehouse_id = view_by_wh[view_location_id]
+            ancestor_ids = {int(loc_id) for loc_id in loc.parent_path.split("/")[:-1]}
+            for view_location_id, warehouse_id in warehouse_id_by_view_location.items():
+                if view_location_id in ancestor_ids:
+                    loc.warehouse_id = warehouse_id
                     break
 
     @api.depends("child_ids.usage", "child_ids.child_internal_location_ids")
     def _compute_child_internal_location_ids(self):
-        # batch reading optimization is not possible because the field has recursive=True
+        # recursive=True makes the ORM invoke this compute one record at a time,
+        # so a single grouped search buys nothing here.
         for loc in self:
             loc.child_internal_location_ids = self.search(
                 [("id", "child_of", loc.id), ("usage", "=", "internal")]
@@ -487,22 +443,128 @@ class StockLocation(models.Model):
             if loc.usage != "internal":
                 loc.replenish_location = False
 
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
+
     def _search_is_empty(self, operator, value):
+        # Only the positive operator is implemented; the ORM derives the negative
+        # (is_empty = False) by negating this domain (see Field.search docs).
         if operator != "in":
             return NotImplemented
-        location_ids = [
+        stocked_location_ids = [
             location.id
-            for location, in self.env["stock.quant"]._read_group(
+            for (location,) in self.env["stock.quant"]._read_group(
                 [("location_id.usage", "in", ["internal", "transit"])],
                 ["location_id"],
                 having=[("quantity:sum", ">", 0)],
             )
         ]
-        return [("id", "not in", location_ids)]
+        return [("id", "not in", stocked_location_ids)]
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _child_of(self, other_location):
         self.ensure_one()
+        # A record with no parent_path (unstored) is a child of nothing; a
+        # missing/empty other_location (e.g. a ref resolved with
+        # raise_if_not_found=False) is an ancestor of nothing.
+        if not self.parent_path or not other_location.parent_path:
+            return False
         return self.parent_path.startswith(other_location.parent_path)
+
+    def _prefixed_by_parent(self):
+        """Whether this location's names (``complete_name``/``display_name``)
+        prepend the parent's path. True only for a non-view location that has a
+        parent: a view aggregates its children and is not itself shown nested
+        under its own parent in the displayed hierarchy."""
+        self.ensure_one()
+        return bool(self.location_id) and self.usage != "view"
+
+    def _propagate_active(self, active):
+        """Cascade (de)activation to the whole subtree, guarding a deactivation
+        against locations that back a warehouse or still hold stock."""
+        if not active:
+            # One query for the whole set instead of a search per location.
+            blocking_warehouse = self.env["stock.warehouse"].search(
+                [
+                    ("active", "=", True),
+                    "|",
+                    ("lot_stock_id", "in", self.ids),
+                    ("view_location_id", "in", self.ids),
+                ],
+                limit=1,
+            )
+            if blocking_warehouse:
+                location = (
+                    blocking_warehouse.lot_stock_id
+                    if blocking_warehouse.lot_stock_id in self
+                    else blocking_warehouse.view_location_id
+                )
+                raise UserError(
+                    _(
+                        "You cannot archive location %(location)s because it is used by warehouse %(warehouse)s",
+                        location=location.display_name,
+                        warehouse=blocking_warehouse.display_name,
+                    ),
+                )
+
+        # NB: ``do_not_check_quant`` returns here, *before* the subtree traversal
+        # below — so it suppresses the whole descendant cascade, not just the
+        # stock check its name implies. This is what stops the recursive write at
+        # the bottom of this method (which sets the flag) from re-cascading.
+        if self.env.context.get("do_not_check_quant"):
+            return
+        # ``child_of`` returns self *and* every descendant, not just direct
+        # children — the whole subtree is what (de)activates together.
+        descendant_locations = (
+            self.env["stock.location"]
+            .with_context(active_test=False)
+            .search([("id", "child_of", self.ids)])
+        )
+        # The stock check only blocks *deactivation*; skip it (and its
+        # query) entirely when reactivating.
+        if not active:
+            internal_descendants = descendant_locations.filtered(
+                lambda l: l.usage == "internal"
+            )
+            blocking_quants = self.env["stock.quant"].search(
+                [
+                    "&",
+                    "|",
+                    ("quantity", "!=", 0),
+                    ("reserved_quantity", "!=", 0),
+                    ("location_id", "in", internal_descendants.ids),
+                ],
+            )
+            if blocking_quants:
+                raise UserError(
+                    _(
+                        "You can't disable locations %s because they still contain products.",
+                        ", ".join(blocking_quants.mapped("location_id.display_name")),
+                    ),
+                )
+        super(StockLocation, descendant_locations - self).with_context(
+            do_not_check_quant=True
+        ).write(
+            {
+                "active": active,
+            },
+        )
+
+    def _recompute_descendants_warehouse(self):
+        """Recompute ``warehouse_id`` for ``self`` and every descendant.
+
+        ``warehouse_id`` is derived from ``parent_path`` (see
+        ``_compute_warehouse_id``), which ``@api.depends`` cannot track, so any
+        operation that reshapes the tree (create-with-children, reparent) must
+        trigger the recompute for the whole subtree explicitly.
+        """
+        self.with_context(active_test=False).search(
+            [("id", "child_of", self.ids)]
+        )._compute_warehouse_id()
 
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
@@ -521,27 +583,32 @@ class StockLocation(models.Model):
         elif packaging:
             package_type = packaging.package_type_id
 
-        categ = (
+        # The product's own category (empty when the products span several), plus
+        # its ancestor chain — a rule targeting any of them applies here.
+        leaf_category = (
             products.categ_id
             if len(products.categ_id) == 1
             else self.env["product.category"]
         )
-        categs = categ
-        while categ.parent_id:
-            categ = categ.parent_id
-            categs |= categ
+        category_ancestors = leaf_category
+        category = leaf_category
+        while category.parent_id:
+            category = category.parent_id
+            category_ancestors |= category
 
         putaway_rules = self.putaway_rule_ids.filtered(
-            lambda rule: (not rule.product_id or rule.product_id in products)
-            and (not rule.category_id or rule.category_id in categs)
-            and (not rule.package_type_ids or package_type in rule.package_type_ids)
+            lambda rule: (
+                (not rule.product_id or rule.product_id in products)
+                and (not rule.category_id or rule.category_id in category_ancestors)
+                and (not rule.package_type_ids or package_type in rule.package_type_ids)
+            )
         )
 
         putaway_rules = putaway_rules.sorted(
             lambda rule: (
                 bool(rule.package_type_ids),
                 bool(rule.product_id),
-                bool(rule.category_id == categs[:1]),  # same categ, not a parent
+                bool(rule.category_id == leaf_category),  # exact category beats ancestor
                 bool(rule.category_id),
             ),
             reverse=True,
@@ -552,79 +619,9 @@ class StockLocation(models.Model):
         if not locations:
             locations = self.child_internal_location_ids
         if putaway_rules:
-            # get current product qty (qty in current quants and future qty on assigned ml) of all child locations
-            qty_by_location = defaultdict(lambda: 0)
-            if locations.storage_category_id:
-                if package and package.package_type_id:
-                    move_line_data = self.env["stock.move.line"]._read_group(
-                        [
-                            (
-                                "id",
-                                "not in",
-                                list(self.env.context.get("exclude_sml_ids", set())),
-                            ),
-                            ("result_package_id.package_type_id", "=", package_type.id),
-                            ("state", "not in", ["draft", "cancel", "done"]),
-                        ],
-                        ["location_dest_id"],
-                        ["result_package_id:count_distinct"],
-                    )
-                    quant_data = self.env["stock.quant"]._read_group(
-                        [
-                            ("package_id.package_type_id", "=", package_type.id),
-                            ("location_id", "in", locations.ids),
-                        ],
-                        ["location_id"],
-                        ["package_id:count_distinct"],
-                    )
-                    qty_by_location.update(
-                        {
-                            location_dest.id: count
-                            for location_dest, count in move_line_data
-                        },
-                    )
-                    for location, count in quant_data:
-                        qty_by_location[location.id] += count
-                else:
-                    move_line_data = self.env["stock.move.line"]._read_group(
-                        [
-                            (
-                                "id",
-                                "not in",
-                                list(self.env.context.get("exclude_sml_ids", set())),
-                            ),
-                            ("product_id", "=", product.id),
-                            ("location_dest_id", "in", locations.ids),
-                            ("state", "not in", ["draft", "done", "cancel"]),
-                        ],
-                        ["location_dest_id"],
-                        ["quantity:array_agg", "product_uom_id:recordset"],
-                    )
-                    quant_data = self.env["stock.quant"]._read_group(
-                        [
-                            ("product_id", "=", product.id),
-                            ("location_id", "in", locations.ids),
-                        ],
-                        ["location_id"],
-                        ["quantity:sum"],
-                    )
-
-                    qty_by_location.update(
-                        {
-                            location.id: quantity_sum
-                            for location, quantity_sum in quant_data
-                        },
-                    )
-                    for location_dest, quantity_list, uoms in move_line_data:
-                        current_qty = sum(
-                            ml_uom._compute_quantity(float(qty), product.uom_id)
-                            for qty, ml_uom in zip(quantity_list, uoms)
-                        )
-                        qty_by_location[location_dest.id] += current_qty
-
-            if additional_qty:
-                for location_id, qty in additional_qty.items():
-                    qty_by_location[location_id] += qty
+            qty_by_location = self._get_putaway_qty_by_location(
+                product, package, package_type, locations, additional_qty
+            )
             putaway_location = putaway_rules._get_putaway_location(
                 product, quantity, package, packaging, qty_by_location
             )
@@ -636,49 +633,144 @@ class StockLocation(models.Model):
 
         return putaway_location
 
+    def _get_putaway_qty_by_location(
+        self, product, package, package_type, locations, additional_qty=None
+    ):
+        """Current + planned quantity per candidate location, used to enforce
+        storage-category capacity when ranking putaway rules. Counts distinct
+        packages when a package is given, otherwise the product quantity (in the
+        product's default UoM), summing on-hand quants and inbound move lines.
+        Move lines in context ``exclude_sml_ids`` are skipped so a line being
+        (re)assigned doesn't count against itself.
+        """
+        qty_by_location = defaultdict(int)
+        if locations.storage_category_id:
+            exclude_sml_ids = list(self.env.context.get("exclude_sml_ids", set()))
+            if package and package.package_type_id:
+                qty_by_location.update(
+                    self._get_putaway_package_count_by_location(
+                        package_type, locations, exclude_sml_ids
+                    )
+                )
+            else:
+                qty_by_location.update(
+                    self._get_putaway_product_qty_by_location(
+                        product, locations, exclude_sml_ids
+                    )
+                )
+
+        if additional_qty:
+            for location_id, qty in additional_qty.items():
+                qty_by_location[location_id] += qty
+        return qty_by_location
+
+    def _get_putaway_package_count_by_location(
+        self, package_type, locations, exclude_sml_ids
+    ):
+        """Distinct packages of ``package_type`` already at / inbound to each
+        candidate location (on-hand quants + planned move lines)."""
+        count_by_location = defaultdict(int)
+        move_line_data = self.env["stock.move.line"]._read_group(
+            [
+                ("id", "not in", exclude_sml_ids),
+                ("result_package_id.package_type_id", "=", package_type.id),
+                ("state", "not in", ["draft", "done", "cancel"]),
+            ],
+            ["location_dest_id"],
+            ["result_package_id:count_distinct"],
+        )
+        for location_dest, count in move_line_data:
+            count_by_location[location_dest.id] += count
+        quant_data = self.env["stock.quant"]._read_group(
+            [
+                ("package_id.package_type_id", "=", package_type.id),
+                ("location_id", "in", locations.ids),
+            ],
+            ["location_id"],
+            ["package_id:count_distinct"],
+        )
+        for location, count in quant_data:
+            count_by_location[location.id] += count
+        return count_by_location
+
+    def _get_putaway_product_qty_by_location(self, product, locations, exclude_sml_ids):
+        """On-hand + inbound quantity of ``product`` (in its default UoM) at each
+        candidate location (on-hand quants + planned move lines, UoM-converted)."""
+        qty_by_location = defaultdict(float)
+        quant_data = self.env["stock.quant"]._read_group(
+            [
+                ("product_id", "=", product.id),
+                ("location_id", "in", locations.ids),
+            ],
+            ["location_id"],
+            ["quantity:sum"],
+        )
+        for location, quantity_sum in quant_data:
+            qty_by_location[location.id] += quantity_sum
+        move_line_data = self.env["stock.move.line"]._read_group(
+            [
+                ("id", "not in", exclude_sml_ids),
+                ("product_id", "=", product.id),
+                ("location_dest_id", "in", locations.ids),
+                ("state", "not in", ["draft", "done", "cancel"]),
+            ],
+            ["location_dest_id"],
+            # array_agg (not recordset) for the UoMs: recordset dedups, which
+            # would drop rows when several lines share a UoM and misalign the
+            # quantity<->UoM zip below.
+            ["quantity:array_agg", "product_uom_id:array_agg"],
+        )
+        for location_dest, quantity_list, uom_ids in move_line_data:
+            uoms = self.env["uom.uom"].browse(uom_ids)
+            current_qty = sum(
+                uom._compute_quantity(float(qty), product.uom_id)
+                for qty, uom in zip(quantity_list, uoms, strict=True)
+            )
+            qty_by_location[location_dest.id] += current_qty
+        return qty_by_location
+
     def _get_next_inventory_date(self):
         """Returns the next inventory date for a quant in this location: the
         earlier of the location's cyclic inventory date and the company's
         annual inventory date, whichever is set, or False if neither is."""
-        if self.usage not in ["internal", "transit"]:
+        self.ensure_one()
+        if self.usage not in ("internal", "transit"):
             return False
-        next_inventory_date = False
-        company_inventory_date = False
+        cyclic_date = self.next_inventory_date
+        annual_date = self._get_company_annual_inventory_date()
+        if cyclic_date and annual_date:
+            return min(cyclic_date, annual_date)
+        return cyclic_date or annual_date
 
-        if self.company_id.annual_inventory_month:
-            today = fields.Date.today()
-            annual_inventory_month = int(self.company_id.annual_inventory_month)
-            # Manage 0 and negative annual_inventory_day
-            annual_inventory_day = max(self.company_id.annual_inventory_day, 1)
-            max_day = calendar.monthrange(today.year, annual_inventory_month)[1]
-            # Manage annual_inventory_day bigger than last_day
-            annual_inventory_day = min(annual_inventory_day, max_day)
-            company_inventory_date = today.replace(
-                month=annual_inventory_month, day=annual_inventory_day
-            )
-            if company_inventory_date <= today:
-                # Manage leap year with the february
-                max_day = calendar.monthrange(today.year + 1, annual_inventory_month)[1]
-                annual_inventory_day = min(annual_inventory_day, max_day)
-                company_inventory_date = company_inventory_date.replace(
-                    day=annual_inventory_day, year=today.year + 1
-                )
-        if self.next_inventory_date:
-            next_inventory_date = (
-                min(self.next_inventory_date, company_inventory_date)
-                if company_inventory_date
-                else self.next_inventory_date
-            )
-        elif self.company_id.annual_inventory_month:
-            next_inventory_date = company_inventory_date
-        return next_inventory_date
+    def _get_company_annual_inventory_date(self):
+        """The company's next annual inventory date — this year's if still
+        upcoming, otherwise next year's — or False when the company configures no
+        annual inventory month. The configured day is clamped into each month's
+        valid range (handling 0/negative values and leap-year February)."""
+        self.ensure_one()
+        if not self.company_id.annual_inventory_month:
+            return False
+        today = fields.Date.today()
+        month = int(self.company_id.annual_inventory_month)
+        # Clamp a 0/negative or overflowing configured day into the month.
+        day = max(self.company_id.annual_inventory_day, 1)
+        day = min(day, calendar.monthrange(today.year, month)[1])
+        annual_date = today.replace(month=month, day=day)
+        if annual_date <= today:
+            # This year's date has passed; roll to next year (re-clamp leap Feb).
+            day = min(day, calendar.monthrange(today.year + 1, month)[1])
+            annual_date = annual_date.replace(day=day, year=today.year + 1)
+        return annual_date
 
-    def _get_weight(self, excluded_sml_ids=False):
-        """Returns a dictionary with the net and forecasted weight of the location.
-        param excluded_sml_ids: set of stock.move.line ids to exclude from the computation
+    def _get_weight(self, exclude_sml_ids=False):
+        """Return ``{location: {"net_weight": ..., "forecast_weight": ...}}``.
+
+        :param exclude_sml_ids: set of ``stock.move.line`` ids to leave out of the
+            forecast (e.g. the line currently being (re)assigned); named to match
+            the ``exclude_sml_ids`` context key callers read it from.
         """
-        if not excluded_sml_ids:
-            excluded_sml_ids = set()
+        if not exclude_sml_ids:
+            exclude_sml_ids = set()
         Product = self.env["product.product"]
         StockMoveLine = self.env["stock.move.line"]
 
@@ -690,7 +782,7 @@ class StockLocation(models.Model):
         base_domain = Domain("state", "not in", ["draft", "done", "cancel"]) & Domain(
             "id",
             "not in",
-            tuple(excluded_sml_ids),
+            tuple(exclude_sml_ids),
         )
         outgoing_move_lines = StockMoveLine._read_group(
             Domain("location_id", "in", self.ids) & base_domain,
@@ -713,99 +805,153 @@ class StockLocation(models.Model):
         )
         products.fetch(["weight"])
 
-        result = defaultdict(lambda: defaultdict(float))
+        weight_by_location = defaultdict(lambda: defaultdict(float))
         for loc, product, quantity_sum in quants:
             weight = quantity_sum * product.weight
-            result[loc]["net_weight"] += weight
-            result[loc]["forecast_weight"] += weight
+            weight_by_location[loc]["net_weight"] += weight
+            weight_by_location[loc]["forecast_weight"] += weight
 
         for loc, product, quantity_product_uom_sum in outgoing_move_lines:
-            result[loc]["forecast_weight"] -= quantity_product_uom_sum * product.weight
-
-        for dest_loc, product, quantity_product_uom_sum in incoming_move_lines:
-            result[dest_loc]["forecast_weight"] += (
+            weight_by_location[loc]["forecast_weight"] -= (
                 quantity_product_uom_sum * product.weight
             )
 
-        return result
+        for dest_loc, product, quantity_product_uom_sum in incoming_move_lines:
+            weight_by_location[dest_loc]["forecast_weight"] += (
+                quantity_product_uom_sum * product.weight
+            )
 
-    def should_bypass_reservation(self):
-        self.ensure_one()
-        return self.usage in ("supplier", "customer", "inventory", "production")
+        return weight_by_location
+
+    # ------------------------------------------------------------
+    # VALIDATION METHODS
+    # ------------------------------------------------------------
 
     def _check_access_putaway(self):
         return self
 
-    def _check_can_be_used(self, product, quantity=0, package=None, location_qty=0):
+    def _check_can_be_used(
+        self, product, quantity=0, package=None, location_qty=0, forecast_weight=None
+    ):
         """Check if product/package can be stored in the location. Quantity
         should be in the product's default UoM; only used when no package is
-        specified."""
+        specified. ``forecast_weight`` may be supplied by the caller (e.g. when
+        checking many candidate locations) to avoid recomputing it per location;
+        when None it is computed from this location's quants and move lines."""
         self.ensure_one()
-        if self.storage_category_id:
-            positive_quant = self.quant_ids.filtered(
-                lambda q: q.product_id.uom_id.compare(q.quantity, 0) > 0,
-            )
-            if self.storage_category_id.allow_new_product == "empty" and positive_quant:
-                return False
-            if self.storage_category_id.allow_new_product == "same":
-                # For a package, `product` isn't set, so fall back to the products from context
-                product = product or self.env.context.get("products")
-                if (positive_quant and positive_quant.product_id != product) or len(
-                    product
-                ) > 1:
-                    return False
-                if self.env["stock.move.line"].search_count(
-                    [
-                        ("product_id", "!=", product.id),
-                        ("state", "not in", ("done", "cancel")),
-                        ("location_dest_id", "=", self.id),
-                    ],
-                    limit=1,
-                ):
-                    return False
+        # No storage category => no restriction to enforce.
+        if not self.storage_category_id:
+            return True
+        if not self._check_new_product_policy(product, package):
+            return False
+        if forecast_weight is None:
             forecast_weight = self._get_weight(
                 self.env.context.get("exclude_sml_ids", set()),
             )[self]["forecast_weight"]
-            if package and package.package_type_id:
-                package_smls = self.env["stock.move.line"].search(
-                    [
-                        ("result_package_id", "=", package.id),
-                        ("state", "not in", ["done", "cancel"]),
-                    ],
-                )
-                if self.storage_category_id.max_weight < forecast_weight + sum(
-                    package_smls.mapped(
-                        lambda sml: sml.quantity_product_uom * sml.product_id.weight,
-                    ),
-                ):
-                    return False
-                package_capacity = (
-                    self.storage_category_id.package_capacity_ids.filtered(
-                        lambda pc: pc.package_type_id == package.package_type_id
-                    )
-                )
-                if package_capacity and location_qty >= package_capacity.quantity:
-                    return False
-            else:
-                if (
-                    self.storage_category_id.max_weight
-                    < forecast_weight + product.weight * quantity
-                ):
-                    return False
-                product_capacity = (
-                    self.storage_category_id.product_capacity_ids.filtered(
-                        lambda pc: pc.product_id == product,
-                    )
-                )
-                # Reject a location already at capacity even if quantity is 0 (e.g. a new, not yet filled-in move line)
-                if product_capacity and location_qty >= product_capacity.quantity:
-                    return False
-                if (
-                    product_capacity
-                    and quantity + location_qty > product_capacity.quantity
-                ):
-                    return False
-        return True
+        if package and package.package_type_id:
+            return self._check_package_capacity(package, location_qty, forecast_weight)
+        return self._check_product_capacity(
+            product, quantity, location_qty, forecast_weight
+        )
+
+    def _check_new_product_policy(self, product, package):
+        """Whether the storage category's ``allow_new_product`` rule permits
+        storing this product/package here (True = allowed)."""
+        self.ensure_one()
+        policy = self.storage_category_id.allow_new_product
+        if policy not in ("empty", "same"):
+            return True
+        positive_quant = self.quant_ids.filtered(
+            lambda q: q.product_id.uom_id.compare(q.quantity, 0) > 0,
+        )
+        if policy == "empty":
+            return not positive_quant
+        # policy == "same": the location may hold a single product only.
+        # For a package, `product` isn't set, so fall back to the context products.
+        product = product or self.env.context.get("products")
+        if (positive_quant and positive_quant.product_id != product) or len(product) > 1:
+            return False
+        return not self.env["stock.move.line"].search_count(
+            [
+                ("product_id", "!=", product.id),
+                ("state", "not in", ("done", "cancel")),
+                ("location_dest_id", "=", self.id),
+            ],
+            limit=1,
+        )
+
+    def _check_package_capacity(self, package, location_qty, forecast_weight):
+        """Enforce the storage category's max weight and per-package-type
+        capacity for a package move into this location (True = fits)."""
+        self.ensure_one()
+        storage_category = self.storage_category_id
+        package_smls = self.env["stock.move.line"].search(
+            [
+                ("result_package_id", "=", package.id),
+                ("state", "not in", ["done", "cancel"]),
+            ],
+        )
+        package_weight = sum(
+            package_smls.mapped(
+                lambda sml: sml.quantity_product_uom * sml.product_id.weight,
+            ),
+        )
+        if storage_category.max_weight < forecast_weight + package_weight:
+            return False
+        package_capacity = storage_category.package_capacity_ids.filtered(
+            lambda pc: pc.package_type_id == package.package_type_id
+        )
+        return not (package_capacity and location_qty >= package_capacity.quantity)
+
+    def _check_product_capacity(self, product, quantity, location_qty, forecast_weight):
+        """Enforce the storage category's max weight and per-product capacity for
+        a bare-product move into this location (True = fits)."""
+        self.ensure_one()
+        storage_category = self.storage_category_id
+        if storage_category.max_weight < forecast_weight + product.weight * quantity:
+            return False
+        product_capacity = storage_category.product_capacity_ids.filtered(
+            lambda pc: pc.product_id == product,
+        )
+        if not product_capacity:
+            return True
+        # Reject a location already at capacity even if quantity is 0 (e.g. a new,
+        # not yet filled-in move line), and any move that would exceed it.
+        if location_qty >= product_capacity.quantity:
+            return False
+        return quantity + location_qty <= product_capacity.quantity
+
+    def _check_company_not_changed(self, company_id):
+        """A location's company is immutable once set; archive and recreate
+        instead of moving it between companies."""
+        if any(location.company_id.id != company_id for location in self):
+            raise UserError(
+                _(
+                    "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one."
+                ),
+            )
+
+    def _check_usage_convertible(self, usage):
+        """Block a usage change that would strand stock: a location can't become
+        a view while it holds products, nor change type while it holds stock."""
+        if usage == "view" and self.env["stock.quant"].search_count(
+            [("location_id", "in", self.ids)],
+            limit=1,
+        ):
+            raise UserError(
+                _(
+                    "This location's usage cannot be changed to view as it contains products."
+                ),
+            )
+        modified_locations = self.filtered(lambda l: l.usage != usage)
+        if self.env["stock.quant"].search_count(
+            [
+                ("location_id", "in", modified_locations.ids),
+                ("quantity", ">", 0),
+            ],
+            limit=1,
+        ):
+            raise UserError(_("Internal locations having stock can't be converted"))
 
     def _is_outgoing(self):
         self.ensure_one()
@@ -816,3 +962,7 @@ class StockLocation(models.Model):
             "stock.stock_location_inter_company", raise_if_not_found=False
         )
         return self._child_of(inter_comp_location)
+
+    def should_bypass_reservation(self):
+        self.ensure_one()
+        return self.usage in ("supplier", "customer", "inventory", "production")

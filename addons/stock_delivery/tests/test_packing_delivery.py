@@ -186,7 +186,7 @@ class TestPacking(TestPackingCommon):
         so = self.env['sale.order'].create({
             'name': 'Sale order',
             'partner_id': self.env['res.partner'].create({'name': 'Rando le clodo'}).id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {'name': self.product_aw.name, 'product_id': self.product_aw.id, 'product_uom_qty': 1, 'price_unit': 1})
             ]
         })

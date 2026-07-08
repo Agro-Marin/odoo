@@ -12,14 +12,16 @@ from odoo.libs.numbers.float_utils import float_is_zero
 
 
 class StockPackage(models.Model):
-    """Packages containing quants and/or other packages"""
-
     _name = "stock.package"
     _description = "Package"
     _order = "name, id"
     _parent_name = "parent_package_id"
     _parent_store = True
     _rec_name = "complete_name"
+
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
 
     name = fields.Char(
         string="Package Reference",
@@ -148,6 +150,70 @@ class StockPackage(models.Model):
         string="JSON data for popover widget",
         compute="_compute_json_popover",
     )
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get("complete_name"):
+                vals["name"] = vals["complete_name"]
+                del vals["complete_name"]
+            if not vals.get("name"):
+                package_type = self.env["stock.package.type"].browse(
+                    vals.get("package_type_id")
+                )
+                vals["name"] = package_type._get_next_name_by_sequence()
+
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if "name" in vals and not vals.get("name"):
+            # Regenerate the name from the sequence if it was emptied.
+            package_type = self.env["stock.package.type"].browse(
+                vals.get("package_type_id")
+            )
+            for package in self:
+                package_type = self.env["stock.package.type"].browse(
+                    vals.get("package_type_id", self.package_type_id.id)
+                )
+                package.name = package_type._get_next_name_by_sequence()
+            del vals["name"]
+        if "location_id" in vals:
+            is_pack_empty = any(not pack.contained_quant_ids for pack in self)
+            if not vals["location_id"] and not is_pack_empty:
+                raise UserError(_("Cannot remove the location of a non empty package"))
+            elif vals["location_id"]:
+                if is_pack_empty:
+                    raise UserError(_("Cannot move an empty package"))
+                location_dest_id = self.env["stock.location"].browse(
+                    vals["location_id"]
+                )
+                quant_to_move = self.contained_quant_ids.filtered(
+                    lambda q: q.quantity > 0
+                )
+                quant_to_move.move_quants(
+                    location_dest_id,
+                    message=_("Package manually relocated"),
+                    up_to_parent_packages=self,
+                )
+        if vals.get("package_dest_id"):
+            # Guard against a cycle in the package_dest_id chain; `parent_path` can't be used here since it only tracks parent_package_id.
+            current_children_dest_ids = self._get_all_children_package_dest_ids()[1]
+            if vals["package_dest_id"] in current_children_dest_ids:
+                raise ValidationError(
+                    _(
+                        "A package can't have one of its contained packages as destination container."
+                    ),
+                )
+
+        return super().write(vals)
+
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
 
     @api.depends("child_package_ids", "child_package_ids.parent_path")
     def _compute_all_children_package_ids(self):
@@ -384,6 +450,10 @@ class StockPackage(models.Model):
             if package.name:
                 package.valid_sscc = check_barcode_encoding(package.name, "sscc")
 
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
+
     def _search_all_children_package_ids(self, operator, value):
         packages = self.search_fetch(
             domain=[("id", operator, value)], field_names=["id"]
@@ -465,104 +535,14 @@ class StockPackage(models.Model):
 
         return [("id", "in", all_package_ids)]
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get("complete_name"):
-                vals["name"] = vals["complete_name"]
-                del vals["complete_name"]
-            if not vals.get("name"):
-                package_type = self.env["stock.package.type"].browse(
-                    vals.get("package_type_id")
-                )
-                vals["name"] = package_type._get_next_name_by_sequence()
-
-        return super().create(vals_list)
-
-    def write(self, vals):
-        if "name" in vals and not vals.get("name"):
-            # Regenerate the name from the sequence if it was emptied.
-            package_type = self.env["stock.package.type"].browse(
-                vals.get("package_type_id")
-            )
-            for package in self:
-                package_type = self.env["stock.package.type"].browse(
-                    vals.get("package_type_id", self.package_type_id.id)
-                )
-                package.name = package_type._get_next_name_by_sequence()
-            del vals["name"]
-        if "location_id" in vals:
-            is_pack_empty = any(not pack.contained_quant_ids for pack in self)
-            if not vals["location_id"] and not is_pack_empty:
-                raise UserError(_("Cannot remove the location of a non empty package"))
-            elif vals["location_id"]:
-                if is_pack_empty:
-                    raise UserError(_("Cannot move an empty package"))
-                location_dest_id = self.env["stock.location"].browse(
-                    vals["location_id"]
-                )
-                quant_to_move = self.contained_quant_ids.filtered(
-                    lambda q: q.quantity > 0
-                )
-                quant_to_move.move_quants(
-                    location_dest_id,
-                    message=_("Package manually relocated"),
-                    up_to_parent_packages=self,
-                )
-        if vals.get("package_dest_id"):
-            # Guard against a cycle in the package_dest_id chain; `parent_path` can't be used here since it only tracks parent_package_id.
-            current_children_dest_ids = self._get_all_children_package_dest_ids()[1]
-            if vals["package_dest_id"] in current_children_dest_ids:
-                raise ValidationError(
-                    _(
-                        "A package can't have one of its contained packages as destination container."
-                    ),
-                )
-
-        return super().write(vals)
-
-    def unpack(self):
-        """Unpacks quants directly inside the container, and removes contained packages from this package."""
-        self.child_package_ids.parent_package_id = False
-        if self.quant_ids:
-            quants = self.quant_ids
-            self.quant_ids.move_quants(
-                message=_("Quantities unpacked"),
-                unpack=True,
-            )
-            # Quant clean-up, mostly to avoid multiple quants of the same product. For example, unpack
-            # 2 packages of 50, then reserve 100 => a quant of -50 is created at transfer validation.
-            quants._quant_tasks()
+    # ------------------------------------------------------------
+    # ACTION METHODS
+    # ------------------------------------------------------------
 
     def action_add_to_picking(self):
         picking = self.env["stock.picking"].browse(self.env.context.get("picking_id"))
         if picking and self:
             picking.action_add_entire_packs(self.ids)
-
-    def _pre_put_in_pack_hook(
-        self,
-        package_id=False,
-        package_type_id=False,
-        package_name=False,
-        from_package_wizard=False,
-    ):
-        if self.move_line_ids._should_display_put_in_pack_wizard(
-            package_id, package_type_id, package_name, from_package_wizard
-        ):
-            action = self.env["ir.actions.actions"]._for_xml_id(
-                "stock.action_put_in_pack_wizard"
-            )
-            action["context"] = {
-                **literal_eval(action.get("context", "{}")),
-                "default_package_ids": self.ids,
-                "default_location_dest_id": self.location_dest_id[:1].id,
-            }
-            return action
-        return False
-
-    def _post_put_in_pack_hook(self):
-        self.ensure_one()
-        return self
 
     def action_put_in_pack(
         self, *, package_id=False, package_type_id=False, package_name=False
@@ -665,99 +645,9 @@ class StockPackage(models.Model):
         action["domain"] = [("id", "in", pickings.ids)]
         return action
 
-    def _check_move_lines_map_quant(self, move_lines):
-        """Checks that self's contained quants and move_lines carry matching quantities per product and lot."""
-        precision_digits = self.env["decimal.precision"].precision_get(
-            "Product Unit of Measure"
-        )
-
-        def _keys_groupby(record):
-            return record.product_id, record.lot_id
-
-        if not move_lines:
-            return True
-
-        grouped_quants = {}
-        for k, g in groupby(self.contained_quant_ids, key=_keys_groupby):
-            grouped_quants[k] = sum(
-                self.env["stock.quant"].concat(*g).mapped("quantity")
-            )
-
-        grouped_ops = {}
-        for k, g in groupby(move_lines, key=_keys_groupby):
-            grouped_ops[k] = sum(
-                self.env["stock.move.line"].concat(*g).mapped("quantity_product_uom"),
-            )
-
-        return all(
-            float_is_zero(
-                grouped_quants.get(key, 0) - grouped_ops.get(key, 0),
-                precision_digits=precision_digits,
-            )
-            for key in grouped_quants
-        ) and all(
-            float_is_zero(
-                grouped_ops.get(key, 0) - grouped_quants.get(key, 0),
-                precision_digits=precision_digits,
-            )
-            for key in grouped_ops
-        )
-
-    def _get_weight(self, picking_id=False):
-        res = {}
-        if picking_id:
-            package_weights = defaultdict(float)
-            # For an ongoing picking, also account for the weight of current dest children, if any.
-            children_by_dest_pack, all_pack_ids = (
-                self._get_all_children_package_dest_ids()
-            )
-            base_weight_per_package_group = self.env["stock.package"]._read_group(
-                domain=[("id", "in", all_pack_ids)],
-                groupby=["id", "package_type_id.base_weight"],
-            )
-            base_weight_per_package = {
-                pack.id: weight for pack, weight in base_weight_per_package_group
-            }
-
-            res_groups = self.env["stock.move.line"]._read_group(
-                [
-                    ("result_package_id", "in", all_pack_ids),
-                    ("product_id", "!=", False),
-                    ("picking_id", "=", picking_id),
-                ],
-                ["result_package_id", "product_id", "product_uom_id", "quantity"],
-                ["__count"],
-            )
-            for result_package, product, product_uom, quantity, count in res_groups:
-                package_weights[result_package.id] += (
-                    count
-                    * product_uom._compute_quantity(quantity, product.uom_id)
-                    * product.weight
-                )
-        for package in self:
-            weight = package.package_type_id.base_weight or 0.0
-            if picking_id:
-                res[package] = weight + package_weights[package.id]
-                for child_id in children_by_dest_pack.get(package, []):
-                    res[package] += base_weight_per_package.get(
-                        child_id, 0
-                    ) + package_weights.get(child_id, 0)
-            else:
-                # Also add the base_weight of every nested package, including those that only
-                # contain other packages (and thus no quants of their own to weigh below).
-                weight += sum(
-                    package.all_children_package_ids.mapped(
-                        lambda p: p.package_type_id.base_weight,
-                    ),
-                )
-                for quant in package.contained_quant_ids:
-                    weight += quant.quantity * quant.product_id.weight
-                res[package] = weight
-        return res
-
-    def _has_issues(self):
-        self.ensure_one()
-        return len(self.move_line_ids.location_dest_id) > 1
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _apply_dest_to_package(self, processed_package_ids=None):
         """Moves packages to their `package_dest_id` container (or detaches them if none), ensuring
@@ -817,6 +707,77 @@ class StockPackage(models.Model):
                 processed_package_ids
             )
 
+    def _apply_package_dest_for_entire_packs(self, allowed_package_ids=None):
+        """When a package is assigned to a picking, if all of its container is added,
+        then we consider the container to be added itself, unless the container
+        is a reusable package itself.
+        """
+        for container, packages in self.grouped("parent_package_id").items():
+            if (
+                container.child_package_ids == packages
+                and container.package_type_id.package_use != "reusable"
+            ):
+                if allowed_package_ids and container.id not in allowed_package_ids:
+                    continue
+                packages.package_dest_id = container
+        if self.package_dest_id:
+            # If one level was added, need to check if the upper container is fully contained as well.
+            self.package_dest_id._apply_package_dest_for_entire_packs(
+                allowed_package_ids
+            )
+
+    def _get_weight(self, picking_id=False):
+        res = {}
+        if picking_id:
+            package_weights = defaultdict(float)
+            # For an ongoing picking, also account for the weight of current dest children, if any.
+            children_by_dest_pack, all_pack_ids = (
+                self._get_all_children_package_dest_ids()
+            )
+            base_weight_per_package_group = self.env["stock.package"]._read_group(
+                domain=[("id", "in", all_pack_ids)],
+                groupby=["id", "package_type_id.base_weight"],
+            )
+            base_weight_per_package = {
+                pack.id: weight for pack, weight in base_weight_per_package_group
+            }
+
+            res_groups = self.env["stock.move.line"]._read_group(
+                [
+                    ("result_package_id", "in", all_pack_ids),
+                    ("product_id", "!=", False),
+                    ("picking_id", "=", picking_id),
+                ],
+                ["result_package_id", "product_id", "product_uom_id", "quantity"],
+                ["__count"],
+            )
+            for result_package, product, product_uom, quantity, count in res_groups:
+                package_weights[result_package.id] += (
+                    count
+                    * product_uom._compute_quantity(quantity, product.uom_id)
+                    * product.weight
+                )
+        for package in self:
+            weight = package.package_type_id.base_weight or 0.0
+            if picking_id:
+                res[package] = weight + package_weights[package.id]
+                for child_id in children_by_dest_pack.get(package, []):
+                    res[package] += base_weight_per_package.get(
+                        child_id, 0
+                    ) + package_weights.get(child_id, 0)
+            else:
+                # Also add the base_weight of every nested package, including those that only
+                # contain other packages (and thus no quants of their own to weigh below).
+                weight += sum(
+                    package.all_children_package_ids.mapped(
+                        lambda p: p.package_type_id.base_weight,
+                    ),
+                )
+                for quant in package.contained_quant_ids:
+                    weight += quant.quantity * quant.product_id.weight
+                res[package] = weight
+        return res
+
     def _get_all_children_package_dest_ids(self):
         """Gets all descendant packages that have a package in self as their `package_dest_id`, recursively.
         Done manually since we only have a single _parent field (parent_package_id) on the model.
@@ -856,21 +817,86 @@ class StockPackage(models.Model):
 
         return list(fetch_next_parents(self))
 
-    def _apply_package_dest_for_entire_packs(self, allowed_package_ids=None):
-        """When a package is assigned to a picking, if all of its container is added,
-        then we consider the container to be added itself, unless the container
-        is a reusable package itself.
-        """
-        for container, packages in self.grouped("parent_package_id").items():
-            if (
-                container.child_package_ids == packages
-                and container.package_type_id.package_use != "reusable"
-            ):
-                if allowed_package_ids and container.id not in allowed_package_ids:
-                    continue
-                packages.package_dest_id = container
-        if self.package_dest_id:
-            # If one level was added, need to check if the upper container is fully contained as well.
-            self.package_dest_id._apply_package_dest_for_entire_packs(
-                allowed_package_ids
+    def unpack(self):
+        """Unpacks quants directly inside the container, and removes contained packages from this package."""
+        self.child_package_ids.parent_package_id = False
+        if self.quant_ids:
+            quants = self.quant_ids
+            self.quant_ids.move_quants(
+                message=_("Quantities unpacked"),
+                unpack=True,
             )
+            # Quant clean-up, mostly to avoid multiple quants of the same product. For example, unpack
+            # 2 packages of 50, then reserve 100 => a quant of -50 is created at transfer validation.
+            quants._quant_tasks()
+
+    def _pre_put_in_pack_hook(
+        self,
+        package_id=False,
+        package_type_id=False,
+        package_name=False,
+        from_package_wizard=False,
+    ):
+        if self.move_line_ids._should_display_put_in_pack_wizard(
+            package_id, package_type_id, package_name, from_package_wizard
+        ):
+            action = self.env["ir.actions.actions"]._for_xml_id(
+                "stock.action_put_in_pack_wizard"
+            )
+            action["context"] = {
+                **literal_eval(action.get("context", "{}")),
+                "default_package_ids": self.ids,
+                "default_location_dest_id": self.location_dest_id[:1].id,
+            }
+            return action
+        return False
+
+    def _post_put_in_pack_hook(self):
+        self.ensure_one()
+        return self
+
+    # ------------------------------------------------------------
+    # VALIDATION METHODS
+    # ------------------------------------------------------------
+
+    def _check_move_lines_map_quant(self, move_lines):
+        """Checks that self's contained quants and move_lines carry matching quantities per product and lot."""
+        precision_digits = self.env["decimal.precision"].precision_get(
+            "Product Unit of Measure"
+        )
+
+        def _keys_groupby(record):
+            return record.product_id, record.lot_id
+
+        if not move_lines:
+            return True
+
+        grouped_quants = {}
+        for k, g in groupby(self.contained_quant_ids, key=_keys_groupby):
+            grouped_quants[k] = sum(
+                self.env["stock.quant"].concat(*g).mapped("quantity")
+            )
+
+        grouped_ops = {}
+        for k, g in groupby(move_lines, key=_keys_groupby):
+            grouped_ops[k] = sum(
+                self.env["stock.move.line"].concat(*g).mapped("quantity_product_uom"),
+            )
+
+        return all(
+            float_is_zero(
+                grouped_quants.get(key, 0) - grouped_ops.get(key, 0),
+                precision_digits=precision_digits,
+            )
+            for key in grouped_quants
+        ) and all(
+            float_is_zero(
+                grouped_ops.get(key, 0) - grouped_quants.get(key, 0),
+                precision_digits=precision_digits,
+            )
+            for key in grouped_ops
+        )
+
+    def _has_issues(self):
+        self.ensure_one()
+        return len(self.move_line_ids.location_dest_id) > 1

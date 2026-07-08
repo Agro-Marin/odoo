@@ -67,6 +67,54 @@ class TestStockMove(TestStockCommon):
             lambda q: not (q.quantity == 0 and q.reserved_quantity == 0)
         )
 
+    def test_set_lot_ids_on_several_moves(self):
+        """Writing `lot_ids` on a recordset of several moves must not raise and
+        must keep *every* move's `quantity` in sync with its move lines.
+
+        Regression: `_set_lot_ids` iterates `for move in self` but used `self`
+        where it meant `move` when preparing move-line values, so a multi-move
+        write raised `Expected singleton`; and it forced the `quantity`
+        recompute only on the last move of the loop.
+        """
+        lot_a = self.env["stock.lot"].create(
+            {"product_id": self.product_lot.id, "name": "REG-LOT-A"}
+        )
+        lot_b = self.env["stock.lot"].create(
+            {"product_id": self.product_lot.id, "name": "REG-LOT-B"}
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.product_lot, self.stock_location, 50, lot_id=lot_a
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.product_lot, self.stock_location, 50, lot_id=lot_b
+        )
+
+        def _confirmed_out_move():
+            move = self.env["stock.move"].create(
+                {
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                    "product_id": self.product_lot.id,
+                    "product_uom": self.uom_unit.id,
+                    "product_uom_qty": 5.0,
+                }
+            )
+            move._action_confirm()
+            move._action_assign()
+            return move
+
+        moves = _confirmed_out_move() | _confirmed_out_move()
+
+        # Must not raise "Expected singleton".
+        moves.write({"lot_ids": [(4, lot_a.id), (4, lot_b.id)]})
+
+        # Every move (not only the last) is left consistent with its move lines.
+        for move in moves:
+            self.assertEqual(
+                set(move.move_line_ids.lot_id.ids), {lot_a.id, lot_b.id}
+            )
+            self.assertAlmostEqual(move.quantity, move._quantity_sml())
+
     def test_in_1(self):
         """Receive products from a supplier. Check that a move line is created and that the
         reception correctly increase a single quant in stock.
@@ -1774,6 +1822,71 @@ class TestStockMove(TestStockCommon):
         # check if the putaway wasn't applied
         self.assertEqual(
             move2.move_line_ids.location_dest_id.id, self.stock_location.id
+        )
+
+    def test_putaway_storage_category_multi_inbound_same_uom(self):
+        """Several pending inbound move lines to the same location, in the same
+        UoM, must all count toward a storage category's product capacity.
+
+        Regression: the planned quantity per location was read with a
+        ``product_uom_id:recordset`` aggregate, which deduplicates. Two lines
+        sharing a UoM collapsed to one, so the quantity/UoM ``zip`` dropped a
+        line and the location looked emptier than it was. A third receipt was
+        then wrongly put away into an already-full location.
+        """
+        storage_category = self.env["stock.storage.category"].create(
+            {"name": "storage category"}
+        )
+        # capacity for productA is 100 units in this storage category
+        storage_category_form = Form(
+            storage_category, view="stock.view_stock_storage_category_form"
+        )
+        with storage_category_form.product_capacity_ids.new() as line:
+            line.product_id = self.productA
+            line.quantity = 100
+        storage_category = storage_category_form.save()
+
+        self.shelf_1.storage_category_id = storage_category
+        putaway = self.env["stock.putaway.rule"].create(
+            {
+                "product_id": self.productA.id,
+                "location_in_id": self.stock_location.id,
+                "location_out_id": self.stock_location.id,
+                "storage_category_id": storage_category.id,
+                "sublocation": "closest_location",
+            }
+        )
+        self.stock_location.write({"putaway_rule_ids": [(4, putaway.id, 0)]})
+
+        def receive(qty):
+            move = self.env["stock.move"].create(
+                {
+                    "location_id": self.supplier_location.id,
+                    "location_dest_id": self.stock_location.id,
+                    "product_id": self.productA.id,
+                    "product_uom": self.uom_unit.id,
+                    "product_uom_qty": qty,
+                }
+            )
+            move._action_confirm()
+            return move
+
+        # Two receipts of 40 (same UoM) both fit, so both are put away to
+        # shelf_1, leaving two pending inbound lines of 40 (80 planned) there.
+        move1 = receive(40)
+        move2 = receive(40)
+        self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_1.id)
+        self.assertEqual(move2.move_line_ids.location_dest_id.id, self.shelf_1.id)
+
+        # Third receipt of 40: shelf_1 already holds two 40-unit inbound lines
+        # (80 planned); 80 + 40 exceeds the capacity of 100, so it must NOT be
+        # put away into shelf_1 and falls back to the parent stock location.
+        move3 = receive(40)
+        self.assertEqual(
+            move3.move_line_ids.location_dest_id.id,
+            self.stock_location.id,
+            "both 40-unit inbound lines on shelf_1 must be counted (80); a third "
+            "40 exceeds the capacity of 100 and must not be put away there",
         )
 
     def test_putaway_with_storage_category_3(self):
@@ -8881,14 +8994,22 @@ class TestStockMove(TestStockCommon):
             move_line.location_id, self.pack_location, "Location was not auto-corrected"
         )
 
-        move.lot_ids = lot1
-        warning = False
-        warning = move._onchange_lot_ids()
+        # Clear the persisted lot so the onchange sees the reuse as a *new*
+        # assignment. _onchange_lot_ids relies on the self vs self._origin diff,
+        # so it must be driven through the onchange protocol (which builds a
+        # pseudo-record with a clean origin), not called directly on the record.
+        move_line.write({"lot_name": False, "lot_id": False})
+        warning = move.onchange(
+            {"lot_ids": [Command.link(lot1.id)]},
+            ["lot_ids"],
+            {"lot_ids": {"context": {}}},
+        )
         self.assertTrue(
             warning, "Reuse of existing serial number (record) not detected"
         )
-        self.assertEqual(
-            list(warning.keys())[0], "warning", "Warning message was not returned"
+        self.assertIn(
+            "Unavailable Serial numbers. Please correct the serial numbers encoded",
+            warning.get("warning", {}).get("message", ""),
         )
 
     def test_forecast_availability(self):

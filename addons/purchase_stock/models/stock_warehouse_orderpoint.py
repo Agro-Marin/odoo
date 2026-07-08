@@ -260,7 +260,7 @@ class StockWarehouseOrderpoint(models.Model):
         planned_date = self._get_orderpoint_procurement_date()
         global_horizon_days = self.get_horizon_days()
         if global_horizon_days:
-            planned_date -= relativedelta.relativedelta(days=int(global_horizon_days))
+            planned_date -= relativedelta.relativedelta(days=global_horizon_days)
         date_deadline = planned_date or fields.Date.today()
         dates_info = self.product_id._get_dates_info(
             date_deadline,

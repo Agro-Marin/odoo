@@ -48,4 +48,9 @@
         <field name="auto_delete" eval="True" />
     </record>
 
+    <!-- Backfill the mail template on companies that predate it. Must run here,
+         after the template record above, because this data file loads after
+         data/stock_data.xml where the other create_missing_* calls live. -->
+    <function model="res.company" name="create_missing_mail_template" />
+
 </odoo>

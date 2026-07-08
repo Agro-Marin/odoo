@@ -9,6 +9,10 @@ class StockPutawayRule(models.Model):
     _description = "Putaway Rule"
     _check_company_auto = True
 
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
     company_id = fields.Many2one(
         comodel_name="res.company",
         string="Company",
@@ -82,6 +86,10 @@ class StockPutawayRule(models.Model):
         default="no",
     )
 
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
+
     @api.model_create_multi
     def create(self, vals_list):
         rules = super().create(vals_list)
@@ -98,11 +106,19 @@ class StockPutawayRule(models.Model):
                     )
         return super().write(vals)
 
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
     @api.depends("sublocation")
     def _compute_storage_category(self):
         for rule in self:
             if rule.sublocation != "closest_location":
                 rule.storage_category_id = False
+
+    # ------------------------------------------------------------
+    # ONCHANGE METHODS
+    # ------------------------------------------------------------
 
     @api.onchange("sublocation", "location_out_id", "storage_category_id")
     def _onchange_sublocation(self):
@@ -128,6 +144,10 @@ class StockPutawayRule(models.Model):
         loc_in, loc_out = self.location_in_id, self.location_out_id
         if not loc_out or (loc_in and not loc_out._child_of(loc_in)):
             self.location_out_id = self.location_in_id
+
+    # ------------------------------------------------------------
+    # DEFAULT METHODS
+    # ------------------------------------------------------------
 
     def _default_category_id(self):
         if self.env.context.get("active_model") == "product.category":
@@ -158,6 +178,10 @@ class StockPutawayRule(models.Model):
                 return product_template.product_variant_id
         elif self.env.context.get("active_model") == "product.product":
             return self.env.context.get("active_id")
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _get_last_used_search_domain(self, product):
         self.ensure_one()
@@ -225,10 +249,18 @@ class StockPutawayRule(models.Model):
                     == putaway_rule.storage_category_id
                 )
 
+            # Compute the forecasted weight of every candidate location in one
+            # batch (3 aggregate queries) instead of letting _check_can_be_used
+            # recompute it per location inside the loops below.
+            forecast_weight_by_location = child_locations._get_weight(
+                self.env.context.get("exclude_sml_ids", set())
+            )
+
             # Prefer a location that already holds this product/package type
             for location in child_locations:
                 if location in checked_locations:
                     continue
+                forecast_weight = forecast_weight_by_location[location]["forecast_weight"]
                 if package_type:
                     if location.quant_ids.filtered(
                         lambda q: q.package_id
@@ -239,13 +271,17 @@ class StockPutawayRule(models.Model):
                             quantity,
                             package=package,
                             location_qty=qty_by_location[location.id],
+                            forecast_weight=forecast_weight,
                         ):
                             return location
                         else:
                             checked_locations.add(location)
                 elif product.uom_id.compare(qty_by_location[location.id], 0) > 0:
                     if location._check_can_be_used(
-                        product, quantity, location_qty=qty_by_location[location.id]
+                        product,
+                        quantity,
+                        location_qty=qty_by_location[location.id],
+                        forecast_weight=forecast_weight,
                     ):
                         return location
                     else:
@@ -258,7 +294,13 @@ class StockPutawayRule(models.Model):
                 if location in checked_locations:
                     continue
                 if location._check_can_be_used(
-                    product, quantity, package, qty_by_location[location.id]
+                    product,
+                    quantity,
+                    package,
+                    qty_by_location[location.id],
+                    forecast_weight=forecast_weight_by_location[location][
+                        "forecast_weight"
+                    ],
                 ):
                     return location
                 checked_locations.add(location)

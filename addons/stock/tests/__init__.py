@@ -1,15 +1,16 @@
-# -*- coding: utf-8 -*-
-
 from . import test_stock_flow
 from . import test_product
 from . import test_warehouse
 from . import test_stock_location_search
 from . import test_quant
+from . import test_quant_improvements
 from . import test_quant_inventory_mode
 from . import test_generate_serial_numbers
 from . import test_immediate
 from . import test_inventory
 from . import test_move
+from . import test_move_reservation
+from . import test_move_show_details
 from . import test_move2
 from . import test_move_lines
 from . import test_multicompany
@@ -26,3 +27,4 @@ from . import test_picking_tours
 from . import test_replenish
 from . import test_old_rules
 from . import test_overview_graph
+from . import test_picking_refactor

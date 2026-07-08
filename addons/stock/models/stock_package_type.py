@@ -6,15 +6,9 @@ class StockPackageType(models.Model):
     _description = "Stock package type"
     _order = "sequence, id"
 
-    def _get_default_length_uom(self):
-        return self.env[
-            "product.template"
-        ]._get_length_uom_name_from_ir_config_parameter()
-
-    def _get_default_weight_uom(self):
-        return self.env[
-            "product.template"
-        ]._get_weight_uom_name_from_ir_config_parameter()
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
 
     name = fields.Char(string="Package Type", required=True)
     sequence = fields.Integer(
@@ -33,10 +27,22 @@ class StockPackageType(models.Model):
         string="Sequence Prefix",
         readonly=False,
     )
-    height = fields.Float(string="Height", help="Packaging Height")
-    width = fields.Float(string="Width", help="Packaging Width")
-    packaging_length = fields.Float(string="Length", help="Packaging Length")
-    base_weight = fields.Float(string="Weight", help="Weight of the package type")
+    height = fields.Float(
+        string="Height",
+        help="Packaging Height",
+    )
+    width = fields.Float(
+        string="Width",
+        help="Packaging Width",
+    )
+    packaging_length = fields.Float(
+        string="Length",
+        help="Packaging Length",
+    )
+    base_weight = fields.Float(
+        string="Weight",
+        help="Weight of the package type",
+    )
     max_weight = fields.Float(
         string="Max Weight",
         help="Maximum weight shippable in this packaging",
@@ -44,16 +50,18 @@ class StockPackageType(models.Model):
     barcode = fields.Char(string="Barcode", copy=False)
     weight_uom_name = fields.Char(
         string="Weight unit of measure label",
-        default=_get_default_weight_uom,
+        default=lambda self: self._default_weight_uom(),
         compute="_compute_weight_uom_name",
     )
     length_uom_name = fields.Char(
         string="Length unit of measure label",
-        default=_get_default_length_uom,
+        default=lambda self: self._default_length_uom(),
         compute="_compute_length_uom_name",
     )
     company_id = fields.Many2one(
-        comodel_name="res.company", string="Company", index=True
+        comodel_name="res.company",
+        string="Company",
+        index=True,
     )
     package_use = fields.Selection(
         selection=[
@@ -66,7 +74,10 @@ class StockPackageType(models.Model):
         help="""Reusable boxes are used for batch picking and emptied afterwards to be reused. In the barcode application, scanning a reusable box will add the products in this box.
         Disposable boxes aren't reused, when scanning a disposable box in the barcode application, the contained products are added to the transfer.""",
     )
-    has_quants = fields.Boolean(string="Has Contents", compute="_compute_has_quants")
+    has_quants = fields.Boolean(
+        string="Has Contents",
+        compute="_compute_has_quants",
+    )
     storage_category_capacity_ids = fields.One2many(
         comodel_name="stock.storage.category.capacity",
         inverse_name="package_type_id",
@@ -78,6 +89,10 @@ class StockPackageType(models.Model):
         string="Routes",
         domain="[('package_type_selectable', '=', True)]",
     )
+
+    # ------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------
 
     _barcode_uniq = models.Constraint(
         "unique(barcode)",
@@ -100,59 +115,9 @@ class StockPackageType(models.Model):
         "Max Weight must be positive",
     )
 
-    @api.depends("name", "packaging_length", "width", "height")
-    @api.depends_context("formatted_display_name")
-    def _compute_display_name(self):
-        packages_to_process_ids = []
-        for package in self:
-            if (
-                package.env.context.get("formatted_display_name")
-                and package.packaging_length
-                and package.width
-                and package.height
-            ):
-                package.display_name = f"{package.name}\t--{package.packaging_length} x {package.width} x {package.height}--"
-            else:
-                packages_to_process_ids.append(package.id)
-        if packages_to_process_ids:
-            super(
-                StockPackageType,
-                self.env["stock.package.type"].browse(packages_to_process_ids),
-            )._compute_display_name()
-
-    def _compute_has_quants(self):
-        pack_type_quants = dict(
-            self.env["stock.package"]._read_group(
-                domain=[
-                    ("quant_ids", "!=", False),
-                    ("package_type_id", "in", self.ids),
-                ],
-                groupby=["package_type_id"],
-                aggregates=["__count"],
-            )
-        )
-
-        for package_type in self:
-            package_type.has_quants = pack_type_quants.get(package_type, 0) > 0
-
-    def _compute_length_uom_name(self):
-        for package_type in self:
-            package_type.length_uom_name = self.env[
-                "product.template"
-            ]._get_length_uom_name_from_ir_config_parameter()
-
-    def _compute_weight_uom_name(self):
-        for package_type in self:
-            package_type.weight_uom_name = self.env[
-                "product.template"
-            ]._get_weight_uom_name_from_ir_config_parameter()
-
-    def copy_data(self, default=None):
-        vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=self.env._("%s (copy)", package_type.name))
-            for package_type, vals in zip(self, vals_list)
-        ]
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -210,6 +175,82 @@ class StockPackageType(models.Model):
                     seq_vals
                 )
         return super().write(vals)
+
+    def copy_data(self, default=None):
+        vals_list = super().copy_data(default=default)
+        return [
+            dict(vals, name=self.env._("%s (copy)", package_type.name))
+            for package_type, vals in zip(self, vals_list)
+        ]
+
+    # ------------------------------------------------------------
+    # DEFAULT METHODS
+    # ------------------------------------------------------------
+
+    def _default_length_uom(self):
+        return self.env[
+            "product.template"
+        ]._get_length_uom_name_from_ir_config_parameter()
+
+    def _default_weight_uom(self):
+        return self.env[
+            "product.template"
+        ]._get_weight_uom_name_from_ir_config_parameter()
+
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
+    @api.depends("name", "packaging_length", "width", "height")
+    @api.depends_context("formatted_display_name")
+    def _compute_display_name(self):
+        packages_to_process_ids = []
+        for package in self:
+            if (
+                package.env.context.get("formatted_display_name")
+                and package.packaging_length
+                and package.width
+                and package.height
+            ):
+                package.display_name = f"{package.name}\t--{package.packaging_length} x {package.width} x {package.height}--"
+            else:
+                packages_to_process_ids.append(package.id)
+        if packages_to_process_ids:
+            super(
+                StockPackageType,
+                self.env["stock.package.type"].browse(packages_to_process_ids),
+            )._compute_display_name()
+
+    def _compute_has_quants(self):
+        pack_type_quants = dict(
+            self.env["stock.package"]._read_group(
+                domain=[
+                    ("quant_ids", "!=", False),
+                    ("package_type_id", "in", self.ids),
+                ],
+                groupby=["package_type_id"],
+                aggregates=["__count"],
+            )
+        )
+
+        for package_type in self:
+            package_type.has_quants = pack_type_quants.get(package_type, 0) > 0
+
+    def _compute_length_uom_name(self):
+        for package_type in self:
+            package_type.length_uom_name = self.env[
+                "product.template"
+            ]._get_length_uom_name_from_ir_config_parameter()
+
+    def _compute_weight_uom_name(self):
+        for package_type in self:
+            package_type.weight_uom_name = self.env[
+                "product.template"
+            ]._get_weight_uom_name_from_ir_config_parameter()
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _get_next_name_by_sequence(self):
         if len(self) == 1 and self.sequence_id:

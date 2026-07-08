@@ -1071,6 +1071,58 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(warehouse.int_type_id.barcode, "CHINT")
         self.assertEqual(warehouse.int_type_id.sequence_id.prefix, "CH/INT/")
 
+    def test_create_warehouse_without_company_defaults(self):
+        """A warehouse created without an explicit company_id (relying on the
+        field default) must still get a generated code and a named view
+        location, instead of crashing with a NOT NULL violation on
+        stock.location.name.
+        """
+        Warehouse = self.env["stock.warehouse"]
+        # name only: no company_id, no code in vals
+        wh = Warehouse.create({"name": "No Company WH"})
+        self.assertTrue(wh.code, "a short name should be auto-generated")
+        self.assertEqual(wh.company_id, self.env.company)
+        self.assertTrue(wh.view_location_id.name, "the view location must be named")
+        self.assertEqual(wh.view_location_id.company_id, self.env.company)
+        # fully defaulted: empty vals must not raise either
+        wh2 = Warehouse.create({})
+        self.assertTrue(wh2.code)
+        self.assertTrue(wh2.name)
+
+    def test_multiwarehouse_group_implied_on_warehouse_creation(self):
+        """Creating a warehouse for a company that then has more than one active
+        warehouse must (re)imply the multi-warehouse group — and pull in the
+        multi-locations group — on ``base.group_user``. This global side effect
+        of warehouse CRUD was previously uncovered.
+        """
+        group_user = self.env.ref("base.group_user")
+        group_multi_wh = self.env.ref("stock.group_stock_multi_warehouses")
+        group_multi_loc = self.env.ref("stock.group_stock_multi_locations")
+        Warehouse = self.env["stock.warehouse"]
+
+        company = self.env["res.company"].create({"name": "Multi-WH Co"})
+        Warehouse.create({"name": "MW A", "code": "MWA", "company_id": company.id})
+
+        # Force the group off so the assertion below actually exercises
+        # _check_multiwarehouse_group instead of observing a pre-implied state.
+        group_user.write({"implied_ids": [(3, group_multi_wh.id)]})
+        self.assertNotIn(group_multi_wh, group_user.implied_ids)
+
+        # A second active warehouse in the company re-triggers the check on
+        # create(), which must re-imply both groups.
+        Warehouse.create({"name": "MW B", "code": "MWB", "company_id": company.id})
+        self.assertIn(
+            group_multi_wh,
+            group_user.implied_ids,
+            "a company with several active warehouses must imply the "
+            "multi-warehouse group",
+        )
+        self.assertIn(
+            group_multi_loc,
+            group_user.implied_ids,
+            "the multi-warehouse group must pull in the multi-locations group",
+        )
+
     def test_location_warehouse(self):
         """Check that the closest warehouse is selected
         in a warehouse within warehouse situation

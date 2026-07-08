@@ -37,13 +37,13 @@ class TestPerishableQtyAtDate(TestStockCommon, HttpCase):
         # update customer lead time, and create SO
         sale_order = self.env['sale.order'].create({
             'partner_id': partner.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product_exp[i].id,
                 'product_uom_qty': 50,
                 'price_unit': 100,
             }) for i in range(2)],
         })
-        self.assertEqual(sale_order.order_line[0].virtual_available_at_date, 200)
-        self.assertEqual(sale_order.order_line[1].virtual_available_at_date, 100)
+        self.assertEqual(sale_order.line_ids[0].virtual_available_at_date, 200)
+        self.assertEqual(sale_order.line_ids[1].virtual_available_at_date, 100)
         url = f"odoo/sales/{sale_order.id}"
         self.start_tour(url, 'test_forecast_widget_perishable_qty_at_date', login='admin')

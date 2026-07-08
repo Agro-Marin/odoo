@@ -1,20 +1,24 @@
 from odoo import _, api, fields, models, modules
+from odoo.exceptions import ValidationError
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
     _check_company_auto = True
 
-    # used for resupply routes between warehouses that belong to this company
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
     internal_transit_location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Internal Transit Location",
         check_company=True,
         ondelete="restrict",
+        help="Used for resupply routes between warehouses that belong to this company",
     )
     stock_move_email_validation = fields.Boolean(
         string="Email Confirmation picking",
-        default=False,
     )
     stock_mail_confirmation_template_id = fields.Many2one(
         comodel_name="mail.template",
@@ -48,7 +52,7 @@ class ResCompany(models.Model):
         help="""Day of the month when the annual inventory should occur. If zero or negative, then the first day of the month will be selected instead.
         If greater than the last day of a month, then the last day of the month will be selected instead.""",
     )
-    horizon_days = fields.Float(
+    horizon_days = fields.Integer(
         string="Replenishment Horizon",
         required=True,
         default=365,
@@ -57,11 +61,36 @@ class ResCompany(models.Model):
          ('0 days') to avoid overstocking.""",
     )
 
+    # Text confirmation sent to the customer when a delivery is done. The channel
+    # is pluggable through _get_text_validation(): the base ships the 'sms' value
+    # (consumed by stock_sms); stock_enterprise adds 'whatsapp' via selection_add
+    # (consumed by whatsapp_stock).
     stock_text_confirmation = fields.Boolean(string="Stock Text Confirmation")
     stock_confirmation_type = fields.Selection(
         selection=[("sms", "SMS")],
+        string="Confirmation Channel",
         default="sms",
+        help="Channel used to send the delivery text confirmation to the customer.",
     )
+
+    # ------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------
+
+    @api.constrains("horizon_days")
+    def _check_horizon_days(self):
+        # A negative horizon would shift the replenishment horizon date into the
+        # past (see stock.warehouse.orderpoint.get_horizon_days), silently making
+        # reordering rules under-forecast demand. '0 days' is the just-in-time floor.
+        for company in self:
+            if company.horizon_days < 0:
+                raise ValidationError(
+                    _("The replenishment horizon cannot be negative.")
+                )
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -70,218 +99,299 @@ class ResCompany(models.Model):
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
-        for company in companies:
-            company.sudo()._create_per_company_locations()
-            company.sudo()._create_per_company_sequences()
-            company.sudo()._create_per_company_picking_types()
-            company.sudo()._create_per_company_rules()
-            company.sudo()._set_per_company_inter_company_locations(
-                inter_company_location
-            )
+        # Provision everything on the whole batch at once: each per-company hook is
+        # recordset-capable, so N companies cost a constant number of INSERTs per
+        # resource instead of N. Hook order encodes intra-company dependencies
+        # (picking types need sequences, rules need picking types).
+        companies_sudo = companies.sudo()
+        companies_sudo._create_per_company_locations()
+        companies_sudo._create_per_company_sequences()
+        companies_sudo._create_per_company_picking_types()
+        companies_sudo._create_per_company_rules()
+        companies_sudo._set_per_company_inter_company_locations(inter_company_location)
         if modules.module.current_test:
-            self.env["stock.warehouse"].sudo().create(
-                [{"company_id": company.id} for company in companies],
-            )
+            # Most tests assume every company owns a warehouse; production code
+            # provisions warehouses explicitly (bootstrap_first_warehouse at install,
+            # then the create_missing_* backfills). Go through the single seam rather
+            # than calling stock.warehouse.create directly, so this test convenience
+            # and any explicit provisioning a test does share one idempotent path.
+            companies_sudo._create_warehouse()
         return companies
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
+
+    @api.model
+    def _all_companies(self):
+        """Every company, archived ones included.
+
+        Provisioning covers a company whether or not it is currently active: an
+        archived company still owns records and may be reactivated later, so the
+        ``create_missing_*`` backfills must see it (matching how e.g. mrp
+        subcontracting enumerates companies for its own backfill).
+        """
+        return self.env["res.company"].with_context(active_test=False).search([])
+
+    @api.model
+    def _companies_without(self, companies_having):
+        """Return the companies not present in ``companies_having``.
+
+        Shared by the ``create_missing_*`` backfills, which each provision a
+        resource only for the companies that lack it.
+        """
+        return self._all_companies() - companies_having
+
+    @api.model
+    def _companies_with_property(self, model_name, field_name):
+        """Companies that already resolve a default for the given property.
+
+        A default with no ``company_id`` applies to every company, so its presence
+        means all companies are covered. Mapping ``company_id`` alone would drop
+        that global default (``False`` maps to the empty recordset) and make the
+        ``create_missing_*`` backfills provision a duplicate resource for companies
+        that already resolve the property globally.
+        """
+        field = self.env["ir.model.fields"]._get(model_name, field_name)
+        defaults = self.env["ir.default"].sudo()
+        global_default = defaults.search_count(
+            [("field_id", "=", field.id), ("company_id", "=", False)], limit=1
+        )
+        if global_default:
+            return self._all_companies()
+        return defaults.search([("field_id", "=", field.id)]).mapped("company_id")
 
     def _create_transit_location(self):
         """Create a per-company transit location for resupply routes between warehouses
         of the same company, avoiding the accounting entries a cross-company transfer would trigger.
+
+        ``self`` may hold several companies: the ``create_missing_*`` backfills call
+        these provisioning helpers on a multi-company recordset, so they create in
+        one batch and pair results back with ``zip``.
         """
-        for company in self:
-            location = self.env["stock.location"].create(
+        locations = self.env["stock.location"].create(
+            [
                 {
                     "name": _("Inter-warehouse transit"),
                     "usage": "transit",
                     "company_id": company.id,
                     "active": False,
-                },
+                }
+                for company in self
+            ],
+        )
+        for company, location in zip(self, locations, strict=True):
+            company.internal_transit_location_id = location.id
+            # The env company must match the target company for the property write to
+            # land on the right value, so this cannot be batched across companies.
+            company.partner_id.with_company(company)._set_stock_property_locations(
+                location
             )
+        return locations
 
-            company.write({"internal_transit_location_id": location.id})
+    def _create_property_location(self, name, usage, property_field):
+        """Create one ``stock.location`` per company in ``self`` and register it as
+        that company's default for the ``product.template`` property ``property_field``.
 
-            company.partner_id.with_company(company).write(
+        Backs the inventory-loss and production locations, which differ only in
+        name, usage and target property. ``self`` may be a multi-company recordset.
+        """
+        locations = self.env["stock.location"].create(
+            [
                 {
-                    "property_stock_customer": location.id,
-                    "property_stock_supplier": location.id,
-                },
+                    "name": name,
+                    "usage": usage,
+                    "company_id": company.id,
+                }
+                for company in self
+            ],
+        )
+        for company, location in zip(self, locations, strict=True):
+            self.env["ir.default"].set(
+                "product.template",
+                property_field,
+                location.id,
+                company_id=company.id,
             )
+        return locations
 
     def _create_inventory_loss_location(self):
-        for company in self:
-            inventory_loss_location = self.env["stock.location"].create(
-                {
-                    "name": "Inventory adjustment",
-                    "usage": "inventory",
-                    "company_id": company.id,
-                },
-            )
-            self.env["ir.default"].set(
-                "product.template",
-                "property_stock_inventory",
-                inventory_loss_location.id,
-                company_id=company.id,
-            )
+        return self._create_property_location(
+            _("Inventory adjustment"), "inventory", "property_stock_inventory"
+        )
 
     def _create_production_location(self):
-        for company in self:
-            production_location = self.env["stock.location"].create(
-                {
-                    "name": "Production",
-                    "usage": "production",
-                    "company_id": company.id,
-                },
-            )
-            self.env["ir.default"].set(
-                "product.template",
-                "property_stock_production",
-                production_location.id,
-                company_id=company.id,
-            )
-
-    def _create_scrap_location(self):
-        for company in self:
-            scrap_location = self.env["stock.location"].create(
-                {
-                    "name": "Scrap",
-                    "usage": "inventory",
-                    "company_id": company.id,
-                },
-            )
+        return self._create_property_location(
+            _("Production"), "production", "property_stock_production"
+        )
 
     def _create_scrap_sequence(self):
-        scrap_vals = []
-        for company in self:
-            scrap_vals.append(
+        return self.env["ir.sequence"].create(
+            [
                 {
-                    "name": "%s Sequence scrap" % company.name,
+                    "name": f"{company.name} Sequence scrap",
                     "code": "stock.scrap",
                     "company_id": company.id,
                     "prefix": "SP/",
                     "padding": 5,
                     "number_next": 1,
                     "number_increment": 1,
-                },
-            )
-        if scrap_vals:
-            self.env["ir.sequence"].create(scrap_vals)
+                }
+                for company in self
+            ],
+        )
+
+    def _create_warehouse(self):
+        """Ensure every company in ``self`` owns its primary warehouse and return
+        one warehouse per company, in ``self`` order (recordset-capable).
+
+        The single seam through which a company acquires a warehouse: the
+        first-company bootstrap below and any other caller that needs one
+        (e.g. test fixtures spinning up extra companies) go through here, so the
+        warehouse-provisioning contract lives in exactly one place. It is
+        idempotent -- a company that already owns a warehouse keeps it instead of
+        getting a duplicate -- so a caller can ask for a company's warehouse
+        without having to know whether one was already provisioned (which is what
+        makes it safe to share between the create-time convenience and an explicit
+        test call, both of which would otherwise hit unique(name, company_id)).
+        """
+        warehouse_by_company = {}
+        for warehouse in self.env["stock.warehouse"].search(
+            [("company_id", "in", self.ids)], order="id"
+        ):
+            warehouse_by_company.setdefault(warehouse.company_id.id, warehouse)
+        companies_without = self.filtered(
+            lambda company: company.id not in warehouse_by_company
+        )
+        new_warehouses = self.env["stock.warehouse"].create(
+            [
+                {
+                    "name": company.name,
+                    "code": company.name[:5],
+                    "company_id": company.id,
+                    "partner_id": company.partner_id.id,
+                }
+                for company in companies_without
+            ],
+        )
+        for company, warehouse in zip(companies_without, new_warehouses, strict=True):
+            warehouse_by_company[company.id] = warehouse
+        return self.env["stock.warehouse"].union(
+            *(warehouse_by_company[company.id] for company in self)
+        )
 
     @api.model
-    def create_missing_warehouse(self):
-        """Create a warehouse for the first company if the database has none yet."""
-        existing_warehouses = self.env["stock.warehouse"].search([])
-        if len(existing_warehouses) == 0:
-            first_company = self.env["res.company"].search([], limit=1)
-            self.env["stock.warehouse"].create(
-                {
-                    "name": first_company.name,
-                    "code": first_company.name[:5],
-                    "company_id": first_company.id,
-                    "partner_id": first_company.partner_id.id,
-                },
-            )
+    def bootstrap_first_warehouse(self):
+        """Bootstrap a warehouse for the first company when the database has none yet.
+
+        Unlike the ``create_missing_*`` backfills, this is a one-shot bootstrap, not
+        a per-company backfill: it provisions a single warehouse only when no
+        warehouse exists at all. Every other warehouse comes from an explicit
+        ``_create_warehouse`` caller.
+        """
+        if self.env["stock.warehouse"].search_count([], limit=1):
+            return
+        self.env["res.company"].search([], limit=1)._create_warehouse()
 
     @api.model
     def create_missing_transit_location(self):
-        company_without_transit = self.env["res.company"].search(
-            [("internal_transit_location_id", "=", False)],
+        company_without_transit = self._all_companies().filtered(
+            lambda company: not company.internal_transit_location_id
         )
         company_without_transit._create_transit_location()
 
     @api.model
     def create_missing_inventory_loss_location(self):
-        company_ids = self.env["res.company"].search([])
-        inventory_loss_product_template_field = self.env["ir.model.fields"]._get(
+        having = self._companies_with_property(
             "product.template", "property_stock_inventory"
         )
-        companies_having_property = (
-            self.env["ir.default"]
-            .sudo()
-            .search([("field_id", "=", inventory_loss_product_template_field.id)])
-            .mapped("company_id")
-        )
-        company_without_property = company_ids - companies_having_property
-        company_without_property._create_inventory_loss_location()
+        self._companies_without(having)._create_inventory_loss_location()
 
     @api.model
     def create_missing_production_location(self):
-        company_ids = self.env["res.company"].search([])
-        production_product_template_field = self.env["ir.model.fields"]._get(
+        having = self._companies_with_property(
             "product.template", "property_stock_production"
         )
-        companies_having_property = (
-            self.env["ir.default"]
-            .sudo()
-            .search([("field_id", "=", production_product_template_field.id)])
-            .mapped("company_id")
-        )
-        company_without_property = company_ids - companies_having_property
-        company_without_property._create_production_location()
-
-    @api.model
-    def create_missing_scrap_location(self):
-        company_ids = self.env["res.company"].search([])
-        companies_having_scrap_loc = (
-            self.env["stock.location"]
-            .search([("usage", "=", "inventory")])
-            .mapped("company_id")
-        )
-        company_without_property = company_ids - companies_having_scrap_loc
-        company_without_property._create_scrap_location()
+        self._companies_without(having)._create_production_location()
 
     @api.model
     def create_missing_scrap_sequence(self):
-        company_ids = self.env["res.company"].search([])
-        company_has_scrap_seq = (
+        having = (
             self.env["ir.sequence"]
             .search([("code", "=", "stock.scrap")])
             .mapped("company_id")
         )
-        company_todo_sequence = company_ids - company_has_scrap_seq
-        company_todo_sequence._create_scrap_sequence()
+        self._companies_without(having)._create_scrap_sequence()
 
+    @api.model
+    def create_missing_mail_template(self):
+        """Backfill the delivery-confirmation mail template on companies that lack
+        it. New companies get it from the field default; this covers companies
+        that predate the template. Invoked from ``data/mail_template_data.xml``
+        once the template record exists (it is defined after ``data/stock_data.xml``
+        in the manifest, so this cannot ride with the other ``create_missing_*``
+        calls there — hence its own ``<function>`` next to the template)."""
+        template_id = self._default_confirmation_mail_template()
+        if not template_id:
+            return
+        self._all_companies().filtered(
+            lambda company: not company.stock_mail_confirmation_template_id
+        ).stock_mail_confirmation_template_id = template_id
+
+    # The four ``_create_per_company_*`` hooks below run on a whole ``res.company``
+    # recordset — ``create`` calls them once on the batch — so every leaf provisioning
+    # (locations, sequences, ...) creates in one query instead of one per company.
+    # Modules extending them (mrp, stock_dropshipping, ...) already iterate over
+    # ``self``; the hooks stay ordered locations -> sequences -> picking types -> rules
+    # because picking types look up their sequence and rules look up their picking type.
     def _create_per_company_locations(self):
-        self.ensure_one()
         self._create_transit_location()
         self._create_inventory_loss_location()
         self._create_production_location()
-        self._create_scrap_location()
 
     def _create_per_company_sequences(self):
-        self.ensure_one()
         self._create_scrap_sequence()
 
     def _create_per_company_picking_types(self):
-        self.ensure_one()
+        """Extension point: modules that ship company-specific picking types
+        (e.g. dropshipping) override this."""
 
     def _create_per_company_rules(self):
-        self.ensure_one()
+        """Extension point: modules that ship company-specific stock rules override this."""
 
     def _set_per_company_inter_company_locations(self, inter_company_location):
-        self.ensure_one()
+        """Point the stock customer/supplier properties of each company in ``self``
+        and every other company at the shared inter-company transit location, in
+        both directions. Only relevant once multi-company is enabled.
+
+        ``self`` may be a multi-company recordset; the other companies are
+        enumerated once here instead of once per company by the caller. Archived
+        companies are included (``_all_companies``): like the ``create_missing_*``
+        backfills, this wiring must reach a company that is dormant now but owns
+        records and may be reactivated later, or its cross-company transfers would
+        route through the default customer/supplier locations instead of the
+        shared inter-company transit location.
+        """
         if not self.env.user.has_group("base.group_multi_company"):
             return
-        other_companies = self.env["res.company"].search([("id", "!=", self.id)])
-        other_companies.partner_id.with_company(self).write(
-            {
-                "property_stock_customer": inter_company_location.id,
-                "property_stock_supplier": inter_company_location.id,
-            },
-        )
-        for company in other_companies:
-            # Still need to insert those one by one, as the env company must be different every time
-            self.partner_id.with_company(company).write(
-                {
-                    "property_stock_customer": inter_company_location.id,
-                    "property_stock_supplier": inter_company_location.id,
-                },
-            )
+        all_companies = self._all_companies()
+        for company in self:
+            other_companies = all_companies - company
+            other_companies.partner_id.with_company(
+                company
+            )._set_stock_property_locations(inter_company_location)
+            for other_company in other_companies:
+                # The env company must differ on every write for the company-dependent
+                # property to land on the right value, so this stays a per-company loop.
+                company.partner_id.with_company(
+                    other_company
+                )._set_stock_property_locations(inter_company_location)
 
     def _default_confirmation_mail_template(self):
-        try:
-            return self.env.ref("stock.mail_template_data_delivery_confirmation").id
-        except ValueError:
-            return False
+        template = self.env.ref(
+            "stock.mail_template_data_delivery_confirmation", raise_if_not_found=False
+        )
+        return template.id if template else False
 
     def _get_text_validation(self, confirmation_type):
         self.ensure_one()

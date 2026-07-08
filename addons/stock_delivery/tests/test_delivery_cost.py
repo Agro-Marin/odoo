@@ -30,7 +30,7 @@ class TestDeliveryCost(common.TransactionCase):
             'partner_id': self.partner_18.id,
             'partner_invoice_id': self.partner_18.id,
             'partner_shipping_id': self.partner_18.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': 'PC Assamble + 2GB RAM',
                 'product_id': self.product_4.id,
                 'product_uom_qty': 2,
@@ -44,7 +44,7 @@ class TestDeliveryCost(common.TransactionCase):
         }))
         delivery_wizard.save().button_confirm()
 
-        delivery_line = so.order_line.filtered('is_delivery')
+        delivery_line = so.line_ids.filtered('is_delivery')
         self.assertEqual(len(delivery_line), 1)
         self.assertEqual(
             delivery_line.price_unit,
@@ -74,6 +74,6 @@ class TestDeliveryCost(common.TransactionCase):
         bo._action_done()
         self.assertEqual(bo.carrier_price, 40.0)
 
-        new_delivery_line = so.order_line.filtered('is_delivery') - delivery_line
+        new_delivery_line = so.line_ids.filtered('is_delivery') - delivery_line
         self.assertEqual(len(new_delivery_line), 1)
         self.assertEqual(new_delivery_line.price_unit, bo.carrier_price)

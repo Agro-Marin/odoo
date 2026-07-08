@@ -5,6 +5,10 @@ from odoo.fields import Domain
 class ProductCategory(models.Model):
     _inherit = "product.category"
 
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
     removal_strategy_id = fields.Many2one(
         comodel_name="product.removal",
         string="Force Removal Strategy",
@@ -58,6 +62,10 @@ class ProductCategory(models.Model):
         search="_search_filter_for_stock_putaway_rule",
     )
 
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
     @api.depends("parent_id")
     def _compute_parent_route_ids(self):
         for category in self:
@@ -72,6 +80,10 @@ class ProductCategory(models.Model):
     def _compute_total_route_ids(self):
         for category in self:
             category.total_route_ids = category.route_ids | category.parent_route_ids
+
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
 
     def _search_total_route_ids(self, operator, value):
         categories = self.with_context(active_test=False).search([])

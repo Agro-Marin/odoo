@@ -47,7 +47,7 @@ class TestStockValuation(ValuationReconciliationTestCommon):
         # sell one unit of this product
         self.sale_order1 = self.env['sale.order'].sudo().create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product1.id,
                     'price_unit': 12,
@@ -60,7 +60,7 @@ class TestStockValuation(ValuationReconciliationTestCommon):
 
         # confirm the purchase order
         self.purchase_order1 = self.env['purchase.order'].search([('reference_ids', '=', self.sale_order1.stock_reference_ids.id)])
-        self.purchase_order1.button_confirm()
+        self.purchase_order1.action_confirm()
 
         # validate the dropshipping picking
         self.assertEqual(len(self.sale_order1.picking_ids), 1)
@@ -72,7 +72,7 @@ class TestStockValuation(ValuationReconciliationTestCommon):
         move_form.partner_id = vendor1
         move_form.purchase_vendor_bill_id = self.env['purchase.bill.match'].browse(-self.purchase_order1.id)
         move_form.invoice_date = move_form.date
-        for i in range(len(self.purchase_order1.order_line)):
+        for i in range(len(self.purchase_order1.line_ids)):
             with move_form.invoice_line_ids.edit(i) as line_form:
                 line_form.tax_ids.clear()
         self.vendor_bill1 = move_form.save()
@@ -357,19 +357,19 @@ class TestStockValuation(ValuationReconciliationTestCommon):
         self._dropship_product1()
 
         # Check Dropship 1 COGS
-        dropship1_layers = self.purchase_order1.order_line.move_ids.stock_valuation_layer_ids
+        dropship1_layers = self.purchase_order1.line_ids.move_ids.stock_valuation_layer_ids
         self.assertEqual(len(dropship1_layers), 2)
         self.assertEqual(dropship1_layers[0].value, 8)
         dropship1_cogs_line = self.customer_invoice1.line_ids.filtered(lambda aml: aml.account_id.id == account_output.id)
         self.assertEqual(dropship1_cogs_line.balance, -8)
 
         # --- Create Dropship 2 --- #
-        self.sale_order1.order_line.product_uom_qty = 2  # Should create a new PO
+        self.sale_order1.line_ids.product_qty = 2  # Should create a new PO
         self.purchase_order2 = self.env['purchase.order'].search(
             [('reference_ids', '=', self.sale_order1.reference_ids.id), ('state', '=', 'draft')]
         )
-        self.purchase_order2.order_line.price_unit = 16
-        self.purchase_order2.button_confirm()
+        self.purchase_order2.line_ids.price_unit = 16
+        self.purchase_order2.action_confirm()
 
         # Validate dropship transfer
         dropship2 = self.sale_order1.picking_ids.filtered(lambda pck: pck.state != "done")
@@ -390,12 +390,12 @@ class TestStockValuation(ValuationReconciliationTestCommon):
         self.assertEqual(dropship2_cogs_line.balance, -16)
 
         # --- Create Dropship 3 --- #
-        self.sale_order1.order_line.product_uom_qty = 3  # Should create a new PO
+        self.sale_order1.line_ids.product_qty = 3  # Should create a new PO
         self.purchase_order3 = self.env['purchase.order'].search(
             [('reference_ids', '=', self.sale_order1.reference_ids.id), ('state', '=', 'draft')]
         )
-        self.purchase_order3.order_line.price_unit = 24
-        self.purchase_order3.button_confirm()
+        self.purchase_order3.line_ids.price_unit = 24
+        self.purchase_order3.action_confirm()
 
         # Validate dropship transfer
         dropship3 = self.sale_order1.picking_ids.filtered(lambda pck: pck.state != "done")
@@ -460,13 +460,13 @@ class TestStockValuation(ValuationReconciliationTestCommon):
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
-            'order_line': [
-                (0, 0, {'name': product.name, 'product_id': product.id, 'product_uom_qty': 1}),
+            'line_ids': [
+                (0, 0, {'name': product.name, 'product_id': product.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
-        self.env['purchase.order'].search([], order='id desc', limit=1).button_confirm()
-        self.assertEqual(sale_order.order_line.qty_delivered, 0.0)
+        self.env['purchase.order'].search([], order='id desc', limit=1).action_confirm()
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0)
         picking = sale_order.picking_ids
         picking.button_validate()
 

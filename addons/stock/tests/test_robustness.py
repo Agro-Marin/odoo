@@ -309,7 +309,7 @@ class TestRobustness(TransactionCase):
             }
         )
         moveA._action_done()
-        moveA._set_lot_ids()
+        moveA._inverse_lot_ids()
 
         self.assertEqual(moveA.quantity, 5)
 

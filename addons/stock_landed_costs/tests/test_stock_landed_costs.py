@@ -178,7 +178,7 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
             po = self.env['purchase.order'].create({
                 'partner_id': self.partner_a.id,
                 'currency_id': self.company_data['currency'].id,
-                'order_line': [
+                'line_ids': [
                     (0, 0, {
                         'name': self.product_a.name,
                         'product_id': self.product_a.id,
@@ -195,12 +195,12 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
                     }),
                 ],
             })
-            po.button_confirm()
+            po.action_confirm()
 
             receipt = po.picking_ids
             receipt.move_ids.quantity = 1
             receipt.button_validate()
-            po.order_line[1].qty_received = 1
+            po.line_ids[1].qty_received = 1
 
             po.action_create_invoice()
             bill = po.invoice_ids

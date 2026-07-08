@@ -21,12 +21,14 @@ _logger = logging.getLogger(__name__)
 
 
 class StockWarehouseOrderpoint(models.Model):
-    """Defines Minimum stock rules."""
-
     _name = "stock.warehouse.orderpoint"
     _description = "Minimum Inventory Rule"
     _check_company_auto = True
     _order = "location_id,company_id,id"
+
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
 
     name = fields.Char(
         string="Name",
@@ -238,10 +240,66 @@ class StockWarehouseOrderpoint(models.Model):
         help="Number of completed incoming transfers used to compute lead time statistics.",
     )
 
+    # ------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------
+
     _product_location_check = models.Constraint(
         "unique (product_id, location_id, company_id)",
         "A replenishment rule already exists for this product on this location.",
     )
+
+    @api.constrains("product_min_qty", "product_max_qty")
+    def _check_min_max_qty(self):
+        if any(
+            orderpoint.product_min_qty > orderpoint.product_max_qty
+            for orderpoint in self
+        ):
+            raise ValidationError(
+                _(
+                    "The minimum quantity must be less than or equal to the maximum quantity.",
+                ),
+            )
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if any(
+            val.get("snoozed_until", False)
+            and val.get("trigger", self.default_get(["trigger"])["trigger"]) == "auto"
+            for val in vals_list
+        ):
+            raise UserError(
+                _(
+                    "You can not create a snoozed orderpoint that is not manually triggered.",
+                ),
+            )
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if "company_id" in vals:
+            for orderpoint in self:
+                if orderpoint.company_id.id != vals["company_id"]:
+                    raise UserError(
+                        _(
+                            "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one.",
+                        ),
+                    )
+        if "snoozed_until" in vals:
+            if any(orderpoint.trigger == "auto" for orderpoint in self):
+                raise UserError(
+                    _(
+                        "You can only snooze manual orderpoints. You should rather archive 'auto-trigger' orderpoints if you do not want them to be triggered.",
+                    ),
+                )
+        return super().write(vals)
+
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
 
     @api.depends("warehouse_id")
     def _compute_allowed_location_ids(self):
@@ -550,64 +608,9 @@ class StockWarehouseOrderpoint(models.Model):
                 else ""
             )
 
-    def _inverse_route_id(self):
-        # Override this method to add custom behavior when route is set
-        pass
-
-    @api.depends(
-        "product_id",
-        "product_id.categ_id",
-        "product_id.route_ids",
-        "product_id.categ_id.route_ids",
-        "location_id",
-    )
-    def _compute_route_id_placeholder(self):
-        for orderpoint in self:
-            default_route = orderpoint._get_default_route()
-            orderpoint.route_id_placeholder = (
-                default_route.display_name if default_route else ""
-            )
-
-    @api.depends(
-        "route_id",
-        "product_id",
-        "product_id.categ_id",
-        "product_id.route_ids",
-        "product_id.categ_id.route_ids",
-        "location_id",
-    )
-    def _compute_effective_route_id(self):
-        for orderpoint in self:
-            orderpoint.effective_route_id = (
-                orderpoint.route_id
-                if orderpoint.route_id
-                else orderpoint._get_default_route()
-            )
-
-    def _search_effective_route_id(self, operator, value):
-        routes = self.env["stock.route"].search([("id", operator, value)])
-        orderpoints = (
-            self.env["stock.warehouse.orderpoint"]
-            .search([])
-            .filtered(lambda orderpoint: orderpoint.effective_route_id in routes)
-        )
-        return [("id", "in", orderpoints.ids)]
-
     @api.depends("route_id", "product_id")
     def _compute_days_to_order(self):
         self.days_to_order = 0
-
-    @api.constrains("product_min_qty", "product_max_qty")
-    def _check_min_max_qty(self):
-        if any(
-            orderpoint.product_min_qty > orderpoint.product_max_qty
-            for orderpoint in self
-        ):
-            raise ValidationError(
-                _(
-                    "The minimum quantity must be less than or equal to the maximum quantity.",
-                ),
-            )
 
     @api.depends("location_id", "company_id")
     def _compute_warehouse_id(self):
@@ -659,42 +662,173 @@ class StockWarehouseOrderpoint(models.Model):
                     > 0
                 )
 
+    @api.depends(
+        "product_id",
+        "product_id.categ_id",
+        "product_id.route_ids",
+        "product_id.categ_id.route_ids",
+        "location_id",
+    )
+    def _compute_route_id_placeholder(self):
+        for orderpoint in self:
+            default_route = orderpoint._get_default_route()
+            orderpoint.route_id_placeholder = (
+                default_route.display_name if default_route else ""
+            )
+
+    @api.depends(
+        "route_id",
+        "product_id",
+        "product_id.categ_id",
+        "product_id.route_ids",
+        "product_id.categ_id.route_ids",
+        "location_id",
+    )
+    def _compute_effective_route_id(self):
+        for orderpoint in self:
+            orderpoint.effective_route_id = (
+                orderpoint.route_id
+                if orderpoint.route_id
+                else orderpoint._get_default_route()
+            )
+
+    @api.depends(
+        "product_id",
+        "location_id",
+        "product_id.stock_move_ids",
+        "product_id.stock_move_ids.state",
+        "product_id.stock_move_ids.date",
+        "product_id.stock_move_ids.product_uom_qty",
+        "product_id.seller_ids.delay",
+    )
+    def _compute_qty(self):
+        orderpoints_contexts = defaultdict(
+            lambda: self.env["stock.warehouse.orderpoint"],
+        )
+        for orderpoint in self:
+            if not orderpoint.product_id or not orderpoint.location_id:
+                orderpoint.qty_on_hand = False
+                orderpoint.qty_forecast = False
+                continue
+            orderpoint_context = orderpoint._get_product_context()
+            product_context = frozendict({**orderpoint_context})
+            orderpoints_contexts[product_context] |= orderpoint
+        for orderpoint_context, orderpoints_by_context in orderpoints_contexts.items():
+            products_qty = {
+                p["id"]: p
+                for p in orderpoints_by_context.product_id.with_context(
+                    orderpoint_context,
+                ).read(["qty_available", "virtual_available"])
+            }
+            products_qty_in_progress = orderpoints_by_context._quantity_in_progress()
+            for orderpoint in orderpoints_by_context:
+                orderpoint.qty_on_hand = products_qty[orderpoint.product_id.id][
+                    "qty_available"
+                ]
+                orderpoint.qty_forecast = (
+                    products_qty[orderpoint.product_id.id]["virtual_available"]
+                    + products_qty_in_progress[orderpoint.id]
+                )
+
+    @api.depends("qty_to_order_manual", "qty_to_order_computed")
+    def _compute_qty_to_order(self):
+        for orderpoint in self:
+            orderpoint.qty_to_order = (
+                orderpoint.qty_to_order_manual
+                if orderpoint.qty_to_order_manual
+                else orderpoint.qty_to_order_computed
+            )
+
+    @api.depends(
+        "replenishment_uom_id",
+        "product_min_qty",
+        "product_max_qty",
+        "product_id",
+        "location_id",
+        "product_id.seller_ids.delay",
+        "company_id.horizon_days",
+    )
+    def _compute_qty_to_order_computed(self):
+        def to_compute(orderpoint):
+            rounding = orderpoint.product_uom.rounding
+            # Only extend to the lead-time horizon when the plain forecast is already
+            # below product_min_qty; otherwise there is nothing to resupply.
+            return (
+                orderpoint.id
+                and float_compare(
+                    orderpoint.qty_forecast,
+                    orderpoint.product_min_qty,
+                    precision_rounding=rounding,
+                )
+                < 0
+            )
+
+        orderpoints = self.filtered(to_compute)
+        qty_in_progress_by_orderpoint = orderpoints._quantity_in_progress()
+        for orderpoint in orderpoints:
+            orderpoint.qty_to_order_computed = orderpoint._get_qty_to_order(
+                qty_in_progress_by_orderpoint=qty_in_progress_by_orderpoint,
+            )
+        (self - orderpoints).qty_to_order_computed = False
+
+    # ------------------------------------------------------------
+    # INVERSE METHODS
+    # ------------------------------------------------------------
+
+    def _inverse_route_id(self):
+        # Override this method to add custom behavior when route is set
+        pass
+
+    def _inverse_qty_to_order(self):
+        for orderpoint in self:
+            if orderpoint.trigger == "auto":
+                orderpoint.qty_to_order_manual = 0
+            elif not orderpoint.qty_to_order_manual and not orderpoint.qty_to_order:
+                orderpoint.qty_to_order = orderpoint.qty_to_order_computed
+            elif orderpoint.qty_to_order != orderpoint.qty_to_order_computed:
+                orderpoint.qty_to_order_manual = orderpoint.qty_to_order
+
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
+
+    def _search_effective_route_id(self, operator, value):
+        routes = self.env["stock.route"].search([("id", operator, value)])
+        orderpoints = (
+            self.env["stock.warehouse.orderpoint"]
+            .search([])
+            .filtered(lambda orderpoint: orderpoint.effective_route_id in routes)
+        )
+        return [("id", "in", orderpoints.ids)]
+
+    def _search_qty_to_order(self, operator, value):
+        records = self.search_fetch(
+            [("qty_to_order_manual", "in", [0, False])],
+            ["qty_to_order_computed"],
+        )
+        matched_ids = records.filtered_domain(
+            [("qty_to_order_computed", operator, value)],
+        ).ids
+        return [
+            "|",
+            "&",
+            ("qty_to_order_manual", operator, value),
+            ("qty_to_order_manual", "not in", [0, False]),
+            ("id", "in", matched_ids),
+        ]
+
+    # ------------------------------------------------------------
+    # ONCHANGE METHODS
+    # ------------------------------------------------------------
+
     @api.onchange("product_id")
     def _onchange_product_id(self):
         if self.product_id:
             self.product_uom = self.product_id.uom_id.id
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        if any(
-            val.get("snoozed_until", False)
-            and val.get("trigger", self.default_get(["trigger"])["trigger"]) == "auto"
-            for val in vals_list
-        ):
-            raise UserError(
-                _(
-                    "You can not create a snoozed orderpoint that is not manually triggered.",
-                ),
-            )
-        return super().create(vals_list)
-
-    def write(self, vals):
-        if "company_id" in vals:
-            for orderpoint in self:
-                if orderpoint.company_id.id != vals["company_id"]:
-                    raise UserError(
-                        _(
-                            "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one.",
-                        ),
-                    )
-        if "snoozed_until" in vals:
-            if any(orderpoint.trigger == "auto" for orderpoint in self):
-                raise UserError(
-                    _(
-                        "You can only snooze manual orderpoints. You should rather archive 'auto-trigger' orderpoints if you do not want them to be triggered.",
-                    ),
-                )
-        return super().write(vals)
+    # ------------------------------------------------------------
+    # ACTION METHODS
+    # ------------------------------------------------------------
 
     def action_product_forecast_report(self):
         self.ensure_one()
@@ -779,109 +913,12 @@ class StockWarehouseOrderpoint(models.Model):
         self.trigger = "auto"
         return self.action_replenish()
 
-    @api.depends(
-        "product_id",
-        "location_id",
-        "product_id.stock_move_ids",
-        "product_id.stock_move_ids.state",
-        "product_id.stock_move_ids.date",
-        "product_id.stock_move_ids.product_uom_qty",
-        "product_id.seller_ids.delay",
-    )
-    def _compute_qty(self):
-        orderpoints_contexts = defaultdict(
-            lambda: self.env["stock.warehouse.orderpoint"],
-        )
-        for orderpoint in self:
-            if not orderpoint.product_id or not orderpoint.location_id:
-                orderpoint.qty_on_hand = False
-                orderpoint.qty_forecast = False
-                continue
-            orderpoint_context = orderpoint._get_product_context()
-            product_context = frozendict({**orderpoint_context})
-            orderpoints_contexts[product_context] |= orderpoint
-        for orderpoint_context, orderpoints_by_context in orderpoints_contexts.items():
-            products_qty = {
-                p["id"]: p
-                for p in orderpoints_by_context.product_id.with_context(
-                    orderpoint_context,
-                ).read(["qty_available", "virtual_available"])
-            }
-            products_qty_in_progress = orderpoints_by_context._quantity_in_progress()
-            for orderpoint in orderpoints_by_context:
-                orderpoint.qty_on_hand = products_qty[orderpoint.product_id.id][
-                    "qty_available"
-                ]
-                orderpoint.qty_forecast = (
-                    products_qty[orderpoint.product_id.id]["virtual_available"]
-                    + products_qty_in_progress[orderpoint.id]
-                )
+    def action_remove_manual_qty_to_order(self):
+        self.qty_to_order_manual = 0
 
-    @api.depends("qty_to_order_manual", "qty_to_order_computed")
-    def _compute_qty_to_order(self):
-        for orderpoint in self:
-            orderpoint.qty_to_order = (
-                orderpoint.qty_to_order_manual
-                if orderpoint.qty_to_order_manual
-                else orderpoint.qty_to_order_computed
-            )
-
-    def _inverse_qty_to_order(self):
-        for orderpoint in self:
-            if orderpoint.trigger == "auto":
-                orderpoint.qty_to_order_manual = 0
-            elif not orderpoint.qty_to_order_manual and not orderpoint.qty_to_order:
-                orderpoint.qty_to_order = orderpoint.qty_to_order_computed
-            elif orderpoint.qty_to_order != orderpoint.qty_to_order_computed:
-                orderpoint.qty_to_order_manual = orderpoint.qty_to_order
-
-    def _search_qty_to_order(self, operator, value):
-        records = self.search_fetch(
-            [("qty_to_order_manual", "in", [0, False])],
-            ["qty_to_order_computed"],
-        )
-        matched_ids = records.filtered_domain(
-            [("qty_to_order_computed", operator, value)],
-        ).ids
-        return [
-            "|",
-            "&",
-            ("qty_to_order_manual", operator, value),
-            ("qty_to_order_manual", "not in", [0, False]),
-            ("id", "in", matched_ids),
-        ]
-
-    @api.depends(
-        "replenishment_uom_id",
-        "product_min_qty",
-        "product_max_qty",
-        "product_id",
-        "location_id",
-        "product_id.seller_ids.delay",
-        "company_id.horizon_days",
-    )
-    def _compute_qty_to_order_computed(self):
-        def to_compute(orderpoint):
-            rounding = orderpoint.product_uom.rounding
-            # Only extend to the lead-time horizon when the plain forecast is already
-            # below product_min_qty; otherwise there is nothing to resupply.
-            return (
-                orderpoint.id
-                and float_compare(
-                    orderpoint.qty_forecast,
-                    orderpoint.product_min_qty,
-                    precision_rounding=rounding,
-                )
-                < 0
-            )
-
-        orderpoints = self.filtered(to_compute)
-        qty_in_progress_by_orderpoint = orderpoints._quantity_in_progress()
-        for orderpoint in orderpoints:
-            orderpoint.qty_to_order_computed = orderpoint._get_qty_to_order(
-                qty_in_progress_by_orderpoint=qty_in_progress_by_orderpoint,
-            )
-        (self - orderpoints).qty_to_order_computed = False
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _get_default_rule(self):
         self.ensure_one()
@@ -1193,9 +1230,6 @@ class StockWarehouseOrderpoint(models.Model):
         )
         return action
 
-    def action_remove_manual_qty_to_order(self):
-        self.qty_to_order_manual = 0
-
     @api.model
     def _get_orderpoint_values(self, product, location):
         return {
@@ -1238,36 +1272,54 @@ class StockWarehouseOrderpoint(models.Model):
             }
         return False
 
-    def _quantity_in_progress(self):
-        """Return, per orderpoint id, the quantity not yet reflected in virtual stock but
-        already accounted for by this rule (e.g. purchases created from orderpoints).
-        To be overridden; returns 0 for all orderpoints by default.
-        """
-        return dict(self.mapped(lambda x: (x.id, 0.0)))
+    def _get_orderpoint_procurement_date(self):
+        return (
+            timezone(self.company_id.partner_id.tz or "UTC")
+            .localize(datetime.combine(self.lead_horizon_date, time(12)))
+            .astimezone(UTC)
+            .replace(tzinfo=None)
+        )
 
-    @api.autovacuum
-    def _unlink_processed_orderpoints(self):
-        """Delete auto-created manual orderpoints (create_uid=SUPERUSER_ID) that no longer
-        have anything to order, i.e. the shortage they were created for has been resolved.
+    def _get_orderpoint_products(self):
+        return self.env["product.product"].search(
+            [("is_storable", "=", True), ("stock_move_ids", "!=", False)],
+        )
+
+    def _get_orderpoint_locations(self):
+        return self.env["stock.location"].search([("replenish_location", "=", True)])
+
+    def _get_multiple_rounded_qty(self, qty_to_order):
+        replenishment_multiple = (
+            self.replenishment_uom_id
+            or self._get_replenishment_multiple_alternative(qty_to_order)
+        )
+        if replenishment_multiple:
+            # Round UP so the ordered qty fully covers the shortage (use DOWN instead if
+            # overshooting product_max_qty must be avoided).
+            qty_to_order = self.product_id.uom_id._compute_quantity(
+                qty_to_order,
+                replenishment_multiple,
+            )
+            qty_to_order = fields.Float.round(
+                qty_to_order,
+                precision_digits=0,
+                rounding_method="UP",
+            )
+            qty_to_order = replenishment_multiple._compute_quantity(
+                qty_to_order,
+                self.product_id.uom_id,
+            )
+        return qty_to_order
+
+    def get_horizon_days(self):
+        """Return the horizon in days: the context value set by the replenishment view if
+        present, otherwise the horizon_days of self's company (self should have at most one
+        company), falling back to the current user's company.
         """
-        domain = Domain(
-            [
-                ("create_uid", "=", SUPERUSER_ID),
-                ("trigger", "=", "manual"),
-            ],
+        return self.env.context.get(
+            "global_horizon_days",
+            (self.company_id or self.env.company).horizon_days,
         )
-        if self.ids:
-            domain &= Domain("id", "in", self.ids)
-        manual_orderpoints = (
-            self.env["stock.warehouse.orderpoint"]
-            .with_context(active_test=False)
-            .search(domain)
-        )
-        orderpoints_to_remove = manual_orderpoints.filtered(
-            lambda o: o.qty_to_order <= 0.0,
-        )
-        orderpoints_to_remove.unlink()
-        return orderpoints_to_remove
 
     def _prepare_procurement_vals(self, date=False):
         """Prepare procurement values for the stock rule triggered by this orderpoint.
@@ -1340,7 +1392,7 @@ class StockWarehouseOrderpoint(models.Model):
                             global_horizon_days = orderpoint.get_horizon_days()
                             if global_horizon_days:
                                 date -= relativedelta.relativedelta(
-                                    days=int(global_horizon_days),
+                                    days=global_horizon_days,
                                 )
                             values = orderpoint._prepare_procurement_vals(date=date)
                             procurements.append(
@@ -1423,51 +1475,33 @@ class StockWarehouseOrderpoint(models.Model):
     def _post_process_scheduler(self):
         return True
 
-    def _get_orderpoint_procurement_date(self):
-        return (
-            timezone(self.company_id.partner_id.tz or "UTC")
-            .localize(datetime.combine(self.lead_horizon_date, time(12)))
-            .astimezone(UTC)
-            .replace(tzinfo=None)
-        )
-
-    def _get_orderpoint_products(self):
-        return self.env["product.product"].search(
-            [("is_storable", "=", True), ("stock_move_ids", "!=", False)],
-        )
-
-    def _get_orderpoint_locations(self):
-        return self.env["stock.location"].search([("replenish_location", "=", True)])
-
-    def _get_multiple_rounded_qty(self, qty_to_order):
-        replenishment_multiple = (
-            self.replenishment_uom_id
-            or self._get_replenishment_multiple_alternative(qty_to_order)
-        )
-        if replenishment_multiple:
-            # Round UP so the ordered qty fully covers the shortage (use DOWN instead if
-            # overshooting product_max_qty must be avoided).
-            qty_to_order = self.product_id.uom_id._compute_quantity(
-                qty_to_order,
-                replenishment_multiple,
-            )
-            qty_to_order = fields.Float.round(
-                qty_to_order,
-                precision_digits=0,
-                rounding_method="UP",
-            )
-            qty_to_order = replenishment_multiple._compute_quantity(
-                qty_to_order,
-                self.product_id.uom_id,
-            )
-        return qty_to_order
-
-    def get_horizon_days(self):
-        """Return the horizon in days: the context value set by the replenishment view if
-        present, otherwise the horizon_days of self's company (self should have at most one
-        company), falling back to the current user's company.
+    def _quantity_in_progress(self):
+        """Return, per orderpoint id, the quantity not yet reflected in virtual stock but
+        already accounted for by this rule (e.g. purchases created from orderpoints).
+        To be overridden; returns 0 for all orderpoints by default.
         """
-        return self.env.context.get(
-            "global_horizon_days",
-            (self.company_id or self.env.company).horizon_days,
+        return dict(self.mapped(lambda x: (x.id, 0.0)))
+
+    @api.autovacuum
+    def _unlink_processed_orderpoints(self):
+        """Delete auto-created manual orderpoints (create_uid=SUPERUSER_ID) that no longer
+        have anything to order, i.e. the shortage they were created for has been resolved.
+        """
+        domain = Domain(
+            [
+                ("create_uid", "=", SUPERUSER_ID),
+                ("trigger", "=", "manual"),
+            ],
         )
+        if self.ids:
+            domain &= Domain("id", "in", self.ids)
+        manual_orderpoints = (
+            self.env["stock.warehouse.orderpoint"]
+            .with_context(active_test=False)
+            .search(domain)
+        )
+        orderpoints_to_remove = manual_orderpoints.filtered(
+            lambda o: o.qty_to_order <= 0.0,
+        )
+        orderpoints_to_remove.unlink()
+        return orderpoints_to_remove

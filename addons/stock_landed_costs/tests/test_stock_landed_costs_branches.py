@@ -71,13 +71,13 @@ class TestStockLandedCostsBranches(TestStockValuationLCCommon):
         """
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.vendor1
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 1
             po_line.price_unit = 10
             po_line.tax_ids.clear()
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_line_ids.quantity = 1

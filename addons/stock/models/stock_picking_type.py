@@ -16,6 +16,10 @@ class StockPickingType(models.Model):
     _rec_names_search = ["name", "warehouse_id.name"]
     _check_company_auto = True
 
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
     name = fields.Char(
         string="Operation Type",
         required=True,
@@ -266,6 +270,10 @@ class StockPickingType(models.Model):
         help="It specifies goods to be transferred partially or all at once",
     )
 
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -307,16 +315,6 @@ class StockPickingType(models.Model):
                         .id
                     )
         return super().create(vals_list)
-
-    def copy_data(self, default=None):
-        default = dict(default or {})
-        vals_list = super().copy_data(default=default)
-        for picking, vals in zip(self, vals_list):
-            if "name" not in default:
-                vals["name"] = _("%s (copy)", picking.name)
-            if "sequence_code" not in default and "sequence_id" not in default:
-                vals["sequence_code"] = _("%s (copy)", picking.sequence_code)
-        return vals_list
 
     def write(self, vals):
         if "company_id" in vals:
@@ -404,23 +402,15 @@ class StockPickingType(models.Model):
 
         return super().write(vals)
 
-    def _compute_is_favorite(self):
-        for picking_type in self:
-            picking_type.is_favorite = self.env.user in picking_type.favorite_user_ids
-
-    def _inverse_is_favorite(self):
-        sudoed_self = self.sudo()
-        to_fav = sudoed_self.filtered(
-            lambda picking_type: self.env.user not in picking_type.favorite_user_ids
-        )
-        to_fav.write({"favorite_user_ids": [(4, self.env.uid)]})
-        (sudoed_self - to_fav).write({"favorite_user_ids": [(3, self.env.uid)]})
-
-    @api.model
-    def _search_is_favorite(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-        return [("favorite_user_ids", "in", [self.env.uid])]
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        for picking, vals in zip(self, vals_list):
+            if "name" not in default:
+                vals["name"] = _("%s (copy)", picking.name)
+            if "sequence_code" not in default and "sequence_id" not in default:
+                vals["sequence_code"] = _("%s (copy)", picking.sequence_code)
+        return vals_list
 
     def _order_field_to_sql(self, alias, field_name, direction, nulls, query):
         if field_name == "is_favorite":
@@ -436,6 +426,14 @@ class StockPickingType(models.Model):
             return SQL("%s %s %s", sql_field, direction, nulls)
 
         return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
+
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
+    def _compute_is_favorite(self):
+        for picking_type in self:
+            picking_type.is_favorite = self.env.user in picking_type.favorite_user_ids
 
     @api.depends("code")
     def _compute_hide_reservation_method(self):
@@ -506,23 +504,6 @@ class StockPickingType(models.Model):
             if picking_type.code == "outgoing":
                 picking_type.use_existing_lots = True
 
-    @api.model
-    def _search_display_name(self, operator, value):
-        # Try to reverse the `display_name` structure
-        if operator == "in":
-            return Domain.OR(self._search_display_name("=", v) for v in value)
-        if operator == "not in":
-            return NotImplemented
-        parts = isinstance(value, str) and value.split(": ")
-        if parts and len(parts) == 2:
-            return Domain("warehouse_id.name", operator, parts[0]) & Domain(
-                "name", operator, parts[1]
-            )
-        if operator == "=":
-            operator = "in"
-            value = [value]
-        return super()._search_display_name(operator, value)
-
     @api.depends("code")
     def _compute_default_location_src_id(self):
         for picking_type in self:
@@ -556,19 +537,6 @@ class StockPickingType(models.Model):
                 picking_type.print_label = False
             elif picking_type.code == "outgoing":
                 picking_type.print_label = True
-
-    @api.onchange("code")
-    def _onchange_picking_code(self):
-        if self.code == "internal" and not self.env.user.has_group(
-            "stock.group_stock_multi_locations"
-        ):
-            return {
-                "warning": {
-                    "message": _(
-                        "You need to activate storage locations to be able to do internal operation types."
-                    )
-                }
-            }
 
     @api.depends("company_id")
     def _compute_warehouse_id(self):
@@ -613,6 +581,62 @@ class StockPickingType(models.Model):
 
         self._prepare_graph_data(summaries)
 
+    # ------------------------------------------------------------
+    # INVERSE METHODS
+    # ------------------------------------------------------------
+
+    def _inverse_is_favorite(self):
+        sudoed_self = self.sudo()
+        to_fav = sudoed_self.filtered(
+            lambda picking_type: self.env.user not in picking_type.favorite_user_ids
+        )
+        to_fav.write({"favorite_user_ids": [(4, self.env.uid)]})
+        (sudoed_self - to_fav).write({"favorite_user_ids": [(3, self.env.uid)]})
+
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
+
+    @api.model
+    def _search_is_favorite(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        return [("favorite_user_ids", "in", [self.env.uid])]
+
+    @api.model
+    def _search_display_name(self, operator, value):
+        # Try to reverse the `display_name` structure
+        if operator == "in":
+            return Domain.OR(self._search_display_name("=", v) for v in value)
+        if operator == "not in":
+            return NotImplemented
+        parts = isinstance(value, str) and value.split(": ")
+        if parts and len(parts) == 2:
+            return Domain("warehouse_id.name", operator, parts[0]) & Domain(
+                "name", operator, parts[1]
+            )
+        if operator == "=":
+            operator = "in"
+            value = [value]
+        return super()._search_display_name(operator, value)
+
+    # ------------------------------------------------------------
+    # ONCHANGE METHODS
+    # ------------------------------------------------------------
+
+    @api.onchange("code")
+    def _onchange_picking_code(self):
+        if self.code == "internal" and not self.env.user.has_group(
+            "stock.group_stock_multi_locations"
+        ):
+            return {
+                "warning": {
+                    "message": _(
+                        "You need to activate storage locations to be able to do internal operation types."
+                    )
+                }
+            }
+
     @api.onchange("sequence_code")
     def _onchange_sequence_code(self):
         if not self.sequence_code:
@@ -636,6 +660,10 @@ class StockPickingType(models.Model):
                 }
             }
 
+    # ------------------------------------------------------------
+    # ACTION METHODS
+    # ------------------------------------------------------------
+
     @api.model
     def action_redirect_to_barcode_installation(self):
         action = self.env["ir.actions.act_window"]._for_xml_id("base.open_module_tree")
@@ -643,6 +671,10 @@ class StockPickingType(models.Model):
             literal_eval(action["context"]), search_default_name="Barcode"
         )
         return action
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _get_action(self, action_xmlid):
         action = self.env["ir.actions.actions"]._for_xml_id(action_xmlid)
@@ -733,6 +765,15 @@ class StockPickingType(models.Model):
             (i, d, self.env._("Transfers")) for i, d in picking_type_id_to_dates.items()
         ]
 
+    def _get_code_report_name(self):
+        self.ensure_one()
+        code_names = {
+            "outgoing": _("Delivery Note"),
+            "incoming": _("Goods Receipt Note"),
+            "internal": _("Internal Move"),
+        }
+        return code_names.get(self.code)
+
     def _prepare_graph_data(self, summaries):
         """Convert each picking type summary into dashboard graph data.
 
@@ -770,12 +811,3 @@ class StockPickingType(models.Model):
                 }
             ]
             picking_type.kanban_dashboard_graph = json.dumps(graph_data)
-
-    def _get_code_report_name(self):
-        self.ensure_one()
-        code_names = {
-            "outgoing": _("Delivery Note"),
-            "incoming": _("Goods Receipt Note"),
-            "internal": _("Internal Move"),
-        }
-        return code_names.get(self.code)
