@@ -16,16 +16,14 @@ from odoo.tools import (
 )
 from odoo.tools.translate import _
 
-# field_xmlid and selection_xmlid are re-exported for backward compatibility
-# (external importers still reference them via ir_model).
-from .ir_model_common import (  # noqa: F401
+from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
-    field_xmlid,
+    compute_modules,
     inherit_xmlid,
     mark_modified,
     model_xmlid,
+    reload_schema,
     select_en,
-    selection_xmlid,
     upsert_en,
 )
 
@@ -157,14 +155,7 @@ class IrModel(models.Model):
 
     @api.depends()
     def _compute_modules(self) -> None:
-        installed_modules = self.env["ir.module.module"].search(
-            [("state", "=", "installed")]
-        )
-        installed_names = set(installed_modules.mapped("name"))
-        xml_ids = self._get_external_ids()
-        for model in self:
-            module_names = {xml_id.split(".")[0] for xml_id in xml_ids[model.id]}
-            model.modules = ", ".join(sorted(installed_names & module_names))
+        compute_modules(self)
 
     @api.depends()
     def _compute_view_ids(self) -> None:
@@ -395,16 +386,11 @@ class IrModel(models.Model):
             if vals.get("state", "manual") == "manual"
         ]
         if manual_models:
-            # setup models; this automatically adds model in registry
-            self.env.flush_all()
-            # incremental setup will reload custom models
-            self.pool._setup_models__(self.env.cr, [])
-            # update database schema
-            self.pool.init_models(
-                self.env.cr,
-                manual_models,
-                dict(self.env.context, update_custom_fields=True),
-            )
+            # setup models (the incremental setup with an empty list reloads
+            # custom models, which adds them to the registry), then create
+            # their database schema; freshly created models have no
+            # descendants, so the _inherits expansion is a no-op here
+            reload_schema(self.env, [], manual_models)
         return res
 
     @api.model
@@ -614,9 +600,7 @@ class IrModelInherit(models.Model):
 
         # update their XML id: resolve every model/parent id to its xmlid-safe
         # name once, instead of re-browsing (twice) inside the loop below
-        involved = IrModel.browse(
-            id_ for item in module_mapping for id_ in item[:2]
-        )
+        involved = IrModel.browse(id_ for item in module_mapping for id_ in item[:2])
         involved.fetch(["model"])
         xml_name = {rec.id: rec.model for rec in involved}
         data_list = []
@@ -628,23 +612,12 @@ class IrModelInherit(models.Model):
             record_id = inh_ids[(model_id, parent_id, parent_field_id)]
             data_list += [
                 {
-                    "xml_id": inherit_xmlid(module, xml_name[model_id], xml_name[parent_id]),
+                    "xml_id": inherit_xmlid(
+                        module, xml_name[model_id], xml_name[parent_id]
+                    ),
                     "record": self.browse(record_id),
                 }
                 for module in modules
             ]
 
         self.env["ir.model.data"]._update_xmlids(data_list)
-
-
-# Re-exports for backward compatibility (classes moved to separate files)
-from .ir_model_access import IrModelAccess  # noqa: E402, F401
-from .ir_model_data import IrModelData  # noqa: E402, F401
-from .ir_model_fields import FIELD_TYPES, IrModelFields  # noqa: E402, F401
-from .ir_model_fields_selection import (  # noqa: E402, F401
-    IrModelFieldsSelection,
-)
-from .ir_model_reflection import (  # noqa: E402, F401
-    IrModelConstraint,
-    IrModelRelation,
-)
