@@ -818,16 +818,11 @@ class TestVariantsImages(ProductVariantsCommon):
         and defaults to the template image otherwise.
         """
         # Pretend setup happened in an older transaction by updating on the SQL layer and making sure it gets reloaded
-        # Using _write() instead of write() because write() only allows updating log access fields at boot time
+        # Using _write_multi() instead of write() because write() only allows updating log access fields at boot time
         before = self.cr.now() - timedelta(milliseconds=1)
-        self.template._write({
-            'create_date': before,
-            'write_date': before,
-        })
-        self.variants._write({
-            'create_date': before,
-            'write_date': before,
-        })
+        access_dates = {'create_date': before, 'write_date': before}
+        self.template._write_multi([access_dates])
+        self.variants._write_multi([dict(access_dates) for _ in self.variants])
         self.template.invalidate_recordset(['create_date', 'write_date'])
         self.variants.invalidate_recordset(['create_date', 'write_date'])
 

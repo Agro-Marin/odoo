@@ -140,7 +140,7 @@ test("Editing the description shouldn't show the translated product name", async
         ],
     });
     const [so] = env["sale.order"].browse(soId);
-    const [sol] = env["sale.order.line"].browse(so.order_line);
+    const [sol] = env["sale.order.line"].browse(so.line_ids);
     await mountView({
         type: "form",
         resModel: "sale.order",

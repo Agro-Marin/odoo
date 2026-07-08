@@ -44,8 +44,8 @@ class TestWebsiteEventSaleCart(TestWebsiteEventSaleCommon, TestWebsiteSaleCartAb
             'event_id': self.event.id,
             'event_ticket_id': self.ticket.id,
         })]
-        cart1.order_line = create_order_line
-        cart2.order_line = create_order_line
+        cart1.line_ids = create_order_line
+        cart2.line_ids = create_order_line
         self.assertTrue(
             self.send_mail_patched(cart1.id),
             "Abandoned cart email should be sent for availlable tickets",

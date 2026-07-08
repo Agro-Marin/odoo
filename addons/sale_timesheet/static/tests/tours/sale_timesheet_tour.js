@@ -141,7 +141,7 @@ registry.category("web_tour.tours").add('sale_timesheet_tour', {
     content: 'Click on this stat button to see the SO linked to the SOL of the task.',
     run: "click",
 }, {
-    trigger: 'div[name="order_line"]',
+    trigger: 'div[name="line_ids"]',
     content: 'Check if the quantity delivered is equal to 1 hour.',
     run({ queryFirst }) {
         const header = this.anchor.querySelectorAll("thead > tr");

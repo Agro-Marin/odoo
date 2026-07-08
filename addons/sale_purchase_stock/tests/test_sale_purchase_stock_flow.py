@@ -48,7 +48,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         """
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = self.env.user.partner_id
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = self.mto_product
         so = so_form.save()
         so.action_confirm()
@@ -71,7 +71,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         """
         so = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.mto_product.name,
                 'product_id': self.mto_product.id,
                 'product_uom_qty': 10,
@@ -95,10 +95,10 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
         self.assertEqual(delivery.state, 'done')
         self.assertEqual(delivery.move_ids.move_line_ids.quantity, 12)
-        self.assertEqual(so.order_line.qty_delivered, 12)
+        self.assertEqual(so.line_ids.qty_delivered, 12)
 
         sm.move_line_ids.quantity = 10
-        self.assertEqual(so.order_line.qty_delivered, 10)
+        self.assertEqual(so.line_ids.qty_delivered, 10)
 
     def test_sale_need_purchase_variants(self):
         """
@@ -142,7 +142,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         ])
         so = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': red_product.name,
                     'product_id': red_product.id,
@@ -161,16 +161,16 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
         red_po = self.env['purchase.order'].search([('partner_id', '=', red_vendor.id)], limit=1)
         self.assertTrue(red_po)
-        self.assertRecordValues(red_po.order_line, [{'product_id': red_product.id, 'product_uom_qty': 2, 'price_unit': 5}])
+        self.assertRecordValues(red_po.line_ids, [{'product_id': red_product.id, 'product_uom_qty': 2, 'price_unit': 5}])
         blue_po = self.env['purchase.order'].search([('partner_id', '=', blue_vendor.id)], limit=1)
         self.assertTrue(blue_po)
-        self.assertRecordValues(blue_po.order_line, [{'product_id': blue_product.id, 'product_uom_qty': 3, 'price_unit': 10}])
+        self.assertRecordValues(blue_po.line_ids, [{'product_id': blue_product.id, 'product_uom_qty': 3, 'price_unit': 10}])
 
     def test_link_sale_purchase_mto_link_multi_step(self):
         self.warehouse.reception_steps = 'two_steps'
         sale = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': self.mto_product.name,
                     'product_id': self.mto_product.id,
@@ -182,7 +182,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         sale.action_confirm()
         self.assertEqual(sale.purchase_order_count, 1)
         purchase = sale._get_purchase_orders()
-        purchase.button_confirm()
+        purchase.action_confirm()
 
         receipt = purchase.picking_ids
         receipt.move_ids.write({'quantity': 1, 'picked': True})
@@ -210,7 +210,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         })
         so = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': product_1.name,
                     'product_id': product_1.id,
@@ -233,10 +233,10 @@ class TestSalePurchaseStockFlow(TransactionCase):
         # Since the products have two different vendors, two purchase orders should be created.
         self.assertEqual(so.purchase_order_count, 2)
         po_2 = self.env['purchase.order'].search([('partner_id', '=', vendor_2.id)])
-        po_2.button_cancel()
+        po_2.action_cancel()
         # As one PO has been canceled, one of the moves should switch to MTS, while the other should remain in MTO.
         self.assertEqual(delivery.move_ids.mapped('procure_method'), ['make_to_order', 'make_to_stock'])
-        line_2 = so.order_line.filtered(lambda sol: sol.product_id == product_2)
+        line_2 = so.line_ids.filtered(lambda sol: sol.product_id == product_2)
         # Updating the SO line should trigger another delivery, as the product in the first picking is in MTS and not in MTO
         line_2.product_uom_qty = 0
         self.assertEqual(so.count_transfer_outgoing, 2)
@@ -257,7 +257,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         """
         so = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': self.mto_product.name,
                     'product_id': self.mto_product.id,
@@ -282,7 +282,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             {'product_id': self.mto_product.id, 'product_uom_qty': 2.0},
         ])
         with Form(so) as so_form:
-            with so_form.order_line.edit(0) as line:
+            with so_form.line_ids.edit(0) as line:
                 line.product_uom_qty = 1
         self.assertEqual(so.picking_ids, delivery | new_delivery)
         self.assertRecordValues(new_delivery.move_ids, [
@@ -317,7 +317,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({'product_id': product.id,'product_uom_qty': 2})],
+            'line_ids': [Command.create({'product_id': product.id,'product_uom_qty': 2})],
         })
         sale_order.action_confirm()
         pick_picking = sale_order.picking_ids[0]
@@ -347,13 +347,13 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {'product_id': product.id, 'price_unit': 100}),
             ],
         })
         sale_order.action_confirm()
-        self.assertFalse(sale_order.order_line.move_ids.move_orig_ids)
-        self.assertEqual(sale_order.order_line.move_ids.state, 'confirmed')
+        self.assertFalse(sale_order.line_ids.move_ids.move_orig_ids)
+        self.assertEqual(sale_order.line_ids.move_ids.state, 'confirmed')
 
     def test_reservation_on_mto_product_after_po_cancellation(self):
         """Test that a reservation can be made on an MTO product after its purchase order is cancelled.
@@ -364,7 +364,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         """
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.mto_product.id,
                     'product_uom_qty': 1,
@@ -389,7 +389,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         # Cancel the purchase order related to the MTO product
         purchase_order = sale_order._get_purchase_orders()
         self.assertEqual(purchase_order.state, 'draft')
-        purchase_order.button_cancel()
+        purchase_order.action_cancel()
         self.assertEqual(purchase_order.state, 'cancel')
         # The MTO product should now be in MTS
         self.assertEqual(sale_order.picking_ids.move_ids.mapped('procure_method'), ['make_to_stock', 'make_to_stock'])
@@ -419,7 +419,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         })
         so = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': fuzzy_drink.name,
                 'product_id': fuzzy_drink.id,
                 'product_uom_qty': 10,
@@ -428,13 +428,13 @@ class TestSalePurchaseStockFlow(TransactionCase):
         })
         so.action_confirm()
         po = so._get_purchase_orders()
-        self.assertEqual(po.order_line.product_uom_id, self.env.ref('uom.product_uom_unit'))
-        self.assertEqual(po.order_line.product_qty, 10)
-        self.assertEqual(po.order_line.price_unit, 1)
-        po.button_cancel()
+        self.assertEqual(po.line_ids.product_uom_id, self.env.ref('uom.product_uom_unit'))
+        self.assertEqual(po.line_ids.product_qty, 10)
+        self.assertEqual(po.line_ids.price_unit, 1)
+        po.action_cancel()
 
         so = so.copy({
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': fuzzy_drink.name,
                 'product_id': fuzzy_drink.id,
                 'product_uom_qty': 15,
@@ -443,9 +443,9 @@ class TestSalePurchaseStockFlow(TransactionCase):
         })
         so.action_confirm()
         po = so._get_purchase_orders()
-        self.assertEqual(po.order_line.product_uom_id, self.env.ref('uom.product_uom_pack_6'))
-        self.assertEqual(po.order_line.product_qty, 2.5)
-        self.assertEqual(po.order_line.price_unit, 5)
+        self.assertEqual(po.line_ids.product_uom_id, self.env.ref('uom.product_uom_pack_6'))
+        self.assertEqual(po.line_ids.product_qty, 2.5)
+        self.assertEqual(po.line_ids.price_unit, 5)
 
     def test_fifo_multiple_simultaneous_purchases_and_sales(self):
         """ Make sure that when validating the receipt of multiple PO at the same time, the move value is
@@ -465,28 +465,28 @@ class TestSalePurchaseStockFlow(TransactionCase):
         po1, po2, po3 = self.env['purchase.order'].create([{
             'partner_id': self.vendor.id,
             'picking_type_id': self.warehouse.in_type_id.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
                 'product_qty': 1,
                 'price_unit': price_unit,
             })],
         } for price_unit in [10, 20, 30]])
-        (po1 | po2 | po3).button_confirm()
+        (po1 | po2 | po3).action_confirm()
 
         receipts = (po1 | po2 | po3).picking_ids
         self.assertEqual(len(receipts), 3)
         receipts.button_validate()
 
         self.assertRecordValues(receipts.move_ids, [
-            {'purchase_line_id': po1.order_line.id, 'value': 10.0},
-            {'purchase_line_id': po2.order_line.id, 'value': 20.0},
-            {'purchase_line_id': po3.order_line.id, 'value': 30.0},
+            {'purchase_line_id': po1.line_ids.id, 'value': 10.0},
+            {'purchase_line_id': po2.line_ids.id, 'value': 20.0},
+            {'purchase_line_id': po3.line_ids.id, 'value': 30.0},
         ])
 
         so1, so2 = self.env['sale.order'].create([{
             'partner_id': self.customer.id,
             'warehouse_id': self.warehouse.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
                 'product_uom_qty': 1,
                 'price_unit': 50,
@@ -499,8 +499,8 @@ class TestSalePurchaseStockFlow(TransactionCase):
         deliveries.button_validate()
 
         self.assertRecordValues(deliveries.move_ids, [
-            {'sale_line_id': so1.order_line.id, 'value': 10.0},
-            {'sale_line_id': so2.order_line.id, 'value': 20.0},
+            {'sale_line_id': so1.line_ids.id, 'value': 10.0},
+            {'sale_line_id': so2.line_ids.id, 'value': 20.0},
         ])
 
     def test_mto_cancel_multi_steps_confirmed_purchase(self):
@@ -518,7 +518,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             self.env['stock.quant']._update_available_quantity(self.mto_product, wh.lot_stock_id, 10)
             sale_orders |= self.env['sale.order'].create([{
                 'partner_id': self.customer.id,
-                'order_line': [Command.create({
+                'line_ids': [Command.create({
                     'product_id': self.mto_product.id,
                     'product_uom_qty': 1,
                 })],
@@ -528,7 +528,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         self.assertListEqual(sale_orders.picking_ids.mapped('state'), ['waiting', 'waiting'])
         self.assertListEqual(sale_orders.picking_ids.move_ids.mapped('procure_method'), ['make_to_order', 'make_to_order'])
         purchase_orders = sale_orders._get_purchase_orders()
-        purchase_orders.button_confirm()
+        purchase_orders.action_confirm()
         self.assertListEqual(sale_orders.picking_ids.move_ids.move_orig_ids.ids, purchase_orders.picking_ids.move_ids.ids)
         purchase_orders.picking_ids.action_cancel()
         self.assertListEqual(sale_orders.picking_ids.mapped('state'), ['confirmed', 'confirmed'])

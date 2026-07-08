@@ -55,7 +55,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
         so.action_confirm()
 
         po = self.env['purchase.order'].search([('partner_id', '=', self.vendor.id)])
-        self.assertEqual(po.order_line.price_unit, self.product.seller_ids.price)
+        self.assertEqual(po.line_ids.price_unit, self.product.seller_ids.price)
 
     def test_merge_procurement(self):
         """create 2 sale order for the same supplier with grouping option and check that only one PO is created"""
@@ -64,7 +64,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
 
         sale_order = self.env["sale.order"].create([{
             "partner_id": self.partner_a.id,
-            "order_line": [Command.create(
+            "line_ids": [Command.create(
                 {
                     "name": self.product.name,
                     "product_id": self.product.id,
@@ -80,7 +80,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
         # create another SO, it should increate the existing PO line
         so = self.env["sale.order"].create({
             "partner_id": self.partner_a.id,
-            "order_line": [Command.create(
+            "line_ids": [Command.create(
                 {
                     "name": self.product.name,
                     "product_id": self.product.id,
@@ -93,7 +93,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
         self.assertEqual(pol.product_qty, 3)
 
         # Edit a SOL, it should update the PO line
-        sale_order.order_line.product_uom_qty += 1
+        sale_order.line_ids.product_uom_qty += 1
         self.assertEqual(pol.product_qty, 4)
 
     def test_dynamic_lead_time_delay(self):
@@ -109,7 +109,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
         product = self.product_a
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner_b.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': product.id,
                 'product_uom_qty': 10,
             })],

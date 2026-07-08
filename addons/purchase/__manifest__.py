@@ -6,6 +6,7 @@
     "summary": "Purchase orders, tenders and agreements",
     "website": "https://www.odoo.com/app/purchase",
     "depends": [
+        "base_order",
         "base_sql_report",
         "account",
     ],

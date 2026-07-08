@@ -54,10 +54,18 @@ class ProductPricelist(models.Model):
     def write(self, vals):
         res = super().write(vals)
 
-        # Make sure that there is no multi-company issue in the existing rules after the company
-        # change.
-        if "company_id" in vals and len(self) == 1:
-            self.item_ids._check_company()
+        # A company change is not propagated to already-stored rules by the ORM, so
+        # re-validate the multi-company consistency of every rule explicitly. This must
+        # also run for multi-record writes: the items' recomputed (stored) `company_id`
+        # does not re-trigger `_check_company` on its own, so a batch company change
+        # would otherwise leave cross-company rules silently inconsistent.
+        # Search the rules directly instead of going through `item_ids`: that field
+        # carries a domain filtering out rules on archived products, which would
+        # otherwise escape the re-validation.
+        if "company_id" in vals:
+            self.env["product.pricelist.item"].search(
+                [("pricelist_id", "in", self.ids)]
+            )._check_company()
 
         return res
 
@@ -65,14 +73,14 @@ class ProductPricelist(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
-            for pricelist, vals in zip(self, vals_list):
+            for pricelist, vals in zip(self, vals_list, strict=True):
                 vals["name"] = _("%s (copy)", pricelist.name)
         return vals_list
 
     @api.depends("currency_id")
     def _compute_display_name(self):
         for pricelist in self:
-            pricelist_name = (pricelist.name and pricelist.name) or _("New")
+            pricelist_name = pricelist.name or _("New")
             pricelist.display_name = f"{pricelist_name} ({pricelist.currency_id.name})"
 
     @api.ondelete(at_uninstall=False)
@@ -164,10 +172,10 @@ class ProductPricelist(models.Model):
         # Fetch all rules potentially matching specified products/templates/categories and date
         rules = self._get_applicable_rules(products, date, **kwargs)
 
-        results = {}
+        # First resolve the applicable rule (and target UoM) for every product.
+        rule_by_pid = {}
+        target_uom_by_pid = {}
         for product in products:
-            suitable_rule = self.env["product.pricelist.item"]
-
             product_uom = product.uom_id
             target_uom = (
                 uom or product_uom
@@ -182,18 +190,31 @@ class ProductPricelist(models.Model):
             else:
                 qty_in_product_uom = quantity
 
-            for rule in rules:
-                if rule._is_applicable_for(product, qty_in_product_uom):
-                    suitable_rule = rule
-                    break
+            target_uom_by_pid[product.id] = target_uom
+            rule_by_pid[product.id] = self._get_suitable_rule(
+                rules, product, qty_in_product_uom
+            )
+
+        # Batch the base price of rules that chain to another pricelist, so each base
+        # pricelist is evaluated once for all its products instead of once per product.
+        base_price_by_pid = {}
+        if compute_price:
+            base_price_by_pid = self._compute_chained_base_prices(
+                products, rule_by_pid, quantity, uom, date, currency, **kwargs
+            )
+
+        results = {}
+        for product in products:
+            suitable_rule = rule_by_pid[product.id]
 
             if compute_price:
                 price = suitable_rule._compute_price(
                     product,
                     quantity,
-                    target_uom,
+                    target_uom_by_pid[product.id],
                     date=date,
                     currency=currency,
+                    base_price=base_price_by_pid.get(product.id),
                     **kwargs,
                 )
             else:
@@ -208,7 +229,13 @@ class ProductPricelist(models.Model):
         self, products, quantity, uom=None, date=False, **kwargs
     ):
         """Low-level method - Multi pricelist, multi products
-        Returns: dict{product_id: dict{pricelist_id: (price, suitable_rule)} }"""
+
+        When ``self`` has no stored records, *every* pricelist in the
+        environment is priced (``search([])``); otherwise only the pricelists
+        in ``self`` are used.
+
+        Returns: dict{product_id: dict{pricelist_id: (price, suitable_rule)} }
+        """
         if not self.ids:
             pricelists = self.search([])
         else:
@@ -218,9 +245,8 @@ class ProductPricelist(models.Model):
             subres = pricelist._compute_price_rule(
                 products, quantity, uom=uom, date=date, **kwargs
             )
-            for product_id, price in subres.items():
-                results.setdefault(product_id, {})
-                results[product_id][pricelist.id] = price
+            for product_id, price_rule in subres.items():
+                results.setdefault(product_id, {})[pricelist.id] = price_rule
         return results
 
     def _default_currency_id(self):
@@ -228,6 +254,69 @@ class ProductPricelist(models.Model):
 
     def _domain_item_ids(self):
         return self._base_domain_item_ids()
+
+    def _get_suitable_rule(self, rules, product, qty_in_product_uom):
+        """Return the first rule applicable to ``product`` at the given quantity.
+
+        :param rules: candidate rules, pre-ordered by priority (see
+            :meth:`_get_applicable_rules`); the first applicable one wins.
+        :param product: product record (product.product/product.template)
+        :param float qty_in_product_uom: quantity, expressed in the product UoM
+        :returns: the matching ``product.pricelist.item`` or an empty recordset
+        """
+        for rule in rules:
+            if rule._is_applicable_for(product, qty_in_product_uom):
+                return rule
+        return self.env["product.pricelist.item"]
+
+    def _compute_chained_base_prices(
+        self, products, rule_by_pid, quantity, uom, date, currency, **kwargs
+    ):
+        """Batch the base price of rules that chain to another pricelist.
+
+        A rule with ``base == 'pricelist'`` takes its base price from another
+        pricelist. Resolving that one product at a time makes each product trigger
+        its own rule search on the base pricelist (an N+1 across chained levels).
+        This groups the products by the base pricelist their rule points to and
+        evaluates each base pricelist once.
+
+        :param products: recordset being priced (same as `_compute_price_rule`)
+        :param dict rule_by_pid: {product.id: applicable ``product.pricelist.item``}
+        :param uom: the *original* uom of the caller (``None`` means per-product
+            default uom); each base pricelist re-derives its target uom the same way,
+            so the batched result matches the per-product recursion.
+        :param currency: currency the returned base prices must be expressed in
+        :returns: {product.id: base price in ``currency``} for chained rules only;
+            products with a non-chained rule are absent (their base price is computed
+            lazily by :meth:`~product.pricelist.item._compute_price`).
+        :rtype: dict
+        """
+        products_by_base_pricelist = defaultdict(lambda: self.env[products._name])
+        for product in products:
+            rule = rule_by_pid[product.id]
+            # Mirror the condition in `product.pricelist.item._compute_base_price`.
+            if rule.base == "pricelist" and rule.base_pricelist_id:
+                products_by_base_pricelist[rule.base_pricelist_id] |= product
+
+        base_price_by_pid = {}
+        for base_pricelist, base_products in products_by_base_pricelist.items():
+            src_currency = base_pricelist.currency_id
+            price_rule = base_pricelist._compute_price_rule(
+                base_products,
+                quantity,
+                currency=src_currency,
+                uom=uom,
+                date=date,
+                **kwargs,
+            )
+            for product in base_products:
+                price = price_rule[product.id][0]
+                if src_currency != currency:
+                    price = src_currency._convert(
+                        price, currency, self.env.company, date, round=False
+                    )
+                base_price_by_pid[product.id] = price
+        return base_price_by_pid
 
     # Split methods to ease (community) overrides
     def _get_applicable_rules(self, products, date, **kwargs):
@@ -269,15 +358,20 @@ class ProductPricelist(models.Model):
 
     def _get_country_pricelist_multi(self, country_ids):
         def get_param_id(key):
-            string_value = self.env["ir.config_parameter"].sudo().get_param(key, False)
+            # Config params store a pricelist id as a string. Return None for a
+            # missing/blank/non-numeric value so the fallback `or` chain moves on
+            # (rather than leaning on `browse(0)` happening to be empty).
+            value = self.env["ir.config_parameter"].sudo().get_param(key)
             try:
-                return int(string_value)
-            except (TypeError, ValueError, OverflowError):
+                return int(value) if value else None
+            except TypeError, ValueError:
                 return None
 
         company_id = self.env.company.id
         pl_domain = self._get_partner_pricelist_multi_search_domain_hook(company_id)
 
+        # Work on a local copy: never mutate the caller's list.
+        country_ids = list(country_ids)
         if (ctx_code := self.env.context.get("country_code")) and (
             ctx_country := self.env["res.country"].search(
                 [("code", "=", ctx_code)], limit=1
@@ -304,16 +398,24 @@ class ProductPricelist(models.Model):
             or self.browse(get_param_id("res.partner.property_product_pricelist"))
             or self.search(pl_domain, limit=1)
         )
+
+        # Resolve every requested country in a single search rather than one search
+        # per country. Pricelists come back in the model's order (sequence, id, name),
+        # so the first one covering a given country is its best match - mirroring the
+        # previous per-country `limit=1` lookup.
+        requested = set(country_ids)
         result = {}
-        for country_id in country_ids:
-            pl = self.search(
-                [
-                    *pl_domain,
-                    ("country_group_ids.country_ids", "=", country_id),
-                ],
-                limit=1,
+        matching_pricelists = self.search(
+            [*pl_domain, ("country_group_ids.country_ids", "in", country_ids)]
+        )
+        for pricelist in matching_pricelists:
+            covered = requested.intersection(
+                pricelist.country_group_ids.country_ids.ids
             )
-            result[country_id] = pl or pl_fallback
+            for country_id in covered:
+                result.setdefault(country_id, pricelist)
+        for country_id in country_ids:
+            result.setdefault(country_id, pl_fallback)
         result[False] = result[ctx_country.id] if ctx_country else pl_fallback
         return result
 
@@ -353,12 +455,12 @@ class ProductPricelist(models.Model):
         Partner = self.env["res.partner"].with_context(active_test=False)
 
         # if no specific property, try to find a fitting pricelist
-        result = {}
+        # (defaultdict, like the disabled-feature path above, so a missing partner
+        # id always yields an empty recordset rather than a KeyError)
+        result = defaultdict(lambda: ProductPricelist)
         remaining_partner_ids = []
         for partner in Partner.browse(partner_ids):
-            if (
-                partner.specific_property_product_pricelist._get_partner_pricelist_multi_filter_hook()
-            ):
+            if partner.specific_property_product_pricelist._get_partner_pricelist_multi_filter_hook():
                 result[partner.id] = partner.specific_property_product_pricelist
             else:
                 remaining_partner_ids.append(partner.id)
@@ -388,15 +490,10 @@ class ProductPricelist(models.Model):
     def _get_products_price(self, products, *args, **kwargs):
         """Compute the pricelist prices for the specified products, quantity & uom.
 
-        Note: self and self.ensure_one()
+        See :meth:`_compute_price_rule` for the accepted positional/keyword
+        arguments (quantity, currency, uom, date).
 
-        :param products: recordset of products (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param currency: record of currency (res.currency) (optional)
-        :param uom: unit of measure (uom.uom record) (optional)
-            If not specified, prices returned are expressed in product uoms
-        :param date: date to use for price computation and currency conversions (optional)
-        :type date: date or datetime
+        Note: self and self.ensure_one()
 
         :returns: {product_id: product price}, considering the current pricelist if any
         :rtype: dict(int, float)
@@ -412,15 +509,10 @@ class ProductPricelist(models.Model):
     def _get_product_price(self, product, *args, **kwargs):
         """Compute the pricelist price for the specified product, qty & uom.
 
-        Note: self and self.ensure_one()
+        See :meth:`_compute_price_rule` for the accepted positional/keyword
+        arguments (quantity, currency, uom, date).
 
-        :param product: product record (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param currency: record of currency (res.currency) (optional)
-        :param uom: unit of measure (uom.uom record) (optional)
-            If not specified, prices returned are expressed in product uoms
-        :param date: date to use for price computation and currency conversions (optional)
-        :type date: date or datetime
+        Note: self and self.ensure_one()
 
         :returns: unit price of the product, considering pricelist rules if any
         :rtype: float
@@ -431,15 +523,10 @@ class ProductPricelist(models.Model):
     def _get_product_price_rule(self, product, *args, **kwargs):
         """Compute the pricelist price & rule for the specified product, qty & uom.
 
-        Note: self and self.ensure_one()
+        See :meth:`_compute_price_rule` for the accepted positional/keyword
+        arguments (quantity, currency, uom, date).
 
-        :param product: product record (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param currency: record of currency (res.currency) (optional)
-        :param uom: unit of measure (uom.uom record) (optional)
-            If not specified, prices returned are expressed in product uoms
-        :param date: date to use for price computation and currency conversions (optional)
-        :type date: date or datetime
+        Note: self and self.ensure_one()
 
         :returns: (product unit price, applied pricelist rule id)
         :rtype: tuple(float, int)
@@ -448,17 +535,13 @@ class ProductPricelist(models.Model):
         return self._compute_price_rule(product, *args, **kwargs)[product.id]
 
     def _get_product_rule(self, product, *args, **kwargs):
-        """Compute the pricelist price & rule for the specified product, qty & uom.
+        """Compute the applied pricelist rule for the specified product, qty & uom.
+
+        Like :meth:`_get_product_price_rule` but skips the price computation
+        (``compute_price=False``); only the matched rule is returned. See
+        :meth:`_compute_price_rule` for the accepted arguments.
 
         Note: self and self.ensure_one()
-
-        :param product: product record (product.product/product.template)
-        :param float quantity: quantity of products requested (in given uom)
-        :param currency: record of currency (res.currency) (optional)
-        :param uom: unit of measure (uom.uom record) (optional)
-            If not specified, prices returned are expressed in product uoms
-        :param date: date to use for price computation and currency conversions (optional)
-        :type date: date or datetime
 
         :returns: applied pricelist rule id
         :rtype: int or False
@@ -472,8 +555,8 @@ class ProductPricelist(models.Model):
     def _price_get(self, product, quantity, **kwargs):
         """Multi pricelist, mono product - returns price per pricelist"""
         return {
-            key: price[0]
-            for key, price in self._compute_price_rule_multi(
+            pricelist_id: price_rule[0]
+            for pricelist_id, price_rule in self._compute_price_rule_multi(
                 product, quantity, **kwargs
             )[product.id].items()
         }

@@ -26,7 +26,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         })
 
         order = self.empty_order
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -40,10 +40,10 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         ]})
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
-        self.assertEqual(len(order.order_line.ids), 2, "The promo offer shouldn't have been applied as the purchased amount is not enough")
+        self.assertEqual(len(order.line_ids.ids), 2, "The promo offer shouldn't have been applied as the purchased amount is not enough")
 
         order = self.env['sale.order'].create({'partner_id': self.partner.id})
-        order.write({'order_line': [
+        order.write({'line_ids': [
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '10 Product A',
@@ -58,19 +58,19 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
         # 10*100 + 5 = 1005
-        self.assertEqual(len(order.order_line.ids), 2, "The promo offer should not be applied as the purchased amount is not enough")
+        self.assertEqual(len(order.line_ids.ids), 2, "The promo offer should not be applied as the purchased amount is not enough")
 
         self.immediate_promotion_program.rule_ids.minimum_amount = 1005
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
-        self.assertEqual(len(order.order_line.ids), 3, "The promo offer should be applied as the purchased amount is now enough")
+        self.assertEqual(len(order.line_ids.ids), 3, "The promo offer should be applied as the purchased amount is now enough")
 
         # 10*(100*1.15) + (5*1.15) = 10*115 + 5.75 = 1155.75
         self.immediate_promotion_program.rule_ids.minimum_amount = 1006
         self.immediate_promotion_program.rule_ids.minimum_amount_tax_mode = 'incl'
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
-        self.assertEqual(len(order.order_line.ids), 3, "The promo offer should be applied as the initial amount required is now tax included")
+        self.assertEqual(len(order.line_ids.ids), 3, "The promo offer should be applied as the initial amount required is now tax included")
 
     def test_program_rules_min_amount_not_reached_and_specific_product(self):
         """
@@ -106,13 +106,13 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             'product_uom_qty': 40.0,
             'order_id': order.id,
         }])
-        self.assertEqual(len(order.order_line), 2)
+        self.assertEqual(len(order.line_ids), 2)
         self.assertEqual(order.amount_untaxed, 300)
 
         order._update_programs_and_rewards()
         self._claim_reward(order, program)
 
-        self.assertEqual(len(order.order_line), 2)
+        self.assertEqual(len(order.line_ids), 2)
         self.assertEqual(order.amount_untaxed, 300)
 
     def test_program_rules_min_amount_reached_and_specific_product(self):
@@ -148,13 +148,13 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             'product_uom_qty': 20.0,
             'order_id': order.id,
         }])
-        self.assertEqual(len(order.order_line), 2)
+        self.assertEqual(len(order.line_ids), 2)
         self.assertEqual(order.amount_untaxed, 300)
 
         order._update_programs_and_rewards()
         self._claim_reward(order, program)
 
-        self.assertEqual(len(order.order_line), 3)
+        self.assertEqual(len(order.line_ids), 3)
         self.assertEqual(order.amount_untaxed, 280)
 
     def test_program_rules_coupon_qty_and_amount_remove_not_eligible(self):
@@ -217,12 +217,12 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self._apply_promo_code(order, coupon.code)
         self._claim_reward(order, program, coupon)
 
-        self.assertEqual(len(order.order_line.ids), 3, "The order should contain the Product A line, the Product B line and the discount line")
+        self.assertEqual(len(order.line_ids.ids), 3, "The order should contain the Product A line, the Product B line and the discount line")
 
         sol1.product_uom_qty = 2
         order._update_programs_and_rewards()
 
-        self.assertEqual(len(order.order_line.ids), 2, "The discount line should have been removed as we don't meet the program requirements")
+        self.assertEqual(len(order.line_ids.ids), 2, "The discount line should have been removed as we don't meet the program requirements")
 
     def test_program_rules_promotion_use_best(self):
         ''' This test verifies that only the best global discount is applied.
@@ -274,13 +274,13 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         order._update_programs_and_rewards()
         self._claim_reward(order, p1)
         self._claim_reward(order, p2)
-        self.assertEqual(len(order.order_line.ids), 1, "The order should only contains the Product A line")
+        self.assertEqual(len(order.line_ids.ids), 1, "The order should only contains the Product A line")
 
         sol.product_uom_qty = 3
         order._update_programs_and_rewards()
         self._claim_reward(order, p1)
         self._claim_reward(order, p2)
-        discounts = set(order.order_line.mapped('name')) - {'Product A'}
+        discounts = set(order.line_ids.mapped('name')) - {'Product A'}
         self.assertEqual(len(discounts), 1, "The order should contains the Product A line and a discount")
         # The name of the discount is dynamically changed to smth looking like:
         # "Discount Get 5% discount if buy at least 2 Product - On product with following tax: Tax 15.00%"
@@ -290,7 +290,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         order._update_programs_and_rewards()
         self._claim_reward(order, p1)
         self._claim_reward(order, p2)
-        discounts = set(order.order_line.mapped('name')) - {'Product A'}
+        discounts = set(order.line_ids.mapped('name')) - {'Product A'}
         self.assertEqual(len(discounts), 1, "The order should contains the Product A line and a discount")
         self.assertTrue('Discount 10% on your order' in discounts.pop(), "The discount should be a 10% discount")
 
@@ -302,7 +302,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         future_day = today + timedelta(days=2)
         self.immediate_promotion_program.write({'date_to': past_day})
         order = self.empty_order
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -316,12 +316,12 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         ]})
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo shouldn't have been applied as it is expired."
-        self.assertEqual(len(order.order_line.ids), 2, msg)
+        self.assertEqual(len(order.line_ids.ids), 2, msg)
 
         self.immediate_promotion_program.write({'date_to': future_day})
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo should have been applied we're between the validity dates."
-        self.assertEqual(len(order.order_line.ids), 3, msg)
+        self.assertEqual(len(order.line_ids.ids), 3, msg)
 
         # Test date_from (no date_to)
         self.immediate_promotion_program.write({
@@ -329,18 +329,18 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         })
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo shouldn't have been applied as it is not active yet."
-        self.assertEqual(len(order.order_line.ids), 2, msg)
+        self.assertEqual(len(order.line_ids.ids), 2, msg)
 
         self.immediate_promotion_program.write({'date_from': past_day})
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo should have been applied we're between the validity dates."
-        self.assertEqual(len(order.order_line.ids), 3, msg)
+        self.assertEqual(len(order.line_ids.ids), 3, msg)
 
         # Test date_from and date_to
         self.immediate_promotion_program.write({'date_from': past_day, 'date_to': future_day})
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo should have been applied as we're between the validity dates"
-        self.assertEqual(len(order.order_line.ids), 3, msg)
+        self.assertEqual(len(order.line_ids.ids), 3, msg)
 
         self.immediate_promotion_program.write({
             'date_from': today + timedelta(days=1),
@@ -348,7 +348,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         })
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo offer shouldn't have been applied as it is not active yet."
-        self.assertEqual(len(order.order_line.ids), 2, msg)
+        self.assertEqual(len(order.line_ids.ids), 2, msg)
 
         self.immediate_promotion_program.write({
             'date_from': past_day,
@@ -356,12 +356,12 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         })
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo offer shouldn't have been applied as it is expired."
-        self.assertEqual(len(order.order_line.ids), 2, msg)
+        self.assertEqual(len(order.line_ids.ids), 2, msg)
 
         self.immediate_promotion_program.write({'date_from': today, 'date_to': today})
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo should have been applied as today is a valid starting and ending date."
-        self.assertEqual(len(order.order_line.ids), 3, msg)
+        self.assertEqual(len(order.line_ids.ids), 3, msg)
 
     def test_program_rules_number_of_uses(self):
         # Test case: Based on the number of allowed uses
@@ -370,7 +370,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             'max_usage': 1,
         })
         order = self.empty_order
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
@@ -378,13 +378,13 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             })
         ]})
         self._auto_rewards(order, self.immediate_promotion_program)
-        self.assertEqual(len(order.order_line.ids), 2, "The promo offer should have been applied")
+        self.assertEqual(len(order.line_ids.ids), 2, "The promo offer should have been applied")
 
         order = self.env['sale.order'].create({
             'partner_id': self.env['res.partner'].create({'name': 'My Partner'}).id
         })
 
-        order.write({'order_line': [
+        order.write({'line_ids': [
             Command.create({
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
@@ -395,7 +395,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self.immediate_promotion_program.invalidate_recordset(['order_count', 'total_order_count'])
         self._auto_rewards(order, self.immediate_promotion_program)
         msg = "The promo offer shouldn't have been applied as the number of uses is exceeded"
-        self.assertEqual(len(order.order_line.ids), 1, msg)
+        self.assertEqual(len(order.line_ids.ids), 1, msg)
 
     def test_program_rules_validity_date_timezones(self):
         """Test that the validity dates are checked according to the company's time zone"""
@@ -409,7 +409,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             'max_usage': 1,
         })
         order = self.empty_order.with_context(tz=self.partner.tz)
-        order.order_line = [
+        order.line_ids = [
             Command.create({'product_id': self.product_A.id}),
             Command.create({'product_id': self.product_B.id}),
         ]
@@ -418,7 +418,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             # Try apply reward at UTC midnight with LA time zone in context (expired)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertFalse(
-                order.order_line.filtered('is_reward_line'),
+                order.line_ids.filtered('is_reward_line'),
                 "Promo should not be applied if only valid in the customer's time zone",
             )
 
@@ -426,7 +426,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             # Try apply reward at London midnight (expired)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertFalse(
-                order.order_line.filtered('is_reward_line'),
+                order.line_ids.filtered('is_reward_line'),
                 "Promo should not be applied if only valid in the customer's time zone",
             )
 
@@ -435,7 +435,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             # Apply reward at Brussels midnight (still valid in company's time zone)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertTrue(
-                order.order_line.filtered('is_reward_line'),
+                order.line_ids.filtered('is_reward_line'),
                 "Promo should be applied if valid in the company's time zone",
             )
 
@@ -450,7 +450,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             'reward_ids': [Command.set(self.program_gift_card.reward_ids.ids)],
         })
         order = self.empty_order
-        order.order_line = [
+        order.line_ids = [
             Command.create({'product_id': self.product_A.id}),
             Command.create({'product_id': self.product_B.id}),
         ]
@@ -493,7 +493,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             })],
         })
         order = self.empty_order
-        order.order_line = [
+        order.line_ids = [
             Command.create({
                 'product_id': self.product_A.id,
                 'product_uom_id': self.ref('uom.product_uom_dozen'),
@@ -501,6 +501,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             }),
         ]
         self._auto_rewards(order, buy_x_get_y)
-        reward_line = order.order_line.filtered('is_reward_line')
+        reward_line = order.line_ids.filtered('is_reward_line')
         self.assertTrue(reward_line)
         self.assertEqual(reward_line.product_uom_qty, 6)

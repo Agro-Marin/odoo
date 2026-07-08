@@ -69,7 +69,7 @@ class TestWebsiteSaleStockProductTemplate(HttpCase, WebsiteSaleStockCommon):
                 Command.link(combo_a.id), Command.link(combo_b.id), Command.link(combo_c.id)
             ],
         )
-        self.cart.order_line = [Command.create({'product_id': product_a.id, 'product_uom_qty': 3})]
+        self.cart.line_ids = [Command.create({'product_id': product_a.id, 'product_uom_qty': 3})]
 
         with MockRequest(self.env, website=self.website, sale_order_id=self.cart.id):
             combination_info = self.env['product.template'].with_context(

@@ -16,7 +16,7 @@ class TestWebsiteSaleStockProductProduct(HttpCase, WebsiteSaleStockCommon):
         self.env['stock.quant'].create({
             'product_id': product.id, 'location_id': self.warehouse.lot_stock_id.id, 'quantity': 5
         })
-        self.cart.order_line = [Command.create({'product_id': product.id, 'product_uom_qty': 3})]
+        self.cart.line_ids = [Command.create({'product_id': product.id, 'product_uom_qty': 3})]
 
         with MockRequest(self.env, website=self.website, sale_order_id=self.cart.id):
             self.assertEqual(product._get_max_quantity(self.website, self.cart), 2)

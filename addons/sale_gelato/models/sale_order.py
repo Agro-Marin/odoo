@@ -41,8 +41,8 @@ class SaleOrder(models.Model):
         :raise ValidationError: If Gelato and non-Gelato products are mixed.
         """
         for order in self:
-            gelato_lines = order.order_line.filtered(lambda l: l.product_id.gelato_product_uid)
-            non_gelato_lines = (order.order_line - gelato_lines).filtered(
+            gelato_lines = order.line_ids.filtered(lambda l: l.product_id.gelato_product_uid)
+            non_gelato_lines = (order.line_ids - gelato_lines).filtered(
                 lambda l: l.product_id.sale_ok and l.product_id.type != 'service'
             )  # Filter out non-saleable (sections, etc.) and non-deliverable products.
             if gelato_lines and non_gelato_lines:
@@ -57,7 +57,7 @@ class SaleOrder(models.Model):
 
         if (
             not self.env.context.get('carrier_recompute')
-            and any(line.product_id.gelato_product_uid for line in self.order_line)
+            and any(line.product_id.gelato_product_uid for line in self.line_ids)
         ):
             gelato_delivery_method = self.env['delivery.carrier'].search(
                 [('delivery_type', '=', 'gelato')], limit=1
@@ -69,7 +69,7 @@ class SaleOrder(models.Model):
         """ Override of `sale` to send the order to Gelato on confirmation. """
         res = super().action_confirm()
         for order in self.filtered(
-            lambda o: any(o.order_line.product_id.mapped('gelato_product_uid'))
+            lambda o: any(o.line_ids.product_id.mapped('gelato_product_uid'))
         ):
             if message := order._ensure_partner_address_is_complete():
                 raise ValidationError(message)
@@ -103,7 +103,7 @@ class SaleOrder(models.Model):
 
         :return: None
         """
-        delivery_line = self.order_line.filtered(
+        delivery_line = self.line_ids.filtered(
             lambda l: l.is_delivery and l.product_id.default_code in ('normal', 'express')
         )
         payload = {
@@ -144,7 +144,7 @@ class SaleOrder(models.Model):
         :rtype: dict
         """
         items_payload = []
-        for gelato_line in self.order_line.filtered(lambda l: l.product_id.gelato_product_uid):
+        for gelato_line in self.line_ids.filtered(lambda l: l.product_id.gelato_product_uid):
             item_data = {
                 'itemReferenceId': gelato_line.product_id.id,
                 'productUid': gelato_line.product_id.gelato_product_uid,

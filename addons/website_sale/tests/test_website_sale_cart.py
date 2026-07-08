@@ -163,7 +163,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         with MockRequest(website.env, website=website):
             sale_order = self.env['sale.order'].create({
                 'partner_id': self.public_user.id,
-                'order_line': [Command.create({'product_id': self.product.id})],
+                'line_ids': [Command.create({'product_id': self.product.id})],
                 'access_token': 'test_token',
             })
             # Try processing payment with a storable product and no carrier_id
@@ -189,19 +189,19 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
 
             # remove the product from the cart
             self.WebsiteSaleCartController.update_cart(
-                line_id=sale_order.order_line.id,
+                line_id=sale_order.line_ids.id,
                 quantity=0,
             )
             self.assertEqual(sale_order.amount_total, 0.0)
-            self.assertEqual(sale_order.order_line, SaleOrderLine)
+            self.assertEqual(sale_order.line_ids, SaleOrderLine)
 
             # removing the product again doesn't add a line with zero quantity
             self.WebsiteSaleCartController.update_cart(
-                line_id=sale_order.order_line.id,
+                line_id=sale_order.line_ids.id,
                 quantity=0,
             )
             self.assertEqual(sale_order.cart_quantity, 0.0)
-            self.assertEqual(sale_order.order_line, SaleOrderLine)
+            self.assertEqual(sale_order.line_ids, SaleOrderLine)
 
     def test_unpublished_accessory_product_visibility(self):
         # Check if unpublished product is shown to public user
@@ -280,13 +280,13 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
 
         so = self.env['sale.order'].create({
             'partner_id': self.env.user.partner_id.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': test_product.id,
                 })
             ]
         })
-        sol = so.order_line
+        sol = so.line_ids
         self.assertEqual(round(sol.price_total), 55.0, "110$ with 50% discount 10% included tax")
         self.assertEqual(round(sol.price_tax), 5.0, "110$ with 50% discount 10% included tax")
 
@@ -352,13 +352,13 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         # create a so for user using the fiscal position
         so = self.env['sale.order'].create({
             'partner_id': self.env.user.partner_id.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': product.id,
                 })
             ]
         })
-        sol = so.order_line
+        sol = so.line_ids
         self.assertEqual(round(sol.price_total), 110.0, "110$ with 10% included tax")
 
         so.fiscal_position_id = fpos
@@ -387,30 +387,30 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             product_id=product_no_variants.product_variant_id.id,
             quantity=1,
         )
-        self.assertEqual(len(self.empty_cart.order_line), 0)
+        self.assertEqual(len(self.empty_cart.line_ids), 0)
 
         add_one(no_variant_attribute_value_ids=no_variant_ptav.ids)
-        self.assertEqual(len(self.empty_cart.order_line), 1)
+        self.assertEqual(len(self.empty_cart.line_ids), 1)
 
         add_one(no_variant_attribute_value_ids=no_variant_ptav.ids)
-        self.assertEqual(len(self.empty_cart.order_line), 1)
-        self.assertEqual(self.empty_cart.order_line.product_uom_qty, 2)
+        self.assertEqual(len(self.empty_cart.line_ids), 1)
+        self.assertEqual(self.empty_cart.line_ids.product_uom_qty, 2)
 
         # Providing `no_variant_attribute_value_ids` should be optional if there's only 1 value...
         product_no_variants.attribute_line_ids.value_ids = self.no_variant_attribute.value_ids[0]
         add_one(no_variant_attribute_value_ids=[])
-        self.assertEqual(len(self.empty_cart.order_line), 1)
-        self.assertEqual(self.empty_cart.order_line.product_uom_qty, 3)
+        self.assertEqual(len(self.empty_cart.line_ids), 1)
+        self.assertEqual(self.empty_cart.line_ids.product_uom_qty, 3)
 
         # ...except if it's a multi-checkbox attribute, making the value optional
         self.no_variant_attribute.display_type = 'multi'
         add_one(no_variant_attribute_value_ids=[])
-        self.assertEqual(len(self.empty_cart.order_line), 2)
-        self.assertEqual(self.empty_cart.order_line.mapped('product_uom_qty'), [3, 1])
+        self.assertEqual(len(self.empty_cart.line_ids), 2)
+        self.assertEqual(self.empty_cart.line_ids.mapped('product_uom_qty'), [3, 1])
 
         add_one(no_variant_attribute_value_ids=no_variant_ptav.ids)
-        self.assertEqual(len(self.empty_cart.order_line), 2)
-        self.assertEqual(self.empty_cart.order_line.mapped('product_uom_qty'), [4, 1])
+        self.assertEqual(len(self.empty_cart.line_ids), 2)
+        self.assertEqual(self.empty_cart.line_ids.mapped('product_uom_qty'), [4, 1])
 
     def test_cart_new_pricelist_from_geoip(self):
         """Check that, when adding a new partner to a website order, the partner's GeoIP
@@ -469,7 +469,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             order = request.cart
 
             # pre-condition: the order contains an active product
-            self.assertRecordValues(order.order_line, [{
+            self.assertRecordValues(order.line_ids, [{
                 "product_id": product.id,
             }])
             self.assertTrue(product.active)
@@ -479,7 +479,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.WebsiteSaleCartController.cart()
 
             # Assert: the line has been removed
-            self.assertFalse(order.order_line)
+            self.assertFalse(order.line_ids)
 
     def test_keep_note_line(self):
         """If an order has a line containing a note,
@@ -489,7 +489,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         website = self.website.with_user(user)
         with MockRequest(self.env(user=user), website=website) as request:
             order = request.website._create_cart()
-            order.order_line = [
+            order.line_ids = [
                 Command.create({
                     "name": "Note",
                     "display_type": "line_note",
@@ -497,7 +497,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             ]
 
             # pre-condition: the order contains only a note line
-            self.assertRecordValues(order.order_line, [{
+            self.assertRecordValues(order.line_ids, [{
                 "display_type": "line_note",
             }])
 
@@ -505,7 +505,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.WebsiteSaleCartController.cart()
 
             # Assert: the line is still there
-            self.assertRecordValues(order.order_line, [{
+            self.assertRecordValues(order.line_ids, [{
                 "display_type": "line_note",
             }])
 
@@ -523,7 +523,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
         ):
             order = request.website._create_cart()
-            order.order_line = [
+            order.line_ids = [
                 Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 1.0,

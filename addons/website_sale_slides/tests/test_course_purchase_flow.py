@@ -42,7 +42,7 @@ class TestCoursePurchaseFlow(common.SlidesCase):
         # Step 2: create a sale_order with the course product
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.course_product.name,
                     'product_id': self.course_product.id,
@@ -61,7 +61,7 @@ class TestCoursePurchaseFlow(common.SlidesCase):
         # Step 4: Same test as salesman
         salesman_sale_order = self.env['sale.order'].with_user(self.user_salesman).create({
             'partner_id': self.user_portal.partner_id.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.course_product.name,
                     'product_id': self.course_product.id,

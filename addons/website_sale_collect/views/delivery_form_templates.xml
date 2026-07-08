@@ -14,12 +14,12 @@
  t-as="item"
  t-attf-class="d-flex gap-3 mt-3 position-relative"
  >
- <t t-set="order_line" t-value="item[0]"/>
+ <t t-set="line_ids" t-value="item[0]"/>
  <t t-set="available_qty" t-value="int(item[1])"/>
  <div class="d-flex align-items-top gap-2">
- <a t-att-href="order_line.product_id.website_url">
+ <a t-att-href="line_ids.product_id.website_url">
  <span
- t-field="order_line.product_id.image_128"
+ t-field="line_ids.product_id.image_128"
  t-options="{'widget': 'image', 'qweb_img_responsive': False, 'class': 'o_image_64_max rounded border border-warning-subtle'}"
  />
  </a>
@@ -27,17 +27,17 @@
  <div>
  <t
  t-set="attrib_names"
- t-value="order_line.product_id.product_template_attribute_value_ids._get_combination_name()"
+ t-value="line_ids.product_id.product_template_attribute_value_ids._get_combination_name()"
  />
  <div class="fw-bold">
- <t t-out="order_line.product_id.name"/>
+ <t t-out="line_ids.product_id.name"/>
  <t t-if="attrib_names" t-out="' - ' + attrib_names"/>
  <t
- t-if="order_line.product_id.product_tmpl_id._has_multiple_uoms()"
+ t-if="line_ids.product_id.product_tmpl_id._has_multiple_uoms()"
  t-out="' (' + order_line.product_uom_id.name + ')'"
  />
  </div>
- <div t-out="order_line._get_shop_warning()"/>
+ <div t-out="line_ids._get_shop_warning()"/>
  <div name="o_wsale_unavailable_line_button_container" class="mt-2 mt-md-1">
  <a href='#' class="alert-link me-2 small">
  <i
@@ -49,8 +49,8 @@
  <t t-set="remove_from_cart_button_label">Remove</t>
  <span
  class="js_wsc_update_product_qty"
- t-att-data-line-id="order_line.id"
- t-att-data-product-id="order_line.product_id.id"
+ t-att-data-line-id="line_ids.id"
+ t-att-data-product-id="line_ids.product_id.id"
  t-att-data-available-qty="available_qty"
  t-out="update_cart_button_label if available_qty else remove_from_cart_button_label"
  />

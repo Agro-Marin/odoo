@@ -86,21 +86,21 @@ class TestClaimReward(WebsiteSaleCommon):
     def test_claim_reward_with_multi_products(self):
         product1, product2 = self.product2, self.product2
         order = self.empty_cart
-        order.order_line = [Command.create({'product_id': product1.id})]
+        order.line_ids = [Command.create({'product_id': product1.id})]
         order._update_programs_and_rewards()
         with MockRequest(self.env, website=self.website, sale_order_id=order.id):
             self.WebsiteSaleController.claim_reward(
                 self.promo_program.reward_ids.id,
                 product_id=str(product2.id),
             )
-            self.assertEqual(len(order.order_line), 2, 'reward line should be added to order')
-            self.assertEqual(order.order_line[1].product_id, product2, 'added reward line should should contain product 2')
+            self.assertEqual(len(order.line_ids), 2, 'reward line should be added to order')
+            self.assertEqual(order.line_ids[1].product_id, product2, 'added reward line should should contain product 2')
 
     def test_apply_coupon_with_multiple_rewards_claim_discount(self):
         cart = self.empty_cart
         cart.update({
             'partner_id': self.partner_portal.id,
-            'order_line': [Command.create({'product_id': self.product1.id})],
+            'line_ids': [Command.create({'product_id': self.product1.id})],
         })
         cart._update_programs_and_rewards()
         website = cart.website_id.with_user(self.user_portal)
@@ -108,12 +108,12 @@ class TestClaimReward(WebsiteSaleCommon):
 
         with MockRequest(website.env, website=website, sale_order_id=cart.id):
             self.WebsiteSaleController.pricelist(promo=self.coupon.code)
-            self.assertFalse(cart.order_line.reward_id)
+            self.assertFalse(cart.line_ids.reward_id)
 
             self.WebsiteSaleController.claim_reward(discount_reward.id, code=self.coupon.code)
-            self.assertTrue(cart.order_line.reward_id)
+            self.assertTrue(cart.line_ids.reward_id)
             self.assertEqual(
-                discount_reward, cart.order_line.reward_id,
+                discount_reward, cart.line_ids.reward_id,
                 "Discount reward should be added to order",
             )
             self.assertAlmostEqual(
@@ -126,7 +126,7 @@ class TestClaimReward(WebsiteSaleCommon):
         cart = self.empty_cart
         cart.update({
             'partner_id': self.partner_portal.id,
-            'order_line': [Command.create({'product_id': self.product1.id})],
+            'line_ids': [Command.create({'product_id': self.product1.id})],
         })
         cart._update_programs_and_rewards()
         website = cart.website_id.with_user(self.user_portal)
@@ -134,7 +134,7 @@ class TestClaimReward(WebsiteSaleCommon):
 
         with MockRequest(website.env, website=website, sale_order_id=cart.id):
             self.WebsiteSaleController.pricelist(promo=self.coupon.code)
-            self.assertFalse(cart.order_line.reward_id)
+            self.assertFalse(cart.line_ids.reward_id)
 
             self.WebsiteSaleController.claim_reward(
                 multiproduct_reward.id,
@@ -142,10 +142,10 @@ class TestClaimReward(WebsiteSaleCommon):
                 product_id=str(self.product1.id),
             )
             self.assertEqual(
-                multiproduct_reward, cart.order_line.reward_id,
+                multiproduct_reward, cart.line_ids.reward_id,
                 "Product reward should be added",
             )
             self.assertIn(
-                self.product1, cart.order_line.product_id,
+                self.product1, cart.line_ids.product_id,
                 "Chosen reward product should be added to order",
             )

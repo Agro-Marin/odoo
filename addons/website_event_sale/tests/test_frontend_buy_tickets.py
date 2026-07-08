@@ -150,7 +150,7 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         self.assertEqual(self.event.seats_available, 3)
 
         # Add VIP ticket to cart & create draft registration
-        sale_order.order_line = [Command.create({
+        sale_order.line_ids = [Command.create({
             'product_id': self.ticket.product_id.id,
             'event_id': self.event.id,
             'event_ticket_id': self.ticket_2.id,
@@ -200,7 +200,7 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
             ])
 
         # Replace VIP ticket with 2 regular tickets
-        sale_order.order_line.write({
+        sale_order.line_ids.write({
             'product_id': self.ticket.product_id.id,
             'product_uom_qty': 2,
             'event_id': self.event.id,
@@ -232,7 +232,7 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
             ])
 
         # Payment should succeed when buying only one ticket
-        sale_order.order_line.product_uom_qty = 1
+        sale_order.line_ids.product_uom_qty = 1
         registration[1].unlink()
         self.make_jsonrpc_request(url, route_kwargs)
         registration.exists().write({'state': 'open'})

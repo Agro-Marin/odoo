@@ -51,12 +51,12 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
 
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({'product_id': self.product_order.id}),
             ],
         })
         self.assertEqual(
-            purchase_order.order_line.analytic_distribution,
+            purchase_order.line_ids.analytic_distribution,
             distribution_model_product.analytic_distribution | distribution_model_partner.analytic_distribution
         )
 
@@ -66,7 +66,7 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
             f"{analytic_account_1.id},{analytic_account_2.id},{self.project1.account_id.id}": 100,
             f"{self.analytic_account.id},{self.project1.account_id.id}": 100,
         }
-        self.assertEqual(purchase_order.order_line.analytic_distribution, expected_distribution_project)
+        self.assertEqual(purchase_order.line_ids.analytic_distribution, expected_distribution_project)
 
     def test_compute_purchase_orders_count(self):
         self.project1.account_id = self.analytic_account  # Project with analytics
@@ -80,19 +80,19 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
             {
                 'name': 'Purchase Order 1',
                 'partner_id': self.partner_a.id,
-                'order_line': [Command.create({**order_line_values, 'analytic_distribution': {self.analytic_account.id: 100}})]
+                'line_ids': [Command.create({**order_line_values, 'analytic_distribution': {self.analytic_account.id: 100}})]
             },
             {
                 'name': 'Purchase Order 2',
                 'partner_id': self.partner_a.id,
                 'project_id': self.project1.id,
-                'order_line': [Command.create(order_line_values)],
+                'line_ids': [Command.create(order_line_values)],
             },
             {
                 'name': 'Purchase Order 3',
                 'partner_id': self.partner_a.id,
                 'project_id': self.project1.id,
-                'order_line': [Command.create({**order_line_values, 'analytic_distribution': {self.analytic_account.id: 100}})]
+                'line_ids': [Command.create({**order_line_values, 'analytic_distribution': {self.analytic_account.id: 100}})]
             },
         ])
         self.assertEqual(self.project1.purchase_orders_count, 3, 'The number of purchase orders linked to project1 should be equal to 3.')
@@ -104,13 +104,13 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
                 'name': 'Purchase Order 4',
                 'partner_id': self.partner_a.id,
                 'project_id': project2.id,
-                'order_line': [Command.create(order_line_values)],
+                'line_ids': [Command.create(order_line_values)],
             },
             {
                 'name': 'Purchase Order 5',
                 'partner_id': self.partner_a.id,
                 'project_id': project2.id,
-                'order_line': [Command.create(order_line_values)],
+                'line_ids': [Command.create(order_line_values)],
             },
         ])
         self.assertEqual(project2.purchase_orders_count, 2, 'The number of purchase orders linked to project2 should be equal to 2.')

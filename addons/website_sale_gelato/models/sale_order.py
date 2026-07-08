@@ -25,7 +25,7 @@ class SaleOrder(models.Model):
         mixing_products = product.type != 'service' and any(
             (product.gelato_product_uid and not line.product_id.gelato_product_uid)
             or (not product.gelato_product_uid and line.product_id.gelato_product_uid)
-            for line in self.order_line.filtered(lambda l: l.product_id.type != 'service')
+            for line in self.line_ids.filtered(lambda l: l.product_id.type != 'service')
         )  # Whether Gelato and non-Gelato products that require delivery are mixed.
         if mixing_products:
             return 0, _(

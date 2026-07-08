@@ -41,8 +41,12 @@ class OrderMixin(models.AbstractModel):
         "done": {"cancel"},
         "cancel": {"draft"},
     }
-    # Fields still writable while an order is locked.
-    _LOCKED_WRITABLE_FIELDS = {"locked", "priority"}
+    # Fields still writable while an order is locked. ``access_token`` is a
+    # portal.mixin technical field generated on demand (``_portal_ensure_token``)
+    # when sharing/notifying — it is not a business field and must remain
+    # writable even on locked orders, matching upstream (which has no hard
+    # locked-write guard).
+    _LOCKED_WRITABLE_FIELDS = {"locked", "priority", "access_token"}
 
     @property
     def _rec_names_search(self):
@@ -71,7 +75,10 @@ class OrderMixin(models.AbstractModel):
         string="Order Reference",
         required=True,
         default=lambda self: _("New"),
-        readonly=True,
+        # Editable to match upstream sale/purchase: users may set a custom
+        # reference, and base_import excludes readonly fields, which would drop
+        # the "Order Reference" column from the RFQ/quotation import templates.
+        readonly=False,
         copy=False,
         index="trigram",
     )

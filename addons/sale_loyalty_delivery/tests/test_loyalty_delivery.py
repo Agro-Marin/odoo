@@ -55,7 +55,7 @@ class TestLoyaltyDeliveryCost(common.TransactionCase):
         cls.order = cls.env['sale.order'].create({
             'partner_id': cls.partner_1.id,
             'pricelist_id': cls.pricelist.id,
-            'order_line': [Command.create({'product_id': cls.product_4.id})],
+            'line_ids': [Command.create({'product_id': cls.product_4.id})],
         })
 
     def test_delivery_cost_gift_card(self):
@@ -90,7 +90,7 @@ class TestLoyaltyDeliveryCost(common.TransactionCase):
         }))
         delivery_wizard.save().button_confirm()
 
-        self.assertEqual(order.order_line.filtered('is_delivery').price_total, 0)
+        self.assertEqual(order.line_ids.filtered('is_delivery').price_total, 0)
 
     def test_free_delivery_cost_with_ewallet(self):
         """
@@ -129,7 +129,7 @@ class TestLoyaltyDeliveryCost(common.TransactionCase):
         }))
         delivery_wizard.save().button_confirm()
 
-        self.assertEqual(order.order_line.filtered('is_delivery').price_total, 0)
+        self.assertEqual(order.line_ids.filtered('is_delivery').price_total, 0)
 
     def test_delivery_cost_discounts(self):
         """
@@ -162,7 +162,7 @@ class TestLoyaltyDeliveryCost(common.TransactionCase):
         delivery_wizard.save().button_confirm()
 
         self.assertEqual(
-            order.order_line.filtered('is_delivery').price_unit,
+            order.line_ids.filtered('is_delivery').price_unit,
             self.product_delivery.list_price
         )
 
@@ -178,7 +178,7 @@ class TestLoyaltyDeliveryCost(common.TransactionCase):
         delivery_wizard.save().button_confirm()
 
         self.assertEqual(
-            self.order.order_line.filtered('is_reward_line').price_unit,
+            self.order.line_ids.filtered('is_reward_line').price_unit,
             -self.product_4.list_price / 2,
             "Reward line should be half of the product's price",
         )

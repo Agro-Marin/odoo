@@ -575,7 +575,7 @@ class ProductProduct(models.Model):
         ]
         return action
 
-    def action_open_quants(self):
+    def action_view_quants(self):
         bom_kits = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")
         components = self - self.env["product.product"].concat(*list(bom_kits.keys()))
         for product in bom_kits:
@@ -583,7 +583,7 @@ class ProductProduct(models.Model):
             components |= self.env["product.product"].concat(
                 *[l[0].product_id for l in bom_sub_lines]
             )
-        res = super(ProductProduct, components).action_open_quants()
+        res = super(ProductProduct, components).action_view_quants()
         if bom_kits:
             res["context"].pop("default_product_tmpl_id", None)
         return res
@@ -615,6 +615,23 @@ class ProductProduct(models.Model):
         )
         return super()._count_returned_sn_products_domain(sn_lot, or_domains)
 
+    def _get_phantom_bom_products(self):
+        """Products manufactured as a kit (phantom BoM). Their quantity is derived from
+        their components, so quantity searches must consider them explicitly."""
+        kit_boms = self.env["mrp.bom"].search([("type", "=", "phantom")])
+        kit_products = self.env["product.product"]
+        for kit in kit_boms:
+            if kit.product_id:
+                kit_products |= kit.product_id
+            else:
+                kit_products |= kit.product_tmpl_id.product_variant_ids
+        return kit_products
+
+    def _get_quantity_search_candidates(self):
+        # Kits can have a non-zero quantity without any quants/moves of their own (it comes
+        # from their components), so they must be added to the candidate set.
+        return super()._get_quantity_search_candidates() | self._get_phantom_bom_products()
+
     def _search_qty_available_new(
         self, operator, value, lot_id=False, owner_id=False, package_id=False
     ):
@@ -625,14 +642,7 @@ class ProductProduct(models.Model):
         product_ids = super()._search_qty_available_new(
             operator, value, lot_id, owner_id, package_id
         )
-        kit_boms = self.env["mrp.bom"].search([("type", "=", "phantom")])
-        kit_products = self.env["product.product"]
-        for kit in kit_boms:
-            if kit.product_id:
-                kit_products |= kit.product_id
-            else:
-                kit_products |= kit.product_tmpl_id.product_variant_ids
-        for product in kit_products:
+        for product in self._get_phantom_bom_products():
             if op(product.qty_available, value):
                 product_ids.append(product.id)
             elif product.id in product_ids:

@@ -56,7 +56,7 @@ class TestWebsiteSaleStockDeliveryController(PaymentCommon, WebsiteSaleCommon, D
         })
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': storable_product.id,
                 'product_uom_qty': 12.0,
             })],

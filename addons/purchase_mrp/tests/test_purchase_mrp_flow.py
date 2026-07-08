@@ -212,7 +212,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             line.product_qty = 120
             line.price_unit = 1260
         po = po.save()
-        po.button_confirm()
+        po.action_confirm()
         po.picking_ids.button_validate()
 
         # Unit price equaly dived among bom lines (cost share not set)
@@ -264,7 +264,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             line.price_unit = 300.00
 
         po = po.save()
-        po.button_confirm()
+        po.action_confirm()
         po.picking_ids.button_validate()
 
         layer = po.picking_ids.move_ids.stock_valuation_layer_ids
@@ -298,7 +298,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             line.price_unit = 10
 
         po = f.save()
-        po.button_confirm()
+        po.action_confirm()
 
         # Check picking creation, its move lines should concern
         # only components. Also checks that the quantities are corresponding
@@ -553,7 +553,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             'line_ids': [(0, 0, {'name': self.kit_1.name, 'product_id': self.kit_1.id, 'product_qty': 1, 'product_uom_id': self.kit_1.uom_id.id, 'price_unit': 60.0, 'date_planned': fields.Datetime.now()})],
         })
         # Validate the PO
-        self.po.button_confirm()
+        self.po.action_confirm()
 
         # Check the component qty in the created picking
         self.assertEqual(self.po.picking_ids.move_ids[0].product_uom_qty, 2, "The quantity of components must be created according to the BOM")
@@ -604,7 +604,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po = self.env['purchase.order'].search([('partner_id', '=', vendor.id)])
         self.assertTrue(po)
 
-        po.button_confirm()
+        po.action_confirm()
 
     def test_procurement_with_preferred_route_2(self):
         """
@@ -840,8 +840,8 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po_today = create_order(component_product, partner, fields.Datetime.now())
         po_5days = create_order(component_product, partner, fields.Datetime.now() + timedelta(days=5))
 
-        po_today.button_confirm()
-        po_5days.button_confirm()
+        po_today.action_confirm()
+        po_5days.action_confirm()
         report_values = self.env['report.mrp.report_bom_structure']._get_report_data(bom_id=bom.id)
         line_values = report_values['lines']['components'][0]
         self.assertEqual(line_values['availability_state'], 'estimated', 'The merged components should be estimated.')
@@ -882,7 +882,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             line.product_qty = 6.0
             line.price_unit = 10
         po_today = f.save()
-        po_today.button_confirm()
+        po_today.action_confirm()
         report_values = self.env['report.mrp.report_bom_structure']._get_report_data(bom_id=bom.id)
         line_values = report_values['lines']['components'][0]
         self.assertEqual(line_values['availability_state'], 'expected', 'The first component should be expected as there is an incoming PO.')
@@ -923,7 +923,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             })],
         })
         # Validate the PO
-        po.button_confirm()
+        po.action_confirm()
         picking = po.picking_ids
         # Check the component qty in the created picking should be 25
         self.assertEqual(picking.move_line_ids.quantity_product_uom, 30 * 5 / 6)
@@ -1069,7 +1069,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             pol_form.price_unit = 90000
             pol_form.tax_ids.clear()
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_line_ids[0].quantity = 4
@@ -1234,7 +1234,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             pol_form.price_unit = 100
             pol_form.tax_ids.clear()
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
         receipt = po.picking_ids
         receipt.button_validate()
         move = receipt.move_ids[0]
@@ -1270,7 +1270,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
                 'product_qty': 2,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
         self.assertEqual(po.state, "done")
         self.assertEqual(self.component_a.standard_price, 0)
         picking = po.picking_ids
@@ -1307,7 +1307,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
                  })
             ]
         })
-        po.button_confirm()
+        po.action_confirm()
 
         self.assertTrue(po.picking_ids)
         self.assertEqual(po.line_ids.qty_received, 0)
@@ -1368,7 +1368,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
                 }),
             ],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.action_create_invoice()
         bill = purchase_order.invoice_ids
         bill.invoice_date = fields.Date.today()

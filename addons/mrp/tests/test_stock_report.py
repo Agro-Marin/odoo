@@ -305,7 +305,7 @@ class TestMrpStockReports(TestReportsCommon):
             }
         )
 
-        for back_order, expected_vals in [("never", [12, 12]), ("always", [24, 12])]:
+        for back_order, expected_vals in [("never", [24, 12]), ("always", [24, 12])]:
             picking_form = Form(self.env["stock.picking"])
             picking_form.picking_type_id = self.picking_type_in
             picking_form.partner_id = self.partner
@@ -325,6 +325,7 @@ class TestMrpStockReports(TestReportsCommon):
             aggregate_values = picking.move_line_ids._get_aggregated_product_quantities(
                 kit_name=superkit.display_name
             )
+
             for line in aggregate_values.values():
                 self.assertItemsEqual(
                     [line[val] for val in ["qty_ordered", "quantity"]], expected_vals

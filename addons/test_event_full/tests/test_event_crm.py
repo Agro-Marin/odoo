@@ -23,7 +23,7 @@ class TestEventCrm(TestEventFullCommon):
 
         # adding some tickets to SO
         cls.customer_so.write({
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': cls.test_event.id,
                     'event_ticket_id': ticket1.id,
@@ -49,7 +49,7 @@ class TestEventCrm(TestEventFullCommon):
         t1_reg_vals = [
             dict(customer_data,
                  partner_id=customer_so.partner_id.id,
-                 sale_order_line_id=customer_so.order_line[0].id)
+                 sale_order_line_id=customer_so.line_ids[0].id)
             for customer_data in self.website_customer_data[:self.TICKET1_COUNT]
         ]
         t1_registrations = self.env['event.registration'].create(t1_reg_vals)
@@ -84,7 +84,7 @@ class TestEventCrm(TestEventFullCommon):
         public_partner = self.env.ref('base.public_partner')
         public_so = self.env['sale.order'].create({
             'partner_id': public_partner.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'event_id': self.test_event.id,
                     'event_ticket_id': self.test_event.event_ticket_ids[0].id,
@@ -99,16 +99,16 @@ class TestEventCrm(TestEventFullCommon):
         mixed_reg_vals = [
             dict(self.website_customer_data[0],
                  partner_id=customer_so.partner_id.id,
-                 sale_order_line_id=customer_so.order_line[0].id),
+                 sale_order_line_id=customer_so.line_ids[0].id),
             dict(self.website_customer_data[1],
                  partner_id=customer_so.partner_id.id,
-                 sale_order_line_id=customer_so.order_line[0].id),
+                 sale_order_line_id=customer_so.line_ids[0].id),
             dict(self.website_customer_data[2],
                  partner_id=public_so.partner_id.id,
-                 sale_order_line_id=public_so.order_line[0].id),
+                 sale_order_line_id=public_so.line_ids[0].id),
             dict(self.website_customer_data[3],
                  partner_id=public_so.partner_id.id,
-                 sale_order_line_id=public_so.order_line[0].id),
+                 sale_order_line_id=public_so.line_ids[0].id),
         ]
         self.env['event.registration'].create(mixed_reg_vals)
 
@@ -133,7 +133,7 @@ class TestEventCrm(TestEventFullCommon):
         t1_reg_vals = [
             dict(customer_data,
                  partner_id=public_partner.id,
-                 sale_order_line_id=customer_so.order_line[0].id)
+                 sale_order_line_id=customer_so.line_ids[0].id)
             for customer_data in self.website_customer_data[:self.TICKET1_COUNT]
         ]
         t1_registrations = self.env['event.registration'].create(t1_reg_vals)

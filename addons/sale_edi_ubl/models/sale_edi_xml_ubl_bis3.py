@@ -72,7 +72,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
         sale_order = vals['sale_order']
         AccountTax = self.env['account.tax']
 
-        base_lines = [line._prepare_base_line_for_taxes_computation() for line in sale_order.order_line.filtered(lambda line: not line.display_type)]
+        base_lines = [line._prepare_base_line_for_taxes_computation() for line in sale_order.line_ids.filtered(lambda line: not line.display_type)]
         AccountTax._add_tax_details_in_base_lines(base_lines, sale_order.company_id)
         AccountTax._round_base_lines_tax_details(base_lines, sale_order.company_id)
 
@@ -95,7 +95,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
             'cbc:ID': {'_text': sale_order.name},
             'cbc:IssueDate': {'_text': sale_order.create_date.date()},
             'cbc:OrderTypeCode': {'_text': '220'},
-            'cbc:Note': {'_text': html2plaintext(sale_order.note)} if sale_order.note else None,
+            'cbc:Note': {'_text': html2plaintext(sale_order.notes)} if sale_order.notes else None,
             'cbc:DocumentCurrencyCode': {'_text': vals['currency_name']},
             'cac:ValidityPeriod': {
                 'cbc:EndDate': {'_text': sale_order.validity_date},
@@ -298,7 +298,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
         delivery = (sale_order.partner_shipping_id
                     or (customer_delivery_address and customer_delivery_address[0])
                     or customer)
-        order_line_vals = self._get_order_line_vals(sale_order.order_line, customer, supplier)
+        order_line_vals = self._get_order_line_vals(sale_order.line_ids, customer, supplier)
 
         vals['vals'].update({
             'order_type_code': 220,
@@ -363,7 +363,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
         lines_vals += allowance_charges_line_vals
 
         # Update order with lines excluding discounts
-        order_vals['order_line'] = [Command.create(line_vals) for line_vals in lines_vals]
+        order_vals['line_ids'] = [Command.create(line_vals) for line_vals in lines_vals]
         logs += partner_logs + delivery_logs + line_logs + allowance_charges_logs
 
         return order_vals, logs
@@ -371,7 +371,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
     def _import_order_ubl(self, order, file_data, new):
         # Overriding the main method to recalculate the price unit and discount
         res = super()._import_order_ubl(order, file_data, new)
-        lines_with_products = order.order_line.filtered('product_id')
+        lines_with_products = order.line_ids.filtered('product_id')
         # Recompute product price and discount according to sale price
         lines_with_products._compute_price_unit()
         lines_with_products._compute_discount()

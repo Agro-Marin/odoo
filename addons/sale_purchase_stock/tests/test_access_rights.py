@@ -67,11 +67,11 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         so.action_confirm()
 
         po = self.env['purchase.order'].search([('partner_id', '=', vendor.id)])
-        po.button_confirm()
+        po.action_confirm()
 
         # salesperson writes on the SO
         so.write({
-            'order_line': [(1, so_line.id, {'product_uom_qty': 0.9})]
+            'line_ids': [(1, so_line.id, {'product_uom_qty': 0.9})]
         })
 
         self.assertIn(so.name, po.activity_ids.note)
@@ -101,7 +101,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         so = self.env['sale.order'].with_user(self.user_salesperson).create({
             'partner_id': self.partner_b.id,
             'user_id': self.user_salesperson.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'product_id': product.id,
                     'product_uom_qty': 10,
@@ -110,15 +110,15 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         })
         so.action_confirm()
         po = self.env['purchase.order'].search([('partner_id', '=', self.partner_a.id)])
-        self.assertEqual(po.order_line[0].product_qty, 10)
-        so.order_line = [Command.create({
+        self.assertEqual(po.line_ids[0].product_qty, 10)
+        so.line_ids = [Command.create({
             'product_id': product.id,
             'product_uom_qty': 11,
             'price_unit': product.list_price,
         })]
 
-        self.assertEqual(po.order_line[0].product_qty, 21)
-        po.button_confirm()
+        self.assertEqual(po.line_ids[0].product_qty, 21)
+        po.action_confirm()
         self.assertEqual(po.state, 'done')
 
     def test_sales_user_can_access_forecast_report(self):
@@ -127,7 +127,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         # This PO provides a source document to test if it can be accessed in the forecast report.
         po = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'test',
                 'product_id': self.product.id,
                 'product_qty': 1,
@@ -138,7 +138,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         different_company_po = self.env['purchase.order'].create({
             'company_id': self.env['res.company'].create({'name': 'Different Company'}).id,
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'test',
                 'product_id': self.product.id,
                 'product_qty': 2,
@@ -160,4 +160,4 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         self.assertEqual(report_values['docs']['product'][self.product.id]['draft_purchase_orders'], [{'id': po.id, 'name': po.name}])
         # A sales user cannot access the PO directly, despite viewing it's info in the report
         with self.assertRaises(AccessError, msg='Sales user is not allowed to access a PO'):
-            po.with_user(self.user_salesperson).button_confirm()
+            po.with_user(self.user_salesperson).action_confirm()

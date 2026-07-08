@@ -62,7 +62,7 @@ class TestSaleCouponApplyPending(TestSaleCouponNumbersCommon, WebsiteSaleCommon)
                 "The order total should equal 576: 2*320 - 10% discount "
             )
             self.assertEqual(
-                len(order.order_line),
+                len(order.line_ids),
                 2,
                 "There should be 2 lines 1 for the product and 1 for the discount"
             )
@@ -79,7 +79,7 @@ class TestSaleCouponApplyPending(TestSaleCouponNumbersCommon, WebsiteSaleCommon)
                 "The order total should equal 576: 2*320 - 0 (free product) - 10%"
             )
             self.assertEqual(
-                len(order.order_line),
+                len(order.line_ids),
                 3,
                 "There should be 3 lines 1 for the product, 1 for the free product and 1 for the discount"
             )
@@ -96,8 +96,8 @@ class TestSaleCouponApplyPending(TestSaleCouponNumbersCommon, WebsiteSaleCommon)
             )
             self.WebsiteSaleController.pricelist(self.global_program.rule_ids.code)
             self.assertEqual(self.largeCabinet.lst_price, 320)
-            cabinet_sol = order.order_line.filtered(lambda sol: sol.product_id == self.largeCabinet)
-            promo_sol = (order.order_line - cabinet_sol)
+            cabinet_sol = order.line_ids.filtered(lambda sol: sol.product_id == self.largeCabinet)
+            promo_sol = (order.line_ids - cabinet_sol)
             self.assertTrue(cabinet_sol)
             self.assertEqual(cabinet_sol.price_unit, 320)
             self.assertEqual(cabinet_sol.price_total, 320)

@@ -46,7 +46,7 @@ class TestLoyaltyhistory(TestSaleCouponCommon):
     def test_add_loyalty_history_line_with_reward(self):
         order = self.empty_order
         order.write({
-            'order_line': [
+            'line_ids': [
                 Command.create({
                 'product_id': self.product_A.id,
                 'name': 'Ordinary Product A',
@@ -66,7 +66,7 @@ class TestLoyaltyhistory(TestSaleCouponCommon):
         order = self.empty_order
         order.write({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_A.id,
                     'tax_ids': False,
@@ -84,7 +84,7 @@ class TestLoyaltyhistory(TestSaleCouponCommon):
         order = self.empty_order
         order.write({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_A.id,
                     'tax_ids': False,
@@ -106,7 +106,7 @@ class TestLoyaltyhistory(TestSaleCouponCommon):
         order = self.empty_order
         order.write({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_A.id,
                     'tax_ids': False,
@@ -115,8 +115,8 @@ class TestLoyaltyhistory(TestSaleCouponCommon):
         })
         for reward in self.loyalty_program.reward_ids:
             order._apply_program_reward(reward, self.loyalty_card)
-        self.assertEqual(len(order.order_line.filtered('reward_id')), 2)
-        self.assertEqual(order.order_line.mapped('points_cost'), [0, 1, 2])
+        self.assertEqual(len(order.line_ids.filtered('reward_id')), 2)
+        self.assertEqual(order.line_ids.mapped('points_cost'), [0, 1, 2])
 
         order.action_confirm()
         loyalty_history = self.loyalty_card.history_ids

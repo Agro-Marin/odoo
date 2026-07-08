@@ -16,7 +16,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.company_data['product_delivery_no'].name,
                 'product_id': self.company_data['product_delivery_no'].id,
                 'product_uom_qty': 2,
@@ -39,8 +39,8 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         self.post_expenses_with_wizard(expense)
 
         # expense should now be in sales order
-        self.assertIn(self.company_data['product_delivery_cost'], so.mapped('order_line.product_id'), 'Sale Expense: expense product should be in so')
-        sol = so.order_line.filtered(lambda sol: sol.product_id.id == self.company_data['product_delivery_cost'].id)
+        self.assertIn(self.company_data['product_delivery_cost'], so.mapped('line_ids.product_id'), 'Sale Expense: expense product should be in so')
+        sol = so.line_ids.filtered(lambda sol: sol.product_id.id == self.company_data['product_delivery_cost'].id)
         self.assertEqual((sol.price_unit, sol.qty_delivered), (55.0, 11.3), 'Sale Expense: error when invoicing an expense at cost')
         self.assertEqual(so.amount_total, init_price + expense.total_amount, 'Sale Expense: price of so should be updated after adding expense')
         self.assertEqual(sol.analytic_distribution, {str(analytic_account.id): 100})
@@ -70,8 +70,8 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         self.post_expenses_with_wizard(expense_2)
 
         # expense should now be in sales order
-        self.assertIn(prod_exp_2, so.mapped('order_line.product_id'), 'Sale Expense: expense product should be in so')
-        sol = so.order_line.filtered(lambda sol: sol.product_id.id == prod_exp_2.id)
+        self.assertIn(prod_exp_2, so.mapped('line_ids.product_id'), 'Sale Expense: expense product should be in so')
+        sol = so.line_ids.filtered(lambda sol: sol.product_id.id == prod_exp_2.id)
         self.assertEqual((sol.price_unit, sol.qty_delivered), (prod_exp_2.list_price, 100.0), 'Sale Expense: error when invoicing an expense at cost')
         self.assertEqual(so.amount_untaxed, init_price + (prod_exp_2.list_price * 100.0), 'Sale Expense: price of so should be updated after adding expense')
 
@@ -97,7 +97,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [Command.create({'product_id': self.product_b.id})],
+            'line_ids': [Command.create({'product_id': self.product_b.id})],
         })
         sale_order.action_confirm()
         sale_order._create_invoices()

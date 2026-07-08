@@ -36,11 +36,11 @@ class SaleOrder(models.Model):
                     # skip those to avoid a division by zero.
                     continue
                 component = bom_line.product_id
-                unavailable_component_qties[component] = sum(self.order_line.filtered(lambda sol: sol.product_id == component).mapped('product_uom_qty'))
+                unavailable_component_qties[component] = sum(self.line_ids.filtered(lambda sol: sol.product_id == component).mapped('product_uom_qty'))
                 uom_qty_per_kit = bom_line_data['qty'] / bom_line_data['original_qty']
                 qty_per_kit[component] += bom_line.product_uom_id._compute_quantity(uom_qty_per_kit / kit_bom.product_qty, component.uom_id, round=False)
 
-        for line in self.order_line:
+        for line in self.line_ids:
             if not line.product_id.is_kits or line.product_id == product:
                 continue
             # Other kit lines might influence the availability of the product.

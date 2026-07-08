@@ -10,7 +10,6 @@ class AccountMoveLine(models.Model):
     # FIELDS
     # ------------------------------------------------------------
 
-    is_downpayment = fields.Boolean()
     sale_line_ids = fields.Many2many(
         comodel_name="sale.order.line",
         relation="account_move_line_sale_order_line_rel",

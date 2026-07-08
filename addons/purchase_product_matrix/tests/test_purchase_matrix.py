@@ -27,7 +27,7 @@ class TestPurchaseMatrixUi(TestMatrixCommon):
         )
         self.assertFalse(dyn)
 
-        self.env['purchase.order.line'].search([('product_id', 'in', self.matrix_template.product_variant_ids.ids)]).order_id.button_confirm()
+        self.env['purchase.order.line'].search([('product_id', 'in', self.matrix_template.product_variant_ids.ids)]).order_id.action_confirm()
         self.matrix_template.flush_recordset()
         self.assertEqual(round(self.matrix_template.purchased_product_qty, 2), 51.8)
         for variant in self.matrix_template.product_variant_ids:
@@ -61,7 +61,7 @@ class TestPurchaseMatrixUi(TestMatrixCommon):
             'partner_id': french_partner.id,
         })
         with Form(purchase_order) as po_form:
-            with po_form.order_line.new() as line:
+            with po_form.line_ids.new() as line:
                 line.product_no_variant_attribute_value_ids = attribute_never.template_value_ids[0]
                 line.product_id = product_template.product_variant_id
-        self.assertEqual(purchase_order.order_line.name, 'matrixFR\nPA4FR: PAV41FR')
+        self.assertEqual(purchase_order.line_ids.name, 'matrixFR\nPA4FR: PAV41FR')

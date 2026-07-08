@@ -271,7 +271,12 @@ class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
         This triggers cascading recomputes for amounts, dates, etc.
         """
         line = self.purchase_order.line_ids[0]
-        with self.assertQueryCount(admin=22):
+        # Changing product_qty re-selects the seller (price breaks), which
+        # recomputes the line name; _get_line_description reads the stored
+        # product_no_variant_attribute_value_ids m2m (one query) to append the
+        # no-variant attribute spec to the RFQ description (upstream 19.0 fix
+        # ported in "port upstream 19.0 fixes since fork"). Baseline was 22.
+        with self.assertQueryCount(admin=23):
             line.write({"product_qty": 20})
 
     @users("admin")
@@ -279,7 +284,9 @@ class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
     def test_po_line_batch_qty_update(self):
         """Test query count for batch updating line quantities."""
         lines = self.purchase_order.line_ids[:5]
-        with self.assertQueryCount(admin=23):
+        # +1 vs the former baseline of 23: the no-variant attribute description
+        # read (see test_po_line_qty_update) batched across the five lines.
+        with self.assertQueryCount(admin=24):
             lines.write({"product_qty": 15})
 
 
@@ -328,7 +335,9 @@ class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        with self.assertQueryCount(admin=26):
+        # +1 vs the former baseline of 26: the no-variant attribute description
+        # read (see test_po_line_qty_update) on line-name computation at confirm.
+        with self.assertQueryCount(admin=27):
             po.action_confirm()
 
     @users("admin")
@@ -339,7 +348,9 @@ class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        with self.assertQueryCount(admin=27):
+        # +1 vs the former baseline of 27: the no-variant attribute description
+        # read (see test_po_line_qty_update) on line-name computation at confirm.
+        with self.assertQueryCount(admin=28):
             po.action_confirm()
 
 

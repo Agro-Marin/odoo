@@ -50,7 +50,7 @@ class TestEventBoothSale(TestEventBoothSaleWData):
         sale_order = self.env['sale.order'].create({
             'partner_id': self.event_customer.id,
             'pricelist_id': self.test_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.event_booth_product.id,
                     'event_id': self.event_0.id,
@@ -99,7 +99,7 @@ class TestEventBoothSale(TestEventBoothSaleWData):
                 booth.sale_order_id.id, sale_order.id,
                 "Booth sale order should be the same as the original sale order.")
             self.assertEqual(
-                booth.sale_order_line_id.id, sale_order.order_line[0].id,
+                booth.sale_order_line_id.id, sale_order.line_ids[0].id,
                 "Booth sale order line should the same as the order line in the original sale order.")
             self.assertEqual(
                 booth.partner_id.id, self.event_customer.id,
@@ -123,7 +123,7 @@ class TestEventBoothSale(TestEventBoothSaleWData):
         sale_order = self.env['sale.order'].create({
             'partner_id': self.event_customer.id,
             'pricelist_id': self.test_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.event_booth_product.id,
                     'event_id': self.event_0.id,
@@ -133,14 +133,14 @@ class TestEventBoothSale(TestEventBoothSaleWData):
             ]
         })
 
-        self.assertEqual(sale_order.order_line.event_booth_registration_ids.event_booth_id.ids,
+        self.assertEqual(sale_order.line_ids.event_booth_registration_ids.event_booth_id.ids,
                          (self.booth_1 + self.booth_2).ids,
                          "Booths not correctly linked with event_booth_registration.")
 
         # Update booths
         sale_order.write({
-            'order_line': [
-                Command.update(sale_order.order_line.id, {
+            'line_ids': [
+                Command.update(sale_order.line_ids.id, {
                     'event_booth_pending_ids': [Command.set((self.booth_2 + self.booth_3).ids)]
                 })
             ]
@@ -150,7 +150,7 @@ class TestEventBoothSale(TestEventBoothSaleWData):
         sale_order.action_confirm()
         self.assertEqual(sale_order.event_booth_count, 2,
                          "Event Booth Count should be equal to 2.")
-        self.assertEqual(sale_order.order_line.event_booth_registration_ids.event_booth_id.ids,
+        self.assertEqual(sale_order.line_ids.event_booth_registration_ids.event_booth_id.ids,
                          (self.booth_2 + self.booth_3).ids,
                          "Booths not correctly linked with event_booth_registration.")
 
@@ -172,7 +172,7 @@ class TestEventBoothSaleInvoice(AccountTestInvoicingCommon, TestEventBoothSaleWD
         sale_order = self.env['sale.order'].create({
             'partner_id': self.event_customer.id,
             'pricelist_id': self.test_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.event_booth_product.id,
                     'event_id': self.event_0.id,

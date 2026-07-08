@@ -135,7 +135,7 @@ class IrActionsReport(models.Model):
         path = form_field.path
 
         # If path = 'order_id.line_ids.product_id.name'
-        path = path.split('.')  # ['order_id', 'order_line', 'product_id', 'name']
+        path = path.split('.')  # ['order_id', 'line_ids', 'product_id', 'name']
         # Sudo to be able to follow the path set by the admin
         records = base_record.sudo().mapped('.'.join(path[:-1]))  # product.product(id1, id2, ...)
         field_name = path[-1]  # 'name'

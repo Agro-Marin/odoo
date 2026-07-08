@@ -51,8 +51,8 @@ class StockMove(models.Model):
                 pass
         return res
 
-    def _get_formating_options(self, strings):
-        options = super()._get_formating_options(strings)
+    def _get_formatting_options(self, strings):
+        options = super()._get_formatting_options(strings)
         separators = "-/ "
         date_regex = f'[^{separators}]+'
         for string in strings:

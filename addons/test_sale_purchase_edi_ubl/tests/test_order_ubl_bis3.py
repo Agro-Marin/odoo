@@ -53,7 +53,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         po = self.env['purchase.order'].with_company(self.customer_company).create({
             'name': 'New PO',
             'partner_id': self.supplier_company.partner_id.id,
-            'order_line': [Command.create(vals) for vals in po_line_vals],
+            'line_ids': [Command.create(vals) for vals in po_line_vals],
             **po_vals,
         })
 
@@ -67,7 +67,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         so = self.env['sale.order'].with_company(self.supplier_company).create({
             'name': 'New SO',
             'partner_id': self.customer_company.partner_id.id,
-            'order_line': [Command.create(vals) for vals in so_line_vals],
+            'line_ids': [Command.create(vals) for vals in so_line_vals],
             **so_vals,
         })
 
@@ -186,7 +186,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
             line['tax_ids'] = related_sale_tax.ids
             line['price_unit'] = line_product.list_price
 
-        self.assertRecordValues(so.order_line, po_line_vals)
+        self.assertRecordValues(so.line_ids, po_line_vals)
 
     def test_po_import_product_from_so(self):
         so_line_vals = [
@@ -207,7 +207,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         xml_attachment = self.get_sale_xml(so_line_vals)
         po = self.env['purchase.order'].with_context(default_partner_id=self.env.user.partner_id.id)._create_records_from_attachments(xml_attachment)
         # Should be able to confirm order
-        po.button_confirm()
+        po.action_confirm()
         self.assertEqual(po.partner_id, self.supplier_company.partner_id)
 
         # Find first purchase tax related to sale tax
@@ -225,7 +225,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
             line['tax_ids'] = related_purchase_tax.ids
             line['price_unit'] = line_product.list_price
 
-        self.assertRecordValues(po.order_line, so_line_vals)
+        self.assertRecordValues(po.line_ids, so_line_vals)
 
     def test_so_product_unit_price_with_different_uom(self):
         po_line_vals = [{
@@ -244,7 +244,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
             line['price_unit'] = line_product.uom_id._compute_price(line_product.list_price, product_uom)
             del line['product_qty']
 
-        self.assertRecordValues(so.order_line, po_line_vals)
+        self.assertRecordValues(so.line_ids, po_line_vals)
 
     def test_po_product_unit_price_with_different_uom(self):
         so_line_vals = [{
@@ -259,7 +259,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         for line in so_line_vals:
             line['product_qty'] = line.pop('product_uom_qty')
 
-        self.assertRecordValues(po.order_line, so_line_vals)
+        self.assertRecordValues(po.line_ids, so_line_vals)
 
     def test_so_no_matching_product_found(self):
         line_vals = [{
@@ -275,7 +275,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
             so.action_confirm()
         line_vals[0]['product_id'] = False
         # Should set other values properly
-        self.assertRecordValues(so.order_line, line_vals)
+        self.assertRecordValues(so.line_ids, line_vals)
         # Should create an activity if product is not found
         self.assertEqual(len(so.activity_ids), 1)
 
@@ -290,7 +290,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         po = self.env['purchase.order'].with_context(default_partner_id=self.env.user.partner_id.id)._create_records_from_attachments(xml_attachment)
         line_vals[0]['product_id'] = False
         # Should set other values properly
-        self.assertRecordValues(po.order_line, line_vals)
+        self.assertRecordValues(po.line_ids, line_vals)
         # Should create an activity if product is not found
         self.assertEqual(len(po.activity_ids), 1)
 

@@ -40,7 +40,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             pol_form.product_id = kit
             pol_form.price_unit = 100
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         po.picking_ids.button_validate()
 
@@ -114,7 +114,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             pol_form.price_unit = 100
             pol_form.tax_ids.clear()
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_line_ids.quantity = 1
@@ -202,7 +202,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             pol_form.product_id = kit
             pol_form.price_unit = 100  # $50
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         po.picking_ids.button_validate()
 
@@ -299,7 +299,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 'price_unit': 100,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.picking_ids[0].button_validate()
 
         manufacturing_order = self.env['mrp.production'].create({
@@ -336,7 +336,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                     'price_unit': price_unit
                 })],
             } for prod_id, price_unit in zip(product_ids, price_units)])
-            purchase_orders.button_confirm()
+            purchase_orders.action_confirm()
             purchase_orders.picking_ids.move_ids.quantity = 2
             purchase_orders.picking_ids.button_validate()
             production_form = Form(self.env['mrp.production'])
@@ -490,7 +490,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             }
             for qty in [1, 3]
         ])
-        purchase_orders.button_confirm()
+        purchase_orders.action_confirm()
 
         # Actual cost shares:
         # Component01:
@@ -742,7 +742,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 Command.create({'product_id': variant.id, 'product_qty': 1, 'price_unit': 1000}) for variant in product_template.product_variant_ids
             ],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
         self.assertEqual(sum(purchase_order.line_ids.move_ids.mapped('cost_share')), 300.0, 'There are 3 lines and each line should be associated with a total cost_share of 100%')
         self.assertRecordValues(purchase_order.line_ids.move_ids.sorted(lambda m: m.product_id.id), [
@@ -806,7 +806,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 'price_unit': kit_price,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         receipt = purchase_order.picking_ids
         receipt.button_validate()
         # Check that the monetary value of each component move is set to 16.67 ~ 100/6

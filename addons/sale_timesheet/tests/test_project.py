@@ -12,7 +12,7 @@ class TestProject(TestCommonSaleTimesheet):
     def setUp(self):
         super().setUp()
         self.project_global.write({
-            'sale_line_id': self.so.order_line[0].id,
+            'sale_line_id': self.so.line_ids[0].id,
         })
 
     def test_fetch_sale_order_items(self):
@@ -33,7 +33,7 @@ class TestProject(TestCommonSaleTimesheet):
         self.assertFalse(self.project_non_billable._get_sale_order_items())
         self.assertFalse(self.project_non_billable._get_sale_orders())
 
-        sale_item = self.so.order_line[0]
+        sale_item = self.so.line_ids[0]
         self.env.invalidate_all()
         expected_task_sale_order_items = self.project_global.tasks.sale_line_id
         expected_sale_order_items = sale_item | expected_task_sale_order_items
@@ -44,11 +44,11 @@ class TestProject(TestCommonSaleTimesheet):
         task = self.env['project.task'].create({
             'name': 'Task with SOL',
             'project_id': self.project_global.id,
-            'sale_line_id': self.so.order_line[1].id,
+            'sale_line_id': self.so.line_ids[1].id,
         })
 
         self.assertEqual(task.project_id, self.project_global)
-        self.assertEqual(task.sale_line_id, self.so.order_line[1])
+        self.assertEqual(task.sale_line_id, self.so.line_ids[1])
         self.assertEqual(task.sale_order_id, self.so)
         sale_lines = self.project_global._get_sale_order_items()
         self.assertEqual(sale_lines, task.sale_line_id + self.project_global.sale_line_id, 'The Sales Order Items found should be the one linked to the project and the one of project task.')
@@ -57,7 +57,7 @@ class TestProject(TestCommonSaleTimesheet):
         employee_mapping = self.env['project.sale.line.employee.map'].create({
             'project_id': self.project_global.id,
             'employee_id': self.employee_user.id,
-            'sale_line_id': self.so.order_line[-1].id,
+            'sale_line_id': self.so.line_ids[-1].id,
         })
         expected_sale_order_items |= employee_mapping.sale_line_id
         self.assertEqual(self.project_global._get_sale_order_items(), expected_sale_order_items)

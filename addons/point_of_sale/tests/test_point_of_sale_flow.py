@@ -1229,8 +1229,8 @@ class TestPointOfSaleFlow(CommonPosTest):
         })
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
         purchase_order = self.env['purchase.order'].search([], limit=1)
-        self.assertEqual(purchase_order.order_line.product_qty, 1)
-        self.assertEqual(purchase_order.order_line.product_id.id,
+        self.assertEqual(purchase_order.line_ids.product_qty, 1)
+        self.assertEqual(purchase_order.line_ids.product_id.id,
                         self.ten_dollars_with_15_incl.product_variant_id.id)
 
     def test_state_when_closing_register(self):

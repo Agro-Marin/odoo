@@ -232,7 +232,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
             'partner_id': self.env.user.partner_id.id,
             'website_id': self.website.id,
             'pricelist_id': self.pricelist.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': product.name,
                 'product_id': product.id,
                 'product_uom_qty': 1,
@@ -240,7 +240,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
                 'tax_ids': False,
             })],
         })
-        sol = so.order_line
+        sol = so.line_ids
         self.assertEqual(sol.price_total, 100.0)
         so.pricelist_id = promo_pricelist
         so._cart_update_line_quantity(line_id=sol.id, quantity=500)
@@ -270,7 +270,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
             'partner_id': self.env.user.partner_id.id,
             'website_id': self.website.id,
             'pricelist_id': self.pricelist.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': product.name,
                 'product_id': product.id,
                 'product_uom_qty': 5,
@@ -278,7 +278,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
                 'tax_ids': False,
             })]
         })
-        sol = so.order_line
+        sol = so.line_ids
         self.assertEqual(sol.price_total, 0)
         so._cart_update_line_quantity(line_id=sol.id, quantity=6)
         self.assertEqual(sol.price_unit, 10.0, 'Pricelist price should be applied')
@@ -396,7 +396,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
             so = self.env['sale.order'].create({
                 'partner_id': self.env.user.partner_id.id,
                 'pricelist_id': pricelist.id,
-                'order_line': [(0, 0, {
+                'line_ids': [(0, 0, {
                     'name': product.name,
                     'product_id': product.id,
                     'product_uom_qty': 1,
@@ -405,7 +405,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
                 })],
                 'website_id': self.website.id,
             })
-            sol = so.order_line
+            sol = so.line_ids
             self.assertEqual(sol.price_total, 100.0)
 
             frozen_time.move_to(tomorrow + timedelta(seconds=10))
@@ -427,7 +427,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
         order_sudo = self.env['sale.order'].sudo().create({
             'partner_id': self.public_partner.id,
             'pricelist_id': list_benelux_2.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.product.name,
                 'product_id': self.product.id,
             })],

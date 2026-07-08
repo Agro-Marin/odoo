@@ -115,7 +115,11 @@ class OrderInvoiceMixin(models.AbstractModel):
             for inv_id in list(invoice_ids):
                 if inv_id in orphan_refunds_by_reversed_id:
                     invoice_ids.update(orphan_refunds_by_reversed_id[inv_id])
-            order.invoice_ids = AccountMove.browse(invoice_ids)
+            # Browse a sorted id list so ``invoice_ids`` has a deterministic
+            # order (ascending id = creation order): an invoice precedes the
+            # credit notes that later reverse it. Callers rely on this ordering
+            # (e.g. ``order.invoice_ids[1]`` to reach a reversal).
+            order.invoice_ids = AccountMove.browse(sorted(invoice_ids))
             order.invoice_count = len(invoice_ids)
 
     def _search_invoice_ids(self, operator, value):
@@ -376,9 +380,9 @@ class OrderInvoiceMixin(models.AbstractModel):
 
         # 1) Build per-order invoice values.
         invoice_vals_list = []
-        sequence = 10
+        sequence = self._get_invoice_line_sequence_start()
         for order in self:
-            order = order.with_company(order.company_id)
+            order = order._get_invoicing_order()
             invoice_vals = order._prepare_invoice_vals()
             line_commands, sequence = order._prepare_invoice_line_commands(
                 order._get_invoiceable_lines(final),
@@ -397,25 +401,67 @@ class OrderInvoiceMixin(models.AbstractModel):
         # 2) Group values by the grouping keys.
         if not grouped:
             invoice_vals_list = self._group_invoice_vals(invoice_vals_list)
+        invoice_vals_list = self._post_group_invoice_vals(invoice_vals_list)
 
         # 3) Create the moves under the right move type.
+        moves = self._create_invoice_moves(invoice_vals_list)
+
+        # 4) Some moves might be refunds: switch negative-total moves.
+        self._switch_negative_moves(moves, final)
+
+        self._post_create_invoices(moves)
+        return moves
+
+    def _get_invoicing_order(self):
+        """Return ``self`` with the context used to build its invoice values.
+
+        Sale additionally switches to the invoice partner's language.
+        """
+        self.ensure_one()
+        return self.with_company(self.company_id)
+
+    def _get_invoice_line_sequence_start(self):
+        """First ``sequence`` assigned to generated invoice lines.
+
+        Purchase numbers bill lines from 10; sale numbers invoice lines
+        from 0 (and has tests pinning the absolute values).
+        """
+        return 10
+
+    def _post_group_invoice_vals(self, invoice_vals_list):
+        """Adjust the grouped invoice values before creating the moves.
+
+        Sale resequences lines when several orders were merged into one
+        invoice.  Base: no-op.
+        """
+        return invoice_vals_list
+
+    def _create_invoice_moves(self, invoice_vals_list):
+        """Create the account moves from the prepared values.
+
+        Base (sale's behaviour): sudo batch create so a salesperson can
+        invoice without billing rights.  Purchase overrides with a plain
+        per-company create.
+        """
         invoice_type = self._get_invoice_move_types()[0]
-        moves = (
+        return (
             self.env["account.move"]
             .sudo()
             .with_context(default_move_type=invoice_type)
             .create(invoice_vals_list)
         )
 
-        # 4) Some moves might be refunds: switch negative-total moves.
+    def _switch_negative_moves(self, moves, final):
+        """Switch negative-total moves to refunds.
+
+        Base (purchase's behaviour): unconditional.  Sale gates on ``final``
+        and protects ``team_id`` recomputation.
+        """
         moves_to_switch = moves.sudo().filtered(
             lambda m: m.currency_id.round(m.amount_total) < 0,
         )
         if moves_to_switch:
             moves_to_switch.action_switch_move_type()
-
-        self._post_create_invoices(moves)
-        return moves
 
     def _get_invoiceable_lines(self, final=False):
         """Lines to invoice for this order (override for sections/down payments)."""

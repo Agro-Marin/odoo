@@ -19,7 +19,7 @@ class TestSaleOrderEDIGen(TestSaleCommon):
             'name': 'My SO',
             'partner_id': self.partner_a.id,
             'client_order_ref': 'PO/1234',
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_a.id,
                     'name': 'Product A description',

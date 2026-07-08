@@ -31,7 +31,7 @@ class TestUi(AccountTestInvoicingCommon, HttpCase):
             'partner_id': self.agrolait.id,
             'state': 'sent',
             'require_payment': False,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                 })
@@ -58,7 +58,7 @@ class TestSaleFlowTourPostInstall(TestSaleCommon, HttpCase):
         # create and confirm a sale order to populate the list view
         sale_order = self.env['sale.order'].with_user(sale_user.id).create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.product.name,
                 'product_id': self.product.id,
                 'product_uom_qty': 1,

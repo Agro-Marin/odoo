@@ -107,20 +107,20 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_a = move_form.save()
         invoice_a.action_post()
 
-        sale_order_line3 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line1 and sol.product_id == self.company_data['product_order_cost'])
-        sale_order_line4 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line2 and sol.product_id == self.company_data['product_delivery_cost'])
+        sale_order_line3 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line1 and sol.product_id == self.company_data['product_order_cost'])
+        sale_order_line4 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line2 and sol.product_id == self.company_data['product_delivery_cost'])
 
         self.assertTrue(sale_order_line3, "A new sale line should have been created with ordered product")
         self.assertTrue(sale_order_line4, "A new sale line should have been created with delivered product")
-        self.assertEqual(len(self.sale_order.order_line), 4, "There should be 4 lines on the SO (2 vendor bill lines created)")
-        self.assertEqual(len(self.sale_order.order_line.filtered(lambda sol: sol.is_expense)), 2, "There should be 4 lines on the SO (2 vendor bill lines created)")
+        self.assertEqual(len(self.sale_order.line_ids), 4, "There should be 4 lines on the SO (2 vendor bill lines created)")
+        self.assertEqual(len(self.sale_order.line_ids.filtered(lambda sol: sol.is_expense)), 2, "There should be 4 lines on the SO (2 vendor bill lines created)")
 
         self.assertEqual(sale_order_line1.qty_delivered, 1, "Exising SO line 1 should not be impacted by reinvoicing product at cost")
         self.assertEqual(sale_order_line2.qty_delivered, 0, "Exising SO line 2 should not be impacted by reinvoicing product at cost")
 
         self.assertFalse(sale_order_line3.task_id, "Adding a new expense SO line should not create a task (sol3)")
         self.assertFalse(sale_order_line4.task_id, "Adding a new expense SO line should not create a task (sol4)")
-        self.assertEqual(len(self.sale_order.order_line.mapped('project_id')), 1, "SO create only one project with its service line. Adding new expense SO line should not impact that")
+        self.assertEqual(len(self.sale_order.line_ids.mapped('project_id')), 1, "SO create only one project with its service line. Adding new expense SO line should not impact that")
 
         self.assertEqual((sale_order_line3.price_unit, sale_order_line3.qty_delivered, sale_order_line3.product_uom_qty, sale_order_line3.qty_invoiced), (self.company_data['product_order_cost'].standard_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
         self.assertEqual((sale_order_line4.price_unit, sale_order_line4.qty_delivered, sale_order_line4.product_uom_qty, sale_order_line4.qty_invoiced), (self.company_data['product_delivery_cost'].standard_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
@@ -142,14 +142,14 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_b = move_form.save()
         invoice_b.action_post()
 
-        sale_order_line5 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line1 and sol != sale_order_line3 and sol.product_id == self.company_data['product_order_cost'])
-        sale_order_line6 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line2 and sol != sale_order_line4 and sol.product_id == self.company_data['product_delivery_cost'])
+        sale_order_line5 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line1 and sol != sale_order_line3 and sol.product_id == self.company_data['product_order_cost'])
+        sale_order_line6 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line2 and sol != sale_order_line4 and sol.product_id == self.company_data['product_delivery_cost'])
 
         self.assertTrue(sale_order_line5, "A new sale line should have been created with ordered product")
         self.assertTrue(sale_order_line6, "A new sale line should have been created with delivered product")
 
-        self.assertEqual(len(self.sale_order.order_line), 6, "There should be still 4 lines on the SO, no new created")
-        self.assertEqual(len(self.sale_order.order_line.filtered(lambda sol: sol.is_expense)), 4, "There should be still 2 expenses lines on the SO")
+        self.assertEqual(len(self.sale_order.line_ids), 6, "There should be still 4 lines on the SO, no new created")
+        self.assertEqual(len(self.sale_order.line_ids.filtered(lambda sol: sol.is_expense)), 4, "There should be still 2 expenses lines on the SO")
 
         self.assertEqual((sale_order_line5.price_unit, sale_order_line5.qty_delivered, sale_order_line5.product_uom_qty, sale_order_line5.qty_invoiced), (self.company_data['product_order_cost'].standard_price, 2.0, 2.0, 0), 'Sale line 5 is wrong after confirming 2e vendor invoice')
         self.assertEqual((sale_order_line6.price_unit, sale_order_line6.qty_delivered, sale_order_line6.product_uom_qty, sale_order_line6.qty_invoiced), (self.company_data['product_delivery_cost'].standard_price, 2.0, 2.0, 0), 'Sale line 6 is wrong after confirming 2e vendor invoice')
@@ -201,20 +201,20 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_a = move_form.save()
         invoice_a.action_post()
 
-        sale_order_line3 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line1 and sol.product_id == self.company_data['product_delivery_sales_price'])
-        sale_order_line4 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line2 and sol.product_id == self.company_data['product_order_sales_price'])
+        sale_order_line3 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line1 and sol.product_id == self.company_data['product_delivery_sales_price'])
+        sale_order_line4 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line2 and sol.product_id == self.company_data['product_order_sales_price'])
 
         self.assertTrue(sale_order_line3, "A new sale line should have been created with ordered product")
         self.assertTrue(sale_order_line4, "A new sale line should have been created with delivered product")
-        self.assertEqual(len(self.sale_order.order_line), 4, "There should be 4 lines on the SO (2 vendor bill lines created)")
-        self.assertEqual(len(self.sale_order.order_line.filtered(lambda sol: sol.is_expense)), 2, "There should be 4 lines on the SO (2 vendor bill lines created)")
+        self.assertEqual(len(self.sale_order.line_ids), 4, "There should be 4 lines on the SO (2 vendor bill lines created)")
+        self.assertEqual(len(self.sale_order.line_ids.filtered(lambda sol: sol.is_expense)), 2, "There should be 4 lines on the SO (2 vendor bill lines created)")
 
         self.assertEqual(sale_order_line1.qty_delivered, 1, "Exising SO line 1 should not be impacted by reinvoicing product at cost")
         self.assertEqual(sale_order_line2.qty_delivered, 0, "Exising SO line 2 should not be impacted by reinvoicing product at cost")
 
         self.assertFalse(sale_order_line3.task_id, "Adding a new expense SO line should not create a task (sol3)")
         self.assertFalse(sale_order_line4.task_id, "Adding a new expense SO line should not create a task (sol4)")
-        self.assertEqual(len(self.sale_order.order_line.mapped('project_id')), 1, "SO create only one project with its service line. Adding new expense SO line should not impact that")
+        self.assertEqual(len(self.sale_order.line_ids.mapped('project_id')), 1, "SO create only one project with its service line. Adding new expense SO line should not impact that")
 
         self.assertEqual((sale_order_line3.price_unit, sale_order_line3.qty_delivered, sale_order_line3.product_uom_qty, sale_order_line3.qty_invoiced), (self.company_data['product_delivery_sales_price'].list_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
         self.assertEqual((sale_order_line4.price_unit, sale_order_line4.qty_delivered, sale_order_line4.product_uom_qty, sale_order_line4.qty_invoiced), (self.company_data['product_order_sales_price'].list_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
@@ -236,14 +236,14 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_b = move_form.save()
         invoice_b.action_post()
 
-        sale_order_line5 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line1 and sol != sale_order_line3 and sol.product_id == self.company_data['product_delivery_sales_price'])
-        sale_order_line6 = self.sale_order.order_line.filtered(lambda sol: sol != sale_order_line2 and sol != sale_order_line4 and sol.product_id == self.company_data['product_order_sales_price'])
+        sale_order_line5 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line1 and sol != sale_order_line3 and sol.product_id == self.company_data['product_delivery_sales_price'])
+        sale_order_line6 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line2 and sol != sale_order_line4 and sol.product_id == self.company_data['product_order_sales_price'])
 
         self.assertFalse(sale_order_line5, "No new sale line should have been created with delivered product !!")
         self.assertTrue(sale_order_line6, "A new sale line should have been created with ordered product")
 
-        self.assertEqual(len(self.sale_order.order_line), 5, "There should be 5 lines on the SO, 1 new created and 1 incremented")
-        self.assertEqual(len(self.sale_order.order_line.filtered(lambda sol: sol.is_expense)), 3, "There should be 3 expenses lines on the SO")
+        self.assertEqual(len(self.sale_order.line_ids), 5, "There should be 5 lines on the SO, 1 new created and 1 incremented")
+        self.assertEqual(len(self.sale_order.line_ids.filtered(lambda sol: sol.is_expense)), 3, "There should be 3 expenses lines on the SO")
 
         self.assertEqual((sale_order_line6.price_unit, sale_order_line6.qty_delivered, sale_order_line4.product_uom_qty, sale_order_line6.qty_invoiced), (self.company_data['product_order_sales_price'].list_price, 2.0, 3.0, 0), 'Sale line is wrong after confirming 2e vendor invoice')
 
@@ -281,7 +281,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
 
-        self.assertEqual(len(self.sale_order.order_line), 1, "No SO line should have been created (or removed) when validating vendor bill")
+        self.assertEqual(len(self.sale_order.line_ids), 1, "No SO line should have been created (or removed) when validating vendor bill")
         self.assertEqual(sale_order_line.qty_delivered, 1, "The delivered quantity of SO line should not have been incremented")
         self.assertTrue(invoice_a.mapped('line_ids.analytic_line_ids'), "Analytic lines should be generated")
 
@@ -320,7 +320,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
         # Creates a sales order for quantity 3
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = self.env['res.partner'].create({'name': 'Toto'})
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = product
             line.product_uom_qty = 3.0
         sale_order = so_form.save()
@@ -410,7 +410,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
         vendor_bill.action_post()  # An analytic line is created for the vendor bill move line
         self.assertEqual(project.account_id.vendor_bill_count, 1, 'Vendor bill should be linked to project account')
         self.assertTrue(vendor_bill.line_ids.analytic_line_ids, 'Analytic line should be created for the account move line')
-        self.assertTrue(sale_order.order_line.analytic_line_ids, 'Analytic line should be linked to the sale order line created by the re-invoiced expense product')
+        self.assertTrue(sale_order.line_ids.analytic_line_ids, 'Analytic line should be linked to the sale order line created by the re-invoiced expense product')
 
         # Only the original vendor bill amount should appear on the project update, to stay consistent with the corresponding hr_expense behavior
         updates = project._get_profitability_items()

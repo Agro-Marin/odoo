@@ -71,49 +71,49 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'website_id': cls.website0.id,
             'state': 'draft',
             'date_order': (now - relativedelta(hours=1)) - relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
         cls.so0after = cls.env['sale.order'].create({
             'partner_id': cls.customer.id,
             'website_id': cls.website0.id,
             'state': 'draft',
             'date_order': (now - relativedelta(hours=1)) + relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
         cls.so1before = cls.env['sale.order'].create({
             'partner_id': cls.customer.id,
             'website_id': cls.website1.id,
             'state': 'draft',
             'date_order': (now - relativedelta(minutes=30)) - relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
         cls.so1after = cls.env['sale.order'].create({
             'partner_id': cls.customer.id,
             'website_id': cls.website1.id,
             'state': 'draft',
             'date_order': (now - relativedelta(minutes=30)) + relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
         cls.so2before = cls.env['sale.order'].create({
             'partner_id': cls.customer.id,
             'website_id': cls.website2.id,
             'state': 'draft',
             'date_order': (now - relativedelta(hours=24)) - relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
         cls.so2after = cls.env['sale.order'].create({
             'partner_id': cls.customer.id,
             'website_id': cls.website2.id,
             'state': 'draft',
             'date_order': (now - relativedelta(hours=24)) + relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
         cls.so2before_but_public = cls.env['sale.order'].create({
             'partner_id': cls.public_partner.id,
             'website_id': cls.website2.id,
             'state': 'draft',
             'date_order': (now - relativedelta(hours=24)) - relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
 
         # Must behave like so1before because public partner is not the one of website1
@@ -122,7 +122,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'website_id': cls.website1.id,
             'state': 'draft',
             'date_order': (now - relativedelta(minutes=30)) - relativedelta(minutes=1),
-            'order_line': add_order_line,
+            'line_ids': add_order_line,
         })
 
     def test_search_abandoned_cart(self):
@@ -176,7 +176,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'website_id': website.id,
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(minutes=1),
-            'order_line': order_line
+            'line_ids': order_line
         })
         self.assertTrue(abandoned_sale_order.is_abandoned_cart)
 
@@ -190,7 +190,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(
                 minutes=1),
-            'order_line': order_line
+            'line_ids': order_line
         })
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
 
@@ -201,7 +201,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(
                 minutes=1),
-            'order_line': order_line,
+            'line_ids': order_line,
             'cart_recovery_email_sent': True
         })
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
@@ -223,7 +223,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(
                 minutes=1),
-            'order_line': order_line
+            'line_ids': order_line
         })
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
 
@@ -234,7 +234,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(
                 minutes=1),
-            'order_line': order_line,
+            'line_ids': order_line,
         })
         transaction = self.env['payment.transaction'].create({
             'provider_id': 15,
@@ -257,13 +257,13 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             'state': 'draft',
             'date_order': (datetime.now(UTC) - relativedelta(hours=website.cart_abandoned_delay)) - relativedelta(
                 minutes=1),
-            'order_line': order_line,
+            'line_ids': order_line,
         })
         self.env['sale.order'].create({
             'partner_id': self.customer.id,
             'website_id': website.id,
             'state': 'draft',
             'date_order': datetime.now(UTC),
-            'order_line': order_line,
+            'line_ids': order_line,
         })
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))

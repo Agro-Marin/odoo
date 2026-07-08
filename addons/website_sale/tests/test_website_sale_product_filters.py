@@ -105,17 +105,17 @@ class TestWebsiteSaleProductFilters(WebsiteSaleCommon, TestProductAttributeValue
         computer = self.computer.product_variant_id
         self.empty_cart.write({
             'website_id': self.website.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({'product_id': product_id})
                 for product_id in (computer + self.pink_case_M + self.pink_case_L).ids
             ],
         })
         self.empty_cart.action_confirm()
 
-        self.cart.order_line.unlink()
+        self.cart.line_ids.unlink()
         self.cart.write({
             'website_id': self.website.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({'product_id': product_id})
                 for product_id in (computer + self.black_case_M).ids
             ],
@@ -200,7 +200,7 @@ class TestWebsiteSaleProductFilters(WebsiteSaleCommon, TestProductAttributeValue
         monitor = self.monitor.product_variant_id
         self.empty_cart.write({
             'website_id': self.website.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({'product_id': product_id})
                 for product_id in (computer + monitor + self.pink_case_L).ids
             ],

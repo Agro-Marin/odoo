@@ -1362,6 +1362,11 @@ class TestProcurement(TestMrpCommon):
         """Test that when we generate several procurements for a product in a raw
         we do not create demand for the same quantities several times"""
 
+        # Make the workcenter continuously available so the MO's date_end is
+        # `date_start + duration_expected` (15 work-hours) instead of a span that
+        # depends on the working calendar and the day of week the test runs on.
+        self.full_availability()
+
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
 
         # Create a product with manufacture route

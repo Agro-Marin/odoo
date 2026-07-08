@@ -10,7 +10,7 @@ export class SaleOrder extends models.ServerModel {
             "name",
             "state",
             "user_id",
-            "order_line",
+            "line_ids",
             "partner_id",
             "pricelist_id",
             "fiscal_position_id",
@@ -47,7 +47,7 @@ export class SaleOrder extends models.ServerModel {
     async load_sale_order_from_pos(id, config_id) {
         const order = this.env["sale.order"].find((order) => order.id === id);
         const orderLines = this.env["sale.order.line"].filter((line) =>
-            order.order_line.includes(line.id)
+            order.line_ids.includes(line.id)
         );
         const partner = this.env["res.partner"].find((partner) => partner.id === order.partner_id);
         const productProducts = this.env["product.product"].filter((product) =>

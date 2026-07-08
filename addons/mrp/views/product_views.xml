@@ -126,7 +126,7 @@
             <field name="model">product.product</field>
             <field name="inherit_id" ref="stock.product_form_view_procurement_button"/>
             <field name="arch" type="xml">
-                <xpath expr="//button[@name='action_open_product_lot']" position="after">
+                <xpath expr="//button[@name='action_view_product_lot']" position="after">
                     <button class="oe_stat_button" name="action_view_bom" type="object"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu'" icon="fa-flask">

@@ -35,4 +35,4 @@ class SaleOrder(models.Model):
     @api.depends('expense_ids')
     def _compute_expense_count(self):
         for sale_order in self:
-            sale_order.expense_count = len(sale_order.order_line.expense_ids)
+            sale_order.expense_count = len(sale_order.line_ids.expense_ids)

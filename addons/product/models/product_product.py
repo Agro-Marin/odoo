@@ -1,13 +1,16 @@
 import re
 from collections import defaultdict
 
-from odoo import _, api, fields, models, tools
+from odoo import api, fields, models, tools
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tools import OrderedSet, float_compare, groupby
 from odoo.tools.image import is_image_size_above
 from odoo.tools.misc import unique
 from odoo.tools.sql import SQL
+
+# Resolutions (px) for which resized image / image_variant fields exist.
+IMAGE_SIZES = (1920, 1024, 512, 256, 128)
 
 
 class ProductProduct(models.Model):
@@ -257,16 +260,29 @@ class ProductProduct(models.Model):
         )
         combo_items._check_company(fnames=["product_id"])
 
+    @api.constrains("standard_price")
+    def _check_standard_price(self):
+        # `_onchange_standard_price` only gives UI feedback; a negative cost
+        # written through ORM / import / server actions would otherwise reach
+        # AVCO valuation and sale-margin computation unchecked.
+        for product in self:
+            if product.standard_price < 0:
+                raise ValidationError(
+                    self.env._("The cost of a product can't be negative."),
+                )
+
     def _inverse_import_attribute_values(self):
         raise ValueError("This field can only be used to import products.")
 
     @api.depends("product_template_attribute_value_ids")
     def _compute_import_attribute_values(self):
         for product in self:
-            product.import_attribute_values = ",".join(sorted(
-                f"{ptav.attribute_line_id.attribute_id.name}:{ptav.product_attribute_value_id.name}"
-                for ptav in product.product_template_attribute_value_ids
-            ))
+            product.import_attribute_values = ",".join(
+                sorted(
+                    f"{ptav.attribute_line_id.attribute_id.name}:{ptav.product_attribute_value_id.name}"
+                    for ptav in product.product_template_attribute_value_ids
+                )
+            )
 
     def _load_records_write(self, values):
         import_attribute_values = values.get("import_attribute_values", "")
@@ -283,22 +299,62 @@ class ProductProduct(models.Model):
         existing_values = split(self.import_attribute_values)
 
         if attribute_values != existing_values:
-            raise ValidationError(self.env._(
-                'The exitings product has different attribute value. "%(imported_values)s" is not equivalent to "%(existing_values)s" for "%(external_id)s", "%(id)s"',
-                imported_values=import_attribute_values,
-                existing_values=self.import_attribute_values,
-                external_id=self.get_external_id()[self.id],
-                id=self.id,
-            ))
+            raise ValidationError(
+                self.env._(
+                    'The existing product has different attribute values. "%(imported_values)s" is not equivalent to "%(existing_values)s" for "%(external_id)s", "%(id)s"',
+                    imported_values=import_attribute_values,
+                    existing_values=self.import_attribute_values,
+                    external_id=self.get_external_id()[self.id],
+                    id=self.id,
+                )
+            )
 
-        if import_attribute_values:
-            values = {
-                key: val
-                for key, val in values.items()
-                if val and key != "import_attribute_values"
-            }
+        # Keep only truthy values (import_attribute_values, guaranteed truthy by
+        # the early return above, is always dropped). During an attribute-value
+        # import an empty cell must not overwrite the matched product's existing
+        # value. Known limitation: a cell holding an explicit falsy value (0, "")
+        # is indistinguishable from an empty cell here, so it is not written.
+        values = {
+            key: val
+            for key, val in values.items()
+            if val and key != "import_attribute_values"
+        }
 
         return super()._load_records_write(values)
+
+    def _parse_import_attribute_values(self, raw):
+        """Parse an ``"Attribute:Value,Attribute2:Value2"`` import string into a
+        list of ``(attribute_name, value_name)`` tuples (both stripped).
+
+        Validates the format and rejects a repeated attribute within the same
+        row. Centralizes what used to be three independent, hand-synchronized
+        parses in ``_load_records_create``.
+        """
+        parsed = []
+        seen_attributes = set()
+        for token in raw.split(","):
+            attribute_name, value_name = (
+                token.split(":", 1) if ":" in token else (None, token)
+            )
+            attribute_name = attribute_name and attribute_name.strip()
+            value_name = value_name.strip()
+            if not attribute_name:
+                raise ValueError(
+                    self.env._(
+                        "Unable to import products with attribute value without attribute name (defined as: attribute:value): %s",
+                        raw,
+                    )
+                )
+            if attribute_name in seen_attributes:
+                raise ValueError(
+                    self.env._(
+                        "It is not possible to import different values for the same attribute: %s",
+                        raw,
+                    )
+                )
+            seen_attributes.add(attribute_name)
+            parsed.append((attribute_name, value_name))
+        return parsed
 
     def _load_records_create(self, data_list):
         with_import_values = [
@@ -315,57 +371,119 @@ class ProductProduct(models.Model):
         for vals in with_import_values:
             vals["name"] = (vals.get("name") or "").strip()
             if not vals["name"] and not vals.get("product_tmpl_id"):
-                raise ValueError(self.env._(
-                    "Unable to import products with attribute values but without name of product set"
-                ))
+                raise ValueError(
+                    self.env._(
+                        "Unable to import products with attribute values but without name of product set"
+                    )
+                )
 
+        # sudo + context shared by every resolution phase below. Attribute /
+        # template / PTAL / PTAV lookups all run through this env; only the raw
+        # string parsing stays on `self` (for its access-checked error _()).
         contexted = self.sudo().with_context(
             create_product_product=False,
             update_product_template_attribute_values=True,
         )
-        PT = contexted.env["product.template"]
-        PP = contexted.env["product.product"]
-        PA = contexted.env["product.attribute"]
-        PAV = contexted.env["product.attribute.value"]
-        PTAL = contexted.env["product.template.attribute.line"]
 
-        ###############################################
-        # Search product.attribute.value or create it #
-        ###############################################
+        # Parse each row's "attribute:value,..." string exactly once and reuse
+        # it across attribute/value creation, PTAL creation and PTAV resolution.
+        parsed_by_vals = {
+            id(vals): self._parse_import_attribute_values(
+                vals["import_attribute_values"]
+            )
+            for vals in with_import_values
+        }
 
-        # load/parse attribute value data
-        attribute_to_values = defaultdict(OrderedSet)  # attribute_name => list[value_name]
+        # Resolve (creating on demand) the attribute values, templates, and the
+        # template-attribute-values the imported variants will point at. The
+        # phases are ordered: default_values must be read *before* the useless
+        # placeholder products are pruned, since it reads their field values.
+        pa_pav_records = contexted._import_resolve_attribute_values(
+            with_import_values, parsed_by_vals
+        )
+        id2template, name2template, product_templates, created_templates = (
+            contexted._import_resolve_templates(with_import_values)
+        )
+
+        field_names = list(with_import_values[0])
+        default_values = {
+            values["product_tmpl_id"][0]: values
+            for values in (
+                product_templates.product_variant_id
+                + created_templates.product_variant_id
+            ).read(fields=["product_tmpl_id"] + field_names)
+        }
+
+        # Remove the useless product created with each product template. It has
+        # no attribute value; it should not exist because we created variants.
+        useless_products = contexted.env["product.product"].search(
+            Domain("product_tmpl_id", "in", id2template.keys())
+            & Domain("product_template_attribute_value_ids", "=", False)
+        )
+        useless_products._unlink_or_archive()
+
+        template_value_to_ptav = contexted._import_resolve_ptavs(
+            with_import_values,
+            parsed_by_vals,
+            id2template,
+            name2template,
+            pa_pav_records,
+        )
+
+        # Rewrite each row into a plain create dict: resolve the template id,
+        # translate parsed attributes into ptav ids, and fall back to the
+        # template's default value for any empty imported cell.
         for vals in with_import_values:
-            current_values = defaultdict(list)
-            for value in vals["import_attribute_values"].split(","):
-                attribute_name, value_name = (
-                    value.split(":", 1) if ":" in value else (None, value)
-                )
-                attribute_name = attribute_name and attribute_name.strip()
-                value_name = value_name.strip()
-                if not attribute_name:
-                    raise ValueError(self.env._(
-                        "Unable to import products with attribute value without attribute name (defined as: attribute:value): %s",
-                        vals["import_attribute_values"],
-                    ))
-                if attribute_name in current_values:
-                    raise ValueError(self.env._(
-                        "It is not possible to import different values for the same attribute: %s",
-                        vals["import_attribute_values"],
-                    ))
-                if value_name in current_values[attribute_name]:
-                    raise ValueError(self.env._(
-                        "Duplicate values in attribute values are not allowed: %s",
-                        vals["import_attribute_values"],
-                    ))
-                attribute_to_values[attribute_name].add(value_name)
-                current_values[attribute_name].append(value_name)
+            name = vals.pop("name")
+            if not vals.get("product_tmpl_id"):
+                vals["product_tmpl_id"] = name2template[name].id
 
-        # create missing attribute
-        pa_records = {}  # attribute_name => Record<'product.attribute'>
-        attribute_names = PA.search(
-            Domain("name", "in", list(attribute_to_values))
-        ).mapped("name")
+            parsed = parsed_by_vals[id(vals)]
+            vals.pop("import_attribute_values")
+            vals["product_template_attribute_value_ids"] = [
+                template_value_to_ptav[
+                    vals["product_tmpl_id"],
+                    pa_pav_records[attribute_name, value_name].id,
+                ].id
+                for attribute_name, value_name in parsed
+            ]
+
+        new_data_list = [
+            {
+                key: value or default_values[vals["product_tmpl_id"]].get(key, False)
+                for key, value in vals.items()
+                if key not in ("import_attribute_values", "id")
+            }
+            for vals in with_import_values
+        ]
+        products = super()._load_records_create(new_data_list)
+
+        return imported_product.exists() + products
+
+    def _import_resolve_attribute_values(self, with_import_values, parsed_by_vals):
+        """Resolve every ``(attribute_name, value_name)`` pair referenced by the
+        imported rows into a ``product.attribute.value`` record, creating the
+        missing attributes (as dynamic) and values on demand.
+
+        :return: ``{(attribute_name, value_name): product.attribute.value}``
+        """
+        PA = self.env["product.attribute"]
+        PAV = self.env["product.attribute.value"]
+
+        attribute_to_values = defaultdict(OrderedSet)  # attribute_name => {value_name}
+        for vals in with_import_values:
+            for attribute_name, value_name in parsed_by_vals[id(vals)]:
+                attribute_to_values[attribute_name].add(value_name)
+
+        # Seed pa_records with the *existing* attributes, then create the
+        # missing ones. Seeding matters: when an attribute already exists but
+        # every imported value for it is new, the PAV search below finds nothing
+        # and would leave pa_records[attribute_name] unset -> KeyError when
+        # building missing_pav (a latent upstream bug).
+        pa_records = {  # attribute_name => Record<'product.attribute'>
+            pa.name: pa
+            for pa in PA.search(Domain("name", "in", list(attribute_to_values)))
+        }
         missing_pa = [
             {
                 "name": attribute_name,
@@ -373,17 +491,16 @@ class ProductProduct(models.Model):
                 "display_type": "radio",
             }
             for attribute_name in attribute_to_values
-            if attribute_name not in attribute_names
+            if attribute_name not in pa_records
         ]
         if missing_pa:
             for pa in PA.create(missing_pa):
                 pa_records[pa.name] = pa
 
-        # search attribute values
+        # search existing attribute values
         pa_pav_records = {}  # (attribute_name, value_name) => Record<'product.attribute.value'>
         domain = Domain(False)
         for attribute_name, value_names in attribute_to_values.items():
-            # search attribute values
             domain |= Domain("name", "in", value_names) & Domain(
                 "attribute_id.name", "=", attribute_name
             )
@@ -405,23 +522,40 @@ class ProductProduct(models.Model):
             for pav in PAV.create(missing_pav):
                 pa_pav_records[pav.attribute_id.name, pav.name] = pav
 
-        ########################################
-        # Search product.template or create it #
-        ########################################
+        return pa_pav_records
+
+    def _import_resolve_templates(self, with_import_values):
+        """Resolve the ``product.template`` each imported row targets (by
+        ``product_tmpl_id`` or by ``name``), creating missing templates with
+        only their required fields.
+
+        :return: ``(id2template, name2template, product_templates,
+            created_templates)`` where the first two are lookup dicts and the
+            last two are the pre-existing / newly created recordsets.
+        """
+        PT = self.env["product.template"]
 
         product_templates = PT.search(
             Domain("name", "in", [vals["name"] for vals in with_import_values])
-            | Domain("id", "in", [vals.get("product_tmpl_id") for vals in with_import_values])
+            | Domain(
+                "id", "in", [vals.get("product_tmpl_id") for vals in with_import_values]
+            )
         )
-        id2template = dict(zip(product_templates.ids, product_templates))  # id => Record<'product.template'>
-        name2template = dict(zip(product_templates.mapped("name"), product_templates))  # template_name => Record<'product.template'>
+        id2template = dict(
+            zip(product_templates.ids, product_templates, strict=True)
+        )  # id => Record<'product.template'>
+        name2template = dict(
+            zip(product_templates.mapped("name"), product_templates, strict=True)
+        )  # template_name => Record<'product.template'>
 
         template_vals_list = {}
         for vals in with_import_values:
             name = vals["name"]
             if name and name not in name2template and name not in template_vals_list:
                 template_vals_list[name] = {
-                    key: value for key, value in vals.items() if PT._fields[key].required
+                    key: value
+                    for key, value in vals.items()
+                    if PT._fields[key].required
                 }
 
         # create the first product to have default values
@@ -432,32 +566,35 @@ class ProductProduct(models.Model):
             id2template[rec.id] = rec
             name2template[rec.name] = rec
 
-        field_names = list(with_import_values[0])
-        default_values = {
-            values["product_tmpl_id"][0]: values
-            for values in (
-                product_templates.product_variant_id + created_templates.product_variant_id
-            ).read(fields=["product_tmpl_id"] + field_names)
-        }
+        return id2template, name2template, product_templates, created_templates
 
-        # Remove the useless product created with the product template.
-        # It has no attribute value; it is not supposed to exist because we created some variants.
-        useless_products = PP.search(
-            Domain("product_tmpl_id", "in", id2template.keys())
-            & Domain("product_template_attribute_value_ids", "=", False)
-        )
-        useless_products._unlink_or_archive()
+    def _import_resolve_ptavs(
+        self,
+        with_import_values,
+        parsed_by_vals,
+        id2template,
+        name2template,
+        pa_pav_records,
+    ):
+        """Ensure each template carries the attribute lines/values used by the
+        import (creating ``product.template.attribute.line`` or extending its
+        ``value_ids``), then map every ``(template_id, attribute_value_id)`` to
+        its ``product.template.attribute.value``.
 
-        ############################################################################
-        # Create product.template.attribute.line if not exists or update value_ids #
-        ############################################################################
+        :return: ``{(template_id, attribute_value_id):
+            product.template.attribute.value}``
+        """
+        PTAL = self.env["product.template.attribute.line"]
 
-        pt_to_attribute_to_values = defaultdict(list)  # (template_id, attribute_id) => list(Record<'product.attribute.value'>)
+        pt_to_attribute_to_values = defaultdict(
+            list
+        )  # (template_id, attribute_id) => [pav]
         for vals in with_import_values:
-            for value in vals["import_attribute_values"].split(","):
-                attribute_name, value_name = value.split(":", 1)
-                pt = id2template.get(vals.get("product_tmpl_id")) or name2template.get(vals["name"])
-                pav = pa_pav_records[attribute_name.strip(), value_name.strip()]
+            pt = id2template.get(vals.get("product_tmpl_id")) or name2template.get(
+                vals["name"]
+            )
+            for attribute_name, value_name in parsed_by_vals[id(vals)]:
+                pav = pa_pav_records[attribute_name, value_name]
                 pt_to_attribute_to_values[pt.id, pav.attribute_id.id].append(pav)
         domain = Domain(False)
         for template_id, attribute_id in pt_to_attribute_to_values:
@@ -475,61 +612,37 @@ class ProductProduct(models.Model):
                 # add the new value ids
                 ptal.value_ids = ptal.value_ids.union(*pavs)
             else:
-                ptals_to_create.append({
-                    "product_tmpl_id": template_id,
-                    "attribute_id": attribute_id,
-                    "value_ids": [value.id for value in pavs],
-                })
+                ptals_to_create.append(
+                    {
+                        "product_tmpl_id": template_id,
+                        "attribute_id": attribute_id,
+                        "value_ids": [value.id for value in pavs],
+                    }
+                )
         if ptals_to_create:
             ptals = PTAL.create(ptals_to_create)
-            template_attribute_to_ptal.update(dict(zip(
-                [(val["product_tmpl_id"], val["attribute_id"]) for val in ptals_to_create],
-                ptals,
-            )))
+            template_attribute_to_ptal.update(
+                dict(
+                    zip(
+                        [
+                            (val["product_tmpl_id"], val["attribute_id"])
+                            for val in ptals_to_create
+                        ],
+                        ptals,
+                        strict=True,
+                    )
+                )
+            )
 
-        ############################################
-        # Get the product.template.attribute.value #
-        ############################################
-
-        template_value_to_ptav = {  # (template_id, value_id) => Record<'product.template.attribute.value'>
-            (template_id, pav.id): template_attribute_to_ptal[template_id, attribute_id]
-            .product_template_value_ids.filtered(
-                lambda v: v.product_attribute_value_id.id == pav.id
+        return {  # (template_id, value_id) => Record<'product.template.attribute.value'>
+            (template_id, pav.id): template_attribute_to_ptal[
+                template_id, attribute_id
+            ].product_template_value_ids.filtered(
+                lambda v, pav=pav: v.product_attribute_value_id.id == pav.id
             )
             for (template_id, attribute_id), pavs in pt_to_attribute_to_values.items()
             for pav in pavs
         }
-
-        ##################################################
-        # Update data to import without constraint error #
-        ##################################################
-
-        for vals in with_import_values:
-            name = vals.pop("name")
-            if not vals.get("product_tmpl_id"):
-                vals["product_tmpl_id"] = name2template[name].id
-
-            vals["product_template_attribute_value_ids"] = [
-                template_value_to_ptav[vals["product_tmpl_id"], pav.id].id
-                for value in vals.pop("import_attribute_values").split(",")
-                if (
-                    (p := value.split(":", 1))
-                    and (pav := pa_pav_records[p[0].strip(), p[1].strip()])
-                )
-            ]
-
-        # If the imported cell/column is empty, use the default value (the first product value from the template)
-        new_data_list = [
-            {
-                key: value if value else default_values[vals["product_tmpl_id"]].get(key, False)
-                for key, value in vals.items()
-                if key not in ("import_attribute_values", "id")
-            }
-            for vals in with_import_values
-        ]
-        products = super()._load_records_create(new_data_list)
-
-        return imported_product.exists() + products
 
     @api.model
     def load(self, fields, data):
@@ -557,11 +670,9 @@ class ProductProduct(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if "product_template_attribute_value_ids" in vals:
-            # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`
-            self.env.registry.clear_cache()
-        elif "active" in vals:
-            # `_get_first_possible_variant_id` depends on variants active state
+        # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`;
+        # `_get_first_possible_variant_id` depends on the variants' active state.
+        if "product_template_attribute_value_ids" in vals or "active" in vals:
             self.env.registry.clear_cache()
         return res
 
@@ -581,12 +692,11 @@ class ProductProduct(models.Model):
         templates = [product.product_tmpl_id for product in self]
         templates_to_copy = self.env["product.template"].concat(*templates)
         new_templates = templates_to_copy.copy(default=default)
-        new_product_list = []
-        for new_template in new_templates:
-            new_product_list.append(
-                new_template.product_variant_id
-                or new_template._create_first_product_variant()
-            )
+        new_product_list = [
+            new_template.product_variant_id
+            or new_template._create_first_product_variant()
+            for new_template in new_templates
+        ]
         return self.env["product.product"].concat(*new_product_list)
 
     def unlink(self):
@@ -635,40 +745,33 @@ class ProductProduct(models.Model):
         self.env.registry.clear_cache()
         return res
 
-    def _compute_image_1920(self):
-        """Get the image from the template if no image is set on the variant."""
+    def _compute_variant_image(self, size):
+        """Fall back to the template image when the variant has none, for the
+        given resolution ``size`` (e.g. 1920).
+
+        Kept as one method per size (rather than a single compute assigning all
+        five fields) so that reading a thumbnail never forces loading the larger
+        image blobs.
+        """
+        field = "image_%s" % size
+        variant_field = "image_variant_%s" % size
         for record in self:
-            record.image_1920 = (
-                record.image_variant_1920 or record.product_tmpl_id.image_1920
-            )
+            record[field] = record[variant_field] or record.product_tmpl_id[field]
+
+    def _compute_image_1920(self):
+        self._compute_variant_image(1920)
 
     def _compute_image_1024(self):
-        """Get the image from the template if no image is set on the variant."""
-        for record in self:
-            record.image_1024 = (
-                record.image_variant_1024 or record.product_tmpl_id.image_1024
-            )
+        self._compute_variant_image(1024)
 
     def _compute_image_512(self):
-        """Get the image from the template if no image is set on the variant."""
-        for record in self:
-            record.image_512 = (
-                record.image_variant_512 or record.product_tmpl_id.image_512
-            )
+        self._compute_variant_image(512)
 
     def _compute_image_256(self):
-        """Get the image from the template if no image is set on the variant."""
-        for record in self:
-            record.image_256 = (
-                record.image_variant_256 or record.product_tmpl_id.image_256
-            )
+        self._compute_variant_image(256)
 
     def _compute_image_128(self):
-        """Get the image from the template if no image is set on the variant."""
-        for record in self:
-            record.image_128 = (
-                record.image_variant_128 or record.product_tmpl_id.image_128
-            )
+        self._compute_variant_image(128)
 
     def _compute_can_image_1024_be_zoomed(self):
         """Get the image from the template if no image is set on the variant."""
@@ -698,7 +801,7 @@ class ProductProduct(models.Model):
                 continue
             product.pricelist_rule_ids = (
                 product.product_tmpl_id.pricelist_rule_ids.filtered(
-                    lambda rule: rule.product_id <= product,
+                    lambda rule, product=product: rule.product_id <= product,
                 )
             )
 
@@ -764,6 +867,12 @@ class ProductProduct(models.Model):
                 list_price = product.list_price
             product.lst_price = list_price + product.price_extra
 
+    @api.depends(
+        "default_code",
+        "seller_ids.partner_id",
+        "seller_ids.product_code",
+        "seller_ids.product_id",
+    )
     @api.depends_context("partner_id")
     def _compute_product_code(self):
         read_access = self.env["ir.model.access"].check(
@@ -771,13 +880,14 @@ class ProductProduct(models.Model):
             "read",
             False,
         )
+        partner_id = self.env.context.get("partner_id")
         for product in self:
             product.code = product.default_code
-            if read_access:
+            # With no partner in context no supplier row can match, so skip
+            # iterating sellers entirely (the common, no-partner render path).
+            if read_access and partner_id:
                 for supplier_info in product.seller_ids:
-                    if supplier_info.partner_id.id == product.env.context.get(
-                        "partner_id",
-                    ):
+                    if supplier_info.partner_id.id == partner_id:
                         if (
                             supplier_info.product_id
                             and supplier_info.product_id != product
@@ -791,21 +901,38 @@ class ProductProduct(models.Model):
                             # Supplier info specific for this variant.
                             break
 
+    @api.depends(
+        "default_code",
+        "name",
+        "code",
+        "display_name",
+        "seller_ids.partner_id",
+        "seller_ids.product_name",
+    )
     @api.depends_context("partner_id")
     def _compute_partner_ref(self):
+        partner_id = self.env.context.get("partner_id")
         for product in self:
-            for supplier_info in product.seller_ids:
-                if supplier_info.partner_id.id == product.env.context.get("partner_id"):
-                    product_name = (
-                        supplier_info.product_name
-                        or product.default_code
-                        or product.name
-                    )
-                    product.partner_ref = "%s%s" % (
-                        (product.code and "[%s] " % product.code) or "",
-                        product_name,
-                    )
-                    break
+            # Without a partner in context, no supplier row matches: fall back to
+            # display_name directly instead of scanning seller_ids per product.
+            matched_seller = False
+            if partner_id:
+                matched_seller = next(
+                    (
+                        seller
+                        for seller in product.seller_ids
+                        if seller.partner_id.id == partner_id
+                    ),
+                    False,
+                )
+            if matched_seller:
+                product_name = (
+                    matched_seller.product_name or product.default_code or product.name
+                )
+                product.partner_ref = "%s%s" % (
+                    (product.code and "[%s] " % product.code) or "",
+                    product_name,
+                )
             else:
                 product.partner_ref = product.display_name
 
@@ -817,7 +944,7 @@ class ProductProduct(models.Model):
                 ["res_id"],
                 ["__count"],
             )
-            counts = {res_id: count for res_id, count in data}
+            counts = dict(data)
         for product in self:
             product.product_document_count = counts.get(product.id, 0)
 
@@ -884,18 +1011,22 @@ class ProductProduct(models.Model):
             for r in supplier_info:
                 supplier_info_by_template.setdefault(r.product_tmpl_id, []).append(r)
 
+        # Loop-invariant: the seller forced through context is the same for
+        # every product, so resolve it once instead of per record.
+        context_sellers = (
+            self.env["product.supplierinfo"]
+            .sudo()
+            .browse(self.env.context.get("seller_id"))
+            or []
+        )
+
         for product in self.sudo():
             variant = (
                 product.product_template_attribute_value_ids._get_combination_name()
             )
 
             name = (variant and "%s (%s)" % (product.name, variant)) or product.name
-            sellers = (
-                self.env["product.supplierinfo"]
-                .sudo()
-                .browse(self.env.context.get("seller_id"))
-                or []
-            )
+            sellers = context_sellers
             if not sellers and partner_ids:
                 product_supplier_info = supplier_info_by_template.get(
                     product.product_tmpl_id,
@@ -944,7 +1075,8 @@ class ProductProduct(models.Model):
                 # We have to manually keep the rules the current variant
                 # wasn't aware of because they targeted other variants.
                 | template.pricelist_rule_ids.filtered(
-                    lambda rule: rule.product_id and rule.product_id != product,
+                    lambda rule, product=product: rule.product_id
+                    and rule.product_id != product,
                 )
             )
 
@@ -970,9 +1102,11 @@ class ProductProduct(models.Model):
 
         if operator == "in":
             product_domains.append([("barcode", "in", value)])
-            for v in value:
-                if isinstance(v, str) and (m := re.search(r"(\[(.*?)\])", v)):
-                    product_domains.append([("default_code", "=", m.group(2))])
+            product_domains.extend(
+                [("default_code", "=", m.group(2))]
+                for v in value
+                if isinstance(v, str) and (m := re.search(r"(\[(.*?)\])", v))
+            )
         elif operator.endswith("like") and is_positive:
             product_domains.append([("barcode", "in", [value])])
 
@@ -1060,14 +1194,17 @@ class ProductProduct(models.Model):
                     limit=limit,
                 )
                 limit_rest = limit and limit - len(products)
-                if limit_rest is None or limit_rest > 0:
-                    products_query = self._search(
-                        domain & Domain("default_code", operator, name),
-                        limit=limit,
-                    )
+                # `search` treats limit=0/None as "unlimited", so keep searching
+                # names whenever there is no limit or room remains. Guarding on
+                # `limit_rest > 0` alone dropped every name match for limit=0.
+                if not limit or limit_rest > 0:
+                    # This branch only runs when the default_code search did not
+                    # reach `limit`, so `products` already holds every matching
+                    # default_code row: reuse its ids instead of re-issuing the
+                    # same search as an exclusion subquery.
                     products |= self.search_fetch(
                         domain
-                        & Domain("id", "not in", products_query)
+                        & Domain("id", "not in", products.ids)
                         & Domain("name", operator, name),
                         ["display_name"],
                         limit=limit_rest,
@@ -1159,7 +1296,9 @@ class ProductProduct(models.Model):
     @api.onchange("standard_price")
     def _onchange_standard_price(self):
         if self.standard_price < 0:
-            raise ValidationError(_("The cost of a product can't be negative."))
+            raise ValidationError(
+                self.env._("The cost of a product can't be negative."),
+            )
 
     @api.onchange("default_code")
     def _onchange_default_code(self):
@@ -1173,19 +1312,20 @@ class ProductProduct(models.Model):
         if self.env["product.product"].search_count(domain, limit=1):
             return {
                 "warning": {
-                    "title": _("Note:"),
-                    "message": _(
+                    "title": self.env._("Note:"),
+                    "message": self.env._(
                         "The Reference '%s' already exists.",
                         self.default_code,
                     ),
                 },
             }
+        return None
 
     @api.onchange("uom_id")
     def _onchange_uom_id(self):
         if self._origin.uom_id == self.uom_id or not self._trigger_uom_warning():
             return None
-        message = _(
+        message = self.env._(
             "Changing the unit of measure for your product will apply a conversion 1 %(old_uom_name)s = 1 %(new_uom_name)s.\n"
             "All existing records (Sales orders, Purchase orders, etc.) using this product will be updated by replacing the unit name.",
             old_uom_name=self._origin.uom_id.display_name,
@@ -1193,7 +1333,7 @@ class ProductProduct(models.Model):
         )
         return {
             "warning": {
-                "title": _("What to expect ?"),
+                "title": self.env._("What to expect ?"),
                 "message": message,
             },
         }
@@ -1219,7 +1359,7 @@ class ProductProduct(models.Model):
     @api.model
     def view_header_get(self, view_id, view_type):
         if self.env.context.get("categ_id"):
-            return _(
+            return self.env._(
                 "Products: %(category)s",
                 category=self.env["product.category"]
                 .browse(self.env.context["categ_id"])
@@ -1233,7 +1373,7 @@ class ProductProduct(models.Model):
     def action_view_label_layout(self):
         if any(product.type == "service" for product in self):
             raise ValidationError(
-                _("Labels cannot be printed for products of service type"),
+                self.env._("Labels cannot be printed for products of service type"),
             )
         action = self.env["ir.actions.act_window"]._for_xml_id(
             "product.action_view_label_layout",
@@ -1297,19 +1437,17 @@ class ProductProduct(models.Model):
             if len(self) > 1:
                 self[: len(self) // 2]._unlink_or_archive(check_access=False)
                 self[len(self) // 2 :]._unlink_or_archive(check_access=False)
-            else:
-                if self.active:
-                    # Note: this can still fail if something is preventing
-                    # from archiving.
-                    # This is the case from existing stock reordering rules.
-                    self.write({"active": False})
+            elif self.active:
+                # Note: this can still fail if something is preventing
+                # from archiving.
+                # This is the case from existing stock reordering rules.
+                self.write({"active": False})
 
     def _get_invoice_policy(self):
         return False
 
     def _get_placeholder_filename(self, field):
-        image_fields = ["image_%s" % size for size in [1920, 1024, 512, 256, 128]]
-        if field in image_fields:
+        if field in tuple("image_%s" % size for size in IMAGE_SIZES):
             return self._get_product_placeholder_filename()
         return super()._get_placeholder_filename(field)
 
@@ -1402,8 +1540,7 @@ class ProductProduct(models.Model):
             if (
                 params
                 and params.get("force_uom")
-                and seller.product_uom_id != uom_id
-                and seller.product_uom_id != self.uom_id
+                and seller.product_uom_id not in (uom_id, self.uom_id)
             ):
                 continue
             if partner_id and seller.partner_id not in [
@@ -1543,7 +1680,7 @@ class ProductProduct(models.Model):
     @api.model
     def get_empty_list_help(self, help_message):
         self = self.with_context(
-            empty_list_help_document_name=_("product"),
+            empty_list_help_document_name=self.env._("product"),
         )
         return super().get_empty_list_help(help_message)
 
@@ -1631,11 +1768,11 @@ class ProductProduct(models.Model):
             for barcode, duplicate_products in products_by_barcode
         )
         if duplicates_as_str:
-            duplicates_as_str += _(
+            duplicates_as_str += self.env._(
                 "\n\nNote: products that you don't have access to will not be shown above.",
             )
             raise ValidationError(
-                _("Barcode(s) already assigned:\n\n%s", duplicates_as_str),
+                self.env._("Barcode(s) already assigned:\n\n%s", duplicates_as_str),
             )
 
     def _check_duplicated_packaging_barcodes(self, barcodes_within_company, company_id):
@@ -1644,4 +1781,4 @@ class ProductProduct(models.Model):
             company_id,
         )
         if self.env["product.uom"].sudo().search_count(packaging_domain, limit=1):
-            raise ValidationError(_("A packaging already uses the barcode"))
+            raise ValidationError(self.env._("A packaging already uses the barcode"))

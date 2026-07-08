@@ -241,6 +241,76 @@ class TestPricelist(ProductVariantsCommon):
             # from another company
             self.pricelist.company_id = second_company
 
+    def test_pricelists_multi_comp_checks_batch_write(self):
+        """A company change applied to several pricelists at once must still validate
+        the multi-company consistency of their rules (regression: the check used to be
+        skipped for any write touching more than one pricelist).
+        """
+        first_company = self.env.company
+        second_company = self.env['res.company'].create({'name': 'Batch Test Company'})
+
+        base_pricelist = self.env['product.pricelist'].create({
+            'name': 'Base pricelist (company A)',
+            'company_id': first_company.id,
+        })
+        pl_a, pl_b = self.env['product.pricelist'].create([
+            {
+                'name': f'Pricelist {label} (company A)',
+                'company_id': first_company.id,
+                'item_ids': [Command.create({
+                    'compute_price': 'formula',
+                    'base': 'pricelist',
+                    'base_pricelist_id': base_pricelist.id,
+                })],
+            }
+            for label in ('A', 'B')
+        ])
+
+        with self.assertRaises(UserError):
+            # Both rules would then depend on a pricelist from another company.
+            (pl_a | pl_b).write({'company_id': second_company.id})
+
+    def test_pricelists_multi_comp_checks_archived_product(self):
+        """A company change must re-validate rules on *archived* products too.
+
+        The pricelist's ``item_ids`` One2many carries a domain filtering out
+        rules whose product/template is archived. Re-validating a company change
+        through that field therefore skipped such rules, letting a cross-company
+        rule on an archived product survive undetected (regression).
+        """
+        first_company = self.env.company
+        second_company = self.env['res.company'].create({'name': 'Archived Test Company'})
+
+        # Template owned by the second company.
+        template = self.env['product.template'].create({
+            'name': 'Company B product',
+            'company_id': second_company.id,
+        })
+        # Shared pricelist (no company): the rule is consistent because the item
+        # inherits the template's company as long as the pricelist has none.
+        shared_pricelist = self.env['product.pricelist'].create({
+            'name': 'Archived-check pricelist',
+            'company_id': False,
+            'item_ids': [Command.create({
+                'applied_on': '1_product',
+                'product_tmpl_id': template.id,
+                'compute_price': 'fixed',
+                'fixed_price': 5.0,
+            })],
+        })
+
+        # Archiving the product moves its rule outside `item_ids`' domain.
+        template.action_archive()
+        shared_pricelist.invalidate_recordset(['item_ids'])
+        self.assertFalse(
+            shared_pricelist.item_ids,
+            "archived-product rule should be filtered out of item_ids",
+        )
+
+        with self.assertRaises(UserError):
+            # The rule would then belong to company A but target a company-B product.
+            shared_pricelist.company_id = first_company
+
     def test_pricelists_res_partner_form(self):
         pricelist_europe = self.pricelist_eu
         default_pricelist = self.env['product.pricelist'].search([('name', 'ilike', ' ')], limit=1)

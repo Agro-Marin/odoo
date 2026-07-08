@@ -287,7 +287,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
     def test_01_gc_coupon(self):
         # 1. Simulate a frontend order (website, product)
         order = self.empty_cart
-        order.order_line = [
+        order.line_ids = [
             Command.create({
                 'product_id': self.env['product.product'].create({
                     'name': 'Product A',
@@ -364,7 +364,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
     def test_03_remove_coupon(self):
         # 1. Simulate a frontend order (website, product)
         order = self.empty_cart
-        order.order_line = [
+        order.line_ids = [
             Command.create({
                 'product_id': self.env['product.product'].create({
                     'name': 'Product A', 'list_price': 100, 'sale_ok': True
@@ -403,7 +403,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         })
 
         order = self.empty_cart
-        order.order_line = [Command.create({'product_id': product.id})]
+        order.line_ids = [Command.create({'product_id': product.id})]
 
         WebsiteSaleController = WebsiteSale()
 
@@ -485,10 +485,10 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         )
 
         order = self.empty_cart
-        order.order_line = [Command.create({'product_id': product.id}) for product in products]
+        order.line_ids = [Command.create({'product_id': product.id}) for product in products]
 
         msg = "There should only be 4 lines for the 4 products."
-        self.assertEqual(len(order.order_line), 4, msg=msg)
+        self.assertEqual(len(order.line_ids), 4, msg=msg)
 
         # 2. Apply the coupon
         self._apply_promo_code(order, self.coupon.code)
@@ -497,7 +497,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             "4 additional lines should have been added to the sale orders"
             "after application of the coupon for each separate tax situation."
         )
-        self.assertEqual(len(order.order_line), 8, msg=msg)
+        self.assertEqual(len(order.line_ids), 8, msg=msg)
 
         # 3. Remove the coupon
         coupon_line = order.website_order_line.filtered(
@@ -511,7 +511,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
 
         msg = "All coupon lines should have been removed from the order."
         self.assertEqual(len(order.applied_coupon_ids), 0, msg=msg)
-        self.assertEqual(len(order.order_line), 4, msg=msg)
+        self.assertEqual(len(order.line_ids), 4, msg=msg)
 
     def test_confirm_points_as_public_user(self):
         test_product = self.env['product.product'].create({
@@ -544,7 +544,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
 
         order = self.env['sale.order'].create({
             'partner_id': test_partner.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': test_product.id,
                 'product_uom_qty': 1,
             })]
@@ -556,6 +556,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             'points': 0,
         })
         public_user = self.env.ref('base.public_user')
-        order.action_quotation_send()
+        order.action_send_quotation()
         order.with_context(access_token=order.access_token, user=public_user).action_confirm()
         self.assertEqual(loyalty_card.points, 1)

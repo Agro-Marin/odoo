@@ -60,7 +60,7 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
         self._unlink_unused_coupon_ids()
 
     def _unlink_unused_coupon_ids(self):
-        reward_coupons = self.order_id.order_line.coupon_id
+        reward_coupons = self.order_id.line_ids.coupon_id
         self.order_id.coupon_point_ids.filtered(
             lambda points: (
                 points.coupon_id.program_id.applies_on == 'current' and

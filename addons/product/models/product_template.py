@@ -21,18 +21,23 @@ class ProductTemplate(models.Model):
     _check_company_domain = models.check_company_domain_parent_of
 
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
-        if ("uom_id" in fields and not res.get("uom_id")) or self.env.context.get(
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        # uom_id is required: force the default unit both when it is simply
+        # missing and when a caller explicitly passed `default_uom_id=False`
+        # (which would otherwise clear the field default and break the NOT NULL).
+        if ("uom_id" in fields_list and not res.get("uom_id")) or self.env.context.get(
             "default_uom_id"
         ) is False:
-            res["uom_id"] = self._get_default_uom_id().id
+            res["uom_id"] = self._get_default_uom_id()
         return res
 
     @tools.ormcache()
     def _get_default_uom_id(self):
-        # Deletion forbidden (at least through unlink)
-        return self.env.ref("uom.product_uom_unit")
+        # Return the id, not the recordset: ormcache would otherwise hand every
+        # caller a record bound to the first caller's environment.
+        # Deletion forbidden (at least through unlink).
+        return self.env.ref("uom.product_uom_unit").id
 
     def _read_group_categ_id(self, categories, domain):
         category_ids = self.env.context.get("default_categ_id")
@@ -338,7 +343,7 @@ class ProductTemplate(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """Store the initial standard price in order to be able to retrieve the cost of a product template for a given date"""
-        templates = super(ProductTemplate, self).create(vals_list)
+        templates = super().create(vals_list)
         if self.env.context.get("create_product_product", True):
             templates._create_variant_ids()
 
@@ -359,18 +364,29 @@ class ProductTemplate(models.Model):
                 lambda template: template.uom_id.id != vals["uom_id"]
             ).product_variant_ids
             products.with_context(skip_uom_conversion=True)._update_uom(vals["uom_id"])
-        res = super(ProductTemplate, self).write(vals)
+        res = super().write(vals)
         if (
             self.env.context.get("create_product_product", True)
             and "attribute_line_ids" in vals
-        ) or (vals.get("active") and len(self.product_variant_ids) == 0):
+        ):
             self._create_variant_ids()
+        elif vals.get("active"):
+            # Reactivated templates that have no active variant must (re)generate
+            # them. This is decided per-record: using the batch union
+            # (len(self.product_variant_ids) == 0) let a single template that
+            # still has variants mask the others, leaving them with no variant.
+            self.filtered(lambda t: not t.product_variant_ids)._create_variant_ids()
         if "active" in vals and not vals.get("active"):
-            self.with_context(active_test=False).mapped("product_variant_ids").write(
-                {"active": vals.get("active")}
+            self.with_context(active_test=False).product_variant_ids.write(
+                {"active": False}
             )
         if "image_1920" in vals:
-            self.env["product.product"].invalidate_model(
+            # Variants without their own image fall back to the template image,
+            # so only this template's variants (active or archived) can hold a
+            # stale cache — no need to flush the whole product.product model.
+            self.with_context(
+                active_test=False
+            ).product_variant_ids.invalidate_recordset(
                 [
                     "image_1920",
                     "image_1024",
@@ -380,7 +396,7 @@ class ProductTemplate(models.Model):
                     "can_image_1024_be_zoomed",
                 ]
             )
-        if "type" in vals and vals.get("type") != "combo":
+        if "type" in vals and vals["type"] != "combo":
             self.filtered(lambda t: t.combo_ids).combo_ids = False
         return res
 
@@ -415,6 +431,10 @@ class ProductTemplate(models.Model):
         self.filtered(lambda product: product.type != "service").service_tracking = "no"
 
     def _compute_purchase_ok(self):
+        # Intentionally empty. `purchase_ok` is a manually-set stored field
+        # (default=True, readonly=False); this compute exists only as an
+        # extension hook for other modules (e.g. hr_expense) to override with
+        # real `@api.depends` logic.
         pass
 
     def _compute_product_document_count(self):
@@ -428,12 +448,13 @@ class ProductTemplate(models.Model):
                 ["__count"],
             )
             template_counts = {res_id: count for res_id, count in tmpl_data}
-            all_variant_ids = self.with_context(active_test=False).product_variant_ids
-            if all_variant_ids:
+            # Only active variants are summed below, so only fetch their counts.
+            variant_ids = self.product_variant_ids
+            if variant_ids:
                 var_data = self.env["product.document"]._read_group(
                     [
                         ("res_model", "=", "product.product"),
-                        ("res_id", "in", all_variant_ids.ids),
+                        ("res_id", "in", variant_ids.ids),
                     ],
                     ["res_id"],
                     ["__count"],
@@ -594,53 +615,46 @@ class ProductTemplate(models.Model):
         self._set_product_variant_field("barcode")
 
     @api.model
-    def _get_weight_uom_id_from_ir_config_parameter(self):
-        """Get the unit of measure to interpret the `weight` field. By default, we considerer
-        that weights are expressed in kilograms. Users can configure to express them in pounds
-        by adding an ir.config_parameter record with "product.product_weight_in_lbs" as key
-        and "1" as value.
+    def _get_uom_id_from_ir_config_parameter(self, param_key, ref_if_set, ref_default):
+        """Return the ``ref_if_set`` UoM when the ir.config_parameter ``param_key``
+        equals "1", otherwise ``ref_default``. Factorizes the weight/length/volume
+        UoM getters below.
         """
-        product_weight_in_lbs_param = (
-            self.env["ir.config_parameter"].sudo().get_param("product.weight_in_lbs")
+        if self.env["ir.config_parameter"].sudo().get_param(param_key) == "1":
+            return self.env.ref(ref_if_set)
+        return self.env.ref(ref_default)
+
+    @api.model
+    def _get_weight_uom_id_from_ir_config_parameter(self):
+        """UoM to interpret the `weight` field: kilograms by default, pounds when
+        the ir.config_parameter "product.weight_in_lbs" is set to "1".
+        """
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.weight_in_lbs", "uom.product_uom_lb", "uom.product_uom_kgm"
         )
-        if product_weight_in_lbs_param == "1":
-            return self.env.ref("uom.product_uom_lb")
-        else:
-            return self.env.ref("uom.product_uom_kgm")
 
     @api.model
     def _get_length_uom_id_from_ir_config_parameter(self):
-        """Get the unit of measure to interpret the `length`, 'width', 'height' field.
-        By default, we considerer that length are expressed in millimeters. Users can configure
-        to express them in feet by adding an ir.config_parameter record with "product.volume_in_cubic_feet"
-        as key and "1" as value.
+        """UoM to interpret the `length`/`width`/`height` fields: millimeters by
+        default, feet when the ir.config_parameter "product.volume_in_cubic_feet"
+        is set to "1".
         """
-        product_length_in_feet_param = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("product.volume_in_cubic_feet")
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.volume_in_cubic_feet",
+            "uom.product_uom_foot",
+            "uom.product_uom_millimeter",
         )
-        if product_length_in_feet_param == "1":
-            return self.env.ref("uom.product_uom_foot")
-        else:
-            return self.env.ref("uom.product_uom_millimeter")
 
     @api.model
     def _get_volume_uom_id_from_ir_config_parameter(self):
-        """Get the unit of measure to interpret the `volume` field. By default, we consider
-        that volumes are expressed in cubic meters. Users can configure to express them in cubic feet
-        by adding an ir.config_parameter record with "product.volume_in_cubic_feet" as key
-        and "1" as value.
+        """UoM to interpret the `volume` field: cubic meters by default, cubic feet
+        when the ir.config_parameter "product.volume_in_cubic_feet" is set to "1".
         """
-        product_length_in_feet_param = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("product.volume_in_cubic_feet")
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.volume_in_cubic_feet",
+            "uom.product_uom_cubic_foot",
+            "uom.product_uom_cubic_meter",
         )
-        if product_length_in_feet_param == "1":
-            return self.env.ref("uom.product_uom_cubic_foot")
-        else:
-            return self.env.ref("uom.product_uom_cubic_meter")
 
     @api.model
     def _get_weight_uom_name_from_ir_config_parameter(self):
@@ -654,6 +668,8 @@ class ProductTemplate(models.Model):
     def _get_volume_uom_name_from_ir_config_parameter(self):
         return self._get_volume_uom_id_from_ir_config_parameter().display_name
 
+    # NB: the value comes from an ir.config_parameter, not from `type`. The
+    # `depends("type")` is only a cheap trigger to recompute this non-stored label.
     @api.depends("type")
     def _compute_weight_uom_name(self):
         self.weight_uom_name = self._get_weight_uom_name_from_ir_config_parameter()
@@ -676,7 +692,6 @@ class ProductTemplate(models.Model):
 
     @api.depends("type")
     def _compute_product_tooltip(self):
-        self.product_tooltip = False
         for template in self:
             template.product_tooltip = template._prepare_tooltip()
 
@@ -769,7 +784,7 @@ class ProductTemplate(models.Model):
         self.import_attribute_values = ""
 
     def _inverse_import_attribute_values(self):
-        raise ValueError("This field can only be used to import products.")
+        raise UserError(_("This field can only be used to import products."))
 
     @api.model
     def load(self, fields, data):
@@ -968,15 +983,15 @@ class ProductTemplate(models.Model):
         company = company or self.env.company
         date = date or fields.Date.context_today(self)
 
-        self = self.with_company(company)
+        templates = self.with_company(company)
         if price_type == "standard_price":
             # standard_price field can only be seen by users in base.group_user
             # Thus, in order to compute the sale price from the cost for users not in this group
             # We fetch the standard price as the superuser
-            self = self.sudo()
+            templates = templates.sudo()
 
-        prices = dict.fromkeys(self.ids, 0.0)
-        for template in self:
+        prices = dict.fromkeys(templates.ids, 0.0)
+        for template in templates:
             price = template[price_type] or 0.0
             price_currency = template.currency_id
             if price_type == "standard_price":
@@ -1196,7 +1211,6 @@ class ProductTemplate(models.Model):
                         "This configuration of product attributes, values, and exclusions would lead to no possible variant. Please archive or delete your product directly if intended."
                     )
                 )
-        if variants_to_unlink:
             # Batch unlink all combo items referencing unlinked variants.
             combo_items_to_unlink = self.env["product.combo.item"].search(
                 [("product_id", "in", variants_to_unlink.ids)]
@@ -1315,13 +1329,16 @@ class ProductTemplate(models.Model):
         e.g: Black excludes XL and L
         -> XL excludes Black
         -> L excludes Black"""
-        result = dict(exclusions)
+        # Deep-copy the value lists: a shallow ``dict(exclusions)`` would alias
+        # them, so appending an inverse below would mutate the input *and* let a
+        # later iteration overwrite an already-completed list (dropping a
+        # direction). See test_complete_inverse_exclusions_symmetry.
+        result = {key: list(value) for key, value in exclusions.items()}
         for key, value in exclusions.items():
             for exclusion in value:
-                if exclusion in result and key not in result[exclusion]:
-                    result[exclusion].append(key)
-                else:
-                    result[exclusion] = [key]
+                inverse = result.setdefault(exclusion, [])
+                if key not in inverse:
+                    inverse.append(key)
 
         return result
 
@@ -1582,10 +1599,16 @@ class ProductTemplate(models.Model):
         # Each time a value is included in the considered combination, the values it rejects are incremented
         # When a value is discarded from the considered combination, the values it rejects are decremented
         current_exclusions = defaultdict(int)
-        for exclusion in self._get_parent_attribute_exclusions(parent_combination):
-            current_exclusions[
-                self.env["product.template.attribute.value"].browse(exclusion)
-            ] += 1
+        # _get_parent_attribute_exclusions returns {parent_ptav_id: [excluded_ptav_id]}.
+        # We must seed the *excluded* values (the dict values), not the parent keys,
+        # otherwise this pre-pruning is a no-op (see combination engine tests).
+        for excluded_ids in self._get_parent_attribute_exclusions(
+            parent_combination
+        ).values():
+            for exclusion in excluded_ids:
+                current_exclusions[
+                    self.env["product.template.attribute.value"].browse(exclusion)
+                ] += 1
         partial_combination = self.env["product.template.attribute.value"]
 
         # The following list reflects product_template_attribute_values_per_line
@@ -1681,7 +1704,8 @@ class ProductTemplate(models.Model):
         self.ensure_one()
 
         if not self.active:
-            return _("The product template is archived so no combination is possible.")
+            # Archived template: no combination is possible.
+            return
 
         necessary_values = (
             necessary_values or self.env["product.template.attribute.value"]
@@ -1710,8 +1734,6 @@ class ProductTemplate(models.Model):
             combination = partial_combination + necessary_values
             if self._is_combination_possible(combination, parent_combination):
                 yield combination
-
-        return _("There are no remaining possible combination.")
 
     def _get_closest_possible_combination(self, combination):
         """See `_get_closest_possible_combinations` (one iteration).
@@ -1751,15 +1773,15 @@ class ProductTemplate(models.Model):
                 # If there is at least one result for the given combination
                 # we consider that combination set, and we yield all the
                 # possible combinations for it.
-                yield (next(res))
+                yield next(res)
                 for cur in res:
-                    yield (cur)
-                return _("There are no remaining closest combination.")
+                    yield cur
+                return
             except StopIteration:
                 # There are no results for the given combination, we try to
                 # progressively remove values from it.
                 if not combination:
-                    return _("There are no possible combination.")
+                    return
                 combination = combination[:-1]
 
     def _get_placeholder_filename(self, field):
@@ -1793,7 +1815,7 @@ class ProductTemplate(models.Model):
         self = self.with_context(
             empty_list_help_document_name=_("product"),
         )
-        return super(ProductTemplate, self).get_empty_list_help(help_message)
+        return super().get_empty_list_help(help_message)
 
     @api.model
     def get_import_templates(self):
@@ -1900,15 +1922,16 @@ class ProductTemplate(models.Model):
         :rtype: bool
         """
         self.ensure_one()
-        # Returns False on StopIteration. Empty combination should return True.
-        return isinstance(
+        # The generator yields a (possibly empty) recordset for a possible
+        # combination, and stops without yielding for an impossible one.
+        return (
             next(
                 self._filter_combinations_impossible_by_config(
                     [combination], ignore_no_variant
                 ),
-                False,
-            ),
-            models.BaseModel,
+                None,
+            )
+            is not None
         )
 
     def _is_combination_possible(

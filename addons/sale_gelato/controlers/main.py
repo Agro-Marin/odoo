@@ -59,7 +59,7 @@ class GelatoController(Controller):
                 # to ensure the values are saved in the correct format. However, the currency cannot
                 # be read directly during the flush due to access rights, necessitating manual
                 # caching.
-                order_sudo.order_line.currency_id
+                order_sudo.line_ids.currency_id
 
                 # Log a message on the order.
                 log_message = _(

@@ -35,7 +35,7 @@ class TestSaleCrm(TestCrmCommon):
         so1, so2 = self.env['sale.order'].create([{
             **so_values,
             'pricelist_id': my_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': product1.product_variant_id.id,
                 }),
@@ -43,7 +43,7 @@ class TestSaleCrm(TestCrmCommon):
         }, {
             **so_values,
             'pricelist_id': pricelist_expected_by_lead.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': product2.product_variant_id.id,
                 }),
