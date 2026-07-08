@@ -57,6 +57,10 @@ class StockWarehouse(models.Model):
         default=lambda self: self._default_name(),
     )
     active = fields.Boolean(string="Active", default=True)
+    sequence = fields.Integer(
+        default=10,
+        help="Gives the sequence of this line when displaying the warehouses.",
+    )
     company_id = fields.Many2one(
         comodel_name="res.company",
         string="Company",
@@ -223,10 +227,10 @@ class StockWarehouse(models.Model):
         copy=False,
         help="Routes will be created for these resupply warehouses and you can select them on products and product categories",
     )
-    sequence = fields.Integer(
-        default=10,
-        help="Gives the sequence of this line when displaying the warehouses.",
-    )
+
+    # ------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------
 
     _warehouse_name_uniq = models.Constraint(
         "unique(name, company_id)",
@@ -341,8 +345,10 @@ class StockWarehouse(models.Model):
 
         if vals.get("reception_steps"):
             warehouses._update_location_reception(vals["reception_steps"])
+
         if vals.get("delivery_steps"):
             warehouses._update_location_delivery(vals["delivery_steps"])
+
         if vals.get("reception_steps") or vals.get("delivery_steps"):
             warehouses._update_reception_delivery_resupply(
                 vals.get("reception_steps"), vals.get("delivery_steps")
@@ -414,7 +420,135 @@ class StockWarehouse(models.Model):
 
         if "active" in vals:
             self._check_multiwarehouse_group()
+
         return res
+
+    def unlink(self):
+        res = super().unlink()
+        self._check_multiwarehouse_group()
+        return res
+
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        taken_names = defaultdict(set)
+        taken_codes = defaultdict(set)
+        for warehouse, vals in zip(self, vals_list, strict=True):
+            company = warehouse.company_id
+            if "name" not in default:
+                vals["name"] = self._unique_copy_name(
+                    _("%s (copy)", warehouse.name), company, taken_names[company.id]
+                )
+            if "code" not in default:
+                # A fresh unique code: the former constant "COPY" collided on the
+                # second copy within a company (unique(code, company_id)).
+                vals["code"] = self._generate_default_code(
+                    company, taken_codes[company.id]
+                )
+            if vals.get("name"):
+                taken_names[company.id].add(vals["name"])
+            if vals.get("code"):
+                taken_codes[company.id].add(vals["code"])
+        return vals_list
+
+    @ormcache()
+    def _sub_location_field_names(self):
+        """Names of the warehouse Many2one fields that ``_get_locations_values``
+        creates sub-locations for — the base ones (Stock, Input, QC, Output,
+        Packing) plus any added by installed modules (e.g. mrp's pbm/sam).
+
+        Cached because this *set* is structural: it only changes when a module
+        that extends ``_get_locations_values`` is (un)installed, which reloads
+        the registry and clears this cache. This lets ``_create_missing_locations``
+        check for missing locations on every write without recomputing barcode
+        values (a search per location) each time.
+        """
+        return tuple(self._get_locations_values({}))
+
+    @ormcache()
+    def _get_route_trigger_fields(self):
+        """Warehouse field names whose modification must refresh the routes,
+        rules and picking types on ``write``, split into:
+
+        - ``route_depends``: trigger the reception/delivery (and module-added)
+          route and picking-type refresh — the ``depends`` of
+          ``_get_routes_values``.
+        - ``global_depends``: trigger the global route rules refresh — the
+          ``depends`` of ``_generate_global_route_rules_values``.
+        - ``global_rule_keys``: the global rule ``Many2one`` field names
+          themselves (writing one directly also warrants a refresh).
+
+        Structural set: the names come from the *static* ``depends`` lists in
+        those helpers, so it only changes when a module extending them is
+        (un)installed, which reloads the registry and clears this cache.
+        Mirrors ``_sub_location_field_names`` — it lets ``write`` decide whether
+        a refresh is needed without rebuilding those values (and, notably,
+        without calling ``get_rules_dict`` / resolving partner & production
+        locations) on every write, even for unrelated fields.
+
+        The *unfiltered* ``_generate_global_route_rules_values`` is used on
+        purpose: an over-inclusive trigger set only risks a redundant (and
+        idempotent) refresh, whereas a missing field would skip a needed one.
+
+        Discovery must stay purely structural: ``_generate_global_route_rules_values``
+        resolves the MTO rule and can ``raise`` on a warehouse whose delivery
+        chain has no stock-origin rule. If that happens here it would abort an
+        otherwise unrelated write (e.g. a rename) just to populate this cache,
+        so the global part is guarded and falls back to the base-known globals.
+        """
+        route_depends = frozenset(self._collect_depends(self._get_routes_values()))
+        try:
+            global_values = self._generate_global_route_rules_values()
+            global_depends = frozenset(self._collect_depends(global_values))
+            global_rule_keys = frozenset(global_values)
+        except UserError:
+            # Can't resolve the global rules for this (mis)configured warehouse;
+            # fall back to the base globals so trigger discovery never blocks a
+            # write. The real error still surfaces if a write actually refreshes
+            # the global routes (_create_or_update_global_routes_rules).
+            _logger.warning(
+                "Could not resolve global route rules while computing warehouse "
+                "route trigger fields; falling back to base globals.",
+            )
+            global_depends = frozenset({"delivery_steps"})
+            global_rule_keys = frozenset({"mto_pull_id"})
+        return route_depends, global_depends, global_rule_keys
+
+    # ------------------------------------------------------------
+    # DEFAULT METHODS
+    # ------------------------------------------------------------
+
+    def _default_name(self):
+        return self._generate_default_name(self.env.company)
+
+    # ------------------------------------------------------------
+    # ONCHANGE METHODS
+    # ------------------------------------------------------------
+
+    @api.onchange("company_id")
+    def _onchange_company_id(self):
+        group_user = self.env.ref("base.group_user")
+        group_stock_multi_warehouses = self.env.ref(
+            "stock.group_stock_multi_warehouses"
+        )
+        group_stock_multi_location = self.env.ref("stock.group_stock_multi_locations")
+        if (
+            group_stock_multi_warehouses not in group_user.implied_ids
+            and group_stock_multi_location not in group_user.implied_ids
+        ):
+            return {
+                "warning": {
+                    "title": _("Warning"),
+                    "message": _(
+                        "Creating a new warehouse will automatically activate the Storage Locations setting"
+                    ),
+                }
+            }
+        return None
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _toggle_active(self, active, reactivate_depends):
         """(Un)archive the warehouse together with its picking types, locations,
@@ -524,126 +658,6 @@ class StockWarehouse(models.Model):
             )
             to_disable_route_ids.action_archive()
 
-    def unlink(self):
-        res = super().unlink()
-        self._check_multiwarehouse_group()
-        return res
-
-    def copy_data(self, default=None):
-        default = dict(default or {})
-        vals_list = super().copy_data(default=default)
-        taken_names = defaultdict(set)
-        taken_codes = defaultdict(set)
-        for warehouse, vals in zip(self, vals_list, strict=True):
-            company = warehouse.company_id
-            if "name" not in default:
-                vals["name"] = self._unique_copy_name(
-                    _("%s (copy)", warehouse.name), company, taken_names[company.id]
-                )
-            if "code" not in default:
-                # A fresh unique code: the former constant "COPY" collided on the
-                # second copy within a company (unique(code, company_id)).
-                vals["code"] = self._generate_default_code(
-                    company, taken_codes[company.id]
-                )
-            if vals.get("name"):
-                taken_names[company.id].add(vals["name"])
-            if vals.get("code"):
-                taken_codes[company.id].add(vals["code"])
-        return vals_list
-
-    @ormcache()
-    def _sub_location_field_names(self):
-        """Names of the warehouse Many2one fields that ``_get_locations_values``
-        creates sub-locations for — the base ones (Stock, Input, QC, Output,
-        Packing) plus any added by installed modules (e.g. mrp's pbm/sam).
-
-        Cached because this *set* is structural: it only changes when a module
-        that extends ``_get_locations_values`` is (un)installed, which reloads
-        the registry and clears this cache. This lets ``_create_missing_locations``
-        check for missing locations on every write without recomputing barcode
-        values (a search per location) each time.
-        """
-        return tuple(self._get_locations_values({}))
-
-    @ormcache()
-    def _get_route_trigger_fields(self):
-        """Warehouse field names whose modification must refresh the routes,
-        rules and picking types on ``write``, split into:
-
-        - ``route_depends``: trigger the reception/delivery (and module-added)
-          route and picking-type refresh — the ``depends`` of
-          ``_get_routes_values``.
-        - ``global_depends``: trigger the global route rules refresh — the
-          ``depends`` of ``_generate_global_route_rules_values``.
-        - ``global_rule_keys``: the global rule ``Many2one`` field names
-          themselves (writing one directly also warrants a refresh).
-
-        Structural set: the names come from the *static* ``depends`` lists in
-        those helpers, so it only changes when a module extending them is
-        (un)installed, which reloads the registry and clears this cache.
-        Mirrors ``_sub_location_field_names`` — it lets ``write`` decide whether
-        a refresh is needed without rebuilding those values (and, notably,
-        without calling ``get_rules_dict`` / resolving partner & production
-        locations) on every write, even for unrelated fields.
-
-        The *unfiltered* ``_generate_global_route_rules_values`` is used on
-        purpose: an over-inclusive trigger set only risks a redundant (and
-        idempotent) refresh, whereas a missing field would skip a needed one.
-
-        Discovery must stay purely structural: ``_generate_global_route_rules_values``
-        resolves the MTO rule and can ``raise`` on a warehouse whose delivery
-        chain has no stock-origin rule. If that happens here it would abort an
-        otherwise unrelated write (e.g. a rename) just to populate this cache,
-        so the global part is guarded and falls back to the base-known globals.
-        """
-        route_depends = frozenset(self._collect_depends(self._get_routes_values()))
-        try:
-            global_values = self._generate_global_route_rules_values()
-            global_depends = frozenset(self._collect_depends(global_values))
-            global_rule_keys = frozenset(global_values)
-        except UserError:
-            # Can't resolve the global rules for this (mis)configured warehouse;
-            # fall back to the base globals so trigger discovery never blocks a
-            # write. The real error still surfaces if a write actually refreshes
-            # the global routes (_create_or_update_global_routes_rules).
-            _logger.warning(
-                "Could not resolve global route rules while computing warehouse "
-                "route trigger fields; falling back to base globals.",
-            )
-            global_depends = frozenset({"delivery_steps"})
-            global_rule_keys = frozenset({"mto_pull_id"})
-        return route_depends, global_depends, global_rule_keys
-
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
-
-    @api.onchange("company_id")
-    def _onchange_company_id(self):
-        group_user = self.env.ref("base.group_user")
-        group_stock_multi_warehouses = self.env.ref(
-            "stock.group_stock_multi_warehouses"
-        )
-        group_stock_multi_location = self.env.ref("stock.group_stock_multi_locations")
-        if (
-            group_stock_multi_warehouses not in group_user.implied_ids
-            and group_stock_multi_location not in group_user.implied_ids
-        ):
-            return {
-                "warning": {
-                    "title": _("Warning"),
-                    "message": _(
-                        "Creating a new warehouse will automatically activate the Storage Locations setting"
-                    ),
-                }
-            }
-        return None
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _generate_default_name(self, company, taken=()):
         """Return a unique warehouse name for ``company``: the company name for
         the first warehouse, then a name suffixed with an incrementing counter.
@@ -698,9 +712,6 @@ class StockWarehouse(models.Model):
                 company.display_name,
             )
         )
-
-    def _default_name(self):
-        return self._generate_default_name(self.env.company)
 
     @api.model
     def _warehouse_redirect_warning(self):

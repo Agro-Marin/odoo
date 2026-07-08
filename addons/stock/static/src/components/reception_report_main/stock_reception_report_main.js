@@ -83,7 +83,9 @@ export class ReceptionReportMain extends Component {
 
         for (const lines of Object.values(this.state.sourcesToLines)) {
             for (const line of lines) {
-                if (line.is_assigned) continue;
+                // Skip lines with nothing to assign (already assigned, or
+                // "expected" draft lines that carry no incoming moves to link).
+                if (line.is_assigned || !line.is_qty_assignable) continue;
                 moveIds.push(line.move_out_id);
                 quantities.push(line.quantity);
                 inIds.push(line.move_ins);

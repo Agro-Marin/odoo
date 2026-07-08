@@ -1,24 +1,28 @@
-# -*- coding: utf-8 -*-
-
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
 from odoo import _, api, models
-from odoo.tools import float_compare, float_is_zero, format_date
+from odoo.tools import format_date
 
 
 class ReportStockReport_Reception(models.AbstractModel):
     _name = "report.stock.report_reception"
     _description = "Stock Reception Report"
 
+    # ------------------------------------------------------------------
+    # Report values
+    # ------------------------------------------------------------------
+
     @api.model
     def get_report_data(self, docids, data):
+        """Entry point for the interactive (OWL) report: same values as
+        `_get_report_values` but with recordsets flattened to JSON-friendly
+        primitives for the RPC payload."""
         report_values = self._get_report_values(docids, data)
-        report_values["docs"] = self._format_html_docs(report_values.get("docs", False))
-        report_values["sources_info"] = self._format_html_sources_info(
-            report_values.get("sources_to_lines", {})
-        )
+        sources_to_lines = report_values.get("sources_to_lines", {})
+        report_values["docs"] = self._format_html_docs(report_values.get("docs"))
+        report_values["sources_info"] = self._format_html_sources_info(sources_to_lines)
         report_values["sources_to_lines"] = self._format_html_sources_to_lines(
-            report_values.get("sources_to_lines", {})
+            sources_to_lines
         )
         report_values["sources_to_formatted_scheduled_date"] = (
             self._format_html_sources_to_date(
@@ -31,57 +35,94 @@ class ReportStockReport_Reception(models.AbstractModel):
     @api.model
     def _get_report_values(self, docids, data=None):
         """This report is flexibly designed to work with both individual and batch pickings."""
-        docs = self._get_docs(docids)
+        docs, reason = self._get_validated_docs(docids)
+        if not docs:
+            return {"docs": False, "reason": reason}
+
         doc_states = docs.mapped("state")
-        # unsupported cases
+        moves = self._get_moves(docs)
+
+        # Classify every incoming move by how it can be presented.
+        qty_draft, qty_to_assign, total_assigned = self._classify_incoming_moves(moves)
+
+        # Candidate outgoing moves that these incoming quantities could cover.
+        outs = self._search_candidate_outs(docs, doc_states, qty_to_assign, qty_draft)
+
+        sources_to_lines = self._match_outs_to_incoming(
+            outs, doc_states, qty_to_assign, qty_draft
+        )
+        self._add_assigned_lines(sources_to_lines, total_assigned)
+
+        # dates aren't auto-formatted when printed in report :(
+        sources_to_formatted_scheduled_date = {
+            source: self._get_formatted_scheduled_date(source[0])
+            for source in sources_to_lines
+        }
+
+        return {
+            "data": data,
+            "doc_ids": docids,
+            "doc_model": self._get_doc_model(),
+            "sources_to_lines": sources_to_lines,
+            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
+            "docs": docs,
+            "sources_to_formatted_scheduled_date": sources_to_formatted_scheduled_date,
+        }
+
+    def _get_validated_docs(self, docids):
+        """Return `(docs, reason)`. `docs` is empty (and `reason` set) for the
+        unsupported cases the report cannot render."""
+        docs = self._get_docs(docids)
         doc_types = self._get_doc_types()
         if not docs:
-            msg = _("No %s selected or a delivery order selected", doc_types)
-        elif "done" in doc_states and len(set(doc_states)) > 1:
-            docs = False
-            msg = _(
+            return docs, _("No %s selected or a delivery order selected", doc_types)
+        doc_states = docs.mapped("state")
+        if "done" in doc_states and len(set(doc_states)) > 1:
+            return docs.browse(), _(
                 "This report cannot be used for done and not done %s at the same time",
                 doc_types,
             )
-        if not docs:
-            return {"pickings": False, "reason": msg}
+        return docs, None
 
-        # incoming move qtys
-        product_to_qty_draft = defaultdict(float)
-        product_to_qty_to_assign = defaultdict(list)
-        product_to_total_assigned = defaultdict(lambda: [0.0, []])
+    def _classify_incoming_moves(self, moves):
+        """Bucket incoming `moves` by how their quantity should appear in the
+        report:
 
-        # to support batch pickings we need to track the total already assigned
-        move_ids = self._get_moves(docs)
-        assigned_moves = move_ids.mapped("move_dest_ids")
-        product_to_assigned_qty = defaultdict(float)
-        for assigned in assigned_moves:
-            product_to_assigned_qty[assigned.product_id] += assigned.product_qty
+        * `qty_draft`      product -> qty from draft moves (shown, not assignable)
+        * `qty_to_assign`  product -> FIFO list of `(qty, move)` still to assign
+        * `total_assigned` product -> `[already_assigned_qty, [move ids]]`
+        """
+        qty_draft = defaultdict(float)
+        qty_to_assign = defaultdict(list)
+        total_assigned = defaultdict(lambda: [0.0, []])
 
-        for move in move_ids:
-            move_quantity = move.product_qty or move.product_uom._compute_quantity(
-                move.quantity, move.product_id.uom_id, rounding_method="HALF-UP"
-            )
+        # Pool of quantities already reserved through destination moves, drawn
+        # down greedily below so batch pickings don't double-count them.
+        assigned_pool = defaultdict(float)
+        for assigned in moves.move_dest_ids:
+            assigned_pool[assigned.product_id] += assigned.product_qty
+
+        for move in moves:
+            product = move.product_id
+            move_quantity = self._get_move_quantity(move)
             qty_already_assigned = 0
             if move.move_dest_ids:
-                qty_already_assigned = min(
-                    product_to_assigned_qty[move.product_id], move_quantity
-                )
-                product_to_assigned_qty[move.product_id] -= qty_already_assigned
+                qty_already_assigned = min(assigned_pool[product], move_quantity)
+                assigned_pool[product] -= qty_already_assigned
             if qty_already_assigned:
-                product_to_total_assigned[move.product_id][0] += qty_already_assigned
-                product_to_total_assigned[move.product_id][1].append(move.id)
-            if move_quantity != qty_already_assigned:
+                total_assigned[product][0] += qty_already_assigned
+                total_assigned[product][1].append(move.id)
+            remaining = move_quantity - qty_already_assigned
+            if not product.uom_id.is_zero(remaining):
                 if move.state == "draft":
-                    product_to_qty_draft[move.product_id] += (
-                        move_quantity - qty_already_assigned
-                    )
+                    qty_draft[product] += remaining
                 else:
-                    quantity_to_assign = move_quantity
-                    product_to_qty_to_assign[move.product_id].append(
-                        (quantity_to_assign - qty_already_assigned, move)
-                    )
+                    qty_to_assign[product].append((remaining, move))
+        return qty_draft, qty_to_assign, total_assigned
 
+    def _search_candidate_outs(self, docs, doc_states, qty_to_assign, qty_draft):
+        """Outgoing moves (not already chained, non-mto, same warehouse) that
+        could consume the incoming quantities."""
         # only match for non-mto moves in same warehouse
         warehouse = docs[0].picking_type_id.warehouse_id
         wh_location_ids = self.env["stock.location"]._search(
@@ -94,76 +135,51 @@ class ReportStockReport_Reception(models.AbstractModel):
         allowed_states = ["confirmed", "partially_available", "waiting"]
         if "done" in doc_states:
             # only done moves are allowed to be assigned to already reserved moves
-            allowed_states += ["assigned"]
+            allowed_states.append("assigned")
 
-        outs = self.env["stock.move"].search(
+        product_ids = [product.id for product in {*qty_to_assign, *qty_draft}]
+        return self.env["stock.move"].search(
             [
                 ("state", "in", allowed_states),
                 ("product_qty", ">", 0),
                 ("location_id", "in", wh_location_ids),
                 ("move_orig_ids", "=", False),
-                (
-                    "product_id",
-                    "in",
-                    [
-                        p.id
-                        for p in list(product_to_qty_to_assign.keys())
-                        + list(product_to_qty_draft.keys())
-                    ],
-                ),
+                ("product_id", "in", product_ids),
             ]
             + self._get_extra_domain(docs),
             order="date_reservation, priority desc, date, id",
         )
 
+    def _match_outs_to_incoming(self, outs, doc_states, qty_to_assign, qty_draft):
+        """Build `sources_to_lines`: for each outgoing move, draw from the
+        assignable incoming queue and, for any shortfall, from expected drafts."""
         products_to_outs = defaultdict(list)
         for out in outs:
             products_to_outs[out.product_id].append(out)
 
-        sources_to_lines = defaultdict(
-            list
-        )  # group by source so we can print them together
-        # show potential moves that can be assigned
-        for product_id, outs in products_to_outs.items():
-            for out in outs:
+        sources_to_lines = defaultdict(list)  # group by source to print together
+        for product, product_outs in products_to_outs.items():
+            product_uom = product.uom_id
+            assign_queue = qty_to_assign[product]
+            for out in product_outs:
                 source = self._get_report_source(out)
                 if not source:
                     continue
 
                 qty_to_reserve = out.product_qty
-                product_uom = out.product_id.uom_id
                 if "done" not in doc_states and out.state == "partially_available":
                     qty_to_reserve -= out.product_uom._compute_quantity(
                         out.quantity, product_uom
                     )
-                moves_in_ids = []
-                quantity = 0
-                for move_in_qty, move_in in product_to_qty_to_assign[out.product_id]:
-                    moves_in_ids.append(move_in.id)
-                    if product_uom.compare(quantity + move_in_qty, qty_to_reserve) <= 0:
-                        qty_to_add = move_in_qty
-                        move_in_qty = 0
-                    else:
-                        qty_to_add = qty_to_reserve - quantity
-                        move_in_qty -= qty_to_add
-                    quantity += qty_to_add
-                    if move_in_qty:
-                        product_to_qty_to_assign[out.product_id][0] = (
-                            move_in_qty,
-                            move_in,
-                        )
-                    else:
-                        product_to_qty_to_assign[out.product_id] = (
-                            product_to_qty_to_assign[out.product_id][1:]
-                        )
-                    if product_uom.compare(qty_to_reserve, quantity) == 0:
-                        break
 
+                quantity, moves_in_ids = self._consume_from_queue(
+                    assign_queue, qty_to_reserve, product_uom
+                )
                 if not product_uom.is_zero(quantity):
                     sources_to_lines[source].append(
                         self._prepare_report_line(
                             quantity,
-                            product_id,
+                            product,
                             out,
                             source[0],
                             move_ins=self.env["stock.move"].browse(moves_in_ids),
@@ -171,7 +187,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                     )
 
                 # draft qtys can be shown but not assigned
-                qty_expected = product_to_qty_draft.get(product_id, 0)
+                qty_expected = qty_draft.get(product, 0)
                 if product_uom.compare(
                     qty_to_reserve, quantity
                 ) > 0 and not product_uom.is_zero(qty_expected):
@@ -179,33 +195,54 @@ class ReportStockReport_Reception(models.AbstractModel):
                     sources_to_lines[source].append(
                         self._prepare_report_line(
                             to_expect,
-                            product_id,
+                            product,
                             out,
                             source[0],
                             is_qty_assignable=False,
                         )
                     )
-                    product_to_qty_draft[product_id] -= to_expect
+                    qty_draft[product] -= to_expect
+        return sources_to_lines
 
-        # show already assigned moves
-        for product_id, qty_and_ins in product_to_total_assigned.items():
-            total_assigned = qty_and_ins[0]
-            moves_in = self.env["stock.move"].browse(qty_and_ins[1])
-            out_moves = moves_in.move_dest_ids
+    def _consume_from_queue(self, assign_queue, qty_to_reserve, product_uom):
+        """Draw up to `qty_to_reserve` from the FIFO `assign_queue` of
+        `(qty, move)` entries, mutating it in place (fully-consumed entries are
+        popped, a partially-consumed entry keeps its remainder at the front).
 
-            for out_move in out_moves:
-                if out_move.product_id.uom_id.is_zero(total_assigned):
+        :returns: `(quantity_drawn, [ids of every incoming move drawn from])`
+        """
+        quantity = 0
+        moves_in_ids = []
+        while assign_queue and product_uom.compare(quantity, qty_to_reserve) < 0:
+            move_in_qty, move_in = assign_queue[0]
+            moves_in_ids.append(move_in.id)
+            if product_uom.compare(quantity + move_in_qty, qty_to_reserve) <= 0:
+                quantity += move_in_qty
+                assign_queue.pop(0)
+            else:
+                qty_to_add = qty_to_reserve - quantity
+                quantity += qty_to_add
+                assign_queue[0] = (move_in_qty - qty_to_add, move_in)
+                break
+        return quantity, moves_in_ids
+
+    def _add_assigned_lines(self, sources_to_lines, total_assigned):
+        """Append the already-assigned (chained) lines to `sources_to_lines`."""
+        for product, (assigned_qty, move_in_ids) in total_assigned.items():
+            moves_in = self.env["stock.move"].browse(move_in_ids)
+            for out_move in moves_in.move_dest_ids:
+                if out_move.product_id.uom_id.is_zero(assigned_qty):
                     # it is possible there are different in moves linked to the same out moves due to batch
                     # => we guess as to which outs correspond to this report...
                     continue
                 source = self._get_report_source(out_move)
                 if not source:
                     continue
-                qty_assigned = min(total_assigned, out_move.product_qty)
+                qty_assigned = min(assigned_qty, out_move.product_qty)
                 sources_to_lines[source].append(
                     self._prepare_report_line(
                         qty_assigned,
-                        product_id,
+                        product,
                         out_move,
                         source[0],
                         is_assigned=True,
@@ -213,22 +250,12 @@ class ReportStockReport_Reception(models.AbstractModel):
                     )
                 )
 
-        # dates aren't auto-formatted when printed in report :(
-        sources_to_formatted_scheduled_date = defaultdict(list)
-        for source in sources_to_lines:
-            sources_to_formatted_scheduled_date[source] = (
-                self._get_formatted_scheduled_date(source[0])
-            )
-
-        return {
-            "data": data,
-            "doc_ids": docids,
-            "doc_model": self._get_doc_model(),
-            "sources_to_lines": sources_to_lines,
-            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
-            "docs": docs,
-            "sources_to_formatted_scheduled_date": sources_to_formatted_scheduled_date,
-        }
+    def _get_move_quantity(self, move):
+        """The move's demand in the product's reference UoM, falling back to the
+        reserved quantity when there is no stored demand (e.g. done moves)."""
+        return move.product_qty or move.product_uom._compute_quantity(
+            move.quantity, move.product_id.uom_id, rounding_method="HALF-UP"
+        )
 
     def _prepare_report_line(
         self,
@@ -248,7 +275,7 @@ class ReportStockReport_Reception(models.AbstractModel):
             "is_qty_assignable": is_qty_assignable,
             "move_out": move_out,
             "is_assigned": is_assigned,
-            "move_ins": move_ins and move_ins.ids or False,
+            "move_ins": move_ins.ids if move_ins else False,
         }
 
     def _get_report_source(self, move):
@@ -290,31 +317,51 @@ class ReportStockReport_Reception(models.AbstractModel):
             return format_date(self.env, source.date_planned)
         return False
 
+    # ------------------------------------------------------------------
+    # Assign / unassign
+    # ------------------------------------------------------------------
+
     def action_assign(self, move_ids, qtys, in_ids):
         """Assign picking move(s) [i.e. link] to other moves (i.e. make them MTO)
         :param move_id ids: the ids of the moves to make MTO
         :param qtys list: the quantities that are being assigned to the move_ids (in same order as move_ids)
         :param in_ids ids: the ids of the moves that are to be assigned to move_ids
         """
-        outs = self.env["stock.move"].browse(move_ids)
+        # Drop lines that carry no incoming moves to link (e.g. the "expected"
+        # draft-only lines the client's "Assign all" also sends): there is
+        # nothing to make-to-order for them and processing them would wrongly
+        # split the outgoing move (and browse(False)[0] would raise).
+        assignments = [
+            (out_id, qty, ins)
+            for out_id, qty, ins in zip(move_ids, qtys, in_ids, strict=False)
+            if ins
+        ]
+        if not assignments:
+            return
+        out_ids = [out_id for out_id, _qty, _ins in assignments]
+        outs = self.env["stock.move"].browse(out_ids)
+
         # Split outs with only part of demand assigned to prevent reservation problems later on.
-        # We do this first so we can create their split moves in batch
-        out_to_new_out = OrderedDict()
+        # We do this first so we can create their split moves in batch. Only outs
+        # that actually yield a split move are mapped, so the ids stay aligned
+        # 1:1 with the created moves (one split vals dict per out).
         new_move_vals = []
-        for out, qty_to_link in zip(outs, qtys):
-            if out.product_id.uom_id.compare(out.product_qty, qty_to_link) == 1:
-                new_move = out._split(out.product_qty - qty_to_link)
-                if new_move:
-                    new_move[0]["date_reservation"] = out.date_reservation
-                new_move_vals += new_move
-                out_to_new_out[out.id] = self.env["stock.move"]
+        split_out_ids = []
+        for out, (_out_id, qty_to_link, _ins) in zip(outs, assignments, strict=True):
+            if out.product_id.uom_id.compare(out.product_qty, qty_to_link) != 1:
+                continue
+            split_vals = out._split(out.product_qty - qty_to_link)
+            if not split_vals:
+                continue
+            split_vals[0]["date_reservation"] = out.date_reservation
+            new_move_vals += split_vals
+            split_out_ids.append(out.id)
         new_outs = self.env["stock.move"].create(new_move_vals)
         # don't do action confirm to avoid creating additional unintentional reservations
         new_outs.write({"state": "confirmed"})
-        for i, k in enumerate(out_to_new_out.keys()):
-            out_to_new_out[k] = new_outs[i]
+        out_to_new_out = dict(zip(split_out_ids, new_outs, strict=True))
 
-        for out, qty_to_link, ins in zip(outs, qtys, in_ids):
+        for out, (_out_id, qty_to_link, ins) in zip(outs, assignments, strict=True):
             potential_ins = self.env["stock.move"].browse(ins)
             if out.id in out_to_new_out:
                 new_out = out_to_new_out[out.id]
@@ -329,7 +376,9 @@ class ReportStockReport_Reception(models.AbstractModel):
                     assigned_amount = 0
                     matching_locations = potential_ins.location_dest_id
                     for move_line_id in new_out.move_line_ids.sorted(
-                        lambda ml: ml.location_id not in matching_locations
+                        lambda ml, matching_locations=matching_locations: (
+                            ml.location_id not in matching_locations
+                        )
                     ):
                         if (
                             assigned_amount + move_line_id.quantity_product_uom
@@ -360,14 +409,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                             break
 
             for in_move in reversed(potential_ins):
-                move_quantity = (
-                    in_move.product_qty
-                    or in_move.product_uom._compute_quantity(
-                        in_move.quantity,
-                        in_move.product_id.uom_id,
-                        rounding_method="HALF-UP",
-                    )
-                )
+                move_quantity = self._get_move_quantity(in_move)
                 quantity_remaining = move_quantity - sum(
                     in_move.move_dest_ids.mapped("product_qty")
                 )
@@ -391,7 +433,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         (outs | new_outs)._recompute_state()
 
         # always try to auto-assign to prevent another move from reserving the quant if incoming move is done
-        self.env["stock.move"].browse(move_ids)._action_assign()
+        outs._action_assign()
 
     def action_unassign(self, move_id, qty, in_ids):
         """Unassign moves [i.e. unlink] from a move (i.e. make non-MTO)
@@ -406,14 +448,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         for in_move in ins:
             if out.id not in in_move.move_dest_ids.ids:
                 continue
-            move_quantity = (
-                in_move.product_qty
-                or in_move.product_uom._compute_quantity(
-                    in_move.quantity,
-                    in_move.product_id.uom_id,
-                    rounding_method="HALF-UP",
-                )
-            )
+            move_quantity = self._get_move_quantity(in_move)
             in_move.move_dest_ids -= out
             self._action_unassign(in_move, out)
             amount_unassigned += min(qty, move_quantity)
@@ -455,11 +490,8 @@ class ReportStockReport_Reception(models.AbstractModel):
                             move_line_id.quantity -= new_move_line.quantity
                             move_line_id.move_id = out
                             break
-                        else:
-                            move_line_id.move_id = out
-                            reserved_amount_to_remain -= (
-                                move_line_id.quantity_product_uom
-                            )
+                        move_line_id.move_id = out
+                        reserved_amount_to_remain -= move_line_id.quantity_product_uom
                     (out | new_out)._compute_quantity()
                 out.move_orig_ids = False
                 new_out._recompute_state()
@@ -489,23 +521,25 @@ class ReportStockReport_Reception(models.AbstractModel):
         if in_ref and out_source:
             out_source._remove_reference(in_ref)
 
+    # ------------------------------------------------------------------
+    # HTML formatting for the interactive (OWL) report
+    # ------------------------------------------------------------------
+
     def _format_html_docs(self, docs):
         """Format docs to be sent in an html request."""
-        return (
-            [
-                {
-                    "id": doc.id,
-                    "name": doc.display_name,
-                    "state": doc.state,
-                    "display_state": dict(
-                        doc._fields["state"]._description_selection(self.env)
-                    ).get(doc.state),
-                }
-                for doc in docs
-            ]
-            if docs
-            else docs
-        )
+        if not docs:
+            return docs
+        return [
+            {
+                "id": doc.id,
+                "name": doc.display_name,
+                "state": doc.state,
+                "display_state": dict(
+                    doc._fields["state"]._description_selection(self.env)
+                ).get(doc.state),
+            }
+            for doc in docs
+        ]
 
     def _format_html_sources_to_date(self, sources_to_dates):
         """Format sources_to_formatted_scheduled_date to be sent in an html request."""
@@ -515,11 +549,18 @@ class ReportStockReport_Reception(models.AbstractModel):
         """Format sources_to_lines to be sent in an html request, while adding an index for OWL's t-foreach."""
         return {
             str(source): [
-                {**line, "index": i, "move_out_id": line["move_out"].id}
-                for i, line in enumerate(lines)
+                self._format_html_line(line, i) for i, line in enumerate(lines)
             ]
             for source, lines in sources_to_lines.items()
         }
+
+    def _format_html_line(self, line, index):
+        """Flatten a report line for the RPC payload: drop the `move_out`
+        recordset (only its id is consumed client-side) and add the OWL index."""
+        formatted = {key: value for key, value in line.items() if key != "move_out"}
+        formatted["index"] = index
+        formatted["move_out_id"] = line["move_out"].id
+        return formatted
 
     def _format_html_sources_info(self, sources_to_lines):
         """Format used info from sources of sources_to_lines to be sent in an html request."""
@@ -527,7 +568,7 @@ class ReportStockReport_Reception(models.AbstractModel):
             str(source): [
                 self._format_html_source(s, s._name == "stock.picking") for s in source
             ]
-            for source in sources_to_lines.keys()
+            for source in sources_to_lines
         }
 
     def _format_html_source(self, source, is_picking=False):
