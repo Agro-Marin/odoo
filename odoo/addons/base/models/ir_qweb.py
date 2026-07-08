@@ -651,7 +651,8 @@ class QwebCallParameters(NamedTuple):
     def __repr__(self) -> str:
         # cleaning context and values in order to have a consistent log when debugging.
         context = {k: v for k, v in self.context.items() if not k.startswith("_")}
-        qweb_root_values = self.values.get("__qweb_root_values") or {}
+        # ``values`` is None on the synthetic root frame (see ``_render_iterall``).
+        qweb_root_values = (self.values or {}).get("__qweb_root_values") or {}
         values = self.values and {
             k: v
             for k, v in self.values.items()
