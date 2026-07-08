@@ -5,9 +5,9 @@ from unittest.mock import patch
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
+from odoo.tools.rendering_tools import QWebError
 
 from odoo.addons.account_payment.tests.common import AccountPaymentCommon
-from odoo.addons.base.models.ir_qweb import QWebError
 
 
 @tagged('-at_install', 'post_install')

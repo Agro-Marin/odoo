@@ -10,10 +10,10 @@ from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import file_open, misc, mute_logger
 from odoo.tools.json import scriptsafe as json_scriptsafe
+from odoo.tools.rendering_tools import QWebError
 
 from odoo.addons.base.models.ir_qweb import (
     ELEMENT_MARKER_REGEXP,
-    QWebError,
     QwebCallParameters,
     render,
 )

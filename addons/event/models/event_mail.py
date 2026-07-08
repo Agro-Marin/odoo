@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import api, fields, models, modules, tools
-from odoo.addons.base.models.ir_qweb import QWebError
+from odoo.tools.rendering_tools import QWebError
 from odoo.tools.translate import _
 
 
