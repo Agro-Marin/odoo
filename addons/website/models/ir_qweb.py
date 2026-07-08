@@ -108,11 +108,15 @@ class IrQweb(models.AbstractModel):
 
         return irQweb
 
-    def _post_processing_att(self, tagName, atts):
+    def _post_processing_att(self, tagName, atts, *, is_static=False):
         if atts.get('data-no-post-process'):
-            return atts
+            # Skip the website post-processing (url_for, CDN rewriting,
+            # cookies barrier, lazy loading) but still run the base
+            # post-processing: dynamic attributes must keep the
+            # malicious-scheme scrub.
+            return super()._post_processing_att(tagName, atts, is_static=is_static)
 
-        atts = super()._post_processing_att(tagName, atts)
+        atts = super()._post_processing_att(tagName, atts, is_static=is_static)
 
         website = ir_http.get_request_website()
         if not website and self.env.context.get('website_id'):

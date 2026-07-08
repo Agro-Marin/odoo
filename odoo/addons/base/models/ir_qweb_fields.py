@@ -494,6 +494,8 @@ class IrQwebFieldHtml(models.AbstractModel):
         for element in body.iter():
             if element.attrib:
                 attrib = dict(element.attrib)
+                # Stored (user) HTML is dynamic content: keep the default
+                # ``is_static=False`` so the malicious-scheme scrub applies.
                 attrib = irQweb._post_processing_att(element.tag, attrib)
                 element.attrib.clear()
                 element.attrib.update(attrib)
