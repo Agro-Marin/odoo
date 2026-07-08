@@ -299,6 +299,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(document3.checksum, self.blob1_hash)
 
     def test_12_gc(self):
+        # zero the grace window: this test marks and sweeps immediately
+        self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
         # the data needs to be unique so that no other attachment link
         # the file so that the gc removes it
         unique_blob = os.urandom(16)
@@ -310,6 +312,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(store_path.is_file(), "file removed")
 
     def test_13_rollback(self):
+        # zero the grace window: this test marks and sweeps immediately
+        self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
         # the data needs to be unique so that no other attachment link
         # the file so that the gc removes it
         unique_blob = os.urandom(16)
@@ -327,6 +331,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         in; the collect phase must still drop orphans while sparing files a live
         row still references (the whitelist query under the lock).
         """
+        self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
         Attachment = self.env["ir.attachment"]
         orphan = Attachment.create({"name": "orphan", "raw": os.urandom(16)})
         kept = Attachment.create({"name": "kept", "raw": os.urandom(16)})
@@ -346,6 +351,89 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         Attachment._gc_file_store_unsafe(checklist)  # pre-walked path
         self.assertFalse(orphan_path.is_file(), "orphan file must be collected")
         self.assertTrue(kept_path.is_file(), "referenced file must be spared")
+
+    def _checklist_marker(self, fname):
+        """Return the checklist marker path for *fname*."""
+        return Path(self.filestore, "checklist", fname)
+
+    def _age_marker(self, fname, age_seconds):
+        """Backdate *fname*'s checklist marker mtime by *age_seconds*."""
+        marker = self._checklist_marker(fname)
+        past = marker.stat().st_mtime - age_seconds
+        os.utime(marker, (past, past))
+
+    def test_gc_grace_spares_fresh_markers(self):
+        """The GC must not sweep a checklist entry younger than the grace
+        window (IRA-G1).
+
+        create() writes the file and marks it for GC BEFORE super().create()
+        flushes the INSERT, so an autovacuum racing in that window would
+        delete content of a not-yet-committed transaction. The age gate in
+        _gc_checklist is what closes the race; pin it.
+        """
+        unique_blob = os.urandom(16)
+        a1 = self.Attachment.create({"name": "a1", "raw": unique_blob})
+        fname = a1.store_fname
+        store_path = Path(self.filestore, fname)
+        a1.unlink()
+
+        # Fresh marker (just re-marked by unlink): the default-grace scan
+        # must exclude it, and the sweep must leave file AND marker alone.
+        checklist = self.Attachment._gc_checklist()
+        self.assertNotIn(fname, checklist, "fresh marker must be grace-skipped")
+        self.Attachment._gc_file_store_unsafe()
+        self.assertTrue(store_path.is_file(), "file within grace must survive")
+        self.assertTrue(
+            self._checklist_marker(fname).is_file(),
+            "marker within grace must stay for a later run",
+        )
+
+        # Age the marker past the grace window: now the sweep collects it.
+        self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
+        checklist = self.Attachment._gc_checklist()
+        self.assertIn(fname, checklist, "aged marker must be sweepable")
+        self.Attachment._gc_file_store_unsafe()
+        self.assertFalse(store_path.is_file(), "aged orphan must be collected")
+        self.assertFalse(self._checklist_marker(fname).is_file())
+
+    def test_gc_grace_remark_refreshes_clock(self):
+        """A dedup-hit re-mark must reset the marker's grace clock (IRA-G1).
+
+        Both _file_write and _file_write_stream re-mark on dedup hits: the
+        existing file may be an aborted transaction's orphan whose marker
+        already outlived the grace window, and without an mtime refresh the
+        GC could sweep it before the CURRENT transaction flushes its INSERT.
+        """
+        unique_blob = os.urandom(16)
+        checksum = hashlib.sha1(unique_blob, usedforsecurity=False).hexdigest()
+
+        # First write creates file + marker; backdate the marker so it looks
+        # like the leftover of a long-aborted transaction.
+        fname = self.Attachment._file_write(unique_blob, checksum)
+        self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
+        self.assertIn(fname, self.Attachment._gc_checklist())
+
+        # Buffered dedup hit: the re-mark must refresh the mtime back
+        # inside the grace window.
+        self.assertEqual(self.Attachment._file_write(unique_blob, checksum), fname)
+        self.assertNotIn(
+            fname,
+            self.Attachment._gc_checklist(),
+            "_file_write dedup hit must refresh the marker's grace clock",
+        )
+
+        # Streamed dedup hit: same contract.
+        self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
+        self.assertIn(fname, self.Attachment._gc_checklist())
+        stream_fname, size, stream_checksum = self.Attachment._file_write_stream(
+            io.BytesIO(unique_blob)
+        )
+        self.assertEqual((stream_fname, size, stream_checksum), (fname, 16, checksum))
+        self.assertNotIn(
+            fname,
+            self.Attachment._gc_checklist(),
+            "_file_write_stream dedup hit must refresh the marker's grace clock",
+        )
 
     def test_14_invalid_mimetype_with_correct_file_extension_no_post_processing(
         self,
@@ -1272,11 +1360,15 @@ class TestPermissions(TransactionCaseWithUserDemo):
         for i in range(24):
             kind = i % 3
             if kind == 0:
-                a = self.Attachments.sudo().create({"name": f"p{i:02d}", "public": True})
+                a = self.Attachments.sudo().create(
+                    {"name": f"p{i:02d}", "public": True}
+                )
             elif kind == 1:
                 a = self.Attachments.create({"name": f"o{i:02d}"})  # demo orphan
             else:
-                a = self.Attachments.with_user(SUPERUSER_ID).create({"name": f"a{i:02d}"})
+                a = self.Attachments.with_user(SUPERUSER_ID).create(
+                    {"name": f"a{i:02d}"}
+                )
             all_ids.append(a.id)
         domain = [("id", "in", all_ids)]
         forbidden = set(all_ids[2::3])  # the superuser-owned orphans (kind == 2)
@@ -1301,7 +1393,9 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
         for label, ids in batched.items():
             self.assertEqual(
-                ids, truth[label], f"{label}: multi-batch result diverged from single fetch"
+                ids,
+                truth[label],
+                f"{label}: multi-batch result diverged from single fetch",
             )
             self.assertEqual(
                 len(ids), len(set(ids)), f"{label}: duplicate id across batch boundary"
