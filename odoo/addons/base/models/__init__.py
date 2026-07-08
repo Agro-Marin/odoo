@@ -42,12 +42,18 @@ from . import ir_exports
 from . import ir_rule
 from . import ir_config_parameter
 
-# --- Mail & HTTP ---
+# --- Mail ---
 from . import ir_mail_server
+
+# --- Import converters ---
 from . import ir_fields
+
+# --- Templating (QWeb) ---
 from . import ir_qweb
 from . import ir_qweb_assets
 from . import ir_qweb_fields
+
+# --- HTTP & logging ---
 from . import ir_http
 from . import ir_logging
 
