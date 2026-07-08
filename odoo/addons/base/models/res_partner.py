@@ -1505,12 +1505,17 @@ class ResPartner(models.Model):
         }
 
     @api.depends(
-        "complete_name",
-        "email",
-        "vat",
-        "state_id",
-        "country_id",
-        "commercial_company_name",
+        # _display_address_depends() covers the full address rendered under the
+        # show_address context (street/street2/zip/city + state_id/country_id/
+        # company_name); without it, display_name would go stale after e.g. a
+        # street or city write.
+        lambda self: [
+            "complete_name",
+            "email",
+            "vat",
+            "commercial_company_name",
+            *self._display_address_depends(),
+        ]
     )
     @api.depends_context(
         "show_address",
