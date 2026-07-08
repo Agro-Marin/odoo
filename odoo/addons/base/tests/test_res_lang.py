@@ -1,5 +1,9 @@
+import locale
+
+from odoo import tools
 from odoo.exceptions import UserError
 from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.base.models.res_lang import LangData, format_number, intersperse
 
@@ -147,6 +151,29 @@ class test_res_lang(TransactionCase):
         self.assertNotIn(weird, grouping_options)
         coerced = weird if weird in grouping_options else "[3,0]"
         self.assertEqual(coerced, "[3,0]")
+
+    @mute_logger("odoo.addons.base.models.res_lang")
+    def test_create_lang_resets_process_locale(self):
+        """RL-C1: _create_lang mutates the process-global locale inside a
+        serialized window (see _LOCALE_LOCK) and must always restore it,
+        including when the requested locale is unavailable on the platform.
+        """
+        tools.translate.resetlocale()
+        before = locale.setlocale(locale.LC_ALL)
+        lang = self.env["res.lang"]._create_lang("xx_XX", "Locale Window Test")
+        self.assertEqual(
+            locale.setlocale(locale.LC_ALL),
+            before,
+            "_create_lang must reset the process locale after reading it",
+        )
+        self.assertTrue(lang.active)
+        self.assertEqual(lang.code, "xx_XX")
+        self.assertTrue(lang.date_format)
+        self.assertTrue(lang.time_format)
+        self.assertIn(
+            lang.grouping,
+            {v for v, _label in lang._fields["grouping"].selection},
+        )
 
     def test_copy_lang_codes_are_url_safe_and_unique(self):
         """RL-B3: copying a language must not push the translated '(copy)'

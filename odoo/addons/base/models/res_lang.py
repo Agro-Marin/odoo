@@ -3,6 +3,7 @@ import functools
 import locale
 import logging
 import re
+import threading
 from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models, tools
@@ -12,6 +13,17 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
+
+# ``locale.setlocale()`` mutates *process-global* state, and ``_create_lang``
+# must set it to read the target locale's facets (``localeconv``,
+# ``nl_langinfo``).  Odoo's threaded server runs other requests concurrently,
+# so two concurrent ``_create_lang`` calls could interleave their
+# setlocale/read/reset sequences and read the wrong locale's data.  This lock
+# serializes the whole setlocale window (set -> read -> reset).  It cannot
+# shield unrelated threads that read locale-dependent state without taking
+# the lock — a locale-free rewrite (e.g. babel) would be needed for that —
+# but it keeps the mutation window minimal and internally consistent.
+_LOCALE_LOCK = threading.Lock()
 
 
 @functools.lru_cache(maxsize=128)
@@ -267,21 +279,7 @@ class ResLang(models.Model):
 
     def _create_lang(self, lang: str, lang_name: str | None = None) -> Self:
         """Create the given language and make it active."""
-        # create the language with locale information
-        fail = True
         iso_lang = tools.get_iso_codes(lang)
-        for ln in tools.translate.get_locales(lang):
-            try:
-                locale.setlocale(locale.LC_ALL, str(ln))
-                fail = False
-                break
-            except locale.Error:
-                continue
-        if fail:
-            lc = locale.getlocale()[0]
-            msg = "Unable to get information for locale %s. Information from the default locale (%s) have been used."
-            _logger.warning(msg, lang, lc)
-
         if not lang_name:
             lang_name = lang
 
@@ -298,27 +296,52 @@ class ResLang(models.Model):
                 format = format.replace(pattern, replacement)
             return str(format)
 
-        conv = locale.localeconv()
-        # Normalize grouping to match Selection field values (no spaces).
-        # locale.localeconv()["grouping"] returns e.g. [3, 0] → str gives
-        # "[3, 0]" but the Selection expects "[3,0]".
-        grouping = str(conv.get("grouping") or "[3,0]").replace(" ", "")
-        grouping_options = {v for v, _ in self._fields["grouping"].selection}
-        lang_info = {
-            "code": lang,
-            "iso_code": iso_lang,
-            "name": lang_name,
-            "active": True,
-            "date_format": fix_datetime_format(locale.nl_langinfo(locale.D_FMT)),
-            "time_format": fix_datetime_format(locale.nl_langinfo(locale.T_FMT)),
-            "decimal_point": str(conv["decimal_point"]),
-            "thousands_sep": str(conv["thousands_sep"]),
-            "grouping": grouping if grouping in grouping_options else "[3,0]",
-        }
-        try:
-            return self.create(lang_info)
-        finally:
-            tools.translate.resetlocale()
+        # Read the locale information under _LOCALE_LOCK (see its comment):
+        # setlocale mutates process-global state and the facet reads below
+        # (localeconv, nl_langinfo) only see the target locale while it is
+        # set, so the whole set -> read -> reset window must be serialized.
+        with _LOCALE_LOCK:
+            try:
+                fail = True
+                for ln in tools.translate.get_locales(lang):
+                    try:
+                        locale.setlocale(locale.LC_ALL, str(ln))
+                        fail = False
+                        break
+                    except locale.Error:
+                        continue
+                if fail:
+                    lc = locale.getlocale()[0]
+                    msg = "Unable to get information for locale %s. Information from the default locale (%s) have been used."
+                    _logger.warning(msg, lang, lc)
+
+                conv = locale.localeconv()
+                # Normalize grouping to match Selection field values (no
+                # spaces).  locale.localeconv()["grouping"] returns e.g.
+                # [3, 0] → str gives "[3, 0]" but the Selection expects
+                # "[3,0]".
+                grouping = str(conv.get("grouping") or "[3,0]").replace(" ", "")
+                grouping_options = {v for v, _ in self._fields["grouping"].selection}
+                lang_info = {
+                    "code": lang,
+                    "iso_code": iso_lang,
+                    "name": lang_name,
+                    "active": True,
+                    "date_format": fix_datetime_format(
+                        locale.nl_langinfo(locale.D_FMT)
+                    ),
+                    "time_format": fix_datetime_format(
+                        locale.nl_langinfo(locale.T_FMT)
+                    ),
+                    "decimal_point": str(conv["decimal_point"]),
+                    "thousands_sep": str(conv["thousands_sep"]),
+                    "grouping": grouping if grouping in grouping_options else "[3,0]",
+                }
+            finally:
+                tools.translate.resetlocale()
+        # The ORM create does not need the temporary locale: run it outside
+        # the lock to keep the global-mutation window as short as possible.
+        return self.create(lang_info)
 
     @api.model
     def install_lang(self) -> bool:
