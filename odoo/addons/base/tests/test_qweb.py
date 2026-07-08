@@ -14,6 +14,7 @@ from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.addons.base.models.ir_qweb import (
     ELEMENT_MARKER_REGEXP,
     QWebError,
+    QwebCallParameters,
     render,
 )
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
@@ -3389,6 +3390,21 @@ class TestQWebHelpers(TransactionCase):
         self.assertEqual(
             unsafe_eval(code, {"self": qweb}, {"values": {"x": 7}}), "100% 7%"
         )
+
+    def test_qweb_call_parameters_repr_root_frame(self):
+        """The synthetic root frame of ``_render_iterall`` carries
+        ``values=None``; its ``repr`` (hit while debugging/logging) used to
+        crash on ``None.get``."""
+        params = QwebCallParameters(
+            context={},
+            view_ref=42,
+            method=None,
+            values=None,
+            scope=False,
+            directive="render",
+            path_xml=None,
+        )
+        self.assertIn("view_ref=42", repr(params))
 
     def test_is_static_node(self):
         qweb = self.env["ir.qweb"]
