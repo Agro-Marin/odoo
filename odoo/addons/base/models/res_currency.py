@@ -353,9 +353,10 @@ class ResCurrency(models.Model):
     # company scoping, not only on its value — declaring all three keeps the
     # cached rate/inverse_rate/rate_string of the currency *owning* the rate
     # consistent. This does not replace the invalidate_model() calls in
-    # ResCurrencyRate.create/write: another currency's cached values can
-    # depend on this one's rates through the 'to_currency' context, a
-    # cross-record dependency @api.depends cannot express.
+    # ResCurrencyRate.create/write/unlink: another currency's cached values
+    # can depend on this one's rates (through the 'to_currency' context or
+    # because this is the company currency all three fields are expressed
+    # against), a cross-record dependency @api.depends cannot express.
     @api.depends("rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:
@@ -707,20 +708,31 @@ class ResCurrencyRate(models.Model):
     )
 
     def _sanitize_vals(self, vals: dict[str, Any]) -> dict[str, Any]:
+        """Drop redundant rate encodings from ``vals``.
+
+        Returns a filtered copy when something must be dropped; the
+        caller-owned dict is never mutated.
+        """
+        drop = set()
         if "inverse_company_rate" in vals and (
             "company_rate" in vals or "rate" in vals
         ):
-            del vals["inverse_company_rate"]
+            drop.add("inverse_company_rate")
         if "company_rate" in vals and "rate" in vals:
-            del vals["company_rate"]
+            drop.add("company_rate")
+        if drop:
+            return {name: value for name, value in vals.items() if name not in drop}
         return vals
 
     def write(self, vals: dict[str, Any]) -> bool:
-        # 'inverse_rate' of *other* currencies may have been computed against
-        # self's rate ('to_currency' from the context in _compute_current_rate),
-        # a cross-record dependency @api.depends cannot express: invalidate it
-        # model-wide (the owning currency is covered by the depends).
-        self.env["res.currency"].invalidate_model(["inverse_rate"])
+        # 'rate', 'inverse_rate' and 'rate_string' of *other* currencies may
+        # have been computed against self's rate rows (the company/context
+        # currency and 'to_currency' in _compute_current_rate), a cross-record
+        # dependency @api.depends cannot express: invalidate all three
+        # model-wide (the owning currency alone is covered by the depends).
+        self.env["res.currency"].invalidate_model(
+            ["rate", "inverse_rate", "rate_string"]
+        )
         res = super().write(self._sanitize_vals(vals))
         # RCUR-M1: drop the transaction-scoped rate-history memo too.
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
@@ -729,7 +741,9 @@ class ResCurrencyRate(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         # Model-wide invalidation for the same reason as write() above.
-        self.env["res.currency"].invalidate_model(["inverse_rate"])
+        self.env["res.currency"].invalidate_model(
+            ["rate", "inverse_rate", "rate_string"]
+        )
         records = super().create([self._sanitize_vals(vals) for vals in vals_list])
         # RCUR-M1: drop the transaction-scoped rate-history memo too.
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
@@ -737,9 +751,11 @@ class ResCurrencyRate(models.Model):
 
     def unlink(self) -> bool:
         # Cross-record invalidation for the same reason as write() above:
-        # deleting a rate can change other currencies' cached 'inverse_rate'
-        # computed against it through the 'to_currency' context.
-        self.env["res.currency"].invalidate_model(["inverse_rate"])
+        # deleting a rate can change other currencies' cached rate,
+        # inverse_rate and rate_string computed against it.
+        self.env["res.currency"].invalidate_model(
+            ["rate", "inverse_rate", "rate_string"]
+        )
         res = super().unlink()
         # RCUR-M1: drop the transaction-scoped rate-history memo too.
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
