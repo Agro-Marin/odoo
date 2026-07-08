@@ -649,7 +649,23 @@ class TestCssVersionStability(TransactionCase):
             )
 
 
-class TestBridgeHashWidth(TransactionCase):
+class BridgeRequestBoundCase(TransactionCase):
+    """Base for tests of the *in-request* bridge persistence semantics.
+
+    ``_persist_bridge_shims`` only routes through the dedicated read-write
+    cursor while an HTTP request is bound; outside a request it persists on
+    the current cursor (the no-request deadlock guard — see esm_bridges.py).
+    TransactionCase runs with no bound request, so these tests bind a truthy
+    stand-in to exercise the escalation path they assert on. The no-request
+    path is pinned separately by ``TestBridgeNoRequestPersistence``.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(patch("odoo.http.request", new=SimpleNamespace()))
+
+
+class TestBridgeHashWidth(BridgeRequestBoundCase):
     """Bridge attachment URLs use a 128-bit content hash."""
 
     def test_bridge_url_hash_is_32_hex(self):
@@ -668,7 +684,7 @@ class TestBridgeHashWidth(TransactionCase):
         self.assertRegex(basename, r"^[0-9a-f]{32}\.js$")
 
 
-class TestBridgeReadonlyEscalation(TransactionCase):
+class TestBridgeReadonlyEscalation(BridgeRequestBoundCase):
     """On a read-only cursor, bridge persistence escalates to a rw cursor."""
 
     def _make_cursor_readonly(self):
@@ -771,7 +787,7 @@ class TestDebugCssMinifySkipsRegex(BaseCase):
         self.assertIn("body{", out)
 
 
-class TestBridgePersistenceDecoupled(TransactionCase):
+class TestBridgePersistenceDecoupled(BridgeRequestBoundCase):
     """Bridge attachments persist out-of-band, on a writable cursor too.
 
     Cache-coherence fix: ``_persist_bridge_shims`` used to ``create`` on the
@@ -822,6 +838,37 @@ class TestBridgePersistenceDecoupled(TransactionCase):
         self.assertTrue(
             urls["@web/degraded"].startswith("data:text/javascript"),
             "data: URIs are reserved for a genuinely unwritable primary",
+        )
+
+
+class TestBridgeNoRequestPersistence(TransactionCase):
+    """Outside a request, bridges persist on the CURRENT cursor.
+
+    The no-request deadlock guard (esm_bridges.py): registry preload / asset
+    pregeneration, cron, and CLI runs already hold ir_attachment locks on the
+    current cursor, so opening the dedicated rw cursor there self-deadlocks.
+    With no request bound (the natural TransactionCase state) persistence must
+    go through the current cursor and never touch the escalation seam.
+    """
+
+    def test_no_request_persists_on_current_cursor(self):
+        bundle = AssetsBundle("web.assets_web", [], env=self.env)
+        with patch.object(
+            BridgeShimManager, "_persist_bridges_via_rw_cursor"
+        ) as escalate:
+            urls = bundle._bridges._persist_bridge_shims(
+                {"@web/no_request": "export const no_request = 3;"}
+            )
+        escalate.assert_not_called()
+        url = urls["@web/no_request"]
+        self.assertTrue(
+            url.startswith("/web/assets/esm/bridges/"),
+            "current-cursor persistence still yields canonical URLs",
+        )
+        attachment = self.env["ir.attachment"].sudo().search([("url", "=", url)])
+        self.assertTrue(
+            attachment,
+            "the bridge row must be visible on the current cursor",
         )
 
 
