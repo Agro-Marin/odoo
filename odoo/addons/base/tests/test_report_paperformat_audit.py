@@ -8,6 +8,11 @@ named format with explicit page dimensions.
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.base.models.report_paperformat import (
+    PAPER_SIZE_BY_KEY,
+    PAPER_SIZES,
+)
+
 # A4 in mm, as stored in PAPER_SIZES (width x height, portrait orientation).
 A4_WIDTH = 210.0
 A4_HEIGHT = 297.0
@@ -62,3 +67,17 @@ class TestReportPaperformatAudit(TransactionCase):
         """The write-only `default` field was dropped: company defaults resolve
         via res.company.paperformat_id, and nothing ever read the flag."""
         self.assertNotIn("default", self.env["report.paperformat"]._fields)
+
+    def test_paper_size_key_map_matches_list(self):
+        """PAPER_SIZE_BY_KEY is the shared O(1) companion of PAPER_SIZES."""
+        self.assertEqual(len(PAPER_SIZE_BY_KEY), len(PAPER_SIZES))
+        for paper_size in PAPER_SIZES:
+            self.assertIs(PAPER_SIZE_BY_KEY[paper_size["key"]], paper_size)
+
+    def test_non_a4_named_format_dimensions(self):
+        """A named format resolved through the key map yields its mm size."""
+        pf = self.env["report.paperformat"].create(
+            {"name": "audit A3 portrait", "format": "A3", "orientation": "Portrait"}
+        )
+        self.assertAlmostEqual(pf.print_page_width, 297.0)
+        self.assertAlmostEqual(pf.print_page_height, 420.0)

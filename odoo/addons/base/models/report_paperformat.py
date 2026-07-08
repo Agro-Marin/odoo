@@ -188,6 +188,11 @@ PAPER_SIZES = [
     },
 ]
 
+# O(1) lookup for paperformat mm dimensions, keyed by format name. Shared by
+# _compute_print_page_size below and ir.actions.report._paperformat_to_css —
+# both used to run a per-record/per-render linear scan of PAPER_SIZES.
+PAPER_SIZE_BY_KEY = {ps["key"]: ps for ps in PAPER_SIZES}
+
 
 class ReportPaperformat(models.Model):
     _name = "report.paperformat"
@@ -274,10 +279,7 @@ class ReportPaperformat(models.Model):
                     width = record.page_width
                     height = record.page_height
                 else:
-                    paper_size = next(
-                        (ps for ps in PAPER_SIZES if ps["key"] == record.format),
-                        None,
-                    )
+                    paper_size = PAPER_SIZE_BY_KEY.get(record.format)
                     if paper_size is None:
                         record.print_page_width = 0.0
                         record.print_page_height = 0.0
