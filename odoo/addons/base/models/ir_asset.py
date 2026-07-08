@@ -732,6 +732,26 @@ class IrAsset(models.Model):
                     path_def,
                     addon,
                 )
+            elif addon_manifest:
+                # A LITERAL path (no wildcard) inside an installed addon's
+                # ``static/`` dir that matches no bundleable file — a typo'd
+                # filename (or a non-ASSET_EXTENSIONS file, which the glob
+                # filters out). Empty GLOBS warn below ("did not resolve to
+                # anything") but this literal case silently degraded to an
+                # attachment-URL entry with ``full_path=None``, so the asset
+                # just vanished from the bundle with no trace (IRASSET-C5,
+                # mirroring the IRASSET-C4 escape warning above). Keep the
+                # degradation: attachment rows may legitimately shadow a
+                # since-removed static file (e.g. customized SCSS surviving
+                # an upgrade).
+                _logger.warning(
+                    "IrAsset: path %r matches no bundleable file in the "
+                    "static/ directory of addon %r (missing file or non-asset "
+                    "extension); treating it as an attachment URL. This is "
+                    "almost certainly a typo in the path.",
+                    path_def,
+                    addon,
+                )
             paths = [ResolvedPath(path_def, None, None)]
 
         if not paths:

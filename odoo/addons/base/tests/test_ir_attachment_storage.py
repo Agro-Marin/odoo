@@ -14,7 +14,9 @@ import psycopg.errors
 
 from odoo.fields import Domain
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
+from odoo.addons.base.models import ir_attachment_storage
 from odoo.addons.base.models.ir_attachment_storage import (
     STORAGE_BACKENDS,
     AttachmentStorage,
@@ -42,8 +44,11 @@ class TestIrAttachmentStorage(TransactionCase):
         """Read-side backend follows the store key's URI scheme."""
         plain = self.Attachment._backend_for_key("ab/abcdef0123")
         self.assertIsInstance(plain, FileStorage)
-        # unregistered scheme falls back to the local filestore
-        unknown = self.Attachment._backend_for_key("weird://bucket/key")
+        # unregistered scheme falls back to the local filestore (and warns
+        # once per scheme — see test_unknown_scheme_warns_once)
+        self.addCleanup(ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, "weird")
+        with mute_logger("odoo.addons.base.models.ir_attachment_storage"):
+            unknown = self.Attachment._backend_for_key("weird://bucket/key")
         self.assertIsInstance(unknown, FileStorage)
 
         class FakeS3Storage(AttachmentStorage):
@@ -59,6 +64,31 @@ class TestIrAttachmentStorage(TransactionCase):
             self.assertIsInstance(self.Attachment._storage_backend(), FakeS3Storage)
         finally:
             STORAGE_BACKENDS.pop("fake_s3")
+
+    def test_unknown_scheme_warns_once(self):
+        """IRA-S2: a schemed key with no registered backend (e.g. ``s3://``
+        rows left behind after uninstalling the backend module) must fall
+        back to the filestore WITH a distinct warning — once per scheme —
+        so the inevitable read failure is blamed on the missing backend,
+        not the local filestore.
+        """
+        self.addCleanup(
+            ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, "ghost-s3"
+        )
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
+        ) as cm:
+            backend = self.Attachment._backend_for_key("ghost-s3://bucket/key")
+        self.assertIsInstance(backend, FileStorage)
+        self.assertEqual(len(cm.records), 1)
+        message = cm.records[0].getMessage()
+        self.assertIn("No storage backend registered", message)
+        self.assertIn("ghost-s3", message)
+        # Second read of the same scheme: silent (once-per-scheme dedup).
+        with patch.object(ir_attachment_storage._logger, "warning") as warn:
+            again = self.Attachment._backend_for_key("ghost-s3://bucket/other")
+        self.assertIsInstance(again, FileStorage)
+        warn.assert_not_called()
 
     def test_stream_key_dispatch(self):
         """_to_http_stream routes keyed content to the key's owning backend."""

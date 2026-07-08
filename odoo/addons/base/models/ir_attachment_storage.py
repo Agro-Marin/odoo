@@ -14,6 +14,12 @@ _logger = logging.getLogger(__name__)
 # {location_name: backend class} — write-side registry
 STORAGE_BACKENDS: dict[str, type[AttachmentStorage]] = {}
 
+# Schemes already reported by backend_for_key's no-backend warning, so a
+# missing backend module is reported once per scheme per process instead of
+# once per read (a busy server reading thousands of orphaned s3:// keys
+# would otherwise flood the log with the same line).
+_UNKNOWN_SCHEMES_WARNED: set[str] = set()
+
 
 def register_storage(cls: type[AttachmentStorage]) -> type[AttachmentStorage]:
     """Class decorator registering *cls* under its ``location`` name."""
@@ -28,6 +34,13 @@ def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
     Dispatch is by URI scheme; keys without a scheme (the plain
     ``ab/<sha1>`` sharded layout) belong to the local filestore.
 
+    A schemed key whose backend is NOT registered (e.g. ``s3://...`` rows
+    left behind after uninstalling the backend module) still falls back to
+    the local filestore, but with a distinct once-per-scheme warning:
+    the fallback can only fail (the filestore does not hold the bytes),
+    and without the warning that failure gets blamed on the local
+    filestore instead of the missing backend.
+
     :param env: the current environment
     :param str key: a ``store_fname`` value
     :rtype: AttachmentStorage
@@ -36,6 +49,17 @@ def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
         for backend_cls in STORAGE_BACKENDS.values():
             if backend_cls.owns_key(key):
                 return backend_cls(env)
+        scheme = key.split("://", 1)[0]
+        if scheme not in _UNKNOWN_SCHEMES_WARNED:
+            _UNKNOWN_SCHEMES_WARNED.add(scheme)
+            _logger.warning(
+                "No storage backend registered for scheme %r (key %r); "
+                "falling back to the local filestore. Subsequent read "
+                "failures for such keys are caused by the missing backend "
+                "module, not the filestore. (warned once per scheme)",
+                scheme,
+                key,
+            )
     return FileStorage(env)
 
 
