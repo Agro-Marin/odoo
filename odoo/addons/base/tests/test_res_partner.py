@@ -116,6 +116,30 @@ class TestPartner(TransactionCaseWithUserDemo):
             test_partner.active, "Activating user must active related partner"
         )
 
+    def test_barcode_unicity(self):
+        """barcode is unique per company: duplicates in the same company slot
+        raise, while the same value in another company's slot is allowed."""
+        Partner = self.env["res.partner"]
+        Partner.create({"name": "Barcode A", "barcode": "BARCODE-DUP"})
+        # duplicate against an existing record
+        with self.assertRaises(ValidationError):
+            Partner.create({"name": "Barcode B", "barcode": "BARCODE-DUP"})
+        # duplicate within the checked batch itself
+        with self.assertRaises(ValidationError):
+            Partner.create(
+                [
+                    {"name": "Barcode C", "barcode": "BARCODE-BATCH"},
+                    {"name": "Barcode D", "barcode": "BARCODE-BATCH"},
+                ]
+            )
+        # distinct barcodes are fine
+        Partner.create({"name": "Barcode E", "barcode": "BARCODE-OTHER"})
+        # same value in ANOTHER company's slot is fine (company_dependent)
+        company_b = self.env["res.company"].create({"name": "Barcode Co"})
+        Partner.with_company(company_b).create(
+            {"name": "Barcode F", "barcode": "BARCODE-DUP"}
+        )
+
     def test_display_name_show_address_follows_address_write(self):
         """display_name rendered with show_address must be recomputed when an
         address field it renders (street/city/zip) changes."""
