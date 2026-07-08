@@ -932,6 +932,67 @@ class TestSslContexts(TransactionCase):
             )
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext")
 
+    def test_ssl_context_from_cert_files_strict_verifies_peer(self):
+        """Strict encryption with cert/key files builds a *verifying* context.
+
+        Regression: verify_mode was hardcoded to CERT_NONE regardless of the
+        requested encryption, silently downgrading ssl_strict/starttls_strict
+        to no server-certificate validation on the CLI/config path.
+        """
+        import tempfile
+        from pathlib import Path
+
+        from OpenSSL.SSL import VERIFY_FAIL_IF_NO_PEER_CERT, VERIFY_NONE, VERIFY_PEER
+
+        IrMailServer = self.env["ir.mail_server"]
+        with tempfile.TemporaryDirectory() as tmp:
+            cert_path = Path(tmp) / "cert.pem"
+            key_path = Path(tmp) / "key.pem"
+            cert_path.write_bytes(self.cert_pem)
+            key_path.write_bytes(self.key_pem)
+            for encryption in ("ssl_strict", "starttls_strict"):
+                ctx = IrMailServer._ssl_context_from_cert_files(
+                    str(cert_path), str(key_path), encryption, "smtp.example.com"
+                )
+                self.assertEqual(
+                    ctx._ctx.get_verify_mode(),
+                    VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
+                    encryption,
+                )
+            for encryption in (None, "none", "ssl", "starttls"):
+                ctx = IrMailServer._ssl_context_from_cert_files(
+                    str(cert_path), str(key_path), encryption, "smtp.example.com"
+                )
+                self.assertEqual(ctx._ctx.get_verify_mode(), VERIFY_NONE, encryption)
+
+    def test_connect_cert_files_strict_encryption_verifies(self):
+        """End-to-end: strict encryption + client cert/key files must reach
+        smtplib with a peer-verifying pyOpenSSL context, mirroring the
+        record-based certificate path."""
+        import tempfile
+        from pathlib import Path
+
+        from OpenSSL.SSL import VERIFY_FAIL_IF_NO_PEER_CERT, VERIFY_PEER
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cert_path = Path(tmp) / "cert.pem"
+            key_path = Path(tmp) / "key.pem"
+            cert_path.write_bytes(self.cert_pem)
+            key_path.write_bytes(self.key_pem)
+            captured = self._capture_connect_context(
+                host="smtp.example.com",
+                port=465,
+                encryption="ssl_strict",
+                ssl_certificate=str(cert_path),
+                ssl_private_key=str(key_path),
+            )
+            ctx = captured["ssl"]
+            self.assertEqual(type(ctx).__name__, "PyOpenSSLContext")
+            self.assertEqual(
+                ctx._ctx.get_verify_mode(),
+                VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
+            )
+
     def test_ssl_context_from_certificate_builds_for_all_variants(self):
         """Both strict and lax certificate transports build a context whose
         private key is validated against the certificate."""
@@ -1022,16 +1083,18 @@ class TestResolveTransport(TransactionCase):
     def test_resolve_from_record(self):
         """A login mail-server record fully describes the transport."""
         IrMailServer = self.env["ir.mail_server"]
-        server = IrMailServer.create({
-            "name": "rec",
-            "smtp_host": "mail.record.test",
-            "smtp_port": 2525,
-            "smtp_user": "u@record.test",
-            "smtp_pass": "secret",
-            "smtp_encryption": "starttls_strict",
-            "smtp_authentication": "login",
-            "from_filter": "record.test",
-        })
+        server = IrMailServer.create(
+            {
+                "name": "rec",
+                "smtp_host": "mail.record.test",
+                "smtp_port": 2525,
+                "smtp_user": "u@record.test",
+                "smtp_pass": "secret",
+                "smtp_encryption": "starttls_strict",
+                "smtp_authentication": "login",
+                "from_filter": "record.test",
+            }
+        )
         t = IrMailServer._resolve_smtp_transport(server)
         self.assertEqual(t.server, "mail.record.test")
         self.assertEqual(t.port, 2525)
@@ -1046,16 +1109,20 @@ class TestResolveTransport(TransactionCase):
         """A 'cli'-authenticated record contributes ONLY its from_filter; its
         host/port/user go through the CLI/config path instead."""
         IrMailServer = self.env["ir.mail_server"]
-        server = IrMailServer.create({
-            "name": "cli",
-            "smtp_host": "ignored.test",
-            "smtp_port": 9999,
-            "smtp_authentication": "cli",
-            "from_filter": "cli.test",
-        })
+        server = IrMailServer.create(
+            {
+                "name": "cli",
+                "smtp_host": "ignored.test",
+                "smtp_port": 9999,
+                "smtp_authentication": "cli",
+                "from_filter": "cli.test",
+            }
+        )
         with patch.dict(config.options, {"smtp_server": "cli.host", "smtp_port": 25}):
             t = IrMailServer._resolve_smtp_transport(server)
-        self.assertEqual(t.server, "cli.host", "record host must be ignored for cli auth")
+        self.assertEqual(
+            t.server, "cli.host", "record host must be ignored for cli auth"
+        )
         self.assertEqual(t.from_filter, "cli.test", "record from_filter is still used")
         self.assertEqual(t.login_server, server)
 
@@ -1063,7 +1130,9 @@ class TestResolveTransport(TransactionCase):
         """Explicit host/port/user beat config on the param path."""
         IrMailServer = self.env["ir.mail_server"]
         empty = IrMailServer.browse()
-        with patch.dict(config.options, {"smtp_server": "conf.host", "smtp_user": "conf"}):
+        with patch.dict(
+            config.options, {"smtp_server": "conf.host", "smtp_user": "conf"}
+        ):
             t = IrMailServer._resolve_smtp_transport(
                 empty, host="explicit.host", port=1234, user="explicit"
             )
@@ -1092,7 +1161,8 @@ class TestResolveTransport(TransactionCase):
         )
         # Round-trip through the writer/reader pair.
         IrMailServer._stash_session_context(
-            conn, _SmtpSessionContext(from_filter="example.com", smtp_from="a@example.com")
+            conn,
+            _SmtpSessionContext(from_filter="example.com", smtp_from="a@example.com"),
         )
         ctx = IrMailServer._read_session_context(conn)
         self.assertEqual(ctx.from_filter, "example.com")
