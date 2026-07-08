@@ -1,6 +1,6 @@
 {
     "name": "Inventory",
-    "version": "1.1",
+    "version": "1.2",
     "summary": "Manage your stock and logistics activities",
     "depends": ["product", "barcodes_gs1_nomenclature", "digest"],
     "category": "Supply Chain/Inventory",
