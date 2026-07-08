@@ -952,29 +952,36 @@ class ResPartner(models.Model):
         ids_by_value: dict[str, list[int]] = defaultdict(list)
         for partner_id, value in self.env.cr.fetchall():
             ids_by_value[value].append(partner_id)
-        for value, ids in ids_by_value.items():
-            if len(ids) > 1:
-                # duplicate within the checked batch itself
-                raise ValidationError(_("Another partner already has this barcode"))
-            # Probe the rest of the table with a jsonb containment condition:
-            # unlike `barcode ->> %(cid)s = %(value)s` (whose runtime jsonb key
-            # defeats any expression index and forces a seq scan), `@>` is
-            # supported by the GIN index on barcode (_barcode_gin_index).
-            self.env.cr.execute(
-                tools.SQL(
-                    # explicit ::text casts: jsonb_build_object is variadic
-                    # "any", so the server-side binding cannot infer the
-                    # parameter types on its own
-                    "SELECT 1 FROM res_partner"
-                    " WHERE barcode @> jsonb_build_object(%(cid)s::text, %(value)s::text)"
-                    " AND id != %(id)s LIMIT 1",
-                    cid=cid,
-                    value=value,
-                    id=ids[0],
-                )
+        if any(len(ids) > 1 for ids in ids_by_value.values()):
+            # duplicate within the checked batch itself
+            raise ValidationError(_("Another partner already has this barcode"))
+        if not ids_by_value:
+            return
+        # Probe the rest of the table with jsonb containment conditions:
+        # unlike `barcode ->> %(cid)s = %(value)s` (whose runtime jsonb key
+        # defeats any expression index and forces a seq scan), each `@>` term
+        # is served by the GIN index on barcode (_barcode_gin_index), and the
+        # OR of terms becomes a single BitmapOr over it — one query per batch,
+        # not per value (pinned by test_check_barcode_batch).
+        probes = tools.SQL(" OR ").join(
+            # explicit ::text casts: jsonb_build_object is variadic "any", so
+            # the server-side binding cannot infer the parameter types
+            tools.SQL(
+                "barcode @> jsonb_build_object(%(cid)s::text, %(value)s::text)",
+                cid=cid,
+                value=value,
             )
-            if self.env.cr.fetchone():
-                raise ValidationError(_("Another partner already has this barcode"))
+            for value in ids_by_value
+        )
+        self.env.cr.execute(
+            tools.SQL(
+                "SELECT 1 FROM res_partner WHERE (%(probes)s) AND id != ALL(%(ids)s) LIMIT 1",
+                probes=probes,
+                ids=list(self.ids),
+            )
+        )
+        if self.env.cr.fetchone():
+            raise ValidationError(_("Another partner already has this barcode"))
 
     def _convert_fields_to_values(self, field_names: list[str]) -> dict[str, Any]:
         """Returns dict of write() values for synchronizing ``field_names``"""

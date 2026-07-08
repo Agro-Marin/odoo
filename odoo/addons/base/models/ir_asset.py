@@ -742,16 +742,24 @@ class IrAsset(models.Model):
                 # just vanished from the bundle with no trace (IRASSET-C5,
                 # mirroring the IRASSET-C4 escape warning above). Keep the
                 # degradation: attachment rows may legitimately shadow a
-                # since-removed static file (e.g. customized SCSS surviving
-                # an upgrade).
-                _logger.warning(
-                    "IrAsset: path %r matches no bundleable file in the "
-                    "static/ directory of addon %r (missing file or non-asset "
-                    "extension); treating it as an attachment URL. This is "
-                    "almost certainly a typo in the path.",
-                    path_def,
-                    addon,
-                )
+                # disk-less path (e.g. web's asset_styles_company_report.scss
+                # slot, or customized SCSS surviving an upgrade) — when such an
+                # attachment exists the resolution is intentional, so only warn
+                # when nothing claims the URL.
+                if not (
+                    self.env["ir.attachment"]
+                    .sudo()
+                    .search_count([("url", "in", (path_def, f"/{path_def}"))], limit=1)
+                ):
+                    _logger.warning(
+                        "IrAsset: path %r matches no bundleable file in the "
+                        "static/ directory of addon %r (missing file or "
+                        "non-asset extension) and no attachment claims that "
+                        "URL; treating it as an attachment URL. This is "
+                        "almost certainly a typo in the path.",
+                        path_def,
+                        addon,
+                    )
             paths = [ResolvedPath(path_def, None, None)]
 
         if not paths:
