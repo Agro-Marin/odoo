@@ -19,6 +19,7 @@ class NameManager:
         model: Any,
         parent: NameManager | None = None,
         model_groups: Any = None,
+        group_definitions: Any = None,
     ) -> None:
         self.model = model
         self.env = model.env  # for dynamically-resolved translations
@@ -38,8 +39,13 @@ class NameManager:
         if self.parent:
             self.parent.children.append(self)
 
-        # group_definitions is the factory for making group expression objects
-        self.group_definitions = self.model.env["res.groups"]._get_group_definitions()
+        # group_definitions is the factory for making group expression objects.
+        # It is injectable so the set algebra of get_missing_fields() can be
+        # unit-tested without a database (see test_name_manager.py); the
+        # default is the registry-wide res.groups definitions.
+        if group_definitions is None:
+            group_definitions = self.model.env["res.groups"]._get_group_definitions()
+        self.group_definitions = group_definitions
 
         # this represents the group of users that have access to this model
         self.model_groups = (
@@ -85,14 +91,29 @@ class NameManager:
         """Record an action name declared in the view."""
         self.available_actions.add(name)
 
+    @staticmethod
+    def _describe_use(use: tuple[str, str]) -> str:
+        """Render a ``must_have_fields`` ``use`` pair for an error message."""
+        attr, expr = use
+        return f"{attr}={expr!r}"
+
     def must_have_fields(
         self,
         node: etree._Element,
         names: set[str],
         node_info: dict[str, Any],
-        use: str,
+        use: tuple[str, str],
     ) -> None:
-        """Record fields referenced by an expression on ``node`` for validation."""
+        """Record fields referenced by an expression on ``node`` for validation.
+
+        ``use`` is an ``(attr, expr)`` pair describing *where* the reference
+        comes from: the attribute (or pseudo-attribute, e.g. ``"fieldname"``,
+        ``"filename"``) and the expression naming the fields. The same tuple
+        shape is used by both the validation and postprocessing phases:
+        :meth:`IrUiView._add_missing_fields` unpacks it to build the
+        ``data-used-by`` attribute of auto-appended fields, and
+        :meth:`check` renders it via :meth:`_describe_use` in error messages.
+        """
         access_groups = node_info["model_groups"] & node_info["view_groups"]
         # ``names`` is a set: iterate it sorted so that used_fields insertion
         # order (and everything derived from it -- the auto-appended missing
@@ -189,7 +210,6 @@ class NameManager:
 
         for name, node in self.must_exist_actions.items():
             # logic mimics /web/action/load behaviour
-            action = False
             try:
                 action_id = int(name)
             except ValueError:
@@ -235,9 +255,9 @@ class NameManager:
                 msg = _(
                     "Invalid composed field %(definition)s in %(use)s",
                     definition=name,
-                    use=use,
+                    use=self._describe_use(use),
                 )
-                view._raise_view_error(msg)
+                view._raise_view_error(msg, node)
             # plain .get: indexing the defaultdict would insert phantom entries
             info = self.available_fields.get(name, {}).get("info")
 
@@ -254,9 +274,9 @@ class NameManager:
                 msg = _(
                     "Field \u201c%(name)s\u201d used in %(use)s is present in view but is in select multi.",
                     name=name,
-                    use=use,
+                    use=self._describe_use(use),
                 )
-                view._raise_view_error(msg)
+                view._raise_view_error(msg, node)
 
         for name, (
             missing_groups,
@@ -393,7 +413,7 @@ class NameManager:
                     errors.append((used_groups, use, node))
                     continue
 
-                # At least one field in view match match with the used combinations.
+                # At least one field in view matches with the used combinations.
                 available_combined_groups = self.group_definitions.empty
                 nodes_groups = available_info.get("groups", [])
                 for groups in nodes_groups:
