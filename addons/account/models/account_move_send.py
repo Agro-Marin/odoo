@@ -6,6 +6,8 @@ from markupsafe import Markup
 from odoo import Command, _, api, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
 
+from odoo.addons.base.models.ir_actions_report import PDF_OPTIONS_DATA_KEY
+
 
 _logger = logging.getLogger(__name__)
 
@@ -580,10 +582,15 @@ class AccountMoveSend(models.AbstractModel):
             if any(render_options.values()):
                 content_by_id = {}
                 for invoice, invoice_data in group_invoices_data.items():
+                    # Namespaced channel: PDF options must never travel as
+                    # top-level ``data`` keys, which would leak them into the
+                    # QWeb template rendering context.
                     content, report_type = Report._pre_render_qweb_pdf(
                         pdf_report.report_name,
                         res_ids=[invoice.id],
-                        data=render_options[invoice] or None,
+                        data={PDF_OPTIONS_DATA_KEY: render_options[invoice]}
+                        if render_options[invoice]
+                        else None,
                     )
                     content_by_id.update(
                         self.env["ir.actions.report"]._get_splitted_report(
@@ -614,13 +621,16 @@ class AccountMoveSend(models.AbstractModel):
 
     @api.model
     def _get_invoice_pdf_render_options(self, invoice, invoice_data):
-        """Hook: per-invoice options passed as ``data`` to ``_pre_render_qweb_pdf``.
+        """Hook: per-invoice native PDF render options.
 
         Returning a non-empty dict (e.g. ``{"pdf_variant": "pdf/a-3b",
         "attachments": [...], "xmp_metadata": [...]}``) makes
         :meth:`_prepare_invoice_pdf_report` render that invoice on its own so the
         options — notably native PDF/A output with embedded files — apply to a
-        single record's PDF. The default is no options (batched render).
+        single record's PDF. The caller forwards the returned dict to
+        ``_pre_render_qweb_pdf`` under the reserved ``PDF_OPTIONS_DATA_KEY``
+        entry of ``data`` (return the bare options here, not the wrapper).
+        The default is no options (batched render).
         """
         return {}
 

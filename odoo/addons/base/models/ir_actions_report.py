@@ -154,8 +154,9 @@ _NATIVE_MERGE_MAX_BODIES = 50
 #
 #     data[PDF_OPTIONS_DATA_KEY] = {"pdf_variant": "pdf/a-3b", ...}
 #
-# The historical top-level in-band keys are still honored for backward
-# compatibility (third-party producers), but new code must use this channel.
+# This is the ONLY channel: top-level ``data`` keys are plain template
+# variables and are never interpreted as PDF options (passing them there used
+# to leak invoice XML/XMP into the QWeb rendering context).
 PDF_OPTIONS_DATA_KEY = "__pdf_options__"
 _PDF_OPTION_KEYS = ("pdf_variant", "attachments", "xmp_metadata")
 
@@ -680,6 +681,9 @@ class OdooURLFetcher(URLFetcher):
                 return None
 
             kwargs = {}
+            # Keep in sync with the options accepted by
+            # ir.actions.report.barcode() — the /report/barcode HTTP route
+            # forwards all of them, so the local fast path must too.
             for key in (
                 "width",
                 "height",
@@ -687,6 +691,7 @@ class OdooURLFetcher(URLFetcher):
                 "quiet",
                 "mask",
                 "barLevel",
+                "barBorder",
             ):
                 val = params.get(key, [None])[0]
                 if val is not None:
@@ -772,7 +777,9 @@ class OdooURLFetcher(URLFetcher):
             # (e.g. CDN fonts, public static files) that don't require a
             # session cookie and would succeed unauthenticated.  This is NOT
             # a redundant double-request bug — the two paths differ by auth.
-            return super().fetch(url)
+            # Retry with full_url: the original ``url`` may be relative
+            # (path-only), which the stock fetcher cannot resolve.
+            return super().fetch(full_url)
 
     @staticmethod
     def _do_get(url: str, cookies: dict[str, str]) -> requests.Response:
@@ -951,9 +958,7 @@ class WeasyPrintEngine:
             ]
 
             try:
-                return self._serialize_documents(
-                    documents, split=split, pdf_options=pdf_options
-                )
+                return self._serialize_documents(documents, pdf_options=pdf_options)
             except ValueError as ve:
                 if "expected 0 <= int" in str(ve):
                     # Font subsetting failed (malformed OS/2 unicode range bits in
@@ -966,12 +971,14 @@ class WeasyPrintEngine:
                         ve,
                     )
                     return self._serialize_with_tolerant_fonts(
-                        processed, fetcher, split=split, pdf_options=pdf_options
+                        processed, fetcher, pdf_options=pdf_options
                     )
-                _logger.error("WeasyPrint PDF serialization failed: %s", ve)
+                # .exception() == ERROR + traceback; the user still gets the
+                # clean UserError (raise ... from None).
+                _logger.exception("WeasyPrint PDF serialization failed")
                 raise self._pdf_render_error(str(ve)) from None
             except Exception as e:
-                _logger.error("WeasyPrint PDF serialization failed: %s", e)
+                _logger.exception("WeasyPrint PDF serialization failed")
                 raise self._pdf_render_error(str(e)) from None
 
     def _render_and_serialize_body(
@@ -1005,7 +1012,7 @@ class WeasyPrintEngine:
                 return _write_pdf_tolerant_fonts(
                     html_str, fetcher, body_css, pdf_options
                 )
-            _logger.error("WeasyPrint PDF serialization failed: %s", ve)
+            _logger.exception("WeasyPrint PDF serialization failed")
             raise self._pdf_render_error(str(ve)) from None
         return buf.getvalue()
 
@@ -1080,20 +1087,20 @@ class WeasyPrintEngine:
                 cache=_weasy_state.image_cache,
             )
         except Exception as e:
-            _logger.error("WeasyPrint layout failed: %s", e)
+            _logger.exception("WeasyPrint layout failed")
             raise self._pdf_render_error(str(e)) from None
 
     @staticmethod
     def _serialize_documents(
         documents: list[WeasyDocument],
         *,
-        split: bool = False,
         pdf_options: dict[str, Any] | None = None,
-    ) -> bytes | list[bytes]:
-        """Serialize laid-out WeasyPrint Documents to PDF bytes.
+    ) -> bytes:
+        """Serialize laid-out WeasyPrint Documents to one PDF's bytes.
 
-        ``split`` → one PDF per document.  Otherwise all pages are combined into
-        a single Document via ``Document.copy()`` (WeasyPrint's native merge) and
+        Only reached on the non-split native path of :meth:`render` (split
+        renders early-return per body): all pages are combined into a single
+        Document via ``Document.copy()`` (WeasyPrint's native merge) and
         serialized once — no intermediate pypdf cycle, no corrupt-PDF risk.
 
         ``pdf_options`` is forwarded to ``write_pdf`` (PDF/A variant, attachments,
@@ -1101,14 +1108,6 @@ class WeasyPrintEngine:
         so the whole output is one coherent PDF/A.
         """
         opts = pdf_options or {}
-        if split:
-            result = []
-            for doc in documents:
-                buf = io.BytesIO()
-                doc.write_pdf(target=buf, **opts)
-                result.append(buf.getvalue())
-            return result
-
         if len(documents) == 1:
             buf = io.BytesIO()
             documents[0].write_pdf(target=buf, **opts)
@@ -1124,14 +1123,15 @@ class WeasyPrintEngine:
         processed: list[tuple[str, list]],
         fetcher: OdooURLFetcher,
         *,
-        split: bool = False,
         pdf_options: dict[str, Any] | None = None,
-    ) -> bytes | list[bytes]:
+    ) -> bytes:
         """Re-render all bodies with the tolerant-font patch after an OS/2 error.
 
-        ``processed`` is the ``(html_str, body_css)`` list from
-        :meth:`_process_body_html`, so each body keeps its own stylesheets.
-        Falls back to the pypdf merge for the non-split multi-body path.
+        Only reached on the non-split native path of :meth:`render` (split
+        renders early-return per body). ``processed`` is the ``(html_str,
+        body_css)`` list from :meth:`_process_body_html`, so each body keeps
+        its own stylesheets.  Falls back to the pypdf merge for the multi-body
+        case.
 
         ``pdf_options`` (PDF/A variant, attachments) is forwarded to each
         ``write_pdf``.  A single-body PDF/A keeps its conformance; the rare
@@ -1143,8 +1143,6 @@ class WeasyPrintEngine:
             _write_pdf_tolerant_fonts(html_str, fetcher, body_css, pdf_options)
             for html_str, body_css in processed
         ]
-        if split:
-            return tolerant_pdfs
         if len(tolerant_pdfs) == 1:
             return tolerant_pdfs[0]
         streams = [io.BytesIO(pdf) for pdf in tolerant_pdfs]
@@ -1496,7 +1494,7 @@ class IrActionsReport(models.Model):
             raw = args.get(attr, fallback)
             try:
                 return float(raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 _logger.warning(
                     "_paperformat_to_css: %r=%r is not a valid number; "
                     "falling back to the paperformat value %r.",
@@ -1560,10 +1558,9 @@ class IrActionsReport(models.Model):
         if param:
             try:
                 return int(param)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 _logger.warning(
-                    "Invalid report.weasyprint_native_merge_max=%r; "
-                    "using default %d.",
+                    "Invalid report.weasyprint_native_merge_max=%r; using default %d.",
                     param,
                     _NATIVE_MERGE_MAX_BODIES,
                 )
@@ -1752,8 +1749,7 @@ class IrActionsReport(models.Model):
             for fragment in xmp_metadata:
                 raw = fragment.encode() if isinstance(fragment, str) else fragment
                 uris.append(
-                    "data:application/rdf+xml;base64,"
-                    + base64.b64encode(raw).decode()
+                    "data:application/rdf+xml;base64," + base64.b64encode(raw).decode()
                 )
             options["xmp_metadata"] = uris
         return options
@@ -1827,7 +1823,12 @@ class IrActionsReport(models.Model):
         :param str image_format: 'jpg' or 'png'
         :return: list of image bytes (or None on error)
         """
-        if modules.module.current_test:
+        # Same test-mode contract as the PDF path (_pre_render_qweb_pdf):
+        # skip real rendering under tests unless force_report_rendering
+        # explicitly asks for it.
+        if modules.module.current_test and not self.env.context.get(
+            "force_report_rendering"
+        ):
             return [None] * len(bodies)
 
         # Size the PDF page to the requested pixels (margin: 0) so the rasterized
@@ -1862,9 +1863,7 @@ class IrActionsReport(models.Model):
                         cache=_weasy_state.image_cache,
                     )
                     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-                        png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes(
-                            "png"
-                        )
+                        png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes("png")
 
                     with Image.open(io.BytesIO(png_bytes)) as src:
                         img = src.resize((width, height), Image.Resampling.LANCZOS)
@@ -1950,7 +1949,9 @@ class IrActionsReport(models.Model):
         # crash in browse() with an opaque TypeError. Reject it explicitly so the
         # "not found" contract is consistent with the unknown-string case below.
         if isinstance(report_ref, bool):
-            raise ValueError(f"Fetching report {report_ref!r}: invalid report reference")
+            raise ValueError(
+                f"Fetching report {report_ref!r}: invalid report reference"
+            )
         if isinstance(report_ref, int):
             return ReportSudo.browse(report_ref)
         if isinstance(report_ref, models.Model):
@@ -2146,11 +2147,14 @@ class IrActionsReport(models.Model):
         data: dict[str, Any] | None,
         report_type: str,
     ) -> tuple[list[int] | None, dict[str, Any]]:
-        """Shared normalization for the ``_render_qweb_*`` entry points.
+        """Shared normalization for every render entry point
+        (``_render_qweb_*``, ``_pre_render_qweb_pdf``,
+        ``_render_qweb_pdf_prepare_streams``).
 
         Defensively copies ``data`` (the entry points mutate it, and must never
         mutate the caller's dict as a side effect), defaults ``report_type``,
-        and accepts a single id for ``res_ids``.
+        and accepts a single id for ``res_ids``.  Idempotent, so nested entry
+        points can each normalize their own (public) arguments.
         """
         data = dict(data) if data else {}
         data.setdefault("report_type", report_type)
@@ -2180,13 +2184,6 @@ class IrActionsReport(models.Model):
         render_pdf_kwargs = {
             key: pdf_options[key] for key in _PDF_OPTION_KEYS if pdf_options.get(key)
         }
-        # Backward compatibility: these options historically traveled as
-        # top-level in-band ``data`` keys.  Keep honoring producers that still
-        # send them that way (the reserved key wins); they are deliberately not
-        # popped, preserving their historical visibility downstream.
-        for key in _PDF_OPTION_KEYS:
-            if key not in render_pdf_kwargs and data.get(key):
-                render_pdf_kwargs[key] = data[key]
 
         # access the report details with sudo() but evaluation context as current user
         report_sudo = self._get_report(report_ref)
@@ -2386,6 +2383,7 @@ class IrActionsReport(models.Model):
         :return: attachment values list needed for attachments creation.
         """
         attachment_vals_list = []
+        pending = []
         for res_id, stream_data in streams.items():
             # An attachment already exists.
             if stream_data["attachment"]:
@@ -2401,10 +2399,28 @@ class IrActionsReport(models.Model):
                     report.report_name,
                 )
                 continue
-            record = self.env[report.model].browse(res_id)
-            attachment_name = safe_eval(
-                report.attachment, {"object": record, "time": time}
+            pending.append((res_id, stream_data))
+
+        # One multi-id browse so the safe_eval fallback below prefetches its
+        # field reads across the whole batch instead of hitting the database
+        # once per unprefetched singleton.
+        records_by_id = {
+            record.id: record
+            for record in self.env[report.model].browse(
+                [res_id for res_id, _stream_data in pending]
             )
+        }
+        for res_id, stream_data in pending:
+            # "attachment_name" is the evaluated-filename cache written by
+            # _render_qweb_pdf_prepare_streams ("" means evaluated-and-empty).
+            # None — or a missing key — means the entry was built by an
+            # overridden prepare_streams without the cache: fall back to
+            # evaluating the expression here.
+            attachment_name = stream_data.get("attachment_name")
+            if attachment_name is None:
+                attachment_name = safe_eval(
+                    report.attachment, {"object": records_by_id[res_id], "time": time}
+                )
 
             # Unable to compute a name for the attachment.
             if not attachment_name:
@@ -2415,7 +2431,7 @@ class IrActionsReport(models.Model):
                     "name": attachment_name,
                     "raw": stream_data["stream"].getvalue(),
                     "res_model": report.model,
-                    "res_id": record.id,
+                    "res_id": res_id,
                     "type": "binary",
                 }
             )
@@ -2424,15 +2440,11 @@ class IrActionsReport(models.Model):
     def _pre_render_qweb_pdf(
         self,
         report_ref: int | str | Any,
-        res_ids: list[int] | None = None,
+        res_ids: list[int] | int | None = None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes | dict[int | bool, dict[str, Any]], str]:
         # Returns (html_bytes, "html") in test mode, else (streams_dict, "pdf").
-        # Copy so setdefault/updates below never mutate the caller's dict.
-        data = dict(data) if data else {}
-        if isinstance(res_ids, int):
-            res_ids = [res_ids]
-        data.setdefault("report_type", "pdf")
+        res_ids, data = self._normalize_render_args(res_ids, data, "pdf")
         # Resolve the reference once and forward the record (report_ref
         # accepts a record): a no-op when the caller already resolved it,
         # otherwise it saves the internal calls' repeated report_name search.
@@ -2452,14 +2464,10 @@ class IrActionsReport(models.Model):
     def _render_qweb_pdf(
         self,
         report_ref: int | str | Any,
-        res_ids: list[int] | None = None,
+        res_ids: list[int] | int | None = None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        # Copy so setdefault/updates below never mutate the caller's dict.
-        data = dict(data) if data else {}
-        if isinstance(res_ids, int):
-            res_ids = [res_ids]
-        data.setdefault("report_type", "pdf")
+        res_ids, data = self._normalize_render_args(res_ids, data, "pdf")
 
         # Resolve the reference once (with sudo, evaluation context stays the
         # current user's) and forward the record to every internal call.
@@ -2566,12 +2574,10 @@ class IrActionsReport(models.Model):
     def _render_qweb_text(
         self,
         report_ref: int | str | Any,
-        docids: list[int] | None,
+        docids: list[int] | int | None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        # Copy so setdefault/updates below never mutate the caller's dict.
-        data = dict(data) if data else {}
-        data.setdefault("report_type", "text")
+        docids, data = self._normalize_render_args(docids, data, "text")
         report = self._get_report(report_ref)
         data = self._get_rendering_context(report, docids, data)
         return self._render_template(report.report_name, data), "text"
@@ -2580,12 +2586,10 @@ class IrActionsReport(models.Model):
     def _render_qweb_html(
         self,
         report_ref: int | str | Any,
-        docids: list[int] | None,
+        docids: list[int] | int | None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        # Copy so setdefault/updates below never mutate the caller's dict.
-        data = dict(data) if data else {}
-        data.setdefault("report_type", "html")
+        docids, data = self._normalize_render_args(docids, data, "html")
         report = self._get_report(report_ref)
         data = self._get_rendering_context(report, docids, data)
         return self._render_template(report.report_name, data), "html"
@@ -2659,8 +2663,12 @@ class IrActionsReport(models.Model):
                 active_ids = docids.ids
             elif isinstance(docids, int):
                 active_ids = [docids]
-            elif isinstance(docids, list):
-                active_ids = docids
+            else:
+                # Any other iterable of ids (list, tuple, set, …). A
+                # non-iterable raises a plain TypeError instead of the
+                # NameError the old if/elif chain produced by falling
+                # through without binding active_ids.
+                active_ids = list(docids)
             context = dict(self.env.context, active_ids=active_ids)
 
         report_action = {
@@ -2708,7 +2716,24 @@ class IrActionsReport(models.Model):
             self - actions_with_domain
         ).ids  # actions without domain are always valid
         for action in actions_with_domain:
-            if records.filtered_domain(literal_eval(action.domain)):
+            # This is a public RPC feeding the action menu: one malformed
+            # stored domain must not 500 the whole menu for the model. Treat
+            # an un-parseable domain like no domain (always valid) and log it
+            # so it gets fixed.
+            try:
+                domain = literal_eval(action.domain)
+            except ValueError, SyntaxError:
+                _logger.warning(
+                    "Report action %s (id %s) has a malformed domain %r; "
+                    "showing the action unconditionally.",
+                    action.report_name,
+                    action.id,
+                    action.domain,
+                    exc_info=True,
+                )
+                valid_action_report_ids.append(action.id)
+                continue
+            if records.filtered_domain(domain):
                 valid_action_report_ids.append(action.id)
         return valid_action_report_ids
 
