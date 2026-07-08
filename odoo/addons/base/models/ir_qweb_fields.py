@@ -154,6 +154,12 @@ class IrQwebField(models.AbstractModel):
         return escape(value.decode() if isinstance(value, bytes) else value)
 
     @api.model
+    def _get_record_context_keys(self) -> list[str]:
+        """Context keys propagated from the rendering environment onto the
+        record when reading the field value in :meth:`record_to_html`."""
+        return self.env["ir.qweb"]._get_template_cache_keys() + ["tz", "bin_size"]
+
+    @api.model
     def record_to_html(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
@@ -163,9 +169,24 @@ class IrQwebField(models.AbstractModel):
         """
         if not record:
             return False
-        # Read the field through the QWeb render context (lang, bin_size, tz, …)
-        # so the value is resolved as it should appear in the rendered document.
-        value = record.with_context(**self.env.context)[field_name]
+        # Read the field through the QWeb presentation context (lang, tz,
+        # bin_size, …) so the value is resolved as it should appear in the
+        # rendered document. Only that curated subset is propagated: the full
+        # rendering context carries qweb-internal per-render state
+        # (__qweb_loaded_functions, __qweb_compiled_cache, __qweb_loaded_codes,
+        # __qweb_loaded_options, _qweb_error_path_xml, …) that a blanket
+        # ``with_context(**self.env.context)`` dragged into every downstream
+        # compute/access evaluation — once per t-field cell.
+        env_context = self.env.context
+        record_context = record.env.context
+        context_delta = {
+            key: env_context[key]
+            for key in self._get_record_context_keys()
+            if key in env_context and record_context.get(key) != env_context[key]
+        }
+        if context_delta:
+            record = record.with_context(**context_delta)
+        value = record[field_name]
         return (
             False
             if value is False or value is None

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.tests import common
 
 from odoo.addons.base.tests.common import DISABLED_MAIL_CONTEXT
@@ -153,6 +155,61 @@ class TestQwebFieldRelative(common.TransactionCase):
             {"now": "2020-01-02 00:00:00"},
         )
         self.assertEqual(result, "1 day ago")
+
+
+class TestQwebFieldRecordContext(common.TransactionCase):
+    """``record_to_html`` must propagate only the curated presentation context
+    (template cache keys + tz/bin_size) onto the record — not the qweb
+    per-render internals that a blanket ``with_context(**self.env.context)``
+    dragged into every downstream compute."""
+
+    QWEB_INTERNALS = (
+        "__qweb_loaded_functions",
+        "__qweb_compiled_cache",
+        "__qweb_loaded_codes",
+        "__qweb_loaded_options",
+        "_qweb_error_path_xml",
+    )
+
+    def test_record_to_html_curates_record_context(self):
+        partner = self.env["res.partner"].create({"name": "Ctx Probe"})
+        Partner = self.registry["res.partner"]
+        seen_contexts = []
+        orig_compute = Partner._compute_display_name
+
+        def spy(records):
+            seen_contexts.append(records.env.context)
+            return orig_compute(records)
+
+        converter = self.env["ir.qweb.field"].with_context(
+            tz="Pacific/Auckland",
+            __qweb_loaded_functions={},
+            __qweb_compiled_cache={},
+            __qweb_loaded_codes={},
+            __qweb_loaded_options={},
+            _qweb_error_path_xml=[None, None, None],
+        )
+        with patch.object(Partner, "_compute_display_name", spy):
+            partner.invalidate_recordset(["display_name"])
+            result = converter.record_to_html(partner, "display_name", {})
+        self.assertEqual(result, "Ctx Probe")
+        self.assertTrue(seen_contexts, "the field compute did not run")
+        # curated presentation keys are propagated onto the record...
+        self.assertEqual(seen_contexts[-1].get("tz"), "Pacific/Auckland")
+        # ...the render-internal state is not
+        for context in seen_contexts:
+            for key in self.QWEB_INTERNALS:
+                self.assertNotIn(key, context)
+
+    def test_record_to_html_skips_rebind_on_matching_context(self):
+        partner = self.env["res.partner"].create({"name": "Same Ctx"})
+        converter = self.env["ir.qweb.field"]
+        with patch.object(
+            type(partner), "with_context", side_effect=AssertionError
+        ) as rebind:
+            result = converter.record_to_html(partner, "name", {})
+        self.assertEqual(result, "Same Ctx")
+        rebind.assert_not_called()
 
 
 class TestQwebFieldMonetaryType(common.TransactionCase):
