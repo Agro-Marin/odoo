@@ -50,6 +50,6 @@ repos:
 
   # === Commit message (AgroMarin canonical §7.1) ===
   - repo: https://github.com/JemXiaolong/pre-commit-agromarin
-    rev: v3.1.0
+    rev: v3.2.0
     hooks:
       - id: agromarin-commit-format

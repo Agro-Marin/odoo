@@ -2249,6 +2249,13 @@ Base: `OCA CONTRIBUTING.rst -- Git <https://github.com/OCA/odoo-community.org/bl
 First line: ``[TAG] module: description`` — aim for ≤ 50 chars (Odoo's
 recommendation), hard cap 72. Keep it shorter than the PR title (§7.4).
 
+The ``module`` part is one of: a single module (snake_case, optionally with
+``/`` or ``.`` sub-path separators, e.g. ``account_cfdi`` or ``stock/routes``);
+a comma-separated list when the change spans several modules, following the
+upstream Odoo convention (``[FIX] sale,purchase: ...`` — whitespace after the
+comma is optional); or the standalone wildcard ``*`` for a tree-wide or generic
+change (``[IMP] *: ...``). Prefer ``*`` over an unreadable module list (§7.4).
+
 **Unified tag catalog** (13 tags — no other tags allowed). The first seven
 (``FIX``, ``IMP``, ``ADD``, ``REM``, ``REF``, ``MOV``, ``REV``) are the upstream
 Odoo set; the rest (``REL``, ``MERGE``, ``I18N``, ``PERF``, ``CLN``, ``LINT``) are
