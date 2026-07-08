@@ -158,6 +158,9 @@ class IrModelData(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         """Update xmlids, busting the _xmlid_lookup cache and the groups cache for res.groups rows."""
+        if not self:
+            # do not clear caches for a no-op write on an empty recordset
+            return True
         if not (set(vals) <= {"noupdate"}):
             # _xmlid_lookup caches only (model, res_id) keyed on module.name; a
             # noupdate-only write cannot stale it (verified: no default-cache
@@ -181,8 +184,11 @@ class IrModelData(models.Model):
 
     def unlink(self) -> bool:
         """Unlink, clearing the _xmlid_lookup cache and the groups cache for res.groups rows."""
+        if not self:
+            # do not clear caches for a no-op unlink on an empty recordset
+            return True
         self.env.registry.clear_cache()  # _xmlid_lookup
-        if self and any(data.model == "res.groups" for data in self.exists()):
+        if any(data.model == "res.groups" for data in self.exists()):
             self.env.registry.clear_cache("groups")
         return super().unlink()
 
@@ -245,7 +251,7 @@ class IrModelData(models.Model):
             # insert rows or update them
             query = self._build_update_xmlids_query(sub_rows, update)
             try:
-                self.env.cr.execute(query, [arg for row in sub_rows for arg in row])
+                self.env.cr.execute(query)
                 result = self.env.cr.fetchall()
                 if result:
                     for (
@@ -286,32 +292,40 @@ class IrModelData(models.Model):
 
     # NOTE: this method is overridden in web_studio; if you need to make another
     #  override, make sure it is compatible with the one that is there.
-    def _build_insert_xmlids_values(self) -> dict[str, str]:
-        return {
-            "module": "%s",
-            "name": "%s",
-            "model": "%s",
-            "res_id": "%s",
-            "noupdate": "%s",
-        }
+    def _insert_xmlids_extra_columns(self) -> dict[str, SQL]:
+        """Extra constant-valued columns appended to each xmlid row inserted by
+        :meth:`_build_update_xmlids_query`, as ``{column_name: SQL value}``.
+        """
+        return {}
 
-    def _build_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> str:
-        rows = self._build_insert_xmlids_values()
-        row_names = f"({','.join(rows.keys())})"
-        row_placeholders = f"({','.join(rows.values())})"
-        row_placeholders = ", ".join([row_placeholders] * len(sub_rows))
-        return """
-            INSERT INTO ir_model_data {row_names}
-            VALUES {row_placeholder}
+    def _build_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> SQL:
+        """Build the upsert query for one batch of xmlid rows.
+
+        Each row of ``sub_rows`` is ``(module, name, model, res_id, noupdate)``;
+        the resulting :class:`~odoo.tools.SQL` carries its own parameters.
+        """
+        extra = self._insert_xmlids_extra_columns()
+        columns = ["module", "name", "model", "res_id", "noupdate", *extra]
+        values = SQL(", ").join(
+            SQL(
+                "(%s)",
+                SQL(", ").join([*(SQL("%s", value) for value in row), *extra.values()]),
+            )
+            for row in sub_rows
+        )
+        return SQL(
+            """
+            INSERT INTO ir_model_data (%(columns)s)
+            VALUES %(values)s
             ON CONFLICT (module, name)
             DO UPDATE SET (model, res_id, write_date) =
                 (EXCLUDED.model, EXCLUDED.res_id, now() at time zone 'UTC')
-                WHERE (ir_model_data.res_id != EXCLUDED.res_id OR ir_model_data.model != EXCLUDED.model) {and_where}
+                WHERE (ir_model_data.res_id != EXCLUDED.res_id OR ir_model_data.model != EXCLUDED.model) %(and_where)s
             RETURNING module, name, model, res_id, create_date, write_date
-        """.format(
-            row_names=row_names,
-            row_placeholder=row_placeholders,
-            and_where="AND NOT ir_model_data.noupdate" if update else "",
+            """,
+            columns=SQL(", ").join(SQL.identifier(column) for column in columns),
+            values=values,
+            and_where=SQL("AND NOT ir_model_data.noupdate") if update else SQL(),
         )
 
     @api.model
