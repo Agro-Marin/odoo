@@ -158,8 +158,15 @@ class TestDirectiveAbsentTarget(TransactionCase):
         with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
             with self.assertRaises(ValueError) as cm:
                 IrAsset._process_path(
-                    "bundle1", "replace", "/web/absent.js", "/web/x.js",
-                    ap, [], [], set(), 0,
+                    "bundle1",
+                    "replace",
+                    "/web/absent.js",
+                    "/web/x.js",
+                    ap,
+                    [],
+                    [],
+                    set(),
+                    0,
                 )
         self.assertIn("/web/absent.js", str(cm.exception))
         self.assertIn("bundle1", str(cm.exception))
@@ -167,37 +174,51 @@ class TestDirectiveAbsentTarget(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestGetPathsEscapeWarning(TransactionCase):
-    """IRASSET-C4: a non-wildcard path naming an installed addon but resolving
-    *outside* that addon's ``static/`` directory silently degrades to an
-    attachment URL. That escape used to be the one resolution outcome with no
-    log trace; pin that it now warns -- while a path that stays inside
-    ``static/`` (merely missing on disk) must NOT warn.
+    """IRASSET-C4 / IRASSET-C5: the two non-wildcard resolution outcomes that
+    silently degraded to an attachment URL must each leave a distinct trace.
+
+    C4: a path naming an installed addon but resolving *outside* that addon's
+    ``static/`` directory (escape). C5: a LITERAL path *inside* ``static/``
+    that matches no file (typo) — empty globs already warned ("did not resolve
+    to anything") while the literal sibling case resolved without a trace.
+    Both keep the attachment-URL degradation (attachment rows may
+    legitimately shadow a since-removed static file).
     """
 
     def test_escape_outside_static_warns(self):
         IrAsset = self.env["ir.asset"]
         installed = IrAsset._get_installed_addons_list()
         escaping = "/base/static/../../../../etc/passwd"
-        with self.assertLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ) as cm:
+        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
             result = IrAsset._get_paths(escaping, installed)
         joined = "\n".join(cm.output)
         self.assertIn("resolves outside the static/", joined)
         # It still degrades to a (doomed) attachment tuple -- unchanged behaviour.
         self.assertEqual(result, [(escaping, None, None)])
 
-    def test_missing_inside_static_does_not_warn(self):
+    def test_missing_literal_inside_static_warns_typo(self):
         IrAsset = self.env["ir.asset"]
         installed = IrAsset._get_installed_addons_list()
         # Inside base/static, just not present on disk: attachment fallback,
-        # but this is not an escape, so no escape warning is emitted.
+        # with the C5 typo warning (NOT the C4 escape warning).
         inside = "/base/static/src/scss/__does_not_exist__.scss"
-        with self.assertNoLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ):
+        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
             result = IrAsset._get_paths(inside, installed)
+        joined = "\n".join(cm.output)
+        self.assertIn("matches no bundleable file in the static/", joined)
+        self.assertNotIn("resolves outside the static/", joined)
         self.assertEqual(result, [(inside, None, None)])
+
+    def test_existing_literal_inside_static_does_not_warn(self):
+        IrAsset = self.env["ir.asset"]
+        installed = IrAsset._get_installed_addons_list()
+        # A literal path that DOES resolve must stay warning-free.
+        inside = "/base/static/src/scss/res_users.scss"
+        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
+            result = IrAsset._get_paths(inside, installed)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][0], inside)
+        self.assertIsNotNone(result[0][1])
 
 
 @tagged("post_install", "-at_install")
@@ -243,9 +264,7 @@ class TestReorderPresentSourceWarns(TransactionCase):
     def _run(self, directive, target, source_path):
         IrAsset = self.env["ir.asset"]
         ap = AssetPaths()
-        ap.append(
-            [("/a", "/f/a", 1), ("/b", "/f/b", 1), ("/c", "/f/c", 1)], "bundle1"
-        )
+        ap.append([("/a", "/f/a", 1), ("/b", "/f/b", 1), ("/c", "/f/c", 1)], "bundle1")
 
         def fake_get_paths(_self, path_def, installed):
             resolved = target if path_def == target else source_path
@@ -256,8 +275,15 @@ class TestReorderPresentSourceWarns(TransactionCase):
                 "odoo.addons.base.models.ir_asset", level="WARNING"
             ) as cm:
                 IrAsset._process_path(
-                    "bundle1", directive, target, source_path,
-                    ap, [], [], set(), 0,
+                    "bundle1",
+                    directive,
+                    target,
+                    source_path,
+                    ap,
+                    [],
+                    [],
+                    set(),
+                    0,
                 )
         return [a.path for a in ap.list], " ".join(cm.output)
 
@@ -290,9 +316,7 @@ class TestRemovePartialAbsentWarns(TransactionCase):
 
     def test_partial_absent_remove_warns_and_removes_present(self):
         ap = self._seed()
-        with self.assertLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ) as cm:
+        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
             ap.remove([("/b", "/f/b", 1), ("/zzz", "/f/zzz", 1)], "bundle1")
         self.assertEqual([a.path for a in ap.list], ["/a"])
         joined = " ".join(cm.output)
@@ -301,9 +325,7 @@ class TestRemovePartialAbsentWarns(TransactionCase):
 
     def test_all_present_remove_is_silent(self):
         ap = self._seed()
-        with self.assertNoLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ):
+        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
             ap.remove([("/b", "/f/b", 1)], "bundle1")
         self.assertEqual([a.path for a in ap.list], ["/a"])
 
@@ -336,14 +358,20 @@ class TestGlobRemoveIsSetSubtraction(TransactionCase):
 
         with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
             IrAsset._process_path(
-                "bundle1", "remove", None, path_def, ap, [], [], set(), 0,
+                "bundle1",
+                "remove",
+                None,
+                path_def,
+                ap,
+                [],
+                [],
+                set(),
+                0,
             )
 
     def test_glob_remove_partial_absent_is_silent(self):
         ap = self._seed()
-        with self.assertNoLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ):
+        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
             self._run_remove(
                 "/web/**/*.js",
                 [("/web/b.js", "/f/b.js", 1), ("/web/zzz.js", "/f/zzz.js", 1)],
@@ -353,17 +381,13 @@ class TestGlobRemoveIsSetSubtraction(TransactionCase):
 
     def test_glob_remove_none_present_is_silent_noop(self):
         ap = self._seed()
-        with self.assertNoLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ):
+        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
             self._run_remove(
                 "/web/**/*.dark.scss",
                 [("/web/x.dark.scss", "/f/x.dark.scss", 1)],
                 ap,
             )
-        self.assertEqual(
-            [a.path for a in ap.list], ["/web/a.js", "/web/b.js"]
-        )
+        self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
 
     def test_literal_remove_absent_still_raises(self):
         ap = self._seed()
@@ -373,9 +397,7 @@ class TestGlobRemoveIsSetSubtraction(TransactionCase):
                 [("/web/absent.js", "/f/absent.js", 1)],
                 ap,
             )
-        self.assertEqual(
-            [a.path for a in ap.list], ["/web/a.js", "/web/b.js"]
-        )
+        self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
 
 
 @tagged("post_install", "-at_install")
@@ -391,7 +413,9 @@ class TestTopologicalSort(TransactionCase):
         # ``_topological_sort`` is @ormcache'd on the addons tuple; run inside a
         # fresh cache so synthetic runs don't collide with real ones.
         IrAsset.env.registry.clear_cache()
-        with patch.object(Manifest, "for_addon", lambda name, **kw: manifests.get(name)):
+        with patch.object(
+            Manifest, "for_addon", lambda name, **kw: manifests.get(name)
+        ):
             return IrAsset._topological_sort(tuple(addons))
 
     def test_dependency_precedes_dependents(self):
@@ -435,12 +459,17 @@ class TestAssetPathsCacheCanonical(TransactionCase):
             return list(addons_tuple)
 
         cls = type(IrAsset)
-        with patch.object(
-            cls, "_get_active_addons_list",
-            lambda _self, **k: ["web", "base", "mail"],
-        ), patch.object(
-            cls, "_get_related_assets", lambda _self, domain, **k: IrAsset.browse()
-        ), patch.object(cls, "_topological_sort", spy_topo):
+        with (
+            patch.object(
+                cls,
+                "_get_active_addons_list",
+                lambda _self, **k: ["web", "base", "mail"],
+            ),
+            patch.object(
+                cls, "_get_related_assets", lambda _self, domain, **k: IrAsset.browse()
+            ),
+            patch.object(cls, "_topological_sort", spy_topo),
+        ):
             IrAsset._get_asset_paths("irasset_p1_probe.bundle", {})
 
         self.assertTrue(captured, "_topological_sort was invoked")

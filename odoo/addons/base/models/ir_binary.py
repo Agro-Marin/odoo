@@ -267,7 +267,7 @@ class IrBinary(models.AbstractModel):
                 mimetype,
                 default_mimetype,
             )
-        except UserError, MissingError:
+        except (UserError, MissingError) as exc:
             # MissingError covers a dangling attachment-backed binary field
             # (_record_to_stream raises "The related attachment does not exist."
             # on attachment GC races / manual deletes). Degrade to the
@@ -275,6 +275,17 @@ class IrBinary(models.AbstractModel):
             # 500 (IRB-C1); still re-raise when an explicit download is asked.
             if request and request.params.get("download"):
                 raise
+            # The swallow also hides genuine programming errors (a typo'd
+            # field_name raises UserError "Record has no field ...") behind a
+            # silent placeholder; leave a trace so they are diagnosable
+            # (IRB-C2). DEBUG, not WARNING: the GC-race MissingError is a
+            # normal production occurrence.
+            _logger.debug(
+                "Falling back to the image placeholder for %s.%s: %s",
+                record._name,
+                field_name,
+                exc,
+            )
 
         if not stream or stream.size == 0:
             if not placeholder:
