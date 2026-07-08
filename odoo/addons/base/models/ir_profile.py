@@ -129,15 +129,37 @@ class IrProfile(models.Model):
         }
 
     def _parse_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        # These values reach us verbatim from the controller query string
+        # (/web/speedscope, /web/profile_config). Every str2bool gets an
+        # explicit default and the aggregation mode is whitelisted, so a
+        # malformed value (?constant_time=x) degrades to the default instead
+        # of raising ValueError — an HTTP 500 before any access check.
+        aggregation_mode = params.get("profile_aggregation_mode")
+        if aggregation_mode not in ("tabs", "temporal"):
+            aggregation_mode = "tabs"
         return {
-            "constant_time": str2bool(params.get("constant_time", False)),
-            "aggregate_sql": str2bool(params.get("aggregate_sql", False)),
-            "use_context": str2bool(params.get("use_execution_context", True)),
-            "combined_profile": str2bool(params.get("combined_profile", False)),
-            "sql_no_gap_profile": str2bool(params.get("sql_no_gap_profile", False)),
-            "sql_density_profile": str2bool(params.get("sql_density_profile", False)),
-            "frames_profile": str2bool(params.get("frames_profile", False)),
-            "profile_aggregation_mode": params.get("profile_aggregation_mode", "tabs"),
+            "constant_time": str2bool(
+                params.get("constant_time", False), default=False
+            ),
+            "aggregate_sql": str2bool(
+                params.get("aggregate_sql", False), default=False
+            ),
+            "use_context": str2bool(
+                params.get("use_execution_context", True), default=True
+            ),
+            "combined_profile": str2bool(
+                params.get("combined_profile", False), default=False
+            ),
+            "sql_no_gap_profile": str2bool(
+                params.get("sql_no_gap_profile", False), default=False
+            ),
+            "sql_density_profile": str2bool(
+                params.get("sql_density_profile", False), default=False
+            ),
+            "frames_profile": str2bool(
+                params.get("frames_profile", False), default=False
+            ),
+            "profile_aggregation_mode": aggregation_mode,
             "memory_limit": self._parse_memory_limit(params.get("memory_limit")),
         }
 
