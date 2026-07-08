@@ -176,11 +176,14 @@ class IrActionsActions(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """Manually cascade-delete ir.actions.todo and ir.filters before unlinking.
+        """Manually cascade-delete dependent records before unlinking.
 
         PostgreSQL ``ON DELETE CASCADE`` does not propagate across table
-        inheritance boundaries (ir_actions → ir_act_window, etc.), so we
-        must delete dependent records explicitly.
+        inheritance boundaries (ir_actions → ir_act_window, etc.), so the
+        ``ondelete="cascade"`` declared on fields referencing
+        ``ir.actions.actions`` never becomes a working FK; we must delete
+        dependent ir.actions.todo, ir.filters and ir.embedded.actions records
+        explicitly.
         """
         todos = self.env["ir.actions.todo"].search([("action_id", "in", self.ids)])
         todos.unlink()
@@ -190,6 +193,20 @@ class IrActionsActions(models.Model):
             .search([("action_id", "in", self.ids)])
         )
         filters.unlink()
+        # Without this cascade, deleting an action left dangling
+        # ir.embedded.actions rows: still is_visible, logically violating the
+        # action_id XOR python_method CHECK, and crashing the web client when
+        # opened. Sudo: the cascade must not depend on the deleting user's
+        # embedded-action ACLs. The _unlink_if_action_deletable ondelete hook
+        # still applies (at_uninstall=False): a data-file-seeded embedded
+        # action blocks manual deletion of its action with a UserError, while
+        # module uninstall (MODULE_UNINSTALL_FLAG in context) skips the hook.
+        embedded_actions = (
+            self.env["ir.embedded.actions"]
+            .sudo()
+            .search([("action_id", "in", self.ids)])
+        )
+        embedded_actions.unlink()
         res = super().unlink()
         # self.get_bindings() depends on action records
         self.env.registry.clear_cache()

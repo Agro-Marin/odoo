@@ -1,3 +1,4 @@
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.base.models.ir_actions import _safe_eval_dict
@@ -75,3 +76,73 @@ class TestSafeEvalDict(TransactionCase):
         self.assertIs(_safe_eval_dict("[1, 2]", {}, sentinel), sentinel)
         # The eval context is visible to the expression.
         self.assertEqual(_safe_eval_dict("{'u': uid}", {"uid": 7}, {}), {"u": 7})
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
+    """ir.actions unlink() must manually cascade to ir.embedded.actions.
+
+    The ``ondelete="cascade"`` on ir.embedded.actions.action_id never becomes a
+    working FK (ir_actions is a PostgreSQL inheritance root), so without the
+    manual cascade a deleted action leaves dangling embedded actions behind.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.parent_action = cls.env["ir.actions.act_window"].create(
+            {"name": "audit-embedded-parent", "res_model": "res.partner"}
+        )
+        cls.target_action = cls.env["ir.actions.act_window"].create(
+            {"name": "audit-embedded-target", "res_model": "res.partner"}
+        )
+
+    def _create_embedded(self):
+        return self.env["ir.embedded.actions"].create(
+            {
+                "parent_action_id": self.parent_action.id,
+                "parent_res_model": "res.partner",
+                "action_id": self.target_action.id,
+            }
+        )
+
+    def test_unlink_cascades_deletable_embedded_actions(self):
+        embedded = self._create_embedded()
+        self.target_action.unlink()
+        self.assertFalse(
+            embedded.exists(),
+            "deleting an action must cascade-delete its embedded actions",
+        )
+
+    def test_unlink_blocked_by_seeded_embedded_action(self):
+        # A data-file-seeded embedded action (real external id) is not
+        # deletable, so the cascade's ondelete hook must block the manual
+        # deletion of the action it references instead of leaving it dangling.
+        embedded = self._create_embedded()
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "audit_seeded_embedded_action",
+                "model": "ir.embedded.actions",
+                "res_id": embedded.id,
+            }
+        )
+        with self.assertRaises(UserError):
+            self.target_action.unlink()
+        self.assertTrue(embedded.exists())
+        self.assertTrue(self.target_action.exists())
+
+
+@tagged("post_install", "-at_install")
+class TestEmbeddedActionsGroupIdsConvention(TransactionCase):
+    """ir.embedded.actions follows the group_ids naming convention of every
+    sibling action model (the field was historically misnamed groups_ids)."""
+
+    def test_group_ids_field_renamed(self):
+        fields = self.env["ir.embedded.actions"]._fields
+        self.assertIn("group_ids", fields)
+        self.assertNotIn("groups_ids", fields)
+        self.assertIn(
+            "group_ids",
+            self.env["ir.embedded.actions"]._get_readable_fields(),
+        )
