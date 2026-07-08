@@ -1,9 +1,31 @@
 from collections import defaultdict
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date
 
-from odoo import api, models
+from odoo import api, fields, models
 from odoo.fields import Domain
-from odoo.tools import OrderedSet, float_is_zero, format_date
+from odoo.tools import OrderedSet, format_date
+
+
+@dataclass
+class ReplenishmentContext:
+    """Shared ledger and configuration threaded through the replenishment
+    reconciliation of a single forecast report run.
+
+    ``currents`` maps ``(product_id, location_id)`` to the on-hand stock still
+    available to allocate; the reconciliation helpers decrement it as demand is
+    matched. ``in_id_to_in_data``/``ins_per_product``/``dest_ids_to_in_ids``
+    track the incoming moves still available to fulfil outgoing demand and are
+    mutated as ins get consumed.
+    """
+
+    wh_stock_location: object
+    wh_stock_sub_location_ids: set
+    read: bool
+    currents: dict
+    in_id_to_in_data: dict
+    ins_per_product: dict
+    dest_ids_to_in_ids: dict
 
 
 class StockForecasted_Product_Product(models.AbstractModel):
@@ -62,12 +84,9 @@ class StockForecasted_Product_Product(models.AbstractModel):
         in_domain, out_domain = self._move_domain(
             product_template_ids, product_ids, wh_location_ids
         )
-        out_domain += [
-            ("state", "in", ["waiting", "confirmed", "partially_available", "assigned"])
-        ]
-        in_domain += [
-            ("state", "in", ["waiting", "confirmed", "partially_available", "assigned"])
-        ]
+        confirmed_states = ["waiting", "confirmed", "partially_available", "assigned"]
+        out_domain += [("state", "in", confirmed_states)]
+        in_domain += [("state", "in", confirmed_states)]
         return in_domain, out_domain
 
     def _get_products(self, product_template_ids, product_ids):
@@ -84,7 +103,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
 
     def _get_product_quantities(self, res, product_template_ids, product_ids):
         if "product" not in res:
-            res["product"] = dict()
+            res["product"] = {}
         products = self._get_products(product_template_ids, product_ids)
         for product in products:
             if product.id not in res["product"]:
@@ -102,8 +121,16 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 }
 
     def _add_product_quantities(
-        self, res, product_template_ids, product_ids, var_name, qty_in={}, qty_out={}
+        self,
+        res,
+        product_template_ids,
+        product_ids,
+        var_name,
+        qty_in=None,
+        qty_out=None,
     ):
+        qty_in = qty_in or {}
+        qty_out = qty_out or {}
         products = self._get_products(product_template_ids, product_ids)
         for product in products:
             res["product"][product.id][var_name] = {
@@ -119,12 +146,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
         location = self._get_warehouse().lot_stock_id
         for product in products:
             rule = product._get_rules_from_location(location)
-            leadtime = rule._get_lead_days(product)
-            if not leadtime:
-                leadtime = [{"total_delay": 0}, {}]
+            # ``_get_lead_days`` always returns a ``(delays, details)`` tuple.
+            delays, details = rule._get_lead_days(product)
             res["product"][product.id]["leadtime"] = {
-                "total_delay": leadtime[0].get("total_delay", 0),
-                "details": leadtime[1],
+                "total_delay": delays.get("total_delay", 0),
+                "details": details,
             }
 
     def _get_report_header(self, product_template_ids, product_ids, wh_location_ids):
@@ -189,25 +215,23 @@ class StockForecasted_Product_Product(models.AbstractModel):
         }
 
     def _get_warehouse(self):
-        return (
-            self.env["stock.warehouse"].browse(
-                self.env.context.get("warehouse_id", False)
-            )
-            or self.env["stock.warehouse"].search([["active", "=", True]])[0]
-        )
+        return self.env["stock.warehouse"].browse(
+            self.env.context.get("warehouse_id", False)
+        ) or self.env["stock.warehouse"].search([("active", "=", True)], limit=1)
 
     def _get_report_data(self, product_template_ids=False, product_ids=False):
         assert product_template_ids or product_ids
         res = {}
 
         warehouse = self._get_warehouse()
-        wh_location_ids = [
-            loc["id"]
-            for loc in self.env["stock.location"].search_read(
-                [("id", "child_of", warehouse.view_location_id.id)],
-                ["id"],
-            )
-        ]
+        # Must stay a materialised id list: it is used in `not in` domains,
+        # which only get the implicit `OR field IS NULL` clause for a list, not
+        # for a subquery — a Query here silently changes which moves match.
+        wh_location_ids = (
+            self.env["stock.location"]
+            .search([("id", "child_of", warehouse.view_location_id.id)])
+            .ids
+        )
         # any quantities in this location will be considered free stock, others are free stock in transit
         wh_stock_location = warehouse.lot_stock_id
 
@@ -236,15 +260,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
     ):
         product = product or (move_out.product_id if move_out else move_in.product_id)
         is_late = move_out.date < move_in.date if (move_out and move_in) else False
+        now = fields.Datetime.now()
         delivery_late = (
-            move_out.state != "done" and move_out.date < datetime.now()
-            if move_out
-            else False
+            move_out.state != "done" and move_out.date < now if move_out else False
         )
         receipt_late = (
-            move_in.state != "done" and move_in.date < datetime.now()
-            if move_in
-            else False
+            move_in.state != "done" and move_in.date < now if move_in else False
         )
 
         move_to_match_ids = self.env.context.get("move_to_match_ids") or []
@@ -338,6 +359,132 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ("product_id", "in", products.ids),
         ]
 
+    def _compute_out_reserved(self, out, linked_moves, used_reserved_moves, ctx):
+        """Count how much of ``out``'s demand is already reserved by its linked
+        (pick/pack) moves, decrementing ``ctx.currents`` accordingly.
+
+        ``used_reserved_moves`` is shared across the outs of a single product so
+        a reserved quantity on a pick/pack move shared by several outs is not
+        counted twice.
+        """
+        reserved_out = 0
+        # the move to show when qty is reserved
+        reserved_move = self.env["stock.move"]
+        for move in linked_moves:
+            if move.state not in ("partially_available", "assigned"):
+                continue
+            reserved = move.product_uom._compute_quantity(
+                move.quantity, move.product_id.uom_id
+            )
+            # check if the move reserved qty was counted before (happens if multiple outs share pick/pack)
+            reserved = min(reserved - used_reserved_moves[move], out.product_qty)
+            if reserved and not reserved_move:
+                reserved_move = move
+            reserved_out += reserved
+            used_reserved_moves[move] += reserved
+            # any sublocation qties needs to be reserved to the main stock location qty as well
+            if move.location_id.id in ctx.wh_stock_sub_location_ids:
+                ctx.currents[out.product_id.id, ctx.wh_stock_location.id] -= reserved
+            ctx.currents[out.product_id.id, move.location_id.id] -= reserved
+            if move.product_id.uom_id.compare(reserved_out, out.product_qty) >= 0:
+                break
+
+        return {
+            "reserved": reserved_out,
+            "reserved_move": reserved_move,
+            "linked_moves": linked_moves,
+        }
+
+    def _compute_out_taken_from_stock(self, out, reserved_data, ctx):
+        """Count how much of ``out``'s remaining demand (after reservations) can
+        be served from stock currently on hand, decrementing ``ctx.currents``."""
+        reserved_out = reserved_data["reserved"]
+        demand_out = out.product_qty - reserved_out
+        linked_moves = reserved_data["linked_moves"]
+        taken_from_stock_out = 0
+        for move in linked_moves:
+            if move.state in ("draft", "cancel", "assigned", "done"):
+                continue
+            reserved = move.product_uom._compute_quantity(
+                move.quantity, move.product_id.uom_id
+            )
+            demand = max(move.product_qty - reserved, 0)
+            # to make sure we don't demand more than the out (useful when same pick/pack goes to multiple out)
+            demand = min(demand, demand_out)
+            if move.product_id.uom_id.is_zero(demand):
+                continue
+            # if chained, available qty is what the orig moves actually moved, not what's still in stock
+            if move.move_orig_ids:
+                move_in_qty = sum(
+                    move.move_orig_ids.filtered(lambda m: m.state == "done").mapped(
+                        "quantity"
+                    )
+                )
+                sibling_moves = move.move_orig_ids.move_dest_ids - move
+                move_out_qty = sum(
+                    sibling_moves.filtered(lambda m: m.state == "done").mapped(
+                        "quantity"
+                    )
+                )
+                move_available_qty = move_in_qty - move_out_qty - reserved
+            else:
+                move_available_qty = ctx.currents[
+                    out.product_id.id, move.location_id.id
+                ]
+            # count taken from stock, but avoid taking more than what's in stock in case of move origs,
+            # this can happen if a stock adjustment is done after the orig moves are done
+            taken_from_stock = min(
+                demand,
+                move_available_qty,
+                ctx.currents[out.product_id.id, move.location_id.id],
+            )
+            if taken_from_stock > 0:
+                # any sublocation qties needs to be removed to the main stock location qty as well
+                if move.location_id.id in ctx.wh_stock_sub_location_ids:
+                    ctx.currents[out.product_id.id, ctx.wh_stock_location.id] -= (
+                        taken_from_stock
+                    )
+                ctx.currents[out.product_id.id, move.location_id.id] -= taken_from_stock
+                taken_from_stock_out += taken_from_stock
+            demand_out -= taken_from_stock
+        return {"taken_from_stock": taken_from_stock_out}
+
+    def _reconcile_out_with_ins(self, lines, out, ins, demand, uom, ctx):
+        """Match ``out``'s remaining ``demand`` against the available incoming
+        moves ``ins``, appending a report line per match and consuming the ins.
+
+        Returns the demand still unfulfilled after consuming the given ins.
+        """
+        ins_to_remove = []
+        for in_id in ins:
+            in_data = ctx.in_id_to_in_data[in_id]
+            if uom.is_zero(in_data["qty"]):
+                ins_to_remove.append(in_id)
+                continue
+            taken_from_in = min(demand, in_data["qty"])
+            demand -= taken_from_in
+            lines.append(
+                self._prepare_report_line(
+                    taken_from_in,
+                    move_in=in_data["move"],
+                    move_out=out,
+                    read=ctx.read,
+                )
+            )
+            in_data["qty"] -= taken_from_in
+            if in_data["qty"] <= 0:
+                ins_to_remove.append(in_id)
+            if uom.is_zero(demand):
+                break
+
+        for in_id in ins_to_remove:
+            in_data = ctx.in_id_to_in_data[in_id]
+            product_id = in_data["move"].product_id.id
+            for dest in in_data["move_dests"]:
+                ctx.dest_ids_to_in_ids[dest].remove(in_id)
+            ctx.ins_per_product[product_id].remove(in_id)
+        return demand
+
     def _get_report_lines(
         self,
         product_template_ids,
@@ -346,138 +493,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         wh_stock_location,
         read=True,
     ):
-
-        def _get_out_move_reserved_data(
-            out,
-            linked_moves,
-            used_reserved_moves,
-            currents,
-            wh_stock_location,
-            wh_stock_sub_location_ids,
-        ):
-            reserved_out = 0
-            # the move to show when qty is reserved
-            reserved_move = self.env["stock.move"]
-            for move in linked_moves:
-                if move.state not in ("partially_available", "assigned"):
-                    continue
-                reserved = move.product_uom._compute_quantity(
-                    move.quantity, move.product_id.uom_id
-                )
-                # check if the move reserved qty was counted before (happens if multiple outs share pick/pack)
-                reserved = min(reserved - used_reserved_moves[move], out.product_qty)
-                if reserved and not reserved_move:
-                    reserved_move = move
-                reserved_out += reserved
-                used_reserved_moves[move] += reserved
-                # any sublocation qties needs to be reserved to the main stock location qty as well
-                if move.location_id.id in wh_stock_sub_location_ids:
-                    currents[out.product_id.id, wh_stock_location.id] -= reserved
-                currents[(out.product_id.id, move.location_id.id)] -= reserved
-                if move.product_id.uom_id.compare(reserved_out, out.product_qty) >= 0:
-                    break
-
-            return {
-                "reserved": reserved_out,
-                "reserved_move": reserved_move,
-                "linked_moves": linked_moves,
-            }
-
-        def _get_out_move_taken_from_stock_data(
-            out, currents, reserved_data, wh_stock_location, wh_stock_sub_location_ids
-        ):
-            reserved_out = reserved_data["reserved"]
-            demand_out = out.product_qty - reserved_out
-            linked_moves = reserved_data["linked_moves"]
-            taken_from_stock_out = 0
-            for move in linked_moves:
-                if move.state in ("draft", "cancel", "assigned", "done"):
-                    continue
-                reserved = move.product_uom._compute_quantity(
-                    move.quantity, move.product_id.uom_id
-                )
-                demand = max(move.product_qty - reserved, 0)
-                # to make sure we don't demand more than the out (useful when same pick/pack goes to multiple out)
-                demand = min(demand, demand_out)
-                if move.product_id.uom_id.is_zero(demand):
-                    continue
-                # if chained, available qty is what the orig moves actually moved, not what's still in stock
-                if move.move_orig_ids:
-                    move_in_qty = sum(
-                        move.move_orig_ids.filtered(lambda m: m.state == "done").mapped(
-                            "quantity"
-                        )
-                    )
-                    sibling_moves = move.move_orig_ids.move_dest_ids - move
-                    move_out_qty = sum(
-                        sibling_moves.filtered(lambda m: m.state == "done").mapped(
-                            "quantity"
-                        )
-                    )
-                    move_available_qty = move_in_qty - move_out_qty - reserved
-                else:
-                    move_available_qty = currents[
-                        (out.product_id.id, move.location_id.id)
-                    ]
-                # count taken from stock, but avoid taking more than what's in stock in case of move origs,
-                # this can happen if a stock adjustment is done after the orig moves are done
-                taken_from_stock = min(
-                    demand,
-                    move_available_qty,
-                    currents[(out.product_id.id, move.location_id.id)],
-                )
-                if taken_from_stock > 0:
-                    # any sublocation qties needs to be removed to the main stock location qty as well
-                    if move.location_id.id in wh_stock_sub_location_ids:
-                        currents[
-                            out.product_id.id, wh_stock_location.id
-                        ] -= taken_from_stock
-                    currents[
-                        (out.product_id.id, move.location_id.id)
-                    ] -= taken_from_stock
-                    taken_from_stock_out += taken_from_stock
-                demand_out -= taken_from_stock
-            return {
-                "taken_from_stock": taken_from_stock_out,
-            }
-
-        def _reconcile_out_with_ins(
-            lines,
-            out,
-            ins,
-            demand,
-            product_rounding,
-            in_id_to_in_data,
-            ins_per_product,
-            dest_ids_to_in_ids,
-            read=True,
-        ):
-            ins_to_remove = []
-            for in_id in ins:
-                in_data = in_id_to_in_data[in_id]
-                if float_is_zero(in_data["qty"], precision_rounding=product_rounding):
-                    ins_to_remove.append(in_id)
-                    continue
-                taken_from_in = min(demand, in_data["qty"])
-                demand -= taken_from_in
-                lines.append(
-                    self._prepare_report_line(
-                        taken_from_in, move_in=in_data["move"], move_out=out, read=read
-                    )
-                )
-                in_data["qty"] -= taken_from_in
-                if in_data["qty"] <= 0:
-                    ins_to_remove.append(in_id)
-                if float_is_zero(demand, precision_rounding=product_rounding):
-                    break
-
-            for in_id in ins_to_remove:
-                in_data = in_id_to_in_data[in_id]
-                product_id = in_data["move"].product_id.id
-                for dest in in_data["move_dests"]:
-                    dest_ids_to_in_ids[dest].remove(in_id)
-                ins_per_product[product_id].remove(in_id)
-            return demand
+        report_products = self._get_products(product_template_ids, product_ids)
 
         in_domain, out_domain = self._move_confirmed_domain(
             product_template_ids, product_ids, wh_location_ids
@@ -547,7 +563,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         qties = self.env["stock.quant"]._read_group(
             self._get_quant_domain(
                 wh_location_ids,
-                outs.product_id | self._get_products(product_template_ids, product_ids),
+                outs.product_id | report_products,
             ),
             ["product_id", "location_id"],
             ["quantity:sum"],
@@ -565,40 +581,41 @@ class StockForecasted_Product_Product(models.AbstractModel):
             if location_id in wh_stock_sub_location_ids:
                 currents[product.id, wh_stock_location.id] += quantity
             currents[(product.id, location_id)] += quantity
+
+        ctx = ReplenishmentContext(
+            wh_stock_location=wh_stock_location,
+            wh_stock_sub_location_ids=wh_stock_sub_location_ids,
+            read=read,
+            currents=currents,
+            in_id_to_in_data=in_id_to_in_data,
+            ins_per_product=ins_per_product,
+            dest_ids_to_in_ids=dest_ids_to_in_ids,
+        )
+
         moves_data = {}
         for out_moves in outs_per_product.values():
             # to handle multiple outs with the same in (e.g. same pick/pack for 2 outs)
             used_reserved_moves = defaultdict(float)
             # for all out moves, check for linked moves and count reserved quantity
             for out in out_moves:
-                moves_data[out] = _get_out_move_reserved_data(
-                    out,
-                    linked_moves_per_out[out],
-                    used_reserved_moves,
-                    currents,
-                    wh_stock_location,
-                    wh_stock_sub_location_ids,
+                moves_data[out] = self._compute_out_reserved(
+                    out, linked_moves_per_out[out], used_reserved_moves, ctx
                 )
             # another loop to remove qty from current stock after reserved is counted for
             for out in out_moves:
-                data = _get_out_move_taken_from_stock_data(
-                    out,
-                    currents,
-                    moves_data[out],
-                    wh_stock_location,
-                    wh_stock_sub_location_ids,
+                moves_data[out].update(
+                    self._compute_out_taken_from_stock(out, moves_data[out], ctx)
                 )
-                moves_data[out].update(data)
+
         product_sum = defaultdict(float)
         for product_loc, quantity in currents.items():
             if product_loc[1] not in wh_stock_sub_location_ids:
                 product_sum[product_loc[0]] += quantity
+
         lines = []
-        for product in (ins | outs).product_id | self._get_products(
-            product_template_ids, product_ids
-        ):
+        for product in (ins | outs).product_id | report_products:
+            uom = product.uom_id
             lines_init_count = len(lines)
-            product_rounding = product.uom_id.rounding
             unreconciled_outs = []
             free_stock = currents[product.id, wh_stock_location.id]
             transit_stock = product_sum[product.id] - free_stock
@@ -622,7 +639,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         )
                     )
 
-                if float_is_zero(demand_out, precision_rounding=product_rounding):
+                if uom.is_zero(demand_out):
                     continue
 
                 # Reconcile with the current stock.
@@ -634,7 +651,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         )
                     )
 
-                if float_is_zero(demand_out, precision_rounding=product_rounding):
+                if uom.is_zero(demand_out):
                     continue
 
                 # Reconcile with unreservable stock, quantities that are in stock but not in correct location to reserve from (in transit)
@@ -648,45 +665,29 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         )
                     )
 
-                if float_is_zero(demand_out, precision_rounding=product_rounding):
+                if uom.is_zero(demand_out):
                     continue
 
                 # Reconcile with the ins.
-                demand_out = _reconcile_out_with_ins(
-                    lines,
-                    out,
-                    dest_ids_to_in_ids[out.id],
-                    demand_out,
-                    product_rounding,
-                    in_id_to_in_data,
-                    ins_per_product,
-                    dest_ids_to_in_ids,
-                    read=read,
+                demand_out = self._reconcile_out_with_ins(
+                    lines, out, dest_ids_to_in_ids[out.id], demand_out, uom, ctx
                 )
-                if not float_is_zero(demand_out, precision_rounding=product_rounding):
+                if not uom.is_zero(demand_out):
                     unreconciled_outs.append((demand_out, out))
 
             # Another pass, in case there are some ins linked to a dest move but that still have some quantity available
             for demand, out in unreconciled_outs:
-                demand = _reconcile_out_with_ins(
-                    lines,
-                    out,
-                    ins_per_product[product.id],
-                    demand,
-                    product_rounding,
-                    in_id_to_in_data,
-                    ins_per_product,
-                    dest_ids_to_in_ids,
-                    read=read,
+                demand = self._reconcile_out_with_ins(
+                    lines, out, ins_per_product[product.id], demand, uom, ctx
                 )
-                if not float_is_zero(demand, precision_rounding=product_rounding):
+                if not uom.is_zero(demand):
                     lines.append(
                         self._prepare_report_line(
                             demand, move_out=out, replenishment_filled=False, read=read
                         )
                     )
             # Stock in transit
-            if not float_is_zero(transit_stock, precision_rounding=product_rounding):
+            if not uom.is_zero(transit_stock):
                 lines.append(
                     self._prepare_report_line(
                         transit_stock, product=product, in_transit=True, read=read
@@ -694,9 +695,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 )
 
             # Unused remaining stock.
-            if not float_is_zero(
-                free_stock, precision_rounding=product.uom_id.rounding
-            ) or lines_init_count == len(lines):
+            if not uom.is_zero(free_stock) or lines_init_count == len(lines):
                 lines += self._free_stock_lines(
                     product, free_stock, moves_data, wh_location_ids, read
                 )
@@ -704,7 +703,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             # In moves not used.
             for in_id in ins_per_product[product.id]:
                 in_data = in_id_to_in_data[in_id]
-                if float_is_zero(in_data["qty"], precision_rounding=product_rounding):
+                if uom.is_zero(in_data["qty"]):
                     continue
                 lines.append(
                     self._prepare_report_line(
