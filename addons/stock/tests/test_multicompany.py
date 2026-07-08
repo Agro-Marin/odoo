@@ -1,24 +1,262 @@
-# -*- coding: utf-8 -*-
-
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, TransactionCase
+
+
+class TestCompanyProvisioning(TransactionCase):
+    """Backfills that provision a per-company resource only for companies that
+    lack it (``create_missing_*`` on res.company)."""
+
+    def _inventory_default_field(self):
+        return self.env["ir.model.fields"]._get(
+            "product.template", "property_stock_inventory"
+        )
+
+    def test_companies_with_property_counts_per_company_default(self):
+        company = self.env["res.company"].create({"name": "Prov Co"})
+        having = self.env["res.company"]._companies_with_property(
+            "product.template", "property_stock_inventory"
+        )
+        self.assertIn(
+            company,
+            having,
+            "a company created with a per-company inventory default must be "
+            "reported as already provisioned",
+        )
+
+    def test_companies_with_property_treats_global_default_as_all(self):
+        """A global default (no company_id) covers every company, so no company
+        should be reported as missing the property."""
+        company = self.env["res.company"].create({"name": "Prov Co"})
+        field = self._inventory_default_field()
+        # Replace every per-company default with a single global one.
+        self.env["ir.default"].sudo().search([("field_id", "=", field.id)]).unlink()
+        loc = self.env["stock.location"].search(
+            [("usage", "=", "inventory"), ("company_id", "=", company.id)], limit=1
+        )
+        self.env["ir.default"].set(
+            "product.template",
+            "property_stock_inventory",
+            loc.id,
+            company_id=False,
+        )
+        having = self.env["res.company"]._companies_with_property(
+            "product.template", "property_stock_inventory"
+        )
+        self.assertEqual(
+            having,
+            self.env["res.company"].search([]),
+            "a global default must mark all companies as provisioned",
+        )
+        self.assertFalse(
+            self.env["res.company"]._companies_without(having),
+            "no company should be considered missing the property",
+        )
+
+    def test_create_missing_skips_company_covered_by_global_default(self):
+        """Regression: the backfill must not create a duplicate inventory-loss
+        location for a company already covered by a global default."""
+        company = self.env["res.company"].create({"name": "Prov Co"})
+        field = self._inventory_default_field()
+        self.env["ir.default"].sudo().search([("field_id", "=", field.id)]).unlink()
+        domain = [("usage", "=", "inventory"), ("company_id", "=", company.id)]
+        loc = self.env["stock.location"].search(domain, limit=1)
+        self.env["ir.default"].set(
+            "product.template",
+            "property_stock_inventory",
+            loc.id,
+            company_id=False,
+        )
+        before = self.env["stock.location"].search_count(domain)
+        self.env["res.company"].create_missing_inventory_loss_location()
+        after = self.env["stock.location"].search_count(domain)
+        self.assertEqual(
+            after,
+            before,
+            "backfill duplicated an inventory-loss location despite a global "
+            "default already covering the company",
+        )
+
+    def test_backfill_covers_archived_company(self):
+        """An archived company lacking a resource must still be provisioned: it
+        owns records and may be reactivated later. The company enumeration used by
+        the ``create_missing_*`` backfills therefore ignores the active flag."""
+        company = self.env["res.company"].create({"name": "Archived Co"})
+        # Simulate a company that predates provisioning: strip its transit
+        # location, then archive it.
+        company.internal_transit_location_id = False
+        company.active = False
+        self.assertIn(
+            company,
+            self.env["res.company"]._all_companies(),
+            "archived companies must be visible to the backfill enumeration",
+        )
+        self.env["res.company"].create_missing_transit_location()
+        company.invalidate_recordset()
+        self.assertTrue(
+            company.internal_transit_location_id,
+            "an archived company without a transit location must still be backfilled",
+        )
+
+
+class TestCompanyStockProvisioning(TransactionCase):
+    """What ``res.company.create`` provisions, the shared partner stock-property
+    helper, the idempotence of the ``create_missing_*`` backfills, and the
+    delivery text-confirmation gate."""
+
+    def test_create_provisions_locations_sequence_and_partner(self):
+        company = self.env["res.company"].create({"name": "Prov Co"})
+        self.assertTrue(
+            company.internal_transit_location_id,
+            "create() must provision a transit location",
+        )
+        default = self.env["ir.default"]
+        self.assertTrue(
+            default._get(
+                "product.template", "property_stock_inventory", company_id=company.id
+            ),
+            "create() must register the inventory-loss location default",
+        )
+        self.assertTrue(
+            default._get(
+                "product.template", "property_stock_production", company_id=company.id
+            ),
+            "create() must register the production location default",
+        )
+        self.assertEqual(
+            self.env["ir.sequence"].search_count(
+                [("code", "=", "stock.scrap"), ("company_id", "=", company.id)]
+            ),
+            1,
+            "create() must provision exactly one scrap sequence",
+        )
+        partner = company.partner_id.with_company(company)
+        self.assertEqual(
+            partner.property_stock_customer,
+            company.internal_transit_location_id,
+            "the company partner's customer location must point at the transit location",
+        )
+        self.assertEqual(
+            partner.property_stock_supplier,
+            company.internal_transit_location_id,
+            "the company partner's supplier location must point at the transit location",
+        )
+
+    def test_set_stock_property_locations_helper(self):
+        company = self.env["res.company"].create({"name": "Helper Co"})
+        transit = company.internal_transit_location_id
+        partner = self.env["res.partner"].create({"name": "Prop Partner"})
+        partner.with_company(company)._set_stock_property_locations(transit)
+        self.assertEqual(partner.with_company(company).property_stock_customer, transit)
+        self.assertEqual(partner.with_company(company).property_stock_supplier, transit)
+        # an empty recordset clears both properties
+        partner.with_company(company)._set_stock_property_locations(
+            self.env["stock.location"]
+        )
+        self.assertFalse(partner.with_company(company).property_stock_customer)
+        self.assertFalse(partner.with_company(company).property_stock_supplier)
+
+    def test_create_missing_scrap_sequence_is_idempotent(self):
+        self.env["res.company"].create({"name": "Scrap Co"})
+        before = self.env["ir.sequence"].search_count([("code", "=", "stock.scrap")])
+        self.env["res.company"].create_missing_scrap_sequence()
+        after = self.env["ir.sequence"].search_count([("code", "=", "stock.scrap")])
+        self.assertEqual(before, after, "backfill must not duplicate scrap sequences")
+
+    def test_create_missing_transit_location_is_idempotent(self):
+        self.env["res.company"].create({"name": "Transit Co"})
+        self.env["res.company"].create_missing_transit_location()
+        self.assertFalse(
+            self.env["res.company"].search(
+                [("internal_transit_location_id", "=", False)]
+            ),
+            "every company must own a transit location and the backfill adds none twice",
+        )
+
+    def test_bootstrap_first_warehouse_is_noop_when_warehouse_exists(self):
+        before = self.env["stock.warehouse"].search_count([])
+        self.env["res.company"].bootstrap_first_warehouse()
+        self.assertEqual(
+            self.env["stock.warehouse"].search_count([]),
+            before,
+            "bootstrap_first_warehouse must not create a warehouse when one exists",
+        )
+
+    def test_get_text_validation_gate(self):
+        company = self.env["res.company"].create({"name": "Text Co"})
+        company.stock_text_confirmation = True
+        company.stock_confirmation_type = "sms"
+        self.assertTrue(company._get_text_validation("sms"))
+        self.assertFalse(
+            company._get_text_validation("whatsapp"),
+            "a channel other than the configured one must not validate",
+        )
+        company.stock_text_confirmation = False
+        self.assertFalse(
+            company._get_text_validation("sms"),
+            "text confirmation disabled must never validate",
+        )
+
+    def test_horizon_days_rejects_negative(self):
+        """A negative horizon would push the replenishment horizon date into the
+        past and make reordering rules under-forecast demand."""
+        company = self.env["res.company"].create({"name": "Horizon Co"})
+        with self.assertRaises(ValidationError):
+            company.horizon_days = -1
+
+    def test_horizon_days_allows_zero(self):
+        """'0 days' is the just-in-time floor and must be accepted."""
+        company = self.env["res.company"].create({"name": "Horizon Zero Co"})
+        company.horizon_days = 0
+        self.assertEqual(company.horizon_days, 0)
+
+    def test_create_missing_mail_template_backfills_and_is_idempotent(self):
+        """The mail-template backfill provisions companies that lack the template
+        (including archived ones) and never overwrites an existing value."""
+        template = self.env.ref("stock.mail_template_data_delivery_confirmation")
+        active = self.env["res.company"].create({"name": "Tmpl Active"})
+        archived = self.env["res.company"].create({"name": "Tmpl Archived"})
+        (active + archived).stock_mail_confirmation_template_id = False
+        archived.active = False
+
+        self.env["res.company"].create_missing_mail_template()
+
+        self.assertEqual(
+            active.stock_mail_confirmation_template_id,
+            template,
+            "an active company without the template must be backfilled",
+        )
+        self.assertEqual(
+            archived.stock_mail_confirmation_template_id,
+            template,
+            "an archived company without the template must still be backfilled",
+        )
+
+        # Idempotent + non-destructive: a custom template survives a second run.
+        custom = template.copy({"name": "Custom Confirmation"})
+        active.stock_mail_confirmation_template_id = custom
+        self.env["res.company"].create_missing_mail_template()
+        self.assertEqual(
+            active.stock_mail_confirmation_template_id,
+            custom,
+            "the backfill must not overwrite a company's existing template",
+        )
 
 
 class TestMultiCompany(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        super(TestMultiCompany, cls).setUpClass()
+        super().setUpClass()
         group_user = cls.env.ref("base.group_user")
         group_stock_manager = cls.env.ref("stock.group_stock_manager")
 
         cls.company_a = cls.env["res.company"].create({"name": "Company A"})
         cls.company_b = cls.env["res.company"].create({"name": "Company B"})
-        cls.warehouse_a = cls.env["stock.warehouse"].search(
-            [("company_id", "=", cls.company_a.id)], limit=1
-        )
-        cls.warehouse_b = cls.env["stock.warehouse"].search(
-            [("company_id", "=", cls.company_b.id)], limit=1
-        )
+        # Fetch each company's primary warehouse through the idempotent seam: under
+        # tests res.company.create already provisions one, so this returns those
+        # rather than creating duplicates.
+        cls.warehouse_a, cls.warehouse_b = (
+            cls.company_a + cls.company_b
+        )._create_warehouse()
         cls.stock_location_a = cls.warehouse_a.lot_stock_id
         cls.stock_location_b = cls.warehouse_b.lot_stock_id
 
@@ -147,9 +385,9 @@ class TestMultiCompany(TransactionCase):
             }
         )
         with self.assertRaises(UserError):
-            shared_partner.with_user(self.user_b).property_stock_customer = (
-                self.stock_location_a
-            )
+            shared_partner.with_user(
+                self.user_b
+            ).property_stock_customer = self.stock_location_a
 
     def test_partner_2(self):
         """On the partners of companies A and B:
@@ -172,6 +410,31 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(
             self.company_b.partner_id.with_user(self.user_a).property_stock_supplier,
             inter_company_loc,
+        )
+
+    def test_partner_3_intercompany_wiring_covers_archived_company(self):
+        """Regression: creating a company must wire its inter-company transit
+        property against archived companies too, in both directions — the wiring
+        enumerates with ``_all_companies`` (archived included), not an active-only
+        search. Otherwise a company archived at creation time, then reactivated,
+        would route cross-company transfers through the default customer/supplier
+        locations instead of the shared inter-company transit location.
+        """
+        inter_company_loc = self.env.ref("stock.stock_location_inter_company")
+        archived = self.env["res.company"].create({"name": "Archived Co"})
+        archived.active = False
+
+        fresh = self.env["res.company"].create({"name": "Fresh Co"})
+
+        self.assertEqual(
+            archived.partner_id.with_company(fresh).property_stock_customer,
+            inter_company_loc,
+            "the archived company must be wired toward the freshly created one",
+        )
+        self.assertEqual(
+            fresh.partner_id.with_company(archived).property_stock_supplier,
+            inter_company_loc,
+            "the freshly created company must be wired toward the archived one",
         )
 
     def test_inventory_1(self):

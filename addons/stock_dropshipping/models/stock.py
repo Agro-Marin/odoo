@@ -87,14 +87,13 @@ class StockPickingType(models.Model):
 class StockLot(models.Model):
     _inherit = 'stock.lot'
 
-    def _compute_partner_ids(self):
-        delivery_ids_by_lot = self._find_delivery_ids_by_lot()
-        for lot in self:
-            if delivery_ids_by_lot[lot.id]:
-                picking_ids = self.env['stock.picking'].browse(delivery_ids_by_lot[lot.id]).sorted(key='date_done', reverse=True)
-                lot.partner_ids = list(p.sale_id.partner_shipping_id.id if p.is_dropship else p.partner_id.id for p in picking_ids)
-            else:
-                lot.partner_ids = False
+    def _get_partners_from_deliveries(self, pickings):
+        # For a dropship the goods never transit through our company, so the
+        # relevant partner is the sale's shipping address, not the picking's.
+        return [
+            p.sale_id.partner_shipping_id.id if p.is_dropship else p.partner_id.id
+            for p in pickings
+        ]
 
     def _get_outgoing_domain(self):
         res = super()._get_outgoing_domain()

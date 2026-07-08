@@ -186,13 +186,13 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
 
         po = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': product.id,
                 'product_qty': qty,
                 'price_unit': product.standard_price,
             }) for product, qty in zip(products, [6, 6, 3, 6])]
         })
-        po.button_confirm()
+        po.action_confirm()
 
         po.picking_ids.button_validate()
 
@@ -299,12 +299,12 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         })
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
                 'product_qty': 1,
             }) for _ in range(6)],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.picking_ids.button_validate()
         purchase_order.action_create_invoice()
         bill = purchase_order.invoice_ids

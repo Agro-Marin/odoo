@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
@@ -77,20 +76,17 @@ class ResCompany(models.Model):
 
     @api.model
     def _create_missing_subcontracting_dropshipping_sequence(self):
-        company_ids = self.env['res.company'].search([])
-        company_has_seq = self.env['ir.sequence'].search([('code', '=', 'mrp.subcontracting.dropshipping')]).mapped('company_id')
-        company_todo_sequence = company_ids - company_has_seq
-        company_todo_sequence._create_subcontracting_dropshipping_sequence()
+        having = self.env['ir.sequence'].search([('code', '=', 'mrp.subcontracting.dropshipping')]).mapped('company_id')
+        self._companies_without(having)._create_subcontracting_dropshipping_sequence()
 
     @api.model
     def _create_missing_subcontracting_dropshipping_picking_type(self):
-        company_ids = self.env['res.company'].search([])
-        company_has_dropship_subcontractor_picking_type = self.env['stock.picking.type'].search([
+        all_companies = self._all_companies()
+        having = self.env['stock.picking.type'].search([
             ('default_location_src_id.usage', '=', 'supplier'),
-            ('default_location_dest_id', 'in', company_ids.subcontracting_location_id.ids),
+            ('default_location_dest_id', 'in', all_companies.subcontracting_location_id.ids),
         ]).mapped('company_id')
-        company_todo_picking_type = company_ids - company_has_dropship_subcontractor_picking_type
-        company_todo_picking_type._create_subcontracting_dropshipping_picking_type()
+        (all_companies - having)._create_subcontracting_dropshipping_picking_type()
 
     def _create_per_company_sequences(self):
         super()._create_per_company_sequences()

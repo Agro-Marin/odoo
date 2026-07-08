@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-
 from odoo import Command
-from odoo.addons.stock.tests.common import TestStockCommon
-from odoo.tests import Form
 from odoo.exceptions import ValidationError
+from odoo.tests import Form
+
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestLotSerial(TestStockCommon):
@@ -429,6 +428,134 @@ class TestLotSerial(TestStockCommon):
         )
         self.assertEqual(len(lot_id), 1)
         self.assertEqual(lot_id, lot_a)
+
+    def test_product_qty_search_matches_compute(self):
+        """The `product_qty` search must agree with the computed field. They used
+        to resolve stock through different location domains, so a lot could read 0
+        yet still match `product_qty > 0` (and a `location`/`warehouse_id` context
+        scoped the field but was ignored by the search)."""
+        transit = self.env["stock.location"].create(
+            {"name": "Transit X", "usage": "transit", "company_id": self.env.company.id}
+        )
+        product = self.env["product.product"].create(
+            {"name": "qty parity", "is_storable": True, "tracking": "lot"}
+        )
+        lot = self.env["stock.lot"].create(
+            {"name": "qty-parity-lot", "product_id": product.id}
+        )
+
+        # Stock only in a transit location: not "on hand" for the compute...
+        self.env["stock.quant"]._update_available_quantity(
+            product, transit, 7.0, lot_id=lot
+        )
+        self.env["stock.quant"].invalidate_model()
+        self.assertEqual(lot.product_qty, 0.0)
+        # ...so the search must not report it as > 0, and must report it as = 0.
+        self.assertNotIn(lot, self.env["stock.lot"].search([("product_qty", ">", 0)]))
+        self.assertIn(
+            lot,
+            self.env["stock.lot"].search(
+                [("id", "=", lot.id), ("product_qty", "=", 0)]
+            ),
+        )
+
+        # Add real on-hand stock: both compute and search now see it.
+        self.env["stock.quant"]._update_available_quantity(
+            product, self.stock_location, 3.0, lot_id=lot
+        )
+        self.env["stock.quant"].invalidate_model()
+        lot.invalidate_recordset()
+        self.assertEqual(lot.product_qty, 3.0)
+        self.assertIn(lot, self.env["stock.lot"].search([("product_qty", ">", 0)]))
+
+        # A `location` context scopes the field and the search identically. Point
+        # it at a fresh internal location that holds none of this product: the
+        # field reads 0 there, and the search (which used to ignore the context and
+        # still find the 3.0 elsewhere) must agree and exclude the lot.
+        empty_loc = self.env["stock.location"].create(
+            {
+                "name": "Empty Loc",
+                "usage": "internal",
+                "location_id": self.stock_location.location_id.id,
+            }
+        )
+        self.assertEqual(lot.with_context(location=empty_loc.id).product_qty, 0.0)
+        self.assertNotIn(
+            lot,
+            self.env["stock.lot"]
+            .with_context(location=empty_loc.id)
+            .search([("id", "=", lot.id), ("product_qty", ">", 0)]),
+        )
+
+    def test_delivery_ids_traceability_graph(self):
+        """`_find_delivery_ids_by_lot` walks produce lines and propagates outgoing
+        pickings down to component lots, and returns the same result whether a lot
+        is queried alone or as part of a batch (a diamond-shaped produce graph)."""
+        out_type = self.picking_type_out
+
+        def mk_lot(name):
+            product = self.env["product.product"].create(
+                {"name": name, "is_storable": True, "tracking": "lot"}
+            )
+            return self.env["stock.lot"].create(
+                {"name": f"lot-{name}", "product_id": product.id}
+            )
+
+        def mk_done_line(lot, picking=None, children=None):
+            move = self.env["stock.move"].create(
+                {
+                    "product_id": lot.product_id.id,
+                    "product_uom_qty": 1,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                    "picking_id": picking.id if picking else False,
+                }
+            )
+            line = self.env["stock.move.line"].create(
+                {
+                    "move_id": move.id,
+                    "product_id": lot.product_id.id,
+                    "lot_id": lot.id,
+                    "quantity": 1,
+                    "picking_id": picking.id if picking else False,
+                }
+            )
+            move.write({"state": "done"})
+            if children:
+                child_ids = [mk_done_line(child).id for child in children]
+                line.produce_line_ids = [Command.set(child_ids)]
+            return line
+
+        L0, L1, L2, L3 = (mk_lot(n) for n in ("L0", "L1", "L2", "L3"))
+        # Diamond: L3 produced from L1 & L2 ; L1 & L2 produced from L0.
+        mk_done_line(L3, children=[L1, L2])
+        mk_done_line(L1, children=[L0])
+        mk_done_line(L2, children=[L0])
+        # Direct outgoing deliveries of L0 and L3.
+        pk0, pk3 = (
+            self.env["stock.picking"].create(
+                {
+                    "picking_type_id": out_type.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                }
+            )
+            for _i in range(2)
+        )
+        mk_done_line(L0, picking=pk0)
+        mk_done_line(L3, picking=pk3)
+        self.env["stock.move.line"].invalidate_model()
+
+        by_lot = (L0 + L1 + L2 + L3)._find_delivery_ids_by_lot()
+        self.assertEqual(set(by_lot[L3.id]), {pk0.id, pk3.id})
+        self.assertEqual(set(by_lot[L1.id]), {pk0.id})
+        self.assertEqual(set(by_lot[L2.id]), {pk0.id})
+        self.assertEqual(set(by_lot[L0.id]), {pk0.id})
+
+        # Querying a single lot must yield the same set as the batch query (the
+        # old recursive walk was query-set dependent on shared/cyclic graphs).
+        self.assertEqual(set(L3._find_delivery_ids_by_lot()[L3.id]), {pk0.id, pk3.id})
+        self.assertEqual(L3.delivery_ids, pk0 | pk3)
 
     def test_default_lot_sequence(self):
         """Test that the default lot sequence is used when the product is created with a null prefix"""

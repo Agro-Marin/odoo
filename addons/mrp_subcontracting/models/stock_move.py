@@ -185,8 +185,8 @@ class StockMove(models.Model):
     def _get_subcontract_production(self):
         return self.filtered(lambda m: m.is_subcontract).move_orig_ids.production_id
 
-    def _prepare_move_split_vals(self, qty):
-        vals = super()._prepare_move_split_vals(qty)
+    def _prepare_move_split_vals(self, qty, force_uom_id=False):
+        vals = super()._prepare_move_split_vals(qty, force_uom_id=force_uom_id)
         vals['location_id'] = self.location_id.id
         return vals
 

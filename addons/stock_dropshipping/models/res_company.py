@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, models
@@ -11,27 +10,23 @@ class ResCompany(models.Model):
     # Sequences
     # -------------------------------------------------------------------------
     def _create_dropship_sequence(self):
-        dropship_vals = []
-        for company in self:
-            dropship_vals.append({
-                'name': 'Dropship (%s)' % company.name,
-                'code': 'stock.dropshipping',
-                'company_id': company.id,
-                'prefix': 'DS/',
-                'padding': 5,
-            })
+        dropship_vals = [{
+            'name': 'Dropship (%s)' % company.name,
+            'code': 'stock.dropshipping',
+            'company_id': company.id,
+            'prefix': 'DS/',
+            'padding': 5,
+        } for company in self]
         if dropship_vals:
             self.env['ir.sequence'].create(dropship_vals)
 
     @api.model
     def create_missing_dropship_sequence(self):
-        company_ids = self.env['res.company'].search([])
-        company_has_dropship_seq = self.env['ir.sequence'].search([('code', '=', 'stock.dropshipping')]).mapped('company_id')
-        company_todo_sequence = company_ids - company_has_dropship_seq
-        company_todo_sequence._create_dropship_sequence()
+        having = self.env['ir.sequence'].search([('code', '=', 'stock.dropshipping')]).mapped('company_id')
+        self._companies_without(having)._create_dropship_sequence()
 
     def _create_per_company_sequences(self):
-        super(ResCompany, self)._create_per_company_sequences()
+        super()._create_per_company_sequences()
         self._create_dropship_sequence()
 
     # -------------------------------------------------------------------------
@@ -60,15 +55,13 @@ class ResCompany(models.Model):
 
     @api.model
     def create_missing_dropship_picking_type(self):
-        company_ids = self.env['res.company'].search([])
-        company_has_dropship_picking_type = (
+        having = (
             self.env['stock.picking.type'].search([("code", "=", "dropship")]).company_id
         )
-        company_todo_picking_type = company_ids - company_has_dropship_picking_type
-        company_todo_picking_type._create_dropship_picking_type()
+        self._companies_without(having)._create_dropship_picking_type()
 
     def _create_per_company_picking_types(self):
-        super(ResCompany, self)._create_per_company_picking_types()
+        super()._create_per_company_picking_types()
         self._create_dropship_picking_type()
 
     # -------------------------------------------------------------------------
@@ -104,12 +97,9 @@ class ResCompany(models.Model):
     @api.model
     def create_missing_dropship_rule(self):
         dropship_route = self.env.ref('stock_dropshipping.route_drop_shipping')
-
-        company_ids = self.env['res.company'].search([])
-        company_has_dropship_rule = self.env['stock.rule'].search([('route_id', '=', dropship_route.id)]).mapped('company_id')
-        company_todo_rule = company_ids - company_has_dropship_rule
-        company_todo_rule._create_dropship_rule()
+        having = self.env['stock.rule'].search([('route_id', '=', dropship_route.id)]).mapped('company_id')
+        self._companies_without(having)._create_dropship_rule()
 
     def _create_per_company_rules(self):
-        super(ResCompany, self)._create_per_company_rules()
+        super()._create_per_company_rules()
         self._create_dropship_rule()

@@ -1353,6 +1353,64 @@ class TestPickShip(TestStockCommon):
 
 
 class TestSinglePicking(TestStockCommon):
+    def test_source_location_change_batch_preserves_valid_moves(self):
+        """A batched `location_id` write must reset only the moves that actually
+        lose a move line to the new source location.
+
+        Regression: `_on_source_location_change` used to reset the whole batch
+        (clearing `move_orig_ids` and forcing `make_to_stock`) as soon as *any*
+        move in it had a stray line, wiping the chain of siblings whose own
+        lines were still valid under the new location.
+        """
+        storable = self.env["product.product"].create(
+            [
+                {"name": "SLC stray", "is_storable": True, "type": "consu"},
+                {"name": "SLC valid", "is_storable": True, "type": "consu"},
+            ]
+        )
+        product_stray, product_valid = storable
+        # Isolate stock so each move reserves on a distinct shelf.
+        self.env["stock.quant"]._update_available_quantity(
+            product_stray, self.shelf_2, 10
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product_valid, self.shelf_1, 10
+        )
+
+        def make_move(product):
+            move = self.MoveObj.create(
+                {
+                    "product_id": product.id,
+                    "product_uom_qty": 5,
+                    "product_uom": product.uom_id.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                }
+            )
+            move._action_confirm()
+            move._action_assign()
+            return move
+
+        origin_move = make_move(product_valid)
+        move_stray = make_move(product_stray)  # reserves on shelf_2
+        move_valid = make_move(product_valid)  # reserves on shelf_1
+        move_valid.move_orig_ids = [(6, 0, origin_move.ids)]
+
+        self.assertEqual(move_stray.move_line_ids.location_id, self.shelf_2)
+        self.assertEqual(move_valid.move_line_ids.location_id, self.shelf_1)
+
+        # One batched write of the new source location onto both moves. The
+        # stray move's line (on shelf_2) is no longer under shelf_1; the valid
+        # move's line (on shelf_1) still is.
+        (move_stray | move_valid).write({"location_id": self.shelf_1.id})
+
+        # Stray move: its out-of-scope line is dropped and it must re-reserve.
+        self.assertFalse(move_stray.move_line_ids)
+        # Valid move: reservation, chain and procure method all left untouched.
+        self.assertEqual(move_valid.move_line_ids.location_id, self.shelf_1)
+        self.assertEqual(move_valid.move_orig_ids, origin_move)
+        self.assertEqual(move_valid.procure_method, "make_to_stock")
+
     def test_backorder_1(self):
         """Check the good behavior of creating a backorder for an available stock move."""
         delivery_order = self.env["stock.picking"].create(

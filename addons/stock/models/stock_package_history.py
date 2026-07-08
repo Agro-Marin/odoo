@@ -6,6 +6,10 @@ class StockPackageHistory(models.Model):
     _description = "Stock Package History"
     _check_company_auto = True
 
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
     company_id = fields.Many2one(
         comodel_name="res.company",
         string="Company",
@@ -56,7 +60,11 @@ class StockPackageHistory(models.Model):
         string="Transfers",
     )
 
-    def action_show_package(self):
+    # ------------------------------------------------------------
+    # ACTION METHODS
+    # ------------------------------------------------------------
+
+    def action_view_package(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -64,6 +72,10 @@ class StockPackageHistory(models.Model):
             "res_model": "stock.package",
             "res_id": self.package_id.id,
         }
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _get_complete_dest_name_except_outermost(self):
         self.ensure_one()

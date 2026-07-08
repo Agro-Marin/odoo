@@ -305,7 +305,7 @@ class PurchaseOrder(models.Model):
                     lambda pol: pol.get_parent_section_line().id == section_id,
                 )
                 suggest_line["sequence"] = self._get_new_line_sequence(
-                    "order_line",
+                    "line_ids",
                     section_id,
                 )
             else:

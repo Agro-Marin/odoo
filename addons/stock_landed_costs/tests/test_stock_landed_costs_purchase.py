@@ -373,12 +373,12 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         # Create PO
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.env['res.partner'].create({'name': 'vendor'})
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.product1
             po_line.product_qty = 1
             po_line.price_unit = 455.0
         order = po_form.save()
-        order.button_confirm()
+        order.action_confirm()
 
         # Receive the goods
         receipt = order.picking_ids[0]
@@ -449,7 +449,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
 
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product1.id,
                 'product_qty': 100000,
                 'price_unit': 1,
@@ -459,7 +459,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                 'price_unit': 3,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.action_create_invoice()
         bill = purchase_order.invoice_ids[0]
         receipt = purchase_order.picking_ids[0]
@@ -504,7 +504,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         po = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
             'currency_id': self.company_data['currency'].id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.product_a.name,
                     'product_id': self.product_a.id,
@@ -521,12 +521,12 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                 }),
             ],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_ids.quantity = 1
         receipt.button_validate()
-        po.order_line[1].qty_received = 1
+        po.line_ids[1].qty_received = 1
 
         po.action_create_invoice()
         bill = po.invoice_ids
@@ -581,13 +581,13 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
 
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
                 'product_qty': 100000,
                 'price_unit': 1.35,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.action_create_invoice()
         bill = purchase_order.invoice_ids[0]
         bill.invoice_line_ids[0].quantity = 23000
@@ -642,13 +642,13 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
 
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
                 'product_qty': 1,
                 'price_unit': 10,
             })],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         purchase_order.action_create_invoice()
         bill = purchase_order.invoice_ids[0]
         bill.invoice_line_ids[0].quantity = 1
@@ -700,7 +700,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         })
         po = self.env['purchase.order'].create({
             'partner_id': self.supplier_id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': product.id,
                     'product_qty': 1,
@@ -713,7 +713,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                 }),
             ],
         })
-        po.button_confirm()
+        po.action_confirm()
         picking = po.picking_ids
         picking.move_ids.quantity = 1
         picking.button_validate()
@@ -768,7 +768,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
 
         purchase_order = self.env['purchase.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.product1.name,
                     'product_id': self.product1.id,
@@ -778,7 +778,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                 })
             ],
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
         self.assertEqual(purchase_order.state, 'done')
         picking = purchase_order.picking_ids[0]
@@ -806,7 +806,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.assertAlmostEqual(svl_initial_receipt.unit_cost, 110, msg="SVL unit cost for initial receipt should match PO price.")
         self.assertAlmostEqual(svl_initial_receipt.value, 70 * 110)
         self.assertAlmostEqual(self.product1.standard_price, 110, msg="Product AVCO should be 110 after first receipt.")
-        self.assertAlmostEqual(purchase_order.order_line[0].qty_invoiced, 70)
+        self.assertAlmostEqual(purchase_order.line_ids[0].qty_invoiced, 70)
 
         # Add a landed cost to the first picking
         landed_cost = self.env['stock.landed.cost'].create({
@@ -827,7 +827,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         bill2.invoice_date = fields.Date.today()
         self.assertAlmostEqual(bill2.invoice_line_ids[0].quantity, 120, msg="Bill 2 should be for the remaining 120 units.")
         self.assertAlmostEqual(bill2.invoice_line_ids[0].price_unit, 110, msg="Bill 2 unit price should match PO price.")
-        self.assertAlmostEqual(purchase_order.order_line[0].qty_invoiced, 190, msg="Total 190 units should be invoiced on PO line.")
+        self.assertAlmostEqual(purchase_order.line_ids[0].qty_invoiced, 190, msg="Total 190 units should be invoiced on PO line.")
 
         # Receive the remaining 120 quantities in the backorder.
         backorder_picking.action_assign()

@@ -48,7 +48,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             'partner_id': self.partner_18.id,
             'partner_invoice_id': self.partner_18.id,
             'partner_shipping_id': self.partner_18.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': 'Cable Management Box',
                 'product_id': self.product_cable_management_box.id,
                 'product_uom_qty': 2,
@@ -114,7 +114,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             'partner_id': self.partner_18.id,
             'partner_invoice_id': self.partner_18.id,
             'partner_shipping_id': self.partner_18.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': 'Cable Management Box',
                 'product_id': self.product_cable_management_box.id,
                 'product_uom_qty': 2,
@@ -153,7 +153,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             'name': 'Sale order',
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {'name': super_product.name, 'product_id': super_product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
                 (0, 0, {'name': great_product.name, 'product_id': great_product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
             ]
@@ -192,7 +192,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             "partner_id": self.partner_18.id,
             "partner_invoice_id": self.partner_18.id,
             "partner_shipping_id": self.partner_18.id,
-            "order_line": [(0, 0, {
+            "line_ids": [(0, 0, {
                 "name": "Cable Management Box",
                 "product_id": self.product_cable_management_box.id,
                 "product_uom_qty": 2,
@@ -213,7 +213,7 @@ class TestStockMoveInvoice(TestSaleCommon):
 
         # add new product so new picking is created
         sale_order.write({
-            "order_line": [(0, 0, {
+            "line_ids": [(0, 0, {
                 "name": "Another product to deliver",
                 "product_id": self.product_11.id,
                 "product_uom_qty": 2,
@@ -243,7 +243,7 @@ class TestStockMoveInvoice(TestSaleCommon):
         self.product_a.weight = 2.0
         so = self.SaleOrder.create({
             "partner_id": self.partner_18.id,
-            "order_line": [(0, 0, {
+            "line_ids": [(0, 0, {
                 "name": "Cable Management Box",
                 "product_id": self.product_cable_management_box.id,
                 "product_uom_qty": 1,

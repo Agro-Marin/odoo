@@ -2875,10 +2875,22 @@ class TestStockValuation(TestStockValuationCommon):
         )
 
     def test_stock_valuation_revaluation_avco_rounding_2_digits(self):
-        """
-        Check that the rounding of the new price (cost) is equivalent to the rounding of the standard price (cost)
-        The check is done indirectly via the layers valuations.
-        If correct => rounding method is correct too
+        """Manual standard_price revaluation on an AVCO product with a 2-digit
+        Product Price precision.
+
+        Two distinct precisions are at play, and the test pins both:
+        - `standard_price` keeps the full written value (0.053): the field uses
+          `min_display_digits`, so the decimal precision only rounds the
+          *display*, never the stored value.
+        - `total_value` is rebuilt from the recorded revaluation, which is an
+          accounting event stored at *currency* precision on `product.value`
+          (0.053 -> 0.05). Hence 10000 * 0.05 = 500, not 530.
+
+        The gap only exists while `_compute_value` rebuilds the AVCO total via
+        `_run_average_batch(force_recompute=True)`; that forced replay is a
+        documented, still-required workaround (see the matching comment in
+        `product.py`). When it is dropped, `total_value` will read straight
+        from `standard_price` and become 530.
         """
         product = self.product_avco
         self.env['decimal.precision'].search([
@@ -2890,12 +2902,13 @@ class TestStockValuation(TestStockValuationCommon):
 
         self.assertEqual(product.standard_price, 0.022)
         self.assertEqual(product.qty_available, 10000)
+        self.assertEqual(product.total_value, 220)
 
         # Second Move
         with freeze_time(Datetime.now() + timedelta(seconds=1)):
             product.write({'standard_price': 0.053})
 
-        self.assertEqual(product.standard_price, 0.05)
+        self.assertEqual(product.standard_price, 0.053)
         self.assertEqual(product.qty_available, 10000)
         self.assertEqual(product.total_value, 500)
 

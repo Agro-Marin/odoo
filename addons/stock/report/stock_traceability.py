@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from markupsafe import Markup
 from odoo import _, api, models
 from odoo.tools import format_datetime

@@ -69,7 +69,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
             "partner_id": self.partner_a.id,
             "picking_type_id": dropship_picking_type.id,
             "dest_address_id": self.partner_b.id,
-            "order_line": [(0, 0, {
+            "line_ids": [(0, 0, {
                 'product_id': self.product_a.id,
                 'name': self.product_a.name,
                 'product_qty': 2.0,
@@ -77,7 +77,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                 'tax_ids': False,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         delivery = po.picking_ids
         delivery.button_validate()
@@ -171,7 +171,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
 
         sale_order = self.env['sale.order'].sudo().create({
             'partner_id': self.partner_a.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': final_product.id,
                 'route_ids': [Command.link(self.dropship_route.id)],
                 'product_uom_qty': 100,
@@ -179,7 +179,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         })
         sale_order.action_confirm()
         purchase_order = sale_order._get_purchase_orders()[0]
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         dropship_transfer = purchase_order.picking_ids[0]
         dropship_transfer.move_ids[0].quantity = 50
         dropship_transfer.with_context(cancel_backorder=False)._action_done()
@@ -259,7 +259,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
 
         sale_order = self.env['sale.order'].sudo().create({
             'partner_id': self.partner_b.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'price_unit': 900,
                 'product_id': kit_final_prod.id,
                 'route_ids': [Command.link(self.dropship_route.id)],
@@ -268,7 +268,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         })
         sale_order.action_confirm()
         purchase_order = sale_order._get_purchase_orders()[0]
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         dropship_transfer = purchase_order.picking_ids[0]
         dropship_transfer.button_validate()
 

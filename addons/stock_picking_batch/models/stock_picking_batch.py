@@ -253,7 +253,7 @@ class StockPickingBatch(models.Model):
         empty_pickings = pickings.filtered(has_no_quantity)
 
         # Run sanity_check as a batch and ignore the one in button_validate() since it is done here.
-        pickings._sanity_check(separate_pickings=False)
+        pickings._sanity_check()
         context = {
             'skip_sanity_check': True,   # Skip sanity_check in pickings button_validate()
             'pickings_to_detach': empty_waiting_pickings.ids,  # Remove 'waiting' pickings from the batch

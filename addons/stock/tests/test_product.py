@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
-
-# Author: Leonardo Pistone
-# Copyright 2015 Camptocamp SA
-
-from odoo.addons.stock.tests.common import TestStockCommon
 from odoo.exceptions import UserError
 from odoo.tests import Form
+
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestVirtualAvailable(TestStockCommon):
@@ -246,6 +242,102 @@ class TestVirtualAvailable(TestStockCommon):
         )
         self.assertEqual(product, result)
 
+    def test_search_qty_available_with_lot_owner_package_context(self):
+        """The quant-only fast path (`_search_qty_available_new`) must handle
+        `lot_id`/`owner_id`/`package_id` context keys. It used to call `.append()`
+        on a `Domain`, raising AttributeError as soon as any of them was set.
+        """
+        Product = self.env["product.product"]
+        owner = self.user_stock_user.partner_id
+
+        # owner_id: product_3 has a 10-unit quant owned by `owner`.
+        with_owner = Product.with_context(owner_id=owner.id).search(
+            [("qty_available", ">", 0)]
+        )
+        self.assertIn(self.product_3, with_owner)
+
+        # A different owner sees none of product_3's owned stock.
+        other_owner = self.env["res.partner"].create({"name": "Other owner"})
+        with_other_owner = Product.with_context(owner_id=other_owner.id).search(
+            [("qty_available", ">", 0), ("id", "in", self.product_3.ids)]
+        )
+        self.assertFalse(with_other_owner)
+
+        # lot_id / package_id must not raise either (no matching stock -> empty).
+        self.assertFalse(
+            Product.with_context(lot_id=1).search(
+                [("qty_available", ">", 0), ("id", "in", self.product_3.ids)]
+            )
+        )
+        self.assertFalse(
+            Product.with_context(package_id=1).search(
+                [("qty_available", ">", 0), ("id", "in", self.product_3.ids)]
+            )
+        )
+
+    def test_search_qty_available_unsupported_operator(self):
+        """An operator the quant-only path can't evaluate (e.g. `ilike`) must fall
+        back to the move-aware search instead of leaking `NotImplemented`.
+        """
+        # Should not raise "NotImplemented should not be used in a boolean context".
+        self.env["product.product"].search([("qty_available", "ilike", "3")])
+
+    def test_search_qty_available_includes_zero_non_storable(self):
+        """A `qty_available` search must include non-storable and service products
+        whose on-hand is 0 whenever 0 satisfies the operator — matching the field's
+        own (`filtered_domain`) semantics and the dated-search path. Regression: the
+        quant-only fast path restricted its zero-set to `is_storable` products, so
+        these were silently dropped.
+        """
+        nonstore = self.env["product.product"].create(
+            {"name": "Zero nonstore", "type": "consu", "is_storable": False}
+        )
+        service = self.env["product.product"].create(
+            {"name": "Zero service", "type": "service"}
+        )
+        both = nonstore + service
+        for op, val in [("=", 0.0), ("<=", 0.0), (">=", 0.0), ("<", 1.0), ("!=", 5.0)]:
+            found = self.env["product.product"].search(
+                ["&", ("id", "in", both.ids), ("qty_available", op, val)]
+            )
+            self.assertEqual(
+                set(found.ids),
+                set(both.ids),
+                f"qty_available {op} {val} should include zero-on-hand products",
+            )
+
+    def test_search_product_quantity_candidate_set(self):
+        """The forecast/free-quantity searches compute the field only for products with
+        quants or moves and treat every other product as 0. Results must still match the
+        field's own semantics: stocked products matched by value, unstocked products
+        (value 0) matched only when 0 satisfies the operator.
+        """
+        Product = self.env["product.product"]
+        stocked = Product.create({"name": "SPQ stocked", "is_storable": True})
+        self.env["stock.quant"].create(
+            {
+                "product_id": stocked.id,
+                "location_id": self.stock_location.id,
+                "quantity": 15,
+            }
+        )
+        empty = Product.create({"name": "SPQ empty", "is_storable": True})
+        service = Product.create({"name": "SPQ service", "type": "service"})
+        scope = (stocked + empty + service).ids
+        for field in ("virtual_available", "free_qty"):
+            positive = Product.search(
+                ["&", ("id", "in", scope), (field, ">", 0)]
+            )
+            self.assertEqual(
+                positive, stocked, f"{field} > 0 should match only the stocked product"
+            )
+            zero = Product.search(["&", ("id", "in", scope), (field, "<=", 0)])
+            self.assertEqual(
+                set(zero.ids),
+                {empty.id, service.id},
+                f"{field} <= 0 should match every product with no stock",
+            )
+
     def test_search_product_template(self):
         """
         Suppose a variant V01 that can not be deleted because it is used by a
@@ -476,3 +568,100 @@ class TestVirtualAvailable(TestStockCommon):
         with Form(product) as product_form:
             product_form.qty_available = 0.0
         self.assertEqual(product.qty_available, 0.0)
+
+    def test_template_qty_available_location_context(self):
+        """A template's quantity fields aggregate its variants', so they must be
+        cached against the same context keys. Regression: the template compute only
+        declared ``warehouse_id``, so reading ``qty_available`` under one location
+        returned the value cached under a previously-read location."""
+        template = self.env["product.template"].create(
+            {"name": "Ctx Template", "type": "consu", "is_storable": True}
+        )
+        product = template.product_variant_id
+        sub_location = self.env["stock.location"].create(
+            {"name": "Ctx Sub", "location_id": self.stock_location.id}
+        )
+        quant = self.env["stock.quant"]
+        quant._update_available_quantity(product, self.stock_location, 7)
+        quant._update_available_quantity(product, sub_location, 3)
+        self.env.invalidate_all()
+
+        # Read the parent location first: under the bug it poisons the cache so the
+        # child-location read below returns 10 instead of 3.
+        self.assertEqual(
+            template.with_context(location=self.stock_location.id).qty_available,
+            10.0,
+        )
+        self.assertEqual(
+            template.with_context(location=sub_location.id).qty_available,
+            3.0,
+            "template qty_available must be recomputed per location context",
+        )
+
+    def test_copy_multiple_templates_sharing_attribute_value(self):
+        """Copying several templates in one call must keep each template's variants
+        separate even when they share an attribute value. Regression: a global
+        attribute-value map grafted storage-category capacities onto the wrong copy
+        and crashed on the (product, category) uniqueness constraint."""
+        attribute = self.env["product.attribute"].create({"name": "Ctx Color"})
+        red, blue = self.env["product.attribute.value"].create(
+            [
+                {"name": "Ctx Red", "attribute_id": attribute.id},
+                {"name": "Ctx Blue", "attribute_id": attribute.id},
+            ]
+        )
+        category = self.env["stock.storage.category"].create({"name": "Ctx Cat"})
+
+        def make(name):
+            return self.env["product.template"].create(
+                {
+                    "name": name,
+                    "type": "consu",
+                    "is_storable": True,
+                    "attribute_line_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "attribute_id": attribute.id,
+                                "value_ids": [(6, 0, (red + blue).ids)],
+                            },
+                        )
+                    ],
+                }
+            )
+
+        template_a = make("Ctx A")
+        template_b = make("Ctx B")
+
+        def red_variant(template):
+            return template.product_variant_ids.filtered(
+                lambda v: (
+                    red
+                    in v.product_template_attribute_value_ids.product_attribute_value_id
+                )
+            )
+
+        self.env["stock.storage.category.capacity"].create(
+            [
+                {
+                    "product_id": red_variant(template_a).id,
+                    "storage_category_id": category.id,
+                    "quantity": 111,
+                },
+                {
+                    "product_id": red_variant(template_b).id,
+                    "storage_category_id": category.id,
+                    "quantity": 222,
+                },
+            ]
+        )
+
+        copy_a, copy_b = (template_a + template_b).copy()
+
+        self.assertEqual(
+            red_variant(copy_a).storage_category_capacity_ids.quantity, 111.0
+        )
+        self.assertEqual(
+            red_variant(copy_b).storage_category_capacity_ids.quantity, 222.0
+        )

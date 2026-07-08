@@ -19,7 +19,7 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
         self.product_category.property_valuation = 'real_time'
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.finished.name,
                 'product_id': self.finished.id,
                 'product_uom_qty': 10,
@@ -27,7 +27,7 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
                 'price_unit': 10,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         mo = self.env['mrp.production'].search([('bom_id', '=', self.bom.id)])
         self.assertTrue(mo)
@@ -76,7 +76,7 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
 
         new_po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.finished.name,
                 'product_id': self.finished.id,
                 'product_uom_qty': 10,
@@ -92,11 +92,11 @@ class TestSubcontractingLandedCosts(TestMrpSubcontractingCommon):
             'categ_id': self.product_category.id,
         })
         with Form(new_po) as po_form:
-            with po_form.order_line.new() as new_line:
+            with po_form.line_ids.new() as new_line:
                 new_line.product_id = product
                 new_line.product_qty = 10
                 new_line.price_unit = 20
-        new_po.button_confirm()
+        new_po.action_confirm()
 
         new_mo = self.env['mrp.production'].search([('bom_id', '=', self.bom.id)])
         self.assertTrue(new_mo)

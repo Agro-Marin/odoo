@@ -43,6 +43,35 @@ class TestProcRule(TransactionCase):
         orderpoint = orderpoint_form.save()
         self.assertAlmostEqual(orderpoint.qty_to_order, orderpoint.product_max_qty)
 
+    def test_run_with_falsy_date_planned(self):
+        """`run` must tolerate a procurement carrying an explicit falsy
+        `date_planned`: it should fall back to now() instead of crashing in
+        `_get_stock_move_values` on `None - relativedelta(...)`.
+        """
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        self.product.is_storable = True
+        customer_loc = self.env.ref("stock.stock_location_customers")
+        Procurement = self.env["stock.rule"].Procurement
+        procurement = Procurement(
+            self.product,
+            10.0,
+            self.product.uom_id,
+            customer_loc,
+            "test_falsy_date_planned",
+            "test_falsy_date_planned",
+            warehouse.company_id,
+            {"warehouse_id": warehouse, "date_planned": False},
+        )
+        # Must not raise; previously this crashed with a TypeError.
+        self.env["stock.rule"].run([procurement])
+        move = self.env["stock.move"].search(
+            [("origin", "=", "test_falsy_date_planned")], limit=1
+        )
+        self.assertTrue(move, "run() should have created the delivery move")
+        self.assertTrue(move.date, "the move must get a fallback scheduled date")
+
     def test_endless_loop_rules_from_location(self):
         """Creates and configure a rule the way, when trying to get rules from
         location, it goes in a state where the found rule tries to trigger another
@@ -226,6 +255,56 @@ class TestProcRule(TransactionCase):
             "(high_priority) should be selected.",
         )
 
+    def test_get_rule_multi_warehouse_chain_no_keyerror(self):
+        """A location chain spanning two warehouses must not make _get_rule raise.
+
+        When the destination location's hierarchy crosses into a second
+        warehouse, `_search_rule_for_warehouses` may return a (location, route)
+        group whose only key is the foreign warehouse (no warehouse-agnostic
+        entry). `_get_rule` must fall through to the parent-location search
+        instead of raising `KeyError(False)` on that group.
+        """
+        wh1 = self.env["stock.warehouse"].search([], limit=1)
+        wh2 = self.env["stock.warehouse"].create({"name": "WH Foreign", "code": "WHF"})
+        # Nest wh1's view under wh2's view so wh1's stock chain reaches into wh2:
+        # locations.warehouse_id then contains both warehouses.
+        wh1.view_location_id.location_id = wh2.view_location_id.id
+
+        product = self.env["product.product"].create(
+            {"name": "Cross-WH Product", "is_storable": True}
+        )
+        route = self.env["stock.route"].create(
+            {"name": "Cross-WH Route", "product_selectable": True}
+        )
+        product.route_ids = [Command.link(route.id)]
+        # A rule delivering into wh1's stock but tagged with the *foreign*
+        # warehouse, and no warehouse-agnostic rule for this (location, route).
+        foreign_rule = self.env["stock.rule"].create(
+            {
+                "name": "Foreign-WH rule",
+                "action": "pull",
+                "location_src_id": wh1.lot_stock_id.id,
+                "location_dest_id": wh1.lot_stock_id.id,
+                "route_id": route.id,
+                "warehouse_id": wh2.id,
+                "picking_type_id": wh1.int_type_id.id,
+                "procure_method": "make_to_stock",
+            }
+        )
+
+        # Pre-fix, resolving the foreign-warehouse group raised KeyError(False).
+        # Post-fix it must fall through gracefully: return a stock.rule recordset
+        # and never the foreign-warehouse rule, which does not apply to wh1.
+        rule = self.env["stock.rule"]._get_rule(
+            product, wh1.lot_stock_id, {"route_ids": route}
+        )
+        self.assertEqual(rule._name, "stock.rule")
+        self.assertNotEqual(
+            rule,
+            foreign_rule,
+            "The foreign-warehouse rule must not be selected for wh1.",
+        )
+
     def test_propagate_deadline_move(self):
         deadline = datetime.now()
         move_dest = self.env["stock.move"].create(
@@ -286,21 +365,23 @@ class TestProcRule(TransactionCase):
         orderpoint_form.product_max_qty = 5.0
         orderpoint = orderpoint_form.save()
 
-        # get auto-created pull rule from when warehouse is created
+        # Reuse the reception route's supplier pull rule (auto-created with the
+        # warehouse). When another module (e.g. mrp/purchase) turns the reception
+        # route into a receive-only route, that pull rule is absent, so create it
+        # here to keep this test independent of which modules are co-installed.
+        rule_vals = {
+            "route_id": warehouse.reception_route_id.id,
+            "location_dest_id": warehouse.lot_stock_id.id,
+            "location_src_id": self.env.ref("stock.stock_location_suppliers").id,
+            "action": "pull",
+            "procure_method": "make_to_stock",
+            "picking_type_id": warehouse.in_type_id.id,
+        }
         rule = self.env["stock.rule"].search(
-            [
-                ("route_id", "=", warehouse.reception_route_id.id),
-                ("location_dest_id", "=", warehouse.lot_stock_id.id),
-                (
-                    "location_src_id",
-                    "=",
-                    self.env.ref("stock.stock_location_suppliers").id,
-                ),
-                ("action", "=", "pull"),
-                ("procure_method", "=", "make_to_stock"),
-                ("picking_type_id", "=", warehouse.in_type_id.id),
-            ]
+            [(field, "=", value) for field, value in rule_vals.items()]
         )
+        if not rule:
+            rule = self.env["stock.rule"].create({**rule_vals, "name": "Rule Supplier"})
 
         # add a delay [i.e. lead days] so procurement will be triggered based on forecasted stock
         rule.delay = 9.0

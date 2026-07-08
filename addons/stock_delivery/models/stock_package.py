@@ -12,7 +12,7 @@ class StockPackage(models.Model):
         for package in self:
             package.weight = packages_weight[package]
 
-    def _get_default_weight_uom(self):
+    def _default_weight_uom(self):
         return self.env['product.template']._get_weight_uom_name_from_ir_config_parameter()
 
     def _compute_weight_uom_name(self):
@@ -27,7 +27,7 @@ class StockPackage(models.Model):
         self.weight_uom_rounding = uom_id.rounding
 
     weight = fields.Float(compute='_compute_weight', digits='Stock Weight', help="Total weight of all the products contained in the package.")
-    weight_uom_name = fields.Char(string='Weight unit of measure label', compute='_compute_weight_uom_name', readonly=True, default=_get_default_weight_uom)
+    weight_uom_name = fields.Char(string='Weight unit of measure label', compute='_compute_weight_uom_name', readonly=True, default=_default_weight_uom)
     weight_is_kg = fields.Boolean("Technical field indicating whether weight uom is kg or not (i.e. lb)", compute="_compute_weight_is_kg")
     weight_uom_rounding = fields.Float("Technical field indicating weight's number of decimal places", compute="_compute_weight_is_kg")
     package_carrier_type = fields.Selection(related='package_type_id.package_carrier_type')

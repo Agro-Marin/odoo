@@ -497,7 +497,14 @@ class ProductProduct(models.Model):
 
             first_move = product_moves[0]
             quantity = quantity_by_product_id.get(product.id, 0)
-            average_cost = std_price_by_product_id.get(product.id, first_move.value / first_move._get_valued_qty() if first_move._get_valued_qty() else 0)
+            first_move_qty = first_move._get_valued_qty()
+            # For a valuation at date, a move must count for the value it had
+            # at that date (bills/rates that arrived later are excluded by
+            # `_get_value`), not for its current stored value.
+            first_move_value = (
+                first_move._get_value(at_date=at_date) if at_date else first_move.value
+            )
+            average_cost = std_price_by_product_id.get(product.id, first_move_value / first_move_qty if first_move_qty else 0)
             value = value_by_product_id.get(product.id, 0)
 
             for moves_batch in split_every(batch_size, product_moves.ids):
@@ -507,9 +514,13 @@ class ProductProduct(models.Model):
                 for move in moves_batch:
                     if move.is_in or move.is_dropship:
                         in_qty = move._get_valued_qty()
-                        in_value = move.value
+                        in_value = (
+                            move._get_value(at_date=at_date) if at_date else move.value
+                        )
                         if move.is_dropship:
-                            in_value = move._get_value(forced_std_price=average_cost)
+                            in_value = move._get_value(
+                                forced_std_price=average_cost, at_date=at_date
+                            )
                         if lot:
                             lot_qty = move._get_valued_qty(lot)
                             in_value = (in_value * lot_qty / in_qty) if in_qty else 0
@@ -574,7 +585,9 @@ class ProductProduct(models.Model):
         while quantity > 0 and fifo_stack:
             move = fifo_stack.pop(0)
             last_move = move
-            move_value = move.value
+            # At a date, value the move as it was known then (later bills or
+            # rates are excluded by `_get_value`), not at its current value.
+            move_value = move._get_value(at_date=at_date) if at_date else move.value
             if qty_on_first_move:
                 valued_qty = move._get_valued_qty()
                 in_qty = qty_on_first_move
@@ -591,7 +604,10 @@ class ProductProduct(models.Model):
         # When we required more quantity than available we extrapolate with the last known price
         if quantity > 0:
             if last_move and last_move.quantity:
-                fifo_cost += quantity * (last_move.value / last_move.quantity)
+                last_move_value = (
+                    last_move._get_value(at_date=at_date) if at_date else last_move.value
+                )
+                fifo_cost += quantity * (last_move_value / last_move.quantity)
             else:
                 fifo_cost += quantity * self.standard_price
         return fifo_cost

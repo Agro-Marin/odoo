@@ -1,9 +1,10 @@
 from collections import defaultdict
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
-from odoo.fields import Domain
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 
 
 class ResCompany(models.Model):
@@ -362,10 +363,14 @@ class ResCompany(models.Model):
             ids = ids[1:]
         self.env['ir.config_parameter'].sudo().set_param(key, ','.join(ids))
 
-    def _set_category_defaults(self):
-        super()._set_category_defaults()
+    def _set_category_defaults(self, changed_fields=None):
+        super()._set_category_defaults(changed_fields)
         for company in self:
-            self.env['ir.default'].set('product.category', 'property_valuation', company.inventory_valuation, company_id=company.id)
-            self.env['ir.default'].set('product.category', 'property_cost_method', company.cost_method, company_id=company.id)
-            self.env['ir.default'].set('product.category', 'property_stock_journal', company.account_stock_journal_id.id, company_id=company.id)
-            self.env['ir.default'].set('product.category', 'property_stock_valuation_account_id', company.account_stock_valuation_id.id, company_id=company.id)
+            if changed_fields is None or 'inventory_valuation' in changed_fields:
+                self.env['ir.default'].set('product.category', 'property_valuation', company.inventory_valuation, company_id=company.id)
+            if changed_fields is None or 'cost_method' in changed_fields:
+                self.env['ir.default'].set('product.category', 'property_cost_method', company.cost_method, company_id=company.id)
+            if changed_fields is None or 'account_stock_journal_id' in changed_fields:
+                self.env['ir.default'].set('product.category', 'property_stock_journal', company.account_stock_journal_id.id, company_id=company.id)
+            if changed_fields is None or 'account_stock_valuation_id' in changed_fields:
+                self.env['ir.default'].set('product.category', 'property_stock_valuation_account_id', company.account_stock_valuation_id.id, company_id=company.id)

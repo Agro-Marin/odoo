@@ -29,6 +29,10 @@ PY_OPERATORS = {
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
     stock_quant_ids = fields.One2many(
         comodel_name="stock.quant",
         inverse_name="product_id",
@@ -123,27 +127,27 @@ class ProductProduct(models.Model):
         inverse_name="product_id",
         string="Minimum Stock Rules",
     )
-    nbr_moves_in = fields.Integer(
-        compute="_compute_nbr_moves",
+    count_moves_in = fields.Integer(
+        compute="_compute_count_moves",
         compute_sudo=False,
         help="Number of incoming stock moves in the past 12 months",
     )
-    nbr_moves_out = fields.Integer(
-        compute="_compute_nbr_moves",
+    count_moves_out = fields.Integer(
+        compute="_compute_count_moves",
         compute_sudo=False,
         help="Number of outgoing stock moves in the past 12 months",
     )
-    nbr_reordering_rules = fields.Integer(
+    count_reordering_rules = fields.Integer(
         string="Reordering Rules",
-        compute="_compute_nbr_reordering_rules",
+        compute="_compute_count_reordering_rules",
         compute_sudo=False,
     )
-    reordering_min_qty = fields.Float(
-        compute="_compute_nbr_reordering_rules",
+    reordering_qty_min = fields.Float(
+        compute="_compute_count_reordering_rules",
         compute_sudo=False,
     )
-    reordering_max_qty = fields.Float(
-        compute="_compute_nbr_reordering_rules",
+    reordering_qty_max = fields.Float(
+        compute="_compute_count_reordering_rules",
         compute_sudo=False,
     )
     putaway_rule_ids = fields.One2many(
@@ -180,6 +184,10 @@ class ProductProduct(models.Model):
         string="Lots Count",
     )
 
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
+
     def write(self, vals):
         if "active" in vals:
             self.filtered(lambda p: p.active != vals["active"]).with_context(
@@ -211,38 +219,89 @@ class ProductProduct(models.Model):
         )
         if context_location and isinstance(context_location, int):
             location = self.env["stock.location"].browse(context_location)
-            if location.usage == "supplier":
-                if res.get("virtual_available"):
-                    res["virtual_available"]["string"] = _("Future Receipts")
-                if res.get("qty_available"):
-                    res["qty_available"]["string"] = _("Received Qty")
-            elif location.usage == "internal":
-                if res.get("virtual_available"):
-                    res["virtual_available"]["string"] = _("Forecasted Quantity")
-            elif location.usage == "customer":
-                if res.get("virtual_available"):
-                    res["virtual_available"]["string"] = _("Future Deliveries")
-                if res.get("qty_available"):
-                    res["qty_available"]["string"] = _("Delivered Qty")
-            elif location.usage == "inventory":
-                if res.get("virtual_available"):
-                    res["virtual_available"]["string"] = _("Future P&L")
-                if res.get("qty_available"):
-                    res["qty_available"]["string"] = _("P&L Qty")
-            elif location.usage == "production":
-                if res.get("virtual_available"):
-                    res["virtual_available"]["string"] = _("Future Productions")
-                if res.get("qty_available"):
-                    res["qty_available"]["string"] = _("Produced Qty")
+            # Relabel the on-hand/forecast fields to match what they mean at a location
+            # of the given usage (e.g. at a supplier location, on-hand is "Received Qty").
+            relabels = {
+                "supplier": {
+                    "virtual_available": _("Future Receipts"),
+                    "qty_available": _("Received Qty"),
+                },
+                "internal": {
+                    "virtual_available": _("Forecasted Quantity"),
+                },
+                "customer": {
+                    "virtual_available": _("Future Deliveries"),
+                    "qty_available": _("Delivered Qty"),
+                },
+                "inventory": {
+                    "virtual_available": _("Future P&L"),
+                    "qty_available": _("P&L Qty"),
+                },
+                "production": {
+                    "virtual_available": _("Future Productions"),
+                    "qty_available": _("Produced Qty"),
+                },
+            }
+            for field_name, label in relabels.get(location.usage, {}).items():
+                if res.get(field_name):
+                    res[field_name]["string"] = label
         return res
 
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
     def _compute_count_lot_ids(self):
-        for product in self:
-            product.count_lot_ids = product.env["stock.lot"].search_count(
-                [
-                    ("product_id", "in", product.ids),
-                ],
+        counts = dict(
+            self.env["stock.lot"]._read_group(
+                [("product_id", "in", self.ids)],
+                ["product_id"],
+                ["__count"],
             )
+        )
+        for product in self:
+            product.count_lot_ids = counts.get(product._origin, 0)
+
+    def _compute_count_moves(self):
+        # `picking_code` is a non-stored related field, usable in a domain but not as a
+        # `_read_group` groupby, so incoming/outgoing need separate grouped reads. They
+        # still share a single "now" reference for a consistent 12-month window.
+        one_year_ago = fields.Datetime.now() - relativedelta(years=1)
+
+        def _counts_by_product(picking_code):
+            return dict(
+                self.env["stock.move.line"]._read_group(
+                    [
+                        ("product_id", "in", self.ids),
+                        ("state", "=", "done"),
+                        ("picking_code", "=", picking_code),
+                        ("date", ">=", one_year_ago),
+                    ],
+                    ["product_id"],
+                    ["__count"],
+                )
+            )
+
+        res_incoming = _counts_by_product("incoming")
+        res_outgoing = _counts_by_product("outgoing")
+        for product in self:
+            product.count_moves_in = res_incoming.get(product._origin, 0)
+            product.count_moves_out = res_outgoing.get(product._origin, 0)
+
+    def _compute_count_reordering_rules(self):
+        read_group_res = self.env["stock.warehouse.orderpoint"]._read_group(
+            [("product_id", "in", self.ids)],
+            ["product_id"],
+            ["__count", "product_min_qty:sum", "product_max_qty:sum"],
+        )
+        mapped_res = {product: aggregates for product, *aggregates in read_group_res}
+        for product in self:
+            count, product_min_qty_sum, product_max_qty_sum = mapped_res.get(
+                product._origin, (0, 0, 0)
+            )
+            product.count_reordering_rules = count
+            product.reordering_qty_min = product_min_qty_sum
+            product.reordering_qty_max = product_max_qty_sum
 
     @api.depends("product_tmpl_id")
     def _compute_show_qty_status_button(self):
@@ -309,6 +368,316 @@ class ProductProduct(models.Model):
                 {key: val for key, val in res[product.id].items() if val}
             )
 
+    # ------------------------------------------------------------
+    # INVERSE METHODS
+    # ------------------------------------------------------------
+
+    def _inverse_qty_available(self):
+        """Allow manually adjusting qty_available from the product form by applying an
+        inventory adjustment at the default warehouse; skipped when the write comes from
+        _compute_quantities itself.
+        """
+        if self.env.context.get("skip_qty_available_update", False):
+            return
+        # The target warehouse only depends on the current company, so resolve it once
+        # instead of searching per product.
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)],
+            limit=1,
+        )
+        for product in self:
+            if (
+                product.type == "consu"
+                and product.is_storable
+                and float_compare(
+                    product.qty_available,
+                    0.0,
+                    precision_rounding=product.uom_id.rounding,
+                )
+                >= 0
+            ):
+                self.env["stock.quant"].with_context(
+                    inventory_mode=True, from_inverse_qty=True
+                ).create(
+                    {
+                        "product_id": product.id,
+                        "location_id": warehouse.lot_stock_id.id,
+                        "inventory_quantity": product.qty_available,
+                    }
+                )._apply_inventory()
+
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
+
+    def _search_qty_available(self, operator, value):
+        # Without a date range, qty_available only depends on quants, not moves, so we can
+        # bypass '_search_product_quantity' and use the quant-only '_search_qty_available_new'
+        # for better performance.
+        if not ({"from_date", "to_date"} & self.env.context.keys()):
+            product_ids = self._search_qty_available_new(
+                operator,
+                value,
+                self.env.context.get("lot_id"),
+                self.env.context.get("owner_id"),
+                self.env.context.get("package_id"),
+            )
+            # `_search_qty_available_new` returns NotImplemented for operators it can't
+            # handle on quants alone (e.g. `like`); fall back to the move-aware path.
+            if product_ids is not NotImplemented:
+                return [("id", "in", product_ids)]
+        return self._search_product_quantity(operator, value, "qty_available")
+
+    def _search_virtual_available(self, operator, value):
+        # TDE FIXME: should probably clean the search methods
+        return self._search_product_quantity(operator, value, "virtual_available")
+
+    def _search_incoming_qty(self, operator, value):
+        # TDE FIXME: should probably clean the search methods
+        return self._search_product_quantity(operator, value, "incoming_qty")
+
+    def _search_outgoing_qty(self, operator, value):
+        # TDE FIXME: should probably clean the search methods
+        return self._search_product_quantity(operator, value, "outgoing_qty")
+
+    def _search_free_qty(self, operator, value):
+        return self._search_product_quantity(operator, value, "free_qty")
+
+    def _search_product_quantity(self, operator, value, field):
+        op = PY_OPERATORS.get(operator)
+        if op is None:
+            # Operators the candidate-set path can't evaluate (e.g. `like`): fall back to
+            # computing the field for every product and filtering in memory. Order on `id`
+            # to avoid the default (name) order, which slows the underlying search down.
+            ids = (
+                self.with_context(prefetch_fields=False)
+                .search_fetch([], [field], order="id")
+                .filtered_domain([(field, operator, value)])
+                .ids
+            )
+            return [("id", "in", ids)]
+        # These quantities are 0 for any product without quants or moves (kits aside), so
+        # only the candidate set can hold a non-zero value. Compute the field for those
+        # candidates through the normal, override-aware compute, then treat every other
+        # product as 0 via the `not in` branch below — avoiding a whole-catalogue compute.
+        candidates = self._get_quantity_search_candidates()
+        vals_by_product = candidates.with_context(
+            prefetch_fields=False
+        )._prepare_quantities_vals(
+            self.env.context.get("lot_id"),
+            self.env.context.get("owner_id"),
+            self.env.context.get("package_id"),
+            self.env.context.get("from_date", False),
+            self.env.context.get("to_date", False),
+        )
+        matched = [
+            product_id
+            for product_id, vals in vals_by_product.items()
+            if op(vals[field], value)
+        ]
+        if op(0.0, value):
+            # Products outside the candidate set have a value of 0, so they match iff 0 does.
+            return ["|", ("id", "in", matched), ("id", "not in", candidates.ids)]
+        return [("id", "in", matched)]
+
+    def _search_qty_available_new(
+        self, operator, value, lot_id=False, owner_id=False, package_id=False
+    ):
+        """Optimized method which doesn't search on stock.moves, only on stock.quants."""
+        op = PY_OPERATORS.get(operator)
+        if not op:
+            return NotImplemented
+        if isinstance(value, Iterable) and not isinstance(value, str):
+            value = {float(v) for v in value}
+        else:
+            value = float(value)
+
+        product_ids = set()
+        domain_quant = self._get_domain_locations()[0]
+        if lot_id:
+            domain_quant &= Domain("lot_id", "=", lot_id)
+        if owner_id:
+            domain_quant &= Domain("owner_id", "=", owner_id)
+        if package_id:
+            domain_quant &= Domain("package_id", "=", package_id)
+        quants_groupby = self.env["stock.quant"]._read_group(
+            domain_quant, ["product_id"], ["quantity:sum"]
+        )
+
+        # Products with no quants at all are only relevant if 0 matches the search value.
+        include_zero = op(0.0, value)
+
+        processed_product_ids = set()
+        for product, quantity_sum in quants_groupby:
+            product_id = product.id
+            if include_zero:
+                processed_product_ids.add(product_id)
+            if op(quantity_sum, value):
+                product_ids.add(product_id)
+
+        if include_zero:
+            # A product absent from the quant groups has qty_available 0 in this domain,
+            # so it matches whenever 0 does — regardless of `is_storable`. Restricting to
+            # storable products here diverged from the field's own semantics
+            # (`filtered_domain`) and from the dated qty_available search, dropping
+            # non-storable/service products that legitimately have 0 on hand.
+            products_without_quants_in_domain = self.env["product.product"].search(
+                [("id", "not in", list(processed_product_ids))],
+                order="id",
+            )
+            product_ids |= set(products_without_quants_in_domain.ids)
+        return list(product_ids)
+
+    # ------------------------------------------------------------
+    # ONCHANGE METHODS
+    # ------------------------------------------------------------
+
+    @api.onchange("tracking")
+    def _onchange_tracking(self):
+        if any(
+            product.tracking != "none" and product.qty_available > 0 for product in self
+        ):
+            return {
+                "warning": {
+                    "title": _("Warning!"),
+                    "message": _(
+                        "You have product(s) in stock that have no lot/serial number. You can assign lot/serial numbers by doing an inventory adjustment."
+                    ),
+                }
+            }
+
+    # ------------------------------------------------------------
+    # ACTION METHODS
+    # ------------------------------------------------------------
+
+    def action_view_orderpoints(self):
+        action = self.env["ir.actions.actions"]._for_xml_id("stock.action_orderpoint")
+        action["context"] = literal_eval(action.get("context"))
+        action["context"].pop("search_default_trigger", False)
+        action["context"].update(
+            {
+                "search_default_filter_not_snoozed": True,
+            },
+        )
+        if self and len(self) == 1:
+            action["context"].update(
+                {
+                    "default_product_id": self.ids[0],
+                    "search_default_product_id": self.ids[0],
+                },
+            )
+        else:
+            action["domain"] = Domain(action.get("domain") or Domain.TRUE) & Domain(
+                "product_id", "in", self.ids
+            )
+        return action
+
+    def action_view_routes(self):
+        return self.mapped("product_tmpl_id").action_view_routes()
+
+    def action_view_stock_move_lines(self):
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._for_xml_id(
+            "stock.stock_move_line_action"
+        )
+        action["domain"] = [("product_id", "=", self.id)]
+        return action
+
+    def action_view_related_putaway_rules(self):
+        self.ensure_one()
+        domain = [
+            "|",
+            ("product_id", "=", self.id),
+            ("category_id", "=", self.product_tmpl_id.categ_id.id),
+        ]
+        return self.env["product.template"]._get_action_view_related_putaway_rules(
+            domain
+        )
+
+    def action_view_storage_category_capacity(self):
+        action = self.env["ir.actions.actions"]._for_xml_id(
+            "stock.action_stock_storage_category_capacity"
+        )
+        action["context"] = {
+            "hide_package_type": True,
+        }
+        if len(self) == 1:
+            action["context"].update(
+                {
+                    "default_product_id": self.id,
+                },
+            )
+        action["domain"] = [("product_id", "in", self.ids)]
+        return action
+
+    def action_view_product_lot(self):
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._for_xml_id(
+            "stock.action_stock_lot_form_2"
+        )
+        action["domain"] = [
+            ("product_id", "=", self.id),
+            "|",
+            ("location_id", "=", False),
+            (
+                "location_id",
+                "any",
+                self.env["stock.location"]._check_company_domain(
+                    self.env.context["allowed_company_ids"]
+                ),
+            ),
+        ]
+        action["context"] = {
+            "default_product_id": self.id,
+            "set_product_readonly": True,
+            "search_default_group_by_location": True,
+        }
+        return action
+
+    # Be aware that the exact same function exists in product.template
+    def action_view_quants(self):
+        hide_location = not self.env.user.has_group("stock.group_stock_multi_locations")
+        hide_lot = all(product.tracking == "none" for product in self)
+        self = self.with_context(
+            hide_location=hide_location,
+            hide_lot=hide_lot,
+            no_at_date=True,
+        )
+
+        # inventory_mode makes the quant view editable, reserved to stock managers.
+        if self.env.user.has_group("stock.group_stock_manager"):
+            self = self.with_context(inventory_mode=True)
+            if not self.env.user.has_group("stock.group_stock_multi_locations"):
+                user_company = self.env.company
+                warehouse = self.env["stock.warehouse"].search(
+                    [("company_id", "=", user_company.id)], limit=1
+                )
+                if warehouse:
+                    self = self.with_context(
+                        default_location_id=warehouse.lot_stock_id.id
+                    )
+        if len(self) == 1:
+            self = self.with_context(default_product_id=self.id, single_product=True)
+        else:
+            self = self.with_context(product_tmpl_ids=self.product_tmpl_id.ids)
+        action = self.env["stock.quant"].action_view_quants()
+        # note that this action is used by different views w/varying customizations
+        if not self.env.context.get("is_stock_report"):
+            action["domain"] = [("product_id", "in", self.ids)]
+            action["name"] = _("Update Quantity")
+        return action
+
+    def action_product_forecast_report(self):
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._for_xml_id(
+            "stock.stock_forecasted_product_product_action"
+        )
+        return action
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
+
     def _prepare_quantities_vals(
         self,
         lot_id,
@@ -327,9 +696,10 @@ class ProductProduct(models.Model):
         # for which qty_available is reconstructed; from_date is just a range filter.
         original_value = to_date
         to_date = fields.Datetime.to_datetime(to_date)
-        if (isinstance(original_value, date) and not isinstance(original_value, datetime)) or (
-            isinstance(original_value, str) and len(original_value) == 10
-        ):
+        if (
+            isinstance(original_value, date)
+            and not isinstance(original_value, datetime)
+        ) or (isinstance(original_value, str) and len(original_value) == 10):
             to_date = datetime.combine(to_date.date(), time.max)
         if to_date and to_date < fields.Datetime.now():
             dates_in_the_past = True
@@ -404,7 +774,8 @@ class ProductProduct(models.Model):
         if self.env.context.get("with_expiration"):
             max_date = (
                 self.env.context["to_date"]
-                if self.env.context.get("to_date") and self.env.context.get("fresh_qty_forecast")
+                if self.env.context.get("to_date")
+                and self.env.context.get("fresh_qty_forecast")
                 else self.env.context["with_expiration"]
             )
             domain_quant &= Domain([("removal_date", "<=", max_date)])
@@ -476,15 +847,15 @@ class ProductProduct(models.Model):
                 )
                 continue
             res[product_id] = {}
+            quantity, reserved_quantity = quants_res.get(origin_product_id, (0.0, 0.0))
             if dates_in_the_past:
                 qty_available = (
-                    quants_res.get(origin_product_id, [0.0])[0]
+                    quantity
                     - moves_in_res_past.get(origin_product_id, 0.0)
                     + moves_out_res_past.get(origin_product_id, 0.0)
                 )
             else:
-                qty_available = quants_res.get(origin_product_id, [0.0])[0]
-            reserved_quantity = quants_res.get(origin_product_id, [False, 0.0])[1]
+                qty_available = quantity
             expired_unreserved_qty = expired_unreserved_quants_res.get(
                 origin_product_id,
                 0.0,
@@ -508,304 +879,31 @@ class ProductProduct(models.Model):
 
         return res
 
-    def _compute_nbr_moves(self):
-        incoming_moves = self.env["stock.move.line"]._read_group(
-            [
-                ("product_id", "in", self.ids),
-                ("state", "=", "done"),
-                ("picking_code", "=", "incoming"),
-                ("date", ">=", fields.Datetime.now() - relativedelta(years=1)),
-            ],
-            ["product_id"],
-            ["__count"],
-        )
-        outgoing_moves = self.env["stock.move.line"]._read_group(
-            [
-                ("product_id", "in", self.ids),
-                ("state", "=", "done"),
-                ("picking_code", "=", "outgoing"),
-                ("date", ">=", fields.Datetime.now() - relativedelta(years=1)),
-            ],
-            ["product_id"],
-            ["__count"],
-        )
-        res_incoming = {product.id: count for product, count in incoming_moves}
-        res_outgoing = {product.id: count for product, count in outgoing_moves}
-        for product in self:
-            product.nbr_moves_in = res_incoming.get(product.id, 0)
-            product.nbr_moves_out = res_outgoing.get(product.id, 0)
+    def _get_quantity_search_candidates(self):
+        """Products whose on-hand/forecast quantity fields can be non-zero: those with
+        quants or moves in the relevant locations.
 
-    def _compute_nbr_reordering_rules(self):
-        read_group_res = self.env["stock.warehouse.orderpoint"]._read_group(
-            [("product_id", "in", self.ids)],
-            ["product_id"],
-            ["__count", "product_min_qty:sum", "product_max_qty:sum"],
-        )
-        mapped_res = {product: aggregates for product, *aggregates in read_group_res}
-        for product in self:
-            count, product_min_qty_sum, product_max_qty_sum = mapped_res.get(
-                product._origin, (0, 0, 0)
-            )
-            product.nbr_reordering_rules = count
-            product.reordering_min_qty = product_min_qty_sum
-            product.reordering_max_qty = product_max_qty_sum
-
-    def _inverse_qty_available(self):
-        """Allow manually adjusting qty_available from the product form by applying an
-        inventory adjustment at the default warehouse; skipped when the write comes from
-        _compute_quantities itself.
+        A superset is safe — extra products simply compute to 0 and are filtered out —
+        but a subset would wrongly drop matches, so any override that lets a product be
+        non-zero without its own quants/moves (e.g. mrp phantom-BoM kits, whose quantity
+        comes from their components) MUST extend this set.
         """
-        if self.env.context.get("skip_qty_available_update", False):
-            return
-        for product in self:
-            if (
-                product.type == "consu"
-                and product.is_storable
-                and float_compare(
-                    product.qty_available,
-                    0.0,
-                    precision_rounding=product.uom_id.rounding,
-                )
-                >= 0
-            ):
-                warehouse = self.env["stock.warehouse"].search(
-                    [("company_id", "=", self.env.company.id)],
-                    limit=1,
-                )
-                self.env["stock.quant"].with_context(
-                    inventory_mode=True, from_inverse_qty=True
-                ).create(
-                    {
-                        "product_id": product.id,
-                        "location_id": warehouse.lot_stock_id.id,
-                        "inventory_quantity": product.qty_available,
-                    }
-                )._apply_inventory()
-
-    def _search_qty_available(self, operator, value):
-        # Without a date range, qty_available only depends on quants, not moves, so we can
-        # bypass '_search_product_quantity' and use the quant-only '_search_qty_available_new'
-        # for better performance.
-        if not ({"from_date", "to_date"} & set(self.env.context.keys())):
-            product_ids = self._search_qty_available_new(
-                operator,
-                value,
-                self.env.context.get("lot_id"),
-                self.env.context.get("owner_id"),
-                self.env.context.get("package_id"),
-            )
-            return [("id", "in", product_ids)]
-        return self._search_product_quantity(operator, value, "qty_available")
-
-    def _search_virtual_available(self, operator, value):
-        # TDE FIXME: should probably clean the search methods
-        return self._search_product_quantity(operator, value, "virtual_available")
-
-    def _search_incoming_qty(self, operator, value):
-        # TDE FIXME: should probably clean the search methods
-        return self._search_product_quantity(operator, value, "incoming_qty")
-
-    def _search_outgoing_qty(self, operator, value):
-        # TDE FIXME: should probably clean the search methods
-        return self._search_product_quantity(operator, value, "outgoing_qty")
-
-    def _search_free_qty(self, operator, value):
-        return self._search_product_quantity(operator, value, "free_qty")
-
-    def _search_product_quantity(self, operator, value, field):
-        # Order the search on `id` to prevent the default order on the product name which slows
-        # down the search.
-        ids = (
-            self.with_context(prefetch_fields=False)
-            .search_fetch([], [field], order="id")
-            .filtered_domain([(field, operator, value)])
-            .ids
+        domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
+            self._get_domain_locations()
         )
-        return [("id", "in", ids)]
-
-    def _search_qty_available_new(
-        self, operator, value, lot_id=False, owner_id=False, package_id=False
-    ):
-        """Optimized method which doesn't search on stock.moves, only on stock.quants."""
-        op = PY_OPERATORS.get(operator)
-        if not op:
-            return NotImplemented
-        if isinstance(value, Iterable) and not isinstance(value, str):
-            value = {float(v) for v in value}
-        else:
-            value = float(value)
-
-        product_ids = set()
-        domain_quant = self._get_domain_locations()[0]
-        if lot_id:
-            domain_quant.append(("lot_id", "=", lot_id))
-        if owner_id:
-            domain_quant.append(("owner_id", "=", owner_id))
-        if package_id:
-            domain_quant.append(("package_id", "=", package_id))
-        quants_groupby = self.env["stock.quant"]._read_group(
-            domain_quant, ["product_id"], ["quantity:sum"]
-        )
-
-        # Products with no quants at all are only relevant if 0 matches the search value.
-        include_zero = op(0.0, value)
-
-        processed_product_ids = set()
-        for product, quantity_sum in quants_groupby:
-            product_id = product.id
-            if include_zero:
-                processed_product_ids.add(product_id)
-            if op(quantity_sum, value):
-                product_ids.add(product_id)
-
-        if include_zero:
-            products_without_quants_in_domain = self.env["product.product"].search(
-                [
-                    ("is_storable", "=", True),
-                    ("id", "not in", list(processed_product_ids)),
-                ],
-                order="id",
-            )
-            product_ids |= set(products_without_quants_in_domain.ids)
-        return list(product_ids)
-
-    @api.onchange("tracking")
-    def _onchange_tracking(self):
-        if any(
-            product.tracking != "none" and product.qty_available > 0 for product in self
-        ):
-            return {
-                "warning": {
-                    "title": _("Warning!"),
-                    "message": _(
-                        "You have product(s) in stock that have no lot/serial number. You can assign lot/serial numbers by doing an inventory adjustment."
-                    ),
-                }
-            }
-
-    def action_view_orderpoints(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("stock.action_orderpoint")
-        action["context"] = literal_eval(action.get("context"))
-        action["context"].pop("search_default_trigger", False)
-        action["context"].update(
-            {
-                "search_default_filter_not_snoozed": True,
-            },
-        )
-        if self and len(self) == 1:
-            action["context"].update(
-                {
-                    "default_product_id": self.ids[0],
-                    "search_default_product_id": self.ids[0],
-                },
-            )
-        else:
-            action["domain"] = Domain(action.get("domain") or Domain.TRUE) & Domain(
-                "product_id", "in", self.ids
-            )
-        return action
-
-    def action_view_routes(self):
-        return self.mapped("product_tmpl_id").action_view_routes()
-
-    def action_view_stock_move_lines(self):
-        self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
-            "stock.stock_move_line_action"
-        )
-        action["domain"] = [("product_id", "=", self.id)]
-        return action
-
-    def action_view_related_putaway_rules(self):
-        self.ensure_one()
-        domain = [
-            "|",
-            ("product_id", "=", self.id),
-            ("category_id", "=", self.product_tmpl_id.categ_id.id),
-        ]
-        return self.env["product.template"]._get_action_view_related_putaway_rules(
-            domain
-        )
-
-    def action_view_storage_category_capacity(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
-            "stock.action_stock_storage_category_capacity"
-        )
-        action["context"] = {
-            "hide_package_type": True,
+        Quant = self.env["stock.quant"].with_context(active_test=False)
+        Move = self.env["stock.move"].with_context(active_test=False)
+        product_ids = {
+            product.id
+            for [product] in Quant._read_group(domain_quant_loc, ["product_id"])
         }
-        if len(self) == 1:
-            action["context"].update(
-                {
-                    "default_product_id": self.id,
-                },
+        product_ids |= {
+            product.id
+            for [product] in Move._read_group(
+                domain_move_in_loc | domain_move_out_loc, ["product_id"]
             )
-        action["domain"] = [("product_id", "in", self.ids)]
-        return action
-
-    def action_open_product_lot(self):
-        self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
-            "stock.action_stock_lot_form_2"
-        )
-        action["domain"] = [
-            ("product_id", "=", self.id),
-            "|",
-            ("location_id", "=", False),
-            (
-                "location_id",
-                "any",
-                self.env["stock.location"]._check_company_domain(
-                    self.env.context["allowed_company_ids"]
-                ),
-            ),
-        ]
-        action["context"] = {
-            "default_product_id": self.id,
-            "set_product_readonly": True,
-            "search_default_group_by_location": True,
         }
-        return action
-
-    # Be aware that the exact same function exists in product.template
-    def action_open_quants(self):
-        hide_location = not self.env.user.has_group("stock.group_stock_multi_locations")
-        hide_lot = all(product.tracking == "none" for product in self)
-        self = self.with_context(
-            hide_location=hide_location,
-            hide_lot=hide_lot,
-            no_at_date=True,
-        )
-
-        # inventory_mode makes the quant view editable, reserved to stock managers.
-        if self.env.user.has_group("stock.group_stock_manager"):
-            self = self.with_context(inventory_mode=True)
-            if not self.env.user.has_group("stock.group_stock_multi_locations"):
-                user_company = self.env.company
-                warehouse = self.env["stock.warehouse"].search(
-                    [("company_id", "=", user_company.id)], limit=1
-                )
-                if warehouse:
-                    self = self.with_context(
-                        default_location_id=warehouse.lot_stock_id.id
-                    )
-        if len(self) == 1:
-            self = self.with_context(default_product_id=self.id, single_product=True)
-        else:
-            self = self.with_context(product_tmpl_ids=self.product_tmpl_id.ids)
-        action = self.env["stock.quant"].action_view_quants()
-        # note that this action is used by different views w/varying customizations
-        if not self.env.context.get("is_stock_report"):
-            action["domain"] = [("product_id", "in", self.ids)]
-            action["name"] = _("Update Quantity")
-        return action
-
-    def action_product_forecast_report(self):
-        self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
-            "stock.stock_forecasted_product_product_action"
-        )
-        return action
+        return self.env["product.product"].browse(product_ids)
 
     def get_components(self):
         self.ensure_one()
@@ -1112,20 +1210,10 @@ class ProductProduct(models.Model):
         )._filter_to_unlink()
 
     def filter_has_routes(self):
-        """Return products with route_ids
-        or whose categ_id has total_route_ids.
-        """
-        products_with_routes = self.env["product.product"]
-        products_with_routes += self.search(
-            [("id", "in", self.ids), ("route_ids", "!=", False)]
+        """Return products with route_ids or whose categ_id has total_route_ids."""
+        return self.filtered(
+            lambda product: product.route_ids or product.categ_id.total_route_ids
         )
-        products_with_routes += self.search(
-            [
-                ("id", "in", (self - products_with_routes).ids),
-                ("categ_id.total_route_ids", "!=", False),
-            ],
-        )
-        return products_with_routes
 
     def _trigger_uom_warning(self):
         res = super()._trigger_uom_warning()

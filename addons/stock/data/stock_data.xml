@@ -96,13 +96,15 @@
             }]" />
         </function>
 
-        <!-- create the transit location for each company existing -->
+        <!-- Backfill per-company stock resources on every company that lacks them. -->
         <function model="res.company" name="create_missing_transit_location" />
-        <function model="res.company" name="create_missing_warehouse" />
         <function model="res.company" name="create_missing_inventory_loss_location" />
         <function model="res.company" name="create_missing_production_location" />
-        <function model="res.company" name="create_missing_scrap_location" />
         <function model="res.company" name="create_missing_scrap_sequence" />
+        <!-- One-shot bootstrap (not a per-company backfill): create the initial
+             warehouse only if none exists. Runs after create_missing_transit_location
+             because warehouse creation reads company.internal_transit_location_id. -->
+        <function model="res.company" name="bootstrap_first_warehouse" />
 
         <!-- Config Parameters -->
         <record model="ir.config_parameter" id="barcode_separator" forcecreate="False">

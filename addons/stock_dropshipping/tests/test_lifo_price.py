@@ -55,7 +55,7 @@ class TestLifoPrice(ValuationReconciliationTestCommon):
         # I create a draft Purchase Order for first in move for 10 pieces at 60 euro
         order_form = Form(self.env['purchase.order'])
         order_form.partner_id = res_partner_3
-        with order_form.order_line.new() as line:
+        with order_form.line_ids.new() as line:
             line.product_id = product_lifo_icecream
             line.product_qty = 10.0
             line.price_unit = 60.0
@@ -64,14 +64,14 @@ class TestLifoPrice(ValuationReconciliationTestCommon):
         # I create a draft Purchase Order for second shipment for 30 pieces at 80 euro
         order2_form = Form(self.env['purchase.order'])
         order2_form.partner_id = res_partner_3
-        with order2_form.order_line.new() as line:
+        with order2_form.line_ids.new() as line:
             line.product_id = product_lifo_icecream
             line.product_qty = 30.0
             line.price_unit = 80.0
         purchase_order_lifo2 = order2_form.save()
 
         # I confirm the first purchase order
-        purchase_order_lifo1.button_confirm()
+        purchase_order_lifo1.action_confirm()
 
         # I check the "Approved" status of purchase order 1
         self.assertEqual(purchase_order_lifo1.state, 'done')
@@ -82,7 +82,7 @@ class TestLifoPrice(ValuationReconciliationTestCommon):
         purchase_order_lifo1.picking_ids[0].button_validate()
 
         # I confirm the second purchase order
-        purchase_order_lifo2.button_confirm()
+        purchase_order_lifo2.action_confirm()
 
         # Process the receipt of purchase order 2
         purchase_order_lifo2.picking_ids[0].move_ids.quantity = purchase_order_lifo2.picking_ids[0].move_ids.product_qty

@@ -17,7 +17,7 @@ export class ForecastedHeader extends Component {
 
     async _onClickInventory(){
         const productIds = this.props.docs.product_variants_ids;
-        const action = await this.orm.call('product.product', 'action_open_quants', [productIds]);
+        const action = await this.orm.call('product.product', 'action_view_quants', [productIds]);
         if (action.help) {
             action.help = markup(action.help);
         }

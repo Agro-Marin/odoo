@@ -216,8 +216,8 @@ class StockMove(models.Model):
             "created_sale_line_ids",
         ]
 
-    def _prepare_move_split_vals(self, uom_qty):
-        vals = super()._prepare_move_split_vals(uom_qty)
+    def _prepare_move_split_vals(self, uom_qty, force_uom_id=False):
+        vals = super()._prepare_move_split_vals(uom_qty, force_uom_id=force_uom_id)
         # When backordering an MTO move, link the backorder to the sale order
         if self.procure_method == "make_to_order" and self.created_sale_line_ids:
             vals["created_sale_line_ids"] = [

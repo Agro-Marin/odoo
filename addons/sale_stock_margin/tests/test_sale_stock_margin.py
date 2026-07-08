@@ -228,10 +228,10 @@ class TestSaleStockMargin(TestStockValuationCommon):
         product.list_price = 200
 
         so_form = Form(so)
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = product
         so = so_form.save()
-        so_line = so.order_line
+        so_line = so.line_ids
 
         self.assertEqual(so_line.purchase_price, 200)
         self.assertEqual(so_line.price_unit, 400)
@@ -309,10 +309,10 @@ class TestSaleStockMargin(TestStockValuationCommon):
         self._create_sale_order_line(so, product, 1, product.list_price)
 
         so_form = Form(so)
-        with so_form.order_line.edit(0) as line:
+        with so_form.line_ids.edit(0) as line:
             line.purchase_price = 15
         so = so_form.save()
-        email_act = so.action_quotation_send()
+        email_act = so.action_send_quotation()
         email_ctx = email_act.get('context', {})
         so.with_context(**email_ctx).message_post_with_source(
             self.env['mail.template'].browse(email_ctx.get('default_template_id')),
@@ -320,16 +320,16 @@ class TestSaleStockMargin(TestStockValuationCommon):
         )
 
         self.assertEqual(so.state, 'sent')
-        self.assertEqual(so.order_line[0].purchase_price, 15)
+        self.assertEqual(so.line_ids[0].purchase_price, 15)
         so.action_confirm()
-        self.assertEqual(so.order_line[0].purchase_price, 15)
+        self.assertEqual(so.line_ids[0].purchase_price, 15)
 
         # Set SO back to draft, and trigger purchase price recompute via currency change
         so.with_context(disable_cancel_warning=True).action_cancel()
         so.action_draft()
         so.currency_id = self.other_currency
-        self.assertEqual(so.order_line.move_ids.state, 'cancel')
-        self.assertEqual(so.order_line.purchase_price, 40)
+        self.assertEqual(so.line_ids.move_ids.state, 'cancel')
+        self.assertEqual(so.line_ids.purchase_price, 40)
 
     def test_add_product_on_delivery_price_unit_on_sale(self):
         """ Adding a product directly on a sale order's delivery should result in the new SOL
@@ -354,7 +354,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
         delivery.move_ids.quantity = 10
         delivery.button_validate()
         self.assertRecordValues(
-            sale_order.order_line.filtered(lambda sol: sol.product_id == products[1]),
+            sale_order.line_ids.filtered(lambda sol: sol.product_id == products[1]),
             [{
                 'price_unit': products[1].list_price,
                 'purchase_price': products[1].standard_price,
@@ -389,7 +389,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 move.product_uom_qty = 10
         delivery.move_ids.quantity = 10
         delivery.button_validate()
-        self.assertEqual(sale_order.order_line.filtered(lambda sol: sol.product_id == product2).purchase_price, 10)
+        self.assertEqual(sale_order.line_ids.filtered(lambda sol: sol.product_id == product2).purchase_price, 10)
 
     def test_add_avco_product_on_delivery_cost_on_sale_order(self):
         """ test that if product with avco cost method and an order "invoice_policy" is added in delivery, the cost is computed."""
@@ -422,7 +422,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 move.product_uom_qty = 10
         delivery.move_ids.quantity = 10
         delivery.button_validate()
-        self.assertEqual(sale_order.order_line.filtered(lambda sol: sol.product_id == product2).purchase_price, 10)
+        self.assertEqual(sale_order.line_ids.filtered(lambda sol: sol.product_id == product2).purchase_price, 10)
 
     def test_avco_does_not_mix_products_on_compute_avg_price(self):
         """
@@ -445,11 +445,11 @@ class TestSaleStockMargin(TestStockValuationCommon):
         self.assertEqual(second_delivery.move_ids.sale_line_id, sale_order_line)
         second_delivery.move_ids.product_id = self.product_avco_auto
         self.assertFalse(second_delivery.move_ids.sale_line_id)
-        self.assertTrue(len(sale_order.order_line), 2)
+        self.assertTrue(len(sale_order.line_ids), 2)
         second_delivery.action_confirm()
         second_delivery.move_ids.quantity = 1
         second_delivery.button_validate()
-        self.assertEqual(second_delivery.move_ids.sale_line_id, sale_order.order_line - sale_order_line)
+        self.assertEqual(second_delivery.move_ids.sale_line_id, sale_order.line_ids - sale_order_line)
         stock_picking_return = self.env['stock.return.picking'].create({
             'picking_id': second_delivery.id,
         })
@@ -605,7 +605,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
                     extra_move.product_id = self.product_avco_auto
                     extra_move.quantity = 2
             delivery.button_validate()
-            sol3 = so2.order_line - throwaway_sol
+            sol3 = so2.line_ids - throwaway_sol
             self.assertEqual(sol3.product_uom_qty, 0)
             self.assertEqual(sol3.qty_delivered, 2)
             self.assertEqual(self.product_avco_auto.standard_price, 32.5, 'no new incoming moves, std price should be unchanged')

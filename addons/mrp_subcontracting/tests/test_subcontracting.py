@@ -178,7 +178,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
         # The picking should be a delivery order
         self.assertEqual(picking.picking_type_id, wh.subcontracting_resupply_type_id)
         # The date planned should be correct
-        self.assertEqual(picking_receipt.scheduled_date, picking.scheduled_date + relativedelta(days=mo.bom_id.produce_delay))
+        self.assertEqual(picking_receipt.date_planned, picking.date_planned + relativedelta(days=mo.bom_id.produce_delay))
 
         self.assertEqual(mo.picking_type_id, wh.subcontracting_type_id)
         self.assertFalse(mo.picking_type_id.active)
@@ -719,8 +719,8 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
         self.assertEqual(picking_form.json_popover, False)
 
         subcontract = picking_receipt._get_subcontract_production()
-        self.assertEqual(subcontract.date_start, picking_receipt.scheduled_date)
-        self.assertEqual(subcontract.date_end, picking_receipt.scheduled_date)
+        self.assertEqual(subcontract.date_start, picking_receipt.date_planned)
+        self.assertEqual(subcontract.date_end, picking_receipt.date_planned)
 
     def test_subcontracting_set_quantity_done(self):
         """ Tests to set a quantity done directly on a subcontracted move without using the subcontracting wizard.

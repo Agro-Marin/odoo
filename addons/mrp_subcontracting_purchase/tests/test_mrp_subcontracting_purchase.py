@@ -96,7 +96,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         # I create a draft Purchase Order for first in move for 10 kg at 50 euro
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'finished',
                 'product_id': self.finished.id,
                 'product_qty': 1.0,
@@ -105,7 +105,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             )],
         })
 
-        po.button_confirm()
+        po.action_confirm()
 
         self.assertEqual(po.subcontracting_resupply_picking_count, 1)
         action1 = po.action_view_subcontracting_resupply()
@@ -123,7 +123,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         product_qty = 5.0
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'finished',
                 'product_id': self.finished.id,
                 'product_qty': product_qty,
@@ -132,7 +132,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             )],
         })
 
-        po.button_confirm()
+        po.action_confirm()
         receipt = po.picking_ids
         sub_mo = receipt._get_subcontract_production()
         self.assertEqual(len(receipt), 1, "A receipt should have been created")
@@ -142,14 +142,14 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
         # create a neg qty to proprogate to receipt
         lower_qty = product_qty - 1.0
-        po.order_line.product_qty = lower_qty
+        po.line_ids.product_qty = lower_qty
         sub_mos = receipt._get_subcontract_production()
         self.assertEqual(receipt.move_ids.product_qty, lower_qty, "Qty of subcontracted product to receive should update (not validated yet)")
         self.assertEqual(len(sub_mos), 1, "Original subcontract MO should have absorbed qty change")
         self.assertEqual(sub_mo.product_qty, lower_qty, "Qty of subcontract MO should update (none validated yet)")
 
         # increase qty again
-        po.order_line.product_qty = product_qty
+        po.line_ids.product_qty = product_qty
         sub_mos = receipt._get_subcontract_production()
         self.assertEqual(sum(receipt.move_ids.mapped('product_qty')), product_qty, "Qty of subcontracted product to receive should update (not validated yet)")
         self.assertEqual(len(sub_mos), 1, "The subcontracted mo should have been updated")
@@ -170,7 +170,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         """
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.finished2.name,
                 'product_id': self.finished2.id,
                 'product_uom_qty': 10,
@@ -178,7 +178,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 'price_unit': 1,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         mo = self.env['mrp.production'].search([('bom_id', '=', self.bom_finished2.id)])
         self.assertTrue(mo)
@@ -198,7 +198,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         return_picking.button_validate()
 
         self.assertEqual(self.finished2.qty_available, 7.0)
-        self.assertEqual(po.order_line.qty_received, 7.0)
+        self.assertEqual(po.line_ids.qty_received, 7.0)
 
     def test_purchase_and_return02(self):
         """
@@ -212,7 +212,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.finished2.name,
                 'product_id': self.finished2.id,
                 'product_uom_qty': 10,
@@ -220,7 +220,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 'price_unit': 1,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         mo = self.env['mrp.production'].search([('bom_id', '=', self.bom_finished2.id)])
         self.assertTrue(mo)
@@ -240,22 +240,22 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         return_picking.button_validate()
 
         self.assertEqual(self.finished2.qty_available, 7.0)
-        self.assertEqual(po.order_line.qty_received, 10.0)
+        self.assertEqual(po.line_ids.qty_received, 10.0)
 
     def test_subcontracting_purchase_bill(self):
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_fifo_auto
         self.finished.purchase_method = 'purchase'
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.subcontractor_partner1
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.finished
             po_line.product_qty = 2
             po_line.price_unit = 50   # should be 70
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
         # create bill
         po.action_create_invoice()
-        aml = self.env['account.move.line'].search([('purchase_line_id', '=', po.order_line.id)])
+        aml = self.env['account.move.line'].search([('purchase_line_id', '=', po.line_ids.id)])
         # add 50 per unit ( 50 x 1 ) = 50 extra valuation
         aml.price_unit = 60
         aml.move_id.invoice_date = Date.today()
@@ -308,12 +308,12 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         # Create a PO for 1 finished product.
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.subcontractor_partner1
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.finished
             po_line.product_qty = 2
             po_line.price_unit = 50
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         action = po.action_view_subcontracting_resupply()
         resupply_picking = self.env[action['res_model']].browse(action['res_id'])
@@ -377,7 +377,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.subcontractor_partner1
         po_form.currency_id = mock_currency
-        with po_form.order_line.new() as po_line:
+        with po_form.line_ids.new() as po_line:
             po_line.product_id = self.finished
             po_line.product_qty = 1
             # Ideally, 100 - 10 - 20 = 70 USD
@@ -385,7 +385,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             # 60 USD * 2 = 120 MC
             po_line.price_unit = 120
         po = po_form.save()
-        po.button_confirm()
+        po.action_confirm()
 
         action = po.action_view_picking()
         final_picking = self.env[action['res_model']].browse(action['res_id'])
@@ -412,7 +412,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_fifo_auto
         purchase = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.finished.name,
                 'product_id': self.finished.id,
                 'product_uom_qty': 1,
@@ -420,7 +420,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 'price_unit': 100,
             })],
         })
-        purchase.button_confirm()
+        purchase.action_confirm()
         # receive subcontracted product (MO will be done)
         receipt = purchase.picking_ids
         receipt.move_ids.picked = True
@@ -428,7 +428,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(self.finished.total_value, 130)
         # create bill
         purchase.action_create_invoice()
-        aml = self.env['account.move.line'].search([('purchase_line_id', '=', purchase.order_line.id)])
+        aml = self.env['account.move.line'].search([('purchase_line_id', '=', purchase.line_ids.id)])
         # add 50 per unit ( 50 x 1 ) = 50 extra valuation
         aml.price_unit = 150
         aml.move_id.invoice_date = Date.today()
@@ -444,7 +444,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         """
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.finished2.name,
                 'product_id': self.finished2.id,
                 'product_qty': 10,
@@ -452,7 +452,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 'price_unit': 1,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         receipt.move_ids.quantity = 10
@@ -465,7 +465,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         return_picking.move_ids.quantity = 1.0
         return_picking.button_validate()
 
-        pol = po.order_line
+        pol = po.line_ids
         pol.product_qty = 9.0
 
         self.assertEqual(pol.qty_received, 9.0)
@@ -607,7 +607,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'finished',
                 'product_id': self.finished.id,
                 'product_qty': 1.0,
@@ -617,17 +617,17 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         })
 
         po.picking_type_id.warehouse_id.route_ids = [Command.link(self.env.ref('mrp_subcontracting.route_resupply_subcontractor_mto').id)]
-        po.button_confirm()
+        po.action_confirm()
         ressuply_pick = self.env['stock.picking'].search([('location_dest_id', '=', self.company.subcontracting_location_id.id)])
         self.assertEqual(len(ressuply_pick.move_ids), 2)
         self.assertEqual(ressuply_pick.move_ids.mapped('product_id'), self.comp1 | self.comp2)
 
         # should have create a purchase order for the components
         comp_po = self.env['purchase.order'].search([('partner_id', '=', self.vendor.id)])
-        self.assertEqual(len(comp_po.order_line), 2)
-        self.assertEqual(comp_po.order_line.mapped('product_id'), self.comp1 | self.comp2)
+        self.assertEqual(len(comp_po.line_ids), 2)
+        self.assertEqual(comp_po.line_ids.mapped('product_id'), self.comp1 | self.comp2)
         # confirm the po should create stock moves linked to the resupply
-        comp_po.button_confirm()
+        comp_po.action_confirm()
         comp_receipt = comp_po.picking_ids
         self.assertEqual(comp_receipt.move_ids.move_dest_ids, ressuply_pick.move_ids)
 
@@ -664,7 +664,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         })
         mo.action_confirm()
         po = self.env['purchase.order.line'].search([('product_id', '=', self.finished.id)]).order_id
-        po.button_confirm()
+        po.action_confirm()
         self.assertEqual(len(po.picking_ids), 1)
         picking = po.picking_ids
         picking.move_ids.quantity = 2.0
@@ -673,8 +673,8 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(len(po.picking_ids), 2)
         picking.backorder_ids.action_cancel()
         self.assertEqual(picking.backorder_ids.state, 'cancel')
-        po.order_line.product_qty = 2.0
-        self.assertEqual(po.order_line.product_qty, 2.0)
+        po.line_ids.product_qty = 2.0
+        self.assertEqual(po.line_ids.product_qty, 2.0)
 
     def test_mrp_report_bom_structure_subcontracting_quantities(self):
         """Testing quantities and availablility states in subcontracted BoM report
@@ -811,7 +811,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         # buy 2 subcontracted products
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.finished.name,
                 'product_id': self.finished.id,
                 'product_qty': 2.0,
@@ -819,7 +819,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 'price_unit': 1.0,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
 
         receipt = po.picking_ids
         # receive 1 subcontracted product
@@ -855,7 +855,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         """
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.finished.name,
                 'product_id': self.finished.id,
                 'product_qty': 2.0,
@@ -864,7 +864,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             })],
         })
 
-        po.button_confirm()
+        po.action_confirm()
         self.assertEqual(len(po.picking_ids), 1)
         picking = po.picking_ids
         picking.button_validate()
@@ -909,7 +909,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
         orderpoint.action_replenish()
         purchase_order = self.env['purchase.order'].search([
-            ('order_line', 'any', [
+            ('line_ids', 'any', [
                 ('product_id', '=', self.finished.id),
             ]),
         ], limit=1)
@@ -924,7 +924,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.bom_finished2.produce_delay = 35
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.finished2.name,
                 'product_id': self.finished2.id,
                 'product_qty': 10,
@@ -932,14 +932,14 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 'price_unit': 1,
             })],
         })
-        po.button_confirm()
+        po.action_confirm()
         mo = po.picking_ids.move_ids.move_orig_ids.production_id
         original_mo_start_date = mo.date_start
         with Form(po.picking_ids[0]) as receipt_form:
-            receipt_form.scheduled_date = '2000-06-01'
+            receipt_form.date_planned = '2000-06-01'
         self.assertEqual(mo.date_start, datetime(year=2000, month=6, day=1) - timedelta(days=self.bom_finished2.produce_delay))
         with Form(po.picking_ids[0]) as receipt_form:
-            receipt_form.scheduled_date = '2000-05-01'
+            receipt_form.date_planned = '2000-05-01'
         self.assertEqual(mo.date_start, original_mo_start_date)
 
         with Form(mo) as production_form:
@@ -957,14 +957,14 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.finished2.purchase_method = 'purchase'
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.finished2.id,
                 'product_qty': todo_nb,
                 'price_unit': 50,
             })],
         })
 
-        po.button_confirm()
+        po.action_confirm()
         picking_receipt = po.picking_ids
         picking_receipt.do_unreserve()
 

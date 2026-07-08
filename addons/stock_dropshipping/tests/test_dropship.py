@@ -47,17 +47,17 @@ class TestDropship(common.TransactionCase):
             'partner_id': self.customer.id,
             'partner_invoice_id': self.customer.id,
             'partner_shipping_id': self.customer.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.dropship_product.name,
                 'product_id': self.dropship_product.id,
-                'product_uom_qty': 1.00,
+                'product_qty': 1.00,
                 'price_unit': 12,
             })],
             'picking_policy': 'direct',
         })
         so.action_confirm()
         po = self.env['purchase.order'].search([('reference_ids', '=', so.stock_reference_ids.id)])
-        po_line = po.order_line
+        po_line = po.line_ids
 
         # Check dropship count on SO and PO
         self.assertEqual(po.count_transfer_incoming, 0)
@@ -67,22 +67,22 @@ class TestDropship(common.TransactionCase):
         self.assertAlmostEqual(po_line.product_qty, 1.00)
 
         # Update qty on SO and check PO
-        so.write({'order_line': [[1, so.order_line.id, {'product_uom_qty': 2.00}]]})
+        so.write({'line_ids': [[1, so.line_ids.id, {'product_qty': 2.00}]]})
         self.assertAlmostEqual(po_line.product_qty, 2.00)
 
         # Create a new so line
         sol2 = self.env['sale.order.line'].create({
             'order_id': so.id,
             'product_id': self.dropship_product.id,
-            'product_uom_qty': 3.00,
+            'product_qty': 3.00,
             'price_unit': 12,
         })
         # there is a new line
-        pol2 = po.order_line - po_line
+        pol2 = po.line_ids - po_line
         # the first line is unchanged
         self.assertAlmostEqual(po_line.product_qty, 2.00)
         # the new line matches the new line on the so
-        self.assertAlmostEqual(pol2.product_qty, sol2.product_uom_qty)
+        self.assertAlmostEqual(pol2.product_qty, sol2.product_qty)
 
     def test_00_dropship(self):
         self.dropship_product.description_purchase = "description_purchase"
@@ -98,9 +98,9 @@ class TestDropship(common.TransactionCase):
         with mute_logger('odoo.tests.common.onchange'):
             # otherwise complains that there's not enough inventory and
             # apparently that's normal according to @jco and @sle
-            with so_form.order_line.new() as line:
+            with so_form.line_ids.new() as line:
                 line.product_id = self.dropship_product
-                line.product_uom_qty = 200
+                line.product_qty = 200
                 line.price_unit = 1.00
                 line.route_ids = self.dropshipping_route
         sale_order_drp_shpng = so_form.save()
@@ -114,8 +114,8 @@ class TestDropship(common.TransactionCase):
         # Check a quotation was created to a certain vendor and confirm so it becomes a confirmed purchase order
         purchase = self.env['purchase.order'].search([('partner_id', '=', self.supplier.id)])
         self.assertTrue(purchase, "an RFQ should have been created by the scheduler")
-        self.assertIn("description_purchase", purchase.order_line.name)
-        purchase.button_confirm()
+        self.assertIn("description_purchase", purchase.line_ids.name)
+        purchase.action_confirm()
         self.assertEqual(purchase.state, 'done', 'Purchase order should be in the approved state')
 
         # Check dropship count on SO and PO
@@ -158,7 +158,7 @@ class TestDropship(common.TransactionCase):
         # Create a sale order
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = customer
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = super_product
         sale_order = so_form.save()
 
@@ -175,7 +175,7 @@ class TestDropship(common.TransactionCase):
         # Create a sale order
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = customer
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = super_product
         sale_order = so_form.save()
 
@@ -185,7 +185,7 @@ class TestDropship(common.TransactionCase):
         # Check a quotation was created to a certain vendor and confirm it, so it becomes a confirmed purchase order
         purchase = self.env['purchase.order'].search([('partner_id', '=', supplier_dropship.id)])
         self.assertTrue(purchase, "an RFQ should have been created by the scheduler")
-        purchase.button_confirm()
+        purchase.action_confirm()
         self.assertEqual(purchase.state, 'done', 'Purchase order should be in the approved state')
 
         # Check the partner of the related picking and move
@@ -199,7 +199,7 @@ class TestDropship(common.TransactionCase):
         # Create a sale order
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.lot_dropship_product.id
             })]
         })
@@ -207,7 +207,7 @@ class TestDropship(common.TransactionCase):
         # Confirm PO
         purchase = self.env['purchase.order'].search([('partner_id', '=', self.supplier.id)])
         self.assertTrue(purchase, "an RFQ should have been created")
-        purchase.button_confirm()
+        purchase.action_confirm()
         sale_order.picking_ids.move_line_ids.lot_name = '123'
         sale_order.picking_ids.move_ids.picked = True
         sale_order.picking_ids.button_validate()
@@ -226,24 +226,24 @@ class TestDropship(common.TransactionCase):
         product.route_ids = self.dropshipping_route
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
-                'product_uom_qty': 3.0,
+                'product_qty': 3.0,
             })]
         })
         sale_order.action_confirm()
-        self.assertEqual(sale_order.order_line.qty_available_today, 0.0)
+        self.assertEqual(sale_order.line_ids.qty_available_today, 0.0)
         purchase_order = self.env['purchase.order'].search([('partner_id', '=', self.supplier.id)])
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         picking_dropship = sale_order.picking_ids.filtered(lambda p: p.picking_type_id)
         self.assertTrue(picking_dropship)
-        self.assertEqual(sale_order.order_line.qty_available_today, 3.0)
-        self.assertRecordValues(sale_order.order_line, [{'qty_available_today': 3.0, 'qty_delivered': 0.0}])
+        self.assertEqual(sale_order.line_ids.qty_available_today, 3.0)
+        self.assertRecordValues(sale_order.line_ids, [{'qty_available_today': 3.0, 'qty_transferred': 0.0}])
         picking_dropship.move_ids.quantity = 3.0
         picking_dropship.move_ids.picked = True
         picking_dropship.button_validate()
-        self.assertEqual(sale_order.order_line.qty_delivered, 3.0)
-        self.assertEqual(purchase_order.order_line.qty_received, 3.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 3.0)
+        self.assertEqual(purchase_order.line_ids.qty_transferred, 3.0)
         stock_return_picking_form = Form(self.env['stock.return.picking'].with_context(
             active_ids=picking_dropship.ids,
             active_id=picking_dropship.id,
@@ -254,8 +254,8 @@ class TestDropship(common.TransactionCase):
         res = return_wiz.action_create_returns()
         return_picking = self.env['stock.picking'].browse(res['res_id'])
         return_picking.button_validate()
-        self.assertEqual(sale_order.order_line.qty_delivered, 0)
-        self.assertEqual(purchase_order.order_line.qty_received, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
+        self.assertEqual(purchase_order.line_ids.qty_transferred, 0)
 
     def test_correct_vendor_dropship(self):
         self.supplier_2 = self.env['res.partner'].create({'name': 'Vendor 2'})
@@ -286,9 +286,9 @@ class TestDropship(common.TransactionCase):
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = self.customer
         with mute_logger('odoo.tests.common.onchange'):
-            with so_form.order_line.new() as line:
+            with so_form.line_ids.new() as line:
                 line.product_id = self.dropship_product
-                line.product_uom_qty = 1
+                line.product_qty = 1
                 line.route_ids = self.dropshipping_route
         sale_order_drp_shpng = so_form.save()
         sale_order_drp_shpng.action_confirm()
@@ -301,9 +301,9 @@ class TestDropship(common.TransactionCase):
         so_form = Form(self.env['sale.order'])
         so_form.partner_id = self.customer
         with mute_logger('odoo.tests.common.onchange'):
-            with so_form.order_line.new() as line:
+            with so_form.line_ids.new() as line:
                 line.product_id = self.dropship_product
-                line.product_uom_qty = 2
+                line.product_qty = 2
                 line.route_ids = self.dropshipping_route
         sale_order_drp_shpng = so_form.save()
         sale_order_drp_shpng.action_confirm()
@@ -338,21 +338,21 @@ class TestDropship(common.TransactionCase):
         so = self.env['sale.order'].create({
             'partner_id': self.customer.id,
             'partner_shipping_id': delivery_addr.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': subcontracted_service.id,
-                'product_uom_qty': 1.00,
+                'product_qty': 1.00,
             })],
         })
         so.action_confirm()
         po = so._get_purchase_orders()
         self.assertTrue(po)
 
-        po.order_line = [(0, 0, {
+        po.line_ids = [(0, 0, {
             'product_id': self.dropship_product.id,
             'product_qty': 1.00,
             'product_uom_id': self.dropship_product.uom_id.id,
         })]
-        po.button_confirm()
+        po.action_confirm()
         dropship = po.picking_ids
         self.assertTrue(dropship.is_dropship)
         self.assertRecordValues(dropship.move_ids, [
@@ -362,22 +362,22 @@ class TestDropship(common.TransactionCase):
         dropship.move_ids.quantity = 1
         dropship.button_validate()
         self.assertEqual(dropship.state, 'done')
-        self.assertRecordValues(so.order_line, [
-            {'product_id': subcontracted_service.id, 'product_uom_qty': 1.0, 'qty_delivered': 0.0},
-            {'product_id': self.dropship_product.id, 'product_uom_qty': 0.0, 'qty_delivered': 1.0},
+        self.assertRecordValues(so.line_ids, [
+            {'product_id': subcontracted_service.id, 'product_qty': 1.0, 'qty_transferred': 0.0},
+            {'product_id': self.dropship_product.id, 'product_qty': 0.0, 'qty_transferred': 1.0},
         ])
 
     def test_search_lot_partner_from_dropship(self):
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.lot_dropship_product.id,
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })],
         })
         sale_order.action_confirm()
         purchase_order = sale_order.stock_reference_ids.purchase_ids
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         dropship_picking = purchase_order.picking_ids
         dropship_picking.move_line_ids.lot_name = 'dropship lot'
         dropship_picking.move_ids.picked = True
@@ -446,19 +446,19 @@ class TestDropship(common.TransactionCase):
 
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
-                'product_uom_qty': 6,
+                'product_qty': 6,
             })],
         })
         sale_order.action_confirm()
         po = sale_order._get_purchase_orders()
         self.assertTrue(po)
-        po.button_confirm()
-        sale_order.order_line.product_uom_qty = 8
+        po.action_confirm()
+        sale_order.line_ids.product_qty = 8
         po = sorted(sale_order._get_purchase_orders(), key=lambda order: order.id)
         self.assertEqual(len(po), 2)
-        self.assertEqual(po[1].order_line.product_uom_qty, 2)
+        self.assertEqual(po[1].line_ids.product_qty, 2)
 
 
 @tagged('post_install', '-at_install')
@@ -488,16 +488,16 @@ class TestDropshipPostInstall(common.TransactionCase):
         product_lot.categ_id.property_cost_method = 'standard'
         sale_order = self.env['sale.order'].create({
             'partner_id': customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product_lot.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             })]
         })
         sale_order.action_confirm()
         # Confirm PO
         purchase = self.env['purchase.order'].search([('partner_id', '=', supplier.id)])
         self.assertTrue(purchase, "an RFQ should have been created")
-        purchase.button_confirm()
+        purchase.action_confirm()
         dropship_picking = sale_order.picking_ids
         dropship_picking.action_confirm()
         with Form(dropship_picking) as picking_form:
@@ -513,19 +513,19 @@ class TestDropshipPostInstall(common.TransactionCase):
         product.seller_ids.partner_id = other_company.partner_id.id
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': product.id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
             })],
         })
         sale_order.action_confirm()
         purchase_order = sale_order._get_purchase_orders()
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
         dropship_picking = purchase_order.picking_ids
         dropship_picking.move_ids.quantity = 2
         dropship_picking.button_validate()
-        self.assertEqual(sale_order.order_line.qty_delivered, 2)
-        self.assertEqual(purchase_order.order_line.qty_received, 2)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 2)
+        self.assertEqual(purchase_order.line_ids.qty_transferred, 2)
         stock_return_picking_form = Form(self.env['stock.return.picking'].with_context(
             active_ids=dropship_picking.ids,
             active_id=dropship_picking.id,
@@ -536,5 +536,5 @@ class TestDropshipPostInstall(common.TransactionCase):
         res = return_wiz.action_create_returns()
         return_picking = self.env['stock.picking'].browse(res['res_id'])
         return_picking.button_validate()
-        self.assertEqual(sale_order.order_line.qty_delivered, 0)
-        self.assertEqual(purchase_order.order_line.qty_received, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
+        self.assertEqual(purchase_order.line_ids.qty_transferred, 0)

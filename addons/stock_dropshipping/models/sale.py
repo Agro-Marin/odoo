@@ -39,7 +39,7 @@ class SaleOrderLine(models.Model):
                     line.is_mto = True
                     break
 
-    def _get_procurement_qty(self, previous_product_uom_qty=False):
+    def _get_procurement_qty(self, previous_product_qty=False):
         # People without purchase rights should be able to do this operation
         purchase_lines_sudo = self.sudo().purchase_line_ids
         # We make sure that it's not a kit with dropshipped components
@@ -50,7 +50,7 @@ class SaleOrderLine(models.Model):
                 qty += po_line.product_uom_id._compute_quantity(po_line.product_qty, self.product_uom_id, rounding_method='HALF-UP')
             return qty
         else:
-            return super(SaleOrderLine, self)._get_procurement_qty(previous_product_uom_qty=previous_product_uom_qty)
+            return super()._get_procurement_qty(previous_product_qty=previous_product_qty)
 
     @api.depends('purchase_line_count')
     def _compute_product_readonly(self):

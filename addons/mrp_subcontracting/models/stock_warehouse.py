@@ -156,17 +156,22 @@ class StockWarehouse(models.Model):
 
     def _get_sequence_values(self, name=False, code=False):
         values = super(StockWarehouse, self)._get_sequence_values(name=name, code=code)
-        count = self.env['ir.sequence'].search_count([('prefix', '=like', self.code + '/SBC%/%')])
+        # Honor the name/code params (as the base does) so a warehouse rename or
+        # recode propagates here too; `_update_name_and_code` calls this before
+        # super().write(), so self.name/self.code are still stale.
+        name = name or self.name
+        code = code or self.code
+        count = self.env['ir.sequence'].search_count([('prefix', '=like', code + '/SBC%/%')])
         values.update({
             'subcontracting_type_id': {
-                'name': _('%(name)s Sequence subcontracting', name=self.name),
-                'prefix': self.code + '/' + (self.subcontracting_type_id.sequence_code or (('SBC' + str(count)) if count else 'SBC')) + '/',
+                'name': _('%(name)s Sequence subcontracting', name=name),
+                'prefix': code + '/' + (self.subcontracting_type_id.sequence_code or (('SBC' + str(count)) if count else 'SBC')) + '/',
                 'padding': 5,
                 'company_id': self.company_id.id
             },
             'subcontracting_resupply_type_id': {
-                'name': _('%(name)s Sequence Resupply Subcontractor', name=self.name),
-                'prefix': self.code + '/' + (self.subcontracting_resupply_type_id.sequence_code or (('RES' + str(count)) if count else 'RES')) + '/',
+                'name': _('%(name)s Sequence Resupply Subcontractor', name=name),
+                'prefix': code + '/' + (self.subcontracting_resupply_type_id.sequence_code or (('RES' + str(count)) if count else 'RES')) + '/',
                 'padding': 5,
                 'company_id': self.company_id.id
             },

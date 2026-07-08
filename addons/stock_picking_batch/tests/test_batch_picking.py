@@ -90,47 +90,47 @@ class TestBatchPicking(TransactionCase):
             'picking_ids': [(4, cls.picking_client_1.id), (4, cls.picking_client_2.id)]
         })
 
-    def test_batch_scheduled_date(self):
+    def test_batch_date_planned(self):
         """ Test to make sure the correct scheduled date is set for both a batch and its pickings.
         Setting a batch's scheduled date manually has different behavior from when it is automatically
         set/updated via compute.
         """
 
         now = datetime.now().replace(microsecond=0)
-        self.batch.scheduled_date = now
+        self.batch.date_planned = now
 
-        # TODO: this test cannot currently handle the onchange scheduled_date logic because of test form
+        # TODO: this test cannot currently handle the onchange date_planned logic because of test form
         # view not handling the M2M widget assigned to picking_ids (O2M). Hopefully if this changes then
         # commented parts of this test can be used later.
 
 
         # manually set batch scheduled date => picking's scheduled dates auto update to match (onchange logic test)
         # with Form(self.batch) as batch_form:
-            # batch_form.scheduled_date = now - timedelta(days=1)
+            # batch_form.date_planned = now - timedelta(days=1)
             # batch_form.save()
-        # self.assertEqual(self.batch.scheduled_date, self.picking_client_1.scheduled_date)
-        # self.assertEqual(self.batch.scheduled_date, self.picking_client_2.scheduled_date)
+        # self.assertEqual(self.batch.date_planned, self.picking_client_1.date_planned)
+        # self.assertEqual(self.batch.date_planned, self.picking_client_2.date_planned)
 
-        picking1_scheduled_date = now - timedelta(days=2)
-        picking2_scheduled_date = now - timedelta(days=3)
-        picking3_scheduled_date = now - timedelta(days=4)
+        picking1_date_planned = now - timedelta(days=2)
+        picking2_date_planned = now - timedelta(days=3)
+        picking3_date_planned = now - timedelta(days=4)
 
         # manually update picking scheduled dates => batch's scheduled date auto update to match lowest value
-        self.picking_client_1.scheduled_date = picking1_scheduled_date
-        self.picking_client_2.scheduled_date = picking2_scheduled_date
-        self.assertEqual(self.batch.scheduled_date, self.picking_client_2.scheduled_date)
+        self.picking_client_1.date_planned = picking1_date_planned
+        self.picking_client_2.date_planned = picking2_date_planned
+        self.assertEqual(self.batch.date_planned, self.picking_client_2.date_planned)
         # but individual pickings keep original scheduled dates
-        self.assertEqual(self.picking_client_1.scheduled_date, picking1_scheduled_date)
-        self.assertEqual(self.picking_client_2.scheduled_date, picking2_scheduled_date)
+        self.assertEqual(self.picking_client_1.date_planned, picking1_date_planned)
+        self.assertEqual(self.picking_client_2.date_planned, picking2_date_planned)
 
         # add a new picking with an earlier scheduled date => batch's scheduled date should auto-update
-        self.picking_client_3.scheduled_date = picking3_scheduled_date
+        self.picking_client_3.date_planned = picking3_date_planned
         self.batch.write({'picking_ids': [(4, self.picking_client_3.id)]})
-        self.assertEqual(self.batch.scheduled_date, self.picking_client_3.scheduled_date)
+        self.assertEqual(self.batch.date_planned, self.picking_client_3.date_planned)
 
         # remove that picking and batch scheduled date should auto-update to next min date
         self.batch.write({'picking_ids': [(3, self.picking_client_3.id)]})
-        self.assertEqual(self.batch.scheduled_date, self.picking_client_2.scheduled_date)
+        self.assertEqual(self.batch.date_planned, self.picking_client_2.date_planned)
 
         # directly add new picking with an earlier scheduled date => batch's scheduled date auto updates to match,
         # but existing pickings do not (onchange logic test)
@@ -138,15 +138,15 @@ class TestBatchPicking(TransactionCase):
         #     batch_form.picking_ids.add(self.picking_client_3)
         #     batch_form.save()
         # # individual pickings keep original scheduled dates
-        self.assertEqual(self.picking_client_1.scheduled_date, picking1_scheduled_date)
-        self.assertEqual(self.picking_client_2.scheduled_date, picking2_scheduled_date)
-        # self.assertEqual(self.batch.scheduled_date, self.picking_client_3.scheduled_date)
+        self.assertEqual(self.picking_client_1.date_planned, picking1_date_planned)
+        self.assertEqual(self.picking_client_2.date_planned, picking2_date_planned)
+        # self.assertEqual(self.batch.date_planned, self.picking_client_3.date_planned)
         # self.batch.write({'picking_ids': [(3, self.picking_client_3.id)]})
 
-        # cancelling batch should auto-remove all pickings => scheduled_date should default to none
+        # cancelling batch should auto-remove all pickings => date_planned should default to none
         self.batch.action_cancel()
         self.assertEqual(len(self.batch.picking_ids), 0)
-        self.assertEqual(self.batch.scheduled_date, False)
+        self.assertEqual(self.batch.date_planned, False)
 
     def test_simple_batch_with_manual_quantity(self):
         """ Test a simple batch picking with all quantity for picking available.
@@ -745,20 +745,20 @@ class TestBatchPicking(TransactionCase):
             (batch_1 | batch_2).action_merge()
         batch_2.action_confirm()
         batch_3.action_confirm()
-        batch_3.scheduled_date = False
+        batch_3.date_planned = False
 
         # Ensure that merging is only allowed when at least two batches are selected.
         with self.assertRaises(UserError):
             batch_1.action_merge()
 
         early_date = fields.Datetime.now() - timedelta(days=1)
-        batch_2.scheduled_date = early_date
+        batch_2.date_planned = early_date
 
-        # Ensure that merging works correctly even when one of the batches has no scheduled_date.
+        # Ensure that merging works correctly even when one of the batches has no date_planned.
         (batch_1 | batch_2 | batch_3).action_merge()
         self.assertEqual(batch_1.picking_ids, self.picking_client_1 | self.picking_client_2 | self.picking_client_3)
         self.assertEqual(batch_1.description, 'Amazing batch', 'The description should be the one of the earliest batch')
-        self.assertEqual(batch_1.scheduled_date, early_date)
+        self.assertEqual(batch_1.date_planned, early_date)
 
 
 @tagged('-at_install', 'post_install')
