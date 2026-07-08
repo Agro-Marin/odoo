@@ -4,6 +4,7 @@ import functools
 import hashlib
 import logging
 import mimetypes
+import os
 import re
 import time
 import uuid
@@ -240,6 +241,22 @@ class IrAttachment(models.Model):
     # past the cap stay on disk and are swept by the next (nightly) run.
     # Override per subclass to tune. See FileStorage.autovacuum.
     _GC_MAX_ENTRIES = 100_000
+
+    # Minimum age (seconds) of a checklist marker before the filestore GC may
+    # sweep it (IRA-G1). The content pipeline writes the file and marks it for
+    # GC BEFORE the row's INSERT is flushed (create()'s write-as-we-go path;
+    # _set_attachment_data persists before flush_recordset), so until the
+    # INSERT executes the creating transaction holds no lock on ir_attachment:
+    # a concurrent GC's SHARE MODE lock is granted, the whitelist query cannot
+    # see the uncommitted row, and the freshly written content is deleted out
+    # from under a transaction that will commit a store_fname pointing at
+    # nothing. The marker mtime is the grace clock — refreshed on every
+    # (re-)mark, including dedup hits (see _mark_for_gc_multi) — and, like
+    # _FILESTORE_TMP_MAX_AGE above, the threshold must comfortably exceed the
+    # longest legitimate transaction that writes attachment content (bulk
+    # imports, migrations). Sweep latency only grows by up to one nightly GC
+    # cycle. Override per subclass to tune.
+    _GC_CHECKLIST_GRACE = 24 * 3600
 
     def _check_res_field_access(self, res_model: str, res_field: str) -> None:
         """Validate write access to a field-backing attachment's target field.
@@ -824,7 +841,16 @@ class IrAttachment(models.Model):
     @api.model
     def _file_write(self, bin_value: bytes, checksum: str) -> str:
         fname, full_path = self._get_path(bin_value, checksum)
-        if not Path(full_path).exists():
+        if Path(full_path).exists():
+            # Dedup hit: (re-)mark so the marker's mtime — the GC grace
+            # clock — covers THIS transaction's create window too. The
+            # existing file may be an orphan of an aborted transaction
+            # whose marker predates the grace window; without the refresh
+            # the GC could sweep it before this transaction's INSERT is
+            # flushed. Aligned with _file_write_stream, which always
+            # marked on dedup hits (IRA-G1).
+            self._mark_for_gc(fname)
+        else:
             # Stage in the filestore tmp/ dir, then atomically replace into the
             # content-addressed path. A crash thus never leaves a truncated file
             # at that path — which would otherwise fail every future
@@ -981,6 +1007,13 @@ class IrAttachment(models.Model):
         network filestores. The per-file ``exists()`` probe is skipped
         entirely: ``open("ab")`` is idempotent (it creates the empty marker
         or touches nothing that matters on an existing one).
+
+        The marker's mtime is the GC grace clock (see
+        :attr:`_GC_CHECKLIST_GRACE`), so a RE-mark must refresh it —
+        ``open("ab")`` alone does not touch the mtime of an existing
+        marker. Without the refresh, a transaction dedup-hitting content
+        whose stale marker predates the grace window would leave that
+        content sweepable while the transaction is still uncommitted.
         """
         checklist_dir = Path(self._full_path("checklist"))
         by_shard_dir: dict[Path, list[Path]] = defaultdict(list)
@@ -994,6 +1027,8 @@ class IrAttachment(models.Model):
             for full_path in paths:
                 with full_path.open("ab"):
                     pass
+                with contextlib.suppress(OSError):
+                    os.utime(full_path)
 
     @api.model
     def _same_content(self, bin_data: bytes, filepath: str) -> bool:
@@ -1176,7 +1211,9 @@ class IrAttachment(models.Model):
         if removed:
             _logger.info("filestore temp gc: removed %d stale temp file(s)", removed)
 
-    def _gc_checklist(self, limit: int | None = None) -> dict[str, Path]:
+    def _gc_checklist(
+        self, limit: int | None = None, grace: float | None = None
+    ) -> dict[str, Path]:
         """Return ``{fname: checklist_path}`` from the GC checklist directory.
 
         Pure filesystem scan (no DB), so it can run outside the table lock.
@@ -1185,18 +1222,48 @@ class IrAttachment(models.Model):
             sweep consuming the result runs under a SHARE MODE table lock, so
             its size bounds the lock hold time (see :attr:`_GC_MAX_ENTRIES`).
             ``None`` scans everything.
+        :param float | None grace: skip markers younger than this many
+            seconds; they stay on disk for a later run. Defaults to
+            :attr:`_GC_CHECKLIST_GRACE` — the age gate keeping the sweep away
+            from content whose transaction may not have flushed its INSERT
+            yet (IRA-G1); see that attribute for the race. Pass ``0`` to
+            sweep everything regardless of age (tests, manual maintenance).
         :rtype: dict
         """
+        if grace is None:
+            grace = self._GC_CHECKLIST_GRACE
+        cutoff = time.time() - grace
         checklist = {}
         checklist_root = Path(self._full_path("checklist"))
+        skipped = 0
+        capped = False
         for dirpath, _subdirs, filenames in checklist_root.walk():
             for filename in filenames:
+                marker = dirpath / filename
+                if grace:
+                    try:
+                        if marker.stat().st_mtime > cutoff:
+                            skipped += 1
+                            continue
+                    except OSError:
+                        # marker vanished mid-scan (concurrent GC) — skip it
+                        skipped += 1
+                        continue
                 # Use relative_to() so fname is correct regardless of nesting depth.
                 # dirpath.name would only work for a 2-level structure.
-                fname = str((dirpath / filename).relative_to(checklist_root))
-                checklist[fname] = dirpath / filename
+                fname = str(marker.relative_to(checklist_root))
+                checklist[fname] = marker
                 if limit is not None and len(checklist) >= limit:
-                    return checklist
+                    capped = True
+                    break
+            if capped:
+                break
+        if skipped:
+            _logger.debug(
+                "filestore gc: %d checklist marker(s) within the grace window "
+                "left for a later run",
+                skipped,
+            )
         return checklist
 
     def _gc_file_store_unsafe(self, checklist: dict[str, Path] | None = None) -> None:
