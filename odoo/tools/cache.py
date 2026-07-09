@@ -1,5 +1,6 @@
 import functools
 import logging
+import os
 import signal
 import sys
 import threading
@@ -67,6 +68,36 @@ _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
 """statistic counters dictionary, maps (dbname, method) to counter"""
 
 
+# --------------------------------------------------------------------------
+# Per-transaction hit/miss statistics toggle.
+#
+# The raw hit / miss / error counters, cache sizes and generation time are
+# ALWAYS collected -- they are a couple of integer increments per call.
+#
+# The *per-transaction* statistics (the "TX Hit Ratio" and "TX Call" columns of
+# :func:`log_ormcache_stats`, dumped on SIGUSR1) are OFF by default because they
+# are expensive on the single hottest cache path: for every lookup they hash
+# each element of the cache key and test/insert it into a per-cursor set,
+# roughly DOUBLING the cost of a cache hit (~225 ns/op measured, vs a ~215 ns/op
+# bare hit) and growing an unbounded ``_ormcache_lookups`` set per transaction.
+#
+# Enable them only when you actually need the per-transaction dedup ratio,
+# either from the environment before start-up::
+#
+#     ODOO_ORMCACHE_TX_STATS=1
+#
+# or at runtime (e.g. from a debug console, before sending SIGUSR1)::
+#
+#     import odoo.tools.cache as c
+#     c._TX_STATS_ENABLED = True
+#
+# The lookup closure reads this module-level flag on every call, so a runtime
+# flip takes effect immediately (no restart, no re-decoration).
+_TX_STATS_ENABLED: bool = os.environ.get(
+    "ODOO_ORMCACHE_TX_STATS", ""
+).strip().lower() in ("1", "true", "yes", "on")
+
+
 class ormcache:
     """LRU cache decorator for model methods.
     The parameters are strings that represent expressions referring to the
@@ -127,39 +158,55 @@ class ormcache:
             d = pool._Registry__caches[_cache_name]
             key = _key(*args, **kwargs)
             counter = _counters[pool.db_name, _method]
+            counter.cache_name = _cache_name
 
-            # Transaction-level deduplication: get() + conditional set is
-            # faster than setdefault() when key usually exists (>99%)
-            cr_cache = model.env.cr.cache
-            tx_lookups = cr_cache.get("_ormcache_lookups")
-            if tx_lookups is None:
-                tx_lookups = set()
-                cr_cache["_ormcache_lookups"] = tx_lookups
+            if not _TX_STATS_ENABLED:
+                # Fast path: only the always-on raw counters.  The per-transaction
+                # dedup stats (tx_hit/tx_miss) are skipped -- see _TX_STATS_ENABLED;
+                # they cost ~2x the hit path and are diagnostics-only.
+                try:
+                    r = d[key]
+                    counter.hit += 1
+                    return r
+                except KeyError:
+                    counter.miss += 1
+                except TypeError:
+                    _warn("cache lookup error on %r", key, exc_info=True)
+                    counter.err += 1
+                    return _method(*args, **kwargs)
+            else:
+                # Full path: additionally collect per-transaction dedup stats.
+                # get() + conditional set is faster than setdefault() when the
+                # key usually exists (>99%).
+                cr_cache = model.env.cr.cache
+                tx_lookups = cr_cache.get("_ormcache_lookups")
+                if tx_lookups is None:
+                    tx_lookups = set()
+                    cr_cache["_ormcache_lookups"] = tx_lookups
 
-            tx_first = False
-            try:
-                # store hashes, not the key itself, so we don't keep hard
-                # references that prevent cached objects from being collected.
-                # An unhashable key element raises TypeError here and routes to
-                # the uncached fallback below (like the d[key] miss), instead of
-                # crashing the call before the try/except can catch it.
-                tx_key = tuple(map(hash, key))
-                tx_first = tx_key not in tx_lookups
-                if tx_first:
-                    counter.cache_name = _cache_name
-                    tx_lookups.add(tx_key)
-                r = d[key]
-                counter.hit += 1
-                counter.tx_hit += tx_first
-                return r
-            except KeyError:
-                counter.miss += 1
-                counter.tx_miss += tx_first
-            except TypeError:
-                _warn("cache lookup error on %r", key, exc_info=True)
-                counter.err += 1
-                counter.tx_err += tx_first
-                return _method(*args, **kwargs)
+                tx_first = False
+                try:
+                    # store hashes, not the key itself, so we don't keep hard
+                    # references that prevent cached objects from being collected.
+                    # An unhashable key element raises TypeError here and routes to
+                    # the uncached fallback below (like the d[key] miss), instead of
+                    # crashing the call before the try/except can catch it.
+                    tx_key = tuple(map(hash, key))
+                    tx_first = tx_key not in tx_lookups
+                    if tx_first:
+                        tx_lookups.add(tx_key)
+                    r = d[key]
+                    counter.hit += 1
+                    counter.tx_hit += tx_first
+                    return r
+                except KeyError:
+                    counter.miss += 1
+                    counter.tx_miss += tx_first
+                except TypeError:
+                    _warn("cache lookup error on %r", key, exc_info=True)
+                    counter.err += 1
+                    counter.tx_err += tx_first
+                    return _method(*args, **kwargs)
 
             start = _monotonic()
             value = _method(*args, **kwargs)
@@ -321,6 +368,14 @@ def log_ormcache_stats(
 
             # Output the stats
             log_msgs = ["Caches stats:"]
+            if not _TX_STATS_ENABLED:
+                # The TX columns below stay at 0 / 100% unless per-transaction
+                # stats collection is enabled (ODOO_ORMCACHE_TX_STATS=1); say so
+                # rather than let the reader mistake it for a perfect ratio.
+                log_msgs.append(
+                    "(TX Hit Ratio / TX Call disabled — set ODOO_ORMCACHE_TX_STATS=1"
+                    " to collect per-transaction stats)"
+                )
             size_column_info = (
                 (f"{'Memory %':>10},{'Memory SUM':>12},{'Memory MAX':>12},")
                 if show_size
