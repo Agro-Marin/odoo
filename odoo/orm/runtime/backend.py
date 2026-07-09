@@ -266,7 +266,8 @@ class InMemoryBackend:
         _fdc = env._field_depends_context
         storable: list[tuple] = []  # (fname, field, field_cache)
         # Use a single sentinel browse record for convert_to_cache calls.
-        sentinel = model.browse(all_ids[0]) if all_ids else model.browse()
+        # all_ids is non-empty here (guarded by the early return above).
+        sentinel = model.browse(all_ids[0])
         for fname, field in fields_meta.items():
             if fname != "id" and field.store and field.column_type:
                 if field not in _fdc:
