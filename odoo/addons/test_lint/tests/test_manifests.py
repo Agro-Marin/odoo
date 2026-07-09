@@ -22,6 +22,11 @@ MANIFEST_KEYS = {
     "contributors",
     "maintainer",
     "url",
+    # for odoo apps store
+    "price",
+    "currency",
+    "support",
+    "live_test_url",
 }
 
 

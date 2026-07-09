@@ -29,6 +29,7 @@ import sys
 import threading
 import time
 import weakref
+from email.utils import parsedate_to_datetime
 from io import BytesIO
 from typing import Any
 
@@ -98,6 +99,46 @@ class BaseWSGIServerNoBind(LoggingBaseWSGIServerMixIn, werkzeug.serving.BaseWSGI
 
 
 class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # werkzeug and the stdlib base handler can each emit a Date/Server
+        # header; track what we already sent so a request never carries two.
+        self._sent_date_header: str | None = None
+        self._sent_server_header: str | None = None
+        super().__init__(*args, **kwargs)
+
+    def send_header(self, keyword: str, value: str) -> None:
+        if keyword.casefold() == "date":
+            if self._sent_date_header is None:
+                self._sent_date_header = value
+            elif self._sent_date_header == value:
+                return  # don't send the same header twice
+            else:
+                sent_datetime = parsedate_to_datetime(self._sent_date_header)
+                new_datetime = parsedate_to_datetime(value)
+                if sent_datetime == new_datetime:
+                    return  # don't send the same date twice (differ in format)
+                if abs((sent_datetime - new_datetime).total_seconds()) <= 1:
+                    return  # don't send the same date twice (jitter of 1 second)
+                _logger.warning(
+                    "sending two different Date response headers: %r vs %r",
+                    self._sent_date_header,
+                    value,
+                )
+
+        if keyword.casefold() == "server":
+            if self._sent_server_header is None:
+                self._sent_server_header = value
+            elif self._sent_server_header == value:
+                return  # don't send the same header twice
+            else:
+                _logger.warning(
+                    "sending two different Server response headers: %r vs %r",
+                    self._sent_server_header,
+                    value,
+                )
+
+        super().send_header(keyword, value)
+
     def log_error(self, format: str, *args: Any) -> None:
         # Socket timeouts on idle connections are not errors — they are
         # expected from browser pre-connects, keep-alive probes, and
