@@ -31,6 +31,15 @@ export class Colibri {
         this.dynamicAttrs = [];
         this.tOuts = [];
         this.cleanups = [];
+        // Index of the per-node event-listener removers that live in
+        // `cleanups`, keyed by node. The removers stay in `cleanups` (so the
+        // documented reverse-order, interleaved-with-registerCleanup teardown
+        // is preserved); this map only lets `refreshNodes` splice out the
+        // entries of nodes that leave the DOM, instead of letting them
+        // accumulate in the append-only array (a leak + detached-node
+        // retention under dynamic-content churn).
+        /** @type {Map<Node, Array<() => void>>} */
+        this.nodeCleanups = new Map();
         this.listeners = new Map();
         this.dynamicNodes = new Map();
         this.core = core;
@@ -49,6 +58,7 @@ export class Colibri {
             cleanup();
         }
         this.cleanups = [];
+        this.nodeCleanups.clear();
         this.interaction.destroy();
     }
 
@@ -159,9 +169,18 @@ export class Colibri {
         const eventListener = /** @type {EventListener} */ (handler);
         for (const node of nodes) {
             node.addEventListener(event, eventListener, options);
-            this.cleanups.push(() =>
-                node.removeEventListener(event, eventListener, options),
-            );
+            const remover = () =>
+                node.removeEventListener(event, eventListener, options);
+            // Keep the remover in the single ordered `cleanups` list AND index
+            // it by node, so `refreshNodes` can splice it back out when the
+            // node leaves the DOM.
+            this.cleanups.push(remover);
+            let removers = this.nodeCleanups.get(node);
+            if (!removers) {
+                removers = [];
+                this.nodeCleanups.set(node, removers);
+            }
+            removers.push(remover);
         }
         return [event, eventListener, options];
     }
@@ -189,6 +208,22 @@ export class Colibri {
                     }
                     if (newNodes.size) {
                         this.addListener(newNodes, event, handler, options);
+                    }
+                }
+                // The departed nodes' listeners were just removed above; splice
+                // their (now no-op) removers out of `cleanups` and drop the
+                // index entries, so neither grows unbounded nor retains the
+                // detached nodes.
+                for (const node of toRemove) {
+                    const removers = this.nodeCleanups.get(node);
+                    if (removers) {
+                        for (const remover of removers) {
+                            const i = this.cleanups.indexOf(remover);
+                            if (i !== -1) {
+                                this.cleanups.splice(i, 1);
+                            }
+                        }
+                        this.nodeCleanups.delete(node);
                     }
                 }
             }

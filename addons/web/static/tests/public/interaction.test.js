@@ -330,6 +330,44 @@ describe("using selectors", () => {
         expect(clicked).toBe(3);
     });
 
+    test("refreshing nodes prunes departed listener cleanups (no leak)", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".me": {
+                    "t-on-click": (ev) => {
+                        // ping-pong the ".me" marker between the two spans, so
+                        // every refresh removes one node's listener and adds the
+                        // other's.
+                        ev.currentTarget.parentElement
+                            .querySelectorAll("span")
+                            .forEach((el) => el.classList.toggle("me"));
+                    },
+                },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `
+            <div class="test">
+                <span class="me">span1</span>
+                <span>span2</span>
+            </div>
+        `,
+        );
+        const colibri = core.interactions[0];
+        const baseline = colibri.cleanups.length;
+        for (let i = 0; i < 15; i++) {
+            for (const el of queryAll(".me")) {
+                await click(el);
+            }
+        }
+        // At most one span matches ".me" at a time, so departed listeners must
+        // be pruned: `cleanups` stays near baseline instead of growing ~one per
+        // refresh (which is what the pre-fix append-only behaviour did).
+        expect(colibri.cleanups.length).toBeLessThan(baseline + 3);
+    });
+
     test("does not crash if no modal is found", async () => {
         let clicked = 0;
         class Test extends Interaction {
