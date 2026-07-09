@@ -100,11 +100,11 @@ export function execute(op, source, target) {
     target.nextGroupNumber = nextGroupNumber;
     target.nextId = nextId;
 
-    // Deep-copy so the exported/imported state is a true snapshot: aliasing the
-    // live `query` array and `searchItems` objects here only happened to be safe
-    // because the sole caller (SearchModel.exportState) stringified the result
-    // immediately. Any consumer that reads the snapshot lazily (or mutates the
-    // model afterwards) would otherwise observe the live, still-mutating state.
+    // Deep-copy so the exported/imported state does not alias the live model:
+    // the sole caller (SearchModel.exportState) stringifies the result
+    // immediately, but any consumer that reads the snapshot lazily (or mutates
+    // the model afterwards) would otherwise observe the live, still-mutating
+    // state.
     target.query = structuredClone(query);
     target.searchItems = structuredClone(searchItems);
     // primitive ("Asc" | "Desc" | false) — drives the groupBy facet sort icon
@@ -112,8 +112,17 @@ export function execute(op, source, target) {
     // "sort by count" choice persists across breadcrumb restore / back-forward.
     target.orderByCount = orderByCount;
 
-    target.searchPanelInfo = searchPanelInfo;
+    // Deep-copy: searchPanelInfo was aliased outright, so a lazily-read export
+    // saw later mutations. structuredClone is safe in both directions (it just
+    // gives the target a fresh, plain copy).
+    target.searchPanelInfo = structuredClone(searchPanelInfo);
 
+    // ``op`` (mapToArray/arrayToMap) converts each section, its ``values`` and
+    // ``groups`` Maps ONE level deep. This is NOT a full deep snapshot: nested
+    // arrays (e.g. ``childrenIds``) and value objects shared between
+    // ``filter.values`` and ``group.values`` stay referenced. Safe today
+    // because the only consumer stringifies immediately — do not read the
+    // export lazily and then mutate the model, or deep-copy here first.
     target.sections = op(sections);
     for (const [, section] of target.sections) {
         section.values = op(section.values);
