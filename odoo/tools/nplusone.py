@@ -81,11 +81,22 @@ class NplusOneTracker:
         field_fingerprint: frozenset[str],
     ) -> None:
         """Record a CRUD call from the create/write/unlink ORM mixins."""
-        # Walk the stack to find the first frame outside ORM internals.
+        # Walk the stack to find the first frame that is the *real* external
+        # caller. Skip two kinds of frames:
+        #   1. ORM/api internals (by file prefix), and
+        #   2. the create/write/unlink super()-delegation chain -- frames whose
+        #      function name is the tracked operation. Most models override
+        #      create/write/unlink and end in ``super().create(...)``; without
+        #      this the walk would stop at that override line and blame the model
+        #      plumbing instead of the loop that issued the repeated single-record
+        #      calls.
         frame = sys._getframe(2)  # skip record() + the CRUD method itself
         while frame is not None:
-            fn = frame.f_code.co_filename
-            if not any(fn.startswith(p) for p in _SKIP_PREFIXES):
+            code = frame.f_code
+            if (
+                not any(code.co_filename.startswith(p) for p in _SKIP_PREFIXES)
+                and code.co_name != operation
+            ):
                 break
             frame = frame.f_back
 
