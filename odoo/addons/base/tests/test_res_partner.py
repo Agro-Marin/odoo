@@ -337,6 +337,21 @@ class TestPartner(TransactionCaseWithUserDemo):
                     )
                 )
 
+    def test_find_or_create_escapes_ilike_wildcards(self):
+        """``_`` and ``%`` in an email local part are literal, not wildcards.
+
+        Regression: an unescaped ``=ilike`` lookup for ``a_b@example.com`` matched
+        (and returned) an existing ``axb@example.com``.
+        """
+        Partner = self.env["res.partner"]
+        existing = Partner.create({"name": "AxB", "email": "axb@example.com"})
+        # the underscore must be literal: no match -> a distinct new partner
+        found = Partner.find_or_create("a_b@example.com")
+        self.assertNotEqual(found, existing)
+        self.assertEqual(found.email, "a_b@example.com")
+        # the exact address still matches its own record
+        self.assertEqual(Partner.find_or_create("axb@example.com"), existing)
+
     def test_is_public(self):
         """Check that base.partner_user is a public partner."""
         self.assertFalse(self.env.ref("base.public_user").active)

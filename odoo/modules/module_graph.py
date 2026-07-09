@@ -386,6 +386,11 @@ class ModuleGraph:
         """
         self._cr.execute(query, [list(names)])
         for name, id_, state, demo, db_version in self._cr.fetchall():
+            if name not in self._modules:
+                # already recursively removed (cascaded via a dependency) while
+                # processing an earlier row; skip before _remove()'s unguarded
+                # pop() would KeyError on it.
+                continue
             if state == "uninstallable":
                 _logger.warning("module %s: not installable, skipped", name)
                 self._remove(name)
@@ -393,9 +398,6 @@ class ModuleGraph:
             if self.mode == "load" and state in ["to install", "uninstalled"]:
                 _logger.info("module %s: not installed, skipped", name)
                 self._remove(name)
-                continue
-            if name not in self._modules:
-                # has been recursively removed for sake of not installable or not installed
                 continue
             module = self._modules[name]
             module.id = id_

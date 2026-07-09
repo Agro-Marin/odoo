@@ -164,6 +164,23 @@ class IrActionsActions(models.Model):
             "tag",
             "params",
             "params_store",
+            # ir.actions.server runtime-value/config fields: they drive what the
+            # action *does* when executed, never how/where it is bound, and no
+            # ormcache reads them (bindings read only the fields listed above;
+            # _selection_target_model caches ir.model, not these).  So editing a
+            # server action's Python code -- a routine dev operation -- no longer
+            # wipes the whole registry cache across workers.
+            "code",
+            "value",
+            "evaluation_type",
+            "selection_value",
+            "update_boolean_value",
+            "update_field_id",
+            "update_path",
+            "link_field_id",
+            "resource_ref",
+            "webhook_url",
+            "webhook_field_ids",
         }
     )
 
