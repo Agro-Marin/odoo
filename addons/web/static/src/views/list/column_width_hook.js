@@ -56,10 +56,8 @@ import {
 // Hardcoded widths
 import { localization } from "@web/core/l10n/localization";
 import { useDebounced } from "@web/core/utils/timing";
-import { FIELD_WIDTHS, resetDateFieldWidths } from "@web/fields/field_widths";
+import { FIELD_WIDTHS } from "@web/fields/field_widths";
 
-// Re-export for backward compatibility — canonical import is @web/fields/field_widths
-export { FIELD_WIDTHS, resetDateFieldWidths };
 
 const DEFAULT_MIN_WIDTH = 80;
 const SELECTOR_WIDTH = 20;

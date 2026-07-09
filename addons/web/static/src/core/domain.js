@@ -525,6 +525,11 @@ function matchCondition(record, condition) {
             if (Array.isArray(fieldValue) && Array.isArray(value)) {
                 return shallowEqual(fieldValue, value);
             }
+            if (value === false && Array.isArray(fieldValue)) {
+                // Server semantics: ('x2many', '=', False) matches records
+                // whose relation is empty.
+                return fieldValue.length === 0;
+            }
             return fieldValue === value;
         case "!=":
         case "<>":

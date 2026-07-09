@@ -946,3 +946,12 @@ describe("Remove domain leaf", () => {
         expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
     });
 });
+
+describe("x2many emptiness", () => {
+    test("('x2many', '=', False) matches an empty relation (server parity)", () => {
+        expect(new Domain([["tag_ids", "=", false]]).contains({ tag_ids: [] })).toBe(true);
+        expect(new Domain([["tag_ids", "=", false]]).contains({ tag_ids: [1] })).toBe(false);
+        expect(new Domain([["tag_ids", "!=", false]]).contains({ tag_ids: [] })).toBe(false);
+        expect(new Domain([["tag_ids", "!=", false]]).contains({ tag_ids: [1] })).toBe(true);
+    });
+});

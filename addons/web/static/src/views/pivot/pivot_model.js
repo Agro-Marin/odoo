@@ -590,6 +590,12 @@ export class PivotModel extends Model {
         this.data.counts = twist(this.data.counts);
         this.data.groupDomains = twist(this.data.groupDomains);
 
+        // The sorted column's groupId is expressed in PRE-flip coordinates:
+        // after the swap it denotes a row, so any later load/expand would
+        // re-sort the rows against a stale or foreign column. Resetting is
+        // the safe option (transposing is only valid for the Total column).
+        this.metaData.sortedColumn = null;
+
         this.notify();
     }
     /**
@@ -916,7 +922,10 @@ export class PivotModel extends Model {
         const { data } = config;
         const key = JSON.stringify([group.rowValues, group.colValues]);
 
-        if (!data.counts[key] || data.counts[key] > 0) {
+        // A group KNOWN to be empty (count 0) needs no fetch; an unknown
+        // count (key absent) must fetch. (`!counts[key] || counts[key] > 0`
+        // was a tautology — count 0 still fetched.)
+        if (!(key in data.counts) || data.counts[key] > 0) {
             const subGroup = {
                 rowValues: group.rowValues,
                 colValues: group.colValues,

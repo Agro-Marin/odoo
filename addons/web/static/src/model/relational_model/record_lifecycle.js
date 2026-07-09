@@ -112,8 +112,13 @@ export async function deleteRecord(record) {
     }
     const resIds = record.resIds.slice();
     const index = resIds.indexOf(/** @type {number} */ (record.resId));
-    resIds.splice(index, 1);
-    const resId = resIds[Math.min(index, resIds.length - 1)] || false;
+    // resId may be absent from resIds (standalone Record with caller-supplied
+    // ids, config drift): splice(-1, 1) would silently drop the LAST pager id
+    // and resIds[min(-1, n)] would blank the form despite remaining records.
+    if (index >= 0) {
+        resIds.splice(index, 1);
+    }
+    const resId = resIds[Math.min(Math.max(index, 0), resIds.length - 1)] || false;
     if (resId) {
         await record.model.load({ resId, resIds });
     } else {

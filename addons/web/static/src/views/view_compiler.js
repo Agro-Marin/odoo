@@ -494,6 +494,24 @@ let templateCache = Object.create(null);
  */
 const archKeyCache = new WeakMap();
 /**
+ * Per-class stable cache-key prefix. Keyed by class IDENTITY, not
+ * `Class.name`: two same-named compiler subclasses from different modules
+ * must not share a compiled template (the second one's overrides would
+ * silently never apply), and identifiers are fragile under minification.
+ * The name is kept in the key for debuggability only.
+ * @type {WeakMap<Function, string>}
+ */
+const compilerClassKeys = new WeakMap();
+let nextCompilerClassId = 1;
+function getCompilerClassKey(ViewCompiler) {
+    let classKey = compilerClassKeys.get(ViewCompiler);
+    if (!classKey) {
+        classKey = `${ViewCompiler.name}#${nextCompilerClassId++}`;
+        compilerClassKeys.set(ViewCompiler, classKey);
+    }
+    return classKey;
+}
+/**
  * Compile view arch templates and register them with OWL.
  *
  * Each template is keyed by
@@ -534,7 +552,7 @@ export function useViewCompiler(ViewCompiler, templates, params) {
             archKey = templates[tname].outerHTML.replace(/[\n\r]+/g, " ");
             archKeyCache.set(templates[tname], archKey);
         }
-        const key = `${ViewCompiler.name}/${paramsKey}/${archKey}`;
+        const key = `${getCompilerClassKey(ViewCompiler)}/${paramsKey}/${archKey}`;
         if (!templateCache[key]) {
             compiler = compiler || new ViewCompiler(templates);
             const compiledOuterHTML = compiler.compile(tname, params).outerHTML;

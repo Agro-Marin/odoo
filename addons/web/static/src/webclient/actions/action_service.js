@@ -213,13 +213,21 @@ export class ActionManager {
     /**
      * Removes the current dialog from the action service's state.
      *
-     * Lifecycle invariant: the manager's dialog slot is cleared and the
-     * dialog is removed from the dialog service *before* the user-provided
-     * ``onClose`` callback runs. The callback may itself dispatch actions
-     * (e.g. an inline follow-up whose ``_dispatchInline`` calls
-     * ``dialog.closeAll()``, re-entering this method through the dialog
+     * Lifecycle invariant: the manager's dialog slot is cleared *before* the
+     * user-provided ``onClose`` callback runs. The callback may itself
+     * dispatch actions (e.g. an inline follow-up whose ``_dispatchInline``
+     * calls ``dialog.closeAll()``, re-entering this method through the dialog
      * service's ``onRemove``); those re-entrant calls must find
      * ``this.dialog`` already null so ``onClose`` fires exactly once.
+     *
+     * The dialog is removed from the dialog service (DOM) *after* ``onClose``
+     * resolves, so a button-action ``onClose`` that reloads the underlying
+     * view (view_button_hook) keeps the dialog visible until the reload
+     * completes — matching the cancel path (``dialogData.close()``, which
+     * awaits its onClose before removing) and the "wait the view reload
+     * before closing the dialog" regression tests. Re-entrant ``closeAll``
+     * during ``onClose`` is a no-op (``this.dialog`` is null), so the single
+     * removal below is authoritative.
      *
      * @return {Promise<void>}
      */
@@ -227,11 +235,11 @@ export class ActionManager {
         if (this.dialog) {
             const { onClose, remove } = this.dialog;
             this.dialog = null;
-            // Remove the dialog from the dialog_service. Re-entry (the
-            // service's onRemove calls back into this method) is a no-op
-            // because this.dialog is already null.
-            remove();
-            await onClose?.(closeParams);
+            try {
+                await onClose?.(closeParams);
+            } finally {
+                remove();
+            }
         }
     }
 

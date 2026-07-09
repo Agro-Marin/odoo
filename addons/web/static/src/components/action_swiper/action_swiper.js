@@ -118,6 +118,19 @@ export class ActionSwiper extends Component {
     }
 
     /**
+     * The browser cancelled the touch sequence (incoming call, system
+     * gesture, scroll reclaim): touchend will never fire, so the swipe state
+     * must be reset here or the row stays stuck mid-translation.
+     *
+     * @private
+     */
+    _onTouchCancelSwipe() {
+        if (this.state.isSwiping) {
+            this._reset();
+        }
+    }
+
+    /**
      * @private
      */
     _onTouchEndSwipe() {

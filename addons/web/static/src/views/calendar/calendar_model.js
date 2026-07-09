@@ -319,7 +319,14 @@ export class CalendarModel extends Model {
                 continue;
             }
             for (const filter of section.filters) {
-                if (filter.active && filter.type === "record") {
+                // "user" is the auto-added current-user filter: it carries a
+                // real value and is often the ONLY active one — excluding it
+                // made multi-create a silent no-op in the common case.
+                if (
+                    filter.active &&
+                    ["record", "user"].includes(filter.type) &&
+                    filter.value
+                ) {
                     records.push({
                         ...rawRecord,
                         ...values,
@@ -327,6 +334,14 @@ export class CalendarModel extends Model {
                     });
                 }
             }
+        }
+        if (!records.length && dates.length) {
+            // Nothing matched (e.g. no filter checked): tell the user instead
+            // of silently clearing their selection.
+            this.notification.add(
+                _t("Activate at least one record in the side panel to assign the new events to."),
+                { type: "warning" },
+            );
         }
         if (records.length) {
             const createdRecords = await this.orm.create(this.meta.resModel, records, {

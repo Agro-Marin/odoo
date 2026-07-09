@@ -78,7 +78,12 @@ export async function loadSubViews(
 
             // extract *_view_ref keys from field context, to fetch the adequate view
             const fieldContext = {};
-            const regex = /'([a-z]*_view_ref)' *: *'(.*?)'/g;
+            // Accept both quote styles and any word-char key prefix: the
+            // filtering loop below strips every `*_view_ref` key from the
+            // merged context, so a spelling this regex missed (e.g. a
+            // double-quoted `"list_view_ref"`) was LOST entirely — stripped
+            // but never forwarded.
+            const regex = /['"](\w+_view_ref)['"] *: *['"](.*?)['"]/g;
             let matches;
             while ((matches = regex.exec(fieldInfo.context)) !== null) {
                 fieldContext[matches[1]] = matches[2];

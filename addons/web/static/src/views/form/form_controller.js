@@ -517,8 +517,12 @@ export class FormController extends Component {
             this.formDialogStack.isEmpty &&
             !this.model.root.isNew
         ) {
+            // checkDirty: a clean record must short-circuit BEFORE the save
+            // pipeline runs — without it, every tab-hide on a dirty-but-
+            // invalid record re-fires the "Missing required fields" toast
+            // and churns the status indicator through saving→clean.
             return this.saveCoordinator
-                .requestSave({ errorMode: "silent" })
+                .requestSave({ errorMode: "silent", checkDirty: true })
                 .catch((e) => console.warn("Auto-save on tab switch failed:", e));
         }
     }

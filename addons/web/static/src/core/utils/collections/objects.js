@@ -112,12 +112,27 @@ function _deepEqual(a, b, seen) {
         if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) {
             return false;
         }
+        // Matched-element accounting: without it, two elements of `a` can
+        // both "match" the same element of `b`, making the relation
+        // non-symmetric and true for unequal sets (greedy matching is exact
+        // here because deep equality is transitive).
+        const unmatched = new Set(b);
         for (const av of a) {
-            // fast path for primitives; fall back to a deep search for objects
-            if (b.has(av) || [...b].some((bv) => _deepEqual(av, bv, seen))) {
+            // fast path for primitives / identical references
+            if (unmatched.delete(av)) {
                 continue;
             }
-            return false;
+            let found = false;
+            for (const bv of unmatched) {
+                if (_deepEqual(av, bv, seen)) {
+                    unmatched.delete(bv);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
         }
         return true;
     }

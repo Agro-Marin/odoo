@@ -667,7 +667,12 @@ export class FormCompiler extends ViewCompiler {
             info: toStringExpression(el.getAttribute("info") || ""),
             title: toStringExpression(el.getAttribute("title") || ""),
             help: toStringExpression(el.getAttribute("help") || ""),
-            companyDependent: el.getAttribute("company_dependent") === "1" || "false",
+            // exprToBoolean: accept "1"/"true"/"True" like every other
+            // boolean-ish arch attribute (`=== "1" || "false"` silently
+            // dropped the icon for the "True" spelling).
+            companyDependent: exprToBoolean(el.getAttribute("company_dependent") || "")
+                ? "true"
+                : "false",
             documentation: toStringExpression(el.getAttribute("documentation") || ""),
             record: `__comp__.props.record`,
         });

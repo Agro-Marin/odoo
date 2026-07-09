@@ -38,7 +38,7 @@ path, used specifically for UI button actions — it wraps the result through
 | CLEAR | `[5, 0, 0]` | Clear all relations |
 | SET | `[6, 0, [ids]]` | Replace all with id list |
 
-The unused slots are the **integer `0`**, not `false` — RPC payloads must send literal zeros. JS clients sometimes send `false` and the server coerces, but relying on that is undefined behaviour in a refactor context.
+The canonical Python spelling of the unused slots is the integer `0` (`orm/primitives.py` `Command` helpers). The JS client (`model/relational_model/commands.js` and the command engine) emits `false` in those slots; this is **safe by construction** — the server-side command parser reads slot 2/3 only for CREATE/UPDATE/SET, and ignores the unused slots entirely for DELETE/UNLINK/LINK/CLEAR — and is pinned by ~115 HOOT test expectations, so do not "normalize" it. New Python code should still use the `Command` helpers (integer `0`).
 
 ## Specification Pattern
 

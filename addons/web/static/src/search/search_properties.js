@@ -185,6 +185,12 @@ export async function fillSearchViewItemsProperty(searchModel) {
             }
         }
     }
+
+    // Items may have been soft-deleted (retyped to
+    // "group_by_property_deleted") above without going through
+    // _createGroupOfSearchItems: invalidate the enriched-items memo so the
+    // Group By menu doesn't keep listing them from a stale snapshot.
+    searchModel._enrichedSearchItems = null;
 }
 
 /**

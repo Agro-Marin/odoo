@@ -79,7 +79,12 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
                         const strs = others.map((c) =>
                             _constructExpressionFromTree(c, options),
                         );
-                        return `${strs[0]} if ${str} else ${strs[1]}`;
+                        const expression = `${strs[0]} if ${str} else ${strs[1]}`;
+                        // A conditional expression has the LOWEST precedence in
+                        // Python: unparenthesized inside a parent connector,
+                        // `A and X if C else Y` re-parses as `(A and X) if C
+                        // else Y` — a different (wrong) expression.
+                        return isRoot ? expression : `( ${expression} )`;
                     }
                 }
             }

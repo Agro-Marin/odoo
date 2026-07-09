@@ -158,43 +158,52 @@ export class KanbanQuickCreateController extends Component {
         }
         this.state.disabled = true;
 
-        const keys = Object.keys(this.model.root.activeFields);
-        if (keys.length === 1 && keys[0] === "display_name") {
-            const isValid = await this.model.root.checkValidity(); // needed to put the class o_field_invalid in the field
-            if (isValid) {
-                try {
-                    [resId] = await this.model.orm.call(
-                        this.props.resModel,
-                        "name_create",
-                        [this.model.root.data.display_name],
-                        {
-                            context: this.props.context,
-                        },
-                    );
-                } catch (e) {
-                    this.showFormDialogInError(e);
+        try {
+            const keys = Object.keys(this.model.root.activeFields);
+            if (keys.length === 1 && keys[0] === "display_name") {
+                const isValid = await this.model.root.checkValidity(); // needed to put the class o_field_invalid in the field
+                if (isValid) {
+                    try {
+                        [resId] = await this.model.orm.call(
+                            this.props.resModel,
+                            "name_create",
+                            [this.model.root.data.display_name],
+                            {
+                                context: this.props.context,
+                            },
+                        );
+                    } catch (e) {
+                        this.showFormDialogInError(e);
+                    }
+                } else {
+                    this.notificationService.add(_t("Invalid Display Name"), {
+                        type: "danger",
+                    });
                 }
             } else {
-                this.notificationService.add(_t("Invalid Display Name"), {
-                    type: "danger",
+                await this.model.root.save({
+                    reload: false,
+                    onError: (e) => this.showFormDialogInError(e),
                 });
+                resId = this.model.root.resId;
             }
-        } else {
-            await this.model.root.save({
-                reload: false,
-                onError: (e) => this.showFormDialogInError(e),
-            });
-            resId = this.model.root.resId;
-        }
 
-        if (resId) {
-            this.props.onValidate(resId, mode);
-            if (mode === "add") {
-                await this.model.load({ resId: false });
+            if (resId) {
+                this.props.onValidate(resId, mode);
+                if (mode === "add") {
+                    await this.model.load({ resId: false });
+                }
+            }
+        } finally {
+            // Exception-safe reset: a non-RPCError escaping the save (e.g.
+            // ConnectionLostError rethrown by showFormDialogInError) must not
+            // leave `disabled` latched — cancel()/Escape/outside-click are
+            // all gated on it, which would zombify the quick-create card.
+            // On "edit" success the flag intentionally stays set: the card is
+            // about to be closed by onValidate.
+            if (!resId || mode === "add") {
                 this.state.disabled = false;
             }
-        } else {
-            this.state.disabled = false;
         }
     }
 

@@ -236,12 +236,20 @@ export class SearchArchParser {
                     // crashing the entire search view.
                 } else if (fieldType === "many2one") {
                     this.labels.push(async (orm) => {
-                        const results = await orm.call(
-                            relation, "read", [value, ["display_name"]], { context },
-                        );
-                        // The record may no longer exist (e.g. stale id in
-                        // the action context): fall back to a string label
-                        // instead of crashing the entire search view.
+                        // The record may no longer exist or be inaccessible
+                        // (stale id in the action context): `read` REJECTS
+                        // with MissingError/AccessError in that case (it does
+                        // not resolve to []), so the fallback must catch —
+                        // otherwise SearchModel.load() rejects and the entire
+                        // search view crashes.
+                        let results;
+                        try {
+                            results = await orm.silent.call(
+                                relation, "read", [value, ["display_name"]], { context },
+                            );
+                        } catch {
+                            results = [];
+                        }
                         preField.defaultAutocompleteValue.label =
                             results[0]?.display_name ?? String(value);
                     });
@@ -253,12 +261,18 @@ export class SearchArchParser {
                     preField.defaultAutocompleteValue.operator = "in";
                     preField.defaultAutocompleteValue.value = val;
                     this.labels.push(async (orm) => {
-                        const results = await orm.call(
-                            relation, "read", [val, ["display_name"]], { context },
-                        );
-                        preField.defaultAutocompleteValue.label = results
-                            .map((r) => r["display_name"])
-                            .join(" or ");
+                        // Same stale-id hardening as the many2one branch.
+                        let results;
+                        try {
+                            results = await orm.silent.call(
+                                relation, "read", [val, ["display_name"]], { context },
+                            );
+                        } catch {
+                            results = [];
+                        }
+                        preField.defaultAutocompleteValue.label =
+                            results.map((r) => r["display_name"]).join(" or ") ||
+                            String(val);
                     });
                 }
             }
@@ -324,10 +338,13 @@ export class SearchArchParser {
                     endMonth: Number(node.getAttribute("end_month") || 0),
                     customOptions: [],
                 };
+                // Current month (offset 0) clamped into the window — clamp's
+                // signature is (num, min, max); the previous argument order
+                // always yielded endMonth for any non-default window.
                 const defaultOffset = clamp(
+                    0,
                     optionsParams.startMonth,
                     optionsParams.endMonth,
-                    0,
                 );
                 preSearchItem.defaultGeneratorIds = [
                     toGeneratorId("month", defaultOffset),

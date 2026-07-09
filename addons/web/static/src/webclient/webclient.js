@@ -61,10 +61,24 @@ export class WebClient extends Component {
         });
         useBus(routerBus, RouterEvent.ROUTE_CHANGE, async () => {
             document.body.style.pointerEvents = "none";
+            // The route-change load rides the action manager's shared
+            // KeepLast: if another doAction supersedes it (Ctrl+K palette,
+            // hotkey-triggered button...), the awaited promise NEVER settles
+            // and the finally would never restore pointer events — a
+            // permanently mouse-dead page. Any completed action render is
+            // therefore also a restore signal (idempotent).
+            const restore = () => {
+                document.body.style.pointerEvents = "auto";
+                this.env.bus.removeEventListener(
+                    AppEvent.ACTION_MANAGER_UI_UPDATED,
+                    restore,
+                );
+            };
+            this.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, restore);
             try {
                 await this.loadRouterState();
             } finally {
-                document.body.style.pointerEvents = "auto";
+                restore();
             }
         });
         useBus(

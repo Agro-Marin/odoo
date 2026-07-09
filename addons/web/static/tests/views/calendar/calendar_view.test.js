@@ -3383,6 +3383,10 @@ test(`Colors: dynamic filters with no color source`, async () => {
 });
 
 test(`create event with filters`, async () => {
+    // Time-grid slot selection is timezone-sensitive and this test doesn't
+    // exercise TZ behavior: pin UTC so it passes on any dev machine, not
+    // only on UTC hosts (CI).
+    mockTimeZone(0);
     Event._fields.user_id = fields.Many2one({ relation: "calendar.users", default: 5 });
     Event._fields.partner_id = fields.Many2one({
         relation: "calendar.partner",
@@ -3437,6 +3441,10 @@ test(`create event with filters`, async () => {
 });
 
 test(`create event with filters (no quickCreate)`, async () => {
+    // Time-grid slot selection is timezone-sensitive and this test doesn't
+    // exercise TZ behavior: pin UTC so it passes on any dev machine, not
+    // only on UTC hosts (CI).
+    mockTimeZone(0);
     Event._views = {
         form: `
             <form>
@@ -5676,6 +5684,10 @@ test(`calendar render properties in popover`, async () => {
 });
 
 test(`calendar create record with default properties`, async () => {
+    // Time-grid slot selection is timezone-sensitive and this test doesn't
+    // exercise TZ behavior: pin UTC so it passes on any dev machine, not
+    // only on UTC hosts (CI).
+    mockTimeZone(0);
     Event._fields.properties = fields.Properties({
         definition_record: "type_id",
         definition_record_field: "definitions",

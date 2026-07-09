@@ -267,7 +267,7 @@ describe("deleteBackward applied to toggle", () => {
                 <div data-embedded="toggleBlock" data-oe-protected="true" data-embedded-props='{ "toggleBlockId": "1" }' contenteditable="false">
                     <div class="d-flex flex-row align-items-center">
                         <button class="btn p-0 border-0 align-items-center justify-content-center btn-light" type="button">
-                            <i class="fa align-self-center fa-caret-right"></i>
+                            <i class="fa-solid align-self-center fa-caret-right"></i>
                         </button>
                         <div class="flex-fill ms-1">
                             <div data-embedded-editable="title" data-oe-protected="false" contenteditable="true">
@@ -285,7 +285,7 @@ describe("deleteBackward applied to toggle", () => {
                 <div data-embedded="toggleBlock" data-oe-protected="true" data-embedded-props='{ "toggleBlockId": "2" }' contenteditable="false">
                     <div class="d-flex flex-row align-items-center">
                         <button class="btn p-0 border-0 align-items-center justify-content-center btn-light" type="button">
-                            <i class="fa align-self-center fa-caret-right"></i>
+                            <i class="fa-solid align-self-center fa-caret-right"></i>
                         </button>
                         <div class="flex-fill ms-1">
                             <div data-embedded-editable="title" data-oe-protected="false" contenteditable="true">
@@ -309,7 +309,7 @@ describe("deleteBackward applied to toggle", () => {
                 <div data-embedded="toggleBlock" data-oe-protected="true" data-embedded-props='{ "toggleBlockId": "1" }' contenteditable="false">
                     <div class="d-flex flex-row align-items-center">
                         <button class="btn p-0 border-0 align-items-center justify-content-center btn-light" type="button">
-                            <i class="fa align-self-center fa-caret-right"></i>
+                            <i class="fa-solid align-self-center fa-caret-right"></i>
                         </button>
                         <div class="flex-fill ms-1">
                             <div data-embedded-editable="title" data-oe-protected="false" contenteditable="true">
@@ -327,7 +327,7 @@ describe("deleteBackward applied to toggle", () => {
                 <div data-embedded="toggleBlock" data-oe-protected="true" data-embedded-props='{ "toggleBlockId": "2" }' contenteditable="false">
                     <div class="d-flex flex-row align-items-center">
                         <button class="btn p-0 border-0 align-items-center justify-content-center btn-light" type="button">
-                            <i class="fa align-self-center fa-caret-right"></i>
+                            <i class="fa-solid align-self-center fa-caret-right"></i>
                         </button>
                         <div class="flex-fill ms-1">
                             <div data-embedded-editable="title" data-oe-protected="false" contenteditable="true">
@@ -593,7 +593,7 @@ describe("deleteForward applied to toggle", () => {
                 <div data-embedded="toggleBlock" data-oe-protected="true" data-embedded-props='{ "toggleBlockId": "1" }' contenteditable="false">
                     <div class="d-flex flex-row align-items-center">
                         <button class="btn p-0 border-0 align-items-center justify-content-center btn-light" type="button">
-                            <i class="fa align-self-center fa-caret-right"></i>
+                            <i class="fa-solid align-self-center fa-caret-right"></i>
                         </button>
                         <div class="flex-fill ms-1">
                             <div data-embedded-editable="title" data-oe-protected="false" contenteditable="true">
@@ -637,7 +637,7 @@ describe("deleteForward applied to toggle", () => {
                 <div data-embedded="toggleBlock" data-oe-protected="true" data-embedded-props='{ "toggleBlockId": "1" }' contenteditable="false">
                     <div class="d-flex flex-row align-items-center">
                         <button class="btn p-0 border-0 align-items-center justify-content-center btn-light" type="button">
-                            <i class="fa align-self-center fa-caret-down"></i>
+                            <i class="fa-solid align-self-center fa-caret-down"></i>
                         </button>
                         <div class="flex-fill ms-1">
                             <div data-embedded-editable="title" data-oe-protected="false" contenteditable="true">

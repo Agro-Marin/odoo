@@ -830,10 +830,24 @@ export class StaticList extends DataPoint {
      * @fixme: this method is naive and ineffective (it triggers a lot of onchange rpcs)
      */
     async _duplicateRecords(records, options) {
-        const targetIndex =
-            options.targetIndex ?? this.records.indexOf(records.at(-1)) + 1;
+        // No records to duplicate, or no handle field to sequence on: the
+        // sequence arithmetic below would read `records[-1]`/`data[undefined]`
+        // and write NaN sequences into every following record.
+        if (!records.length || !this.handleField) {
+            return;
+        }
+        const targetIndex = Math.min(
+            Math.max(options.targetIndex ?? this.records.indexOf(records.at(-1)) + 1, 0),
+            this.records.length,
+        );
         const copyFields = options.copyFields || [];
-        let sequence = this.records[targetIndex - 1].data[this.handleField] + 1;
+        // targetIndex 0 (insert at the top — e.g. account's section duplicate)
+        // starts from the first record's sequence instead of reading the
+        // non-existent records[-1].
+        let sequence =
+            targetIndex > 0
+                ? this.records[targetIndex - 1].data[this.handleField] + 1
+                : this.records[0].data[this.handleField];
         const newRecords = await Promise.all(
             records.map(async () =>
                 this._createNewRecordDatapoint({

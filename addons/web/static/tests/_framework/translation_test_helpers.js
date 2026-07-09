@@ -43,7 +43,9 @@ export function patchTranslations(terms = {}) {
         if (!(addonName in translatedTerms)) {
             patchWithCleanup(translatedTerms, { [addonName]: {} });
         }
-        patchWithCleanup(translatedTerms[addonName], terms[addonName]);
-        patchWithCleanup(translatedTermsGlobal, terms[addonName]);
+        // Fresh copy per patch(): the extension object is mutated to build
+        // the `super` chain, so the same object cannot back two patches.
+        patchWithCleanup(translatedTerms[addonName], { ...terms[addonName] });
+        patchWithCleanup(translatedTermsGlobal, { ...terms[addonName] });
     }
 }

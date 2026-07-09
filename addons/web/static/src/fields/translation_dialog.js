@@ -29,6 +29,10 @@ export class TranslationDialog extends Component {
         this.title = _t("Translate: %s", this.props.fieldName);
 
         this.user = user;
+        // Terms carry python-format lang codes ("es_MX") while user.lang is
+        // BCP-47 ("es-MX") — the template's current-language highlight must
+        // compare in the same format.
+        this.userPyLang = jsToPyLocale(user.lang);
         this.orm = useService("orm");
 
         this.terms = [];
@@ -38,7 +42,7 @@ export class TranslationDialog extends Component {
 
         onWillStart(async () => {
             const languages = await loadLanguages(this.orm);
-            const [translations, context] = await this.loadTranslations(languages);
+            const [translations, context] = await this.loadTranslations();
             let id = 1;
             translations.forEach((t) => (t.id = id++));
             this.isText = context.translation_type === "text";
@@ -55,7 +59,7 @@ export class TranslationDialog extends Component {
                 // the user is currently utilizing. Then we set the translation value coming
                 // from the value of the field in the form
                 if (
-                    term.lang === jsToPyLocale(user.lang) &&
+                    term.lang === this.userPyLang &&
                     !this.showSource &&
                     !this.props.isComingFromTranslationAlert
                 ) {
@@ -68,19 +72,10 @@ export class TranslationDialog extends Component {
         });
     }
 
-    /** @returns {Array} Domain filter for translation search */
-    get domain() {
-        const domain = this.props.domain;
-        if (this.props.searchName) {
-            domain.push(["name", "=", `${this.props.searchName}`]);
-        }
-        return domain;
-    }
-
     /**
-     * Load the translation terms for the installed language, for the current model and res_id
+     * Load the translation terms for the installed languages, for the current model and res_id
      */
-    async loadTranslations(languages) {
+    async loadTranslations() {
         return this.orm.call(this.props.resModel, "get_field_translations", [
             [this.props.resId],
             this.props.fieldName,

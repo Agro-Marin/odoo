@@ -42,7 +42,7 @@ import { getFormattedValue } from "@web/views/view_utils";
  * string.  Drives ``o_list_number``, ``o_list_text``, etc. — controls
  * column alignment and width hints in CSS.
  */
-export const FIELD_CLASSES = {
+const FIELD_CLASSES = {
     char: "o_list_char",
     float: "o_list_number",
     integer: "o_list_number",

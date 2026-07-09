@@ -202,9 +202,13 @@ export function useInputField(params) {
                     );
                 } finally {
                     pendingUpdate = false;
+                    // Re-derive instead of hardcoding false: the user may
+                    // have typed again while the update was pending, and
+                    // clobbering that keystroke's FIELD_IS_DIRTY:true would
+                    // show a "saved" status over uncommitted input.
                     component.props.record.model.bus.trigger(
                         ModelEvent.FIELD_IS_DIRTY,
-                        false,
+                        Boolean(inputRef.el && inputRef.el.value !== lastSetValue),
                     );
                 }
             } else {

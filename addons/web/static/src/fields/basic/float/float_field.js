@@ -39,12 +39,14 @@ export class FloatField extends NumericInputFieldBase {
         if (this.props.inputType === "number") {
             const parsed = Number(value);
             // A type=number input can still yield NaN (programmatic/garbage
-            // value). Fall back to the locale parser so it throws a ParseError
-            // and the field is flagged invalid, instead of persisting NaN.
+            // value) or ±Infinity ("1e999" is accepted input text). Fall back
+            // to the locale parser so it throws a ParseError and the field is
+            // flagged invalid, instead of persisting NaN/Infinity (Infinity
+            // JSON-serializes to null, silently unsetting the field).
             // (Number("") === 0, so empty input still resolves to 0 as before.)
-            return Number.isNaN(parsed)
-                ? parseFloat(value, { allowOperation: true })
-                : parsed;
+            return Number.isFinite(parsed)
+                ? parsed
+                : parseFloat(value, { allowOperation: true });
         }
         return parseFloat(value, { allowOperation: true });
     }

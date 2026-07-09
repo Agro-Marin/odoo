@@ -250,7 +250,10 @@ export class CommandPalette extends Component {
             if (namespaceConfig.categories) {
                 /** @type {CommandItem[]} */
                 let commandsSorted = [];
-                this.categoryKeys = namespaceConfig.categories;
+                // Copy: the config array is caller-owned — pushing "default"
+                // through the alias would permanently mutate the provider's
+                // registered categories (cf. default_providers.js:66).
+                this.categoryKeys = [...namespaceConfig.categories];
                 this.categoryNames = namespaceConfig.categoryNames || {};
                 if (!this.categoryKeys.includes("default")) {
                     this.categoryKeys.push("default");

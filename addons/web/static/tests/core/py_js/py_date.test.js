@@ -14,6 +14,13 @@ const check = (expr, fn) => {
 
 const format = (n) => String(n).padStart(2, "0");
 
+// Date semantics under test (must match py_date.js / py_builtin.js):
+//   - `today` / `date.today()` / `context_today()` → USER-LOCAL date (date
+//     fields are timezone-naive; "today" is the user's today).
+//   - `now` / `datetime.now()` / `time.strftime` → UTC (datetime fields are
+//     UTC strings, so `datetime_field < now` must compare in UTC).
+// Computing expectations with the matching getters keeps these green on any
+// host timezone, not just UTC.
 const formatDate = (d) => {
     const year = d.getFullYear();
     const month = format(d.getMonth() + 1);
@@ -21,42 +28,45 @@ const formatDate = (d) => {
     return `${year}-${month}-${day}`;
 };
 
-const formatDateTime = (d) => {
-    const h = format(d.getHours());
-    const m = format(d.getMinutes());
-    const s = format(d.getSeconds());
-    return `${formatDate(d)} ${h}:${m}:${s}`;
+const formatDateTimeUTC = (d) => {
+    const year = d.getUTCFullYear();
+    const month = format(d.getUTCMonth() + 1);
+    const day = format(d.getUTCDate());
+    const h = format(d.getUTCHours());
+    const m = format(d.getUTCMinutes());
+    const sec = format(d.getUTCSeconds());
+    return `${year}-${month}-${day} ${h}:${m}:${sec}`;
 };
 
 describe.current.tags("headless");
 
 describe("time", () => {
     test("strftime", () => {
-        expect(check("time.strftime('%Y')", (d) => String(d.getFullYear()))).toBe(true);
+        expect(check("time.strftime('%Y')", (d) => String(d.getUTCFullYear()))).toBe(true);
         expect(
             check(
                 "time.strftime('%Y') + '-01-30'",
                 (d) => String(d.getFullYear()) + "-01-30",
             ),
         ).toBe(true);
-        expect(check("time.strftime('%Y-%m-%d %H:%M:%S')", formatDateTime)).toBe(true);
+        expect(check("time.strftime('%Y-%m-%d %H:%M:%S')", formatDateTimeUTC)).toBe(true);
     });
 });
 
 describe("datetime.datetime", () => {
     test("datetime.datetime.now", () => {
-        expect(check("datetime.datetime.now().year", (d) => d.getFullYear())).toBe(
+        expect(check("datetime.datetime.now().year", (d) => d.getUTCFullYear())).toBe(
             true,
         );
-        expect(check("datetime.datetime.now().month", (d) => d.getMonth() + 1)).toBe(
+        expect(check("datetime.datetime.now().month", (d) => d.getUTCMonth() + 1)).toBe(
             true,
         );
-        expect(check("datetime.datetime.now().day", (d) => d.getDate())).toBe(true);
-        expect(check("datetime.datetime.now().hour", (d) => d.getHours())).toBe(true);
-        expect(check("datetime.datetime.now().minute", (d) => d.getMinutes())).toBe(
+        expect(check("datetime.datetime.now().day", (d) => d.getUTCDate())).toBe(true);
+        expect(check("datetime.datetime.now().hour", (d) => d.getUTCHours())).toBe(true);
+        expect(check("datetime.datetime.now().minute", (d) => d.getUTCMinutes())).toBe(
             true,
         );
-        expect(check("datetime.datetime.now().second", (d) => d.getSeconds())).toBe(
+        expect(check("datetime.datetime.now().second", (d) => d.getUTCSeconds())).toBe(
             true,
         );
     });
@@ -569,11 +579,40 @@ describe("misc", () => {
     });
 
     test("now", () => {
-        expect(check("now", formatDateTime)).toBe(true);
+        expect(check("now", formatDateTimeUTC)).toBe(true);
     });
 
     test("current_date", () => {
         mockDate("2021-09-20 10:00:00");
         expect(evaluateExpr("current_date")).toBe("2021-09-20");
+    });
+});
+
+describe("relativedelta leapdays", () => {
+    test("leapdays kwarg is applied (leap year, past February)", () => {
+        // dateutil: leapdays are added when the result's year is a leap year
+        // and the result is past Feb 28.
+        expect(
+            evaluateExpr(
+                "(datetime.date(2020,1,1) + relativedelta(months=2, leapdays=10)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2020-03-11");
+        // Non-leap year: leapdays are ignored.
+        expect(
+            evaluateExpr(
+                "(datetime.date(2021,1,1) + relativedelta(months=2, leapdays=10)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2021-03-01");
+    });
+
+    test("negation keeps leapdays unsigned (dateutil parity)", () => {
+        // dateutil's __neg__ does NOT negate leapdays: subtracting the delta
+        // still ADDS the (positive) leapdays when the result is past Feb 28
+        // of a leap year.
+        expect(
+            evaluateExpr(
+                "(datetime.date(2020,6,1) - relativedelta(months=1, leapdays=1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2020-05-02");
     });
 });

@@ -326,15 +326,37 @@ function _applyUnaryOp(ast, recurse) {
     const value = recurse(ast.right);
     switch (ast.op) {
         case "-":
-            if (value instanceof Object && value.negate) {
+            // typeof guard: a plain data dict may carry a `negate` KEY (a
+            // data value, not a method) — same precedent as `isEqual` above.
+            if (value instanceof Object && typeof value.negate === "function") {
                 return value.negate();
+            }
+            if (typeof value !== "number" && typeof value !== "boolean") {
+                throw new EvaluationError(
+                    `bad operand type for unary -: '${pyTypeName(value)}'`,
+                );
             }
             return -value;
         case "+":
+            // Python defines __pos__ for numbers, bools and timedelta only.
+            if (
+                typeof value !== "number" &&
+                typeof value !== "boolean" &&
+                !(value instanceof PyTimeDelta)
+            ) {
+                throw new EvaluationError(
+                    `bad operand type for unary +: '${pyTypeName(value)}'`,
+                );
+            }
             return value;
         case "not":
             return !isTrue(value);
         case "~":
+            if (typeof value !== "number" && typeof value !== "boolean") {
+                throw new EvaluationError(
+                    `bad operand type for unary ~: '${pyTypeName(value)}'`,
+                );
+            }
             return ~value;
     }
     throw new EvaluationError(`Unknown unary operator: ${ast.op}`);
@@ -363,6 +385,38 @@ function pyTypeName(value) {
             return value.constructor?.name || "object";
         default:
             return typeof value;
+    }
+}
+
+/**
+ * Reject non-numeric operands with a Python-style TypeError message instead
+ * of letting JS coercion silently produce NaN (Python bools are ints, so
+ * booleans are accepted).
+ *
+ * @param {string} op operator symbol, for the error message
+ * @param {any} value
+ */
+function assertNumericOperand(op, value) {
+    if (typeof value !== "number" && typeof value !== "boolean") {
+        throw new EvaluationError(
+            `unsupported operand type(s) for ${op}: '${pyTypeName(value)}'`,
+        );
+    }
+}
+
+/**
+ * @param {string} op operator symbol, for the error message
+ * @param {any} left
+ * @param {any} right
+ */
+function assertNumericOperands(op, left, right) {
+    if (
+        (typeof left !== "number" && typeof left !== "boolean") ||
+        (typeof right !== "number" && typeof right !== "boolean")
+    ) {
+        throw new EvaluationError(
+            `unsupported operand type(s) for ${op}: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+        );
     }
 }
 
@@ -525,6 +579,7 @@ function _applyBinaryOp(ast, recurse) {
             if (left instanceof PyDate || left instanceof PyDateTime) {
                 return left.subtract(right);
             }
+            assertNumericOperands("-", left, right);
             return left - right;
         }
         case "*": {
@@ -554,31 +609,81 @@ function _applyBinaryOp(ast, recurse) {
                 return result;
             }
 
+            assertNumericOperands("*", left, right);
             return left * right;
         }
         case "/":
-            if (right === 0) {
+            if (left instanceof PyTimeDelta) {
+                if (right instanceof PyTimeDelta) {
+                    // Python: td / td → float ratio.
+                    const divisor = right.toMicroseconds();
+                    if (divisor === 0) {
+                        throw new EvaluationError("ZeroDivisionError: division by zero");
+                    }
+                    return left.toMicroseconds() / divisor;
+                }
+                assertNumericOperand("/", right);
+                if (Number(right) === 0) {
+                    throw new EvaluationError("ZeroDivisionError: division by zero");
+                }
+                // Python: td / n → timedelta (rounded to the microsecond).
+                return left.divideTrue(Number(right));
+            }
+            assertNumericOperands("/", left, right);
+            // Number(): Python bools are ints, so `1 / False` divides by zero.
+            if (Number(right) === 0) {
                 throw new EvaluationError("ZeroDivisionError: division by zero");
             }
             return left / right;
-        case "%":
+        case "%": {
             if (typeof left === "string") {
                 // printf-style string formatting: ``'%s' % 5`` → "5".
                 return pyStringFormat(left, right);
             }
-            if (right === 0) {
+            if (left instanceof PyTimeDelta && right instanceof PyTimeDelta) {
+                // Python: td % td → timedelta (sign follows the divisor).
+                const rus = right.toMicroseconds();
+                if (rus === 0) {
+                    throw new EvaluationError("ZeroDivisionError: modulo by zero");
+                }
+                const lus = left.toMicroseconds();
+                return PyTimeDelta.create({ microseconds: ((lus % rus) + rus) % rus });
+            }
+            assertNumericOperands("%", left, right);
+            if (Number(right) === 0) {
                 throw new EvaluationError("ZeroDivisionError: modulo by zero");
             }
             return ((left % right) + right) % right;
+        }
         case "//":
             if (left instanceof PyTimeDelta) {
-                return left.divide(right);
+                if (right instanceof PyTimeDelta) {
+                    // Python: td // td → int.
+                    const divisor = right.toMicroseconds();
+                    if (divisor === 0) {
+                        throw new EvaluationError(
+                            "ZeroDivisionError: integer division or modulo by zero",
+                        );
+                    }
+                    return Math.floor(left.toMicroseconds() / divisor);
+                }
+                assertNumericOperand("//", right);
+                if (Number(right) === 0) {
+                    throw new EvaluationError(
+                        "ZeroDivisionError: integer division or modulo by zero",
+                    );
+                }
+                return left.divide(Number(right));
             }
-            if (right === 0) {
-                throw new EvaluationError("ZeroDivisionError: floor division by zero");
+            assertNumericOperands("//", left, right);
+            if (Number(right) === 0) {
+                throw new EvaluationError(
+                    "ZeroDivisionError: integer division or modulo by zero",
+                );
             }
             return Math.floor(left / right);
         case "**":
+            assertNumericOperands("**", left, right);
             return left ** right;
         case "==":
             return isEqual(left, right);
@@ -745,7 +850,16 @@ export function evaluate(ast, context = {}) {
                 /** @type {Record<string, any>} */
                 const dict = {};
                 for (const key of Object.keys(ast.value || {})) {
-                    dict[key] = _evaluate(ast.value[key]);
+                    // defineProperty: keeps a literal '__proto__' key as a
+                    // plain OWN entry (matching the parser side) while the
+                    // dict stays a regular Object for downstream consumers
+                    // (OWL props validation, deepCopy, ...).
+                    Object.defineProperty(dict, key, {
+                        value: _evaluate(ast.value[key]),
+                        writable: true,
+                        enumerable: true,
+                        configurable: true,
+                    });
                 }
                 dicts.add(dict);
                 return dict;

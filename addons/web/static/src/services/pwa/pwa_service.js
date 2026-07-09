@@ -166,7 +166,10 @@ export const pwaService = {
             }
             // If a user declines the prompt, the browser would triggered it once again. We must be able to catch it
             REGISTER_BEFOREINSTALLPROMPT_EVENT = (ev) => {
-                _handleBeforeInstallPrompt(ev, installationState);
+                // Re-read the persisted state: the boot-time snapshot predates
+                // a dismissal recorded by show()/decline(), and using it here
+                // would resurrect a prompt the user just dismissed.
+                _handleBeforeInstallPrompt(ev, _getInstallationState());
             };
             if (isBrowserSafari()) {
                 // since those platforms don't rely on the beforeinstallprompt event, we handle it ourselves

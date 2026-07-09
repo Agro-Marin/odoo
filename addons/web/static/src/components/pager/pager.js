@@ -144,8 +144,10 @@ export class Pager extends Component {
         const minimum = Number.parseInt(minStr, 10);
         const maximum = maxStr ? Number.parseInt(maxStr, 10) : minimum;
         if (this.props.updateTotal) {
-            // we don't know the real total, so we can't clamp
-            return { minimum: minimum - 1, maximum };
+            // We don't know the real total, so we can't clamp the upper
+            // bound — but the lower bound must still be floored: typing "0"
+            // would otherwise send offset -1 (a negative SQL OFFSET).
+            return { minimum: Math.max(minimum - 1, 0), maximum: Math.max(maximum, 1) };
         }
         return {
             minimum: clamp(minimum, 1, this.props.total) - 1,

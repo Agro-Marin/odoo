@@ -67,10 +67,16 @@ export const notificationService = {
         function close(id) {
             if (notifications[id]) {
                 const notification = notifications[id];
-                if (notification.onClose) {
-                    notification.onClose();
+                // The user-provided onClose may throw; the toast must still
+                // be removed or it becomes permanently un-dismissable (same
+                // hardening as dialog_service's onClose handling).
+                try {
+                    if (notification.onClose) {
+                        notification.onClose();
+                    }
+                } finally {
+                    delete notifications[id];
                 }
-                delete notifications[id];
             }
         }
 

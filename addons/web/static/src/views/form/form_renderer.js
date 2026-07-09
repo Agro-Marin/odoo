@@ -59,7 +59,6 @@ export class FormRenderer extends Component {
         record: Object,
         // Template props : added by the FormCompiler
         class: { type: String, optional: 1 },
-        translateAlert: { type: [Object, { value: null }], optional: true },
         onNotebookPageChange: { type: Function, optional: true },
         activeNotebookPages: { type: Object, optional: true },
         readonly: { type: Boolean, optional: true },

@@ -120,10 +120,16 @@ export const nameService = {
             const proms = [];
             /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
             const entriesToFetch = [];
-            for (const resId of unique(resIds)) {
+            const uniqueIds = unique(resIds);
+            // Validate BEFORE mutating the shared mapping: throwing mid-loop
+            // would leave pending Deferreds nobody ever resolves — every
+            // later load of those valid ids would join an orphan and hang.
+            for (const resId of uniqueIds) {
                 if (!isId(resId)) {
                     throw new Error(`Invalid ID: ${resId}`);
                 }
+            }
+            for (const resId of uniqueIds) {
                 if (!(resId in mapping)) {
                     mapping[resId] = new Deferred();
                     entriesToFetch.push({ resId, deferred: mapping[resId] });
