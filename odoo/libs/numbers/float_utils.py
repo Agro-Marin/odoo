@@ -109,6 +109,12 @@ def float_round(
     else:
         normalized_value = value / rounding_factor
 
+    if normalized_value == 0.0:  # noqa: RUF069  # exact zero = normalization underflow
+        # Underflow during normalization (e.g. a subnormal value divided by a
+        # large rounding factor); the rounded result is 0.  Guard before the
+        # log2() below, which would raise on 0.
+        return 0.0
+
     # Due to IEEE-754 float/double representation limits, the approximation of the
     # real value may be slightly below the tie limit, resulting in an error of
     # 1 unit in the last place (ulp) after rounding.

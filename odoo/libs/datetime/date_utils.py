@@ -77,7 +77,15 @@ def float_to_time(hours: float) -> time:
     if hours == 24.0:  # noqa: RUF069  # exact sentinel: 24.0 maps to end-of-day
         return time.max
     fractional, integral = math.modf(hours)
-    return time(int(integral), int(float_round(60 * fractional, precision_digits=0)), 0)
+    minutes = int(float_round(60 * fractional, precision_digits=0))
+    if minutes == 60:
+        # rounding carried into the next hour (e.g. 8.9999 -> 60 min); carry it
+        # rather than crash on ``time(h, 60)``.
+        integral += 1
+        minutes = 0
+    if integral >= 24:  # carried past end-of-day (e.g. 23.9999)
+        return time.max
+    return time(int(integral), minutes, 0)
 
 
 def time_to_float(duration: time | timedelta) -> float:
