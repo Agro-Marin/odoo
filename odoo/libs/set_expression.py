@@ -41,9 +41,10 @@ class SetDefinitions:
     def __init__(self, definitions: dict[int, dict[str, object]]) -> None:
         r"""Initialize the object from the given set ``definitions``.
 
-        ``definitions`` maps each set id to a dict with optional keys ``"ref"``
-        (value is the set's name), ``"supersets"`` (value is a collection of set
-        ids), and ``"disjoints"`` (value is a collection of set ids).
+        ``definitions`` maps each set id to a dict with a required key ``"ref"``
+        (value is the set's name) and optional keys ``"supersets"`` (value is a
+        collection of set ids) and ``"disjoints"`` (value is a collection of set
+        ids).
 
         Here is an example of set definitions, with natural numbers (N), integer
         numbers (Z), rational numbers (Q), irrational numbers (R\\Q), real
@@ -176,7 +177,7 @@ class SetDefinitions:
             optimal=True,
         )
 
-    def get_id(self, ref: LeafIdType) -> LeafIdType | None:
+    def get_id(self, ref: str | int) -> LeafIdType | None:
         """Return a set id from its reference, or ``None`` if it does not exist."""
         if ref == "*":
             return UNIVERSAL_LEAF.id

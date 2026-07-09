@@ -3,6 +3,7 @@
 __all__ = ["Speedscope"]
 
 import reprlib
+from collections.abc import Iterable
 from typing import Any, Self
 
 shortener = reprlib.Repr()
@@ -69,7 +70,7 @@ class Speedscope:
 
     def add_output(
         self,
-        names: list[str],
+        names: Iterable[str],
         complete: bool = True,
         display_name: str | None = None,
         use_context: bool = True,
@@ -136,7 +137,9 @@ class Speedscope:
         """Add the default set of outputs for the collected profiles per ``params``."""
         if len(self.profiles_raw) > 1:
             if params["combined_profile"]:
-                self.add_output(self.profiles_raw, display_name="Combined", **params)
+                self.add_output(
+                    list(self.profiles_raw), display_name="Combined", **params
+                )
         for key, profile in self.profiles_raw.items():
             sql = profile and profile[0].get("query")
             if sql:
