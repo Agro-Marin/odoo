@@ -977,10 +977,11 @@ class PoFileReader:
             # all); a missing/non-matching comment must not crash the whole
             # import. This default only feeds "code" rows (which _load ignores) —
             # model/model_terms rows get their module from the occurrence below.
-            comment_match = re.match(r"(module[s]?): (\w+)", entry.comment or "")
+            comment = entry.comment or ""
+            comment_match = re.match(r"(module[s]?): (\w+)", comment)
             module = comment_match.group(2) if comment_match else None
             comments = "\n".join(
-                [c for c in entry.comment.split("\n") if not c.startswith("module:")]
+                c for c in comment.split("\n") if not c.startswith("module:")
             )
             source = entry.msgid
             translation = entry.msgstr
