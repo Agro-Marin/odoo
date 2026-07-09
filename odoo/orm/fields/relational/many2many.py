@@ -567,22 +567,27 @@ class Many2many(_RelationalMulti):
             for command in commands:
                 if not isinstance(command, (list, tuple)) or not command:
                     continue
+                # Each command applies only to the records of its own pair
+                # (recs), not to every record in the batch -- mirrors write_real
+                # and One2many.write_new. Using new_relation.values() here would
+                # cross-contaminate: record A's LINK/CREATE would also land on
+                # record B when a single write_new call carries multiple pairs.
                 match command[0]:
                     case Command.CREATE:
                         line_id = comodel.new(command[2], ref=command[1]).id
-                        for line_ids in new_relation.values():
-                            line_ids.add(line_id)
+                        for id_ in recs._ids:
+                            new_relation[id_].add(line_id)
                     case Command.UPDATE:
                         line_id = new(command[1])
                         comodel.browse([line_id]).update(command[2])
                     case Command.DELETE | Command.UNLINK:
                         line_id = new(command[1])
-                        for line_ids in new_relation.values():
-                            line_ids.discard(line_id)
+                        for id_ in recs._ids:
+                            new_relation[id_].discard(line_id)
                     case Command.LINK:
                         line_id = new(command[1])
-                        for line_ids in new_relation.values():
-                            line_ids.add(line_id)
+                        for id_ in recs._ids:
+                            new_relation[id_].add(line_id)
                     case Command.CLEAR | Command.SET:
                         # new lines must no longer be linked to records
                         line_ids = command[2] if command[0] == Command.SET else ()
