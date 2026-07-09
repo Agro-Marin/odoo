@@ -177,9 +177,10 @@ class PerfFilter(logging.Filter):
                     f"{record.perf_info} {self.format_cursor_mode(cursor_mode)}"
                 )
             delattr(threading.current_thread(), "query_count")
+        elif tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
+            # replica mode carries a 4th (cursor-mode) placeholder column
+            record.perf_info = "- - - -"
         else:
-            if tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
-                record.perf_info = "- - - -"
             record.perf_info = "- - -"
         return True
 

@@ -102,9 +102,9 @@ class TestCursor(BaseCursor):
         """Roll back to the savepoint and release the lock."""
         if not self._closed:
             try:
+                # rollback() rolls back to *and* releases the savepoint, then
+                # nulls self._savepoint -- so there is nothing left to release here.
                 self.rollback()
-                if self._savepoint:
-                    self._savepoint.close(rollback=False)
             finally:
                 self._closed = True
 
