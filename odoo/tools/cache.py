@@ -197,48 +197,6 @@ class ormcache:
         code = f"lambda {args}: ({''.join(a for arg in values for a in (arg, ','))})"
         self.key = unsafe_eval(code, {"method": self.method})
 
-    def lookup(self, *args: Any, **kwargs: Any) -> Any:
-        model: BaseModel = args[0]
-        d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore[attr-defined]
-        key = self.key(*args, **kwargs)
-        counter = _COUNTERS[model.pool.db_name, self.method]
-
-        tx_lookups = model.env.cr.cache.setdefault("_ormcache_lookups", set())
-        tx_first_lookup = False
-        try:
-            # tx: is it the first call in the transaction for that key; store
-            # hashes, not the key itself, so we don't keep hard references that
-            # prevent cached objects from being garbage collected.  An unhashable
-            # key element raises TypeError here and routes to the uncached
-            # fallback below, instead of crashing before the except can catch it.
-            tx_key = tuple(map(hash, key))
-            tx_first_lookup = tx_key not in tx_lookups
-            if tx_first_lookup:
-                counter.cache_name = self.cache_name
-                tx_lookups.add(tx_key)
-            r = d[key]
-            counter.hit += 1
-            counter.tx_hit += tx_first_lookup
-            return r
-        except KeyError:
-            counter.miss += 1
-            counter.tx_miss += tx_first_lookup
-            miss = True
-        except TypeError:
-            _logger.warning("cache lookup error on %r", key, exc_info=True)
-            counter.err += 1
-            counter.tx_err += tx_first_lookup
-            miss = False
-
-        if miss:
-            start = time.monotonic()
-            value = self.method(*args, **kwargs)
-            counter.gen_time += time.monotonic() - start
-            d[key] = value
-            return value
-        else:
-            return self.method(*args, **kwargs)
-
 
 class ormcache_context(ormcache):
     """Variant of :class:`ormcache` with an extra ``keys`` parameter that
@@ -256,6 +214,7 @@ class ormcache_context(ormcache):
             DeprecationWarning,
             stacklevel=2,
         )
+        self.keys = keys
         super().__init__(*args, **kwargs)
 
     def determine_key(self) -> None:
@@ -389,7 +348,7 @@ def log_ormcache_stats(
                 log_msgs.append(f"Database {dbname or '<no_db>'}:")
                 log_msgs.extend(
                     f" * {cache_name}: {entries}/{count}{' (' if cache_total_size else ''}{cache_total_size}{' bytes)' if cache_total_size else ''}"
-                    for cache_name, entries, count, cache_total_size in db_cache_usage
+                    for cache_name, entries, count, cache_total_size in cache_usage[dbname]
                 )
                 log_msgs.append("Details:")
 

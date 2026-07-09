@@ -435,6 +435,39 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "_file_write_stream dedup hit must refresh the marker's grace clock",
         )
 
+    def test_gc_sweep_restats_marker_before_unlink(self):
+        """The sweep must re-stat the checklist marker under the lock and spare a
+        file whose marker was refreshed after the pre-lock scan (IRA-G1 residual
+        race).
+
+        _gc_checklist stats marker mtimes before the SHARE lock; between that
+        scan and the unlink, a concurrent transaction can re-mark (refreshing the
+        marker's grace clock) and rewrite the file, whose still-uncommitted INSERT
+        the whitelist query cannot see. Re-stating under the lock closes the gap.
+        """
+        a1 = self.Attachment.create({"name": "restat", "raw": os.urandom(16)})
+        fname = a1.store_fname
+        store_path = Path(self.filestore, fname)
+        a1.unlink()  # marks the file for GC; the row is gone (not whitelisted)
+
+        # Pre-lock scan: age the marker so it is collectable and enters the
+        # checklist (grace stays the non-zero default so the re-stat guard fires).
+        self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
+        checklist = self.Attachment._gc_checklist()
+        self.assertIn(fname, checklist)
+
+        # A concurrent transaction re-marks the file (refreshing the marker to
+        # "now") after the pre-lock stat; its content file is still on disk.
+        os.utime(self._checklist_marker(fname), None)
+        self.assertTrue(store_path.is_file())
+
+        # Sweeping the pre-scanned checklist must re-stat and spare the file.
+        self.Attachment._gc_file_store_unsafe(checklist)
+        self.assertTrue(
+            store_path.is_file(),
+            "a file whose marker was refreshed after the scan must be spared",
+        )
+
     def test_14_invalid_mimetype_with_correct_file_extension_no_post_processing(
         self,
     ):

@@ -29,7 +29,7 @@ MIMETYPE_HEAD_SIZE = 2048
 # discriminants for zip-based file formats
 _ooxml_dirs = {
     "word/": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "pt/": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "ppt/": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "xl/": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 

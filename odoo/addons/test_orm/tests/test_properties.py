@@ -2792,6 +2792,29 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_1)
 
+    def test_properties_field_search_date_relative(self):
+        # A relative date value ("today") on a date property must be resolved to
+        # a concrete date rather than compared lexicographically against the raw
+        # "today" literal (regression: the comparison matched every or no row).
+        self.message_1.attributes = [
+            {
+                "name": "mydate",
+                "type": "date",
+                "value": "2020-01-01",
+                "definition_changed": True,
+            }
+        ]
+        self.message_2.attributes = {"mydate": "2099-12-31"}
+        Message = self.env["test_orm.message"]
+
+        past = self._search(Message, [("attributes.mydate", "<", "today")])
+        self.assertEqual(past, self.message_1)
+        future = self._search(Message, [("attributes.mydate", ">", "today")])
+        self.assertEqual(future, self.message_2)
+        # An explicit ISO date literal keeps working, too.
+        both = self._search(Message, [("attributes.mydate", "<", "2100-01-01")])
+        self.assertEqual(both, self.message_1 | self.message_2)
+
     def test_properties_field_search_integer(self):
         # search on integer
         self.messages.discussion = self.discussion_1
@@ -3363,8 +3386,8 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
         Model = self.env["test_orm.message"]
         with self.assertQueryCount(
-            6
-        ):  # 3 for formatted_read_group + 1 query by group opened
+            9
+        ):  # 3 for formatted_read_group + 1 per group opened + get_property_definition
             result = Model.web_read_group(
                 domain=[],
                 aggregates=["__count"],

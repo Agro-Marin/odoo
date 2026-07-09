@@ -192,7 +192,10 @@ class BaseCursor(_CursorProtocol):
         traceback: object,
     ) -> None:
         try:
-            if exc_type is None:
+            # Skip the commit when the block already closed the cursor: there is
+            # nothing to commit and the connection is back in the pool (commit()
+            # would now raise on the closed cursor).
+            if exc_type is None and not self._closed:
                 self.commit()
         finally:
             self.close()
@@ -682,7 +685,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         # also consults to suppress minconn warming for these).
         keep_in_pool = not is_maintenance_db(self.dbname)
         try:
-            self.rollback()
+            # Guard-free: _closed is already True here, and the connection is
+            # still owned (give_back runs in the finally below).
+            self._do_rollback()
         except Exception:
             _logger.debug("Failed to rollback on cursor close", exc_info=True)
             keep_in_pool = False
@@ -691,6 +696,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     def commit(self) -> None:
         """Perform an SQL `COMMIT`"""
+        # Closed-guard: after _close() returns the connection to the pool,
+        # self._cnx may be checked out by another cursor in another thread; a
+        # public commit here would commit that foreign transaction.  Misuse
+        # raises rather than corrupts, matching the savepoint-depth check below.
+        if self._closed:
+            raise psycopg.InterfaceError("Cursor already closed")
         # Explicit check (survives ``python -O``): committing inside a savepoint
         # corrupts its rollback state.  Cursor-level depth (see
         # ``_savepoint_depth``) so it also covers bare cursors and
@@ -715,12 +726,24 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         so hooks can still read uncommitted transaction state (e.g. for cache
         invalidation decisions).  After ROLLBACK, that data is gone.
         """
+        # Closed-guard: see commit(); a public rollback on a returned connection
+        # would roll back a foreign transaction.  _close() uses the guard-free
+        # _do_rollback() below (it still owns the connection although _closed).
+        if self._closed:
+            raise psycopg.InterfaceError("Cursor already closed")
         # Explicit check (survives ``python -O``); cursor-level depth, see commit().
         if self._savepoint_depth:
             raise RuntimeError(
                 "Cannot rollback inside a savepoint! "
                 "Use cr.savepoint() for nested transaction control."
             )
+        self._do_rollback()
+
+    def _do_rollback(self) -> None:
+        """Roll back the connection and run the rollback hooks, without the
+        closed/savepoint guards.  Used by the public :meth:`rollback` after its
+        guards, and by :meth:`_close` where the connection is still owned but
+        ``_closed`` is already set."""
         self.clear()
         self.postcommit.clear()
         self.prerollback.run()

@@ -230,14 +230,19 @@ class OdooTestResult:
 
     @contextlib.contextmanager
     def soft_fail(self) -> Generator[None]:
-        """Context manager: failures inside do not increment counters but set had_failure."""
+        """Context manager: failures inside do not increment counters but set had_failure.
+
+        ``had_failure`` is reset on entry and must survive the block so the
+        caller can tell whether a soft failure occurred; resetting it in the
+        ``finally`` would erase that signal and make a failed retry look clean
+        whenever the test's logger is muted below ERROR.
+        """
         self.had_failure = False
         self._soft_fail = True
         try:
             yield
         finally:
             self._soft_fail = False
-            self.had_failure = False
 
     def update(self, other: OdooTestResult) -> None:
         """Merges an other test result into this one, only updates contents

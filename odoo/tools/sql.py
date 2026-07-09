@@ -165,8 +165,13 @@ class SQL:
             elif isinstance(arg, tuple):
                 # Expand a tuple to (%s, %s, ...) for VALUES rows and other
                 # multi-value positions. Use a list for a single array param.
-                code_list.append("(%s)" % ", ".join(["%s"] * len(arg)))
-                params_list.extend(arg)
+                # An empty tuple must render as (NULL) rather than the invalid
+                # `()` (a PostgreSQL syntax error); `x IN (NULL)` matches nothing.
+                if arg:
+                    code_list.append("(%s)" % ", ".join(["%s"] * len(arg)))
+                    params_list.extend(arg)
+                else:
+                    code_list.append("(NULL)")
             else:
                 code_list.append("%s")
                 params_list.append(arg)

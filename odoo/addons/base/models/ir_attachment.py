@@ -1266,11 +1266,15 @@ class IrAttachment(models.Model):
             )
         return checklist
 
-    def _gc_file_store_unsafe(self, checklist: dict[str, Path] | None = None) -> None:
+    def _gc_file_store_unsafe(
+        self, checklist: dict[str, Path] | None = None, grace: float | None = None
+    ) -> None:
         # The caller may pass a checklist scanned before taking the lock; tests
         # and direct callers omit it and scan here (IRA-P2-3).
         if checklist is None:
             checklist = self._gc_checklist()
+        if grace is None:
+            grace = self._GC_CHECKLIST_GRACE
 
         # Clean up the checklist. The checklist is split in chunks and files are garbage-collected
         # for each chunk.
@@ -1287,6 +1291,19 @@ class IrAttachment(models.Model):
             for fname in names:
                 filepath = checklist[fname]
                 if fname not in whitelist:
+                    # Re-stat the checklist marker under the SHARE lock: a
+                    # concurrent transaction may have re-marked it (refreshing the
+                    # mtime — the grace clock) and rewritten the file *after*
+                    # _gc_checklist's pre-lock stat, and its still-uncommitted
+                    # INSERT is invisible to the whitelist query above.  Skip when
+                    # the marker is now within the grace window so an in-flight
+                    # write is never deleted (IRA-G1 residual race).
+                    if grace:
+                        try:
+                            if filepath.stat().st_mtime > time.time() - grace:
+                                continue
+                        except OSError:
+                            pass  # marker vanished — fall through to collect
                     full_path = self._full_path(fname)
                     try:
                         Path(full_path).unlink(missing_ok=True)

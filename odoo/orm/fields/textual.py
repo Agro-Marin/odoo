@@ -94,6 +94,14 @@ class BaseString(Field[str | typing.Literal[False]]):
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         ):
+            # The scalar fast path above reads a per-env memo that a freshly
+            # derived env (via with_context/sudo) may not have warmed yet.
+            # Consult the authoritative per-language cache first, so a value
+            # already stored for the *current* language is never shadowed by the
+            # en_US fallback (which would return the wrong language).
+            cur_val = self._get_cache(env).get(record_id, SENTINEL)
+            if cur_val is not SENTINEL:
+                return False if cur_val is None else cur_val
             field_data = env._core.get_field_data(self)
             fb_cache = field_data.get(("en_US",))
             if fb_cache is not None:

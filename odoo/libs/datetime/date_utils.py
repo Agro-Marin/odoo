@@ -487,7 +487,7 @@ def weeknumber(
         (0 = Monday, ..., 6 = Sunday). If None, derived from the locale.
     :returns: Tuple of (year, week_number)
     """
-    if not first_week_day:
+    if first_week_day is None:
         first_week_day = locale.first_week_day
     if first_week_day == 0 and locale.min_week_days == 4:
         return date.isocalendar()[:2]

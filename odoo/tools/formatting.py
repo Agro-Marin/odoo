@@ -398,10 +398,15 @@ def format_amount(
         .replace(r"-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
     )
 
-    if not trailing_zeroes:
+    if not trailing_zeroes and currency.decimal_places:
+        # Strip trailing zeroes from the *fractional* part only: anchor on the
+        # decimal point so integer-part zeroes (e.g. "1,200" for a 0-decimal
+        # currency, which never reaches here) are never removed.
+        decimal_point = re.escape(lang.decimal_point)
         formatted_amount = re.sub(
-            rf"{re.escape(lang.decimal_point)}?0+$", "", formatted_amount
+            rf"({decimal_point}\d*?)0+$", r"\1", formatted_amount
         )
+        formatted_amount = re.sub(rf"{decimal_point}$", "", formatted_amount)
 
     pre = post = ""
     if currency.position == "before":

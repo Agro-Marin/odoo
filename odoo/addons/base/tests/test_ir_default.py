@@ -1,11 +1,47 @@
 from datetime import datetime
 from unittest.mock import patch
 
+from psycopg import IntegrityError
+
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, new_test_user
+from odoo.tools import mute_logger
 
 
 class TestIrDefault(TransactionCase):
+    def test_unique_scope_prevents_duplicate(self):
+        """One ir.default per (field, user, company, condition) scope.
+
+        ``set()`` updates the existing row rather than duplicating it, and a
+        direct duplicate insert is rejected by the UNIQUE index (which stops the
+        concurrent-``set()`` race from leaving permanent shadow rows).
+        """
+        IrDefault = self.env["ir.default"]
+        field = self.env["ir.model.fields"]._get("res.partner", "ref")
+        IrDefault.search([("field_id", "=", field.id)]).unlink()
+
+        # set() twice for the same scope → exactly one row, latest value wins.
+        IrDefault.set("res.partner", "ref", "A")
+        IrDefault.set("res.partner", "ref", "B")
+        rows = IrDefault.search(
+            [
+                ("field_id", "=", field.id),
+                ("user_id", "=", False),
+                ("company_id", "=", False),
+                ("condition", "=", False),
+            ]
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(IrDefault._get_model_defaults("res.partner").get("ref"), "B")
+
+        # A direct duplicate of that scope violates the UNIQUE index.
+        with (
+            mute_logger("odoo.sql_db"),
+            self.assertRaisesRegex(IntegrityError, "ir_default_unique_scope"),
+            self.cr.savepoint(),
+        ):
+            IrDefault.create({"field_id": field.id, "json_value": '"C"'})
+            IrDefault.flush_all()
     def test_defaults(self):
         """check the mechanism of user-defined defaults"""
         companyA = self.env.company

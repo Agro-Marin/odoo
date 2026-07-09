@@ -567,18 +567,40 @@ class Domain:
         re-expandable; a future pass that oscillates would hit the backstop.
         """
         # ``_opt`` is cached per model: a level reached against one model must not
-        # short-circuit (type-dependent) optimization against another. Reusing an
-        # already-canonical/optimized node against a different model would skip
-        # BASIC coercion and yield wrong SQL, so reset first. The level cache is
-        # kept on the node itself (an already-optimal pass-through returns
-        # unchanged -- a tested contract), which is safe because ``_opt`` is one
-        # slot written atomically: a reader never sees a torn ``(level, model)``.
-        # Children are covered too: every recursion goes through ``_optimize``
-        # (DomainNary / DomainNot delegate to ``child._optimize``).
+        # short-circuit (type-dependent) optimization against another (reusing an
+        # already-canonical node against a different model would skip BASIC
+        # coercion and yield wrong SQL).
+        #
+        # A single ``(level, model)`` tuple is written atomically, so a reader
+        # never sees a *torn* stamp -- but the reset-then-rebuild across a whole
+        # optimize call is NOT atomic: two threads optimizing the same shared
+        # node (e.g. a cached record-rule domain) for different models would
+        # interleave their resets and level bumps, making one thread skip a
+        # level ("Trying to skip optimization level") or skip coercion (wrong
+        # SQL).  So a node that already carries *some* model's stamp is treated
+        # as immutable: we optimize a private copy from scratch and leave the
+        # shared node's cache intact for its owner.  A never-optimized node
+        # (stamp ``None``) is not yet retained/shared, so it is optimized in
+        # place -- the common per-request path, with no copy.  Children are
+        # covered too: every recursion goes through ``_optimize``.
         model_name = model._name
-        if self._opt[1] is not None and self._opt[1] != model_name:
-            object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
-        domain, count = self, 0
+        opt_level, opt_model = self._opt
+        if opt_model == model_name and opt_level >= level:
+            return self  # already optimized to this level for this model
+        if opt_model is not None and opt_model != model_name:
+            # Different model: this node already carries another model's stamp,
+            # so it is retained and may be reached by other threads (e.g. a
+            # cached record-rule domain).  Optimize a private copy instead of
+            # resetting its ``_opt`` in place, so a concurrent optimizer of the
+            # same node for *its* model never observes the reset (the cross-model
+            # race: skipped level or skipped coercion).
+            domain = self._reset_opt_copy()
+        else:
+            # Fresh node, or the same model at a lower level: optimize in place,
+            # resuming from any cached level.  Callers that discard the return
+            # value and reuse ``self`` (e.g. ``validate``) rely on this.
+            domain = self
+        count = 0
         while domain._opt[0] < level:
             if (count := count + 1) > MAX_OPTIMIZE_ITERATIONS:
                 msg = "Domain.optimize: too many loops"
@@ -589,6 +611,29 @@ class Domain:
             if domain == previous and domain._opt[0] < next_level:
                 object.__setattr__(domain, "_opt", (next_level, model_name))
         return domain
+
+    def _reset_opt_copy(self) -> Domain:
+        """Return a shallow copy of this node with its per-node caches reset.
+
+        Used by :meth:`_optimize` to work on a private node when the shared one
+        already carries an optimization stamp, so the shared node's mutable
+        ``_opt`` (and, for conditions, the cached resolved field) are never
+        written across threads/models.  Children are shared by reference: they
+        are re-optimized (and copied in turn if stamped) via the recursion.
+        """
+        missing = object()
+        clone = object.__new__(type(self))
+        for klass in type(self).__mro__:
+            for slot in getattr(klass, "__slots__", ()):
+                if slot in ("_opt", "_field_instance"):
+                    continue
+                value = getattr(self, slot, missing)
+                if value is not missing:
+                    object.__setattr__(clone, slot, value)
+        object.__setattr__(clone, "_opt", (OptimizationLevel.NONE, None))
+        if hasattr(self, "_field_instance"):
+            object.__setattr__(clone, "_field_instance", None)
+        return clone
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
         """Run one level of optimizations (overridden per subclass)."""
@@ -1146,6 +1191,16 @@ class DomainCondition(Domain):
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
+                # Collapse a boolean tautology (e.g. ``bool_field in [True, False]``)
+                # before calling the field's search method: a custom ``search``
+                # may only expect a single-valued in/not in and mishandle the
+                # two-value case (upstream ``7a67274e138``).  ``_optimize_boolean_in_all``
+                # is registered at FULL, so it is available in this branch.
+                if field.type == "boolean":
+                    for opt in _OPTIMIZATIONS_FOR[level].get("boolean", ()):
+                        collapsed = opt(self, model)
+                        if isinstance(collapsed, DomainBool):
+                            return collapsed
                 domain = self._optimize_field_search_method(model)
                 # only basic optimization, to make value types comparable
                 # without recursing endlessly

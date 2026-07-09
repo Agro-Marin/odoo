@@ -37,3 +37,24 @@ class TestReadGroupOverride(TransactionCase):
                         "must be added to the query.groupby when query.groupby "
                         "is not empty to avoid GroupingError.",
                     )
+
+    def test_order_by_m2o_chaining_to_id_ordered_comodel(self):
+        """Grouped read ordered by a many2one whose comodel ``_order`` chains
+        through another many2one to an ``id``-ordered model must not raise
+        GroupingError 42803.
+
+        The chained column (here ``country_id`` of the ordered-by
+        ``partner_id``) is not part of the GROUP BY, so ``_order_field_to_sql``
+        must wrap it in ``ANY_VALUE()`` in its ``coorder == "id"`` branch rather
+        than emit it bare into ORDER BY.
+        """
+        Partner = self.env.registry["res.partner"]
+        Country = self.env.registry["res.country"]
+        self.addCleanup(setattr, Partner, "_order", Partner._order)
+        self.addCleanup(setattr, Country, "_order", Country._order)
+        Partner._order = "country_id, id"
+        Country._order = "id"
+        # Must not raise GroupingError (empty table still triggers plan-time 42803).
+        self.env["res.users"]._read_group(
+            [], ["partner_id"], ["__count"], order="partner_id"
+        )

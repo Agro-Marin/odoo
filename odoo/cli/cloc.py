@@ -48,4 +48,4 @@ class Cloc(Command):
         if opt.path:
             for i in opt.path:
                 c.count_path(i)
-        c.report(opt.verbose)
+        print(c.report(opt.verbose))

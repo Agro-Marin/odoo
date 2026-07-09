@@ -3719,7 +3719,11 @@ class IrQweb(models.AbstractModel):
         :rtype: dict
         """
         if not is_static:
-            for attr in ("href", "src", "action", "formaction"):
+            # Scrub every URL-bearing attribute a browser will navigate/execute
+            # from: besides href/src/action/formaction, SVG ``xlink:href`` (e.g.
+            # ``<a xlink:href="javascript:…">``) and ``<object data="javascript:…">``
+            # also run the scheme, so a bare href/src allow-list leaks XSS.
+            for attr in ("href", "src", "action", "formaction", "xlink:href", "data"):
                 if (value := atts.get(attr)) and MALICIOUS_SCHEMES(
                     URL_CONTROL_CHARS.sub("", str(value))
                 ):

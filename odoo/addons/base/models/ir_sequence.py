@@ -23,7 +23,9 @@ def _create_sequence(
             "CREATE SEQUENCE %s INCREMENT BY %s START WITH %s",
             SQL.identifier(seq_name),
             number_increment,
-            number_next,
+            # PostgreSQL sequences are 1-based (default MINVALUE 1); a START/
+            # RESTART below it is rejected outright, so floor the next value.
+            max(number_next, 1),
         )
     )
 
@@ -66,7 +68,12 @@ def _alter_sequence(
             if number_increment is not None
             else SQL()
         ),
-        (SQL(" RESTART WITH %s", number_next) if number_next is not None else SQL()),
+        # PostgreSQL sequences are 1-based (default MINVALUE 1); floor the value.
+        (
+            SQL(" RESTART WITH %s", max(number_next, 1))
+            if number_next is not None
+            else SQL()
+        ),
     )
     cr.execute(statement)
 
@@ -210,8 +217,9 @@ class IrSequence(models.Model):
 
     def _set_number_next_actual(self) -> None:
         for seq in self:
-            # Preserve 0 — valid starting value for a PostgreSQL sequence.
-            # `or 1` would silently convert an explicit 0 to 1.
+            # Keep an explicit value rather than `or 1` (which would clobber a
+            # deliberate 0).  A standard PG sequence is 1-based, so a 0 next
+            # value is floored to 1 when the sequence is (re)started.
             val = seq.number_next_actual
             seq.write({"number_next": val if val is not None else 1})
 
@@ -589,8 +597,9 @@ class IrSequenceDate_Range(models.Model):
 
     def _set_number_next_actual(self) -> None:
         for seq in self:
-            # Preserve 0 — valid starting value for a PostgreSQL sequence.
-            # `or 1` would silently convert an explicit 0 to 1.
+            # Keep an explicit value rather than `or 1` (which would clobber a
+            # deliberate 0).  A standard PG sequence is 1-based, so a 0 next
+            # value is floored to 1 when the sequence is (re)started.
             val = seq.number_next_actual
             seq.write({"number_next": val if val is not None else 1})
 
