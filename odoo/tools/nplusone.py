@@ -4,20 +4,38 @@ N+1 CRUD detection for Odoo ORM.
 Detects repeated single-record create/write/unlink calls from the same call
 site within a transaction — a pattern that is 5-15x slower than batching.
 
-Activation: ``--dev=n1`` (opt-in, NOT part of ``--dev=all``). When disabled,
-overhead is a single boolean check per CRUD call (``_n1_enabled`` flag).
-Violations above the threshold are reported via the ``odoo.orm.nplusone``
-logger at ``Transaction.flush()``.
+Activation: set ``ODOO_NPLUSONE=1`` in the environment (dev-only, opt-in). The
+flag is read once at import — deliberately mirroring ``ODOO_ORM_PROFILE`` in
+:mod:`odoo.tools.orm_profiler` — so that (a) every entry point (server, shell,
+tests, WSGI) sees it uniformly, and (b) the value that the CRUD mixins and
+:class:`~odoo.orm.runtime.transaction.Transaction` capture via
+``from odoo.tools.nplusone import _n1_enabled`` is already correct. A flag
+rebound *after* those value-imports would not reach their copies, so activation
+must be settled at import time, not via a later ``setup()`` call.
+
+When disabled, overhead is a single boolean check per CRUD call
+(``_n1_enabled``). Violations above the threshold are reported via the
+``odoo.orm.nplusone`` logger at ``Transaction.flush()``.
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 
 _logger = logging.getLogger("odoo.orm.nplusone")
 
 # Module-level fast flag: one LOAD_GLOBAL + branch per CRUD call when off.
-_n1_enabled: bool = False
+# Read from the environment at import (see module docstring): consumers freeze
+# this value with ``from ... import _n1_enabled``, so it must be correct now.
+_n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+if _n1_enabled:
+    _logger.info("N+1 CRUD detection enabled (ODOO_NPLUSONE=1)")
 
 # Frames under these prefixes are framework-internal and skipped when finding
 # the external caller: odoo/orm/ and odoo/api/.
@@ -28,21 +46,6 @@ _SKIP_PREFIXES: tuple[str, ...] = (
     _ORM_PREFIX,
     str(_ODOO_DIR / "api") + "/",
 )
-
-
-def setup(dev_mode: list[str] | None = None) -> None:
-    """Initialise the N+1 detection system.
-
-    Called once during server startup after config is parsed.
-    """
-    global _n1_enabled  # noqa: PLW0603  # module-level feature flag set once at startup
-    if dev_mode is None:
-        from odoo.tools import config
-
-        dev_mode = config.get("dev_mode", [])
-    _n1_enabled = "n1" in dev_mode
-    if _n1_enabled:
-        _logger.info("N+1 CRUD detection enabled (--dev=n1)")
 
 
 class _NplusOneEntry:
