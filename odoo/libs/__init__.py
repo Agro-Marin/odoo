@@ -1,8 +1,9 @@
 """Odoo-agnostic libraries and utilities.
 
 This package contains framework-agnostic utilities with NO dependency on the
-Odoo framework (models, env, cursors), usable independently of it.  Some are
-accelerated by the optional ``odoo_rust`` native extension.
+Odoo framework (models, env, cursors), usable independently of it.  Several are
+backed by the ``odoo_rust`` native extension, which is a HARD requirement of
+this fork (enforced in ``odoo.init``); there is no Python fallback.
 
 Subpackages:
     - collections: Data structures (OrderedSet, frozendict, Collector, etc.)
