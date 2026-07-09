@@ -18,7 +18,7 @@ from odoo.exceptions import (
 from odoo.fields import Domain
 from odoo.orm.registration import add_to_registry
 from odoo.tests import Form, TransactionCase, tagged, users
-from odoo.tools import float_repr, mute_logger
+from odoo.tools import float_repr, human_size, mute_logger
 from odoo.tools.image import image_data_uri
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
@@ -3694,6 +3694,25 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         assertBinaryValue(record, binary_value)
         assertBinaryValue(record_no_bin_size, binary_value)
         assertBinaryValue(record_bin_size, binary_size)
+
+    def test_95_binary_bin_size_write_per_field_key(self):
+        """Binary.mark_dirty must reset the per-field ``bin_size_<name>`` key,
+        not only the global ``bin_size``.  Otherwise a write carrying the
+        bin-size int (the client may send the size back instead of the content)
+        is size-converted by convert_to_cache and the ``human_size`` string is
+        cached as the content of the (content-mode) cache slot.
+        """
+        record = self.env["test_orm.related_foo"].create({"name": "bin"})
+        # attachment=False base Binary so the write stays a pure cache update
+        field_name = "binary_bin"
+        record.with_context(**{f"bin_size_{field_name}": True}).write(
+            {field_name: 12345}
+        )
+        self.assertNotEqual(
+            record.with_context(bin_size=False)[field_name],
+            human_size(12345).encode(),
+            "write under bin_size_<name> size-converted the value into the cache",
+        )
 
     def test_96_order_m2o(self):
         belgium, congo = self.env["test_orm.country"].create(
