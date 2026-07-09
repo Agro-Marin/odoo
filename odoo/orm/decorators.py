@@ -245,8 +245,9 @@ def depends(*args) -> Decorator:
 
     One may also pass a single function as argument. In that case, the
     dependencies are given by calling the function with the field's model.
-    The ``id``-rejection check applies to both forms — the callable's return
-    value is validated on first invocation.
+    The ``id``-rejection check applies to both forms — for the callable form the
+    return value is re-validated on every invocation (the deps are recomputed
+    each call; there is no memoization).
     """
     if args and callable(args[0]):
         original = args[0]

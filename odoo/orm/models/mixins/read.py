@@ -505,8 +505,10 @@ class ReadMixin(_ModelStubs):
                     # to disambiguate
                     sql = SQL("pg_size_pretty(length(%s)::bigint)", sql)
                 elif not field.translate:
-                    # flush to get the en_US value of untranslated fields;
-                    # otherwise re-create the SQL without flushing
+                    # An untranslated field need not flush its own pending write
+                    # before being fetched: _insert_cache won't clobber the dirty
+                    # cache value. (Translated fields stay in to_flush because
+                    # their SQL reads/merges the stored jsonb column.)
                     to_flush = (f for f in sql.to_flush if f != field)
                     sql = SQL(sql.code, *sql.params, to_flush=to_flush)
                 sql_terms.append(sql)

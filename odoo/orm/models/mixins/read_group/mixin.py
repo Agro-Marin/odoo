@@ -226,7 +226,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             *aggregates_terms,
         ]
 
-        # _read_group_orderby may mutate groupby_terms, so call it first.
+        # grouping_select_sql and select_args above snapshot groupby_terms.values()
+        # *before* this call: _read_group_orderby may fold ORDER BY columns into a
+        # term, but only by replacing dict values in place, so positions (and thus
+        # the positional GROUPING() masks and select_args order) stay aligned.
         query._grouping_sets = True
         query.order = self._read_group_orderby(order, groupby_terms, query)
         # GROUPING SET ((a, b), (a), ())

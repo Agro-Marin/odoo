@@ -1537,7 +1537,7 @@ class configmanager:
 
     @classmethod
     def _check_comma(
-        cls, option_name: optparse.Option | str, option: str, value: str
+        cls, option: optparse.Option | None, opt: str, value: str
     ) -> list[str]:
         return [v for s in value.split(",") if (v := s.strip())]
 
