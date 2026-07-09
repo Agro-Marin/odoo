@@ -129,4 +129,8 @@ def get_flag(country_code: str) -> str:
         >>> get_flag('MX')
         '🇲🇽'
     """
-    return "".join(chr(int(f"1f1{ord(c) + 165:02x}", base=16)) for c in country_code)
+    # Uppercase: regional-indicator symbols map A-Z, so a lowercase code would
+    # push ``ord(c) + 165`` past the max codepoint and crash ``chr()``.
+    return "".join(
+        chr(int(f"1f1{ord(c) + 165:02x}", base=16)) for c in country_code.upper()
+    )
