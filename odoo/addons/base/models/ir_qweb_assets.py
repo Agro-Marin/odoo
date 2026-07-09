@@ -2144,13 +2144,23 @@ class IrQweb(models.AbstractModel):
                     )
                 )
 
-        # ESM template module — inline in debug mode.
-        # Secondary bundles use use_import=False so that templates
-        # access @web/core/templates via odoo.loader.modules.get()
-        # instead of import — the data: URI bridge may not export all
-        # names (e.g. checkPrimaryTemplateParents).
+        # ESM template module — this is the NATIVE branch (no esbuild:
+        # ``current_test``, ``?debug=assets``, or the read-only-cursor
+        # degradation). Here every module — including ``@web/core/templates``
+        # — is loaded as a native ES module resolved through the import map,
+        # NOT registered into ``odoo.loader.modules`` by esbuild's
+        # ``registerNativeModules``. So the templates MUST use native
+        # ``import`` (``use_import=True``); the ``get()`` form
+        # (``use_import=not _already_has_esm``) returned ``undefined`` for
+        # every secondary bundle whenever a request had already flagged
+        # ``_already_has_esm`` (i.e. under HttpCase / ``test_js``), which is
+        # why the whole JS test suite failed pre-boot with "Cannot
+        # destructure 'checkPrimaryTemplateParents' of
+        # 'odoo.loader.modules.get(...)'". The ``get()`` form is only valid
+        # in the esbuild branch (``_esm_prod_nodes``), which pins
+        # ``use_import=False`` on its own.
         esm_tpl = asset_bundle.generate_esm_template_bundle(
-            use_import=not _already_has_esm,
+            use_import=True,
         )
         if esm_tpl:
             post_nodes.append(
