@@ -1,7 +1,8 @@
 """Odoo-agnostic libraries and utilities.
 
-This package contains pure Python utilities with NO Odoo dependencies.
-These can be used independently of the Odoo framework.
+This package contains framework-agnostic utilities with NO dependency on the
+Odoo framework (models, env, cursors), usable independently of it.  Some are
+accelerated by the optional ``odoo_rust`` native extension.
 
 Subpackages:
     - collections: Data structures (OrderedSet, frozendict, Collector, etc.)
@@ -15,7 +16,6 @@ Subpackages:
     - locale: Locale conversion utilities (py_to_js_locale, posix_to_ldml)
     - numbers: Numeric utilities (float_round, float_compare, etc.)
     - profiling: Performance profiling tools (speedscope, sourcemap)
-    - security: Security utilities
     - sql: SQL string utilities (escape_psql, make_identifier, etc.)
     - text: Text processing (remove_accents, human_size, street_split, etc.)
     - web: Web utilities (urls)
