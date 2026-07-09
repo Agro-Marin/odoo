@@ -520,6 +520,7 @@ class configmanager:
             help="Enable unit tests. Implies --stop-after-init",
         )
         group.add_option(
+            "-t",
             "--test-tags",
             dest="test_tags",
             file_loadable=False,
