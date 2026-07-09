@@ -107,7 +107,6 @@ class MailScheduledMessage(models.Model):
                 attachments.filtered(
                     lambda a: (
                         a.res_model == "mail.compose.message"
-                        and not a.res_id
                         and a.create_uid.id == self.env.uid
                     )
                 ).write(
