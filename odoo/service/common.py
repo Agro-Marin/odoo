@@ -41,8 +41,10 @@ def exp_authenticate(
     * **Existing-but-not-Odoo DB** — ``res.users`` is absent from the
       registry, so ``env["res.users"]`` would raise ``KeyError`` and leak the
       DB's existence via an exception type distinct from ``AccessDenied``.
-    * **Empty / non-string DB name** — ``odoo.db.db_connect`` asserts a
-      non-empty name and raises ``AssertionError`` otherwise.
+    * **Empty / non-string DB name** — ``odoo.db.db_connect`` does not validate
+      the name; it is passed through to ``connection_info_for`` and the pool, so
+      a blank name surfaces as a ``PoolError``/connection failure there rather
+      than as an early ``AssertionError``.
     * **Malformed ``user_agent_env``** — non-dict, non-None values raise
       ``TypeError`` from ``{**user_agent_env, ...}``.
 
