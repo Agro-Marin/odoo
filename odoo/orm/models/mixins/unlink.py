@@ -98,8 +98,8 @@ class UnlinkMixin(_ModelStubs):
         # Invalidate the *whole* cache, since the ORM does not handle all
         # changes made in the database, like cascading delete, and targeted
         # invalidation misses non-stored computed/related fields that depend
-        # on FK fields through multi-hop chains
-        # (e.g. personal_stage_type_id → personal_stage_id → stage_id).
+        # on FK fields through multi-hop chains (a non-stored computed/related
+        # field reached across a chain of foreign-key fields).
         self.env.invalidate_all(flush=False)
 
         if ir_model_data_unlink:
