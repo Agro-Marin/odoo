@@ -36,7 +36,10 @@ EXIF_TAG_ORIENTATION = 0x112
 # 8K with a ratio up to 16:10, and almost all variants of 4320p
 IMAGE_MAX_RESOLUTION = 50e6
 
-# Preload PIL with the minimal subset of image formats we need
+# Preload PIL with the minimal subset of image formats we need.
+# preinit() registers only the common plugins; forcing _initialized to 2 makes
+# Pillow believe the full init() already ran, so a later unknown-format open()
+# won't trigger a lazy scan-and-import of *every* installed plugin.
 Image.preinit()
 Image._initialized = 2
 

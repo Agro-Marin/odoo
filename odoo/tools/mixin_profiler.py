@@ -44,7 +44,7 @@ def _get_data():
                 "total_queries": 0,
                 "total_query_time": 0.0,
                 "self_time": 0.0,  # Time excluding nested calls
-                "samples": [],  # Recent samples for analysis
+                "samples": [],  # First 100 samples per method (see cap below)
             }
         )
         _profile_data.call_stack = []
@@ -97,7 +97,7 @@ def _wrap_method(model_name, method_name, original_method):
             stats["total_query_time"] += query_time
             stats["self_time"] += elapsed - child_time
 
-            # Keep recent samples for variance analysis
+            # Keep the first 100 samples per method for variance analysis
             if len(stats["samples"]) < 100:
                 stats["samples"].append(
                     {

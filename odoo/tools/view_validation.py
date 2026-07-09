@@ -3,7 +3,6 @@
 import ast
 import collections
 import logging
-import re
 from pathlib import Path
 
 from lxml import etree
@@ -16,8 +15,6 @@ _logger = logging.getLogger(__name__)
 
 _validators = collections.defaultdict(list)
 _relaxng_cache = {}
-
-READONLY = re.compile(r"\breadonly\b")
 
 # predefined symbols for evaluating attributes (invisible, readonly...)
 IGNORED_IN_EXPRESSION = {
@@ -41,7 +38,6 @@ IGNORED_IN_EXPRESSION = {
     "bool",
     "float",
     "str",
-    "unicode",
     "set",
 }
 DOMAIN_OPERATORS = {
@@ -53,14 +49,16 @@ DOMAIN_OPERATORS = {
 
 def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     """Return the field names and contextual value names used by this domain.
-    eg: [
+
+    Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, ``uid``,
+    builtins, ...) are excluded from the second set.
+
+    eg (string domain): '''[
             ('id', 'in', [1, 2, 3]),
             ('field_a', 'in', parent.truc),
             ('field_b', 'in', context.get('b')),
-            (1, '=', 1),
-            bool(context.get('c')),
-        ]
-        returns {'id', 'field_a', 'field_b'}, {'parent', 'parent.truc', 'context'}
+        ]'''
+        returns {'id', 'field_a', 'field_b'}, {'parent.truc'}
 
     :param domain: list(tuple) or str
     :return: set(str), set(str)
@@ -259,13 +257,16 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
 def get_expression_field_names(expression: str) -> set[str]:
     """Return all field name used by this expression
 
+    Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, builtins,
+    ...) are excluded.
+
     eg: expression = '''(
             id in [1, 2, 3]
             and field_a in parent.truc.id
             and field_b in context.get('b')
             or (True and bool(context.get('c')))
-        )
-        returns {'parent', 'parent.truc', 'parent.truc.id', 'context', 'context.get'}
+        )'''
+        returns {'id', 'field_a', 'field_b', 'parent.truc.id'}
 
     :param expression: str
     :return: set(str)
@@ -304,11 +305,6 @@ def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
         msg = "Non-string literal dict key"
         raise ValueError(msg)
     return {key.value: val for key, val in zip(expr.keys, expr.values, strict=False)}
-
-
-def _check(condition: object, explanation: str) -> None:
-    if not condition:
-        raise ValueError("Expression is not a valid domain: %s" % explanation)
 
 
 def valid_view(arch: etree._Element, **kwargs: object) -> bool:

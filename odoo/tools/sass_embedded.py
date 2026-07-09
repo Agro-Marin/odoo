@@ -21,6 +21,7 @@ from typing import Self
 import odoo
 from odoo.tools.embedded_sass_pb2 import (
     COMPRESSED,
+    CSS,
     EXPANDED,
     INDENTED,
     SCSS,
@@ -328,7 +329,7 @@ class SassEmbeddedCompiler:
     ) -> str:
         """Execute a single compilation request/response cycle."""
         # Build the CompileRequest
-        syntax_enum = {"scss": SCSS, "indented": INDENTED, "css": 2}.get(syntax, SCSS)
+        syntax_enum = {"scss": SCSS, "indented": INDENTED, "css": CSS}.get(syntax, SCSS)
         style_enum = COMPRESSED if style == "compressed" else EXPANDED
 
         request = InboundMessage()
@@ -423,7 +424,7 @@ class SassEmbeddedCompiler:
                             syntax_val = {
                                 "scss": SCSS,
                                 "indented": INDENTED,
-                                "css": 2,
+                                "css": CSS,
                             }.get(file_syntax, SCSS)
                             success.syntax = syntax_val
                             success.source_map_url = req.url
