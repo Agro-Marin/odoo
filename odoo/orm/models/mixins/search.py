@@ -699,9 +699,12 @@ class SearchMixin(_ModelStubs):
                 self, allow_referencing=allow_referencing, limit=limit
             )
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
+        if limit is not None and len(new_ids) >= limit:
+            return self.browse(new_ids[:limit])
+        if not ids:
+            # no real (DB) ids to lock; only NewIds remain -- nothing to query
+            return self
         if limit is not None:
-            if len(new_ids) >= limit:
-                return self.browse(new_ids[:limit])
             # keep the order of ids when trying to lock
             query = self.browse(ids)._as_query(ordered=True)
             query.limit = limit - len(new_ids)
@@ -710,8 +713,6 @@ class SearchMixin(_ModelStubs):
             query.add_where(
                 SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), list(ids))
             )
-        if not ids:
-            return self
         if allow_referencing:
             lock_sql = SQL("FOR NO KEY UPDATE SKIP LOCKED")
         else:
