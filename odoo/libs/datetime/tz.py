@@ -11,7 +11,7 @@ __all__ = [
 
 from datetime import UTC, datetime
 from datetime import timezone as dt_timezone
-from zoneinfo import ZoneInfo, available_timezones
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from babel.core import get_global
 
@@ -172,7 +172,9 @@ def timezone(name: str) -> ZoneInfo:
     try:
         tz = ZoneInfo(name)
     except KeyError:
-        raise KeyError(f"Unknown timezone: {name!r}") from None
+        # Honour the documented ``:raises ZoneInfoNotFoundError:`` contract; it
+        # subclasses KeyError, so ``except KeyError`` callers keep working.
+        raise ZoneInfoNotFoundError(f"Unknown timezone: {name!r}") from None
 
     _timezone_cache[name] = tz
     return tz

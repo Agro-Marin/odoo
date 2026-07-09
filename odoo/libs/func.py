@@ -48,7 +48,7 @@ class lazy_property(functools.cached_property):
     def reset_all(instance: object) -> None:
         """Reset all cached properties on ``instance`` (deprecated)."""
         warnings.warn(
-            "lazy_property is deprecated since Odoo 19, use `reset_cache_properties` directly",
+            "lazy_property is deprecated since Odoo 19, use `reset_cached_properties` directly",
             stacklevel=2,
             category=DeprecationWarning,
         )
