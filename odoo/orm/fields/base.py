@@ -523,7 +523,8 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         attrs["model_name"] = model_class._name
         attrs["name"] = name
         attrs["_module"] = modules[-1] if modules else None
-        # the following is faster than calling unique or using OrderedSet
+        # skip the unique() call in the common 0/1-module case (faster than
+        # always calling unique or building an OrderedSet)
         attrs["_modules"] = tuple(unique(modules) if len(modules) > 1 else modules)
 
         # initialize ``self`` with ``attrs``

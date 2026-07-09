@@ -550,11 +550,11 @@ def _value_to_datetime(
         if value.year in (1, 9999):
             # avoid overflow errors, treat as UTC timezone
             tz = None
-        elif (tz := env.tz) != utc:
-            # get the tzinfo - attach timezone to naive datetime to get proper offset
-            tz = datetime.combine(value, time.min).replace(tzinfo=tz).tzinfo
-        else:
+        elif (tz := env.tz) == utc:
             tz = None
+        # else: keep tz = env.tz (from the walrus). datetime.combine below attaches
+        # it directly; the old pytz localize()/.tzinfo round-trip here was a no-op
+        # under zoneinfo (replace(tzinfo=z).tzinfo is z).
         value = datetime.combine(value, time.min, tz)
         if tz is not None:
             value = value.astimezone(UTC).replace(tzinfo=None)

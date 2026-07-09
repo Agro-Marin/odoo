@@ -103,7 +103,6 @@ class Float(Field[float]):
     The Float class provides some static methods for this purpose:
 
     :func:`~odoo.fields.Float.round()` to round a float with the given precision.
-    :func:`~odoo.fields.Float.is_zero()` to check if a float equals zero at the given precision.
     :func:`~odoo.fields.Float.compare()` to compare two floats at the given precision.
 
     .. admonition:: Example
@@ -111,12 +110,6 @@ class Float(Field[float]):
         To round a quantity with the precision of the unit of measure::
 
             fields.Float.round(
-                self.product_uom_qty, precision_rounding=self.product_uom_id.rounding
-            )
-
-        To check if the quantity is zero with the precision of the unit of measure::
-
-            fields.Float.is_zero(
                 self.product_uom_qty, precision_rounding=self.product_uom_id.rounding
             )
 
