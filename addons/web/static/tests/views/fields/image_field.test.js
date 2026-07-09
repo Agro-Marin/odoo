@@ -14,6 +14,7 @@ import {
 } from "@odoo/hoot-dom";
 import { animationFrame, mockDate, runAllTimers } from "@odoo/hoot-mock";
 import {
+    clickFieldDropdownItem,
     clickSave,
     contains,
     defineModels,
@@ -195,6 +196,56 @@ test("ImageField on a many2one", async () => {
         "alt",
         "first record",
     );
+});
+
+test("many2one image url is busted with a fresh timestamp when its value changes", async () => {
+    // A many2one image URL targets the RELATED record (partner/<value.id>), so
+    // the parent record's write_date is not a valid cache key for it: when the
+    // linked record changes (or its image is edited via the m2o dialog, which
+    // only refreshes display_name) the parent's write_date has not moved and
+    // the browser would serve a stale image. The field must bust with `now()`.
+    Partner._fields.parent_id = fields.Many2one({ relation: "partner" });
+    Partner._records[1].parent_id = 1;
+    Partner._records[1].write_date = "2017-02-01 10:00:00"; // 1485943200000
+
+    mockDate("2017-02-06 10:00:00");
+
+    // parent_id is shown twice: once as the plain m2o selector (to change the
+    // value) and once as the image widget (the field under test).
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 2,
+        arch: /* xml */ `
+            <form>
+                <field name="parent_id"/>
+                <field name="parent_id" widget="image" options="{'preview_image': 'document'}"/>
+            </form>`,
+    });
+
+    // Initial render: parent's write_date is fine because the value hasn't
+    // changed yet.
+    expect('.o_field_image[name="parent_id"] img').toHaveAttribute(
+        "data-src",
+        `${getOrigin()}/web/image/partner/1/document?unique=1485943200000`,
+    );
+
+    // Point the m2o at a different record: the value changes but the parent's
+    // write_date does not. The cache key must jump to a fresh `now()`.
+    mockDate("2017-02-09 10:00:00");
+    await contains(".o_field_many2one[name='parent_id'] input").edit("aaa", {
+        confirm: false,
+    });
+    await runAllTimers();
+    await clickFieldDropdownItem("parent_id", "aaa");
+    await animationFrame();
+
+    const img = queryFirst('.o_field_image[name="parent_id"] img');
+    expect(img.getAttribute("data-src")).toMatch(/\/web\/image\/partner\/4\/document/);
+    const unique = Number(getUnique(img));
+    expect(
+        DateTime.fromMillis(unique).hasSame(DateTime.fromISO("2017-02-09"), "days"),
+    ).toBe(true);
 });
 
 test("url should not use the record last updated date when the field is related", async () => {
