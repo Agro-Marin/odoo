@@ -161,13 +161,11 @@ class IrModelData(models.Model):
         if not self:
             # do not clear caches for a no-op write on an empty recordset
             return True
-        if not (set(vals) <= {"noupdate"}):
-            # _xmlid_lookup caches only (model, res_id) keyed on module.name; a
-            # noupdate-only write cannot stale it (verified: no default-cache
-            # ormcache result depends on noupdate), so skip flushing the whole
-            # default registry cache for the common toggle_noupdate path
-            # (IMD-P1).
-            self.env.registry.clear_cache()  # _xmlid_lookup
+        # _xmlid_lookup caches only (model, res_id) keyed on module.name; a
+        # noupdate-only write cannot stale it (verified: no default-cache
+        # ormcache result depends on noupdate), so skip busting the default
+        # registry cache for the common toggle_noupdate path (IMD-P1).
+        bust_xmlid = not (set(vals) <= {"noupdate"})
         # Clear the `groups` cache when either the pre-image or the post-image of
         # the written rows points at res.groups: re-pointing or editing a
         # res.groups xmlid (even without touching `model`, e.g. a `res_id` or
@@ -178,6 +176,15 @@ class IrModelData(models.Model):
             data.model == "res.groups" for data in self
         )
         res = super().write(vals)
+        if bust_xmlid:
+            # Flush BEFORE clearing: super().write only marks the rows dirty, so
+            # the UPDATE is still pending. _xmlid_lookup reads the row with raw
+            # SQL (no ORM flush), so clearing the cache while the DB still holds
+            # the pre-write row lets the very next env.ref() re-cache the stale
+            # (model, res_id) — which then survives the eventual flush. Push the
+            # UPDATE to the DB first, then evict, so the next lookup reads fresh.
+            self.flush_recordset()
+            self.env.registry.clear_cache()  # _xmlid_lookup
         if touch_groups:
             self.env.registry.clear_cache("groups")
         return res
