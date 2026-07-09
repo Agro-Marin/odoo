@@ -236,8 +236,13 @@ class Base(models.AbstractModel):
         # fields. After each pass, check what changed (snapshot0.has_changed)
         # and process those fields too, until a pass changes nothing new.
         while todo:
+            # Within a pass, several changed fields can share the same onchange
+            # method; run each such method only once instead of redundantly per
+            # field (upstream odoo/odoo b1a8f8e18b59).
+            visited_onchanges = set()
             for field_name in todo:
-                record._apply_onchange_methods(field_name, result)
+                record._apply_onchange_methods(field_name, result, visited_onchanges)
+                visited_onchanges.update(record._onchange_methods.get(field_name, ()))
                 done.add(field_name)
 
             if not env.context.get("recursive_onchanges", True):

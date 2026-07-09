@@ -407,14 +407,40 @@ class OdooPdfFileWriter(PdfFileWriter):
         return adapted_subtype
 
     def add_attachment(
-        self, name: str, data: bytes, subtype: str | None = None
+        self,
+        name: str,
+        data: bytes,
+        subtype: str | None = None,
+        afrelationship: str = "/Data",
     ) -> None:
         """Add an attachment to the PDF, respecting PDF/A rules.
 
         :param name: The name of the attachement
         :param data: The data of the attachement
         :param subtype: The mime-type of the attachement. Required by PDF/A.
+        :param afrelationship: The relationship between the embedded file and
+            the PDF content. Required by PDF/A.
         """
+        # Valid AFRelationship values per PDF 2.0 spec (ISO 32000-2, section 7.11.3)
+        valid_afrelationships = {
+            "/Source",
+            "/Data",
+            "/Alternative",
+            "/Supplement",
+            "/Unspecified",
+            "/EncryptedPayload",
+            "/FormData",
+            "/Schema",
+        }
+        if afrelationship not in valid_afrelationships:
+            _logger.warning(
+                "Invalid AFRelationship value '%s', falling back to '/Data'. "
+                "Valid values are: %s",
+                afrelationship,
+                ", ".join(sorted(valid_afrelationships)),
+            )
+            afrelationship = "/Data"
+
         adapted_subtype = self.format_subtype(subtype)
 
         attachment = self._create_attachment_object(
@@ -422,6 +448,7 @@ class OdooPdfFileWriter(PdfFileWriter):
                 "filename": name,
                 "content": data,
                 "subtype": adapted_subtype,
+                "afrelationship": afrelationship,
             }
         )
         if self._root_object.get("/Names") and self._root_object["/Names"].get(
@@ -451,7 +478,10 @@ class OdooPdfFileWriter(PdfFileWriter):
             self._root_object.update({NameObject("/AF"): attachment_array})
 
     def embed_odoo_attachment(
-        self, attachment: Any, subtype: str | None = None
+        self,
+        attachment: Any,
+        subtype: str | None = None,
+        afrelationship: str = "/Data",
     ) -> None:
         """Embed an Odoo ir.attachment record into the PDF."""
         assert attachment, "embed_odoo_attachment cannot be called without attachment."
@@ -459,6 +489,7 @@ class OdooPdfFileWriter(PdfFileWriter):
             attachment.name,
             attachment.raw,
             subtype=subtype or attachment.mimetype,
+            afrelationship=afrelationship,
         )
 
     def clone_reader_document_root(self, reader: PdfReader) -> None:
@@ -638,6 +669,7 @@ class OdooPdfFileWriter(PdfFileWriter):
             * filename: The name of the file to embed (required)
             * content:  The bytes of the file to embed (required)
             * subtype: The mime-type of the file to embed (optional)
+            * afrelationship: The PDF/A AFRelationship of the file (optional, defaults to /Data)
         :return: a reference to the created filespec object.
         """
         file_entry = DecodedStreamObject()
@@ -668,7 +700,9 @@ class OdooPdfFileWriter(PdfFileWriter):
         filename_object = create_string_object(attachment["filename"])
         filespec_object = DictionaryObject(
             {
-                NameObject("/AFRelationship"): NameObject("/Data"),
+                NameObject("/AFRelationship"): NameObject(
+                    attachment.get("afrelationship", "/Data")
+                ),
                 NameObject("/Type"): NameObject("/Filespec"),
                 NameObject("/F"): filename_object,
                 NameObject("/EF"): DictionaryObject(
