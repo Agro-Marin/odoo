@@ -178,9 +178,10 @@ def which_files(
         pathext = pathext.split(pathsep)
 
     if "" not in pathext:
-        pathext.insert(
-            0, ""
-        )  # always check command without extension, even for custom pathext
+        # always check the command without extension; build a new list rather
+        # than ``insert`` into a caller-passed list (or the ``defpathext``
+        # default), which would mutate it in place across calls.
+        pathext = ["", *pathext]
 
     for directory in path:
         basepath = pathlib.Path(directory) / file

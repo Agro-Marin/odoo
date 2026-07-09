@@ -1192,14 +1192,17 @@ class configmanager:
         return opt
 
     def _parse_config(self, args: list[str] | None = None) -> optparse.Values:
+        # Operate on a copy: the rewrite below mutates elements in place, and a
+        # caller must never see its own args list modified as a side effect.
+        args = list(args) if args else []
         # rewrite args to support nargs='?' (optparse lacks it)
-        for arg_no, arg in enumerate(args or ()):
+        for arg_no, arg in enumerate(args):
             if option := self.optional_options.get(arg):
                 if arg_no == len(args) - 1 or args[arg_no + 1].startswith("-"):
                     args[arg_no] += "=" + self.format(option.dest, option.const)
                     self._log(logging.DEBUG, "changed %s for %s", arg, args[arg_no])
 
-        opt, unknown_args = self.parser.parse_args(args or [])
+        opt, unknown_args = self.parser.parse_args(args)
         if unknown_args:
             self.parser.error(f"unrecognized parameters: {' '.join(unknown_args)}")
 
