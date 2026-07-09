@@ -95,7 +95,6 @@ RE-EXPORTED FROM libs
 
 import collections
 import typing
-import warnings
 from difflib import HtmlDiff
 
 from lxml import etree, objectify

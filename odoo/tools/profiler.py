@@ -259,7 +259,8 @@ class _BasePeriodicCollector(Collector):
     def run(self) -> None:
         """Sampling loop run in the background thread."""
         self.active = True
-        self.last_time = real_time()
+        # ``_last_time`` (not ``last_time``): ``add()`` reads ``self._last_time``.
+        self._last_time = real_time()
         while self.active:  # maybe add a check on parent_thread state?
             self.progress()
             self._stop_event.wait(self.frame_interval)

@@ -32,6 +32,8 @@ def keep_query(*keep_params: str, **additional_params: object) -> str:
     qs_keys = list(request.httprequest.args) if request else []
     for keep_param in keep_params:
         for param in fnmatch.filter(qs_keys, keep_param):
-            if param not in additional_params and param in qs_keys:
+            # ``param`` comes from ``fnmatch.filter(qs_keys, ...)``, so it is
+            # always in ``qs_keys`` -- the only real check is the override guard.
+            if param not in additional_params:
                 params[param] = request.httprequest.args.getlist(param)
     return urllib.parse.urlencode(params, doseq=True)

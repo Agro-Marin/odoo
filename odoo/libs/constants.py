@@ -1,8 +1,10 @@
-"""Shared, dependency-free constants for the assets pipeline.
+"""Shared, dependency-free cross-cutting constants.
 
-Lives at the bottom of the import graph so model files (``assetsbundle``,
-``ir_qweb``, ``ir_asset``) and ``odoo.libs`` layers can all read the same
-declarations without importing each other.
+Besides the assets-pipeline constants (extensions, ``EXTERNAL_ASSET``), this
+also holds ORM/runtime ones such as ``PREFETCH_MAX``, ``GC_UNLINK_LIMIT`` and
+``SUPPORTED_DEBUGGER``.  It lives at the bottom of the import graph so model
+files (``assetsbundle``, ``ir_qweb``, ``ir_asset``) and ``odoo.libs`` layers can
+all read the same declarations without importing each other.
 """
 
 from types import MappingProxyType
