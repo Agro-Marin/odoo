@@ -212,7 +212,12 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        records = records.with_context(bin_size=False)
+        # Reset BOTH the global and the per-field bin_size keys before touching
+        # the cache: convert_to_cache honors either, so leaving bin_size_<name>
+        # active would size-convert an int value (the "client returned the bin
+        # size instead of the content" case) into a human_size string and cache
+        # it as content. Mirrors get_column_update / compute_value.
+        records = records.with_context(**{"bin_size": False, "bin_size_" + self.name: False})
         if not self.attachment:
             super().mark_dirty(records, value)
             return
