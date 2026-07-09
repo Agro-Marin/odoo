@@ -8440,6 +8440,41 @@ test(`required fields inside notebook`, async () => {
     expect(".o_notebook_headers .o_page_invalid").toHaveCount(0);
 });
 
+test(`required field inside a nested notebook marks the outer page invalid`, async () => {
+    // FM5: a page whose only invalid field lives in a NESTED notebook must
+    // still mark the OUTER page's tab invalid — the compiler now propagates
+    // nested-notebook fields into the outer page's fieldNames.
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `
+            <form>
+                <sheet>
+                    <notebook>
+                        <page string="Outer">
+                            <notebook>
+                                <page string="Inner">
+                                    <field name="foo" required="1"/>
+                                </page>
+                            </notebook>
+                        </page>
+                        <page string="Other">
+                            <field name="int_field"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        `,
+        resId: 1,
+    });
+    await contains(".o_field_char[name=foo] input").clear();
+    await clickSave();
+    expect(".o_field_char[name=foo]").toHaveClass("o_field_invalid");
+    // The OUTER "Outer" tab must be flagged even though the invalid field is
+    // one notebook deeper.
+    expect(".o_notebook_headers:first .nav-link:first").toHaveClass("o_page_invalid");
+});
+
 test(`support anchor tags with action type`, async () => {
     mockService("action", {
         doActionButton(action) {
