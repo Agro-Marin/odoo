@@ -7,7 +7,7 @@ import { onWillDestroy, onWillStart, onWillUpdateProps, useComponent } from "@od
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
-import { effect } from "@web/core/utils/reactive";
+import { disposableEffect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
 /**
@@ -20,8 +20,15 @@ import { batched } from "@web/core/utils/timing";
 export function useRecordObserver(callback) {
     const component = useComponent();
     let currentId;
+    // Disposer of the currently-active reactive effect. Each record swap and
+    // the component teardown dispose the previous effect, so a superseded
+    // effect no longer fires (and no longer allocates a batched rAF) on every
+    // mutation of a record this component no longer observes.
+    let disposeEffect;
     const observeRecord = (props) => {
         currentId = uniqueId();
+        disposeEffect?.();
+        disposeEffect = undefined;
         if (!props.record) {
             return;
         }
@@ -46,7 +53,7 @@ export function useRecordObserver(callback) {
                     browser.requestAnimationFrame(() => resolve()),
                 ),
         );
-        effect(
+        disposeEffect = disposableEffect(
             (record) => {
                 if (firstCall) {
                     firstCall = false;
@@ -63,6 +70,8 @@ export function useRecordObserver(callback) {
     };
     onWillDestroy(() => {
         currentId = uniqueId();
+        disposeEffect?.();
+        disposeEffect = undefined;
     });
     onWillStart(async () => {
         await observeRecord(component.props);

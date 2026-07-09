@@ -94,22 +94,31 @@ export function useListVirtualization({
      * Called once after first mount/patch with data rows in the DOM.
      */
     function measureRowHeights() {
-        if (measuredRowHeight > 0) {
-            return;
-        }
         const el = rootRef.el;
         if (!el) {
             return;
         }
+        // Re-measure whenever a rendered row's height differs from the cached
+        // value, not just once: the density service (compact/comfortable) and
+        // browser zoom change row height at runtime, and a stale measurement
+        // desynced the spacer math and ensureRowVisible (keyboard nav scrolled
+        // to the wrong offset). One getBoundingClientRect on the first row per
+        // patch is negligible next to the virtualization's own layout reads.
         const dataRow = el.querySelector(".o_data_row");
         if (dataRow) {
-            measuredRowHeight =
+            const rowHeight =
                 dataRow.getBoundingClientRect().height || DEFAULT_ROW_HEIGHT;
+            if (rowHeight !== measuredRowHeight) {
+                measuredRowHeight = rowHeight;
+            }
         }
         const groupRow = el.querySelector(".o_group_header");
         if (groupRow) {
-            measuredGroupRowHeight =
+            const groupHeight =
                 groupRow.getBoundingClientRect().height || DEFAULT_GROUP_ROW_HEIGHT;
+            if (groupHeight !== measuredGroupRowHeight) {
+                measuredGroupRowHeight = groupHeight;
+            }
         }
     }
 
