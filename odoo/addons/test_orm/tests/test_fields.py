@@ -6404,3 +6404,70 @@ class TestModifiedPerformance(TransactionCase):
         self.assertEqual(self.modified_line_a_child.total_price_quantity, 30)
         self.assertEqual(self.modified_line_a.total_price_quantity, 35)
         self.assertEqual(self.modified_line_a.total_price, 7)
+
+
+class TestRelationalGetPending(TransactionCase):
+    def test_batched_get_evicts_pending_sentinel(self):
+        """Batched relational ``__get__`` must never leak the PENDING sentinel.
+
+        When a stored computed relational field's compute skipped some records,
+        their cache entry stays PENDING.  Reading the field in batch
+        (``records.mapped(field)``) must evict the sentinel and resolve the real
+        value rather than return a recordset whose ``_ids`` contains PENDING
+        (which then makes ``.ids`` and any downstream int use blow up).
+
+        ``PREFETCH_MAX`` is patched low so the batch exercises the bulk-fetch
+        branch (``len(vals) < len(records) - PREFETCH_MAX``) where the sentinel
+        used to survive; the single-record branch was always correct.
+        """
+        from unittest.mock import patch
+
+        from odoo.orm.fields.relational import _base
+        from odoo.tools.misc import PENDING
+
+        Partner = self.env["res.partner"]
+        partners = Partner.create([{"name": f"pending-{i}"} for i in range(40)])
+        self.env.flush_all()
+
+        field = Partner._fields["commercial_partner_id"]
+        self.assertTrue(field.is_stored_computed)
+
+        with patch.object(_base, "PREFETCH_MAX", 5):
+            self.env.invalidate_all()
+            cache = field._get_cache(self.env)
+            # Emulate a compute that skipped some records: leave PENDING in cache.
+            for index, record_id in enumerate(partners._ids):
+                if index % 2:
+                    cache[record_id] = PENDING
+            result = partners.mapped("commercial_partner_id")
+
+        self.assertNotIn(PENDING, result._ids)
+        self.assertTrue(all(isinstance(i, int) for i in result._ids))
+        # .ids must not raise and must contain only real ids
+        self.assertTrue(all(isinstance(i, int) for i in result.ids))
+
+
+class TestTranslatedFieldEnUsFallback(TransactionCase):
+    def test_current_lang_value_not_shadowed_by_en_us_fallback(self):
+        """A translated field value cached for the current language must win over
+        the en_US fallback, even when read through a freshly-derived env whose
+        scalar-cache memo is cold (regression: the fallback returned en_US)."""
+        self.env["res.lang"]._activate_lang("fr_FR")
+        Country = self.env["res.country"]
+
+        rec = Country.with_context(lang="en_US").new({})
+        rec.name = "hello"
+        rec_fr = rec.with_context(lang="fr_FR")
+        rec_fr.name = "bonjour"
+
+        # A freshly-derived fr env (extra context key) has a cold scalar memo.
+        fresh_fr = rec.with_context(lang="fr_FR", _regression_marker=1)
+        self.assertEqual(fresh_fr.name, "bonjour")
+
+        # The en_US fallback must still apply when the current language has no
+        # cached value for a new record.
+        rec2 = Country.with_context(lang="en_US").new({})
+        rec2.name = "only-en"
+        self.assertEqual(
+            rec2.with_context(lang="fr_FR", _regression_marker=2).name, "only-en"
+        )

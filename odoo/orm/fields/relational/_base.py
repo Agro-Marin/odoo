@@ -130,6 +130,18 @@ class _Relational(Field["BaseModel"]):
                 if not (check_pending and value is PENDING):
                     _append(value)
                     continue
+                # A stored computed field can leave PENDING in cache when its
+                # compute skipped this record.  Mirror base Field.__get__: evict
+                # the sentinel so the fetch below sees a genuine miss (and never
+                # leaks PENDING into the resulting recordset), and short-circuit
+                # to the falsy default while the field is being computed.
+                field_cache.pop(record_id, None)
+                record = records.browse(record_id)
+                if env.is_protected(self, record):
+                    value = self.convert_to_cache(False, record, validate=False)
+                    self._update_cache(record, value)
+                    _append(value)
+                    continue
             # cache miss (or a PENDING value still awaiting recompute): fetch it
             if self.store and record_id and len(vals) < len(records) - PREFETCH_MAX:
                 # a lot of missing records, just fetch that field

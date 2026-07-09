@@ -1,5 +1,5 @@
 from odoo import Command
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -67,6 +67,28 @@ class TestMergePartner(TransactionCase):
                 "res_id": self.bank3.id,
             }
         )
+
+    def test_merge_parent_with_child_is_rejected(self):
+        """Merging a contact with one of its own parents/children must raise.
+
+        Regression: the guard computed ``all_descendants - partner_ids`` and then
+        intersected it back with ``partner_ids`` (always empty), so a parent+child
+        merge slipped through and repointed the survivor onto itself
+        (``parent_id = id``).
+        """
+        parent = self.Partner.create(
+            {"name": "Parent Co", "email": "parent@example.com"}
+        )
+        child = self.Partner.create(
+            {"name": "Child Co", "email": "child@example.com", "parent_id": parent.id}
+        )
+        wizard = self.env["base.partner.merge.automatic.wizard"].create({})
+        with self.assertRaises(UserError):
+            wizard._merge([parent.id, child.id])
+        # Both survive unchanged; neither becomes its own parent.
+        self.assertTrue(parent.exists() and child.exists())
+        self.assertNotEqual(parent.parent_id, parent)
+        self.assertNotEqual(child.parent_id, child)
 
     def test_merge_partners_without_bank_accounts(self):
         """Test merging partners without any bank accounts"""

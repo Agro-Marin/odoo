@@ -43,6 +43,29 @@ class TestIrSequenceStandard(BaseCase):
             )
             self.assertTrue(seq)
 
+    def test_ir_sequence_number_next_zero(self):
+        """A standard sequence with number_next=0 must not crash.
+
+        PostgreSQL sequences are 1-based (default MINVALUE 1), so START/RESTART
+        WITH 0 is rejected; the helpers floor the value to 1 (regression: it
+        raised an unhandled InvalidParameterValue on create and on write).
+        """
+        with environment() as env:
+            seq = env["ir.sequence"].create(
+                {
+                    "code": "test_seq_zero",
+                    "name": "Zero sequence",
+                    "implementation": "standard",
+                    "number_next": 0,
+                }
+            )
+            self.assertTrue(seq)
+            self.assertTrue(env["ir.sequence"].next_by_code("test_seq_zero"))
+            # Writing 0 on an existing standard sequence must not crash either.
+            seq.write({"number_next": 0})
+            self.assertTrue(env["ir.sequence"].next_by_code("test_seq_zero"))
+            seq.unlink()
+
     def test_ir_sequence_search(self):
         """Try a search."""
         with environment() as env:

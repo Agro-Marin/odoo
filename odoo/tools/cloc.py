@@ -356,6 +356,7 @@ class Cloc:
                         k="    " + i, lines=total, other=total - code, code=code
                     )
             ex += hr
+            s += ex
 
         if self.errors:
             e = "\nErrors\n\n"
@@ -365,3 +366,6 @@ class Cloc:
                     e += fmt.format(
                         k="    " + i, lines=self.errors[m][i], other="", code=""
                     )
+            s += e
+
+        return s

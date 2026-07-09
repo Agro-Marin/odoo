@@ -244,6 +244,20 @@ class ModelGraph:
         self._triggers = defaultdict(lambda: defaultdict(list))
         self.clear_caches()
 
+    def set_triggers(self, triggers: defaultdict) -> None:
+        """Publish a fully-built trigger map atomically, then drop derived caches.
+
+        The caller builds the ``{dep_field: {path: [targets]}}`` map into a local
+        structure and hands it over here; swapping ``_triggers`` with a single
+        assignment (rather than ``reset_triggers`` + incremental ``add_trigger``
+        on the live graph) means a concurrent reader — or a second thread racing
+        the ``Registry._field_triggers`` ``cached_property`` — never observes an
+        empty or partial map.  Derived caches are cleared *after* the swap, so any
+        rebuild they trigger reads the complete new map.
+        """
+        self._triggers = triggers
+        self.clear_caches()
+
     def reset_field_metadata(self) -> None:
         """Reset all field metadata collections to empty state.
 

@@ -295,6 +295,35 @@ class TestModelGraphConstruction(unittest.TestCase):
         deps = list(g.get_dependent_fields(f2))
         self.assertIn(t2, deps)
 
+    def test_set_triggers_publishes_atomically(self) -> None:
+        """set_triggers() swaps in a prebuilt map and drops derived caches.
+
+        This is the atomic-publish path (Registry._field_triggers builds the map
+        locally then hands it over), so the shared graph never holds a partial
+        map: the new object becomes visible in a single assignment.
+        """
+        from collections import defaultdict
+
+        g = ModelGraph()
+        f_old, t_old = _field("price"), _field("total")
+        g.add_trigger(f_old, (), [t_old])
+        g.get_field_trigger_tree(f_old)  # populate derived caches
+        self.assertTrue(g._trigger_trees)
+
+        f_new, t_new = _field("name"), _field("display_name")
+        staged: defaultdict = defaultdict(lambda: defaultdict(list))
+        staged[f_new][()].append(t_new)
+
+        g.set_triggers(staged)
+        # The exact prebuilt object is published, and derived caches are dropped.
+        self.assertIs(g._triggers, staged)
+        self.assertFalse(g._trigger_trees)
+        self.assertFalse(g._modifying_relations)
+        # The new map is fully queryable; the old one is gone.
+        self.assertFalse(g.has_triggers(f_old))
+        self.assertTrue(g.has_triggers(f_new))
+        self.assertIn(t_new, list(g.get_dependent_fields(f_new)))
+
     def test_incremental_build_workflow(self) -> None:
         """Simulate the Registry pattern: reset → add_trigger × N → query."""
         g = ModelGraph()

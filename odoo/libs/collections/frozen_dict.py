@@ -63,6 +63,15 @@ class frozendict[K, T](dict[K, T]):
         msg = "'update' not supported on frozendict"
         raise NotImplementedError(msg)
 
+    def __ior__(self, other: Any) -> None:  # type: ignore[misc,override]
+        """Reject in-place merge (``|=``), as the dictionary is immutable.
+
+        Without this override ``dict.__ior__`` would mutate the frozendict in
+        place and leave the cached ``_hash`` stale.
+        """
+        msg = "'|=' not supported on frozendict"
+        raise NotImplementedError(msg)
+
     def __hash__(self) -> int:  # type: ignore[override]
         """Return a cached hash computed from the key/value pairs."""
         try:

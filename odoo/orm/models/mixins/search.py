@@ -371,7 +371,14 @@ class SearchMixin(_ModelStubs):
                 sql_field = self._field_to_sql(alias, field_name, query)
 
             if coorder == "id":
-                if not query._any_value_orderby:
+                # Mirror the scalar branch below: under _any_value_orderby the
+                # column must be wrapped in ANY_VALUE() rather than merely kept
+                # out of GROUP BY, otherwise a bare column reaches ORDER BY in a
+                # grouped query and PostgreSQL raises 42803 (must appear in GROUP
+                # BY or be used in an aggregate).
+                if query._any_value_orderby:
+                    sql_field = SQL("ANY_VALUE(%s)", sql_field)
+                else:
                     query._order_groupby.append(sql_field)
                 return SQL("%s %s %s", sql_field, direction, nulls)
 

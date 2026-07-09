@@ -110,7 +110,9 @@ def disabling_gc() -> Generator[bool]:
         return
     gc.disable()
     _logger.debug("disabled, counts %s", gc.get_count())
-    yield True
-    counts = gc.get_count()
-    gc.enable()
-    _logger.debug("enabled, counts %s", counts)
+    try:
+        yield True
+    finally:
+        counts = gc.get_count()
+        gc.enable()
+        _logger.debug("enabled, counts %s", counts)

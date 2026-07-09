@@ -149,7 +149,15 @@ class Transaction:
         or metadata rebuild (which invalidate the field identities a snapshot
         would be keyed on).
         """
-        model_graph = getattr(self.registry, "model_graph", None)
+        registry = self.registry
+        if registry is None:
+            return None
+        # Route through the ``_field_triggers`` guard, like every other
+        # model_graph consumer, so this never reads a mid-rebuild graph: it
+        # ensures the trigger map (and thus ``recompute_order``) is fully built
+        # and published before the read.
+        registry._field_triggers  # noqa: B018
+        model_graph = getattr(registry, "model_graph", None)
         return model_graph.recompute_order if model_graph is not None else None
 
     def reset(self) -> None:

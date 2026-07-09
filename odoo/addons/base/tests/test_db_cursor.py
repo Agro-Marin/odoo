@@ -97,6 +97,17 @@ class TestRealCursor(BaseCase):
             with self.assertRaises(psycopg.InterfaceError):
                 cr.execute("SELECT 1", log_exceptions=False)
 
+    def test_commit_rollback_on_closed_cursor_raise(self):
+        # After close() returns the connection to the pool it may be checked out
+        # by another cursor; commit()/rollback() must raise rather than silently
+        # act on that (possibly foreign) connection.
+        cr = registry().cursor()
+        cr.close()
+        with self.assertRaises(psycopg.InterfaceError):
+            cr.commit()
+        with self.assertRaises(psycopg.InterfaceError):
+            cr.rollback()
+
     def test_multiple_close_call_cursor(self):
         cr = registry().cursor()
         cr.close()

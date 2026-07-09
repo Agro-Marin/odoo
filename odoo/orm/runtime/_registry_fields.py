@@ -147,9 +147,13 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
         Built incrementally into ``model_graph`` via its ``add_trigger`` API.
         """
-        # Reset and rebuild triggers incrementally into model_graph
-        self.model_graph.reset_triggers()
-
+        # Build the trigger map into a LOCAL structure, then publish it to
+        # model_graph with a single atomic assignment (set_triggers).  Building
+        # in place on the shared graph — reset it to empty, then incrementally
+        # add_trigger — lets a concurrent reader (e.g. Transaction._live_recompute_order)
+        # or a second thread racing this cached_property observe an empty/partial
+        # map during the rebuild window.
+        new_triggers: defaultdict = defaultdict(lambda: defaultdict(list))
         for Model in self.models.values():
             if Model._abstract:
                 continue
@@ -163,9 +167,11 @@ class _RegistryFieldsMixin(_RegistryStubs):
                 else:
                     for dependency in dependencies:
                         *path, dep_field = dependency
-                        self.model_graph.add_trigger(
-                            dep_field, tuple(reversed(path)), [field]
-                        )
+                        bucket = new_triggers[dep_field][tuple(reversed(path))]
+                        if field not in bucket:
+                            bucket.append(field)
+
+        self.model_graph.set_triggers(new_triggers)
 
         # Ensure lazy properties (field_inverses, field_computed) are built
         # and stored into model_graph (via their cached_property side effects).

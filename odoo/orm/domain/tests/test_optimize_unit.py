@@ -27,7 +27,9 @@ class _StubField:
     Carries only the attributes the optimizer reads when resolving a leaf.
     """
 
-    def __init__(self, name, ftype="integer", *, relational=False, comodel=None):
+    def __init__(
+        self, name, ftype="integer", *, relational=False, comodel=None, search=None
+    ):
         self.name = name
         self.type = ftype
         self.relational = relational
@@ -37,6 +39,9 @@ class _StubField:
         self.required = False
         self.inherited = False
         self.company_dependent = False
+        # A field's search method (truthy → the FULL optimizer routes leaves on
+        # this field through ``determine_domain`` instead of a raw column).
+        self.search = search
 
 
 class _StubModel:
@@ -257,6 +262,61 @@ class TestOptimizeModelScoping(unittest.TestCase):
         self.assertIs(again._opt_level, opt._opt_level)
         self.assertEqual(opt._opt_model_name, "int_model")
 
+    def test_reuse_across_models_leaves_shared_node_unmutated(self):
+        # The cross-model ``_opt`` race: optimizing a node canonical for one
+        # model against another must NOT reset/restamp the shared node in place.
+        # Otherwise a concurrent optimizer for the first model observes the torn
+        # cache and skips a level ("Trying to skip optimization level") or skips
+        # type coercion (wrong SQL).  The second model's optimize works on a
+        # private copy; the shared node keeps its original stamp.
+        int_model = self._Model("int_model", {"a": "integer"})
+        bool_model = self._Model("bool_model", {"a": "boolean"})
+        node = Domain("a", "=", 5).optimize(int_model)
+        stamp_before = node._opt
+        self.assertEqual(node._opt_model_name, "int_model")
+
+        reused = node.optimize(bool_model)  # different model → private copy
+        self.assertEqual(list(reused), [("a", "in", [True])])  # coerced for bool
+        self.assertIsNot(reused, node)
+        # The shared node's stamp is untouched by the other-model optimize.
+        self.assertEqual(node._opt, stamp_before)
+        self.assertEqual(node._opt_model_name, "int_model")
+        # ...and it still cache-hits for its own model (returns itself, no work).
+        self.assertIs(node.optimize(int_model), node)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBooleanSearchableTautology(unittest.TestCase):
+    """`searchable_bool in [True, False]` must collapse to TRUE before the
+    field's search method is invoked (upstream 7a67274e138)."""
+
+    def _model_with_searchable_bool(self, calls):
+        model = _StubModel()
+        field = _StubField("flag", "boolean", search=True)
+
+        def determine_domain(model, operator, value):
+            calls.append((operator, sorted(value)))
+            return [("a", "in", [1])]
+
+        field.determine_domain = determine_domain
+        model._fields["flag"] = field
+        return model
+
+    def test_in_true_false_collapses_before_search(self):
+        calls = []
+        model = self._model_with_searchable_bool(calls)
+        result = Domain("flag", "in", [True, False]).optimize_full(model)
+        # The tautology collapses to TRUE; the search method must not run.
+        self.assertEqual(calls, [])
+        self.assertEqual(list(result), [(1, "=", 1)])  # TRUE domain, legacy form
+
+    def test_single_value_still_uses_search(self):
+        calls = []
+        model = self._model_with_searchable_bool(calls)
+        result = Domain("flag", "in", [True]).optimize_full(model)
+        # A genuine single-valued query still delegates to the search method.
+        self.assertEqual(calls, [("in", [True])])
+        self.assertEqual(list(result), [("a", "in", [1])])

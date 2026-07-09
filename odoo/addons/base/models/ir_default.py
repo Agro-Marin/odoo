@@ -50,6 +50,16 @@ class IrDefault(models.Model):
     )
     json_value = fields.Char("Default Value (JSON format)", required=True)
 
+    # One default per scope.  NULL user_id/company_id/condition are folded via
+    # COALESCE so the all-NULL scope (matched with ``= False`` on read) is unique
+    # too; otherwise a concurrent ``set()`` race leaves permanent shadow rows that
+    # the read path silently ignores.  See migrations/1.5/pre-migration.py for the
+    # one-time dedupe (keeping the lowest id, matching the read order).
+    _unique_scope = models.UniqueIndex(
+        "(field_id, COALESCE(user_id, 0), COALESCE(company_id, 0),"
+        " COALESCE(condition, ''))"
+    )
+
     # ------------------------------------------------------------------
     # Value validation (shared by set() and the create/write constraint)
     # ------------------------------------------------------------------

@@ -1099,6 +1099,29 @@ class TestQWebBasic(TransactionCase):
         # Second link: the whitelisted history.back() form is preserved.
         self.assertEqual(links[1].get("href"), "javascript:history.back()")
 
+    def test_post_processing_att_malicious_scheme_extra_attributes(self):
+        """QWEB-T5c: the scrub must cover every URL-bearing attribute a browser
+        executes from — SVG ``xlink:href`` (``<a xlink:href="javascript:…">``)
+        and ``<object data="javascript:…">`` — not just href/src/action/formaction.
+        """
+        qweb = self.env["ir.qweb"]
+        for attr in ("href", "src", "action", "formaction", "xlink:href", "data"):
+            atts = qweb._post_processing_att(
+                "a", {attr: "javascript:alert(1)", "title": "keep"}, is_static=False
+            )
+            self.assertEqual(atts[attr], "", f"{attr!r} javascript: not scrubbed")
+            self.assertEqual(atts["title"], "keep")
+        # Static (template-author) attributes are trusted and left untouched.
+        static = qweb._post_processing_att(
+            "a", {"xlink:href": "javascript:alert(1)"}, is_static=True
+        )
+        self.assertEqual(static["xlink:href"], "javascript:alert(1)")
+        # A legitimate URL on a newly-covered attribute is preserved.
+        legit = qweb._post_processing_att(
+            "object", {"data": "/web/content/1"}, is_static=False
+        )
+        self.assertEqual(legit["data"], "/web/content/1")
+
     def test_post_processing_att_control_char_obfuscation(self):
         """QWEB-T5b: C0 control characters (TAB/LF/CR/NUL/...) are stripped by
         the browser *before* the scheme is resolved, so ``java&#9;script:``
