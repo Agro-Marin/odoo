@@ -638,20 +638,28 @@ export class FormCompiler extends ViewCompiler {
             const isVisibleExpr = makeIsVisibleExpr(invisible);
             pageSlot.setAttribute("isVisible", isVisibleExpr);
 
-            params.notebookPageFields = [];
+            // Local collector per page — do NOT mutate the incoming params.
+            // A nested notebook inside this page reuses the SAME array (passed
+            // down via notebookPageFields), so its fields land in this page's
+            // list too; otherwise the outer page's invalid-field highlight
+            // (Notebook.computeInvalidPages) misses fields nested one level
+            // deeper, and the stale `params.notebookPageFields` reference
+            // leaked to siblings compiled after the notebook.
+            const pageFields = [];
             for (const contents of child.children) {
                 append(
                     pageSlot,
                     this.compileNode(contents, {
                         ...params,
+                        notebookPageFields: pageFields,
                         currentSlot: pageSlot,
                     }),
                 );
             }
-            pageSlot.setAttribute(
-                "fieldNames",
-                `${JSON.stringify(params.notebookPageFields)}`,
-            );
+            pageSlot.setAttribute("fieldNames", `${JSON.stringify(pageFields)}`);
+            // Propagate upward: if this notebook is itself nested inside a
+            // parent page's collector, that page must also see these fields.
+            params.notebookPageFields?.push(...pageFields);
         }
 
         return noteBook;
