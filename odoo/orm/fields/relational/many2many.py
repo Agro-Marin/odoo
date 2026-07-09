@@ -210,7 +210,9 @@ class Many2many(_RelationalMulti):
             return True
 
         model.pool.post_init(self.update_db_foreign_keys, model)
-        return None
+        # relation table already existed: nothing created, no recompute needed
+        # (base contract: True == field must be recomputed on existing rows)
+        return False
 
     def update_db_foreign_keys(self, model: BaseModel) -> None:
         """Add the foreign keys corresponding to the field's relation table."""
