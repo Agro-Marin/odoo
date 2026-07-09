@@ -420,7 +420,12 @@ class Registry(
         """Return the models corresponding to ``model_names`` and all those
         that inherit/inherits from them.
         """
-        assert all(kind in ("_inherit", "_inherits") for kind in kinds)
+        # raise (not assert): under python -O a bad kind would slip through to
+        # attrgetter() on a nonexistent ``*_children`` attribute deep in the BFS.
+        if not all(kind in ("_inherit", "_inherits") for kind in kinds):
+            raise ValueError(
+                f"descendants: kinds must be '_inherit'/'_inherits', got {kinds!r}"
+            )
         funcs = [attrgetter(kind + "_children") for kind in kinds]
 
         models: OrderedSet[str] = OrderedSet()
