@@ -231,7 +231,17 @@ function parsePrefix(current, cur) {
                         }
                         cur.next();
                         const value = _parse(cur, 0);
-                        dict[/** @type {any} */ (key).value] = value;
+                        // defineProperty: a literal '__proto__' key must
+                        // become a plain OWN entry, not a [[Prototype]] write
+                        // that swallows it. (A null-prototype dict would fix
+                        // this too but breaks Object-typed consumers, e.g.
+                        // OWL props validation of evaluated options dicts.)
+                        Object.defineProperty(dict, /** @type {any} */ (key).value, {
+                            value,
+                            writable: true,
+                            enumerable: true,
+                            configurable: true,
+                        });
                         if (cur.peek() && isSymbol(cur.peek(), ",")) {
                             cur.next();
                         }

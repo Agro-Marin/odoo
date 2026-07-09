@@ -19,7 +19,11 @@ beforeEach(() => clearSourceMapCache());
 const FIXTURE_MAP = {
     version: 3,
     sources: ["src_a.js", "entry.js"],
-    mappings: "AAAO,SAASA,GAAO,CACnB,MAAM,IAAI,MAAM,MAAM,CCDAC,EAAK",
+    // Regenerated 2026-07-08 with the repo's own esbuild (node_modules/.bin)
+    // from the exact sources above: the previous copy of this string had lost
+    // the ``CAC1B`` segment (the closing-brace mapping), which shifted every
+    // following segment and made the pinned expectations below unreachable.
+    mappings: "AAAO,SAASA,GAAO,CACnB,MAAM,IAAI,MAAM,MAAM,CAC1B,CCDAC,EAAK",
     names: ["boom", "boom"],
 };
 

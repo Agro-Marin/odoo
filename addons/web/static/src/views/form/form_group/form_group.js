@@ -78,7 +78,10 @@ export class InnerGroup extends Group {
         const items = this.getItems();
         while (items.length) {
             const [slotName, slot] = items.shift();
-            if (!slot.isVisible) {
+            // Same predicate as OuterGroup.getItems: a slot without an
+            // isVisible key (third-party form_compilers) is visible —
+            // `!slot.isVisible` silently dropped it here.
+            if ("isVisible" in slot && !slot.isVisible) {
                 continue;
             }
 
@@ -97,15 +100,17 @@ export class InnerGroup extends Group {
                 reservedSpace = 0;
             }
 
-            const isVisible = !("isVisible" in slot) || slot.isVisible;
-            currentRow.push({ ...slot, name: slotName, itemSpan, isVisible });
+            currentRow.push({ ...slot, name: slotName, itemSpan, isVisible: true });
             reservedSpace += itemSpan || 1;
-
-            // Allows to remove the line if the content is not visible instead of leaving an empty line.
-            /** @type {any} */ (currentRow).isVisible =
-                /** @type {any} */ (currentRow).isVisible || isVisible;
         }
         rows.push(currentRow);
+
+        // Every pushed cell is visible (invisible slots were skipped above),
+        // so a row renders iff it has cells — empty rows (leading newline,
+        // trailing remainder) are dropped by the template's t-if.
+        for (const row of rows) {
+            /** @type {any} */ (row).isVisible = row.length > 0;
+        }
 
         return rows;
     }

@@ -976,9 +976,21 @@ export class ListRenderer extends Component {
         }
 
         if (futureRecord) {
+            // The validate-save below may reload/resort the record set (an
+            // onchange-triggered x2many reload, onRecordSaved hooks): re-
+            // resolve the target by id afterwards instead of entering edition
+            // on a detached datapoint (same staleness handling as
+            // onCellClicked's post-resequence lookup).
+            const futureRecordId = futureRecord.id;
             list.leaveEditMode({ validate: true }).then((canProceed) => {
                 if (canProceed) {
-                    list.enterEditMode(futureRecord);
+                    const target =
+                        list.records.find((r) => r.id === futureRecordId) ??
+                        list.records[index + 1] ??
+                        list.records.at(-1);
+                    if (target) {
+                        list.enterEditMode(target);
+                    }
                 }
             });
         } else if (

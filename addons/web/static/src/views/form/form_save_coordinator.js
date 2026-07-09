@@ -236,7 +236,7 @@ export class FormSaveCoordinator extends SignalStore {
                 // an unintended UX path.
                 saved = await saveOverride(this.model.root, opts);
             } else {
-                const onError = this._buildOnError(errorMode);
+                const onError = this._buildOnError(errorMode, ownerEpoch);
                 if (onError) {
                     opts.onError = onError;
                 }
@@ -353,7 +353,7 @@ export class FormSaveCoordinator extends SignalStore {
      * @param {"dialog"|"rethrow"|"silent"} errorMode
      * @returns {((error: any, callbacks: any) => any) | undefined}
      */
-    _buildOnError(errorMode) {
+    _buildOnError(errorMode, ownerEpoch) {
         if (errorMode === "silent") {
             return undefined;
         }
@@ -400,7 +400,12 @@ export class FormSaveCoordinator extends SignalStore {
             // resolves it via "discard": the action menu's
             // ``shouldExecuteAction`` blocks menu actions on any
             // dialog-shown error, matching historical semantics.
-            this.lastError = error;
+            // Epoch-guarded like the catch-path writes: a superseded save's
+            // late onError must not poison a successor's clean diagnostics
+            // ("clean" status with a stale lastError blocks menu actions).
+            if (ownerEpoch === this._saveEpoch) {
+                this.lastError = error;
+            }
             return await this.hooks.onSaveError(error, callbacks);
         };
     }

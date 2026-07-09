@@ -104,7 +104,7 @@ class InteractionService {
      * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Record<string, any>} [props]
      * @param {InsertPosition} [position]
-     * @returns {{ C: import("@odoo/owl").ComponentConstructor, root: any, el: HTMLElement, mount: () => Promise<any>, destroy: () => void }}
+     * @returns {{ C: import("@odoo/owl").ComponentConstructor, root: any, el: HTMLElement, hostEl: HTMLElement, mount: () => Promise<any>, destroy: () => void }}
      */
     prepareRoot(el, C, props, position = "beforeend") {
         if (!this.owlApp) {
@@ -136,6 +136,9 @@ class InteractionService {
             C,
             root,
             el: rootEl,
+            // The MATCHED host element — activeInteractions is keyed on it
+            // (not on the created <owl-root>), so cleanup must use it too.
+            hostEl: el,
             mount: () => root.mount(rootEl),
             destroy: () => {
                 root.destroy();
@@ -307,7 +310,12 @@ class InteractionService {
             if (el === root.el || el.contains(root.el)) {
                 stoppedRoots.add(root);
                 root.destroy();
-                this.activeInteractions.delete(root.el, root.C);
+                // The pair was registered with the matched HOST element in
+                // _startInteraction — deleting with the created <owl-root>
+                // was a silent no-op, permanently blocking a restart of the
+                // component interaction on the same element (and retaining
+                // the host element in the PairSet).
+                this.activeInteractions.delete(root.hostEl ?? root.el, root.C);
             }
         }
         this.roots = this.roots.filter((root) => !stoppedRoots.has(root));

@@ -141,6 +141,55 @@ describe("formatAST", () => {
         expect(formatAST(toPyValue(null))).toBe("None");
     });
 
+    test("associativity survives the round-trip", () => {
+        // Left-associative operators: an equal-precedence RIGHT child must
+        // keep its parentheses, otherwise re-parsing regroups the expression
+        // and changes its value.
+        expect(checkAST("a - (b - c)", "right-nested subtraction")).toBe(true);
+        expect(checkAST("a / (b / c)", "right-nested division")).toBe(true);
+        expect(checkAST("a % (b % c)", "right-nested modulo")).toBe(true);
+        expect(checkAST("a // (b // c)", "right-nested floor division")).toBe(true);
+        expect(
+            evaluateExpr(formatAST(parseExpr("total - (tax - discount)")), {
+                total: 100,
+                tax: 20,
+                discount: 5,
+            }),
+        ).toBe(85);
+        // `**` is right-associative: an equal-precedence LEFT child must keep
+        // its parentheses.
+        expect(checkAST("(a ** b) ** c", "left-nested power")).toBe(true);
+        expect(evaluateExpr(formatAST(parseExpr("(2**3)**2")))).toBe(64);
+        expect(evaluateExpr(formatAST(parseExpr("2**3**2")))).toBe(512);
+        // Comparators are non-associative: `(a < b) < c` and the chained
+        // `a < b < c` are different expressions.
+        expect(checkAST("(a < b) < c", "nested comparison")).toBe(true);
+    });
+
+    test("low-precedence sub-expressions keep their parentheses", () => {
+        // A conditional expression has the lowest precedence in Python.
+        expect(checkAST("1 + (2 if x else 3)", "ternary in addition")).toBe(true);
+        expect(checkAST("(a if x else b) if y else c", "ternary in ternary")).toBe(true);
+        expect(
+            evaluateExpr(formatAST(parseExpr("1 + (2 if x else 3)")), { x: false }),
+        ).toBe(4);
+        // Unary operators bind looser than `**`.
+        expect(checkAST("(-a) ** 2", "unary minus in power")).toBe(true);
+        expect(evaluateExpr(formatAST(parseExpr("(-2) ** 2")))).toBe(4);
+    });
+
+    test("one-element tuple keeps its trailing comma", () => {
+        expect(formatAST(parseExpr("(1,)"))).toBe("(1,)");
+        expect(evaluateExpr(formatAST(parseExpr("(1,)")))).toEqual([1]);
+    });
+
+    test("dictionary keys are escaped", () => {
+        expect(formatAST(parseExpr(String.raw`{'a"b': 1}`))).toBe(String.raw`{"a\"b": 1}`);
+        expect(checkAST(String.raw`{"a\"b": 1}`, "dict key with a double quote")).toBe(
+            true,
+        );
+    });
+
     test("long list is not parenthesized by element position", () => {
         // `.map(formatAST)` used to pass the array index as the binding
         // power, parenthesizing low-bp elements past index 30 ("or" bp is 30).

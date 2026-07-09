@@ -496,6 +496,13 @@ export class DynamicList extends DataPoint {
         );
         for (const record of validRecords) {
             const serverValues = serverValuesById[/** @type {number} */ (record.resId)];
+            if (!serverValues) {
+                // The server returned fewer rows than requested (record
+                // concurrently deleted/filtered by the written value):
+                // _setData(undefined) would wipe the record's values to {}
+                // (same guard as static_list_command_engine's UPDATE path).
+                continue;
+            }
             record._setData(serverValues);
             this.model._updateSimilarRecords(record, serverValues);
         }

@@ -198,9 +198,15 @@ export class RelationalRecord extends DataPoint {
             //    e.g. when an x2many form dialog opens; wiping it while
             //    keeping ``_changes`` would send a later Discard through
             //    the no-savepoint branch, clearing pre-dialog edits too.
-            this.dirty =
-                !this._changeSet.isEmpty ||
-                (this.dirty && this._invalidFields.size > 0);
+            //  - a keepChanges reload must NEVER lower the flag: save and
+            //    discard are the only legitimate lowering points. During the
+            //    Invariant-1 window of an in-flight ``_update()`` (dirty=true,
+            //    ``_changes`` still empty, no invalid fields — the record is
+            //    between ``_markDirty()`` and ``_applyChanges()``), deriving
+            //    dirty from ``_changeSet``/``_invalidFields`` alone would
+            //    clear it and the pending edit would be silently discarded
+            //    by the next ``isDirty()`` gate.
+            this.dirty = this.dirty || !this._changeSet.isEmpty;
             this._assertChangeSetInvariant();
         }
         this.data = { ...this._values, ...this._changes };
@@ -371,7 +377,16 @@ export class RelationalRecord extends DataPoint {
             return this._update(changes);
         }
         return this.model.mutex.exec(async () => {
-            await this._update(changes, { withoutOnchange: save });
+            const dispatched = await this._update(changes, { withoutOnchange: save });
+            if (dispatched !== undefined) {
+                // multiEditDispatch already handled the save for the whole
+                // selection; its result (false on validation failure or a
+                // declined confirmation) must reach callers like
+                // dynamic_group_list.moveRecord, whose revert logic keys on
+                // it. Running _save() on top would hit the no-changes early
+                // return and mask the failure as `true`.
+                return dispatched;
+            }
             if (save && this.canSaveOnUpdate) {
                 return this._save();
             }
@@ -844,9 +859,20 @@ export class RelationalRecord extends DataPoint {
      * @returns {Promise<Record<string, any>>}
      */
     async _getOnchangeValues(changes) {
-        for (const fieldName of Object.keys(changes)) {
-            if (changes[fieldName] instanceof Operation) {
-                changes[fieldName] = changes[fieldName].compute(this.data[fieldName]);
+        // Compute Operations (multi-edit "+5"/"-5" inputs) into a LOCAL copy:
+        // rewriting the caller's `changes` in place would replay an absolute
+        // number if the caller re-dispatches the same object (same
+        // non-mutation contract as `effectiveChanges` in `_update`).
+        // `_applyChanges` computes Operations itself, off the same base.
+        const originalChanges = changes;
+        for (const fieldName of Object.keys(originalChanges)) {
+            if (originalChanges[fieldName] instanceof Operation) {
+                if (changes === originalChanges) {
+                    changes = { ...originalChanges };
+                }
+                changes[fieldName] = originalChanges[fieldName].compute(
+                    this.data[fieldName],
+                );
             }
         }
         const onChangeFields = Object.keys(changes).filter(

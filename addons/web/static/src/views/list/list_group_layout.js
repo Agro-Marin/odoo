@@ -16,7 +16,7 @@ import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
  * @param {Object} aggregates - group.aggregates or footer aggregates
  * @returns {number} index or -1
  */
-export function getFirstAggregateIndex(columns, fields, aggregates) {
+function getFirstAggregateIndex(columns, fields, aggregates) {
     return columns.findIndex(
         (col) =>
             col.name in aggregates &&
@@ -33,7 +33,7 @@ export function getFirstAggregateIndex(columns, fields, aggregates) {
  * @param {Object} aggregates
  * @returns {number} index or -1
  */
-export function getLastAggregateIndex(columns, fields, aggregates) {
+function getLastAggregateIndex(columns, fields, aggregates) {
     const reversedColumns = columns.toReversed();
     const index = reversedColumns.findIndex(
         (col) =>

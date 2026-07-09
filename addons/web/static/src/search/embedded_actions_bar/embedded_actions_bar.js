@@ -256,10 +256,26 @@ export class EmbeddedActions {
      * the database (it may have been changed from another browser session).
      */
     async toggleBar() {
-        if (
-            !this.embeddedInfos.showEmbedded &&
-            !this.configHandler.hasEmbeddedActionsConfig()
-        ) {
+        // Re-entrancy guard + capture the target once: with the target read
+        // before the awaits and the flip after them, a double-click would
+        // persist `true` twice then flip the local flag twice — hiding the
+        // bar locally while the server says visible.
+        if (this._togglingBar) {
+            return;
+        }
+        this._togglingBar = true;
+        const showEmbedded = !this.embeddedInfos.showEmbedded;
+        try {
+            await this._applyBarVisibility(showEmbedded);
+            this.embeddedInfos.showEmbedded = showEmbedded;
+        } finally {
+            this._togglingBar = false;
+        }
+    }
+
+    /** @param {boolean} showEmbedded target visibility being persisted */
+    async _applyBarVisibility(showEmbedded) {
+        if (showEmbedded && !this.configHandler.hasEmbeddedActionsConfig()) {
             // If there are embedded actions and no config has been found in the settings, we will fetch it from DB
             // We need to fetch because it's possible that the config from DB was changed while it wasn't in the browser user settings
             // We then need to keep the browser user settings up to date with the DB
@@ -308,10 +324,9 @@ export class EmbeddedActions {
             }
         } else {
             await this.configHandler.setEmbeddedActionsConfig({
-                embedded_visibility: !this.embeddedInfos.showEmbedded,
+                embedded_visibility: showEmbedded,
             });
         }
-        this.embeddedInfos.showEmbedded = !this.embeddedInfos.showEmbedded;
     }
 
     /**
@@ -386,7 +401,10 @@ export class EmbeddedActions {
             group_ids,
         } = currentEmbeddedAction;
         const values = {
-            parent_action_id: parent_action_id[0],
+            // May be an [id, name] tuple (server rows) or a bare numeric id
+            // (the synthetic parent entry built by executeActionButton) —
+            // same normalization as openAction/deleteAction.
+            parent_action_id: parent_action_id[0] || parent_action_id,
             parent_res_model,
             parent_res_id: this.env.searchModel.globalContext.active_id,
             user_id: userId,

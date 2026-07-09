@@ -302,6 +302,12 @@ class ProgressBarState {
      * @returns {Promise<void>}
      */
     async _updateAggregateGroup(group, bars, activeBar) {
+        // Same stale-response protocol as the other three aggregate fetchers
+        // (_updateAggregates / _updateAggregatesForGroups / loadProgressBar):
+        // rapid saves/drags issue concurrent RPCs whose responses can land
+        // out of order — a superseded response must not overwrite
+        // activeBar.aggregates last.
+        const epoch = ++this._aggEpoch;
         const filterDomain = _createFilterDomain(
             this.progressAttributes.fieldName,
             bars,
@@ -316,6 +322,9 @@ class ProgressBarState {
         const groups = await this.model.orm.formattedReadGroup(
             resModel, domain, groupBy, aggregateSpecs, kwargs,
         );
+        if (epoch !== this._aggEpoch) {
+            return;
+        }
         if (groups.length) {
             const groupByField = group.groupByField;
             const aggrValues = _groupsToAggregateValues(

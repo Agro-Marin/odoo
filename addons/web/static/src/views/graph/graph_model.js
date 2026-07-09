@@ -224,7 +224,13 @@ export class GraphModel extends Model {
         const labelMap = {};
         for (const dataPt of dataPoints) {
             const datasetLabel = this._getDatasetLabel(dataPt);
-            if (!(datasetLabel in datasetsTmp)) {
+            // Key datasets on raw group values (not the display label): a
+            // secondary group value containing " / " would otherwise merge
+            // two distinct group tuples into one dataset, silently
+            // overwriting their values. Pie mode keeps a single dataset.
+            const datasetKey =
+                mode === "pie" ? datasetLabel : (dataPt.datasetId ?? datasetLabel);
+            if (!(datasetKey in datasetsTmp)) {
                 if (
                     !forceUseAllDataPoints &&
                     Object.keys(datasetsTmp).length >= DATA_LIMIT
@@ -232,13 +238,19 @@ export class GraphModel extends Model {
                     exceeds = true;
                     continue;
                 }
-                datasetsTmp[datasetLabel] = { label: datasetLabel }; // add the entry but don't initialize it entirely
+                datasetsTmp[datasetKey] = { label: datasetLabel }; // add the entry but don't initialize it entirely
             }
-            dataPtMapping.set(dataPt, datasetsTmp[datasetLabel]);
+            dataPtMapping.set(dataPt, datasetsTmp[datasetKey]);
 
             const x = dataPt.labels.slice(0, mode === "pie" ? undefined : 1);
             const trueLabel = x.length ? x.join(SEP) : _t("Total");
-            const key = JSON.stringify(x);
+            // Key axis slots on raw values too: a NULL integer group and a
+            // genuine 0 group both DISPLAY "0" but are different groups (the
+            // m2o `numbering` machinery below proves labels aren't identity).
+            const key =
+                mode === "pie"
+                    ? (dataPt.identifier ?? JSON.stringify(x))
+                    : (dataPt.xIdentifier ?? JSON.stringify(x));
             if (labelMap[key] === undefined) {
                 labelMap[key] = labels.length;
                 const label = x.length ? x.join(SEP) : _t("Total");
@@ -546,6 +558,12 @@ export class GraphModel extends Model {
                 labels,
                 isFalsyXGroup,
                 identifier: JSON.stringify(rawValues),
+                // Collision-free identities for _getData: display labels are
+                // NOT identities (a NULL integer group and a real 0 group
+                // both label "0"; group values may contain the " / "
+                // separator), so axis slots and datasets key on raw values.
+                xIdentifier: JSON.stringify(rawValues.slice(0, 1)),
+                datasetId: groupId,
                 cumulatedStart: cumulatedStartValue[groupId] || 0,
             };
             // There is a currency aggregate

@@ -237,6 +237,14 @@ export function throttleForAnimation(func) {
                         handle = browser.requestAnimationFrame(pending);
                         Promise.resolve(func.apply(this, args)).then(resolve);
                     } else {
+                        if (lastCall) {
+                            // Settle the superseded intermediate call with
+                            // `undefined` (same contract as cancel() below and
+                            // as debounce's superseded awaiters) — dropping
+                            // its resolver would leave any `await
+                            // throttled(...)` hanging forever.
+                            lastCall.resolve(undefined);
+                        }
                         lastCall = { args, resolve };
                     }
                 });

@@ -25,21 +25,26 @@ export class DatetimePicker extends Interaction {
         const parseFunction = this.type === "date" ? parseDate : parseDateTime;
         const deserializeFunction =
             this.type === "date" ? deserializeDate : deserializeDateTime;
-        this.registerCleanup(
-            this.services.datetime_picker
-                .create({
-                    target: this.el,
-                    pickerProps: {
-                        type: /** @type {"date" | "datetime"} */ (this.type),
-                        minDate: this.minDate && deserializeFunction(this.minDate),
-                        maxDate: this.maxDate && deserializeFunction(this.maxDate),
-                        value: parseFunction(
-                            /** @type {HTMLInputElement} */ (this.el).value,
-                        ),
-                    },
-                })
-                .enable(),
-        );
+        const picker = this.services.datetime_picker.create({
+            target: this.el,
+            pickerProps: {
+                type: /** @type {"date" | "datetime"} */ (this.type),
+                minDate: this.minDate && deserializeFunction(this.minDate),
+                maxDate: this.maxDate && deserializeFunction(this.maxDate),
+                value: parseFunction(/** @type {HTMLInputElement} */ (this.el).value),
+            },
+        });
+        const disableListeners = picker.enable();
+        // Full teardown, mirroring useDateTimePicker's onWillDestroy: the
+        // service keeps every created picker in a page-lifetime Set — without
+        // disable(), each interaction restart (website edit mode, dynamic
+        // content re-scan) leaks a registration retaining this.el, and an
+        // open popover would survive the interaction.
+        this.registerCleanup(() => {
+            disableListeners();
+            picker.close();
+            picker.disable();
+        });
     }
 }
 

@@ -29,8 +29,14 @@ const lang = cookie.get("frontend_lang") || getLang(); // FIXME the cookie value
 
 // One-shot guard: the interaction service patch below targets the service's
 // prototype, so it must only ever be applied once even if several PublicRoot
-// instances are created.
+// instances are created. The patch body must NOT close over a specific root:
+// it reads this module-level reference, which each PublicRoot.init reassigns,
+// so a later root (repeated createPublicRoot in tests, website edit/preview
+// flows) is the one whose widgets get started/stopped — not the first,
+// possibly destroyed, instance.
 let interactionsServicePatched = false;
+/** @type {any} */
+let currentPublicRoot = null;
 
 /**
  * Element which is designed to be unique and that will be the top-most element
@@ -63,14 +69,15 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         // Patch interaction_service so that it also starts and stops public
         // widgets.
         const interactionsService = this.env.services["public.interactions"];
-        const publicRoot = this;
+        currentPublicRoot = this;
         if (interactionsService && !interactionsServicePatched) {
             interactionsServicePatched = true;
             patch(interactionsService.constructor.prototype, {
                 /** @this {any} */
                 startInteractions(el) {
                     super.startInteractions(el);
-                    if (!publicRoot.startFromEventHandler) {
+                    const publicRoot = currentPublicRoot;
+                    if (publicRoot && !publicRoot.startFromEventHandler) {
                         // this.editMode is assigned by website_edit_service
                         publicRoot._startWidgets(el || this.el, {
                             fromInteractionPatch: true,
@@ -81,8 +88,9 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
                 /** @this {any} */
                 stopInteractions(el) {
                     super.stopInteractions(el);
+                    const publicRoot = currentPublicRoot;
                     // Call to interactions is only from the event handler.
-                    if (!publicRoot.stopFromEventHandler) {
+                    if (publicRoot && !publicRoot.stopFromEventHandler) {
                         publicRoot._stopWidgets(el || this.el);
                     }
                 },
@@ -396,15 +404,6 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
      */
     _onDisableOnClick: function (ev) {
         /** @type {HTMLElement} */ (ev.currentTarget).classList.add("disabled");
-    },
-    /**
-     * Library clears the wrong date format so just ignore error.
-     *
-     * @private
-     * @param {Event} ev
-     */
-    _onDateTimePickerError: function (ev) {
-        return false;
     },
 });
 

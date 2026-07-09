@@ -146,8 +146,10 @@ whenReady(() => {
  * @param {HTMLLinkElement | HTMLScriptElement} el
  * @param {(event: Event) => any} onLoad
  * @param {(error: Error) => any} onError
+ * @param {() => void} [onPageHideCleanup] invoked when the page hides before
+ *  the asset settles (bfcache hazard) — evict cache entries here
  */
-const onLoadAndError = (el, onLoad, onError) => {
+const onLoadAndError = (el, onLoad, onError, onPageHideCleanup) => {
     const onLoadListener = (/** @type {Event} */ event) => {
         removeListeners();
         onLoad(event);
@@ -165,6 +167,13 @@ const onLoadAndError = (el, onLoad, onError) => {
     // leak for long-lived sessions that lazy-load many bundles.
     const onPageHide = () => {
         removeListeners();
+        // If the page enters the bfcache (Safari back-nav), the JS heap —
+        // including the asset cache — is restored intact, but this asset's
+        // promise can never settle anymore (listeners removed, request
+        // aborted by the navigation). Let the caller evict its cache entry
+        // so a post-restore load re-injects instead of returning a dead
+        // promise forever.
+        onPageHideCleanup?.();
     };
 
     const removeListeners = () => {
@@ -695,21 +704,27 @@ export const assets = {
             linkEl.type = "text/css";
             linkEl.rel = "stylesheet";
             const attemptPromise = new Promise((resolve, reject) =>
-                onLoadAndError(linkEl, resolve, async (error) => {
-                    if (attempt < assets.retries.count) {
-                        const delay =
-                            assets.retries.delay + assets.retries.extraDelay * attempt;
-                        await new Promise((res) => browser.setTimeout(res, delay));
-                        linkEl.remove();
-                        runAttempt(attempt + 1).then(resolve, reject);
-                    } else {
-                        reject(
-                            new AssetsLoadingError(`The loading of ${url} failed`, {
-                                cause: error,
-                            }),
-                        );
-                    }
-                }),
+                onLoadAndError(
+                    linkEl,
+                    resolve,
+                    async (error) => {
+                        if (attempt < assets.retries.count) {
+                            const delay =
+                                assets.retries.delay +
+                                assets.retries.extraDelay * attempt;
+                            await new Promise((res) => browser.setTimeout(res, delay));
+                            linkEl.remove();
+                            runAttempt(attempt + 1).then(resolve, reject);
+                        } else {
+                            reject(
+                                new AssetsLoadingError(`The loading of ${url} failed`, {
+                                    cause: error,
+                                }),
+                            );
+                        }
+                    },
+                    () => cacheMap.delete(url),
+                ),
             );
             targetDoc.head.appendChild(linkEl);
             return attemptPromise;
@@ -742,14 +757,23 @@ export const assets = {
         scriptEl.setAttribute("src", url);
         scriptEl.type = "text/javascript";
         const promise = new Promise((resolve, reject) =>
-            onLoadAndError(scriptEl, resolve, (error) => {
-                cacheMap.delete(url);
-                reject(
-                    new AssetsLoadingError(`The loading of ${url} failed`, {
-                        cause: error,
-                    }),
-                );
-            }),
+            onLoadAndError(
+                scriptEl,
+                resolve,
+                (error) => {
+                    cacheMap.delete(url);
+                    reject(
+                        new AssetsLoadingError(`The loading of ${url} failed`, {
+                            cause: error,
+                        }),
+                    );
+                },
+                () => {
+                    if (cacheMap.get(url) === promise) {
+                        cacheMap.delete(url);
+                    }
+                },
+            ),
         );
         cacheMap.set(url, promise);
         targetDoc.head.appendChild(scriptEl);

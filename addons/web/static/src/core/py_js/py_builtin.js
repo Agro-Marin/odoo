@@ -32,8 +32,12 @@ export function pyRepr(value) {
         return value.size === 0 ? "set()" : `{${[...value].map(pyRepr).join(", ")}}`;
     }
     if (typeof value === "object") {
-        // A typed Py* object defines its own toString; a plain dict doesn't.
-        if (value.toString !== Object.prototype.toString) {
+        // A typed Py* object defines its own toString; a plain dict doesn't
+        // (dict literals are null-prototype and have no toString at all).
+        if (
+            typeof value.toString === "function" &&
+            value.toString !== Object.prototype.toString
+        ) {
             return value.toString();
         }
         const entries = Object.keys(value).map(
@@ -62,8 +66,11 @@ export function pyStr(value) {
         return pyRepr(value);
     }
     if (typeof value === "object") {
-        // Plain dicts render via repr; typed Py* objects (custom toString) do not.
-        return value.toString === Object.prototype.toString
+        // Plain dicts render via repr; typed Py* objects (custom toString) do
+        // not. Dict literals are built with a null prototype (see
+        // py_interpreter/py_parser), so "no toString at all" is a plain dict.
+        return typeof value.toString !== "function" ||
+            value.toString === Object.prototype.toString
             ? pyRepr(value)
             : value.toString();
     }
@@ -206,7 +213,11 @@ export const BUILTINS = {
             case "boolean":
                 return value;
             case "object":
-                if (value.isTrue) {
+                // typeof guard: a plain data dict may carry an `isTrue` KEY
+                // (server-controlled json/properties values); only call it
+                // when it is actually a method (same precedent as the
+                // `isEqual` guard in py_interpreter.js).
+                if (typeof value.isTrue === "function") {
                     return value.isTrue();
                 }
                 if (Array.isArray(value)) {
@@ -267,7 +278,11 @@ export const BUILTINS = {
 
     /** Return the absolute value of a number or timedelta. */
     abs(/** @type {any} */ value) {
-        if (value instanceof Object && value.negate && value.total_seconds) {
+        if (
+            value instanceof Object &&
+            typeof value.negate === "function" &&
+            typeof value.total_seconds === "function"
+        ) {
             // PyTimeDelta: negate if total duration is negative
             return value.total_seconds() >= 0 ? value : value.negate();
         }
@@ -311,12 +326,17 @@ export const BUILTINS = {
 
     /** Round a number to a given number of decimal places (banker's rounding). */
     round(/** @type {any} */ value, /** @type {any[]} */ ...rest) {
-        // rest includes kwargs as last element
-        const ndigits = rest.length > 1 ? rest[0] : 0;
+        // The interpreter always appends the kwargs object as the last
+        // argument, so `round(x, ndigits=2)` arrives as rest = [{ndigits: 2}]
+        // while `round(x, 2)` arrives as rest = [2, {}].
+        const kwargs = rest.at(-1);
+        const ndigits = rest.length > 1 ? rest[0] : (kwargs?.ndigits ?? 0);
         return _pythonRound(value, ndigits);
     },
 
     context_today() {
+        // Alias of PyDate.today() (both the user-timezone date). Kept routed
+        // through PyDate.today so a single date source stays mockable.
         return PyDate.today();
     },
 

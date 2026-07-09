@@ -90,9 +90,13 @@ export function useListAggregates({
             return list.selection.map((r) => r.data);
         }
         if (/** @type {any} */ (list).isGrouped) {
-            return /** @type {any} */ (list).groups.map(
-                (/** @type {any} */ g) => g.aggregates,
-            );
+            // Thread each group's record count along its aggregates: a
+            // correct footer `avg` over per-group aggregates must be
+            // count-weighted (see the avg branch below).
+            return /** @type {any} */ (list).groups.map((/** @type {any} */ g) => ({
+                ...g.aggregates,
+                __count: g.count,
+            }));
         }
         return list.records.map((r) => r.data);
     }
@@ -124,7 +128,12 @@ export function useListAggregates({
             const { list } = getProps();
             if (/** @type {any} */ (list).isGrouped && !list.selection.length) {
                 return values.reduce((set, value) => {
-                    value[currencyField].forEach((c) => set.add(c));
+                    // The currency aggregate may be absent/false (empty
+                    // expanded groups, custom read_group overrides) — same
+                    // guard as formatGroupAggregate/getGroupAggregate.
+                    if (Array.isArray(value[currencyField])) {
+                        value[currencyField].forEach((c) => set.add(c));
+                    }
                     return set;
                 }, new Set());
             }
@@ -224,10 +233,39 @@ export function useListAggregates({
                     }
                 }
                 if (func) {
-                    const aggregatedValue = computeAggregatedValue(
-                        fieldEntries.map((entry) => entry.value),
-                        func,
-                    );
+                    let aggregatedValue;
+                    if (
+                        func === "avg" &&
+                        /** @type {any} */ (list).isGrouped &&
+                        !list.selection.length
+                    ) {
+                        // Grouped values are per-group AGGREGATES (computed
+                        // server-side with field.aggregator), not records:
+                        // an unweighted mean of them is wrong for unequal
+                        // group sizes (mean-of-means / mean-of-sums).
+                        const aggregator = field.aggregator || "sum";
+                        const totalCount = fieldEntries.reduce(
+                            (s, e) => s + (e.record.__count || 0),
+                            0,
+                        );
+                        if (totalCount && aggregator === "avg") {
+                            aggregatedValue =
+                                fieldEntries.reduce(
+                                    (s, e) => s + e.value * (e.record.__count || 0),
+                                    0,
+                                ) / totalCount;
+                        } else if (totalCount && aggregator === "sum") {
+                            aggregatedValue =
+                                fieldEntries.reduce((s, e) => s + e.value, 0) /
+                                totalCount;
+                        }
+                    }
+                    if (aggregatedValue === undefined) {
+                        aggregatedValue = computeAggregatedValue(
+                            fieldEntries.map((entry) => entry.value),
+                            func,
+                        );
+                    }
                     const formatter =
                         formatters.get(
                             /** @type {string} */ (widget),

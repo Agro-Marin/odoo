@@ -320,9 +320,25 @@ export function toggleDateFilter(searchModel, searchItemId, generatorId) {
     if (searchItem.type !== "dateFilter") {
         return;
     }
-    const generatorIds = generatorId
-        ? [generatorId]
-        : searchItem.defaultGeneratorIds;
+    let generatorIds = generatorId ? [generatorId] : searchItem.defaultGeneratorIds;
+    // defaultGeneratorIds come unvalidated from arch/context strings
+    // (`default_period="..."`, `search_default_x="..."`). An unknown id used
+    // to slip into the query and silently produce an ACTIVE filter with an
+    // empty facet and a match-all domain — drop it loudly instead.
+    const knownOptions = getPeriodOptions(
+        searchModel.referenceMoment,
+        searchItem.optionsParams,
+    );
+    const validGeneratorIds = generatorIds.filter(
+        (gid) => gid.startsWith("custom") || knownOptions.some((o) => o.id === gid),
+    );
+    if (validGeneratorIds.length !== generatorIds.length) {
+        console.warn(
+            `[search] unknown period generator id(s) on filter "${searchItem.name}":`,
+            generatorIds.filter((gid) => !validGeneratorIds.includes(gid)),
+        );
+    }
+    generatorIds = validGeneratorIds;
     for (const generatorId of generatorIds) {
         const index = searchModel.query.findIndex(
             (queryElem) =>

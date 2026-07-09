@@ -17,7 +17,20 @@ export function memoize(func) {
     return {
         [funcName](/** @type {any[]} */ ...args) {
             if (!cache.has(args[0])) {
-                cache.set(args[0], /** @type {any} */ (func)(...args));
+                const value = /** @type {any} */ (func)(...args);
+                cache.set(args[0], value);
+                if (value && typeof value.then === "function") {
+                    // A cached promise that later rejects would otherwise
+                    // poison this slot forever: every subsequent call returns
+                    // the same rejected promise and the value is never
+                    // recomputed. Evict on rejection so the next call retries
+                    // (same contract as collections/cache.js Cache.read).
+                    Promise.resolve(value).catch(() => {
+                        if (cache.get(args[0]) === value) {
+                            cache.delete(args[0]);
+                        }
+                    });
+                }
             }
             return cache.get(args[0]);
         },

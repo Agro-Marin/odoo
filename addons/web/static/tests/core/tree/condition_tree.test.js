@@ -585,3 +585,26 @@ test("cloneTree deep-clones connector children two levels deep", () => {
     expect(leaf.value).toBe("abc");
     expect(clone.children[0].children[0].value).toBe("def");
 });
+
+test("ternary-shaped subtree nested in a connector keeps its parentheses", () => {
+    const options = {
+        getFieldDef: (name) => ({ type: "boolean", string: name, name }),
+    };
+    // AND(a, OR(AND(b, x), AND(not b, y))) — the OR-of-two-ANDs is detected as
+    // `x if b else y`, which has the LOWEST precedence in Python: without
+    // parentheses, `a and x if b else y` re-parses as `(a and x) if b else y`
+    // and inverts the result for a=false, b=false, y=true.
+    const src = "a and ((b and x) or (not b and y))";
+    const tree = treeFromExpression(src, options);
+    const expr = expressionFromTree(tree, options);
+    for (const a of [false, true]) {
+        for (const b of [false, true]) {
+            for (const y of [false, true]) {
+                const ctx = { a, b, x: false, y };
+                expect(evaluateBooleanExpr(expr, ctx)).toBe(evaluateBooleanExpr(src, ctx), {
+                    message: `ctx: ${JSON.stringify(ctx)} — expr: ${expr}`,
+                });
+            }
+        }
+    }
+});

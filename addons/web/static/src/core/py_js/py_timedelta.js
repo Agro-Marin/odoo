@@ -97,12 +97,35 @@ export class PyTimeDelta {
     }
 
     /**
+     * Total duration in integer microseconds (exact — no float seconds
+     * rounding), the unit Python's timedelta arithmetic is defined in.
+     * @returns {number}
+     */
+    toMicroseconds() {
+        return (this.days * 24 * 3600 + this.seconds) * 1e6 + this.microseconds;
+    }
+
+    /**
+     * Floor division by a number (Python ``td // n``).
      * @param {number} n
      * @returns {PyTimeDelta}
      */
     divide(n) {
-        const us = (this.days * 24 * 3600 + this.seconds) * 1e6 + this.microseconds;
-        return PyTimeDelta.create({ microseconds: Math.floor(us / n) });
+        return PyTimeDelta.create({
+            microseconds: Math.floor(this.toMicroseconds() / n),
+        });
+    }
+
+    /**
+     * True division by a number (Python ``td / n``): rounds to the nearest
+     * microsecond instead of flooring.
+     * @param {number} n
+     * @returns {PyTimeDelta}
+     */
+    divideTrue(n) {
+        return PyTimeDelta.create({
+            microseconds: Math.round(this.toMicroseconds() / n),
+        });
     }
 
     /**

@@ -26,7 +26,7 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { resetDateFieldWidths } from "@web/views/list/column_width_hook";
+import { resetDateFieldWidths } from "@web/fields/field_widths";
 
 class Partner extends models.Model {
     date = fields.Date({ string: "A date", searchable: true });

@@ -56,3 +56,21 @@ test("uniqueId", () => {
     expect(uniqueId("test_")).toBe("test_6");
     expect(uniqueId("bla")).toBe("bla7");
 });
+
+test("memoize evicts a rejected promise so the next call retries", async () => {
+    let calls = 0;
+    const fn = memoize(async (key) => {
+        calls++;
+        if (calls === 1) {
+            throw new Error("boom");
+        }
+        return `ok:${key}`;
+    });
+    await expect(fn("k")).rejects.toThrow("boom");
+    // The rejected promise must not poison the cache slot forever.
+    expect(await fn("k")).toBe("ok:k");
+    expect(calls).toBe(2);
+    // A resolved promise stays cached.
+    expect(await fn("k")).toBe("ok:k");
+    expect(calls).toBe(2);
+});

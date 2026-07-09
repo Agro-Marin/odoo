@@ -101,6 +101,12 @@ test("deepEqual", () => {
     expect(deepEqual(new Map([[1, 2]]), new Map([[1, 3]]))).toBe(false);
     expect(deepEqual(new Set([1, 2, 3]), new Set([3, 2, 1]))).toBe(true);
     expect(deepEqual(new Set([1, 2]), new Set([1, 9]))).toBe(false);
+    // Object elements: matched-element accounting — two elements of one set
+    // must not both "consume" the same element of the other, and the
+    // relation must be symmetric.
+    expect(deepEqual(new Set([{ x: 1 }, { x: 1 }]), new Set([{ x: 1 }, { y: 2 }]))).toBe(false);
+    expect(deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ x: 1 }, { x: 1 }]))).toBe(false);
+    expect(deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ y: 2 }, { x: 1 }]))).toBe(true);
 
     // cycle-safe (must not stack-overflow)
     const a = { x: 1 };

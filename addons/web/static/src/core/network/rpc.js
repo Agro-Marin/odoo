@@ -752,7 +752,7 @@ function _rpcOnce(url, params, settings) {
         const error = makeErrorFromResponse(parsed.error);
         error.model = data.params.model;
         rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-        reject(error);
+        settleReject(error);
     }).catch((err) => {
         // fetch rejects with:
         //   • TypeError on network failure (DNS, CORS, server unreachable)
@@ -781,7 +781,7 @@ function _rpcOnce(url, params, settings) {
         }
         const error = new ConnectionLostError(url);
         rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-        reject(error);
+        settleReject(error);
     });
 
     /**

@@ -20,10 +20,6 @@ export class ProjectSharingFormController extends FormController {
         return {};
     }
 
-    get translateAlert() {
-        return null;
-    }
-
     onGlobalPaste(ev) {
         if (ev.target.closest('.o_field_widget[name="description"]')) {
             ev.preventDefault();

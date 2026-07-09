@@ -98,6 +98,8 @@ export const commandService = {
         const registeredCommands = new Map();
         let nextToken = 0;
         let isPaletteOpened = false;
+        /** @type {Function | undefined} the latest opener/reconfigurer's onClose */
+        let currentOnClose;
         const bus = new EventBus();
 
         hotkeyService.add("control+k", openMainPalette, {
@@ -166,12 +168,19 @@ export const commandService = {
          */
         function openPalette(config, onClose) {
             if (isPaletteOpened) {
+                // Reconfiguring an open palette adopts the new caller's
+                // onClose too — otherwise its cleanup (focus restore, input
+                // reset) silently never runs when the palette closes.
+                if (onClose) {
+                    currentOnClose = onClose;
+                }
                 bus.trigger(CommandPaletteEvent.SET_CONFIG, config);
                 return;
             }
 
             // Open Command Palette dialog
             isPaletteOpened = true;
+            currentOnClose = onClose;
             dialog.add(
                 CommandPalette,
                 {
@@ -181,8 +190,8 @@ export const commandService = {
                 {
                     onClose: () => {
                         isPaletteOpened = false;
-                        if (onClose) {
-                            onClose();
+                        if (currentOnClose) {
+                            currentOnClose();
                         }
                     },
                 },

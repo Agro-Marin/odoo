@@ -109,7 +109,16 @@ export function parseServerValue(field, value) {
     return deserializers.get(field.type, (v) => v)(value, field);
 }
 
+// The spec list depends only on the fields map, which is invariant across a
+// load: memoize per fields object so the response path doesn't re-derive it
+// once per group per level (O(groups × totalFields) of pure recomputation).
+const aggregateSpecCache = new WeakMap();
+
 export function getAggregateSpecifications(fields) {
+    let specs = aggregateSpecCache.get(fields);
+    if (specs) {
+        return specs;
+    }
     const aggregatableFields = Object.values(fields)
         .filter(
             (field) =>
@@ -125,7 +134,9 @@ export function getAggregateSpecifications(fields) {
             ])
             .flat(),
     );
-    return [...aggregatableFields, ...currencyFields];
+    specs = [...aggregatableFields, ...currencyFields];
+    aggregateSpecCache.set(fields, specs);
+    return specs;
 }
 
 /**
@@ -170,7 +181,9 @@ function getAggregatesFromGroupData(groupData, fields) {
             if (aggregate === "sum_currency") {
                 const currencies =
                     groupData[`${fields[fieldName].currency_field}:array_agg_distinct`];
-                if (currencies.length === 1) {
+                // The currency aggregate may be absent/false for empty
+                // expanded groups — only skip on a confirmed single currency.
+                if (currencies?.length === 1) {
                     continue;
                 }
             }

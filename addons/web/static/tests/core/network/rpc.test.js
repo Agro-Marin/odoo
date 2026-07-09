@@ -458,6 +458,39 @@ test("abort after settle does not emit a second RPC:RESPONSE", async () => {
     expect.verifySteps([]);
 });
 
+test("abort after an RPCError settle does not emit a second RPC:RESPONSE", async () => {
+    // The server-error path must mark the promise settled like every other
+    // terminal path, so a late abort() stays a no-op.
+    mockFetch(() => ({ error: { code: 200, message: "Odoo Server Error", data: {} } }));
+    onRpcResponse(() => expect.step("RESPONSE"));
+
+    const prom = rpc("/test/");
+    await expect(prom).rejects.toThrow(RPCError);
+    expect.verifySteps(["RESPONSE"]);
+
+    expect(() => prom.abort()).not.toThrow();
+    expect(() => prom.abort(false)).not.toThrow();
+    await tick();
+    expect.verifySteps([]);
+});
+
+test("abort after a network-failure settle does not emit a second RPC:RESPONSE", async () => {
+    // Same exactly-once invariant for the generic fetch-failure path.
+    mockFetch(() => {
+        throw new TypeError("NetworkError when attempting to fetch resource.");
+    });
+    onRpcResponse(() => expect.step("RESPONSE"));
+
+    const prom = rpc("/test/");
+    await expect(prom).rejects.toThrow(ConnectionLostError);
+    expect.verifySteps(["RESPONSE"]);
+
+    expect(() => prom.abort()).not.toThrow();
+    expect(() => prom.abort(false)).not.toThrow();
+    await tick();
+    expect.verifySteps([]);
+});
+
 test("Retry: abort while an attempt is in flight rejects once", async () => {
     // Aborting mid-attempt forwards to the in-flight inner rpc, which fires
     // its single RESPONSE(ko); the outer promise rejects with the abort class.

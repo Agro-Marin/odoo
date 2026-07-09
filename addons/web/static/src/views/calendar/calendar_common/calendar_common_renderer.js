@@ -729,7 +729,10 @@ export class CalendarCommonRenderer extends Component {
         };
         if (end) {
             res.end = fromFcDate(end);
-            if (["week", "month"].includes(this.props.model.scale) && allDay) {
+            // FullCalendar reports all-day ranges with an EXCLUSIVE end in
+            // every scale — day view's all-day strip included — so the -1 day
+            // correction applies to all three timeGrid/dayGrid scales.
+            if (["day", "week", "month"].includes(this.props.model.scale) && allDay) {
                 res.end = res.end.minus({ days: 1 });
             }
         }

@@ -209,6 +209,28 @@ export function fcInternalClassName(name) {
     return FullCalendar.ProtectedStyles.default[name];
 }
 
+/**
+ * Cheap identity of the calendar's current event set (id + range), used to
+ * decide whether the year view needs its synchronous rebuild after
+ * ``refetchEvents``.
+ *
+ * @param {any} instance FullCalendar Calendar
+ * @returns {string}
+ */
+function eventSetFingerprint(instance) {
+    try {
+        return instance
+            .getEvents()
+            .map((e) => `${e.id}:${e.startStr}:${e.endStr}`)
+            .sort()
+            .join("|");
+    } catch {
+        // Never let the fingerprint break the patch cycle — an error here
+        // just forces the rebuild.
+        return `error:${Date.now()}`;
+    }
+}
+
 export function useFullCalendar(refName, paramsOrGetter) {
     const component = useComponent();
     const ref = useRef(refName);
@@ -339,6 +361,8 @@ export function useFullCalendar(refName, paramsOrGetter) {
                 // Bad date string — keep current position.
             }
         }
+        const eventsBefore =
+            component.props.model.scale === "year" ? eventSetFingerprint(instance) : "";
         instance.refetchEvents();
         // Year view renders events as ``display: "background"``.  After a
         // filter toggle v7 schedules the bg-event re-render asynchronously,
@@ -348,7 +372,16 @@ export function useFullCalendar(refName, paramsOrGetter) {
         // change.  Force a synchronous re-render so the DOM matches the model
         // within the OWL patch.  (The earlier ``params.weekNumbers`` guard
         // never fired: the year renderer sets ``weekNumbers: false``.)
-        if (component.props.model.scale === "year") {
+        //
+        // Gated on an actual event-set change: the year renderer holds 12
+        // hook instances and EVERY OWL patch (weekend toggle, unusual-days
+        // arrival, any model notify) lands here — an unconditional
+        // destroy+render meant 12 full FullCalendar teardown/rebuild cycles
+        // per patch. Prop-only patches now skip the rebuild.
+        if (
+            component.props.model.scale === "year" &&
+            eventsBefore !== eventSetFingerprint(instance)
+        ) {
             instance.destroy();
             instance.render();
         }

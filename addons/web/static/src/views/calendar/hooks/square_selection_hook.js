@@ -268,32 +268,27 @@ export function useSquareSelection(params = {}) {
         () => [ref.el, component.props.model.hasMultiCreate],
     );
 
-    // Only the drag path (onDragStart) still reads these window-tracked
-    // booleans — a drag callback has no originating click event to inspect.
-    // Clicks now read modifiers directly from the event (see onClick above).
+    // Only the drag path (onDragStart) still reads this window-tracked
+    // boolean — a drag callback has no originating click event to inspect.
+    // Clicks read modifiers directly from the event (see onClick above), and
+    // nothing reads Shift anymore.
     let ctrlPressed = false;
-    let shiftPressed = false;
     function onWindowKeyDown(ev) {
         if (ev.key === "Control") {
             ctrlPressed = true;
-        } else if (ev.key === "Shift") {
-            shiftPressed = true;
         }
     }
 
     function onWindowKeyUp(ev) {
         if (ev.key === "Control") {
             ctrlPressed = false;
-        } else if (ev.key === "Shift") {
-            shiftPressed = false;
         }
     }
 
     function onWindowBlur() {
         // Losing focus swallows the pending ``keyup``, so drop the tracked
-        // state to avoid a modifier sticking ``true`` until the next keypress.
+        // state to avoid the modifier sticking ``true`` until the next keypress.
         ctrlPressed = false;
-        shiftPressed = false;
     }
 
     useExternalListener(window, "keydown", onWindowKeyDown);

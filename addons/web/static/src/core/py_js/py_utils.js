@@ -63,6 +63,25 @@ export function toPyValue(value) {
 }
 
 /**
+ * Comparison operators are non-associative in Python: `(a < b) < c` and the
+ * chained `a < b < c` are different expressions, so BOTH equal-precedence
+ * children must be parenthesized when they are themselves comparisons.
+ */
+const COMPARATORS = new Set([
+    "in",
+    "not in",
+    "is",
+    "is not",
+    "<",
+    "<=",
+    ">",
+    ">=",
+    "<>",
+    "==",
+    "!=",
+]);
+
+/**
  * @param {AST} ast
  * @param {number} [lbp] left binding power
  * @return {string}
@@ -79,25 +98,49 @@ export function formatAST(ast, lbp = 0) {
             return ast.value ? "True" : "False";
         case ASTType.List:
             return `[${ast.value.map((v) => formatAST(v)).join(", ")}]`;
-        case ASTType.UnaryOperator:
-            if (ast.op === "not") {
-                return `not ` + formatAST(ast.right, 50);
-            }
-            return ast.op + formatAST(ast.right, 130);
+        case ASTType.UnaryOperator: {
+            const abp = ast.op === "not" ? bp("not") : 130;
+            const str =
+                ast.op === "not"
+                    ? `not ` + formatAST(ast.right, abp)
+                    : ast.op + formatAST(ast.right, abp);
+            // e.g. `(-a) ** b`: without parentheses this would re-parse as
+            // `-(a ** b)` since `**` binds tighter than unary minus.
+            return abp < lbp ? `(${str})` : str;
+        }
         case ASTType.BinaryOperator: {
             const abp = bp(ast.op);
-            const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
+            // Associativity: an equal-precedence child on the non-associative
+            // side must be parenthesized, otherwise re-parsing regroups it
+            // (`a - (b - c)` would round-trip to `a - b - c`). `**` is
+            // right-associative; everything else is left-associative;
+            // comparators are non-associative (see COMPARATORS).
+            let leftBp = abp;
+            let rightBp = abp + 1;
+            if (ast.op === "**") {
+                leftBp = abp + 1;
+                rightBp = abp;
+            } else if (COMPARATORS.has(ast.op)) {
+                leftBp = abp + 1;
+            }
+            const str = `${formatAST(ast.left, leftBp)} ${ast.op} ${formatAST(
+                ast.right,
+                rightBp,
+            )}`;
             return abp < lbp ? `(${str})` : str;
         }
         case ASTType.Dictionary: {
             const pairs = [];
             for (const k of Object.keys(ast.value || {})) {
-                pairs.push(`"${k}": ${formatAST(ast.value[k])}`);
+                pairs.push(`${JSON.stringify(k)}: ${formatAST(ast.value[k])}`);
             }
             return `{` + pairs.join(", ") + `}`;
         }
-        case ASTType.Tuple:
-            return `(${ast.value.map((v) => formatAST(v)).join(", ")})`;
+        case ASTType.Tuple: {
+            const items = ast.value.map((v) => formatAST(v));
+            // A 1-element tuple needs its trailing comma: `(x)` is just `x`.
+            return items.length === 1 ? `(${items[0]},)` : `(${items.join(", ")})`;
+        }
         case ASTType.Name:
             return ast.value;
         case ASTType.Lookup: {
@@ -105,10 +148,20 @@ export function formatAST(ast, lbp = 0) {
         }
         case ASTType.If: {
             const { ifTrue, condition, ifFalse } = ast;
-            return `${formatAST(ifTrue)} if ${formatAST(condition)} else ${formatAST(ifFalse)}`;
+            const abp = bp("if");
+            // Python grammar: `x if C else y` — x and C are or_test (a nested
+            // ternary there needs parentheses), y is a full conditional
+            // expression (right-associative, no parentheses needed).
+            const str = `${formatAST(ifTrue, abp + 1)} if ${formatAST(
+                condition,
+                abp + 1,
+            )} else ${formatAST(ifFalse, abp)}`;
+            return abp < lbp ? `(${str})` : str;
         }
         case ASTType.BooleanOperator: {
             const abp = bp(ast.op);
+            // `and`/`or` are associative, so equal-precedence children can
+            // stay bare — regrouping does not change the result.
             const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
             return abp < lbp ? `(${str})` : str;
         }

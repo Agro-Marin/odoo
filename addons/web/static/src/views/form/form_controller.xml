@@ -43,7 +43,7 @@
                         </t>
                     </t>
 
-                    <t t-component="props.Renderer" record="model.root" Compiler="props.Compiler" readonly="props.readonly" archInfo="archInfo" translateAlert="translateAlert" onNotebookPageChange="onNotebookPageChange" activeNotebookPages="props.state and props.state.activeNotebookPages"/>
+                    <t t-component="props.Renderer" record="model.root" Compiler="props.Compiler" readonly="props.readonly" archInfo="archInfo" onNotebookPageChange="onNotebookPageChange" activeNotebookPages="props.state and props.state.activeNotebookPages"/>
                 </Layout>
             </div>
         </div>

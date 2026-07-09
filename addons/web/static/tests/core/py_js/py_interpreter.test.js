@@ -879,3 +879,69 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("2 ** 3")).toBe(8);
     });
 });
+
+describe("python numeric semantics", () => {
+    test("division by False raises ZeroDivisionError (bool is an int)", () => {
+        expect(() => evaluateExpr("1 / False")).toThrow(/ZeroDivision/);
+        expect(() => evaluateExpr("5 % False")).toThrow(/ZeroDivision/);
+        expect(() => evaluateExpr("5 // False")).toThrow(/ZeroDivision/);
+        expect(evaluateExpr("5 / True")).toBe(5);
+    });
+
+    test("non-numeric operands raise instead of yielding NaN", () => {
+        expect(() => evaluateExpr('"a" / 2')).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr('"a" - 2')).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("{} * {}")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("-d", { d: {} })).toThrow(/bad operand type/);
+        expect(() => evaluateExpr("+d", { d: {} })).toThrow(/bad operand type/);
+    });
+
+    test("timedelta division", () => {
+        // td / n → timedelta
+        expect(evaluateExpr("str(datetime.timedelta(days=1) / 2)")).toBe("12:00:00");
+        // td // n → timedelta (floored)
+        expect(evaluateExpr("str(datetime.timedelta(days=1) // 2)")).toBe("12:00:00");
+        // td / td → float ratio
+        expect(evaluateExpr("datetime.timedelta(days=1) / datetime.timedelta(hours=8)")).toBe(3);
+        // td // td → int
+        expect(evaluateExpr("datetime.timedelta(days=2) // datetime.timedelta(days=1)")).toBe(2);
+        expect(
+            evaluateExpr("datetime.timedelta(hours=25) // datetime.timedelta(days=1)"),
+        ).toBe(1);
+        // td % td → timedelta
+        expect(
+            evaluateExpr("str(datetime.timedelta(hours=25) % datetime.timedelta(days=1))"),
+        ).toBe("1:00:00");
+        expect(() =>
+            evaluateExpr("datetime.timedelta(days=1) / datetime.timedelta()"),
+        ).toThrow(/ZeroDivision/);
+    });
+
+    test("round supports the ndigits keyword", () => {
+        expect(evaluateExpr("round(2.567, ndigits=2)")).toBe(2.57);
+        expect(evaluateExpr("round(2.567, 2)")).toBe(2.57);
+        expect(evaluateExpr("round(2.567)")).toBe(3);
+    });
+});
+
+describe("duck-typing guards", () => {
+    test("truthiness of a plain dict carrying method-named keys", () => {
+        // A data dict with an `isTrue`/`negate` KEY (not a method) must be
+        // treated as a plain non-empty dict, not crash on a call attempt.
+        expect(evaluateExpr("bool(d)", { d: { isTrue: 1 } })).toBe(true);
+        expect(evaluateExpr("not d", { d: { isTrue: 1 } })).toBe(false);
+        expect(evaluateExpr("bool(d)", { d: {} })).toBe(false);
+        expect(() => evaluateExpr("-d", { d: { negate: 1 } })).toThrow(/bad operand/);
+        // abs() must not call a data value: `d.negate`/`d.total_seconds` are
+        // keys here, not the PyTimeDelta protocol.
+        expect(evaluateExpr("abs(-3.5)")).toBe(3.5);
+        expect(() =>
+            evaluateExpr("abs(d)", { d: { negate: 1, total_seconds: 2 } }),
+        ).not.toThrow();
+    });
+
+    test("a literal '__proto__' dict key is a plain entry", () => {
+        expect(evaluateExpr("{'__proto__': 5}.get('__proto__')")).toBe(5);
+        expect(evaluateExpr("len({'__proto__': 5})")).toBe(1);
+    });
+});

@@ -5,7 +5,8 @@
 
 import {
     Component,
-    onWillUnmount,
+    onMounted,
+    onWillDestroy,
     onWillUpdateProps,
     useRef,
     useState,
@@ -133,7 +134,11 @@ export class AutoComplete extends Component {
         };
         this._globalCleanups = [];
         this._mouseMoveCleanup = null;
-        onWillUnmount(() => this._removeGlobalListeners());
+        // onWillDestroy (not onWillUnmount): a component destroyed before
+        // reaching "mounted" (sibling onWillStart rejection, parent destroyed
+        // mid-render) never runs willUnmount — the capture-phase window
+        // listeners would leak and fire against a null root ref forever.
+        onWillDestroy(() => this._removeGlobalListeners());
 
         onWillUpdateProps((nextProps) => {
             if (this.props.value !== nextProps.value || this.forceValFromProp) {
@@ -157,7 +162,19 @@ export class AutoComplete extends Component {
         if (this.props.dropdown) {
             usePosition("sourcesList", () => this.targetDropdown, this.dropdownOptions);
         } else {
-            this.open(false);
+            // Open eagerly so the source options are already loading during
+            // the first render (quick-add flows type immediately) — but only
+            // the state/sources part: the WINDOW listeners are deferred to
+            // mount, because a component destroyed before mounting would
+            // leak them permanently (onWillUnmount never runs) and they
+            // would fire against a null root ref forever.
+            this.state.open = true;
+            this.loadSources(false);
+            onMounted(() => {
+                if (this.state.open) {
+                    this._addGlobalListeners();
+                }
+            });
         }
     }
 

@@ -203,11 +203,18 @@ export function useListKeyboardNavigation(tableRef, options) {
                 // handle transitions between tbody and thead.
             }
 
-            // Legacy DOM-walking path (unchanged)
+            // Legacy DOM-walking path (unchanged, except the RTL swap below)
             const children = /** @type {HTMLElement[]} */ ([...row.children]);
             const index = children.indexOf(/** @type {HTMLElement} */ (cell));
             let futureCell;
             let targetIndex;
+            // DOM order is logical order: in RTL layouts the horizontal
+            // arrows must be swapped here too, or ArrowRight moves visually
+            // right on data rows (grid path swaps it) but visually left on
+            // header rows (this path).
+            if (gridState?._isRTL && (direction === "left" || direction === "right")) {
+                direction = direction === "left" ? "right" : "left";
+            }
             switch (direction) {
                 case "up": {
                     let futureRow = row.previousElementSibling;

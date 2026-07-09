@@ -50,9 +50,19 @@ function strftime(format, converters) {
 // ─── PyDate ──────────────────────────────────────────────────────────────────
 
 export class PyDate {
-    /** @returns {PyDate} */
+    /**
+     * The current date in the USER's timezone. Date fields are timezone-
+     * naive (stored and shipped as-is, no UTC conversion), so a
+     * ``date_field >= today`` domain/modifier must use the date the user
+     * perceives as today. (Datetime comparison is different — see
+     * ``PyDateTime.now``, which is UTC.) ``context_today()`` is an alias of
+     * this (py_builtin.js).
+     *
+     * @returns {PyDate}
+     */
     static today() {
-        return this.convertDate(new Date());
+        const d = new Date();
+        return new PyDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
     }
 
     /**
@@ -174,9 +184,27 @@ export class PyDate {
 const UNIX_EPOCH_ORDINAL = 719163;
 
 export class PyDateTime {
-    /** @returns {PyDateTime} */
+    /**
+     * The current datetime in UTC — matching how the SERVER evaluates
+     * ``datetime.now()`` in domains/modifiers, and directly comparable to
+     * datetime record values (which are UTC strings in eval contexts).
+     * Comparing a LOCAL now against UTC record values made every
+     * ``deadline < now``-style decoration/domain drift by the user's UTC
+     * offset.
+     *
+     * @returns {PyDateTime}
+     */
     static now() {
-        return this.convertDate(new Date());
+        const d = new Date();
+        return new PyDateTime(
+            d.getUTCFullYear(),
+            d.getUTCMonth() + 1,
+            d.getUTCDate(),
+            d.getUTCHours(),
+            d.getUTCMinutes(),
+            d.getUTCSeconds(),
+            0,
+        );
     }
 
     /**
@@ -492,6 +520,10 @@ export class PyRelativeDelta {
             params[key] = key in params ? params[key] : null;
         }
         params.days += 7 * params.weeks;
+        // The public kwarg is spelled `leapdays` (dateutil); internally the
+        // instance property is `leapDays` — bridge the two so the kwarg is
+        // not silently dropped (the yearday path below may override it).
+        params.leapDays = params.leapdays;
 
         let yearDay = 0;
         if (params.nlyearday) {
@@ -625,7 +657,9 @@ export class PyRelativeDelta {
         this.seconds = sign * params.seconds;
         this.microseconds = sign * params.microseconds;
 
-        this.leapDays = params.leapDays;
+        // dateutil's __neg__ deliberately does NOT negate leapdays — keep it
+        // unsigned here (verified against dateutil's source).
+        this.leapDays = params.leapDays || 0;
 
         this.year = params.year;
         this.month = params.month;
