@@ -33,7 +33,7 @@ This directory contains runtime patches for Python standard library and third-pa
 
 | File | Purpose | Type |
 |------|---------|------|
-| `werkzeug.py` | Patch json_module (XSS safety), FileStorage.save, MultiDict.deepcopy, Rule._get_func_code | COMPAT |
+| `werkzeug.py` | Patch json_module (XSS safety), MultiDict.deepcopy, Rule._get_func_code | COMPAT |
 | `bs4.py` | Suppress `XMLParsedAsHTMLWarning` from BeautifulSoup 4.11.0+ (ofxparse compatibility) | COMPAT |
 
 ### Spreadsheet Patches
@@ -54,7 +54,13 @@ This directory contains runtime patches for Python standard library and third-pa
 
 | File | Purpose | Type |
 |------|---------|------|
-| `site.py` | Gevent monkey patching, codec aliases, Babel locale patching | COMPAT |
+| `site.py` | Run-mode flags (`odoo.evented`/prefork), codec aliases, Babel locale patching | COMPAT |
+
+### Third-Party Library Patches
+
+| File | Purpose | Type |
+|------|---------|------|
+| `stdnum.py` | Set `operation_timeout` on the zeep SOAP client used for VIES/VAT lookups (upstream only sets the wsdl-fetch timeout) | COMPAT |
 
 ## Patch Types
 
@@ -105,13 +111,12 @@ Patches should be removed when:
 | `lxml.py` | 2026-02 | Fixed in lxml >= 5.2.0 (current: 6.0.2) |
 | `xlrd.py` | 2026-02 | xlrd 2.x removed xlsx support; defusedxml not installed |
 | `zeep.py` | 2026-02 | Fixed in zeep >= 4.3.1 (notation visitor bug #1185) |
-| `stdnum.py` | 2026-02 | Fixed in python-stdnum >= 2.0 (operation_timeout #444) |
 | `email.py` | 2026-02 | Python 3.12+ natively validates attributes in `_PolicyBase.clone()` |
 | `pytz.py` | 2026-02 | Migrated to zoneinfo (stdlib); see `odoo/libs/datetime/tz.py` |
 | `xlwt.py` | 2026-02 | xlwt is abandoned (last release 2017); migrated to xlsxwriter |
 
 ## Statistics
 
-- **Total patches**: 9 files (8 patches + 1 utility)
-- **By category**: stdlib (5), web (2), spreadsheet (1+1 util), text (2), core (1)
-- **By type**: COMPAT (5), PERF (2), SECURITY (1), FEATURE (1)
+- **Total**: 13 files (12 patches + 1 utility)
+- **By category**: stdlib (5), web (2), spreadsheet (1 + 1 util), text (2), core (1), third-party (1)
+- **By type**: COMPAT (8), PERF (2), SECURITY (1), FEATURE (1)
