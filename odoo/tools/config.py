@@ -170,12 +170,16 @@ def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
     """Drop duplicate logger levels so repeated ``--save`` doesn't grow the
     config file's log_handler list unboundedly.
     """
-    # dict(): last value wins per key, which is what we want; output has no
-    # duplicates so its order is irrelevant.
-    return (
-        f"{logger}:{level}"
-        for logger, level in dict(it.split(":") for it in loggers).items()
-    )
+    # Parse each ``logger:level`` spec; a token with no colon (e.g. a bare
+    # ``"werkzeug"``) is malformed and is skipped rather than crashing the whole
+    # config load/save with a ValueError from ``dict()``.  ``rpartition`` keeps
+    # the level (last segment); last value wins per logger.
+    seen: dict[str, str] = {}
+    for spec in loggers:
+        logger, sep, level = spec.rpartition(":")
+        if sep:
+            seen[logger] = level
+    return (f"{logger}:{level}" for logger, level in seen.items())
 
 
 class configmanager:
