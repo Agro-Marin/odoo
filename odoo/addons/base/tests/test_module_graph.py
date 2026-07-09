@@ -245,3 +245,30 @@ class TestCycleDetection(BaseCase):
     def test_simple_two_cycle_leaves_dependents_clean(self):
         graph = self._graph({"p": ["q"], "q": ["p"], "r": ["p"]})
         self.assertEqual(graph._find_cycle_members(), {"p", "q"})
+
+    @mute_logger("odoo.modules.module_graph")
+    def test_update_from_database_skips_cascaded_removed_module(self):
+        """A module removed by cascade must be skipped, not re-``_remove``d.
+
+        B depends on A; both are ``uninstallable`` in the DB.  Processing A's row
+        cascades ``_remove('a')`` — which also removes B — so B's own row must be
+        skipped before ``_remove``'s unguarded ``pop()`` would ``KeyError`` on it.
+        """
+        graph = self._graph({"a": [], "b": ["a"]})
+
+        class _Cursor:
+            rows = [
+                ("a", 1, "uninstallable", False, "1.0"),
+                ("b", 2, "uninstallable", False, "1.0"),
+            ]
+
+            def execute(self, query, params):
+                pass
+
+            def fetchall(self):
+                return self.rows
+
+        graph._cr = _Cursor()
+        graph._update_from_database(["a", "b"])  # must not raise KeyError
+        self.assertNotIn("a", graph)
+        self.assertNotIn("b", graph)

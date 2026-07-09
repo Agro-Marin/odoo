@@ -1580,6 +1580,37 @@ class TestActionsReadAndXmlId(common.TransactionCase):
             "writing a binding input (name) must clear the cache",
         )
 
+    def test_write_server_action_value_field_skips_cache_clear(self):
+        """Editing an ir.actions.server runtime-value field (e.g. Python code)
+        must not wipe the registry cache; a binding input still must (IRA-L3).
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "SrvCacheAction",
+                "model_id": model.id,
+                "state": "code",
+                "code": "records.write({})",
+            }
+        )
+        Registry = type(self.env.registry)
+
+        def clears_for(vals):
+            with patch.object(Registry, "clear_cache") as spy:
+                action.write(vals)
+            return spy.call_count
+
+        self.assertEqual(
+            clears_for({"code": "records.write({'active': True})"}),
+            0,
+            "editing a server action's code must not clear the registry cache",
+        )
+        self.assertGreaterEqual(
+            clears_for({"binding_model_id": model.id}),
+            1,
+            "writing a binding input must clear the cache",
+        )
+
 
 class TestClientActionParams(common.TransactionCase):
     """Cover ir.actions.client params (de)serialization (IACT-T3)."""

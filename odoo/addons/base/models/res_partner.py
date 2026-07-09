@@ -1651,8 +1651,13 @@ class ResPartner(models.Model):
             )
 
         if parsed_email_normalized:
+            # Escape the value: ``=ilike`` treats ``_`` and ``%`` as wildcards,
+            # and both are legal in an email local part, so an unescaped lookup
+            # for ``a_b@x.com`` would match (and return) ``axb@x.com``.  Mirrors
+            # ``res.users._get_email_domain``.
             partners = self.search(
-                [("email", "=ilike", parsed_email_normalized)], limit=1
+                [("email", "=ilike", tools.escape_psql(parsed_email_normalized))],
+                limit=1,
             )
             if partners:
                 return partners
