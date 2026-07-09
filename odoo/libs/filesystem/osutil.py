@@ -77,6 +77,10 @@ def zip_dir(
         python ``sorted()`` to control the order of files inside the ZIP archive
     """
     path = str(Path(path))
+    # Resolve the archive root once so we can keep every written file scoped to
+    # it: a symlink under ``path`` pointing outside the tree must not leak files
+    # from elsewhere on disk into the archive (upstream odoo/odoo f2e121db77af).
+    dir_root_path = os.path.realpath(path)
     len_prefix = len(str(Path(path).parent)) if include_dir else len(path)
     if len_prefix:
         len_prefix += 1
@@ -90,9 +94,12 @@ def zip_dir(
                 p = Path(fname)
                 ext = p.suffix or p.stem
                 if ext not in [".pyc", ".pyo", ".swp", ".DS_Store"]:
-                    path = str(Path(dirpath, fname))
-                    if Path(path).is_file():
-                        zipf.write(path, path[len_prefix:])
+                    fpath = str(Path(dirpath, fname))
+                    real_fpath = os.path.realpath(fpath)
+                    if Path(real_fpath).is_file() and os.path.commonpath(
+                        [dir_root_path, real_fpath]
+                    ) == dir_root_path:
+                        zipf.write(real_fpath, fpath[len_prefix:])
 
 
 if os.name != "nt":
