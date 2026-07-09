@@ -685,19 +685,33 @@ class QwebContent:
     params bubble up to `_render_iterall`.
     """
 
-    irQweb: IrQweb
+    __irQweb: IrQweb
     html: str | None
     params__: (
         QwebCallParameters  # not available for the python expression inside the xml
     )
 
     def __init__(self, irQweb: IrQweb, params: QwebCallParameters) -> None:
-        self.irQweb = irQweb
+        self.__irQweb = irQweb
         self.html = None
         self.params__ = params
 
+    @property
+    def irQweb(self) -> IrQweb | None:
+        # A QwebContent that outlived its request (e.g. cached and reused while
+        # serving a different database) would otherwise render through its
+        # stale/foreign cursor. Refuse it when the current thread now serves
+        # another database. (upstream odoo/odoo 07a333c8 + 49b312f5)
+        irQweb = self.__irQweb
+        thread_dbname = getattr(threading.current_thread(), "dbname", None)
+        if thread_dbname and thread_dbname != irQweb.env.cr.dbname:
+            return None
+        return irQweb
+
     def __str__(self) -> str:
         if self.html is None:
+            if self.irQweb is None:
+                return ""
             params = self.params__
             self.html = "".join(
                 self.irQweb._render_iterall(

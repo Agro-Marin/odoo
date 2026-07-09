@@ -1,5 +1,6 @@
 import ast
 import base64
+import threading
 from unittest.mock import patch
 
 import markupsafe
@@ -15,6 +16,7 @@ from odoo.tools.rendering_tools import QWebError
 from odoo.addons.base.models.ir_qweb import (
     ELEMENT_MARKER_REGEXP,
     QwebCallParameters,
+    QwebContent,
     render,
 )
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
@@ -1121,6 +1123,58 @@ class TestQWebBasic(TransactionCase):
             "object", {"data": "/web/content/1"}, is_static=False
         )
         self.assertEqual(legit["data"], "/web/content/1")
+
+    def test_qwebcontent_cross_database_guard(self):
+        """QWEB: a lazy ``QwebContent`` is bound to the cursor of the database
+        that created it. If it outlives its request (e.g. cached and reused
+        while another database is being served) it must NOT render through that
+        stale/foreign cursor — otherwise one tenant's content leaks into
+        another's request, or it crashes on a closed cursor. The current thread's
+        ``dbname`` gates rendering. Regression for upstream 07a333c8 + 49b312f5.
+        """
+        # Capture a QwebContent that is created but never output, so it stays
+        # unrendered (html is None) and we can drive its lazy __str__ by hand.
+        captured = []
+        orig_init = QwebContent.__init__
+
+        def capture(self_qc, irQweb, params):
+            orig_init(self_qc, irQweb, params)
+            captured.append(self_qc)
+
+        view = self.env["ir.ui.view"].create({
+            "name": "qc-cross-db",
+            "type": "qweb",
+            "arch_db": '<t t-name="qc-cross-db">'
+                       '<t t-set="frag"><b>secret</b></t>'
+                       "<span>outer</span></t>",
+        })
+        with patch.object(QwebContent, "__init__", capture):
+            self.env["ir.qweb"]._render(view.id, {})
+        qc = next((c for c in captured if c.html is None), None)
+        self.assertIsNotNone(qc, "no unrendered QwebContent captured")
+
+        thread = threading.current_thread()
+        original = getattr(thread, "dbname", None)
+        try:
+            # matching database -> renders normally
+            thread.dbname = self.env.cr.dbname
+            qc.html = None
+            self.assertIn("secret", str(qc))
+            # a different database is now being served -> render is refused
+            thread.dbname = "some_other_database"
+            qc.html = None
+            self.assertEqual(str(qc), "")
+            # a thread with no dbname (e.g. some workers) must not crash
+            if hasattr(thread, "dbname"):
+                del thread.dbname
+            qc.html = None
+            self.assertIn("secret", str(qc))
+        finally:
+            if original is None:
+                if hasattr(thread, "dbname"):
+                    del thread.dbname
+            else:
+                thread.dbname = original
 
     def test_post_processing_att_control_char_obfuscation(self):
         """QWEB-T5b: C0 control characters (TAB/LF/CR/NUL/...) are stripped by
