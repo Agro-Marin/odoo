@@ -20,9 +20,11 @@ WINDOWS_RESERVED = re.compile(
     r"""
     ^
     # forbidden stems: reserved keywords
-    (:?CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])
+    # ``(?:`` non-capturing group -- ``(:?`` was a capturing group starting with
+    # an optional colon, so it also matched ``":CON"`` (false positive).
+    (?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])
     # even with an extension this is recommended against
-    (:?\..*)?
+    (?:\..*)?
     $
 """,
     flags=re.IGNORECASE | re.VERBOSE,

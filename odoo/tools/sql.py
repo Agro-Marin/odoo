@@ -49,7 +49,9 @@ __all__ = [
 
 _schema = logging.getLogger("odoo.schema")
 
-IDENT_RE = re.compile(r"^[a-z0-9_][a-z0-9_$\-]*$", re.IGNORECASE)
+# ``\Z`` (not ``$``): ``$`` also matches just before a trailing newline, so
+# ``"col\n"`` would validate as an identifier and reach SQL unquoted.
+IDENT_RE = re.compile(r"^[a-z0-9_][a-z0-9_$\-]*\Z", re.IGNORECASE)
 
 # Pre-compiled regexes for trigram pattern escaping (ilike operations)
 _WILDCARD_ESCAPE_RE = re.compile(r"(_|%|\\)")
@@ -464,7 +466,7 @@ def column_exists(cr: Cursor, tablename: str, columnname: str) -> bool:
             columnname,
         )
     )
-    return cr.rowcount
+    return bool(cr.rowcount)
 
 
 def create_column(
@@ -823,7 +825,7 @@ def fix_foreign_key(
 def index_exists(cr: Cursor, indexname: str) -> bool:
     """Return whether the given index exists."""
     cr.execute(SQL("SELECT 1 FROM pg_indexes WHERE indexname=%s", indexname))
-    return cr.rowcount
+    return bool(cr.rowcount)
 
 
 def index_definition(cr: Cursor, indexname: str) -> tuple[str | None, str | None]:
