@@ -1,1 +1,2 @@
-"""Lint utilities — parallel file scanning with Rust fallback."""
+"""Lint utilities — parallel file scanning backed by the Rust ``odoo_rust``
+extension (required, not a fallback)."""
