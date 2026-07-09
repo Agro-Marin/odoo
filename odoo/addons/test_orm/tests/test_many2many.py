@@ -47,6 +47,26 @@ class Many2manyCase(TransactionCase):
             "archived link must be removed by SET, not survive the delta",
         )
 
+    def test_write_new_scopes_commands_per_record(self):
+        """write_new must apply each pair's commands only to that pair's records.
+
+        Regression: LINK/CREATE iterated ``new_relation.values()`` (every record
+        in the batch) instead of ``recs._ids``, so in a multi-pair write_new call
+        record A's link leaked onto record B.  write_real and One2many.write_new
+        (and write_new's own CLEAR/SET) all scope per pair.
+        """
+        Ship = self.env["test_orm.ship"]
+        p1 = self.env["test_orm.prisoner"].create({"name": "P1"})
+        p2 = self.env["test_orm.prisoner"].create({"name": "P2"})
+        s1 = Ship.new({"name": "S1"})
+        s2 = Ship.new({"name": "S2"})
+        # one batch, two pairs, each linking a *different* prisoner
+        Ship._fields["prisoner_ids"].write_new(
+            [(s1, [Command.link(p1.id)]), (s2, [Command.link(p2.id)])]
+        )
+        self.assertEqual(s1.prisoner_ids.ids, p1.ids, "s1 must link only p1")
+        self.assertEqual(s2.prisoner_ids.ids, p2.ids, "s2 must link only p2")
+
     def test_not_in_relation(self):
         pirates = self.env["test_orm.pirate"].search(
             [("ship_ids", "not in", self.ship.ids)]
