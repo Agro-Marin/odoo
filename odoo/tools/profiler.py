@@ -100,7 +100,7 @@ class Collector:
     """
 
     name = None  # symbolic name of the collector
-    _store = name
+    _store = None  # storage discriminator; the "others" collector sets it (see line ~760)
     _registry = {}  # map collector names to their class
 
     @classmethod
