@@ -127,7 +127,11 @@ class Reverse:
 
     def __eq__(self, other: object) -> bool:
         """Return whether the wrapped values are equal."""
-        return self.val == other.val  # type: ignore[union-attr]
+        if not isinstance(other, Reverse):
+            # Comparing to a non-Reverse must not AttributeError on ``other.val``;
+            # NotImplemented lets Python fall back to identity comparison.
+            return NotImplemented
+        return self.val == other.val
 
     def __hash__(self) -> int:
         """Return the hash of the wrapped value."""
@@ -135,7 +139,9 @@ class Reverse:
 
     def __ne__(self, other: object) -> bool:
         """Return whether the wrapped values differ."""
-        return self.val != other.val  # type: ignore[union-attr]
+        if not isinstance(other, Reverse):
+            return NotImplemented
+        return self.val != other.val
 
     def __ge__(self, other: Reverse) -> bool:
         """Return whether this value sorts at or after ``other`` (reversed)."""
