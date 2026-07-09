@@ -1,8 +1,12 @@
-"""Pure Python fallback for field cache access functions.
+"""Python reference implementations of the field-cache access functions.
 
-Used when the Rust extension (odoo_rust) is not installed.
-These implementations are semantically identical to the Rust versions
-but slower due to Python loop and function call overhead.
+Despite the module name, this is NOT a runtime fallback: ``odoo_rust`` is a hard
+requirement (enforced in ``odoo.init``).  Two roles:
+
+* ``scalar_cache_get`` IS used in production -- its 3-dict-subscript hit path
+  beats the PyO3 call boundary, so the façade deliberately takes it from here.
+* the batch-op functions are the test oracle for the Rust versions (see
+  ``tests/test_field_access.py``): semantically identical, just slower.
 """
 
 from operator import itemgetter as _itemgetter

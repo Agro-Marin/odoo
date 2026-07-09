@@ -11,6 +11,23 @@ assert sys.version_info[:2] >= MIN_PY_VERSION, (
 )
 
 # ----------------------------------------------------------
+# The ``odoo_rust`` native extension is a HARD requirement of this fork: the ORM
+# cache/read paths, the db cursor row mapping, JSON fast-clone and the lint
+# scanner all import it directly (there is no Python fallback). Enforce it here,
+# early and with a clear message, rather than letting a missing build surface as
+# an obscure ModuleNotFoundError deep inside a later import.
+# ----------------------------------------------------------
+try:
+    import odoo_rust  # noqa: F401
+except ImportError as exc:
+    raise ImportError(
+        "The required 'odoo_rust' native extension is not importable. This fork "
+        "depends on it (ORM cache/read paths, db cursor, JSON fast-clone, lint "
+        "scanner). Build and install it with maturin (e.g. `maturin develop` in "
+        "the odoo_rust crate) into the active virtualenv."
+    ) from exc
+
+# ----------------------------------------------------------
 # Set gc thresolds if they are default, see `odoo.libs.gc`.
 # Defaults changed from (700, 10, 10) to (2000, 10, 10) in 3.13
 # and the last generation was removed in 3.14.
