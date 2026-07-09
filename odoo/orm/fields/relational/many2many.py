@@ -614,12 +614,11 @@ class Many2many(_RelationalMulti):
         rel_table, rel_id1, rel_id2 = self.relation, self.column1, self.column2
         rel_alias = query.make_alias(alias, self.name)
         if not coquery.where_clause:
-            # case: no constraints on table and we have foreign keys
-            # so we can inverse the operator and check existence
-            exists = not exists
+            # no constraints on the comodel query: existence in the relation
+            # table alone decides the match (same NOT sense as the branch below)
             return SQL(
                 "%sEXISTS (SELECT 1 FROM %s AS %s WHERE %s = %s)",
-                SQL("NOT ") if exists else SQL.EMPTY,
+                SQL("NOT ") if not exists else SQL.EMPTY,
                 SQL.identifier(rel_table),
                 SQL.identifier(rel_alias),
                 SQL.identifier(rel_alias, rel_id1),
