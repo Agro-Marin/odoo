@@ -263,7 +263,13 @@ class SetExpression(ABC):
 
     @abstractmethod
     def matches(self, user_group_ids: Iterable[int]) -> bool:
-        """Return whether the given group ids are included to ``self``."""
+        """Return whether the given group ids are included to ``self``.
+
+        Note: an empty ``user_group_ids`` returns ``False`` for *every*
+        expression -- including the universal set and negations such as ``~A``.
+        A groupless subject is treated as matching no set, not as an empty set
+        that would trivially satisfy a complement.
+        """
         raise NotImplementedError
 
     @property
@@ -462,6 +468,8 @@ class Union(SetExpression):
 
     def matches(self, user_group_ids: Iterable[int]) -> bool:
         """Return whether the given group ids match ``self``."""
+        # empty ids match nothing, even the universal set / a negation (checked
+        # before is_universal on purpose -- see SetExpression.matches note)
         if self.is_empty() or not user_group_ids:
             return False
         if self.is_universal():
