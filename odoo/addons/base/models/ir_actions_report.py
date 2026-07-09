@@ -1283,7 +1283,7 @@ class IrActionsReport(models.Model):
         used in the rendering.
         """
         self.ensure_one()
-        action_ref = self.env.ref("base.action_ui_view")
+        action_ref = self.env.ref("base.action_ui_view", raise_if_not_found=False)
         if not action_ref or len(self.report_name.split(".")) < 2:
             return False
         action_data = action_ref.read()[0]
