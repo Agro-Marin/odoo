@@ -27,15 +27,16 @@ _logger = logging.getLogger(__name__)
 # ----------------------------------------------------------
 
 
-def find_in_path(name: str) -> str | None:
+def find_in_path(name: str) -> str:
     """Find an executable in the system PATH.
 
     Searches the system PATH environment variable and the configured
     `bin_path` option for the given executable name.
 
     :param str name: Name of the executable to find
-    :return: Full path to the executable, or None if not found
-    :rtype: str or None
+    :return: Full path to the executable
+    :rtype: str
+    :raises OSError: (``errno.ENOENT``) if no matching executable is found
     """
     path = os.environ.get("PATH", os.defpath).split(os.pathsep)
     if config.get("bin_path") and config["bin_path"] != "None":
