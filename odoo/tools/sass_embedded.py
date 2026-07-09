@@ -13,6 +13,7 @@ import atexit
 import contextlib
 import logging
 import shutil
+import subprocess
 import threading
 from pathlib import Path
 from subprocess import PIPE, Popen
@@ -104,31 +105,83 @@ class SassImporter:
 # ---------------------------------------------------------------------------
 
 
+def _supports_embedded(sass_path: str) -> bool:
+    """Whether ``sass_path`` actually speaks the Embedded Sass Protocol.
+
+    The presence of a ``sass`` binary is not enough. Two common cases accept
+    the ``--embedded`` flag but cannot serve the protocol, and each would make
+    the embedded compiler deadlock/``EPIPE`` writing protobuf to a dead stdin
+    and silently degrade EVERY SCSS compile to the slow per-bundle CLI:
+
+    - the **pure-JS** ``sass`` (the npm ``sass`` package, routinely on a dev's
+      global ``PATH``) prints "sass --embedded is unavailable in pure JS mode"
+      and exits non-zero;
+    - a **wrong-platform** bundled binary (e.g. the ``sass-embedded-linux-musl``
+      build on a glibc host) fails to exec its inner dart binary (rc 127).
+
+    Probe by launching ``sass --embedded`` with an empty (EOF) stdin: a real
+    native Dart Sass boots the protocol host and exits 0 cleanly on EOF with no
+    diagnostic; the two bad cases exit non-zero (and the pure-JS one carries a
+    recognisable marker). Cheap — the host shuts down immediately on EOF — and
+    run at most a handful of times per process (``find_sass`` is called once per
+    compiler start).
+    """
+    try:
+        proc = subprocess.run(
+            [sass_path, "--embedded"],
+            input=b"",
+            stdout=PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if proc.returncode != 0:
+        return False
+    out = (proc.stdout or b"").lower()
+    return b"unavailable" not in out and b"pure js" not in out
+
+
 def find_sass() -> str | None:
-    """Locate a Dart Sass binary: system ``PATH`` first, then the
-    npm-provisioned toolchain in the Odoo root's ``node_modules``.
+    """Locate an ``--embedded``-capable Dart Sass binary: system ``PATH``
+    first, then the npm-provisioned toolchain in the Odoo root's
+    ``node_modules``.
 
     Mirrors :func:`odoo.tools.assets.esbuild._find_esbuild`: a documented ``npm
     install`` provisions the compiler, so discovery must also look in
     ``node_modules`` — not only ``PATH`` (the historical behaviour, which
     silently disabled SCSS whenever Dart Sass was not installed system-wide).
-    Prefers an ``--embedded``-capable binary — system Dart Sass, then the
-    native binary shipped by the ``sass-embedded`` package — so the fast
-    embedded path is used; falls back to the pure-JS ``sass`` CLI in
-    ``node_modules/.bin`` (which the compiler layer drives via ``--stdin``).
+
+    Every candidate is VERIFIED with :func:`_supports_embedded` before being
+    returned — a bare ``shutil.which("sass")`` used to hand back whatever was
+    named ``sass`` on ``PATH``, so a pure-JS ``sass`` (or a wrong-platform
+    bundled binary) silently degraded every compile to the CLI. The first
+    candidate that really speaks the embedded protocol wins; system Dart Sass
+    is preferred (may be newer), then the native binaries shipped by the
+    ``sass-embedded`` package (which lets a wrong-platform build be skipped in
+    favour of the right one). Only when none is embedded-capable does it fall
+    back to the pure-JS ``sass`` CLI in ``node_modules/.bin`` (driven via
+    ``--stdin`` per bundle).
 
     :return: path to a ``sass`` binary, or ``None`` if none is found.
     """
-    found = shutil.which("sass")
-    if found:
-        return found
     node_modules = Path(odoo.__path__[0]).parent / "node_modules"
-    # Native embedded binary from the ``sass-embedded`` package (any platform).
-    native = next(node_modules.glob("sass-embedded-*/dart-sass/sass"), None)
-    if native is not None:
-        return str(native)
-    # Pure-JS ``sass`` CLI (no ``--embedded``; the embedded layer falls back).
-    return shutil.which("sass", path=str(node_modules / ".bin"))
+    candidates: list[str] = []
+    system_sass = shutil.which("sass")
+    if system_sass:
+        candidates.append(system_sass)
+    # Sorted for determinism across the (possibly several) per-platform
+    # ``sass-embedded-<os>-<arch>`` packages npm may have unpacked.
+    candidates += sorted(
+        str(p) for p in node_modules.glob("sass-embedded-*/dart-sass/sass")
+    )
+    for candidate in candidates:
+        if _supports_embedded(candidate):
+            return candidate
+    # No embedded-capable binary: fall back to the pure-JS ``sass`` CLI (no
+    # ``--embedded``; the embedded layer degrades to the per-bundle CLI path),
+    # or, failing that, whatever system ``sass`` we found so SCSS still compiles.
+    return shutil.which("sass", path=str(node_modules / ".bin")) or system_sass
 
 
 # ---------------------------------------------------------------------------
