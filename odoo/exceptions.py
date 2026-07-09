@@ -27,10 +27,12 @@ class RedirectWarning(Exception):
     displaying the warning message.
 
     :param str message: exception message and frontend modal content
-    :param int action_id: id of the action where to perform the redirection
+    :param action: the action to redirect to -- its database id (int) or its
+        xml id (str)
+    :type action: int | str
     :param str button_text: text to put on the button that will trigger
         the redirection.
-    :param dict additional_context: parameter passed to action_id.
+    :param dict additional_context: context passed to the redirection action.
            Can be used to limit a view to active_ids for example.
     """
 

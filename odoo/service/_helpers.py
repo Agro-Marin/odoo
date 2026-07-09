@@ -64,8 +64,8 @@ def empty_pipe(fd: int) -> None:
     """Drain all pending data from a non-blocking pipe file descriptor.
 
     Reads in 4 KiB blocks so an N-byte backlog drains in one syscall instead of
-    N (realistic N is small — the signal-queue cap is 5 — but blocks cost
-    nothing extra).
+    N (realistic N is small — the prefork signal handler dedups to a single
+    pending slot, so no backlog cap is needed — but blocks cost nothing extra).
     """
     try:
         while os.read(fd, 4096):
