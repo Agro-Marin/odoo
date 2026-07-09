@@ -125,7 +125,7 @@ class WebClient(http.Controller):
     def version_info(self) -> dict[str, Any]:
         return odoo.service.common.exp_version()
 
-    @http.route("/web/tests", type="http", auth="user", readonly=True)
+    @http.route("/web/tests", type="http", auth="user", readonly=False)
     def unit_tests_suite(self, mod: str | None = None, **kwargs: Any) -> Response:
         return request.render(
             "web.unit_tests_suite",
