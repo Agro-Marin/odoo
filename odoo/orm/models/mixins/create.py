@@ -54,11 +54,20 @@ class CreateMixin(_ModelStubs):
         parent_fields = defaultdict(list)
         ir_defaults = self.env["ir.default"]._get_model_defaults(self._name)
 
+        # Extract the context "default_<name>" overrides once, rather than
+        # building "default_" + name (and a context lookup) for every requested
+        # field: default_get runs per-record on the create hot path and models
+        # have dozens of fields, so the per-field string allocation dominated.
+        context_defaults = {
+            key[8:]: value
+            for key, value in self.env.context.items()
+            if key.startswith("default_")
+        }
+
         for name in fields:
             # 1. look up context
-            key = "default_" + name
-            if key in self.env.context:
-                defaults[name] = self.env.context[key]
+            if name in context_defaults:
+                defaults[name] = context_defaults[name]
                 continue
 
             field = self._fields.get(name)
