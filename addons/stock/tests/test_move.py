@@ -5538,6 +5538,50 @@ class TestStockMove(TestStockCommon):
             1.0,
         )
 
+    def test_edit_done_move_line_preserves_in_date(self):
+        """Editing the quantity of a done move line must keep the destination quant's incoming
+        date so FIFO ordering is preserved -- matching what `_action_done` writes for a fresh
+        move. Regression: the post-write re-synchronization used to drop the `in_date`, stamping
+        the destination quant with the current time whenever the edit emptied it.
+        """
+        old_date = fields.Datetime.to_datetime("2020-01-01 00:00:00")
+        self.env["stock.quant"]._update_available_quantity(
+            self.productA, self.shelf_1, 10.0, in_date=old_date
+        )
+        move = self.env["stock.move"].create(
+            {
+                "location_id": self.shelf_1.id,
+                "location_dest_id": self.shelf_2.id,
+                "product_id": self.productA.id,
+                "product_uom": self.uom_unit.id,
+                "product_uom_qty": 10.0,
+            }
+        )
+        move._action_confirm()
+        move._action_assign()
+        move.move_line_ids.quantity = 10.0
+        move.picked = True
+        move._action_done()
+
+        def dest_quant():
+            return (
+                self.env["stock.quant"]
+                ._gather(self.productA, self.shelf_2)
+                .filtered(lambda q: q.quantity > 0)
+            )
+
+        self.assertEqual(dest_quant().in_date, old_date)
+
+        # Edit the done quantity down: this empties then re-creates the destination quant.
+        move.move_line_ids.quantity = 5.0
+
+        self.assertEqual(dest_quant().quantity, 5.0)
+        self.assertEqual(
+            dest_quant().in_date,
+            old_date,
+            "Editing a done move line must preserve the destination quant's incoming date.",
+        )
+
     def test_edit_done_move_line_2(self):
         """Test that editing a done stock move line linked to a tracked product correctly and directly
         adapts the transfer. In this case, we edit the lot to another available one.
