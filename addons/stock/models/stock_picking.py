@@ -458,15 +458,24 @@ class StockPicking(models.Model):
         # supplier/customer override) instead of a single value forced onto the batch.
         # Never override a location the caller passed explicitly in this same write; the
         # recursive write cascades the change to the picking's moves (see `after_vals`).
-        for picking in pickings_changing_type:
-            location_src, location_dest = picking._get_type_default_location_ids()
-            type_location_vals = {}
-            if "location_id" not in vals:
-                type_location_vals["location_id"] = location_src
-            if "location_dest_id" not in vals:
-                type_location_vals["location_dest_id"] = location_dest
-            if type_location_vals:
-                picking.write(type_location_vals)
+        write_src = "location_id" not in vals
+        write_dest = "location_dest_id" not in vals
+        if pickings_changing_type and (write_src or write_dest):
+            # Resolve per-record, then group pickings sharing the same resolved pair so
+            # the cascade to moves runs once per distinct pair instead of once per
+            # picking (mirrors the `date_planned` grouping in `create`).
+            ids_by_locations = defaultdict(list)
+            for picking in pickings_changing_type:
+                ids_by_locations[picking._get_type_default_location_ids()].append(
+                    picking.id,
+                )
+            for (location_src, location_dest), picking_ids in ids_by_locations.items():
+                type_location_vals = {}
+                if write_src:
+                    type_location_vals["location_id"] = location_src
+                if write_dest:
+                    type_location_vals["location_dest_id"] = location_dest
+                self.browse(picking_ids).write(type_location_vals)
 
         if vals.get("date_done"):
             self.filtered(lambda p: p.state == "done").move_ids.date = vals["date_done"]
@@ -756,6 +765,38 @@ class StockPicking(models.Model):
                     default=picking.date_planned or fields.Datetime.now(),
                 )
 
+    def _measure_total_by_picking(
+        self,
+        model_name,
+        extra_domain,
+        uom_fname,
+        product_attr,
+    ):
+        """Sum ``product.<product_attr>`` weighted by line quantity for every line of
+        ``self`` living in ``model_name``, returning ``{picking_id: total}``.
+
+        UoM conversion is linear, so grouping by (picking, product, uom) and converting
+        the summed quantity is equivalent to converting each line one by one — a single
+        read_group instead of a per-line conversion, and no grouping on the continuous
+        ``quantity`` measure. Shared by `_compute_bulk_weight` and
+        `_compute_shipping_volume`.
+        """
+        totals = defaultdict(float)
+        res_groups = self.env[model_name]._read_group(
+            [
+                ("picking_id", "in", self.ids),
+                ("product_id", "!=", False),
+                *extra_domain,
+            ],
+            ["picking_id", "product_id", uom_fname],
+            ["quantity:sum"],
+        )
+        for picking, product, product_uom, quantity in res_groups:
+            totals[picking.id] += product_uom._compute_quantity(
+                quantity, product.uom_id
+            ) * getattr(product, product_attr)
+        return totals
+
     @api.depends(
         "move_line_ids",
         "move_line_ids.result_package_id",
@@ -763,25 +804,14 @@ class StockPicking(models.Model):
         "move_line_ids.quantity",
     )
     def _compute_bulk_weight(self):
-        picking_weights = defaultdict(float)
-        # UoM conversion is linear, so summing the quantities per
-        # (picking, product, uom) is equivalent to converting each line and adding
-        # up — and avoids grouping on the continuous `quantity` measure.
-        res_groups = self.env["stock.move.line"]._read_group(
-            [
-                ("picking_id", "in", self.ids),
-                ("product_id", "!=", False),
-                ("result_package_id", "=", False),
-            ],
-            ["picking_id", "product_id", "product_uom_id"],
-            ["quantity:sum"],
+        weights = self._measure_total_by_picking(
+            "stock.move.line",
+            [("result_package_id", "=", False)],
+            "product_uom_id",
+            "weight",
         )
-        for picking, product, product_uom, quantity in res_groups:
-            picking_weights[picking.id] += (
-                product_uom._compute_quantity(quantity, product.uom_id) * product.weight
-            )
         for picking in self:
-            picking.weight_bulk = picking_weights[picking.id]
+            picking.weight_bulk = weights[picking.id]
 
     @api.depends(
         "move_line_ids.result_package_id",
@@ -813,24 +843,14 @@ class StockPicking(models.Model):
         "move_ids.product_id.volume",
     )
     def _compute_shipping_volume(self):
-        picking_volumes = defaultdict(float)
-        # UoM conversion is linear, so summing quantities per (picking, product, uom)
-        # is equivalent to converting each move and adding up — one read_group instead
-        # of a per-move UoM conversion (mirrors `_compute_bulk_weight`).
-        res_groups = self.env["stock.move"]._read_group(
-            [
-                ("picking_id", "in", self.ids),
-                ("product_id", "!=", False),
-            ],
-            ["picking_id", "product_id", "product_uom"],
-            ["quantity:sum"],
+        volumes = self._measure_total_by_picking(
+            "stock.move",
+            [],
+            "product_uom",
+            "volume",
         )
-        for picking, product, product_uom, quantity in res_groups:
-            picking_volumes[picking.id] += (
-                product_uom._compute_quantity(quantity, product.uom_id) * product.volume
-            )
         for picking in self:
-            picking.shipping_volume = picking_volumes[picking.id]
+            picking.shipping_volume = volumes[picking.id]
 
     @api.depends("move_ids.date_deadline", "move_ids.state", "move_type")
     def _compute_date_deadline(self):
@@ -948,16 +968,10 @@ class StockPicking(models.Model):
         )
         candidate_location_ids = set().union(*location_ids_by_view.values())
         candidate_moves = self.env["stock.move"].search(
-            [
-                (
-                    "state",
-                    "in",
-                    self._get_allocation_allowed_move_states(include_assigned=True),
-                ),
-                ("product_qty", ">", 0),
-                ("location_id", "in", list(candidate_location_ids)),
-                ("product_id", "in", candidate_products.ids),
-            ],
+            self._get_allocatable_demand_domain(
+                candidate_location_ids,
+                candidate_products.ids,
+            ),
         )
 
         # Index candidate moves by product so each picking only scans the moves for its
@@ -1080,12 +1094,24 @@ class StockPicking(models.Model):
         # Normalise to a set: the branches below rely on set algebra (`- {False}`, `&`).
         value = set(value)
         invalid_states = ("done", "cancel", "draft")
+        # A picking carries a non-False availability state only when it is
+        # waiting/confirmed/assigned AND of an outgoing/internal type — the exact
+        # condition `_compute_products_availability` applies. Every other picking (a
+        # receipt, a draft/done/cancel) reads as False for this field, even though its
+        # moves may well be reservable, so the search must scope itself the same way.
+        qualifying = Domain(
+            [
+                ("state", "not in", invalid_states),
+                ("picking_type_id.code", "in", ("outgoing", "internal")),
+            ],
+        )
         if False in value:
-            return [
-                "|",
-                ("state", "in", invalid_states),
-                *self._search_products_availability_state("in", value - {False}),
-            ]
+            # False is exactly the complement of the qualifying set: a qualifying
+            # picking always carries one of available/expected/late, never False.
+            return ~qualifying | self._search_products_availability_state(
+                "in",
+                value - {False},
+            )
         value = (
             set(self._fields["products_availability_state"].get_values(self.env))
             & value
@@ -1107,11 +1133,14 @@ class StockPicking(models.Model):
                 # invalid value for search
                 return False
 
-        pickings = (
-            self.env["stock.picking"]
-            .search([("state", "not in", invalid_states)], order="id")
-            .filtered(_filter_picking_moves)
-        )
+        # Only qualifying pickings can match, so scan just those (a far smaller Python
+        # filter than every non-terminal picking) and batch-compute the forecast field
+        # the matcher reads in one pass over their moves, instead of the default
+        # per-prefetch-chunk recompute (mirrors `_compute_products_availability`).
+        candidate_pickings = self.env["stock.picking"].search(qualifying, order="id")
+        candidate_moves = candidate_pickings.move_ids
+        candidate_moves._fields["forecast_availability"].compute_value(candidate_moves)
+        pickings = candidate_pickings.filtered(_filter_picking_moves)
         return Domain("id", "in", pickings.ids)
 
     @api.model
@@ -1380,16 +1409,16 @@ class StockPicking(models.Model):
         )
         if not self.env["stock.move"].search_count(
             [
-                (
-                    "state",
-                    "in",
-                    self._get_allocation_allowed_move_states(include_assigned=True),
+                *self._get_allocatable_demand_domain(
+                    wh_location_ids,
+                    lines.product_id.ids,
                 ),
-                ("product_qty", ">", 0),
-                ("location_id", "in", wh_location_ids),
+                # Reception report only offers *fresh* demand — moves with no existing
+                # origin, from other pickings. `_get_show_allocation_map` intentionally
+                # differs: it also re-surfaces demand already chained to this receipt's
+                # own lines (`move_orig_ids & lines`).
                 ("move_orig_ids", "=", False),
                 ("picking_id", "not in", pickings_show_report.ids),
-                ("product_id", "in", lines.product_id.ids),
             ],
             limit=1,
         ):
@@ -1435,6 +1464,15 @@ class StockPicking(models.Model):
 
     def _pre_action_done_hook(self):
         for picking in self:
+            # Auto-pick everything when the picking has quantity to move but the user
+            # picked nothing explicitly. The asymmetry around inventory-destination
+            # (scrap) moves is deliberate and load-bearing:
+            #  * their quantity DOES count towards `has_quantity` — a picking whose only
+            #    move goes to scrap must still auto-pick and validate (see test_scrap_10);
+            #  * their quantity is auto-picked by the final write (all moves), so scrap
+            #    transfers complete;
+            #  * but a scrap move being `picked` does NOT count towards `has_pick`, so a
+            #    pre-picked scrap move can't suppress auto-picking the real moves.
             has_quantity = False
             has_pick = False
             for move in picking.move_ids:
@@ -1965,6 +2003,24 @@ class StockPicking(models.Model):
         if include_assigned:
             states.append("assigned")
         return states
+
+    def _get_allocatable_demand_domain(self, location_ids, product_ids):
+        """Common domain for "allocatable demand" moves: open demand (positive qty, an
+        allocatable state) for the given products sitting in the given locations. Shared
+        by `_get_show_allocation_map` and `_get_reception_report_action` so the two stay
+        aligned on the baseline definition of demand; each caller then narrows it with
+        its own ``move_orig_ids`` clause (which intentionally differ — see the callers).
+        """
+        return [
+            (
+                "state",
+                "in",
+                self._get_allocation_allowed_move_states(include_assigned=True),
+            ),
+            ("product_qty", ">", 0),
+            ("location_id", "in", list(location_ids)),
+            ("product_id", "in", list(product_ids)),
+        ]
 
     def _get_allocation_source_location_ids(self, view_location_ids):
         """IDs of the locations allocatable demand can pull from: descendants of the
