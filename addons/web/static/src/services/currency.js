@@ -4,8 +4,8 @@
 /** @module @web/services/currency - Currency lookup, formatting, and exchange rate fetching */
 
 import { reactive } from "@odoo/owl";
+import { parseDate } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network/rpc";
-import { parseDate, toLocaleDateString } from "@web/core/l10n/dates";
 import { formatFloat, humanNumber } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
 import { user } from "@web/services/user";
@@ -68,7 +68,10 @@ export async function getCurrencyRates() {
         cache: {
             type: "disk",
             update: "once",
-            callback: (/** @type {{id: number, inverse_rate: number, date: string}[]} */ records, /** @type {boolean} */ hasChanged) => {
+            callback: (
+                /** @type {{id: number, inverse_rate: number, date: string}[]} */ records,
+                /** @type {boolean} */ hasChanged,
+            ) => {
                 if (hasChanged) {
                     Object.assign(rates, recordsToRates(records));
                 }
@@ -99,8 +102,7 @@ export async function getCurrencyRates() {
 export function formatCurrency(amount, currencyId, options = {}) {
     const currency = getCurrency(/** @type {number} */ (currencyId));
 
-    const digits =
-        options.digits !== undefined ? options.digits : currency?.digits;
+    const digits = options.digits !== undefined ? options.digits : currency?.digits;
 
     let formattedAmount;
     if (options.humanReadable) {

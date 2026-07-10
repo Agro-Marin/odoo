@@ -5,7 +5,6 @@
 
 import { browser } from "@web/core/browser/browser";
 import { DateTime } from "@web/core/l10n/luxon";
-import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
 class RedirectionError extends Error {}

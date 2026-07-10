@@ -29,8 +29,11 @@ export class AttachDocumentWidget extends Component {
         // click. useService() returns destroy-protected proxies that throw
         // "Component is destroyed" in that window, aborting the in-flight upload. Use
         // the raw env services, which outlive the component, so the upload completes.
+        // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
         this.http = this.env.services.http;
+        // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
         this.notification = this.env.services.notification;
+        // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
         this.orm = this.env.services.orm;
         this.fileInput = document.createElement("input");
         this.fileInput.type = "file";
