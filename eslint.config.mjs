@@ -345,6 +345,26 @@ export default [
     },
 
     // =========================================================================
+    // Node tooling scripts — build/typecheck helpers, not browser code
+    //
+    // Files under a module's tooling/scripts/ (e.g. web/tooling/scripts/
+    // typecheck_gate.mjs) run under Node, so they legitimately use `process`,
+    // `console`, etc. They are matched by `js.configs.recommended` (no `files`
+    // key → repo-wide, and eslint lints .mjs by default) but were never given
+    // the main block's browser globals — which is correct, they aren't browser
+    // code; they just also lacked Node's. Declare the Node environment for them
+    // so their `process`/`console` use stops tripping `no-undef`.
+    // =========================================================================
+    {
+        files: ["**/tooling/scripts/**/*.{js,mjs,cjs}"],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
+
+    // =========================================================================
     // Layer boundary enforcement (Feature-Sliced Design)
     //
     // Import direction is law — lower layers cannot import higher.
