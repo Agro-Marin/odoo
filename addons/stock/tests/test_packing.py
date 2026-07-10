@@ -128,6 +128,77 @@ class TestPacking(TestPackingCommon):
         ship_picking.action_assign()
         ship_picking._action_done()
 
+    def test_put_in_pack_moves_button_auto_print_mixed(self):
+        """The 'Moves' button (`force_move_lines`) must not crash when the operation type
+        auto-prints package labels and some lines are already packed. `_post_put_in_pack_hook`
+        returns a print *action* rather than the created package in that case, which used to be
+        subtracted from a package recordset (`packages_to_pack -= <action dict>` -> TypeError).
+        """
+        picking_type = self.env["stock.picking.type"].create(
+            {
+                "name": "Auto-print delivery",
+                "code": "outgoing",
+                "sequence_code": "APD",
+                "default_location_src_id": self.stock_location.id,
+                "default_location_dest_id": self.customer_location.id,
+                "warehouse_id": self.warehouse.id,
+                "auto_print_package_label": True,
+                "package_label_to_print": "pdf",
+                "set_package_type": False,
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.productA, self.stock_location, 10
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.productB, self.stock_location, 10
+        )
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.productA.id,
+                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_qty": 5,
+                            "location_id": self.stock_location.id,
+                            "location_dest_id": self.customer_location.id,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "product_id": self.productB.id,
+                            "product_uom": self.productB.uom_id.id,
+                            "product_uom_qty": 5,
+                            "location_id": self.stock_location.id,
+                            "location_dest_id": self.customer_location.id,
+                        }
+                    ),
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        for ml in picking.move_line_ids:
+            ml.quantity = 5
+            ml.picked = True
+        # Pre-pack product A so an already-packed package ends up in `packages_to_pack`.
+        ml_a = picking.move_line_ids.filtered(lambda m: m.product_id == self.productA)
+        ml_a.result_package_id = self.env["stock.package"].create({"name": "PKG-A"}).id
+
+        # Must not raise: the print action must not be treated as the created package.
+        picking.move_line_ids.with_context(
+            force_move_lines=True, all_move_line_ids=picking.move_line_ids.ids
+        ).action_put_in_pack()
+
+        # Both the pre-packed and the freshly-packed line still carry a destination package.
+        self.assertTrue(ml_a.result_package_id)
+        ml_b = picking.move_line_ids.filtered(lambda m: m.product_id == self.productB)
+        self.assertTrue(ml_b.result_package_id)
+
     def test_pick_a_pack_confirm(self):
         pack = self.env["stock.package"].create({"name": "The pack to pick"})
         self.env["stock.quant"]._update_available_quantity(

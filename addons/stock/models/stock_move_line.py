@@ -362,17 +362,8 @@ class StockMoveLine(models.Model):
         for ml in mls:
             if ml.state == "done":
                 if ml.product_id.is_storable:
-                    # Move the quant from source to destination. `_synchronize_quant`
-                    # already handles compensating negative quants with untracked ones.
-                    in_date = ml._synchronize_quant(
-                        -ml.quantity_product_uom, ml.location_id
-                    )[1]
-                    ml._synchronize_quant(
-                        ml.quantity_product_uom,
-                        ml.location_dest_id,
-                        package=ml.result_package_id,
-                        in_date=in_date,
-                    )
+                    # Move the quant from source to destination.
+                    ml._apply_quant_move()
                 next_moves = ml.move_id.move_dest_ids.filtered(
                     lambda move: move.state not in ("done", "cancel")
                 )
@@ -495,14 +486,7 @@ class StockMoveLine(models.Model):
                 )
             for ml in mls:
                 # undo the original move line
-                in_date = ml._synchronize_quant(
-                    -ml.quantity_product_uom,
-                    ml.location_dest_id,
-                    package=ml.result_package_id,
-                )[1]
-                ml._synchronize_quant(
-                    ml.quantity_product_uom, ml.location_id, in_date=in_date
-                )
+                ml._apply_quant_move(reverse=True)
 
                 # Unreserve and reserve following move in order to have the real reserved quantity on move_line.
                 next_moves |= ml.move_id.move_dest_ids.filtered(
@@ -551,14 +535,7 @@ class StockMoveLine(models.Model):
         res = super().write(vals)
 
         for ml in mls:
-            available_qty, _in_date = ml._synchronize_quant(
-                -ml.quantity_product_uom, ml.location_id
-            )
-            ml._synchronize_quant(
-                ml.quantity_product_uom,
-                ml.location_dest_id,
-                package=ml.result_package_id,
-            )
+            available_qty, _in_date = ml._apply_quant_move()
             if available_qty < 0:
                 ml._free_reservation(
                     ml.product_id,
@@ -579,9 +556,8 @@ class StockMoveLine(models.Model):
             if mls_to_update := self._get_lines_not_entire_pack():
                 mls_to_update.write({"is_entire_pack": False})
 
-        # The next moves' reservations depend on this line's quantity; re-run their
-        # reservation now that it changed.
-        if updates or "quantity" in vals:
+            # The next moves' reservations depend on this line's quantity; re-run their
+            # reservation now that it changed.
             next_moves._do_unreserve()
             next_moves._action_assign()
 
@@ -778,7 +754,7 @@ class StockMoveLine(models.Model):
                 move_lines_to_check = self._get_similar_move_lines() - self
                 if self.lot_name:
                     counter = Counter([line.lot_name for line in move_lines_to_check])
-                    if counter.get(self.lot_name) and counter[self.lot_name] > 1:
+                    if counter[self.lot_name] > 1:
                         message = _(
                             "You cannot use the same serial number twice. Please correct the serial numbers encoded."
                         )
@@ -805,7 +781,7 @@ class StockMoveLine(models.Model):
                             )
                 elif self.lot_id:
                     counter = Counter([line.lot_id.id for line in move_lines_to_check])
-                    if counter.get(self.lot_id.id) and counter[self.lot_id.id] > 1:
+                    if counter[self.lot_id.id] > 1:
                         message = _(
                             "You cannot use the same serial number twice. Please correct the serial numbers encoded."
                         )
@@ -1000,15 +976,7 @@ class StockMoveLine(models.Model):
             ml._synchronize_quant(
                 -ml.quantity_product_uom, ml.location_id, action="reserved"
             )
-            available_qty, in_date = ml._synchronize_quant(
-                -ml.quantity_product_uom, ml.location_id
-            )
-            ml._synchronize_quant(
-                ml.quantity_product_uom,
-                ml.location_dest_id,
-                package=ml.result_package_id,
-                in_date=in_date,
-            )
+            available_qty, _in_date = ml._apply_quant_move()
             if available_qty < 0:
                 ml.with_context(
                     quants_cache=None, bypass_entire_pack=True
@@ -1065,6 +1033,7 @@ class StockMoveLine(models.Model):
             )
         )
         done_pack = False
+        package = self.env["stock.package"]
         if move_lines_to_pack:
             action = move_lines_to_pack._pre_put_in_pack_hook(
                 move_lines,
@@ -1083,9 +1052,11 @@ class StockMoveLine(models.Model):
         if done_pack and not force_move_lines:
             return done_pack
         elif packages_to_pack:
-            if done_pack:
-                packages_to_pack -= done_pack
-                package_id = done_pack.id
+            # `done_pack` may be a print action rather than the package; rely on the actual
+            # package record created above so we never do arithmetic on an action dict.
+            if package:
+                packages_to_pack -= package
+                package_id = package.id
             if packages_to_pack:
                 return packages_to_pack.action_put_in_pack(
                     package_id=package_id,
@@ -1329,6 +1300,43 @@ class StockMoveLine(models.Model):
             )
         return available_qty, in_date
 
+    def _apply_quant_move(self, *, reverse=False, in_date=False):
+        """Move this line's `quantity_product_uom` of *available* stock between its source and
+        destination, threading the removed stock's incoming date onto the addition so FIFO
+        ordering is preserved.
+
+        The physical move is always source -> destination with `result_package_id` sitting at
+        the destination; pass ``reverse=True`` to undo it (destination -> source).
+        `_synchronize_quant` compensates negative quants with untracked ones on its own.
+
+        :return: tuple (available_qty at the location we removed from, in_date), so callers can
+                 free over-reservations when the source went negative.
+        """
+        self.ensure_one()
+        qty = self.quantity_product_uom
+        if reverse:
+            from_loc, to_loc, from_package = (
+                self.location_dest_id,
+                self.location_id,
+                self.result_package_id,
+            )
+        else:
+            from_loc, to_loc, from_package = (
+                self.location_id,
+                self.location_dest_id,
+                self.package_id,
+            )
+        available_qty, in_date = self._synchronize_quant(
+            -qty, from_loc, package=from_package, in_date=in_date
+        )
+        self._synchronize_quant(
+            qty,
+            to_loc,
+            package=self.package_id if reverse else self.result_package_id,
+            in_date=in_date,
+        )
+        return available_qty, in_date
+
     def _get_similar_move_lines(self):
         self.ensure_one()
         lines = self.env["stock.move.line"]
@@ -1372,9 +1380,17 @@ class StockMoveLine(models.Model):
             )  # restore the prefetch set lost when indexing into `lots`
             mls.with_prefetch(self._prefetch_ids).write({"lot_id": lot.id})
 
-    def _log_message(self, record, move, template, vals):
+    @api.model
+    def _log_message(self, thread, tracked_record, template, vals):
+        """Post a chatter note on `thread` describing the changes `vals` applied to
+        `tracked_record` (a `stock.move` or `stock.move.line`), resolving each changed
+        relational id to its display name.
+
+        This uses no records from `self`; `tracked_record` is passed to the template under the
+        name ``move`` (the render contract expected by ``stock.message_body`` & friends).
+        """
         data = vals.copy()
-        if "lot_id" in vals and vals["lot_id"] != move.lot_id.id:
+        if "lot_id" in vals and vals["lot_id"] != tracked_record.lot_id.id:
             data["lot_name"] = self.env["stock.lot"].browse(vals.get("lot_id")).name
         if "location_id" in vals:
             data["location_name"] = (
@@ -1384,24 +1400,24 @@ class StockMoveLine(models.Model):
             data["location_dest_name"] = (
                 self.env["stock.location"].browse(vals.get("location_dest_id")).name
             )
-        if "package_id" in vals and vals["package_id"] != move.package_id.id:
+        if "package_id" in vals and vals["package_id"] != tracked_record.package_id.id:
             data["package_name"] = (
                 self.env["stock.package"].browse(vals.get("package_id")).name
             )
         if (
             "result_package_id" in vals
-            and vals["result_package_id"] != move.result_package_id.id
+            and vals["result_package_id"] != tracked_record.result_package_id.id
         ):
             data["result_package_dest_name"] = (
                 self.env["stock.package"].browse(vals["result_package_id"]).name
             )
-        if "owner_id" in vals and vals["owner_id"] != move.owner_id.id:
+        if "owner_id" in vals and vals["owner_id"] != tracked_record.owner_id.id:
             data["owner_name"] = (
                 self.env["res.partner"].browse(vals.get("owner_id")).name
             )
-        record.message_post_with_source(
+        thread.message_post_with_source(
             template,
-            render_values={"move": move, "vals": dict(vals, **data)},
+            render_values={"move": tracked_record, "vals": dict(vals, **data)},
             subtype_xmlid="mail.mt_note",
         )
 
@@ -1535,6 +1551,27 @@ class StockMoveLine(models.Model):
             backorders |= pickings.backorder_ids
             pickings = pickings.backorder_ids
 
+        # Cache each move's package-less aggregation key: it is identical for every line of a
+        # move, so recomputing it per candidate line (as the grouping below needs) is pure
+        # waste -- and the source of this method's quadratic cost on transfers with many move
+        # lines. `_get_aggregated_properties(move=...)` may be overridden, so route through it
+        # once per move.
+        base_key_by_move = {}
+
+        def base_key(move):
+            key = base_key_by_move.get(move.id)
+            if key is None:
+                key = base_key_by_move[move.id] = self._get_aggregated_properties(
+                    move=move
+                )["line_key"]
+            return key
+
+        # Bucket backorder move lines by their move's base key so each aggregated line matches
+        # them with a handful of prefix checks instead of a scan over every backorder line.
+        backorder_lines_by_base = defaultdict(lambda: self.env["stock.move.line"])
+        for bo_line in backorders.move_line_ids:
+            backorder_lines_by_base[base_key(bo_line.move_id)] |= bo_line
+
         for move_line in self:
             if kwargs.get("except_package") and move_line.result_package_id:
                 continue
@@ -1557,22 +1594,19 @@ class StockMoveLine(models.Model):
                     if backorders:
                         # Add quantities moved to backorders (matched by aggregation key) to
                         # recover the original ordered qty.
-                        following_move_lines = backorders.move_line_ids.filtered(
-                            lambda ml: line_key.startswith(
-                                self._get_aggregated_properties(move=ml.move_id)[
-                                    "line_key"
-                                ]
-                            )
-                        )
+                        following_move_lines = self.env["stock.move.line"]
+                        for candidate_key, bo_lines in backorder_lines_by_base.items():
+                            if line_key.startswith(candidate_key):
+                                following_move_lines |= bo_lines
                         qty_ordered += sum(
                             following_move_lines.move_id.mapped("product_uom_qty")
                         )
                     # Remove the done quantities of the other move lines of the stock move
                     previous_move_lines = move_line.move_id.move_line_ids.filtered(
-                        lambda ml: line_key.startswith(
-                            self._get_aggregated_properties(move=ml.move_id)["line_key"]
+                        lambda ml: (
+                            line_key.startswith(base_key(ml.move_id))
+                            and ml.id != move_line.id
                         )
-                        and ml.id != move_line.id
                     )
                     qty_ordered -= sum(
                         [
@@ -1888,7 +1922,7 @@ class StockMoveLine(models.Model):
         moves = self.picking_id.move_ids.filtered(
             lambda x: x.product_id == self.product_id
         )
-        return sorted(moves, key=lambda m: m.quantity < m.product_qty, reverse=True)
+        return moves.sorted(key=lambda m: m.quantity < m.product_qty, reverse=True)
 
     # ------------------------------------------------------------
     # VALIDATION METHODS
