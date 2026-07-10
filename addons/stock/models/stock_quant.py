@@ -9,7 +9,7 @@ from psycopg import Error
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import SQL
+from odoo.tools import SQL, float_compare, float_is_zero
 
 _logger = logging.getLogger(__name__)
 
@@ -129,6 +129,83 @@ def _least_packages_search(qty_by_package, qty):
 
     # No exact matching possible, use best leaf.
     return best_leaf.taken_packages
+
+
+# Reservation candidate: the opaque handle returned to the caller (a stock.quant in
+# production), its on-hand and reserved quantities, and the characteristics key that
+# marks it interchangeable with other candidates for over-reservation absorption.
+_ReservationCandidate = namedtuple(
+    "_ReservationCandidate", "handle on_hand reserved key"
+)
+
+
+def _distribute_reservation(candidates, quantity, available_quantity, precision_digits):
+    """Distribute a signed ``quantity`` across pre-ordered reservation ``candidates``.
+
+    Pure and DB-free (mirrors :func:`_least_packages_search`): it manipulates plain
+    numbers and opaque ``handle`` values only, so the reservation allocation
+    algorithm — the trickiest arithmetic in this model — can be unit-tested with
+    hand-built inputs instead of real quants, moves and locations.
+
+    :param candidates: list of :class:`_ReservationCandidate` already ordered by the
+        removal strategy. ``handle`` is echoed back verbatim in the result; ``key``
+        groups interchangeable candidates so stock already over-reserved into
+        negative available is absorbed first, before the rest of that group is
+        allowed to over-reserve too.
+    :param quantity: signed target in the candidates' UoM — ``> 0`` reserves,
+        ``< 0`` unreserves. Its sign is fixed for the whole run: reserving never
+        takes more than what is left to reserve, so it converges to zero without
+        crossing it.
+    :param available_quantity: the running budget the reserve branch draws down;
+        allocation stops as soon as either it or ``quantity`` rounds to zero. The
+        caller sizes it (positive branch: on-hand-minus-reserved of the whole set;
+        negative branch: total reserved), so the loop needs no global view.
+    :param precision_digits: the 'Product Unit' decimal precision; every comparison
+        rounds to it, matching ``uom.compare`` / ``uom.is_zero``.
+    :return: list of ``(handle, amount)`` pairs — ``amount`` positive when
+        reserving, negative when unreserving.
+    """
+    reserved = []
+    if float_is_zero(quantity, precision_digits=precision_digits):
+        return reserved
+    reserving = float_compare(quantity, 0, precision_digits=precision_digits) > 0
+
+    # Group already-over-reserved (negative available) quantity by characteristics so
+    # it is absorbed first instead of letting other candidates in the same group
+    # over-reserve too.
+    negative_available = defaultdict(float)
+    for cand in candidates:
+        slack = cand.on_hand - cand.reserved
+        if float_compare(slack, 0, precision_digits=precision_digits) < 0:
+            negative_available[cand.key] += slack
+
+    for cand in candidates:
+        if reserving:
+            max_on_cand = cand.on_hand - cand.reserved
+            if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
+                continue
+            negative = negative_available[cand.key]
+            if negative:
+                to_absorb = min(abs(negative), max_on_cand)
+                negative_available[cand.key] += to_absorb
+                max_on_cand -= to_absorb
+            if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
+                continue
+            max_on_cand = min(max_on_cand, quantity)
+            reserved.append((cand.handle, max_on_cand))
+            quantity -= max_on_cand
+            available_quantity -= max_on_cand
+        else:
+            max_on_cand = min(cand.reserved, abs(quantity))
+            reserved.append((cand.handle, -max_on_cand))
+            quantity += max_on_cand
+            available_quantity += max_on_cand
+
+        if float_is_zero(quantity, precision_digits=precision_digits) or float_is_zero(
+            available_quantity, precision_digits=precision_digits
+        ):
+            break
+    return reserved
 
 
 class StockQuant(models.Model):
@@ -356,9 +433,13 @@ class StockQuant(models.Model):
 
     @api.constrains("product_id")
     def check_product_id(self):
-        if any(not elem.product_id.is_storable for elem in self):
+        non_storable = self.product_id.filtered(lambda p: not p.is_storable)
+        if non_storable:
             raise ValidationError(
-                _("Quants cannot be created for consumables or services.")
+                _(
+                    "Quants cannot be created for consumables or services: %s",
+                    ", ".join(non_storable.mapped("display_name")),
+                )
             )
 
     @api.constrains("lot_id")
@@ -874,18 +955,20 @@ class StockQuant(models.Model):
         action = self.env["ir.actions.actions"]._for_xml_id(
             "stock.stock_move_line_action"
         )
-        action["domain"] = [
-            "|",
-            ("location_id", "=", self.location_id.id),
-            ("location_dest_id", "=", self.location_id.id),
-            ("lot_id", "=", self.lot_id.id),
-        ]
+        # Move lines that touched this location on either end, filtered to this
+        # quant's lot. For an untracked quant ``lot_id.id`` is False, which correctly
+        # matches the lot-less move lines of an untracked product. Built with Domain
+        # operators so the (source-or-dest) grouping is explicit rather than relying
+        # on prefix-notation precedence.
+        domain = (
+            Domain("location_id", "=", self.location_id.id)
+            | Domain("location_dest_id", "=", self.location_id.id)
+        ) & Domain("lot_id", "=", self.lot_id.id)
         if self.package_id:
-            action["domain"] += [
-                "|",
-                ("package_id", "=", self.package_id.id),
-                ("result_package_id", "=", self.package_id.id),
-            ]
+            domain &= Domain("package_id", "=", self.package_id.id) | Domain(
+                "result_package_id", "=", self.package_id.id
+            )
+        action["domain"] = domain
         action["context"] = literal_eval(action.get("context"))
         action["context"]["search_default_product_id"] = self.product_id.id
         return action
@@ -1217,6 +1300,16 @@ class StockQuant(models.Model):
         The old implementation popped ids one at a time and re-ran the query every
         time the list emptied (once per selected single, re-selecting the same
         records); slicing the tail yields the identical id-set in one query.
+
+        Note the deliberate asymmetry: ``single_count`` is a count of selected
+        *unit slots* (the search expands loose stock into one ``(None, 1)`` entry
+        per unit), but ``single_item_ids`` are quant *records*, each of which may
+        hold more than one unit. Taking the last ``single_count`` records therefore
+        yields *at least* ``single_count`` loose units — never fewer — so the
+        candidate set can only over-cover on the unpackaged side. That over-cover is
+        harmless: the reservation loop caps consumption at the requested quantity,
+        and the package set is pinned exactly by ``package_id in [...]`` below, so no
+        extra package is ever opened by it.
         """
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
@@ -1242,6 +1335,7 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=False,
         qty=0,
+        removal_strategy=None,
     ):
         """Return the quants matching the given characteristics, ordered by the
         location/product removal strategy.
@@ -1253,8 +1347,16 @@ class StockQuant(models.Model):
         as the candidate set. A caller that already holds a gathered recordset must
         not assume passing it as ``self`` narrows the result (see
         ``_get_reserve_quantity``, which reuses its gather explicitly instead).
+
+        :param removal_strategy: the pre-resolved strategy for this
+            product/location. Resolving it walks the product category and the
+            location parent chain, so a caller that gathers and then measures
+            availability for the *same* characteristics (the reservation path
+            re-gathers up to three times) passes it once instead of paying that
+            walk on every call. Left ``None`` it is resolved here.
         """
-        removal_strategy = self._get_removal_strategy(product_id, location_id)
+        if removal_strategy is None:
+            removal_strategy = self._get_removal_strategy(product_id, location_id)
         domain = self._get_gather_domain(
             product_id,
             location_id,
@@ -1399,6 +1501,10 @@ class StockQuant(models.Model):
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
         self = self.sudo()
+        # Resolve the strategy once and reuse it for both the gather below and the
+        # closing _get_available_quantity re-gather (each would otherwise walk the
+        # product category + location parent chain again).
+        removal_strategy = self._get_removal_strategy(product_id, location_id)
         quants = self._gather(
             product_id,
             location_id,
@@ -1406,6 +1512,7 @@ class StockQuant(models.Model):
             package_id=package_id,
             owner_id=owner_id,
             strict=True,
+            removal_strategy=removal_strategy,
         )
         if lot_id:
             if product_id.uom_id.compare(quantity, 0) > 0:
@@ -1470,6 +1577,7 @@ class StockQuant(models.Model):
                 owner_id=owner_id,
                 strict=True,
                 allow_negative=True,
+                removal_strategy=removal_strategy,
             ),
             in_date,
         )
@@ -1723,6 +1831,7 @@ class StockQuant(models.Model):
         strict=False,
         allow_negative=False,
         gathered_quants=None,
+        removal_strategy=None,
     ):
         """Return the available quantity, i.e. the sum of `quantity` minus the sum of
         `reserved_quantity`, for the set of quants sharing the combination of `product_id,
@@ -1756,6 +1865,7 @@ class StockQuant(models.Model):
                 package_id=package_id,
                 owner_id=owner_id,
                 strict=strict,
+                removal_strategy=removal_strategy,
             )
         else:
             quants = gathered_quants.sudo()
@@ -2039,16 +2149,28 @@ class StockQuant(models.Model):
     @api.model
     def _get_removal_strategy(self, product_id, location_id):
         product_id = product_id.sudo()
-        location_id = location_id.sudo()
         if product_id.categ_id.removal_strategy_id:
             return product_id.categ_id.removal_strategy_id.with_context(
                 lang=None
             ).method
-        loc = location_id
-        while loc:
-            if loc.removal_strategy_id:
-                return loc.removal_strategy_id.with_context(lang=None).method
-            loc = loc.location_id
+        location_id = location_id.sudo()
+        # The nearest ancestor location carrying a strategy wins, else fifo. Rather
+        # than climb the tree one `location_id` read per level, resolve the whole
+        # chain from the materialised `parent_path` ("/"-joined ids, root-first, self
+        # last) and browse it at once: the first `removal_strategy_id` access
+        # prefetches the column for every ancestor in a single query. Falls back to
+        # the climb only if `parent_path` is not set yet (transient during creation).
+        if location_id.parent_path:
+            ancestor_ids = [int(i) for i in location_id.parent_path.split("/") if i]
+            for loc in self.env["stock.location"].browse(ancestor_ids[::-1]):
+                if loc.removal_strategy_id:
+                    return loc.removal_strategy_id.with_context(lang=None).method
+        else:
+            loc = location_id
+            while loc:
+                if loc.removal_strategy_id:
+                    return loc.removal_strategy_id.with_context(lang=None).method
+                loc = loc.location_id
         return "fifo"
 
     @api.model
@@ -2092,6 +2214,7 @@ class StockQuant(models.Model):
             owner_id=owner_id,
             strict=strict,
             qty=quantity,
+            removal_strategy=removal_strategy,
         )
 
         # allow_negative defaults to False: quants left negative by another lot/package
@@ -2112,6 +2235,7 @@ class StockQuant(models.Model):
             owner_id,
             strict,
             gathered_quants=None if removal_strategy == "least_packages" else quants,
+            removal_strategy=removal_strategy,
         )
 
         # Packaging with a "full" reserve method can only reserve whole packages.
@@ -2146,16 +2270,20 @@ class StockQuant(models.Model):
             if product_id.uom_id.compare(quantity, int(quantity)) != 0:
                 quantity = 0
 
-        reserved_quants = []
-
-        if product_id.uom_id.compare(quantity, 0) > 0:
+        # Size the running budget from the aggregate of the whole gathered set (the
+        # reserve branch draws it down; the unreserve branch guards against releasing
+        # more than is reserved), then hand the per-candidate allocation to the pure
+        # `_distribute_reservation`. The `raise` and the ORM aggregates stay here; the
+        # DB-free arithmetic lives in the extracted function.
+        cmp_quantity = product_id.uom_id.compare(quantity, 0)
+        if cmp_quantity > 0:
             # Positive quantity means reserving.
             available_quantity = sum(
                 quants.filtered(
                     lambda q: product_id.uom_id.compare(q.quantity, 0) > 0
                 ).mapped("quantity")
             ) - sum(quants.mapped("reserved_quantity"))
-        elif product_id.uom_id.compare(quantity, 0) < 0:
+        elif cmp_quantity < 0:
             # Negative quantity means unreserving.
             available_quantity = sum(quants.mapped("reserved_quantity"))
             if product_id.uom_id.compare(abs(quantity), available_quantity) > 0:
@@ -2166,49 +2294,18 @@ class StockQuant(models.Model):
                     )
                 )
         else:
-            return reserved_quants
+            return []
 
-        # Group already-over-reserved (negative available) quantity by characteristics, so it can
-        # be absorbed first instead of letting other quants in the same group over-reserve too.
-        negative_reserved_quantity = defaultdict(float)
-        for quant in quants:
-            if (
-                product_id.uom_id.compare(quant.quantity - quant.reserved_quantity, 0)
-                < 0
-            ):
-                negative_reserved_quantity[quant._reservation_key()] += (
-                    quant.quantity - quant.reserved_quantity
-                )
-        for quant in quants:
-            if product_id.uom_id.compare(quantity, 0) > 0:
-                max_quantity_on_quant = quant.quantity - quant.reserved_quantity
-                if product_id.uom_id.compare(max_quantity_on_quant, 0) <= 0:
-                    continue
-                key = quant._reservation_key()
-                negative_quantity = negative_reserved_quantity[key]
-                if negative_quantity:
-                    negative_qty_to_remove = min(
-                        abs(negative_quantity), max_quantity_on_quant
-                    )
-                    negative_reserved_quantity[key] += negative_qty_to_remove
-                    max_quantity_on_quant -= negative_qty_to_remove
-                if product_id.uom_id.compare(max_quantity_on_quant, 0) <= 0:
-                    continue
-                max_quantity_on_quant = min(max_quantity_on_quant, quantity)
-                reserved_quants.append((quant, max_quantity_on_quant))
-                quantity -= max_quantity_on_quant
-                available_quantity -= max_quantity_on_quant
-            else:
-                max_quantity_on_quant = min(quant.reserved_quantity, abs(quantity))
-                reserved_quants.append((quant, -max_quantity_on_quant))
-                quantity += max_quantity_on_quant
-                available_quantity += max_quantity_on_quant
-
-            if product_id.uom_id.is_zero(quantity) or product_id.uom_id.is_zero(
-                available_quantity
-            ):
-                break
-        return reserved_quants
+        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        candidates = [
+            _ReservationCandidate(
+                quant, quant.quantity, quant.reserved_quantity, quant._reservation_key()
+            )
+            for quant in quants
+        ]
+        return _distribute_reservation(
+            candidates, quantity, available_quantity, precision_digits
+        )
 
     @api.model
     def _merge_quants(self):

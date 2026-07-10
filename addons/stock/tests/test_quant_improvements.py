@@ -2,8 +2,10 @@ from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.stock.models.stock_quant import (
+    _distribute_reservation,
     _least_packages_search,
     _LeastPackagesPriorityQueue,
+    _ReservationCandidate,
 )
 from odoo.addons.stock.tests.common import TestStockCommon
 
@@ -74,6 +76,73 @@ class TestLeastPackagesSearch(TransactionCase):
         self.assertIs(pq.get(), second)
         self.assertIs(pq.get(), third)
         self.assertTrue(pq.empty())
+
+
+@tagged("post_install", "-at_install")
+class TestDistributeReservation(TransactionCase):
+    """Pure, DB-free unit tests for the extracted reservation allocator.
+
+    `_distribute_reservation(candidates, quantity, available_quantity, digits)`
+    returns a list of `(handle, amount)` pairs. Candidates are
+    `_ReservationCandidate(handle, on_hand, reserved, key)` in removal-strategy
+    order; `handle`/`key` are opaque, so plain strings stand in for quants here.
+    """
+
+    DIGITS = 2
+
+    def _cand(self, handle, on_hand, reserved, key=None):
+        # Default each candidate to its own key (no interchangeable grouping).
+        return _ReservationCandidate(handle, on_hand, reserved, key or handle)
+
+    def test_zero_quantity_is_noop(self):
+        cands = [self._cand("a", 10, 0)]
+        self.assertEqual(_distribute_reservation(cands, 0, 10, self.DIGITS), [])
+
+    def test_reserve_stops_at_quantity(self):
+        # Two quants of 10 available; reserve 8 -> all from the first.
+        cands = [self._cand("a", 10, 0), self._cand("b", 10, 0)]
+        res = _distribute_reservation(cands, 8, 20, self.DIGITS)
+        self.assertEqual(res, [("a", 8)])
+
+    def test_reserve_spans_multiple_candidates(self):
+        cands = [self._cand("a", 5, 0), self._cand("b", 5, 0)]
+        res = _distribute_reservation(cands, 8, 10, self.DIGITS)
+        self.assertEqual(res, [("a", 5), ("b", 3)])
+
+    def test_reserve_skips_fully_reserved(self):
+        # First quant has no slack; allocation moves to the second.
+        cands = [self._cand("a", 5, 5), self._cand("b", 5, 0)]
+        res = _distribute_reservation(cands, 3, 5, self.DIGITS)
+        self.assertEqual(res, [("b", 3)])
+
+    def test_reserve_entire_available_budget(self):
+        # Reserving exactly the whole available budget drains both quants and stops
+        # cleanly (the caller pre-caps quantity to available, so they hit zero together).
+        cands = [self._cand("a", 4, 1), self._cand("b", 5, 0)]  # slack 3 + 5 = 8
+        res = _distribute_reservation(cands, 8, 8, self.DIGITS)
+        self.assertEqual(res, [("a", 3), ("b", 5)])
+
+    def test_negative_available_absorbed_within_group(self):
+        """A quant over-reserved into negative available must be absorbed by the
+        positive slack of another quant sharing its key, before that slack is used
+        to reserve fresh quantity."""
+        # a: -3 available (over-reserved), b: +10 available, same key "g".
+        cands = [self._cand("a", 2, 5, key="g"), self._cand("b", 10, 0, key="g")]
+        # Reserve 4. b's 10 slack first absorbs a's 3 negative, leaving 7 to reserve.
+        res = _distribute_reservation(cands, 4, 7, self.DIGITS)
+        self.assertEqual(res, [("b", 4)])
+
+    def test_negative_available_not_absorbed_across_groups(self):
+        # a's negative belongs to key "g1"; b is "g2" and must not absorb it.
+        cands = [self._cand("a", 2, 5, key="g1"), self._cand("b", 10, 0, key="g2")]
+        res = _distribute_reservation(cands, 4, 7, self.DIGITS)
+        self.assertEqual(res, [("b", 4)])
+
+    def test_unreserve_releases_up_to_reserved(self):
+        # Negative quantity releases reservations, capped per candidate at `reserved`.
+        cands = [self._cand("a", 10, 4), self._cand("b", 10, 4)]
+        res = _distribute_reservation(cands, -6, 8, self.DIGITS)
+        self.assertEqual(res, [("a", -4), ("b", -2)])
 
 
 @tagged("post_install", "-at_install")
@@ -553,6 +622,99 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(
             n, 2, "least_packages must re-gather the full set for availability"
         )
+
+    def _count_strategy_calls(self, fn):
+        import odoo.addons.stock.models.stock_quant as _sq
+
+        orig = _sq.StockQuant._get_removal_strategy
+        calls = {"n": 0}
+
+        def spy(records, *args, **kwargs):
+            calls["n"] += 1
+            return orig(records, *args, **kwargs)
+
+        _sq.StockQuant._get_removal_strategy = spy
+        try:
+            fn()
+        finally:
+            _sq.StockQuant._get_removal_strategy = orig
+        return calls["n"]
+
+    def test_reserve_resolves_strategy_once_fifo(self):
+        """The removal strategy must be resolved exactly once per reservation: the
+        gather and the availability computation both receive the pre-resolved value
+        instead of each re-walking the category + location parent chain."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-strat-fifo", "is_storable": True}
+        )
+        self.Quant._update_available_quantity(product, self.loc, 20.0)
+        self.env.cr.flush()
+        self.env.invalidate_all()
+        n = self._count_strategy_calls(
+            lambda: self.Quant._get_reserve_quantity(
+                product, self.loc, 5.0, strict=False
+            )
+        )
+        self.assertEqual(n, 1, "fifo reservation must resolve the strategy once")
+
+    def test_reserve_resolves_strategy_once_least_packages(self):
+        """least_packages re-gathers for availability, but that re-gather must still
+        reuse the already-resolved strategy — one resolution total, not three."""
+        strat = self.env["product.removal"].search(
+            [("method", "=", "least_packages")], limit=1
+        )
+        categ = self.env["product.category"].create(
+            {"name": "qimp-strat-lp", "removal_strategy_id": strat.id}
+        )
+        product = self.env["product.product"].create(
+            {"name": "qimp-strat-lp-prod", "is_storable": True, "categ_id": categ.id}
+        )
+        pkg1 = self.env["stock.package"].create({"name": "QIMP-SLP1"})
+        pkg2 = self.env["stock.package"].create({"name": "QIMP-SLP2"})
+        self.Quant._update_available_quantity(product, self.loc, 5.0, package_id=pkg1)
+        self.Quant._update_available_quantity(product, self.loc, 5.0, package_id=pkg2)
+        self.env.cr.flush()
+        self.env.invalidate_all()
+        n = self._count_strategy_calls(
+            lambda: self.Quant._get_reserve_quantity(
+                product, self.loc, 5.0, strict=False
+            )
+        )
+        self.assertEqual(
+            n, 1, "least_packages reservation must resolve the strategy once"
+        )
+
+    def test_removal_strategy_nearest_ancestor_via_parent_path(self):
+        """_get_removal_strategy resolves the location chain through parent_path: the
+        nearest ancestor carrying a strategy wins over a farther one, and the
+        location's own strategy wins over every ancestor."""
+        lifo = self.env["product.removal"].search([("method", "=", "lifo")], limit=1)
+        closest = self.env["product.removal"].search(
+            [("method", "=", "closest")], limit=1
+        )
+        parent = self.loc
+        chain = []
+        for i in range(4):
+            parent = self.env["stock.location"].create(
+                {"name": f"anc-{i}", "location_id": parent.id}
+            )
+            chain.append(parent)
+        self.env.cr.flush()
+        deep = chain[-1]
+        product = self.env["product.product"].create(
+            {"name": "anc-prod", "is_storable": True}
+        )
+        # Farther ancestor closest, nearer ancestor lifo -> nearer (lifo) wins.
+        chain[0].removal_strategy_id = closest
+        chain[2].removal_strategy_id = lifo
+        self.env.cr.flush()
+        self.env.invalidate_all()
+        self.assertEqual(self.Quant._get_removal_strategy(product, deep), "lifo")
+        # The location's own strategy beats every ancestor.
+        deep.removal_strategy_id = closest
+        self.env.cr.flush()
+        self.env.invalidate_all()
+        self.assertEqual(self.Quant._get_removal_strategy(product, deep), "closest")
 
     # ---- C3: action_apply_all degrades gracefully without active_domain ----------
     def test_action_apply_all_without_active_domain(self):
