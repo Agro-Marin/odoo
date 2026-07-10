@@ -714,7 +714,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
         self.env['stock.quant']._update_available_quantity(component, self.warehouse.lot_stock_id, total_component_quantity)
         # Check quantity was updated
-        self.assertEqual(component.virtual_available, total_component_quantity)
+        self.assertEqual(component.qty_available_virtual, total_component_quantity)
         self.assertEqual(component.qty_available, total_component_quantity)
 
         quantity_before_move = self.env['stock.quant']._get_available_quantity(component, self.subcontractor_partner1.property_stock_subcontractor, allow_negative=True)

@@ -187,7 +187,7 @@ export class ForecastedDetails extends Component {
             const isReconciledSplittedLine = this.ReconciledLinesPerProduct[line.product.id] && !this.isReconciled(line) && this.ReconciledLinesPerProduct[line.product.id].some(l => this.sameDocumentOut(l, line))
             splittedLine = sameProduct && (this.sameDocumentOut(line, previousLine) || isOnHandSplittedLine || isReconciledSplittedLine);
         }
-        const hasFreeStock = this.props.docs.product[line.product.id].free_qty > 0;
+        const hasFreeStock = this.props.docs.product[line.product.id].qty_free > 0;
         return this.props.docs.user_can_edit_pickings && !line.in_transit && this.canReserveOperation(line) &&
             (this.isOnHand(line) || (hasFreeStock && !splittedLine));
     }
@@ -198,7 +198,7 @@ export class ForecastedDetails extends Component {
 
     futureVirtualAvailable(line) {
         const product = this.props.docs.product[line.product.id]
-        return product.virtual_available + product.qty.in - product.qty.out;
+        return product.qty_available_virtual + product.qty.in - product.qty.out;
     }
 
     sameDocumentIn(line1, line2){

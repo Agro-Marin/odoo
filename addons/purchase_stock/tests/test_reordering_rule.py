@@ -182,8 +182,8 @@ class TestReorderingRule(TransactionCase):
 
         # picking confirm
         customer_picking.action_confirm()
-        self.assertEqual(self.product_01.with_context(location=subloc_1.id).virtual_available, -10)
-        self.assertEqual(self.product_01.with_context(location=subloc_2.id).virtual_available, -10)
+        self.assertEqual(self.product_01.with_context(location=subloc_1.id).qty_available_virtual, -10)
+        self.assertEqual(self.product_01.with_context(location=subloc_2.id).qty_available_virtual, -10)
 
         # Run scheduler
         self.env['stock.rule'].run_scheduler()
@@ -196,14 +196,14 @@ class TestReorderingRule(TransactionCase):
         # increment the qty of the first po line
         purchase_order.line_ids.filtered(lambda pol: pol.orderpoint_id == order_point_1).product_qty = 15
         purchase_order.action_confirm()
-        self.assertEqual(self.product_01.with_context(location=subloc_1.id).virtual_available, 5)
-        self.assertEqual(self.product_01.with_context(location=subloc_2.id).virtual_available, 0)
+        self.assertEqual(self.product_01.with_context(location=subloc_1.id).qty_available_virtual, 5)
+        self.assertEqual(self.product_01.with_context(location=subloc_2.id).qty_available_virtual, 0)
 
         # increment the qty of the second po line
         purchase_order.line_ids.filtered(lambda pol: pol.orderpoint_id == order_point_2).product_qty = 15
-        self.assertEqual(self.product_01.with_context(location=subloc_1.id).virtual_available, 5)
-        self.assertEqual(self.product_01.with_context(location=subloc_2.id).virtual_available, 5)
-        self.assertEqual(self.product_01.with_context(location=warehouse_1.lot_stock_id.id).virtual_available, 10)  # 5 on the subloc_2, 5 on subloc_1
+        self.assertEqual(self.product_01.with_context(location=subloc_1.id).qty_available_virtual, 5)
+        self.assertEqual(self.product_01.with_context(location=subloc_2.id).qty_available_virtual, 5)
+        self.assertEqual(self.product_01.with_context(location=warehouse_1.lot_stock_id.id).qty_available_virtual, 10)  # 5 on the subloc_2, 5 on subloc_1
 
     def test_reordering_rule_3(self):
         """
@@ -908,7 +908,7 @@ class TestReorderingRule(TransactionCase):
 
         # invalidate the fields that will eventually be inconsistent
         orderpoint.invalidate_model(fnames=['qty_forecast', 'qty_to_order'])
-        orderpoint.product_id.invalidate_model(fnames=['virtual_available'])
+        orderpoint.product_id.invalidate_model(fnames=['qty_available_virtual'])
 
         delivery.date_planned += td(days=7)
         self.assertRecordValues(orderpoint, [
@@ -1062,7 +1062,7 @@ class TestReorderingRule(TransactionCase):
         move._action_confirm()
 
         # virtual available is -1 but we need to replenish 2
-        self.product_01.virtual_available = -1
+        self.product_01.qty_available_virtual = -1
         self.assertEqual(op.qty_to_order, 1, 'sale order is ignored')
 
     def test_reordering_rule_horizon_days_display(self):

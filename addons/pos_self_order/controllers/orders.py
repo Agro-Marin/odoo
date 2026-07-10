@@ -117,12 +117,12 @@ class PosSelfOrderController(http.Controller):
 
             for line in child_lines:
                 qty_free = max(0, max_free - free_count)
-                free_qty = min(line.qty, qty_free)
-                extra_qty = line.qty - free_qty
+                qty_free = min(line.qty, qty_free)
+                extra_qty = line.qty - qty_free
 
-                if free_qty > 0:
+                if qty_free > 0:
                     child_line_free.append(line)
-                    free_count += free_qty
+                    free_count += qty_free
 
                 if extra_qty > 0:
                     child_line_extra.append(line)

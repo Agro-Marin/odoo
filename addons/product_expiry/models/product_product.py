@@ -11,7 +11,7 @@ class ProductProduct(models.Model):
     def _prepare_quantities_vals(self, lot_id, owner_id, package_id, from_date=False, to_date=False):
         return super(ProductProduct, self.with_context(with_expiration=datetime.date.today()))._prepare_quantities_vals(lot_id, owner_id, package_id, from_date, to_date)
 
-    free_qty = fields.Float(help="Available quantity (computed as Quantity On Hand "
+    qty_free = fields.Float(help="Available quantity (computed as Quantity On Hand "
              "- reserved quantity - quantity to remove)\n"
              "In a context with a single Stock Location, this includes "
              "goods stored in this location, or any of its children.\n"
@@ -21,7 +21,7 @@ class ProductProduct(models.Model):
              "Otherwise, this includes goods stored in any Stock Location "
              "with 'internal' type.")
 
-    virtual_available = fields.Float(help="Forecast quantity (computed as Quantity On Hand "
+    qty_available_virtual = fields.Float(help="Forecast quantity (computed as Quantity On Hand "
              "- Outgoing + Incoming - Quantity to Remove)\n"
              "In a context with a single Stock Location, this includes "
              "goods stored in this location, or any of its children.\n"

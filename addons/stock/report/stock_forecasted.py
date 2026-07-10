@@ -110,10 +110,10 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 res["product"][product.id] = {
                     "uom": product.uom_id.display_name,
                     "quantity_on_hand": product.qty_available,
-                    "virtual_available": product.virtual_available,
-                    "free_qty": product.free_qty,
-                    "incoming_qty": product.incoming_qty,
-                    "outgoing_qty": product.outgoing_qty,
+                    "qty_available_virtual": product.qty_available_virtual,
+                    "qty_free": product.qty_free,
+                    "qty_incoming": product.qty_incoming,
+                    "qty_outgoing": product.qty_outgoing,
                     "qty": {
                         "in": 0.0,
                         "out": 0.0,

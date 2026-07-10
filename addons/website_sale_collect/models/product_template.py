@@ -49,7 +49,7 @@ class ProductTemplate(models.Model):
             else:
                 res['in_store_stock_data'] = utils.format_product_stock_values(
                     product_or_template.sudo(),
-                    free_qty=website.sudo()._get_max_in_store_product_available_qty(
+                    qty_free=website.sudo()._get_max_in_store_product_available_qty(
                         product_or_template.sudo()
                     )
                 )

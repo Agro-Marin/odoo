@@ -10,7 +10,7 @@
             <field name="id" position="after">
                 <field name="type" />
                 <field name="qty_available" />
-                <field name="virtual_available" />
+                <field name="qty_available_virtual" />
                 <field name="monthly_demand" />
                 <field name="suggested_qty" />
             </field>
@@ -19,11 +19,11 @@
             </t>
             <t name="qty_available" position="after">
                 <t name="qty_forecasted"
-                    t-if="record.qty_available.raw_value != record.virtual_available.raw_value">
+                    t-if="record.qty_available.raw_value != record.qty_available_virtual.raw_value">
                     <span> / </span>
                     <span class="fw-bold"
-                        t-att-class="record.virtual_available.raw_value &lt; 0 ? 'text-danger' : ''"
-                        t-out="record.virtual_available.raw_value" name="o_kanban_forecasted_qty" />
+                        t-att-class="record.qty_available_virtual.raw_value &lt; 0 ? 'text-danger' : ''"
+                        t-out="record.qty_available_virtual.raw_value" name="o_kanban_forecasted_qty" />
                     <span class="text-muted small ms-1">Forecasted</span>
                 </t>
             </t>
@@ -60,7 +60,7 @@
                     domain="[('suggested_qty', '!=', 0)]" />
                 <separator />
                 <filter name="products_with_negative_forecast" string="To Order"
-                    domain="[('virtual_available', '&lt;', 0)]" />
+                    domain="[('qty_available_virtual', '&lt;', 0)]" />
                 <separator />
             </xpath>
         </field>

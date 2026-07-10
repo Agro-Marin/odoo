@@ -24,9 +24,9 @@ class ProductProduct(models.Model):
         """
         self.ensure_one()
         if self.is_storable and not self.allow_out_of_stock_order:
-            free_qty = website._get_product_available_qty(self.sudo(), **kwargs)
+            qty_free = website._get_product_available_qty(self.sudo(), **kwargs)
             cart_qty = sale_order._get_cart_qty(self.id)
-            return free_qty - cart_qty
+            return qty_free - cart_qty
         return None
 
     def _is_sold_out(self):
@@ -41,8 +41,8 @@ class ProductProduct(models.Model):
         self.ensure_one()
         if not self.is_storable or self.allow_out_of_stock_order:
             return False
-        free_qty = self.env['website'].get_current_website()._get_product_available_qty(self.sudo())
-        return free_qty <= 0
+        qty_free = self.env['website'].get_current_website()._get_product_available_qty(self.sudo())
+        return qty_free <= 0
 
     def _website_show_quick_add(self):
         return not self._is_sold_out() and super()._website_show_quick_add()

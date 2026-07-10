@@ -112,7 +112,7 @@ class StockMove(models.Model):
     )
     product_virtual_available = fields.Float(
         "Product Forecasted Quantity",
-        related="product_id.virtual_available",
+        related="product_id.qty_available_virtual",
         depends=["product_id"],
     )
     manual_consumption = fields.Boolean(
@@ -878,11 +878,11 @@ class StockMove(models.Model):
                 # Due to multi-step only the last move of each chain should be considered
                 incoming_moves = bom_line_moves.filtered(filters["incoming_moves"])
                 final_incoming_moves = incoming_moves - incoming_moves.move_orig_ids
-                incoming_qty = sum(final_incoming_moves.mapped(get_qty))
+                qty_incoming = sum(final_incoming_moves.mapped(get_qty))
                 outgoing_moves = bom_line_moves.filtered(filters["outgoing_moves"])
                 final_outgoing_moves = outgoing_moves - outgoing_moves.move_orig_ids
-                outgoing_qty = sum(final_outgoing_moves.mapped(get_qty))
-                qty_processed = incoming_qty - outgoing_qty
+                qty_outgoing = sum(final_outgoing_moves.mapped(get_qty))
+                qty_processed = qty_incoming - qty_outgoing
                 # We compute a ratio to know how many kits we can produce with this quantity of that specific component
                 qty_ratios.append(
                     bom_line.product_id.uom_id.round(qty_processed / qty_per_kit)

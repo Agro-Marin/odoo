@@ -41,7 +41,7 @@ class TestWebsiteSaleStockProductTemplate(HttpCase, WebsiteSaleStockCommon):
                 pricelist=self.pricelist,
             )
 
-        self.assertEqual(configurator_data['free_qty'], 10)
+        self.assertEqual(configurator_data['qty_free'], 10)
 
     def test_get_additional_combination_info_max_combo_quantity_with_max(self):
         product_a = self.product_oos_order_not_allowed
@@ -120,4 +120,4 @@ class TestWebsiteSaleStockProductTemplate(HttpCase, WebsiteSaleStockCommon):
                 date=datetime(2000, 1, 1),
                 website=self.website,
             )
-        self.assertEqual(combination_info['free_qty'], 1)
+        self.assertEqual(combination_info['qty_free'], 1)

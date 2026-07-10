@@ -41,9 +41,9 @@ class ProductProduct(models.Model):
         self.suggested_qty = 0
         if ctx.get("suggest_based_on") == "actual_demand":
             for product in self:
-                if product.virtual_available >= 0:
+                if product.qty_available_virtual >= 0:
                     continue
-                qty = -product.virtual_available * ctx.get("suggest_percent", 0) / 100
+                qty = -product.qty_available_virtual * ctx.get("suggest_percent", 0) / 100
                 product.suggested_qty = max(
                     float_round(qty, precision_digits=0, rounding_method="UP"),
                     0,
@@ -61,7 +61,7 @@ class ProductProduct(models.Model):
                     * ctx.get("suggest_percent", 0)
                     / 100
                 )
-                qty -= max(product.qty_available, 0) + max(product.incoming_qty, 0)
+                qty -= max(product.qty_available, 0) + max(product.qty_incoming, 0)
                 product.suggested_qty = max(
                     float_round(qty, precision_digits=0, rounding_method="UP"),
                     0,

@@ -71,7 +71,7 @@ class ProductTemplate(models.Model):
                 to_unit=uom,
                 round=False,
             )
-            free_qty = float_round(computed_qty, precision_digits=0, rounding_method='DOWN')
+            qty_free = float_round(computed_qty, precision_digits=0, rounding_method='DOWN')
             has_stock_notification = (
                 product_sudo._has_stock_notification(self.env.user.partner_id)
                 or (
@@ -89,7 +89,7 @@ class ProductTemplate(models.Model):
                     to_unit=uom,
                 )
             res.update({
-                'free_qty': free_qty,
+                'qty_free': qty_free,
                 'cart_qty': cart_quantity,
                 'uom_name': uom.name,
                 'uom_rounding': uom.rounding,
@@ -100,7 +100,7 @@ class ProductTemplate(models.Model):
             })
         else:
             res.update({
-                'free_qty': 0,
+                'qty_free': 0,
                 'cart_qty': 0,
             })
 
@@ -131,5 +131,5 @@ class ProductTemplate(models.Model):
             if max_quantity is not None:
                 if uom:
                     max_quantity = product_or_template.uom_id._compute_quantity(max_quantity, to_unit=uom)
-                data['free_qty'] = max_quantity
+                data['qty_free'] = max_quantity
         return data

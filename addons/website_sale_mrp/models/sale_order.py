@@ -54,8 +54,8 @@ class SaleOrder(models.Model):
 
         if product.is_kits:
             # If the product is a kit, recompute availability based on the availability of its components.
-            max_free_kit_qty = free_qty = product.sudo().free_qty
+            max_free_kit_qty = qty_free = product.sudo().qty_free
             for component, unavailable_component_qty in unavailable_component_qties.items():
-                max_free_kit_qty = min(max_free_kit_qty, (component.free_qty - unavailable_component_qty) // qty_per_kit[component])
-            unavailable_qty += free_qty - max_free_kit_qty
+                max_free_kit_qty = min(max_free_kit_qty, (component.qty_free - unavailable_component_qty) // qty_per_kit[component])
+            unavailable_qty += qty_free - max_free_kit_qty
         return unavailable_qty

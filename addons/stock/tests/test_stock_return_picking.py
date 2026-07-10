@@ -417,7 +417,7 @@ class TestReturnPicking(TestStockCommon):
 
         # Product received: both on-hand and forecasted quantities should be 10
         self.assertEqual(self.productA.qty_available, 10)
-        self.assertEqual(self.productA.virtual_available, 10)
+        self.assertEqual(self.productA.qty_available_virtual, 10)
 
         return_picking_wizard = (
             self.env["stock.return.picking"]
@@ -438,10 +438,10 @@ class TestReturnPicking(TestStockCommon):
 
         # 2 products returned: on-hand = 8, forecasted = 10
         self.assertEqual(self.productA.qty_available, 8)
-        self.assertEqual(self.productA.virtual_available, 10)
+        self.assertEqual(self.productA.qty_available_virtual, 10)
 
         exchange_picking.button_validate()
 
         # 2 exchanged products received: both on-hand and forecasted quantities should be 10
         self.assertEqual(self.productA.qty_available, 10)
-        self.assertEqual(self.productA.virtual_available, 10)
+        self.assertEqual(self.productA.qty_available_virtual, 10)

@@ -88,7 +88,7 @@ class StockReplenishmentInfo(models.TransientModel):
                         for route_id in replenishment_info.warehouseinfo_ids
                     ],
                 )
-                .sorted(lambda o: o.free_qty, reverse=True)
+                .sorted(lambda o: o.qty_free, reverse=True)
             )
 
     def _get_lead_days_and_description(self):
@@ -331,16 +331,16 @@ class StockReplenishmentOption(models.TransientModel):
     )
     uom = fields.Char(related="product_id.uom_name")
     qty_to_order = fields.Float(related="replenishment_info_id.qty_to_order")
-    free_qty = fields.Float(compute="_compute_free_qty")
+    qty_free = fields.Float(compute="_compute_free_qty")
     lead_time = fields.Char(compute="_compute_lead_time")
     warning_message = fields.Char(compute="_compute_warning_message")
 
     @api.depends("product_id", "route_id")
     def _compute_free_qty(self):
         for record in self:
-            record.free_qty = record.product_id.with_context(
+            record.qty_free = record.product_id.with_context(
                 location=record.location_id.id
-            ).free_qty
+            ).qty_free
 
     @api.depends("replenishment_info_id")
     def _compute_lead_time(self):
@@ -358,21 +358,21 @@ class StockReplenishmentOption(models.TransientModel):
             )
             record.lead_time = _("%s days", delay)
 
-    @api.depends("warehouse_id", "free_qty", "uom", "qty_to_order")
+    @api.depends("warehouse_id", "qty_free", "uom", "qty_to_order")
     def _compute_warning_message(self):
         self.warning_message = ""
         for record in self:
-            if record.free_qty < record.qty_to_order:
+            if record.qty_free < record.qty_to_order:
                 record.warning_message = _(
                     "%(warehouse)s can only provide %(free_qty)s %(uom)s, while the quantity to order is %(qty_to_order)s %(uom)s.",
                     warehouse=record.warehouse_id.name,
-                    free_qty=record.free_qty,
+                    free_qty=record.qty_free,
                     uom=record.uom,
                     qty_to_order=record.qty_to_order,
                 )
 
     def select_route(self):
-        if self.free_qty < self.qty_to_order:
+        if self.qty_free < self.qty_to_order:
             return {
                 "type": "ir.actions.act_window",
                 "res_model": "stock.replenishment.option",
@@ -390,7 +390,7 @@ class StockReplenishmentOption(models.TransientModel):
 
     def order_avbl(self):
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
-        self.replenishment_info_id.orderpoint_id.qty_to_order = self.free_qty
+        self.replenishment_info_id.orderpoint_id.qty_to_order = self.qty_free
         return {"type": "ir.actions.act_window_close"}
 
     def order_all(self):

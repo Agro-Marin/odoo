@@ -49,20 +49,20 @@ class TestWebsiteSaleStockProductWarehouse(
         test_env = self.test_env
         with MockRequest(test_env, website=self.website.with_env(test_env)):
             combination_info = self.product_A.with_env(test_env)._get_combination_info_variant()
-            self.assertEqual(combination_info['free_qty'], 15)
+            self.assertEqual(combination_info['qty_free'], 15)
         with MockRequest(test_env, website=self.website.with_env(test_env)):
             combination_info = self.product_B.with_env(test_env)._get_combination_info_variant()
-            self.assertEqual(combination_info['free_qty'], 10)
+            self.assertEqual(combination_info['qty_free'], 10)
 
     def test_get_combination_info_free_qty_when_no_warehouse_is_set(self):
         self.website.warehouse_id = False
         test_env = self.test_env
         with MockRequest(test_env, website=self.website.with_env(test_env)):
             combination_info = self.product_A.with_env(test_env)._get_combination_info_variant()
-        self.assertEqual(combination_info['free_qty'], 25)
+        self.assertEqual(combination_info['qty_free'], 25)
         with MockRequest(test_env, website=self.website.with_env(test_env)):
             combination_info = self.product_B.with_env(test_env)._get_combination_info_variant()
-        self.assertEqual(combination_info['free_qty'], 10)
+        self.assertEqual(combination_info['qty_free'], 10)
 
     def test_02_update_cart_with_multi_warehouses(self):
         """ When the user updates his cart and increases a product quantity, if
@@ -84,7 +84,7 @@ class TestWebsiteSaleStockProductWarehouse(
             website_so = req.cart
             self.assertEqual(website_so, so)
             self.assertEqual(
-                website_so.line_ids.product_id.virtual_available,
+                website_so.line_ids.product_id.qty_available_virtual,
                 25,
                 "This quantity should be based on all warehouses.",
             )

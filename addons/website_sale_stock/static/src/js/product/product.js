@@ -5,7 +5,7 @@ import { Product } from '@sale/js/product/product';
 patch(Product, {
     props: {
         ...Product.props,
-        free_qty: { type: Number, optional: true },
+        qty_free: { type: Number, optional: true },
     },
 });
 

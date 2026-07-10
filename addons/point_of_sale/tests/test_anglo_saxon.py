@@ -152,7 +152,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             'location_id': self.warehouse.lot_stock_id.id,
         }).action_apply_inventory()
         self.assertEqual(self.product.total_value, 30, "Value should be (5*5 + 5*1) = 30")
-        self.assertEqual(self.product.virtual_available, 10)
+        self.assertEqual(self.product.qty_available_virtual, 10)
 
 
         self.pos_config.open_ui()

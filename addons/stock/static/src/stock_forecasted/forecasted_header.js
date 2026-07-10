@@ -61,15 +61,15 @@ export class ForecastedHeader extends Component {
     }
 
     get incomingQty() {
-        return Object.values(this.products).reduce((sum, product) => sum + product.incoming_qty, 0);
+        return Object.values(this.products).reduce((sum, product) => sum + product.qty_incoming, 0);
     }
 
     get outgoingQty() {
-        return Object.values(this.products).reduce((sum, product) => sum + product.outgoing_qty, 0);
+        return Object.values(this.products).reduce((sum, product) => sum + product.qty_outgoing, 0);
     }
 
     get virtualAvailable() {
-        return Object.values(this.products).reduce((sum, product) => sum + product.virtual_available, 0);
+        return Object.values(this.products).reduce((sum, product) => sum + product.qty_available_virtual, 0);
     }
 
     get uom() {

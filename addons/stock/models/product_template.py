@@ -117,21 +117,21 @@ class ProductTemplate(models.Model):
         inverse="_inverse_qty_available",
         search="_search_qty_available",
     )
-    virtual_available = fields.Float(
+    qty_available_virtual = fields.Float(
         string="Forecasted Quantity",
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_virtual_available",
     )
-    incoming_qty = fields.Float(
+    qty_incoming = fields.Float(
         string="Incoming",
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_incoming_qty",
     )
-    outgoing_qty = fields.Float(
+    qty_outgoing = fields.Float(
         string="Outgoing",
         digits="Product Unit",
         compute="_compute_quantities",
@@ -424,9 +424,9 @@ class ProductTemplate(models.Model):
 
     @api.depends(
         "product_variant_ids.qty_available",
-        "product_variant_ids.virtual_available",
-        "product_variant_ids.incoming_qty",
-        "product_variant_ids.outgoing_qty",
+        "product_variant_ids.qty_available_virtual",
+        "product_variant_ids.qty_incoming",
+        "product_variant_ids.qty_outgoing",
         "tracking",
     )
     # Mirror product.product._compute_quantities: the template value sums its variants'
@@ -448,33 +448,33 @@ class ProductTemplate(models.Model):
         res = self._prepare_quantities_vals()
         for template in self.with_context(skip_qty_available_update=True):
             template.qty_available = res[template.id]["qty_available"]
-            template.virtual_available = res[template.id]["virtual_available"]
-            template.incoming_qty = res[template.id]["incoming_qty"]
-            template.outgoing_qty = res[template.id]["outgoing_qty"]
+            template.qty_available_virtual = res[template.id]["qty_available_virtual"]
+            template.qty_incoming = res[template.id]["qty_incoming"]
+            template.qty_outgoing = res[template.id]["qty_outgoing"]
 
     def _prepare_quantities_vals(self):
         variants_available = {
             p["id"]: p
             for p in self.product_variant_ids._origin.read(
-                ["qty_available", "virtual_available", "incoming_qty", "outgoing_qty"],
+                ["qty_available", "qty_available_virtual", "qty_incoming", "qty_outgoing"],
             )
         }
         prod_available = {}
         for template in self:
             qty_available = 0
-            virtual_available = 0
-            incoming_qty = 0
-            outgoing_qty = 0
+            qty_available_virtual = 0
+            qty_incoming = 0
+            qty_outgoing = 0
             for p in template.product_variant_ids._origin:
                 qty_available += variants_available[p.id]["qty_available"]
-                virtual_available += variants_available[p.id]["virtual_available"]
-                incoming_qty += variants_available[p.id]["incoming_qty"]
-                outgoing_qty += variants_available[p.id]["outgoing_qty"]
+                qty_available_virtual += variants_available[p.id]["qty_available_virtual"]
+                qty_incoming += variants_available[p.id]["qty_incoming"]
+                qty_outgoing += variants_available[p.id]["qty_outgoing"]
             prod_available[template.id] = {
                 "qty_available": qty_available,
-                "virtual_available": virtual_available,
-                "incoming_qty": incoming_qty,
-                "outgoing_qty": outgoing_qty,
+                "qty_available_virtual": qty_available_virtual,
+                "qty_incoming": qty_incoming,
+                "qty_outgoing": qty_outgoing,
             }
         return prod_available
 
@@ -568,13 +568,13 @@ class ProductTemplate(models.Model):
         return self._search_variant_quantity("qty_available", operator, value)
 
     def _search_virtual_available(self, operator, value):
-        return self._search_variant_quantity("virtual_available", operator, value)
+        return self._search_variant_quantity("qty_available_virtual", operator, value)
 
     def _search_incoming_qty(self, operator, value):
-        return self._search_variant_quantity("incoming_qty", operator, value)
+        return self._search_variant_quantity("qty_incoming", operator, value)
 
     def _search_outgoing_qty(self, operator, value):
-        return self._search_variant_quantity("outgoing_qty", operator, value)
+        return self._search_variant_quantity("qty_outgoing", operator, value)
 
     @api.onchange("tracking")
     def _onchange_tracking(self):

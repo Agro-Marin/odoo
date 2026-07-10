@@ -237,23 +237,23 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=2),
         }
-        self.assertEqual(product_4.with_context(context).virtual_available, 1)
-        self.assertEqual(product_5.with_context(context).virtual_available, 2)
-        self.assertEqual(product_6.with_context(context).virtual_available, 0)
+        self.assertEqual(product_4.with_context(context).qty_available_virtual, 1)
+        self.assertEqual(product_5.with_context(context).qty_available_virtual, 2)
+        self.assertEqual(product_6.with_context(context).qty_available_virtual, 0)
 
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=4),
         }
-        self.assertEqual(product_4.with_context(context).virtual_available, -5)
-        self.assertEqual(product_5.with_context(context).virtual_available, 2)
-        self.assertEqual(product_6.with_context(context).virtual_available, 0)
+        self.assertEqual(product_4.with_context(context).qty_available_virtual, -5)
+        self.assertEqual(product_5.with_context(context).qty_available_virtual, 2)
+        self.assertEqual(product_6.with_context(context).qty_available_virtual, 0)
 
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=8),
         }
-        self.assertEqual(product_4.with_context(context).virtual_available, -5)
-        self.assertEqual(product_5.with_context(context).virtual_available, -8)
-        self.assertEqual(product_6.with_context(context).virtual_available, 0)
+        self.assertEqual(product_4.with_context(context).qty_available_virtual, -5)
+        self.assertEqual(product_5.with_context(context).qty_available_virtual, -8)
+        self.assertEqual(product_6.with_context(context).qty_available_virtual, 0)
 
         po = self.env['purchase.order'].create({'partner_id': self.vendor.id})
 
@@ -520,17 +520,17 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=6),
         }
-        self.assertEqual(product_ad.with_context(context).virtual_available, -7)
+        self.assertEqual(product_ad.with_context(context).qty_available_virtual, -7)
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=6),
             'warehouse_id': self.warehouse.id,
         }
-        self.assertEqual(product_ad.with_context(context).virtual_available, -3)
+        self.assertEqual(product_ad.with_context(context).qty_available_virtual, -3)
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=6),
             'warehouse_id': self.other_warehouse.id,
         }
-        self.assertEqual(product_ad.with_context(context).virtual_available, -4)
+        self.assertEqual(product_ad.with_context(context).qty_available_virtual, -4)
 
         # Create a PO for each warehouse and check the right quantity is added to the PO line.
         po_1 = self.env['purchase.order'].create({

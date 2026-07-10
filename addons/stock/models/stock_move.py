@@ -1051,7 +1051,7 @@ class StockMove(models.Model):
         virtual_available_dict = product_moves._forecast_prefetch_virtual_available(now)
 
         def virtual_qty(key, product_id, idx):
-            # idx 0 -> virtual_available, 1 -> free_qty; 0.0 when not prefetched.
+            # idx 0 -> qty_available_virtual, 1 -> qty_free; 0.0 when not prefetched.
             # Every direct read goes through here so the guarded/unguarded
             # accesses can never drift apart (they used to: some branches
             # indexed the dict blindly while others checked membership first).
@@ -1061,7 +1061,7 @@ class StockMove(models.Model):
         outgoing_unreserved_moves_per_warehouse = defaultdict(set)
         for move in product_moves:
             key = move._forecast_wh_date_key(now)
-            free_qty = virtual_qty(key, move.product_id.id, 1)
+            qty_free = virtual_qty(key, move.product_id.id, 1)
             if move.state == "assigned":
                 move.forecast_availability = move.product_uom._compute_quantity(
                     move.quantity,
@@ -1072,13 +1072,13 @@ class StockMove(models.Model):
             if (
                 move.state == "draft"
                 and float_compare(
-                    free_qty,
+                    qty_free,
                     move.product_qty,
                     precision_rounding=move.product_id.uom_id.rounding,
                 )
                 >= 0
             ):
-                move.forecast_availability = free_qty
+                move.forecast_availability = qty_free
                 continue
             # Note: internal moves are always `_is_consuming()` (see that
             # method), so they are handled here as outgoing/consuming. There is
@@ -1086,18 +1086,18 @@ class StockMove(models.Model):
             # unreachable.
             if move._is_consuming():
                 if move.state == "draft":
-                    free_qty = virtual_qty(key, move.product_id.id, 0)
+                    qty_free = virtual_qty(key, move.product_id.id, 0)
                     if (
                         float_compare(
-                            free_qty,
+                            qty_free,
                             move.product_qty,
                             precision_rounding=move.product_id.uom_id.rounding,
                         )
                         >= 0
                     ):
-                        move.forecast_availability = free_qty
+                        move.forecast_availability = qty_free
                         continue
-                    move.forecast_availability = free_qty - move.product_qty
+                    move.forecast_availability = qty_free - move.product_qty
                 elif move.state in ("waiting", "confirmed", "partially_available"):
                     outgoing_unreserved_moves_per_warehouse[
                         move.location_id.warehouse_id
@@ -1124,10 +1124,10 @@ class StockMove(models.Model):
         return warehouse_id, max(self.date or now, now)
 
     def _forecast_prefetch_virtual_available(self, now):
-        """Read ``virtual_available``/``free_qty`` for the moves in `self` in one
+        """Read ``qty_available_virtual``/``qty_free`` for the moves in `self` in one
         batch per ``(warehouse, date)`` context instead of once per move.
 
-        :return: {(warehouse_id, to_date): {product_id: (virtual_available, free_qty)}}
+        :return: {(warehouse_id, to_date): {product_id: (qty_available_virtual, qty_free)}}
         """
         prefetch_virtual_available = defaultdict(set)
         for move in self:
@@ -1151,13 +1151,13 @@ class StockMove(models.Model):
                 .with_context(warehouse_id=key_context[0], to_date=key_context[1])
                 .read(
                     [
-                        "virtual_available",
-                        "free_qty",
+                        "qty_available_virtual",
+                        "qty_free",
                     ],
                 )
             )
             virtual_available_dict[key_context] = {
-                res["id"]: (res["virtual_available"], res["free_qty"])
+                res["id"]: (res["qty_available_virtual"], res["qty_free"])
                 for res in read_res
             }
         return virtual_available_dict
@@ -1717,7 +1717,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                     quantity + nb_of_exceed * minimal_quantity,
                 )
         else:
-            free_qty = self.product_uom_qty - assigned_quantity
+            qty_free = self.product_uom_qty - assigned_quantity
             available_quant_domain = Domain.AND(
                 [quant_domain, Domain("location_id", "child_of", base_location.id)],
             )
@@ -1740,22 +1740,22 @@ Please change the quantity done or the rounding precision in your settings.""",
                 )
             # Since each lot needs to be represented by a move line we will by default
             # reserve at least 1 unit (in the product.uom_id) for each lot
-            free_qty -= len(new_lot_names - old_lot_names) * minimal_quantity
+            qty_free -= len(new_lot_names - old_lot_names) * minimal_quantity
             new_assigned_quantity = (
                 len(new_lot_names - old_lot_names) * minimal_quantity
             )
             for lot_name in extra_lot_names:
-                if uom.compare(free_qty, 0.0) > 0:
+                if uom.compare(qty_free, 0.0) > 0:
                     extra_qty = (
                         min(
                             available_quantity_by_lot_name[lot_name],
-                            free_qty + minimal_quantity,
+                            qty_free + minimal_quantity,
                         )
                         - minimal_quantity
                     )
                     if uom.compare(extra_qty, 0) > 0:
                         new_assigned_quantity += extra_qty
-                        free_qty -= extra_qty
+                        qty_free -= extra_qty
             quantity += max(0, new_assigned_quantity - assignable_quantity)
 
         self.update({"quantity": quantity})
@@ -3679,7 +3679,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 .with_context(location=location.id)
             )
             forecasted_qties_by_loc[location] = {
-                product.id: product.free_qty for product in products
+                product.id: product.qty_free for product in products
             }
         for move in self:
             if (
@@ -3693,12 +3693,12 @@ Please change the quantity done or the rounding precision in your settings.""",
                 quantities.append(move.product_uom_qty)
                 continue
 
-            free_qty = max(
+            qty_free = max(
                 forecasted_qties_by_loc[move.location_id][move.product_id.id]
                 - consumed_from_stock_dict[move.location_id, move.product_id.id],
                 0,
             )
-            quantity = max(move.product_qty - free_qty, 0)
+            quantity = max(move.product_qty - qty_free, 0)
             product_uom_qty = move.product_id.uom_id._compute_quantity(
                 quantity,
                 move.product_uom,
@@ -3707,7 +3707,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             quantities.append(product_uom_qty)
             consumed_from_stock_dict[move.location_id, move.product_id.id] += min(
                 move.product_qty,
-                free_qty,
+                qty_free,
             )
 
         return quantities

@@ -385,8 +385,8 @@ class ProductTemplate(models.Model):
             {'id': w.id,
             'name': w.name,
             'available_quantity': template_or_variant.with_context({'warehouse_id': w.id}).qty_available,
-            'free_qty': template_or_variant.with_context({'warehouse_id': w.id}).free_qty,
-            'forecasted_quantity': template_or_variant.with_context({'warehouse_id': w.id}).virtual_available,
+            'qty_free': template_or_variant.with_context({'warehouse_id': w.id}).qty_free,
+            'forecasted_quantity': template_or_variant.with_context({'warehouse_id': w.id}).qty_available_virtual,
             'uom': template_or_variant.uom_name}
             for w in self.env['stock.warehouse'].search([('company_id', '=', config.company_id.id)])]
 

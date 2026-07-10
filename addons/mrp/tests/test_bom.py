@@ -639,15 +639,15 @@ class TestBoM(TestMrpCommon):
             self.product_2, self.stock_location, 12.0
         )
         # The kit has no quants of its own; its qty is derived from the component: 12 // 3.
-        self.assertEqual(self.product_7_3.virtual_available, 4.0)
+        self.assertEqual(self.product_7_3.qty_available_virtual, 4.0)
         found = self.env["product.product"].search(
-            ["&", ("id", "in", self.product_7_3.ids), ("virtual_available", ">", 0)]
+            ["&", ("id", "in", self.product_7_3.ids), ("qty_available_virtual", ">", 0)]
         )
         self.assertEqual(
-            found, self.product_7_3, "kit must be found by a virtual_available search"
+            found, self.product_7_3, "kit must be found by a qty_available_virtual search"
         )
         excluded = self.env["product.product"].search(
-            ["&", ("id", "in", self.product_7_3.ids), ("virtual_available", ">", 10)]
+            ["&", ("id", "in", self.product_7_3.ids), ("qty_available_virtual", ">", 10)]
         )
         self.assertFalse(
             excluded, "kit must be excluded when its quantity fails the operator"
@@ -1401,9 +1401,9 @@ class TestBoM(TestMrpCommon):
         # Add quantities on hand to increase the 'producible_qty'
         self.env["stock.quant"]._update_available_quantity(stick, location, 2.0)
         self.env["stock.quant"]._update_available_quantity(iron, location, 3.0)
-        (stick | iron).invalidate_recordset(["free_qty"])
-        self.assertEqual(stick.free_qty, 2)
-        self.assertEqual(iron.free_qty, 3)
+        (stick | iron).invalidate_recordset(["qty_free"])
+        self.assertEqual(stick.qty_free, 2)
+        self.assertEqual(iron.qty_free, 3)
 
         # 1 quantity should work too
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
@@ -1415,9 +1415,9 @@ class TestBoM(TestMrpCommon):
         # Add a second procucible quantity
         self.env["stock.quant"]._update_available_quantity(stick, location, 2.0)
         self.env["stock.quant"]._update_available_quantity(iron, location, 3.0)
-        (stick | iron).invalidate_recordset(["free_qty"])
-        self.assertEqual(stick.free_qty, 4)
-        self.assertEqual(iron.free_qty, 6)
+        (stick | iron).invalidate_recordset(["qty_free"])
+        self.assertEqual(stick.qty_free, 4)
+        self.assertEqual(iron.qty_free, 6)
 
         # If we have 2 producible quantity, it should still work, as we requested 1 quantity
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(

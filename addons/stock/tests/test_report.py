@@ -2194,7 +2194,7 @@ class TestReports(TestReportsCommon):
         shows corresponding potential allocations when receipts have differing states.
         """
         # Creates delivery for reception report to match against
-        outgoing_qty = 100
+        qty_outgoing = 100
         delivery_form = Form(
             self.env["stock.picking"], view="stock.view_stock_picking_form"
         )
@@ -2202,14 +2202,14 @@ class TestReports(TestReportsCommon):
         delivery_form.picking_type_id = self.picking_type_out
         with delivery_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = outgoing_qty
+            move_line.product_uom_qty = qty_outgoing
         delivery = delivery_form.save()
         delivery.action_confirm()
 
         # Create 2 receipts and check its reception report values
         receipt1_qty = 5
         receipt2_qty = 3
-        incoming_qty = receipt1_qty + receipt2_qty
+        qty_incoming = receipt1_qty + receipt2_qty
         receipt_form = Form(
             self.env["stock.picking"], view="stock.view_stock_picking_form"
         )
@@ -2302,7 +2302,7 @@ class TestReports(TestReportsCommon):
         )
         self.assertEqual(
             all_lines[0]["quantity"],
-            incoming_qty,
+            qty_incoming,
             "The total amount of incoming qty to assign should be receipt1 + receipt2's qties.",
         )
         self.assertTrue(
@@ -2310,7 +2310,7 @@ class TestReports(TestReportsCommon):
             "receipts are confirmed, incoming moves should be assignable.",
         )
         report.action_assign(
-            delivery.move_ids.ids, [incoming_qty], (receipt1 | receipt2).move_ids.ids
+            delivery.move_ids.ids, [qty_incoming], (receipt1 | receipt2).move_ids.ids
         )
         mto_move = delivery.move_ids.filtered(
             lambda m: m.procure_method == "make_to_order"
@@ -2325,7 +2325,7 @@ class TestReports(TestReportsCommon):
         )
         self.assertEqual(
             mto_move.product_uom_qty,
-            incoming_qty,
+            qty_incoming,
             "Incorrect quantity split for MTO move",
         )
         self.assertEqual(mto_move.state, "waiting", "MTO move state not correctly set")
@@ -2369,17 +2369,17 @@ class TestReports(TestReportsCommon):
             {
                 "product_id": self.product.id,
                 "location_id": self.stock_location.id,
-                "inventory_quantity": outgoing_qty,
+                "inventory_quantity": qty_outgoing,
             }
         ).action_apply_inventory()
         delivery2.action_confirm()
         self.assertEqual(
             delivery2.move_ids.quantity,
-            outgoing_qty,
+            qty_outgoing,
             "Delivery move should already be reserved",
         )
         report.action_assign(
-            delivery2.move_ids.ids, [incoming_qty], (receipt1 | receipt2).move_ids.ids
+            delivery2.move_ids.ids, [qty_incoming], (receipt1 | receipt2).move_ids.ids
         )
         mto_move = delivery2.move_ids.filtered(
             lambda m: m.procure_method == "make_to_order"
@@ -2394,7 +2394,7 @@ class TestReports(TestReportsCommon):
         )
         self.assertEqual(
             mto_move.product_uom_qty,
-            incoming_qty,
+            qty_incoming,
             "Incorrect quantity split for MTO move",
         )
         self.assertEqual(
@@ -2428,7 +2428,7 @@ class TestReports(TestReportsCommon):
         total_non_mto_qty = sum(move.quantity for move in non_mto_moves)
         self.assertEqual(
             total_non_mto_qty,
-            outgoing_qty - (receipt1_qty + receipt2_qty),
+            qty_outgoing - (receipt1_qty + receipt2_qty),
             "Unassigned move should be also unreserved",
         )
 
@@ -2487,9 +2487,9 @@ class TestReports(TestReportsCommon):
         2. Delivery already has some reserved quants
         3. Receipt and delivery are not yet 'done' at time of assign/unassign
         """
-        incoming_qty = 4
-        outgoing_qty = 10
-        qty_in_stock = outgoing_qty - incoming_qty
+        qty_incoming = 4
+        qty_outgoing = 10
+        qty_in_stock = qty_outgoing - qty_incoming
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
                 "product_id": self.product.id,
@@ -2505,7 +2505,7 @@ class TestReports(TestReportsCommon):
         delivery_form.picking_type_id = self.picking_type_out
         with delivery_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = outgoing_qty
+            move_line.product_uom_qty = qty_outgoing
         delivery = delivery_form.save()
         delivery.action_confirm()
 
@@ -2516,7 +2516,7 @@ class TestReports(TestReportsCommon):
         receipt_form.picking_type_id = self.picking_type_in
         with receipt_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = incoming_qty
+            move_line.product_uom_qty = qty_incoming
         receipt = receipt_form.save()
         receipt.action_confirm()
 
@@ -2527,7 +2527,7 @@ class TestReports(TestReportsCommon):
         # check report assign
         # -------------------
         report.action_assign(
-            delivery.move_ids.ids, [incoming_qty], receipt.move_ids.ids
+            delivery.move_ids.ids, [qty_incoming], receipt.move_ids.ids
         )
         mto_move = delivery.move_ids.filtered(
             lambda m: m.procure_method == "make_to_order"
@@ -2555,7 +2555,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(len(mto_move), 1, "Only 1 delivery move should be MTO")
         self.assertEqual(
             mto_move.product_uom_qty,
-            incoming_qty,
+            qty_incoming,
             "Incorrect quantity split for MTO move",
         )
         self.assertEqual(
@@ -2568,7 +2568,7 @@ class TestReports(TestReportsCommon):
         # check that non-assigned move has correct values
         self.assertEqual(
             non_mto_move.product_uom_qty,
-            outgoing_qty - incoming_qty,
+            qty_outgoing - qty_incoming,
             "Incorrect quantity split for non-MTO move",
         )
         self.assertEqual(
@@ -2585,10 +2585,10 @@ class TestReports(TestReportsCommon):
         # ---------------------
         # check report unassign
         # ---------------------
-        report.action_unassign([mto_move.id], incoming_qty, receipt.move_ids.ids)
+        report.action_unassign([mto_move.id], qty_incoming, receipt.move_ids.ids)
         self.assertEqual(
             mto_move.product_uom_qty,
-            incoming_qty,
+            qty_incoming,
             "Move quantities should be unchanged",
         )
         self.assertEqual(
@@ -2608,8 +2608,8 @@ class TestReports(TestReportsCommon):
         2. Smaller qty is completed + backorder is made for rest
         3. Backorder qty (which is still assigned) is unassigned + re-assigned
         """
-        incoming_qty = 10
-        outgoing_qty = 8
+        qty_incoming = 10
+        qty_outgoing = 8
         orig_incoming_quantity = 4
 
         delivery_form = Form(
@@ -2619,7 +2619,7 @@ class TestReports(TestReportsCommon):
         delivery_form.picking_type_id = self.picking_type_out
         with delivery_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = outgoing_qty
+            move_line.product_uom_qty = qty_outgoing
         delivery = delivery_form.save()
         delivery.action_confirm()
 
@@ -2631,13 +2631,13 @@ class TestReports(TestReportsCommon):
         receipt_form.picking_type_id = self.picking_type_in
         with receipt_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = incoming_qty
+            move_line.product_uom_qty = qty_incoming
         receipt = receipt_form.save()
         receipt.action_confirm()
 
         report = self.env["report.stock.report_reception"]
         report.action_assign(
-            delivery.move_ids.ids, [outgoing_qty], receipt.move_ids.ids
+            delivery.move_ids.ids, [qty_outgoing], receipt.move_ids.ids
         )
         self.assertEqual(
             receipt.move_ids.move_dest_ids.ids,
@@ -2665,17 +2665,17 @@ class TestReports(TestReportsCommon):
         self.assertEqual(
             len(all_lines), 1, "The report has wrong number of outgoing moves."
         )
-        # we expect that the report won't know about original receipt done amount, so it will show outgoing_qty as assigned
+        # we expect that the report won't know about original receipt done amount, so it will show qty_outgoing as assigned
         # (rather than the remaining amount that isn't reserved). This can change if the report becomes more sophisticated
         self.assertEqual(
             all_lines[0]["quantity"],
-            incoming_qty - orig_incoming_quantity,
+            qty_incoming - orig_incoming_quantity,
             "The report doesn't have the correct qty assigned.",
         )
 
         # Unassign the amount we expect to see in the report + check split correctly happens
         report.action_unassign(
-            delivery.move_ids.ids, outgoing_qty, backorder.move_ids.ids
+            delivery.move_ids.ids, qty_outgoing, backorder.move_ids.ids
         )
         self.assertEqual(
             len(delivery.move_ids),
@@ -2708,18 +2708,18 @@ class TestReports(TestReportsCommon):
         )
         self.assertEqual(
             all_lines[0]["quantity"],
-            outgoing_qty - orig_incoming_quantity,
+            qty_outgoing - orig_incoming_quantity,
             "The report doesn't have the correct qty to assign",
         )
 
         # Re-assign the remaining delivery amount and check that everything reserves correctly in the end
         report.action_assign(
             (delivery.move_ids - reserved_move).ids,
-            [outgoing_qty - orig_incoming_quantity],
+            [qty_outgoing - orig_incoming_quantity],
             backorder.move_ids.ids,
         )
         for move in backorder.move_ids:
-            move.quantity = incoming_qty - orig_incoming_quantity
+            move.quantity = qty_incoming - orig_incoming_quantity
         backorder.move_ids.picked = True
         backorder.button_validate()
         for move in delivery.move_ids:
@@ -2735,13 +2735,13 @@ class TestReports(TestReportsCommon):
         2. Receipt is already done and then assigned
         """
 
-        incoming_qty = 4
-        outgoing_qty = 10
+        qty_incoming = 4
+        qty_outgoing = 10
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
                 "product_id": self.product.id,
                 "location_id": self.stock_location.id,
-                "inventory_quantity": outgoing_qty,
+                "inventory_quantity": qty_outgoing,
             }
         ).action_apply_inventory()
 
@@ -2752,7 +2752,7 @@ class TestReports(TestReportsCommon):
         delivery_form.picking_type_id = self.picking_type_out
         with delivery_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = outgoing_qty
+            move_line.product_uom_qty = qty_outgoing
         delivery = delivery_form.save()
         delivery.action_confirm()
 
@@ -2763,7 +2763,7 @@ class TestReports(TestReportsCommon):
         receipt_form.picking_type_id = self.picking_type_in
         with receipt_form.move_ids.new() as move_line:
             move_line.product_id = self.product
-            move_line.product_uom_qty = incoming_qty
+            move_line.product_uom_qty = qty_incoming
         receipt = receipt_form.save()
         receipt.action_confirm()
         receipt.button_validate()
@@ -2771,7 +2771,7 @@ class TestReports(TestReportsCommon):
         self.assertEqual(len(delivery.move_ids), 1)
         self.assertEqual(
             delivery.move_ids.quantity,
-            outgoing_qty,
+            qty_outgoing,
             "Delivery move should already be reserved",
         )
         report = self.env["report.stock.report_reception"]
@@ -2780,7 +2780,7 @@ class TestReports(TestReportsCommon):
         # check report assign
         # -------------------
         report.action_assign(
-            delivery.move_ids.ids, [incoming_qty], receipt.move_ids.ids
+            delivery.move_ids.ids, [qty_incoming], receipt.move_ids.ids
         )
         mto_move = delivery.move_ids.filtered(
             lambda m: m.procure_method == "make_to_order"
@@ -2806,12 +2806,12 @@ class TestReports(TestReportsCommon):
         self.assertEqual(len(mto_move), 1, "Only 1 delivery move should be MTO")
         self.assertEqual(
             mto_move.product_uom_qty,
-            incoming_qty,
+            qty_incoming,
             "Incorrect quantity split for MTO move",
         )
         self.assertEqual(
             mto_move.quantity,
-            incoming_qty,
+            qty_incoming,
             "Receipt IS done => assigned pre-reserved move reserved_qty = assigned receipt move qty",
         )
         self.assertEqual(mto_move.state, "assigned", "MTO move state not correctly set")
@@ -2819,12 +2819,12 @@ class TestReports(TestReportsCommon):
         # check that non-assigned move has correct values
         self.assertEqual(
             non_mto_move.product_uom_qty,
-            outgoing_qty - incoming_qty,
+            qty_outgoing - qty_incoming,
             "Incorrect quantity split for non-MTO move",
         )
         self.assertEqual(
             non_mto_move.quantity,
-            outgoing_qty - incoming_qty,
+            qty_outgoing - qty_incoming,
             "Remaining reserved qty not correctly linked to non-MTO move",
         )
         self.assertEqual(
@@ -2836,10 +2836,10 @@ class TestReports(TestReportsCommon):
         # ---------------------
         # check report unassign
         # ---------------------
-        report.action_unassign([mto_move.id], incoming_qty, receipt.move_ids.ids)
+        report.action_unassign([mto_move.id], qty_incoming, receipt.move_ids.ids)
         self.assertEqual(
             mto_move.product_uom_qty,
-            incoming_qty,
+            qty_incoming,
             "Move quantities should be unchanged",
         )
         self.assertEqual(

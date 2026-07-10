@@ -61,44 +61,44 @@ class TestVirtualAvailable(TestStockCommon):
         )
 
     def test_without_owner(self):
-        self.assertAlmostEqual(40.0, self.product_3.virtual_available)
+        self.assertAlmostEqual(40.0, self.product_3.qty_available_virtual)
         self.picking_out.action_assign()
         self.picking_out_2.action_assign()
-        self.assertAlmostEqual(32.0, self.product_3.virtual_available)
+        self.assertAlmostEqual(32.0, self.product_3.qty_available_virtual)
 
     def test_with_owner(self):
         prod_context = self.product_3.with_context(
             owner_id=self.user_stock_user.partner_id.id
         )
-        self.assertAlmostEqual(10.0, prod_context.virtual_available)
+        self.assertAlmostEqual(10.0, prod_context.qty_available_virtual)
         self.picking_out.action_assign()
         self.picking_out_2.action_assign()
-        self.assertAlmostEqual(5.0, prod_context.virtual_available)
+        self.assertAlmostEqual(5.0, prod_context.qty_available_virtual)
 
     def test_free_quantity(self):
-        """Test the value of product.free_qty. Free_qty = qty_on_hand - qty_reserved"""
-        self.assertAlmostEqual(40.0, self.product_3.free_qty)
+        """Test the value of product.qty_free. Free_qty = qty_on_hand - qty_reserved"""
+        self.assertAlmostEqual(40.0, self.product_3.qty_free)
         self.picking_out.action_confirm()
         self.picking_out_2.action_confirm()
-        # No reservation so free_qty is unchanged
-        self.assertAlmostEqual(40.0, self.product_3.free_qty)
+        # No reservation so qty_free is unchanged
+        self.assertAlmostEqual(40.0, self.product_3.qty_free)
         self.picking_out.action_assign()
         self.picking_out_2.action_assign()
         # 8 units are now reserved
-        self.assertAlmostEqual(32.0, self.product_3.free_qty)
+        self.assertAlmostEqual(32.0, self.product_3.qty_free)
         self.picking_out.do_unreserve()
         self.picking_out_2.do_unreserve()
         # 8 units are available again
-        self.assertAlmostEqual(40.0, self.product_3.free_qty)
+        self.assertAlmostEqual(40.0, self.product_3.qty_free)
 
     def test_archive_product_1(self):
-        """`qty_available` and `virtual_available` are computed on archived products"""
+        """`qty_available` and `qty_available_virtual` are computed on archived products"""
         self.assertTrue(self.product_3.active)
         self.assertAlmostEqual(40.0, self.product_3.qty_available)
-        self.assertAlmostEqual(40.0, self.product_3.virtual_available)
+        self.assertAlmostEqual(40.0, self.product_3.qty_available_virtual)
         self.product_3.active = False
         self.assertAlmostEqual(40.0, self.product_3.qty_available)
-        self.assertAlmostEqual(40.0, self.product_3.virtual_available)
+        self.assertAlmostEqual(40.0, self.product_3.qty_available_virtual)
 
     def test_archive_product_2(self):
         """Archiving a product should archive its reordering rules"""
@@ -324,7 +324,7 @@ class TestVirtualAvailable(TestStockCommon):
         empty = Product.create({"name": "SPQ empty", "is_storable": True})
         service = Product.create({"name": "SPQ service", "type": "service"})
         scope = (stocked + empty + service).ids
-        for field in ("virtual_available", "free_qty"):
+        for field in ("qty_available_virtual", "qty_free"):
             positive = Product.search(
                 ["&", ("id", "in", scope), (field, ">", 0)]
             )

@@ -66,7 +66,7 @@ export class QtyAtDateWidget extends Component {
             }
             this.calcData.will_be_late = data.date_planned_forecast && data.date_planned_forecast > data.date_planned;
             if (['draft', 'sent'].includes(data.state)) {
-                // Moves aren't created yet, then the forecasted is only based on virtual_available of quant
+                // Moves aren't created yet, then the forecasted is only based on qty_available_virtual of quant
                 this.calcData.forecasted_issue = !this.calcData.will_be_fulfilled && !data.is_mto;
             } else {
                 // Moves are created, using the forecasted data of related moves

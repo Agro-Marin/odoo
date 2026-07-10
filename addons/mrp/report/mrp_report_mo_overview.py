@@ -370,7 +370,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 production.product_uom_id.rounding or 0.01
             ),
             "quantity_free": product.uom_id._compute_quantity(
-                max(product.free_qty, 0), production.product_uom_id
+                max(product.qty_free, 0), production.product_uom_id
             )
             if product.is_storable
             else False,
@@ -898,7 +898,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "uom_name": move_raw.product_uom.display_name,
             "uom_precision": self._get_uom_precision(move_raw.product_uom.rounding),
             "quantity_free": product.uom_id._compute_quantity(
-                max(product.free_qty, 0), move_raw.product_uom
+                max(product.qty_free, 0), move_raw.product_uom
             )
             if product.is_storable
             else False,
@@ -977,10 +977,10 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         reserved_quantity = self._get_reserved_qty(move, warehouse, replenish_data)
         missing_quantity = move.product_uom_qty - reserved_quantity
-        free_qty = product.uom_id._compute_quantity(product.free_qty, move.product_uom)
+        qty_free = product.uom_id._compute_quantity(product.qty_free, move.product_uom)
         if move.product_uom.compare(missing_quantity, 0.0) <= 0 or (
             not has_to_order_line
-            and move.product_uom.compare(missing_quantity, free_qty) <= 0
+            and move.product_uom.compare(missing_quantity, qty_free) <= 0
         ):
             return self._format_receipt_date("available")
 
@@ -1161,17 +1161,17 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             total_ordered += in_transit_line["summary"]["quantity"]
             replenishments.append(in_transit_line)
 
-        # Avoid creating a "to_order" line to compensate for missing stock (i.e. negative free_qty).
-        free_qty = max(
-            0, product.uom_id._compute_quantity(product.free_qty, move_raw.product_uom)
+        # Avoid creating a "to_order" line to compensate for missing stock (i.e. negative qty_free).
+        qty_free = max(
+            0, product.uom_id._compute_quantity(product.qty_free, move_raw.product_uom)
         )
-        available_qty = reserved_quantity + free_qty + total_ordered
+        available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
         qty_in_bom_uom = production.product_uom_id._compute_quantity(
             production.product_qty, production.bom_id.product_uom_id
         )
         bom_missing_quantity = qty_in_bom_uom * move_raw.bom_line_id.product_qty - (
-            reserved_quantity + free_qty + total_ordered
+            reserved_quantity + qty_free + total_ordered
         )
 
         if (

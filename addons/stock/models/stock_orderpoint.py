@@ -678,7 +678,7 @@ class StockWarehouseOrderpoint(models.Model):
                     orderpoint.product_id.with_context(
                         company_id=orderpoint.company_id.id,
                         location=orderpoint.location_id.id,
-                    ).virtual_available
+                    ).qty_available_virtual
                     + orderpoint.qty_to_order
                 )
                 orderpoint.unwanted_replenish = (
@@ -752,7 +752,7 @@ class StockWarehouseOrderpoint(models.Model):
                 p["id"]: p
                 for p in orderpoints_by_context.product_id.with_context(
                     orderpoint_context,
-                ).read(["qty_available", "virtual_available"])
+                ).read(["qty_available", "qty_available_virtual"])
             }
             products_qty_in_progress = orderpoints_by_context._quantity_in_progress()
             for orderpoint in orderpoints_by_context:
@@ -760,7 +760,7 @@ class StockWarehouseOrderpoint(models.Model):
                     "qty_available"
                 ]
                 orderpoint.qty_forecast = (
-                    products_qty[orderpoint.product_id.id]["virtual_available"]
+                    products_qty[orderpoint.product_id.id]["qty_available_virtual"]
                     + products_qty_in_progress[orderpoint.id]
                 )
 
@@ -1035,14 +1035,14 @@ class StockWarehouseOrderpoint(models.Model):
         qty_in_progress = qty_in_progress_by_orderpoint.get(self.id)
         if qty_in_progress is None:
             qty_in_progress = self._quantity_in_progress()[self.id]
-        # Re-read `virtual_available` fresh instead of the cached `qty_forecast`: by the
+        # Re-read `qty_available_virtual` fresh instead of the cached `qty_forecast`: by the
         # time this runs (scheduler / action_replenish), procurements for sibling
         # orderpoints may have moved stock, leaving the cached value stale.
         product_context = self._get_product_context()
         qty_forecast_with_visibility = (
             self.product_id.with_context(product_context).read(
-                ["virtual_available"],
-            )[0]["virtual_available"]
+                ["qty_available_virtual"],
+            )[0]["qty_available_virtual"]
             + qty_in_progress
         )
         qty_to_order = (
@@ -1058,7 +1058,7 @@ class StockWarehouseOrderpoint(models.Model):
         }
 
     def _get_product_context(self):
-        """Used to call `virtual_available` when running an orderpoint."""
+        """Used to call `qty_available_virtual` when running an orderpoint."""
         self.ensure_one()
         return {
             "location": self.location_id.id,
@@ -1163,25 +1163,25 @@ class StockWarehouseOrderpoint(models.Model):
                     for q in quants.get(product, [(0, 0)])
                     if is_parent_path_in(loc, path, q[0])
                 )
-                incoming_qty = sum(
+                qty_incoming = sum(
                     m[2]
                     for m in moves_in.get(product, [(0, 0, 0)])
                     if is_parent_path_in(loc, path, m[0])
                     or is_parent_path_in(loc, path, m[1])
                 )
-                outgoing_qty = sum(
+                qty_outgoing = sum(
                     m[1]
                     for m in moves_out.get(product, [(0, 0)])
                     if is_parent_path_in(loc, path, m[0])
                 )
                 if (
                     product.uom_id.compare(
-                        qty_available + incoming_qty - outgoing_qty,
+                        qty_available + qty_incoming - qty_outgoing,
                         0,
                     )
                     < 0
                 ):
-                    # group product by lead_days and location in order to read virtual_available
+                    # group product by lead_days and location in order to read qty_available_virtual
                     # in batch
                     rules = product._get_rules_from_location(loc)
                     lead_days = rules.with_context(
@@ -1192,7 +1192,7 @@ class StockWarehouseOrderpoint(models.Model):
                         loc,
                     ].add(product.id)
 
-        # Refine the shortage with virtual_available bounded by each product's actual lead-time
+        # Refine the shortage with qty_available_virtual bounded by each product's actual lead-time
         # horizon, instead of the unbounded sum of all pending moves used above.
         today = fields.Datetime.now().replace(hour=23, minute=59, second=59)
         product_ids = set()
@@ -1202,10 +1202,10 @@ class StockWarehouseOrderpoint(models.Model):
             qties = products.with_context(
                 location=loc.id,
                 to_date=today + relativedelta.relativedelta(days=days),
-            ).read(["virtual_available"])
+            ).read(["qty_available_virtual"])
             for product, qty in zip(products, qties):
-                if product.uom_id.compare(qty["virtual_available"], 0) < 0:
-                    to_refill[qty["id"], loc.id] = qty["virtual_available"]
+                if product.uom_id.compare(qty["qty_available_virtual"], 0) < 0:
+                    to_refill[qty["id"], loc.id] = qty["qty_available_virtual"]
                     product_ids.add(qty["id"])
                     location_ids.add(loc.id)
             products.invalidate_recordset()
