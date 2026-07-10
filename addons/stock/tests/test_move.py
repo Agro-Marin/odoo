@@ -2886,7 +2886,7 @@ class TestStockMove(TestStockCommon):
 
         move_partial._action_confirm()
         move_partial._action_assign()
-        self.assertAlmostEqual(self.productA.virtual_available, -2.0)
+        self.assertAlmostEqual(self.productA.qty_available_virtual, -2.0)
         self.assertEqual(move_partial.state, "partially_available")
         move_partial.product_uom_qty = 3.0
         move_partial._action_assign()

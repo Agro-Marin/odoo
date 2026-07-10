@@ -16,7 +16,7 @@ patch(ComboConfiguratorDialog.prototype, {
         if (!this.isComboQuantityAllowed(quantity)) {
             quantity = Math.min(
                 ...this._selectedComboItems
-                    .map(comboItem => comboItem.product.free_qty)
+                    .map(comboItem => comboItem.product.qty_free)
                     .filter(freeQty => freeQty !== undefined)
             );
         }

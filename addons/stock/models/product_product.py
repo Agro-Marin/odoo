@@ -57,7 +57,7 @@ class ProductProduct(models.Model):
         "Otherwise, this includes goods stored in any Stock Location "
         "with 'internal' type.",
     )
-    virtual_available = fields.Float(
+    qty_available_virtual = fields.Float(
         string="Forecasted Quantity",
         digits="Product Unit",
         compute="_compute_quantities",
@@ -73,7 +73,7 @@ class ProductProduct(models.Model):
         "Otherwise, this includes goods stored in any Stock Location "
         "with 'internal' type.",
     )
-    free_qty = fields.Float(
+    qty_free = fields.Float(
         string="Free To Use Quantity ",
         digits="Product Unit",
         compute="_compute_quantities",
@@ -89,7 +89,7 @@ class ProductProduct(models.Model):
         "Otherwise, this includes goods stored in any Stock Location "
         "with 'internal' type.",
     )
-    incoming_qty = fields.Float(
+    qty_incoming = fields.Float(
         string="Incoming",
         digits="Product Unit",
         compute="_compute_quantities",
@@ -104,7 +104,7 @@ class ProductProduct(models.Model):
         "Otherwise, this includes goods arriving to any Stock "
         "Location with 'internal' type.",
     )
-    outgoing_qty = fields.Float(
+    qty_outgoing = fields.Float(
         string="Outgoing",
         digits="Product Unit",
         compute="_compute_quantities",
@@ -221,22 +221,22 @@ class ProductProduct(models.Model):
             # of the given usage (e.g. at a supplier location, on-hand is "Received Qty").
             relabels = {
                 "supplier": {
-                    "virtual_available": _("Future Receipts"),
+                    "qty_available_virtual": _("Future Receipts"),
                     "qty_available": _("Received Qty"),
                 },
                 "internal": {
-                    "virtual_available": _("Forecasted Quantity"),
+                    "qty_available_virtual": _("Forecasted Quantity"),
                 },
                 "customer": {
-                    "virtual_available": _("Future Deliveries"),
+                    "qty_available_virtual": _("Future Deliveries"),
                     "qty_available": _("Delivered Qty"),
                 },
                 "inventory": {
-                    "virtual_available": _("Future P&L"),
+                    "qty_available_virtual": _("Future P&L"),
                     "qty_available": _("P&L Qty"),
                 },
                 "production": {
-                    "virtual_available": _("Future Productions"),
+                    "qty_available_virtual": _("Future Productions"),
                     "qty_available": _("Produced Qty"),
                 },
             }
@@ -357,10 +357,10 @@ class ProductProduct(models.Model):
         # Services have 0 quantities and are absent from res; zero every field first so
         # they, and the zeros the `if val` filter drops below, are still set.
         self.with_context(skip_qty_available_update=True).qty_available = 0.0
-        self.incoming_qty = 0.0
-        self.outgoing_qty = 0.0
-        self.virtual_available = 0.0
-        self.free_qty = 0.0
+        self.qty_incoming = 0.0
+        self.qty_outgoing = 0.0
+        self.qty_available_virtual = 0.0
+        self.qty_free = 0.0
         for product in products:
             product.with_context(skip_qty_available_update=True).update(
                 {key: val for key, val in res[product.id].items() if val}
@@ -428,18 +428,18 @@ class ProductProduct(models.Model):
 
     def _search_virtual_available(self, operator, value):
         # TDE FIXME: should probably clean the search methods
-        return self._search_product_quantity(operator, value, "virtual_available")
+        return self._search_product_quantity(operator, value, "qty_available_virtual")
 
     def _search_incoming_qty(self, operator, value):
         # TDE FIXME: should probably clean the search methods
-        return self._search_product_quantity(operator, value, "incoming_qty")
+        return self._search_product_quantity(operator, value, "qty_incoming")
 
     def _search_outgoing_qty(self, operator, value):
         # TDE FIXME: should probably clean the search methods
-        return self._search_product_quantity(operator, value, "outgoing_qty")
+        return self._search_product_quantity(operator, value, "qty_outgoing")
 
     def _search_free_qty(self, operator, value):
-        return self._search_product_quantity(operator, value, "free_qty")
+        return self._search_product_quantity(operator, value, "qty_free")
 
     def _search_product_quantity(self, operator, value, field):
         op = PY_OPERATORS.get(operator)
@@ -835,10 +835,10 @@ class ProductProduct(models.Model):
                 res[product_id] = dict.fromkeys(
                     [
                         "qty_available",
-                        "free_qty",
-                        "incoming_qty",
-                        "outgoing_qty",
-                        "virtual_available",
+                        "qty_free",
+                        "qty_incoming",
+                        "qty_outgoing",
+                        "qty_available_virtual",
                     ],
                     0.0,
                 )
@@ -858,19 +858,19 @@ class ProductProduct(models.Model):
                 0.0,
             )
             res[product_id]["qty_available"] = product.uom_id.round(qty_available)
-            res[product_id]["free_qty"] = product.uom_id.round(
+            res[product_id]["qty_free"] = product.uom_id.round(
                 qty_available - reserved_quantity - expired_unreserved_qty
             )
-            res[product_id]["incoming_qty"] = product.uom_id.round(
+            res[product_id]["qty_incoming"] = product.uom_id.round(
                 moves_in_res.get(origin_product_id, 0.0),
             )
-            res[product_id]["outgoing_qty"] = product.uom_id.round(
+            res[product_id]["qty_outgoing"] = product.uom_id.round(
                 moves_out_res.get(origin_product_id, 0.0),
             )
-            res[product_id]["virtual_available"] = product.uom_id.round(
+            res[product_id]["qty_available_virtual"] = product.uom_id.round(
                 qty_available
-                + res[product_id]["incoming_qty"]
-                - res[product_id]["outgoing_qty"]
+                + res[product_id]["qty_incoming"]
+                - res[product_id]["qty_outgoing"]
                 - expired_unreserved_qty,
             )
 

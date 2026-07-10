@@ -393,11 +393,11 @@ class ProductProduct(models.Model):
         self, lot_id, owner_id, package_id, from_date=False, to_date=False
     ):
         """When the product is a kit, this override computes the fields :
-         - 'virtual_available'
+         - 'qty_available_virtual'
          - 'qty_available'
-         - 'incoming_qty'
-         - 'outgoing_qty'
-         - 'free_qty'
+         - 'qty_incoming'
+         - 'qty_outgoing'
+         - 'qty_free'
 
         This override is used to get the correct quantities of products
         with 'phantom' as BoM type.
@@ -464,20 +464,20 @@ class ProductProduct(models.Model):
                     qties.get(component.id)
                     if component.id in qties
                     else {
-                        "virtual_available": component.uom_id.round(
-                            component.virtual_available
+                        "qty_available_virtual": component.uom_id.round(
+                            component.qty_available_virtual
                         ),
                         "qty_available": component.uom_id.round(
                             component.qty_available
                         ),
-                        "incoming_qty": component.uom_id.round(component.incoming_qty),
-                        "outgoing_qty": component.uom_id.round(component.outgoing_qty),
-                        "free_qty": component.uom_id.round(component.free_qty),
+                        "qty_incoming": component.uom_id.round(component.qty_incoming),
+                        "qty_outgoing": component.uom_id.round(component.qty_outgoing),
+                        "qty_free": component.uom_id.round(component.qty_free),
                     }
                 )
                 ratios_virtual_available.append(
                     component.uom_id.round(
-                        component_res["virtual_available"] / qty_per_kit,
+                        component_res["qty_available_virtual"] / qty_per_kit,
                         rounding_method="DOWN",
                     )
                 )
@@ -489,26 +489,26 @@ class ProductProduct(models.Model):
                 )
                 ratios_incoming_qty.append(
                     component.uom_id.round(
-                        component_res["incoming_qty"] / qty_per_kit,
+                        component_res["qty_incoming"] / qty_per_kit,
                         rounding_method="DOWN",
                     )
                 )
                 ratios_outgoing_qty.append(
                     component.uom_id.round(
-                        component_res["outgoing_qty"] / qty_per_kit,
+                        component_res["qty_outgoing"] / qty_per_kit,
                         rounding_method="DOWN",
                     )
                 )
                 ratios_free_qty.append(
                     component.uom_id.round(
-                        component_res["free_qty"] / qty_per_kit, rounding_method="DOWN"
+                        component_res["qty_free"] / qty_per_kit, rounding_method="DOWN"
                     )
                 )
             if (
                 bom_sub_lines and ratios_virtual_available
             ):  # Guard against all cnsumable bom: at least one ratio should be present.
                 res[product.id] = {
-                    "virtual_available": component.uom_id.round(
+                    "qty_available_virtual": component.uom_id.round(
                         min(ratios_virtual_available) * bom_kits[product].product_qty
                     )
                     // 1,
@@ -516,26 +516,26 @@ class ProductProduct(models.Model):
                         min(ratios_qty_available) * bom_kits[product].product_qty
                     )
                     // 1,
-                    "incoming_qty": component.uom_id.round(
+                    "qty_incoming": component.uom_id.round(
                         min(ratios_incoming_qty) * bom_kits[product].product_qty
                     )
                     // 1,
-                    "outgoing_qty": component.uom_id.round(
+                    "qty_outgoing": component.uom_id.round(
                         min(ratios_outgoing_qty) * bom_kits[product].product_qty
                     )
                     // 1,
-                    "free_qty": component.uom_id.round(
+                    "qty_free": component.uom_id.round(
                         min(ratios_free_qty) * bom_kits[product].product_qty
                     )
                     // 1,
                 }
             else:
                 res[product.id] = {
-                    "virtual_available": 0,
+                    "qty_available_virtual": 0,
                     "qty_available": 0,
-                    "incoming_qty": 0,
-                    "outgoing_qty": 0,
-                    "free_qty": 0,
+                    "qty_incoming": 0,
+                    "qty_outgoing": 0,
+                    "qty_free": 0,
                 }
 
         return res

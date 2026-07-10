@@ -83,7 +83,7 @@ class SaleOrder(models.Model):
         return self._get_cart_qty(product.id), self._get_free_qty(product)
 
     def _get_free_qty(self, product):
-        return product.with_context(warehouse_id=self._get_shop_warehouse_id()).free_qty
+        return product.with_context(warehouse_id=self._get_shop_warehouse_id()).qty_free
 
     def _get_shop_warehouse_id(self):
         """Return the warehouse to use for shop availability checks.

@@ -1067,8 +1067,8 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
             }
         )
         mo.action_confirm()
-        self.assertEqual(self.product_1.virtual_available, -4)
-        self.assertEqual(self.product_2.virtual_available, 8)
+        self.assertEqual(self.product_1.qty_available_virtual, -4)
+        self.assertEqual(self.product_2.qty_available_virtual, 8)
         rr = self.env["stock.warehouse.orderpoint"].create(
             {
                 "name": "John Cutter RR",
@@ -1089,9 +1089,9 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         )
         mo.action_update_bom()
         self.assertEqual(rr.qty_forecast, 0)
-        self.assertEqual(self.product_1.virtual_available, 0)
-        self.assertEqual(self.product_2.virtual_available, 7)
-        self.assertEqual(self.product_3.virtual_available, 15)
+        self.assertEqual(self.product_1.qty_available_virtual, 0)
+        self.assertEqual(self.product_2.qty_available_virtual, 7)
+        self.assertEqual(self.product_3.qty_available_virtual, 15)
         pre_prod_pick = mo.picking_ids.filtered(
             lambda p: p.picking_type_id == mo.warehouse_id.pbm_type_id
         )
@@ -1124,7 +1124,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         self.assertEqual(
             lovely_product.with_context(
                 location_id=self.warehouse_1.lot_stock_id.id
-            ).virtual_available,
+            ).qty_available_virtual,
             0.0,
         )
         mo = self.env["mrp.production"].create(
@@ -1139,7 +1139,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         self.assertEqual(
             lovely_product.with_context(
                 location_id=self.warehouse_1.lot_stock_id.id
-            ).virtual_available,
+            ).qty_available_virtual,
             3.0,
         )
 

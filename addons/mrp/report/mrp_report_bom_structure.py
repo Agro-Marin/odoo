@@ -198,7 +198,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 not product.is_storable
                 or product.uom_id.compare(
                     product_info[product.id]["consumptions"][stock_loc],
-                    quantities_info["free_qty"],
+                    quantities_info["qty_free"],
                 )
                 <= 0
             ):
@@ -359,7 +359,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "type": "bom",
             "is_storable": product.is_storable,
             "quantity": current_quantity,
-            "quantity_available": quantities_info.get("free_qty") or 0,
+            "quantity_available": quantities_info.get("qty_free") or 0,
             "quantity_on_hand": quantities_info.get("on_hand_qty") or 0,
             "quantity_forecasted": quantities_info.get("forecasted_qty") or 0,
             "free_to_manufacture_qty": quantities_info.get("free_to_manufacture_qty")
@@ -683,7 +683,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "currency_id": company.currency_id.id,
             "is_storable": bom_line.product_id.is_storable,
             "quantity": line_quantity,
-            "quantity_available": quantities_info.get("free_qty", 0),
+            "quantity_available": quantities_info.get("qty_free", 0),
             "quantity_on_hand": quantities_info.get("on_hand_qty", 0),
             "quantity_forecasted": quantities_info.get("forecasted_qty", 0),
             "free_to_manufacture_qty": quantities_info.get(
@@ -714,8 +714,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         self, product, bom_uom, product_info, parent_bom=False, parent_product=False
     ):
         quantities_info = {
-            "free_qty": max(
-                product.uom_id._compute_quantity(product.free_qty, bom_uom), 0
+            "qty_free": max(
+                product.uom_id._compute_quantity(product.qty_free, bom_uom), 0
             )
             if product.is_storable
             else 0,
@@ -725,13 +725,13 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             if product.is_storable
             else 0,
             "forecasted_qty": product.uom_id._compute_quantity(
-                product.virtual_available, bom_uom
+                product.qty_available_virtual, bom_uom
             )
             if product.is_storable
             else 0,
             "stock_loc": "in_stock",
         }
-        quantities_info["free_to_manufacture_qty"] = quantities_info["free_qty"]
+        quantities_info["free_to_manufacture_qty"] = quantities_info["qty_free"]
         return quantities_info
 
     @api.model
@@ -838,7 +838,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 qty, bom.product_tmpl_id.uom_id
             )
             qty_to_produce = bom.product_tmpl_id.uom_id._compute_quantity(
-                max(0, qty_requested - (product.virtual_available if level > 1 else 0)),
+                max(0, qty_requested - (product.qty_available_virtual if level > 1 else 0)),
                 bom.product_uom_id,
             )
             if not (product or bom.product_tmpl_id).uom_id.is_zero(qty_to_produce):
@@ -1203,7 +1203,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             product
             and product.uom_id.compare(
                 product_info[product.id]["consumptions"][stock_loc],
-                quantities_info["free_qty"],
+                quantities_info["qty_free"],
             )
             <= 0
         ):

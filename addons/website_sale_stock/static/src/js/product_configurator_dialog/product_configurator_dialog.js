@@ -17,7 +17,7 @@ patch(ProductConfiguratorDialog.prototype, {
     async _setQuantity(productTmplId, quantity) {
         const product = this._findProduct(productTmplId);
         if (!this._isQuantityAllowed(product, quantity)) {
-            quantity = product.free_qty;
+            quantity = product.qty_free;
         }
         return super._setQuantity(productTmplId, quantity);
     },
@@ -30,7 +30,7 @@ patch(ProductConfiguratorDialog.prototype, {
      * @return {Boolean} - Whether the provided product quantity can be added to the cart.
      */
     _isQuantityAllowed(product, quantity) {
-        return !('free_qty' in product) || product.free_qty >= quantity;
+        return !('qty_free' in product) || product.qty_free >= quantity;
     },
 
     /**

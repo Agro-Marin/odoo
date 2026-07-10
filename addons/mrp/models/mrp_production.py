@@ -1323,12 +1323,12 @@ class MrpProduction(models.Model):
             warehouse = order.location_dest_id.warehouse_id
             order.forecasted_issue = False
             if order.product_id:
-                virtual_available = order.product_id.with_context(
+                qty_available_virtual = order.product_id.with_context(
                     warehouse_id=warehouse.id, to_date=order.date_start
-                ).virtual_available
+                ).qty_available_virtual
                 if order.state == "draft":
-                    virtual_available += order.product_uom_qty
-                if virtual_available < 0:
+                    qty_available_virtual += order.product_uom_qty
+                if qty_available_virtual < 0:
                     order.forecasted_issue = True
 
     @api.model

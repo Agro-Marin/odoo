@@ -502,14 +502,14 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
         ]).picking_id
         self.assertTrue(picking_delivery)
         self.assertEqual(picking_delivery.state, 'confirmed')
-        self.assertEqual(self.comp1.virtual_available, -5)
-        self.assertEqual(self.comp2.virtual_available, -5)
+        self.assertEqual(self.comp1.qty_available_virtual, -5)
+        self.assertEqual(self.comp2.qty_available_virtual, -5)
         # action_cancel is not call on the picking in order
         # to test behavior from other source than picking (e.g. puchase).
         picking_receipt.move_ids._action_cancel()
         self.assertEqual(picking_delivery.state, 'cancel')
-        self.assertEqual(self.comp1.virtual_available, 0.0)
-        self.assertEqual(self.comp1.virtual_available, 0.0)
+        self.assertEqual(self.comp1.qty_available_virtual, 0.0)
+        self.assertEqual(self.comp1.qty_available_virtual, 0.0)
 
     def test_flow_10(self):
         """Receipts from a children contact of a subcontractor are properly

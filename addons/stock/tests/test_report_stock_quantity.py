@@ -308,12 +308,12 @@ class TestReportStockQuantity(tests.TransactionCase):
             )
             r = inventory_at_date_wizard.open_at_date()
             return next(
-                (product["qty_available"], product["virtual_available"])
+                (product["qty_available"], product["qty_available_virtual"])
                 for product in self.env[r["res_model"]]
                 .with_context(r["context"])
                 .search_read(
                     domain=(r["domain"] + [("id", "=", product_id)]),
-                    fields=["qty_available", "virtual_available"],
+                    fields=["qty_available", "qty_available_virtual"],
                 )
             )
 
@@ -356,12 +356,12 @@ class TestReportStockQuantity(tests.TransactionCase):
             move_transit._action_done()
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 0.0, "virtual_available": 150.0}],
+                [{"qty_available": 0.0, "qty_available_virtual": 150.0}],
             )
             move_transit._action_done()
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 0.0, "virtual_available": 150.0}],
+                [{"qty_available": 0.0, "qty_available_virtual": 150.0}],
             )
 
         with freeze_time(today - timedelta(days=6)):
@@ -370,12 +370,12 @@ class TestReportStockQuantity(tests.TransactionCase):
             move_in.write({"quantity": 100.0, "picked": True})
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 0.0, "virtual_available": 150.0}],
+                [{"qty_available": 0.0, "qty_available_virtual": 150.0}],
             )
             move_in._action_done()
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 100.0, "virtual_available": 150.0}],
+                [{"qty_available": 100.0, "qty_available_virtual": 150.0}],
             )
 
         with freeze_time(today - timedelta(days=4)):
@@ -392,13 +392,13 @@ class TestReportStockQuantity(tests.TransactionCase):
             move_pick._action_confirm()
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 100.0, "virtual_available": 90.0}],
+                [{"qty_available": 100.0, "qty_available_virtual": 90.0}],
             )
             move_pick.write({"quantity": 60.0, "picked": True})
             move_pick._action_done()
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 100.0, "virtual_available": 90.0}],
+                [{"qty_available": 100.0, "qty_available_virtual": 90.0}],
             )
 
         with freeze_time(today - timedelta(days=2)):
@@ -406,12 +406,12 @@ class TestReportStockQuantity(tests.TransactionCase):
             move_out.write({"quantity": 25.0, "picked": True})
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 100.0, "virtual_available": 90.0}],
+                [{"qty_available": 100.0, "qty_available_virtual": 90.0}],
             )
             move_out._action_done()
             self.assertRecordValues(
                 product.with_context(warehouse_id=warehouse.id),
-                [{"qty_available": 75.0, "virtual_available": 90.0}],
+                [{"qty_available": 75.0, "qty_available_virtual": 90.0}],
             )
 
         for date, expected_qties in (

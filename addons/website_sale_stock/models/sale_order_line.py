@@ -32,7 +32,7 @@ class SaleOrderLine(models.Model):
             if line.product_id.is_storable and not line.product_id.allow_out_of_stock_order
         ]
         max_quantities = [
-            free_qty - cart_qty for cart_qty, free_qty in cart_and_free_quantities
+            qty_free - cart_qty for cart_qty, qty_free in cart_and_free_quantities
         ]
         return min(max_quantities, default=None)
 

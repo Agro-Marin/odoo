@@ -150,7 +150,7 @@ class TestWarehouse(TestStockCommon):
         # confirm move, check quantity on hand and virtually available, without location context
         customer_move._action_confirm()
         self.assertEqual(product.qty_available, 0.0)
-        self.assertEqual(product.virtual_available, -5.0)
+        self.assertEqual(product.qty_available_virtual, -5.0)
 
         customer_move.quantity = 5
         customer_move.picked = True
@@ -172,7 +172,7 @@ class TestWarehouse(TestStockCommon):
 
         product._compute_quantities()
         self.assertEqual(product.qty_available, 10.0)
-        self.assertEqual(product.virtual_available, 10.0)
+        self.assertEqual(product.qty_available_virtual, 10.0)
 
         # new move towards customer
         customer_move_2 = self._create_move(
@@ -185,7 +185,7 @@ class TestWarehouse(TestStockCommon):
         customer_move_2._action_confirm()
         product._compute_quantities()
         self.assertEqual(product.qty_available, 10.0)
-        self.assertEqual(product.virtual_available, 8.0)
+        self.assertEqual(product.qty_available_virtual, 8.0)
 
         customer_move_2.quantity = 2.0
         customer_move_2.picked = True

@@ -14,7 +14,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         if res["use_expiration_date"]:
             products = self._get_products(product_template_ids, product_ids)
             for product in products:
-                res["product"][product.id]["to_remove_qty"] = res["product"][product.id]['quantity_on_hand'] + res["product"][product.id]['incoming_qty'] - res["product"][product.id]['outgoing_qty'] - res["product"][product.id]['virtual_available']
+                res["product"][product.id]["to_remove_qty"] = res["product"][product.id]['quantity_on_hand'] + res["product"][product.id]['qty_incoming'] - res["product"][product.id]['qty_outgoing'] - res["product"][product.id]['qty_available_virtual']
         return res
 
     def _get_quant_domain(self, location_ids, products):

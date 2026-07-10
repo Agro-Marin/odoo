@@ -1125,10 +1125,10 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
 
         # Check that not enough enough quantities are available in the warehouse set in the SO
         # but there are enough quantities in Warehouse 1 for 1 kit_parent
-        self.assertEqual(kit_parent_wh_order.virtual_available, 0)
+        self.assertEqual(kit_parent_wh_order.qty_available_virtual, 0)
         self.env.invalidate_all()
         kit_parent_wh1 = self.kit_parent.with_context(warehouse_id=warehouse_1.id)
-        self.assertEqual(kit_parent_wh1.virtual_available, 1)
+        self.assertEqual(kit_parent_wh1.qty_available_virtual, 1)
 
         # Check there arn't enough quantities available for the sale order
         self.assertTrue(line.product_uom_id.compare(line_ids.qty_available_virtual_at_date - line_ids.product_qty, 0) == -1)
@@ -1148,10 +1148,10 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # As 'Warehouse 2' is the warehouse linked to the SO, 3 kits should be available
         # But the quantity available in Warehouse 1 should stay 1
         kit_parent_wh_order = self.kit_parent.with_context(warehouse_id=so.warehouse_id.id)
-        self.assertEqual(kit_parent_wh_order.virtual_available, 3)
+        self.assertEqual(kit_parent_wh_order.qty_available_virtual, 3)
         self.env.invalidate_all()
         kit_parent_wh1 = self.kit_parent.with_context(warehouse_id=warehouse_1.id)
-        self.assertEqual(kit_parent_wh1.virtual_available, 1)
+        self.assertEqual(kit_parent_wh1.qty_available_virtual, 1)
 
         # Check there arn't enough quantities available for the sale order
         self.assertTrue(line.product_uom_id.compare(line_ids.qty_available_virtual_at_date - line_ids.product_qty, 0) == -1)
@@ -1170,7 +1170,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
 
         # Enough quantities should be available, no warning message should be displayed
         kit_parent_wh_order = self.kit_parent.with_context(warehouse_id=so.warehouse_id.id)
-        self.assertEqual(kit_parent_wh_order.virtual_available, 7)
+        self.assertEqual(kit_parent_wh_order.qty_available_virtual, 7)
 
     def test_06_kit_qty_transferred_mixed_uom(self):
         """
@@ -1362,7 +1362,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # Check that not enough enough quantities are available in the warehouse set in the SO
         # but there are enough quantities in Warehouse 1 for 1 kit_parent
         kit_uom_in_kit.with_context(warehouse_id=warehouse_1.id)._compute_quantities()
-        virtual_available_wh_order = kit_uom_in_kit.virtual_available
+        virtual_available_wh_order = kit_uom_in_kit.qty_available_virtual
         self.assertEqual(virtual_available_wh_order, 1)
 
         # Check there arn't enough quantities available for the sale order
@@ -1381,7 +1381,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # Check there arn't enough quantities available for the sale order
         self.assertTrue(line.product_uom_id.compare(line_ids.qty_available_virtual_at_date - line_ids.product_qty, 0) == -1)
         kit_uom_in_kit.with_context(warehouse_id=warehouse_1.id)._compute_quantities()
-        virtual_available_wh_order = kit_uom_in_kit.virtual_available
+        virtual_available_wh_order = kit_uom_in_kit.qty_available_virtual
         self.assertEqual(virtual_available_wh_order, 3)
 
         # We process enough quantities to have enough kit_uom_in_kit available for the sale order.
@@ -1389,7 +1389,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
 
         # We check that enough quantities were processed to sell 5 kit_uom_in_kit
         kit_uom_in_kit.with_context(warehouse_id=warehouse_1.id)._compute_quantities()
-        self.assertEqual(kit_uom_in_kit.virtual_available, 5)
+        self.assertEqual(kit_uom_in_kit.qty_available_virtual, 5)
 
     def test_10_sale_mrp_kits_routes(self):
 

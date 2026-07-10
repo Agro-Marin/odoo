@@ -95,7 +95,7 @@ class TestProcRule(TransactionCase):
             move_line.product_uom_qty = 10
         delivery = picking_form.save()
         delivery.action_confirm()
-        self.product._compute_quantities()  # Computes `outgoing_qty` to have the orderpoint.
+        self.product._compute_quantities()  # Computes `qty_outgoing` to have the orderpoint.
 
         # Then, creates a rule and adds it into the route's rules.
         reception_route.rule_ids.action_archive()

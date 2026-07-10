@@ -4,12 +4,12 @@ import { ProductProduct } from '@sale/js/models/product_product';
 
 patch(ProductProduct.prototype, {
     /**
-     * @param {number} free_qty
+     * @param {number} qty_free
      * @param args Super's parameter list.
      */
-    setup({free_qty, ...args}) {
+    setup({qty_free, ...args}) {
         super.setup(args);
-        this.free_qty = free_qty;
+        this.qty_free = qty_free;
     },
 
     /**
@@ -19,6 +19,6 @@ patch(ProductProduct.prototype, {
      * @return {Boolean} Whether the product quantity can be added to the cart.
      */
     isQuantityAllowed(quantity) {
-        return this.free_qty === undefined || this.free_qty >= quantity;
+        return this.qty_free === undefined || this.qty_free >= quantity;
     },
 });

@@ -149,10 +149,10 @@ class SaleOrder(models.Model):
         for product, ols in self.line_ids.grouped('product_id').items():
             if not product.is_storable or product.allow_out_of_stock_order:
                 continue
-            free_qty = product.with_context(warehouse_id=wh_id).free_qty
+            qty_free = product.with_context(warehouse_id=wh_id).qty_free
             for ol in ols:
                 free_qty_in_uom = max(int(product.uom_id._compute_quantity(
-                    free_qty, ol.product_uom_id, rounding_method="DOWN"
+                    qty_free, ol.product_uom_id, rounding_method="DOWN"
                 )), 0)  # Round down as only integer quantities can be sold.
                 line_qty_in_uom = ol.product_uom_qty
                 if line_qty_in_uom > free_qty_in_uom:  # Not enough stock.
@@ -162,7 +162,7 @@ class SaleOrder(models.Model):
                         "%(available_qty)s/%(line_qty)s available at this location",
                         available_qty=free_qty_in_uom, line_qty=int(line_qty_in_uom),
                     )
-                free_qty -= ol.product_uom_id._compute_quantity(line_qty_in_uom, product.uom_id)
+                qty_free -= ol.product_uom_id._compute_quantity(line_qty_in_uom, product.uom_id)
         return insufficient_stock_data
 
     def _verify_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):

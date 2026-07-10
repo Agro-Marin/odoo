@@ -20,4 +20,4 @@ class Website(models.Model):
         :return: available quantity
         :rtype: float
         """
-        return product.with_context(warehouse_id=self.warehouse_id.id).free_qty
+        return product.with_context(warehouse_id=self.warehouse_id.id).qty_free

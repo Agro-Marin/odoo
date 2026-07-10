@@ -377,8 +377,8 @@ class SaleOrderLine(models.Model):
             qties_per_product = {
                 product["id"]: (
                     product["qty_available"],
-                    product["free_qty"],
-                    product["virtual_available"],
+                    product["qty_free"],
+                    product["qty_available_virtual"],
                 )
                 for product in product_qties
             }
@@ -726,8 +726,8 @@ class SaleOrderLine(models.Model):
             .read(
                 [
                     "qty_available",
-                    "free_qty",
-                    "virtual_available",
+                    "qty_free",
+                    "qty_available_virtual",
                 ],
             )
         )

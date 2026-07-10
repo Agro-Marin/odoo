@@ -76,7 +76,7 @@
                 <field name="qty_to_order" column_invisible="True" />
                 <field name="warehouse_id" string="Warehouse" />
                 <field name="location_id" string="Warehouse Location" />
-                <field name="free_qty" decoration-danger="free_qty &lt; qty_to_order"
+                <field name="qty_free" decoration-danger="qty_free &lt; qty_to_order"
                     string="Available Quantity" />
                 <field name="uom" />
                 <field name="route_id" />
@@ -97,7 +97,7 @@
                 </div>
                 <footer>
                     <button name="order_avbl" type="object" class="btn-primary"
-                        invisible="free_qty &lt;= 0.0"> Order <field name="free_qty" />
+                        invisible="qty_free &lt;= 0.0"> Order <field name="qty_free" />
                     </button>
                     <button name="order_all" type="object"> Order <field name="qty_to_order" />
                     </button>

@@ -28,7 +28,7 @@ export class ProductInfoBanner extends Component {
         this.state = useState({
             other_warehouses: [],
             available_quantity: 0,
-            free_qty: 0,
+            qty_free: 0,
             uom: "",
         });
 
@@ -49,7 +49,7 @@ export class ProductInfoBanner extends Component {
                 this.state.other_warehouses = productInfo.warehouses.slice(1);
                 this.state.available_quantity =
                     productInfo.warehouses[0]?.available_quantity;
-                this.state.free_qty = productInfo.warehouses[0]?.free_qty;
+                this.state.qty_free = productInfo.warehouses[0]?.qty_free;
                 this.state.uom = productInfo.warehouses[0]?.uom;
             }
         }, 500);

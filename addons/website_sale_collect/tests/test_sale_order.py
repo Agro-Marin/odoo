@@ -83,8 +83,8 @@ class TestSaleOrder(ClickAndCollectCommon):
         self.website.warehouse_id = self.warehouse_2
         so = self._create_in_store_delivery_order()
         so.warehouse_id = self.warehouse
-        free_qty = so._get_free_qty(self.storable_product)
-        self.assertEqual(free_qty, 10)
+        qty_free = so._get_free_qty(self.storable_product)
+        self.assertEqual(qty_free, 10)
 
     def test_prevent_buying_out_of_stock_products(self):
         cart = self._create_in_store_delivery_order(line_ids=[Command.create({

@@ -81,7 +81,7 @@ class ProductReplenish(models.TransientModel):
         for rec in self:
             rec.forecasted_quantity = rec.product_id.with_context(
                 warehouse_id=rec.warehouse_id.id
-            ).virtual_available
+            ).qty_available_virtual
 
     @api.depends("route_id")
     def _compute_date_planned(self):

@@ -35,8 +35,8 @@
                 <field name="qty_available" invisible="not show_on_hand_qty_status_button"
                     string="On Hand" optional="show" decoration-danger="qty_available &lt; 0"
                     groups="stock.group_stock_user" sum="Total On Hand" />
-                <field name="virtual_available" invisible="not show_on_hand_qty_status_button"
-                    string="Forecasted" optional="show" decoration-danger="virtual_available &lt; 0"
+                <field name="qty_available_virtual" invisible="not show_on_hand_qty_status_button"
+                    string="Forecasted" optional="show" decoration-danger="qty_available_virtual &lt; 0"
                     decoration-bf="1" groups="stock.group_stock_user" sum="Total Forecasted" />
             </field>
             <field name="default_code" position="after">
@@ -188,16 +188,16 @@
                                 <span class="o_stat_value">
                                     <field name="qty_available" widget="statinfo" nolabel="1" />
                                 </span>
-                                <span class="o_stat_value" invisible="virtual_available != 0">
-                                    <field name="virtual_available" nolabel="1" />
+                                <span class="o_stat_value" invisible="qty_available_virtual != 0">
+                                    <field name="qty_available_virtual" nolabel="1" />
                                 </span>
                                 <span class="o_stat_value text-info"
-                                    invisible="virtual_available &lt;= 0">
-                                    <field name="virtual_available" nolabel="1" />
+                                    invisible="qty_available_virtual &lt;= 0">
+                                    <field name="qty_available_virtual" nolabel="1" />
                                 </span>
                                 <span class="o_stat_value text-danger"
-                                    invisible="virtual_available &gt;= 0">
-                                    <field name="virtual_available" nolabel="1" />
+                                    invisible="qty_available_virtual &gt;= 0">
+                                    <field name="qty_available_virtual" nolabel="1" />
                                 </span>
                             </div>
                             <div
@@ -365,7 +365,7 @@
                 <filter name="real_stock_available" string="Available Products"
                     domain="[('qty_available','&gt;',0)]" />
                 <filter name="real_stock_negative" string="Negative Forecasted Quantity"
-                    domain="[('virtual_available','&lt;',0)]" />
+                    domain="[('qty_available_virtual','&lt;',0)]" />
             </xpath>
         </field>
     </record>
@@ -418,19 +418,19 @@
                     invisible="not is_storable"
                     string="On Hand"
                     optional="show"
-                    decoration-danger="virtual_available &lt; 0"
-                    decoration-warning="virtual_available == 0"
+                    decoration-danger="qty_available_virtual &lt; 0"
+                    decoration-warning="qty_available_virtual == 0"
                     decoration-bf="1"
                     groups="stock.group_stock_user"
                     sum="Total On Hand"
                 />
                 <field
-                    name="virtual_available"
+                    name="qty_available_virtual"
                     invisible="not is_storable"
                     string="Forecasted"
                     optional="show"
-                    decoration-danger="virtual_available &lt; 0"
-                    decoration-warning="virtual_available == 0"
+                    decoration-danger="qty_available_virtual &lt; 0"
+                    decoration-warning="qty_available_virtual == 0"
                     groups="stock.group_stock_user"
                     sum="Total Forecasted"
                 />
@@ -446,15 +446,15 @@
             <field name="id" position="after">
                 <field name="is_storable" />
                 <field name="qty_available" />
-                <field name="free_qty" />
+                <field name="qty_free" />
             </field>
             <field name="product_template_attribute_value_ids" position="after">
                 <div t-if="record.is_storable.raw_value"
                     invisible="not context.get('display_stock')"
                     name="o_kanban_qty_available_and_on_hand">
                     <t name="qty_free"
-                        t-if="record.free_qty.raw_value != record.qty_available.raw_value">
-                        <span class="fw-bold" t-out="record.free_qty.raw_value" />
+                        t-if="record.qty_free.raw_value != record.qty_available.raw_value">
+                        <span class="fw-bold" t-out="record.qty_free.raw_value" />
                         <span class="text-muted small"> Available</span>
                         <span> / </span>
                     </t>
@@ -502,10 +502,10 @@
                     sum="Total On Hand" widget="stock_action_field"
                     options="{ 'action_name': 'stock.action_view_inventory_tree' }"
                     context="{ 'search_default_product_id': id, 'default_product_id': id }" />
-                <field name="free_qty" string="Free to Use" sum="Total Free to Use" />
-                <field name="incoming_qty" optional="show" sum="Total Incoming" />
-                <field name="outgoing_qty" optional="show" sum="Total Outgoing" />
-                <field name="virtual_available" string="Forecasted" optional="hide"
+                <field name="qty_free" string="Free to Use" sum="Total Free to Use" />
+                <field name="qty_incoming" optional="show" sum="Total Incoming" />
+                <field name="qty_outgoing" optional="show" sum="Total Outgoing" />
+                <field name="qty_available_virtual" string="Forecasted" optional="hide"
                     sum="Total Forecasted" />
                 <field name="uom_id" widget="many2one_uom" groups="uom.group_uom"
                     options="{'no_create': True}" />
@@ -525,7 +525,7 @@
                 <button name="action_product_forecast_report" string="Forecast" type="object"
                     class="btn-link"
                     icon="fa-area-chart" context="{'default_product_id': id}"
-                    invisible="incoming_qty == 0 and outgoing_qty == 0" />
+                    invisible="qty_incoming == 0 and qty_outgoing == 0" />
             </list>
         </field>
     </record>
@@ -552,16 +552,16 @@
                                 <span class="o_stat_value">
                                     <field name="qty_available" widget="statinfo" nolabel="1" />
                                 </span>
-                                <span class="o_stat_value" invisible="virtual_available != 0">
-                                    <field name="virtual_available" nolabel="1" />
+                                <span class="o_stat_value" invisible="qty_available_virtual != 0">
+                                    <field name="qty_available_virtual" nolabel="1" />
                                 </span>
                                 <span class="o_stat_value text-info"
-                                    invisible="virtual_available &lt;= 0">
-                                    <field name="virtual_available" nolabel="1" />
+                                    invisible="qty_available_virtual &lt;= 0">
+                                    <field name="qty_available_virtual" nolabel="1" />
                                 </span>
                                 <span class="o_stat_value text-danger"
-                                    invisible="virtual_available &gt;= 0">
-                                    <field name="virtual_available" nolabel="1" />
+                                    invisible="qty_available_virtual &gt;= 0">
+                                    <field name="qty_available_virtual" nolabel="1" />
                                 </span>
                             </div>
                             <div

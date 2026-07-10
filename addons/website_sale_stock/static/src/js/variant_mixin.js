@@ -41,17 +41,17 @@ VariantMixin._onChangeCombinationStock = async function (ev, parent, combination
 
     if (!combination.allow_out_of_stock_order) {
         const unavailableQty = await this.waitFor(VariantMixin._getUnavailableQty(combination));
-        combination.free_qty -= unavailableQty;
-        if (combination.free_qty < 0) {
-            combination.free_qty = 0;
+        combination.qty_free -= unavailableQty;
+        if (combination.qty_free < 0) {
+            combination.qty_free = 0;
         }
         if (addQtyInput) {
-            addQtyInput.dataset.max = combination.free_qty || 1;
-            if (qty > combination.free_qty) {
+            addQtyInput.dataset.max = combination.qty_free || 1;
+            if (qty > combination.qty_free) {
                 addQtyInput.value = addQtyInput.dataset.max;
             }
         }
-        if (combination.free_qty < 1) {
+        if (combination.qty_free < 1) {
             ctaWrapper.classList.replace('d-flex', 'd-none');
             ctaWrapper.classList.add('out_of_stock');
         }

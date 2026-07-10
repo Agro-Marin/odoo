@@ -112,8 +112,8 @@
                         <tr class="o_forecasted_row fw-bold table-secondary" t-attf-class="#{multipleProducts and 'collapse show' or ''} collapseGroup_#{line.product.id}">
                             <td/>
                             <td class="border-end-0">Forecasted Inventory</td>
-                            <td class="text-end border-start-0 border-end-0" t-attf-class="#{currentProduct.virtual_available &lt;= 0 and 'text-danger' or 'text-success'}">
-                                <t t-out="_formatFloat(currentProduct.virtual_available)"/> <t t-out="line.uom_id.display_name"/>
+                            <td class="text-end border-start-0 border-end-0" t-attf-class="#{currentProduct.qty_available_virtual &lt;= 0 and 'text-danger' or 'text-success'}">
+                                <t t-out="_formatFloat(currentProduct.qty_available_virtual)"/> <t t-out="line.uom_id.display_name"/>
                             </td>
                             <td class="border-start-0" colspan="3"/>
                         </tr>
