@@ -16,8 +16,8 @@ from odoo.tools import SQL, ormcache, parse_date
 
 _logger = logging.getLogger(__name__)
 
-# Total digits in the Float ``digits`` tuple. 69 is the IEEE 754 double upper
-# bound — effectively no limit on integer digits.
+# Total digits in the Float ``digits`` tuple; 69 (kept from upstream) is an
+# arbitrarily large count so the integer part is effectively never truncated.
 _CURRENCY_TOTAL_DIGITS = 69
 
 # RCUR-M1: ``env.cr.cache`` key of the transaction-scoped rate-history memo::
@@ -528,7 +528,8 @@ class ResCurrency(models.Model):
     def _select_companies_rates(self) -> str:
         """Return the SQL selecting each rate's validity window per company.
 
-        Extension point with no caller in ``base``; overridden by ``account``.
+        Extension point; the returned date_start/date_end window is consumed by
+        the ``product_margin`` module.
         """
         return """
             SELECT

@@ -325,7 +325,7 @@ class IrAttachment(models.Model):
 
             # _check_contents mutates and returns `values`; if an override forks
             # a new dict, create() stays correct because _inverse_raw re-derives
-            # metadata post-create (test_a1_create_is_robust_to_new_dict_override).
+            # metadata post-create.
             values = self._check_contents(values)
             if has_content:
                 # pop() so _inverse_raw does not re-process content after create.

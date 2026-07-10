@@ -984,9 +984,11 @@ class IrQweb(models.AbstractModel):
         :return: ``(pre_nodes, post_nodes)`` flanking the legacy bundle
         """
         # ``pre_nodes`` go BEFORE the legacy bundle:
-        #   1. ``<script src="owl.js">`` — non-deferred, sets ``window.owl``
-        #   2. ``<script type="importmap">`` with specifier → URL mappings
-        #   3. ``<link rel="modulepreload">`` hints (production only)
+        #   1. ``<script type="importmap">`` with specifier → URL mappings
+        #      (OWL resolves through its ``@odoo/owl`` entry — no separate script)
+        #   2. the ``odoo.loader`` bootstrap shim (``_build_loader_shim_js``)
+        #   3. ``<link rel="modulepreload">`` hints — only on the esbuild-declined
+        #      fallback path (``_esm_debug_nodes``); the esbuild prod path emits none
         # ``post_nodes`` go AFTER: the ``<script type="module">`` bridge, which
         # imports native modules and registers them via ``registerNativeModules()``
         # (runs after the bundle — ``defer`` and ``type="module"`` share one

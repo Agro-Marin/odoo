@@ -103,7 +103,7 @@ class IrActionsActions(models.Model):
         # index apply per child table only (an act_window and an act_url could both
         # claim one path), so one grouped query over the parent table catches
         # duplicates across every child.
-        # See https://www.postgresql.org/docs/14/ddl-inherit.html#DDL-INHERIT-CAVEATS
+        # See https://www.postgresql.org/docs/current/ddl-inherit.html#DDL-INHERIT-CAVEATS
         paths = [action.path for action in self if action.path]
         duplicates = paths and self.env["ir.actions.actions"]._read_group(
             [("path", "in", paths)],

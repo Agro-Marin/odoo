@@ -1754,7 +1754,8 @@ class ResPartner(models.Model):
             return address_format % args
         except KeyError, ValueError:
             # address_format is user-editable in res.country; fall back gracefully
-            # if it is malformed or references an unknown placeholder.
+            # if it is malformed (bad conversion spec) -> ValueError. Unknown
+            # placeholders don't raise: args is a defaultdict(str).
             if address_format not in _FAILED_ADDRESS_FORMATS:
                 _FAILED_ADDRESS_FORMATS.add(address_format)
                 _logger.warning(
