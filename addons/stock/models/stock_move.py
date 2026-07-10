@@ -2,13 +2,12 @@ import itertools
 from ast import literal_eval
 from collections import defaultdict
 from datetime import timedelta
-from operator import itemgetter
 from re import findall as regex_findall
 
 from odoo import api, fields, models
+from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.api import SUPERUSER_ID
 from odoo.libs.numbers.float_utils import float_compare, float_is_zero, float_round
 from odoo.tools.misc import OrderedSet, clean_context, groupby
 from odoo.tools.translate import _
@@ -476,9 +475,13 @@ class StockMove(models.Model):
             for picking in self.env["stock.picking"].browse(picking_ids)
         }
         for vals in vals_list:
-            if (
-                vals.get("quantity") or vals.get("move_line_ids")
-            ) and "lot_ids" in vals:
+            # Explicit move lines win over `lot_ids` (a field derived from them).
+            # A bare `quantity`, however, must NOT drop `lot_ids`: `write()`
+            # applies the two together (the `lot_ids` inverse runs first, see
+            # `_check_write_vals`), so `create` has to keep them too — otherwise
+            # the identical payload silently loses its lots on create but not on
+            # write.
+            if vals.get("move_line_ids") and "lot_ids" in vals:
                 vals.pop("lot_ids")
             if (
                 picking_state_by_id.get(vals.get("picking_id")) == "done"
@@ -498,8 +501,8 @@ class StockMove(models.Model):
         move_to_recompute_state = self.env["stock.move"]
         move_to_check_location = self.env["stock.move"]
         if "product_uom_qty" in vals:
-            receipt_moves_to_reassign, move_to_recompute_state = (
-                self._on_demand_change(vals)
+            receipt_moves_to_reassign, move_to_recompute_state = self._on_demand_change(
+                vals
             )
         if "date_deadline" in vals:
             self._set_date_deadline(vals.get("date_deadline"))
@@ -522,9 +525,7 @@ class StockMove(models.Model):
             moves_done.move_line_ids.date = vals["date"]
         if move_to_recompute_state:
             move_to_recompute_state._recompute_state()
-        receipt_moves_to_reassign |= (
-            move_to_check_location._on_source_location_change()
-        )
+        receipt_moves_to_reassign |= move_to_check_location._on_source_location_change()
         if "location_id" in vals or "location_dest_id" in vals:
             self._sync_warehouse_from_locations()
         if receipt_moves_to_reassign:
@@ -612,9 +613,7 @@ class StockMove(models.Model):
                 and m.state in ("partially_available", "assigned")
             ),
         )
-        move_to_recompute_state = (
-            self - move_to_unreserve - receipt_moves_to_reassign
-        )
+        move_to_recompute_state = self - move_to_unreserve - receipt_moves_to_reassign
         return receipt_moves_to_reassign, move_to_recompute_state
 
     def _on_source_location_change(self):
@@ -1051,16 +1050,18 @@ class StockMove(models.Model):
         now = fields.Datetime.now()
         virtual_available_dict = product_moves._forecast_prefetch_virtual_available(now)
 
+        def virtual_qty(key, product_id, idx):
+            # idx 0 -> virtual_available, 1 -> free_qty; 0.0 when not prefetched.
+            # Every direct read goes through here so the guarded/unguarded
+            # accesses can never drift apart (they used to: some branches
+            # indexed the dict blindly while others checked membership first).
+            entry = virtual_available_dict.get(key, {}).get(product_id)
+            return entry[idx] if entry else 0.0
+
         outgoing_unreserved_moves_per_warehouse = defaultdict(set)
         for move in product_moves:
             key = move._forecast_wh_date_key(now)
-            if (
-                key in virtual_available_dict
-                and move.product_id.id in virtual_available_dict[key]
-            ):
-                free_qty = virtual_available_dict[key][move.product_id.id][1]
-            else:
-                free_qty = 0.0
+            free_qty = virtual_qty(key, move.product_id.id, 1)
             if move.state == "assigned":
                 move.forecast_availability = move.product_uom._compute_quantity(
                     move.quantity,
@@ -1079,9 +1080,13 @@ class StockMove(models.Model):
             ):
                 move.forecast_availability = free_qty
                 continue
+            # Note: internal moves are always `_is_consuming()` (see that
+            # method), so they are handled here as outgoing/consuming. There is
+            # deliberately no separate `code == "internal"` branch: it would be
+            # unreachable.
             if move._is_consuming():
                 if move.state == "draft":
-                    free_qty = virtual_available_dict[key][move.product_id.id][0]
+                    free_qty = virtual_qty(key, move.product_id.id, 0)
                     if (
                         float_compare(
                             free_qty,
@@ -1097,22 +1102,9 @@ class StockMove(models.Model):
                     outgoing_unreserved_moves_per_warehouse[
                         move.location_id.warehouse_id
                     ].add(move.id)
-            elif move.picking_type_id.code == "internal":
-                if (
-                    float_compare(
-                        free_qty,
-                        move.product_qty,
-                        precision_rounding=move.product_id.uom_id.rounding,
-                    )
-                    >= 0
-                ):
-                    move.forecast_availability = free_qty
-                    continue
             elif move.picking_type_id.code == "incoming":
                 incoming_key = move._forecast_wh_date_key(now, incoming=True)
-                forecast_availability = virtual_available_dict[incoming_key][
-                    move.product_id.id
-                ][0]
+                forecast_availability = virtual_qty(incoming_key, move.product_id.id, 0)
                 if move.state == "draft":
                     forecast_availability += move.product_qty
                 move.forecast_availability = forecast_availability
@@ -1139,9 +1131,11 @@ class StockMove(models.Model):
         """
         prefetch_virtual_available = defaultdict(set)
         for move in self:
-            if (
-                move._is_consuming() and move.state == "draft"
-            ) or move.picking_code == "internal":
+            # Mirror exactly the reads done in `_compute_forecast_information`:
+            # only consuming *draft* moves read the source-warehouse value
+            # (index 0/1); non-draft consuming moves are resolved via the
+            # forecast report, not this dict, so prefetching them was wasted.
+            if move._is_consuming() and move.state == "draft":
                 prefetch_virtual_available[move._forecast_wh_date_key(now)].add(
                     move.product_id.id,
                 )
@@ -1890,6 +1884,21 @@ Please change the quantity done or the rounding precision in your settings.""",
         for key in context_data:
             if key.startswith("default_"):
                 default_vals[remove_prefix(key, "default_")] = context_data[key]
+
+        # RPC boundary: the fields dereferenced below come straight from the
+        # client-supplied context. A missing key must surface as a clean
+        # UserError, not a raw KeyError -> Fault 500.
+        required_keys = ["tracking", "location_dest_id"]
+        if default_vals.get("tracking") == "lot" and mode == "generate":
+            required_keys.append("quantity")
+        missing = [key for key in required_keys if key not in default_vals]
+        if missing:
+            raise UserError(
+                _(
+                    "Missing required values to generate Serials/Lots: %(keys)s.",
+                    keys=", ".join(missing),
+                ),
+            )
 
         if default_vals["tracking"] == "lot" and mode == "generate":
             lot_qties = generate_lot_qty(default_vals["quantity"], count)
@@ -3403,7 +3412,14 @@ Please change the quantity done or the rounding precision in your settings.""",
             for f_name in fields
             if self.env["stock.move"]._fields[f_name].type == "float"
         }
-        base_getter = itemgetter(*fields - float_fields)
+        # Always build a tuple key. `itemgetter(*names)` returns a *scalar* for a
+        # single name and raises for zero, which would break the `base_getter(move)
+        # + tuple(...)` concatenation below or the call itself as soon as an
+        # override trims `distinct_fields` down to one non-float field.
+        non_float_fields = tuple(fields - float_fields)
+
+        def base_getter(move):
+            return tuple(move[f_name] for f_name in non_float_fields)
 
         if not float_fields:
             return base_getter
