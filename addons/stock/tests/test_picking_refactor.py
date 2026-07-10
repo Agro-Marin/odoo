@@ -480,3 +480,200 @@ class TestPickingRefactor(TestStockCommon):
         )._split_backorder_pickings()
         self.assertEqual(not_to_bo, never_pick | ask_pick)
         self.assertFalse(to_bo)
+
+    def _internal_move(self, picking, dest_location, demand=10):
+        return self.MoveObj.create(
+            {
+                "product_id": self.product_2.id,
+                "product_uom_qty": demand,
+                "product_uom": self.product_2.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": dest_location.id,
+            },
+        )
+
+    def test_pre_action_done_hook_autopicks_scrap_destination_move(self):
+        """A picking whose move goes to a scrap (inventory) location must have that move
+        auto-picked, so a scrap transfer can validate to ``done``. This pins the
+        `_pre_action_done_hook` behavior that `test_move.test_scrap_10` depends on: a
+        scrap move's quantity counts as demand and the move is auto-picked. Do NOT
+        "fix" this into excluding inventory moves — it breaks scrap validation.
+        """
+        picking = self._new_picking(self.picking_type_int)
+        scrap_move = self._internal_move(picking, self.scrap_location, demand=3)
+        picking.action_confirm()
+        scrap_move.quantity = 3
+        scrap_move.picked = False
+
+        picking.with_context(skip_backorder=True)._pre_action_done_hook()
+
+        self.assertTrue(
+            scrap_move.picked,
+            "a scrap (inventory-destination) move must be auto-picked so the transfer "
+            "can be validated",
+        )
+
+    def test_pre_action_done_hook_scrap_pick_does_not_suppress_real_moves(self):
+        """The `has_pick` detection deliberately excludes inventory moves: an
+        already-picked scrap move must NOT prevent auto-picking the real moves. Pins the
+        intentional asymmetry (scrap counts for demand + gets picked, but doesn't count
+        as "the user already picked something").
+        """
+        picking = self._new_picking(self.picking_type_int)
+        real_move = self._internal_move(picking, self.stock_location)
+        scrap_move = self._internal_move(picking, self.scrap_location, demand=3)
+        picking.action_confirm()
+        real_move.quantity = 5
+        scrap_move.quantity = 3
+        real_move.picked = False
+        scrap_move.picked = True  # a scrap move already picked
+
+        picking.with_context(skip_backorder=True)._pre_action_done_hook()
+
+        self.assertTrue(
+            real_move.picked,
+            "a pre-picked scrap move must not suppress auto-picking the real moves",
+        )
+
+    def test_pre_action_done_hook_autopicks_real_moves(self):
+        """Positive control: a real move carrying quantity with nothing picked yet is
+        auto-picked by the hook (unchanged behavior).
+        """
+        picking = self._new_picking(self.picking_type_int)
+        move = self._internal_move(picking, self.stock_location)
+        picking.action_confirm()
+        move.quantity = 5
+        move.picked = False
+
+        picking.with_context(skip_backorder=True)._pre_action_done_hook()
+
+        self.assertTrue(move.picked, "real move with quantity must be auto-picked")
+
+    def test_write_picking_type_batch_adopts_locations(self):
+        """Changing `picking_type_id` on several pickings at once adopts each new type's
+        default locations (the batched, grouped-by-resolved-pair write path).
+        """
+        p1 = self._new_picking(self.picking_type_in)
+        p2 = self._new_picking(self.picking_type_in)
+        (p1 | p2).write({"picking_type_id": self.picking_type_out.id})
+        for picking in (p1, p2):
+            self.assertEqual(
+                picking.location_id,
+                self.picking_type_out.default_location_src_id,
+            )
+            self.assertEqual(
+                picking.location_dest_id,
+                self.picking_type_out.default_location_dest_id,
+            )
+
+    def test_measure_total_by_picking_shared_helper(self):
+        """`weight_bulk` and `shipping_volume` are driven by the same
+        `_measure_total_by_picking` read-group helper, and both must recompute on a
+        quantity change *via `@api.depends`* — no manual invalidation. This guards the
+        decorator staying attached to each compute (a helper inserted between the
+        decorator and `_compute_bulk_weight` would silently swallow it).
+        """
+        self.product_2.weight = 4.0
+        self.product_2.volume = 2.0
+        picking = self._new_picking(self.picking_type_out)
+        move = self.MoveObj.create(
+            {
+                "product_id": self.product_2.id,
+                "product_uom_qty": 3,
+                "product_uom": self.product_2.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            },
+        )
+        move_line = self.env["stock.move.line"].create(
+            {
+                "product_id": self.product_2.id,
+                "product_uom_id": self.product_2.uom_id.id,
+                "picking_id": picking.id,
+                "move_id": move.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "quantity": 3.0,
+            },
+        )
+        # Prime the caches, then mutate quantity and re-read: correct values must come
+        # from `@api.depends` invalidation alone.
+        self.assertEqual(picking.shipping_volume, 6.0, "3 units * 2.0 volume/unit")
+        self.assertEqual(picking.weight_bulk, 12.0, "3 units * 4.0 kg/unit")
+        move_line.quantity = 5.0
+        self.assertEqual(
+            picking.shipping_volume, 10.0, "shipping_volume must follow the quantity"
+        )
+        self.assertEqual(
+            picking.weight_bulk, 20.0, "weight_bulk must follow the quantity"
+        )
+
+    def test_search_products_availability_state_matches_compute(self):
+        """`products_availability_state` is False for incoming (and non-outgoing/
+        internal) pickings — the compute only assigns a real state to outgoing/internal
+        ones. The search must agree with the field: an assigned *incoming* picking, even
+        with a fully reserved move, must NOT match available/expected/late and MUST
+        match False. Regression for the search scanning every non-terminal picking
+        without the picking-type restriction (which leaked receipts into "Available"
+        and hid them from a "False" filter).
+        """
+        product = self.env["product.product"].create(
+            {"name": "Availability probe", "is_storable": True},
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product,
+            self.picking_type_out.default_location_src_id,
+            100,
+        )
+
+        def make(picking_type):
+            picking = self._new_picking(picking_type)
+            self.MoveObj.create(
+                {
+                    "product_id": product.id,
+                    "product_uom_qty": 5,
+                    "product_uom": product.uom_id.id,
+                    "picking_id": picking.id,
+                    "location_id": picking_type.default_location_src_id.id,
+                    "location_dest_id": picking_type.default_location_dest_id.id,
+                },
+            )
+            picking.action_confirm()
+            picking.action_assign()
+            return picking
+
+        incoming = make(self.picking_type_in)
+        outgoing = make(self.picking_type_out)
+        # Precondition: the field itself distinguishes them.
+        self.assertFalse(incoming.products_availability_state)
+        self.assertEqual(outgoing.products_availability_state, "available")
+
+        scope = incoming | outgoing
+        available = self.PickingObj.search(
+            [
+                ("id", "in", scope.ids),
+                (
+                    "products_availability_state",
+                    "in",
+                    ["available", "expected", "late"],
+                ),
+            ],
+        )
+        self.assertEqual(
+            available,
+            outgoing,
+            "an incoming picking must not leak into the availability search",
+        )
+        as_false = self.PickingObj.search(
+            [
+                ("id", "in", scope.ids),
+                ("products_availability_state", "in", [False]),
+            ],
+        )
+        self.assertEqual(
+            as_false,
+            incoming,
+            "an incoming picking must be found by the False availability search",
+        )
