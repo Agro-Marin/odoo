@@ -47,7 +47,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
         self.env['sale.order.line'].create({
             'name': self.product.name,
             'product_id': self.product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'price_unit': self.product.list_price,
             'tax_ids': False,
             'order_id': so.id,
@@ -68,7 +68,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
                 {
                     "name": self.product.name,
                     "product_id": self.product.id,
-                    "product_uom_qty": 2,
+                    "product_qty": 2,
                     "price_unit": self.product.list_price,
                     "tax_ids": False,
                 })],
@@ -84,7 +84,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
                 {
                     "name": self.product.name,
                     "product_id": self.product.id,
-                    "product_uom_qty": 1,
+                    "product_qty": 1,
                     "price_unit": self.product.list_price,
                     "tax_ids": False,
                 })],
@@ -93,7 +93,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
         self.assertEqual(pol.product_qty, 3)
 
         # Edit a SOL, it should update the PO line
-        sale_order.line_ids.product_uom_qty += 1
+        sale_order.line_ids.product_qty += 1
         self.assertEqual(pol.product_qty, 4)
 
     def test_dynamic_lead_time_delay(self):
@@ -111,9 +111,9 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
             'partner_id': self.partner_b.id,
             'line_ids': [(0, 0, {
                 'product_id': product.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
             })],
-            'commitment_date': fields.Date.today() + timedelta(days=10),
+            'date_commitment': fields.Date.today() + timedelta(days=10),
         })
         sale_order.action_confirm()
         orderpoint = self.env['stock.warehouse.orderpoint'].create({

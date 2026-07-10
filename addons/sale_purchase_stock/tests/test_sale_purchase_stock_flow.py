@@ -74,7 +74,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'line_ids': [(0, 0, {
                 'name': self.mto_product.name,
                 'product_id': self.mto_product.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
                 'price_unit': 1,
             })],
         })
@@ -95,10 +95,10 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
         self.assertEqual(delivery.state, 'done')
         self.assertEqual(delivery.move_ids.move_line_ids.quantity, 12)
-        self.assertEqual(so.line_ids.qty_delivered, 12)
+        self.assertEqual(so.line_ids.qty_transferred, 12)
 
         sm.move_line_ids.quantity = 10
-        self.assertEqual(so.line_ids.qty_delivered, 10)
+        self.assertEqual(so.line_ids.qty_transferred, 10)
 
     def test_sale_need_purchase_variants(self):
         """
@@ -146,13 +146,13 @@ class TestSalePurchaseStockFlow(TransactionCase):
                 Command.create({
                     'name': red_product.name,
                     'product_id': red_product.id,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'price_unit': 20,
                 }),
                 Command.create({
                     'name': blue_product.name,
                     'product_id': blue_product.id,
-                    'product_uom_qty': 3,
+                    'product_qty': 3,
                     'price_unit': 30,
                 }),
             ],
@@ -238,7 +238,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         self.assertEqual(delivery.move_ids.mapped('procure_method'), ['make_to_order', 'make_to_stock'])
         line_2 = so.line_ids.filtered(lambda sol: sol.product_id == product_2)
         # Updating the SO line should trigger another delivery, as the product in the first picking is in MTS and not in MTO
-        line_2.product_uom_qty = 0
+        line_2.product_qty = 0
         self.assertEqual(so.count_transfer_outgoing, 2)
         self.assertRecordValues(delivery.move_ids, [
             {'product_id': product_1.id, 'product_uom_qty': 1.0},
@@ -261,7 +261,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
                 Command.create({
                     'name': self.mto_product.name,
                     'product_id': self.mto_product.id,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'product_uom_id': self.mto_product.uom_id.id,
                     'price_unit': 10,
                 }),
@@ -283,7 +283,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         ])
         with Form(so) as so_form:
             with so_form.line_ids.edit(0) as line:
-                line.product_uom_qty = 1
+                line.product_qty = 1
         self.assertEqual(so.picking_ids, delivery | new_delivery)
         self.assertRecordValues(new_delivery.move_ids, [
             {'product_id': self.mto_product.id, 'product_uom_qty': 1.0},
@@ -317,7 +317,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
         sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
-            'line_ids': [Command.create({'product_id': product.id,'product_uom_qty': 2})],
+            'line_ids': [Command.create({'product_id': product.id,'product_qty': 2})],
         })
         sale_order.action_confirm()
         pick_picking = sale_order.picking_ids[0]
@@ -367,11 +367,11 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'line_ids': [
                 Command.create({
                     'product_id': self.mto_product.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }),
                 Command.create({
                     'product_id': self.mto_product_without_seller.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }),
             ],
         })
@@ -422,7 +422,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'line_ids': [Command.create({
                 'name': fuzzy_drink.name,
                 'product_id': fuzzy_drink.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
                 'product_uom_id': self.env.ref('uom.product_uom_unit').id,
             })],
         })
@@ -437,7 +437,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'line_ids': [Command.create({
                 'name': fuzzy_drink.name,
                 'product_id': fuzzy_drink.id,
-                'product_uom_qty': 15,
+                'product_qty': 15,
                 'product_uom_id': self.env.ref('uom.product_uom_unit').id,
             })]
         })
@@ -488,7 +488,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'warehouse_id': self.warehouse.id,
             'line_ids': [Command.create({
                 'product_id': product.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 50,
             })]
         } for _ in range(2)])
@@ -520,7 +520,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
                 'partner_id': self.customer.id,
                 'line_ids': [Command.create({
                     'product_id': self.mto_product.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 })],
                 'warehouse_id': wh.id,
             }])
@@ -531,10 +531,16 @@ class TestSalePurchaseStockFlow(TransactionCase):
         purchase_orders.action_confirm()
         self.assertListEqual(sale_orders.picking_ids.move_ids.move_orig_ids.ids, purchase_orders.picking_ids.move_ids.ids)
         purchase_orders.picking_ids.action_cancel()
-        self.assertListEqual(sale_orders.picking_ids.mapped('state'), ['confirmed', 'confirmed'])
-        self.assertFalse(sale_orders.picking_ids.move_ids.move_orig_ids)
-        sale_orders.picking_ids.action_assign()
-        self.assertListEqual(sale_orders.picking_ids.move_ids.mapped('quantity'), [1.0, 1.0])
+        # This fork links every MTO-chain picking (including the now-cancelled receipt) to
+        # the SO via the shared stock.reference, so `picking_ids` is no longer delivery-only;
+        # scope to the outgoing deliveries, which is what this test is actually about.
+        deliveries = sale_orders.picking_ids.filtered(
+            lambda p: p.picking_type_id.code == 'outgoing'
+        )
+        self.assertListEqual(deliveries.mapped('state'), ['confirmed', 'confirmed'])
+        self.assertFalse(deliveries.move_ids.move_orig_ids)
+        deliveries.action_assign()
+        self.assertListEqual(deliveries.move_ids.mapped('quantity'), [1.0, 1.0])
 
     def test_reordering_rule_not_merged_into_so_po(self):
         """ With group_rfq='default' (On Order), a reordering rule

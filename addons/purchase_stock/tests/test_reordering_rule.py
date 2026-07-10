@@ -35,8 +35,11 @@ class TestReorderingRule(TransactionCase):
         with product_form.seller_ids.new() as seller:
             seller.partner_id = cls.partner
             seller.product_uom_id = product_form.uom_id
-        product_form.route_ids.add(cls.buy_route)
         cls.product_01 = product_form.save()
+        # This fork ships Buy as a warehouse route (product_selectable=False), so the
+        # product form hides the route_ids selector. Assign the route directly instead of
+        # through the (now hidden) Form widget, preserving the original test intent.
+        cls.product_01.route_ids = cls.buy_route
 
     def test_reordering_rule_1(self):
         """
@@ -380,12 +383,13 @@ class TestReorderingRule(TransactionCase):
         product_form = Form(self.env['product.product'])
         product_form.name = 'Product BUY + MTO'
         product_form.is_storable = True
-        product_form.route_ids.add(route_buy)
-        product_form.route_ids.add(route_mto)
         with product_form.seller_ids.new() as s:
             s.partner_id = partner
             s.product_uom_id = product_form.uom_id
         product_buy_mto = product_form.save()
+        # Buy is a warehouse route here (not product-selectable), so assign the routes
+        # directly rather than through the now-hidden product-form route selector.
+        product_buy_mto.route_ids = route_buy | route_mto
 
         # Create Delivery Order of 20 product and 10 buy + MTO
         picking_form = Form(self.env['stock.picking'])
@@ -480,12 +484,13 @@ class TestReorderingRule(TransactionCase):
         product_form = Form(self.env['product.product'])
         product_form.name = 'Product BUY + MTO'
         product_form.is_storable = True
-        product_form.route_ids.add(route_buy)
-        product_form.route_ids.add(route_mto)
         with product_form.seller_ids.new() as s:
             s.partner_id = partner
             s.product_uom_id = product_form.uom_id
         product_buy_mto = product_form.save()
+        # Buy is a warehouse route here (not product-selectable), so assign the routes
+        # directly rather than through the now-hidden product-form route selector.
+        product_buy_mto.route_ids = route_buy | route_mto
 
         # Create Delivery Order of 20 product and 10 buy + MTO
         picking_form = Form(self.env['stock.picking'])
