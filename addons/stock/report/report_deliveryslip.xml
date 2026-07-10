@@ -91,7 +91,7 @@
                                     <span t-field="move.product_uom_id" groups="uom.group_uom">units</span>
                                     <t t-if="move.packaging_uom_id != move.product_uom_id" groups="uom.group_uom">
                                         <br/>
-                                        <span class="text-muted" t-field="move.packaging_uom_qty">1.00</span>
+                                        <span class="text-muted" t-field="move.quantity_packaging_uom">1.00</span>
                                         <span class="text-muted" t-field="move.packaging_uom_id">Pack of 6</span>
                                     </t>
                                 </td>
